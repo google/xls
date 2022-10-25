@@ -80,9 +80,8 @@ struct JittedFunctionBase {
   // Size of the temporary buffer required by `function`.
   int64_t temp_buffer_size;
 
-  // Map from the continuation point value to the corresponding node at which
-  // execution was interrupted. Generally, these nodes will be blocking receive
-  // nodes.
+  // Map from the continuation point return value to the corresponding node at
+  // which execution was interrupted.
   absl::flat_hash_map<int64_t, Node*> continuation_points;
 };
 

@@ -24,79 +24,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/ir/channel.h"
+#include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 namespace xls {
-
-// Abstract base class representing a continuation for the evaluation of a
-// Proc. The continuation captures the control and data state of the execution
-// of a proc tick.
-class ProcContinuation {
- public:
-  virtual ~ProcContinuation() = default;
-
-  // Returns the Proc state at the beginning of the tick currently being
-  // executed.
-  virtual std::vector<Value> GetState() const = 0;
-
-  // Returns the events recorded during execution of this continuation.
-  virtual const InterpreterEvents& GetEvents() const = 0;
-  virtual InterpreterEvents& GetEvents() = 0;
-
-  // Returns true if the point of execution of this continuation is at the start
-  // of a tick, rather than, for example, blocked on a receive in the middle of
-  // a tick execution.
-  virtual bool AtStartOfTick() const = 0;
-};
-
-// Data structure holding the result of a single call to Tick.
-struct TickResult {
-  // Whether the proc completed executing for this tick. Execution is not
-  // completed if (and only if) a receive operation is blocked.
-  bool tick_complete;
-
-  // Whether any progress was made (at least one instruction was executed).
-  bool progress_made;
-
-  // If the proc is blocked on receive (iteration complete is false), this
-  // vector includes the channels which have blocked operations.
-  std::optional<Channel*> blocked_channel;
-
-  // Vector of channels which were sent on by this proc in this invocation of
-  // Tick.
-  std::vector<Channel*> sent_channels;
-
-  bool operator==(const TickResult& other) const;
-  bool operator!=(const TickResult& other) const;
-
-  std::string ToString() const;
-};
-
-std::ostream& operator<<(std::ostream& os, const TickResult& result);
-
-// Abstract base class for evaluators of procs (e.g., interpreter or JIT).
-class ProcEvaluator {
- public:
-  virtual ~ProcEvaluator() = default;
-
-  // Creates and returns a new continuation for the proc. The continuation is
-  // initialized to start execution at the beginning of the proc with state set
-  // to its initial value.
-  virtual std::unique_ptr<ProcContinuation> NewContinuation() const = 0;
-
-  // Runs the proc from the given continuation until the tick is complete or
-  // execution is blocked on a receive operation. The continuation is updated in
-  // place to reflect the new execution point. If the proc tick completes, the
-  // continuation is set to execute the next tick on the subsequent invocation
-  // of Tick.
-  virtual absl::StatusOr<TickResult> Tick(
-      ProcContinuation& continuation) const = 0;
-
-  virtual Proc* proc() const = 0;
-};
 
 // A continuation used by the ProcInterpreter.
 class ProcInterpreterContinuation : public ProcContinuation {
@@ -143,7 +76,7 @@ class ProcInterpreterContinuation : public ProcContinuation {
 
 // A interpreter for an individual proc. Incrementally executes Procs a single
 // tick at a time. Data is fed to the proc via ChannelQueues.  ProcInterpreters
-// are thread-save if called with different continuations.
+// are thread-safe if called with different continuations.
 class ProcInterpreter : public ProcEvaluator {
  public:
   ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager);

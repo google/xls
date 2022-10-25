@@ -75,12 +75,11 @@ cc_library(
     deps = [
         ":channel_queue",
         ":ir_interpreter",
+        ":proc_evaluator",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common/logging:log_lines",
         "//xls/ir",
-        "//xls/ir:channel",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
     ],
@@ -90,15 +89,13 @@ cc_test(
     name = "proc_interpreter_test",
     srcs = ["proc_interpreter_test.cc"],
     deps = [
+        ":channel_queue",
+        ":proc_evaluator",
+        ":proc_evaluator_test_base",
         ":proc_interpreter",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
+        "//xls/ir",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -226,6 +223,38 @@ cc_library(
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "proc_evaluator",
+    srcs = ["proc_evaluator.cc"],
+    hdrs = ["proc_evaluator.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "proc_evaluator_test_base",
+    testonly = True,
+    srcs = ["proc_evaluator_test_base.cc"],
+    hdrs = ["proc_evaluator_test_base.h"],
+    deps = [
+        ":channel_queue",
+        ":proc_evaluator",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

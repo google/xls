@@ -68,7 +68,7 @@ absl::Status SerialProcRuntime::Tick(bool print_traces) {
           TickResult result,
           proc_jits_.at(proc.get())->Tick(*continuations_.at(proc.get())));
       progress_made = progress_made || result.progress_made;
-      if (result.tick_complete) {
+      if (result.execution_state == TickExecutionState::kCompleted) {
         completed_procs.insert(proc.get());
       }
     }

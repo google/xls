@@ -110,6 +110,8 @@ class FixedValueGenerator {
 // convenience methods.
 class ChannelQueueManager {
  public:
+  virtual ~ChannelQueueManager() = default;
+
   // Creates and returns a queue manager for the given package.
   static absl::StatusOr<std::unique_ptr<ChannelQueueManager>> Create(
       Package* package);

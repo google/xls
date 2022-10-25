@@ -320,17 +320,46 @@ class BufferAllocator {
 // The maximum number of xls::Nodes in a partition.
 static constexpr int64_t kMaxPartitionSize = 100;
 
+// Abstraction representing a point (partition function) at which an early exit
+// can occur.
+struct EarlyExitPoint {
+  // A unique identifier for this early exit point. ID's are numbered starting
+  // at 1 (0 is a special value).
+  int64_t id;
+  // The ID of the resume point (partition) at which execution should continue
+  // when execution is restarted after the early exit.
+  int64_t resume_point_id;
+};
+
+// Abstraction representing a point (partition function) at which execution can
+// resume after an early exit.
+struct ResumePoint {
+  // A unique identifier for this resume point. ID's are numbered starting
+  // at 0.
+  int64_t id;
+};
+
 // Data structure holding a set of nodes which should be emitted together in a
 // single LLVM function.
 struct Partition {
   // Whether this partition is a point at which execution of the FunctionBase
   // can be interrupted and resumed.
-  std::optional<int64_t> continuation_point;
+  std::optional<EarlyExitPoint> early_exit_point;
+  std::optional<ResumePoint> resume_point;
   std::vector<Node*> nodes;
 };
 
-bool IsContinuationPoint(Node* node) {
-  return node->Is<Receive>() && node->As<Receive>()->is_blocking();
+bool IsEarlyExitPoint(Node* node) {
+  return (node->Is<Receive>() && node->As<Receive>()->is_blocking()) ||
+         node->Is<Send>();
+}
+
+// For early exit point node `node`, returns whether the execution should
+// continue after `node` when execution resumes. If false, then execution
+// continues before `node`.
+bool ExecutionContinuesAfterNode(Node* node) {
+  XLS_CHECK(IsEarlyExitPoint(node));
+  return node->Is<Send>();
 }
 
 // Divides the nodes of the given function base into a topologically sorted
@@ -339,23 +368,35 @@ bool IsContinuationPoint(Node* node) {
 // TODO(meheff): 2022/09/09 Tune this algorithm to maximize performance.
 std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
   absl::flat_hash_map<Node*, int64_t> partition_map;
-  absl::flat_hash_set<int64_t> continuation_partitions;
+  // Partitions at which execution may resume after an early exit.
+  absl::flat_hash_set<int64_t> resume_partitions;
+  // Partitions at which execution may exit early. Value is whether execution
+  // resumes after or at the point where execution broke.
+  enum Resume { kNextPartition, kThisPartition };
+  absl::flat_hash_map<int64_t, Resume> early_exit_partitions;
 
   // Naively assign nodes to partitions based on a topological sort. First N
   // nodes go to partition 0, next N nodes go to partition 1, etc.
   int64_t current_partition = 0;
   int64_t partition_size = 0;
   for (Node* node : TopoSort(f)) {
-    if (IsContinuationPoint(node)) {
+    if (IsEarlyExitPoint(node)) {
       XLS_CHECK(f->IsProc())
-          << "Receive nodes are only supported in procs in the JIT";
-      // Nodes which form continuation points are placed in their own
-      // partition.
+          << "Early exit points are only supported in procs in the JIT";
+      // Nodes which are early exits are placed in their own partition.
       if (partition_size != 0) {
         ++current_partition;
       }
       partition_map[node] = current_partition;
-      continuation_partitions.insert(current_partition);
+      if (ExecutionContinuesAfterNode(node)) {
+        early_exit_partitions.insert(
+            {current_partition, Resume::kNextPartition});
+        resume_partitions.insert(current_partition + 1);
+      } else {
+        early_exit_partitions.insert(
+            {current_partition, Resume::kThisPartition});
+        resume_partitions.insert(current_partition);
+      }
       ++current_partition;
       partition_size = 0;
       continue;
@@ -376,31 +417,44 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
       for (Node* user : node->users()) {
         min_partition = std::min(min_partition, partition_map.at(user));
       }
-      // Avoid putting literals in continuation partitions. These partitions
+      // Avoid putting literals in early exit partitions. These partitions
       // should only have a single node.
       if (min_partition != std::numeric_limits<int64_t>::max() &&
-          !continuation_partitions.contains(min_partition)) {
+          !early_exit_partitions.contains(min_partition)) {
         partition_map[node] = min_partition;
       }
     }
   }
 
-  // Assemble nodes into partitions;
-  std::vector<Partition> partitions;
+  // Assemble nodes into partitions. `current_partition` is the maximum number
+  // of any partition.
+  std::vector<Partition> partitions(current_partition + 1);
   for (Node* node : TopoSort(f)) {
     int64_t partition = partition_map.at(node);
-    if (partitions.size() <= partition) {
-      partitions.resize(partition + 1);
-    }
-    partitions[partition].nodes.push_back(node);
+    partitions.at(partition).nodes.push_back(node);
   }
 
-  // Number continuation points starting at one because zero has special meaning
-  // (beginning of proc).
-  int64_t continuation_point = 1;
+  // Set up partitions which may be resume points.
+  int64_t resume_point_id = 0;
   for (int64_t i = 0; i < partitions.size(); ++i) {
-    if (continuation_partitions.contains(i)) {
-      partitions[i].continuation_point = continuation_point++;
+    if (resume_partitions.contains(i)) {
+      partitions[i].resume_point = ResumePoint{.id = resume_point_id};
+      ++resume_point_id;
+    }
+  }
+
+  // Set up partitions which may be early exit points. Number early exit points
+  // starting at one because zero has special meaning (beginning of proc).
+  int64_t early_exit_point_id = 1;
+  for (int64_t i = 0; i < partitions.size(); ++i) {
+    if (early_exit_partitions.contains(i)) {
+      partitions[i].early_exit_point = EarlyExitPoint{
+          .id = early_exit_point_id,
+          .resume_point_id =
+              early_exit_partitions.at(i) == Resume::kNextPartition
+                  ? partitions.at(i + 1).resume_point->id
+                  : partitions.at(i).resume_point->id};
+      ++early_exit_point_id;
     }
   }
 
@@ -442,7 +496,7 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
 // The return value of the function indicates whether the execution of the
 // FunctionBase should be interrupted (return true) or continue (return
 // false). The return value is only checked for partitions which are
-// continuation points (ie, contain a blocking receive).
+// early exit points (e.g., contain a blocking receive).
 //
 // `global_input_nodes` and `global_output_nodes` are the set of nodes whose
 // buffers are passed in via the `input`/`output` arguments of the function.
@@ -457,7 +511,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
   llvm::IRBuilder<>& b = wrapper.entry_builder();
 
   // Whether to interrupt execution of the FunctionBase. Only used for
-  // partitions which are continuation points (ie, have a blocking receive).
+  // partitions which are early exit points (e.g., have a blocking receive).
   llvm::Value* interrupt_execution = nullptr;
 
   // The pointers to the buffers of nodes in the partition.
@@ -554,7 +608,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     }
     llvm::CallInst* node_blocked = b.CreateCall(node_function.function, args);
 
-    if (partition.continuation_point.has_value()) {
+    if (partition.early_exit_point.has_value()) {
       XLS_RET_CHECK_EQ(partition.nodes.size(), 1);
       interrupt_execution = node_blocked;
     }
@@ -625,9 +679,9 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
 // function contains a sequence of calls to partition functions where each
 // partition only implements a subset of the FunctionBase's nodes. This
 // partitioning is performed to avoid slow compile time in LLVM due to function
-// size scaling issues. Continuation points may be added to handle interruption
-// of execution (for example, for blocked receives). The jitted function
-// implementing `f` might look like:
+// size scaling issues. Early exit and resume points may be added to handle
+// interruption of execution (for example, for blocked receives). The jitted
+// function implementing `f` might look like:
 //
 //    int64_t
 //    __f(const uint8_t* const* inputs,
@@ -639,8 +693,8 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
 //        int64_t continuation_point) {
 //     entry:
 //      switch i64 %continuation_point, label %start [
-//        i64 1, label %continuation_1
-//        i64 2, label %continuation_2
+//        i64 1, label %resume_point_1
+//        i64 2, label %resume_point_2
 //        ...
 //      ]
 //
@@ -650,10 +704,11 @@ std::vector<Node*> GetJittedFunctionOutputs(FunctionBase* function_base) {
 //      __f_partition_1(inputs, outputs, temp_buffer,
 //                      events, user_data, jit_runtime)
 //      ...
-//     continuation_1:
+//     resume_point_1:
 //      __f_partition_n(inputs, outputs, temp_buffer,
 //                      events, user_data, jit_runtime)
 //      ...
+//     resume_point_n:
 //      return 0;
 //   }
 //
@@ -706,43 +761,44 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
       /*InsertBefore=*/nullptr);
   auto builder = std::make_unique<llvm::IRBuilder<>>(start_block);
 
-  std::vector<llvm::BasicBlock*> continuation_blocks;
+  std::vector<llvm::BasicBlock*> resume_blocks;
   for (int64_t i = 0; i < partitions.size(); ++i) {
-    if (partitions[i].continuation_point.has_value()) {
-      // Partition is a continuation point, create a new basic block which can
-      // be the target of a branch.
-      llvm::BasicBlock* continuation_block = llvm::BasicBlock::Create(
+    if (partitions[i].resume_point.has_value()) {
+      // Partition is a point at which execution can resume, create a new basic
+      // block which can be the target of a branch.
+      llvm::BasicBlock* resume_block = llvm::BasicBlock::Create(
           jit_context.context(),
-          absl::StrFormat("continuation_%d",
-                          partitions[i].continuation_point.value()),
+          absl::StrFormat("resume_point_%d", partitions[i].resume_point->id),
           wrapper.function(),
           /*InsertBefore=*/nullptr);
-      continuation_blocks.push_back(continuation_block);
-      builder->CreateBr(continuation_block);
-      builder = std::make_unique<llvm::IRBuilder<>>(continuation_block);
+      // The index in the resume block should correspond to the resume point id.
+      XLS_CHECK_EQ(resume_blocks.size(), partitions[i].resume_point->id);
+      resume_blocks.push_back(resume_block);
+      builder->CreateBr(resume_block);
+      builder = std::make_unique<llvm::IRBuilder<>>(resume_block);
     }
 
     llvm::Function* partition_function = partition_functions[i];
     llvm::CallInst* interrupt_execution = builder->CreateCall(
         partition_function->getFunctionType(), partition_function, args);
 
-    if (partitions[i].continuation_point.has_value()) {
-      // Execution may also exit at continuation points. Check for early exit
-      // (partition function returns true).
+    if (partitions[i].early_exit_point.has_value()) {
+      // Execution may exit at this point. Check for early exit (partition
+      // function returns true).
       llvm::BasicBlock* early_return = llvm::BasicBlock::Create(
           jit_context.context(),
-          absl::StrFormat("continuation_%d_early_return",
-                          partitions[i].continuation_point.value()),
+          absl::StrFormat("early_exit_%d_return",
+                          partitions[i].early_exit_point->id),
           wrapper.function(),
           /*InsertBefore=*/nullptr);
       llvm::IRBuilder<> early_return_builder(early_return);
-      early_return_builder.CreateRet(early_return_builder.getInt64(
-          partitions[i].continuation_point.value()));
+      early_return_builder.CreateRet(
+          early_return_builder.getInt64(partitions[i].early_exit_point->id));
 
       llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(
           jit_context.context(),
-          absl::StrFormat("continuation_%d_continue",
-                          partitions[i].continuation_point.value()),
+          absl::StrFormat("early_exit_%d_continue",
+                          partitions[i].early_exit_point->id),
           wrapper.function(),
           /*InsertBefore=*/nullptr);
       builder->CreateCondBr(interrupt_execution, early_return, continue_block);
@@ -764,17 +820,21 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
   // Return zero indicating that the execution of the FunctionBase completed.
   builder->CreateRet(builder->getInt64(0));
 
-  if (continuation_blocks.empty()) {
+  if (resume_blocks.empty()) {
     // Just jump from the entry block to the first block.
     wrapper.entry_builder().CreateBr(start_block);
   } else {
     // Add a switch at the entry block to jump to the appropriate continuation
-    // point.
+    // point. The continuation point value passed into the function is the exit
+    // point id.
     llvm::SwitchInst* swtch = wrapper.entry_builder().CreateSwitch(
         wrapper.GetExtraArg().value(), start_block);
-    for (int64_t i = 0; i < continuation_blocks.size(); ++i) {
-      swtch->addCase(wrapper.entry_builder().getInt64(i + 1),
-                     continuation_blocks[i]);
+    for (const Partition& partition : partitions) {
+      if (partition.early_exit_point.has_value()) {
+        swtch->addCase(
+            wrapper.entry_builder().getInt64(partition.early_exit_point->id),
+            resume_blocks[partition.early_exit_point->resume_point_id]);
+      }
     }
   }
   return PartitionedFunction{.function = wrapper.function(),
@@ -1079,7 +1139,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
         &wrapper.entry_builder());
   }
 
-  // Return value of zero means that the functoinbase completed execution.
+  // Return value of zero means that the FunctionBase completed execution.
   wrapper.entry_builder().CreateRet(continuation_result);
 
   return wrapper.function();
@@ -1148,12 +1208,11 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
   }
   jitted_function.temp_buffer_size = allocator.size();
 
-  // Indicate which nodes correspond to which continuation points.
+  // Indicate which nodes correspond to which early exit points.
   for (const Partition& partition : top_partitions) {
-    if (partition.continuation_point.has_value()) {
+    if (partition.early_exit_point.has_value()) {
       XLS_RET_CHECK_EQ(partition.nodes.size(), 1);
-      jitted_function
-          .continuation_points[partition.continuation_point.value()] =
+      jitted_function.continuation_points[partition.early_exit_point->id] =
           partition.nodes.front();
     }
   }

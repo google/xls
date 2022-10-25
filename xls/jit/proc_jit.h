@@ -15,11 +15,10 @@
 #ifndef XLS_JIT_PROC_JIT_H_
 #define XLS_JIT_PROC_JIT_H_
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/interpreter/proc_interpreter.h"
+#include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"

@@ -131,32 +131,6 @@ class ProcIrInterpreter : public IrInterpreter {
 
 }  // namespace
 
-bool TickResult::operator==(const TickResult& other) const {
-  return tick_complete == other.tick_complete &&
-         progress_made == other.progress_made &&
-         blocked_channel == other.blocked_channel &&
-         sent_channels == other.sent_channels;
-}
-
-bool TickResult::operator!=(const TickResult& other) const {
-  return !(*this == other);
-}
-
-std::string TickResult::ToString() const {
-  return absl::StrFormat(
-      "{ tick_complete=%s, progress_made=%s, "
-      "blocked_channel=%s, sent_channels={%s} }",
-      tick_complete ? "true" : "false", progress_made ? "true" : "false",
-      blocked_channel.has_value() ? blocked_channel.value()->ToString()
-                                  : "(none)",
-      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
-}
-
-std::ostream& operator<<(std::ostream& os, const TickResult& result) {
-  os << result.ToString();
-  return os;
-}
-
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
     : proc_(proc),
       queue_manager_(queue_manager),
@@ -185,19 +159,28 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
     XLS_ASSIGN_OR_RETURN(ProcIrInterpreter::NodeResult result,
                          ir_interpreter.ExecuteNode(node));
     if (result.sent_channel.has_value()) {
-      sent_channels.push_back(result.sent_channel.value());
+      // Early exit: proc sent on a channel. Execution should resume _after_ the
+      // send.
+      cont->SetNodeExecutionIndex(i + 1);
+      // Raise a status error if interpreter events indicate failure such as a
+      // failed assert.
+      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+      return TickResult{
+          .execution_state = TickExecutionState::kSentOnChannel,
+          .channel = result.sent_channel.value(),
+          .progress_made = cont->GetNodeExecutionIndex() != starting_index};
     }
     if (result.blocked_channel.has_value()) {
-      // Proc is blocked at a receive node waiting for data on a channel.
+      // Early exit: proc is blocked at a receive node waiting for data on a
+      // channel. Execution should resume at the send.
       cont->SetNodeExecutionIndex(i);
       // Raise a status error if interpreter events indicate failure such as a
       // failed assert.
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
       return TickResult{
-          .tick_complete = false,
-          .progress_made = cont->GetNodeExecutionIndex() != starting_index,
-          .blocked_channel = result.blocked_channel,
-          .sent_channels = sent_channels};
+          .execution_state = TickExecutionState::kBlockedOnReceive,
+          .channel = result.blocked_channel.value(),
+          .progress_made = cont->GetNodeExecutionIndex() != starting_index};
     }
   }
 
@@ -214,10 +197,9 @@ absl::StatusOr<TickResult> ProcInterpreter::Tick(
   // failed assert.
   XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
 
-  return TickResult{.tick_complete = true,
-                    .progress_made = true,
-                    .blocked_channel = std::nullopt,
-                    .sent_channels = sent_channels};
+  return TickResult{.execution_state = TickExecutionState::kCompleted,
+                    .channel = std::nullopt,
+                    .progress_made = true};
 }
 
 }  // namespace xls

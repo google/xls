@@ -2939,15 +2939,23 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
     b.CreateCondBr(predicate, true_block, false_block);
 
     auto exit_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+
+    // The node function should return true if data was sent. This will trigger
+    // an early exit from the top-level function.
     return FinalizeNodeIrContextWithValue(std::move(node_context),
                                           type_converter()->GetToken(),
-                                          exit_builder.get());
+                                          exit_builder.get(),
+                                          /*return_value=*/predicate);
   }
   // Unconditional send.
   XLS_RETURN_IF_ERROR(SendToQueue(&b, &queue, send, data_ptr, user_data));
 
-  return FinalizeNodeIrContextWithValue(std::move(node_context),
-                                        type_converter()->GetToken());
+  // The node function should return true if data was sent. This will trigger
+  // an early exit from the top-level function.
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context), type_converter()->GetToken(),
+      /*exit_builder=*/&node_context.entry_builder(),
+      /*return_value=*/node_context.entry_builder().getTrue());
 }
 
 }  // namespace

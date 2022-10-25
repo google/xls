@@ -90,40 +90,48 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   ProcJitContinuation* cont = dynamic_cast<ProcJitContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr)
       << "ProcJit requires a continuation of type ProcJitContinuation";
-  InterpreterEvents events;
-
   int64_t start_continuation_point = cont->GetContinuationPoint();
+
+  // The jitted function returns the early exit point at which execution
+  // halted. A return value of zero indicates that the tick completed.
   int64_t next_continuation_point = jitted_function_base_.function(
       cont->GetInputBuffers().data(), cont->GetOutputBuffers().data(),
       cont->GetTempBuffer().data(), &cont->GetEvents(),
       /*user_data=*/nullptr, runtime(), cont->GetContinuationPoint());
 
-  std::optional<Channel*> blocked_channel;
   if (next_continuation_point == 0) {
     // The proc successfully completed its tick.
     cont->NextTick();
-  } else {
-    // The proc is blocked. Determine which node (and associated channel) the
-    // node is blocked on.
-    cont->SetContinuationPoint(next_continuation_point);
-    XLS_RET_CHECK(jitted_function_base_.continuation_points.contains(
-        next_continuation_point));
-    Node* blocked_node =
-        jitted_function_base_.continuation_points.at(next_continuation_point);
-    XLS_RET_CHECK(blocked_node->Is<Receive>());
-    XLS_ASSIGN_OR_RETURN(blocked_channel,
-                         proc()->package()->GetChannel(
-                             blocked_node->As<Receive>()->channel_id()));
+    return TickResult{.execution_state = TickExecutionState::kCompleted,
+                      .channel = std::nullopt,
+                      .progress_made = true};
   }
+  // The proc did not complete the tick. Determine at which node execution was
+  // interrupted.
+  cont->SetContinuationPoint(next_continuation_point);
+  XLS_RET_CHECK(jitted_function_base_.continuation_points.contains(
+      next_continuation_point));
+  Node* early_exit_node =
+      jitted_function_base_.continuation_points.at(next_continuation_point);
+  if (early_exit_node->Is<Send>()) {
+    // Execution exited after sending data on a channel.
+    XLS_ASSIGN_OR_RETURN(Channel * sent_channel,
+                         proc()->package()->GetChannel(
+                             early_exit_node->As<Send>()->channel_id()));
+    // The send executed so some progress should have been made.
+    XLS_RET_CHECK_NE(next_continuation_point, start_continuation_point);
+    return TickResult{.execution_state = TickExecutionState::kSentOnChannel,
+                      .channel = sent_channel,
+                      .progress_made = true};
+  }
+  XLS_RET_CHECK(early_exit_node->Is<Receive>());
+  XLS_ASSIGN_OR_RETURN(Channel * blocked_channel,
+                       proc()->package()->GetChannel(
+                           early_exit_node->As<Receive>()->channel_id()));
   return TickResult{
-      .tick_complete = next_continuation_point == 0,
-      .progress_made = next_continuation_point == 0 ||
-                       next_continuation_point != start_continuation_point,
-      .blocked_channel = blocked_channel,
-      // TODO(meheff): 2022/09/23 Add the channels the proc sent on here, or
-      // alternatively devise a different mechanism for determining which procs
-      // to wake up.
-      .sent_channels = {}};
+      .execution_state = TickExecutionState::kBlockedOnReceive,
+      .channel = blocked_channel,
+      .progress_made = next_continuation_point != start_continuation_point};
 }
 
 }  // namespace xls

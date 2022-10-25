@@ -200,6 +200,8 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
 // A Channel manager which holds exclusively JitChannelQueues.
 class JitChannelQueueManager : public ChannelQueueManager {
  public:
+  virtual ~JitChannelQueueManager() = default;
+
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>

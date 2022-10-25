@@ -160,7 +160,8 @@ ProcNetworkInterpreter::TickInternal() {
     XLS_VLOG(3) << "Tick result: " << tick_result;
 
     progress_made |= tick_result.progress_made;
-    for (Channel* channel : tick_result.sent_channels) {
+    if (tick_result.execution_state == TickExecutionState::kSentOnChannel) {
+      Channel* channel = tick_result.channel.value();
       if (blocked_procs.contains(channel)) {
         XLS_VLOG(3) << absl::StreamFormat(
             "Unblocking proc `%s` and adding to ready list",
@@ -168,12 +169,15 @@ ProcNetworkInterpreter::TickInternal() {
         ready_procs.push_back(blocked_procs.at(channel));
         blocked_procs.erase(channel);
       }
-    }
-    if (tick_result.blocked_channel.has_value()) {
+      // This proc can go back on the ready queue.
+      ready_procs.push_back(proc);
+    } else if (tick_result.execution_state ==
+               TickExecutionState::kBlockedOnReceive) {
+      Channel* channel = tick_result.channel.value();
       XLS_VLOG(3) << absl::StreamFormat(
           "Proc `%s` is now blocked on channel `%s`", proc->name(),
-          tick_result.blocked_channel.value()->ToString());
-      blocked_procs[tick_result.blocked_channel.value()] = proc;
+          channel->ToString());
+      blocked_procs[channel] = proc;
     }
   }
   auto get_blocked_channels = [&]() {
