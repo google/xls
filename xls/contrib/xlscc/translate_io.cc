@@ -111,11 +111,11 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel type should be a template specialization"));
   }
-  if (template_spec->getNumArgs() != 1) {
+  if (template_spec->template_arguments().size() != 1) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel should have 1 template args"));
   }
-  const clang::TemplateArgument& arg = template_spec->getArg(0);
+  const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
   return TranslateTypeFromClang(arg.getAsType(), loc);
 }
 
