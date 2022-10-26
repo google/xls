@@ -345,6 +345,7 @@ op_models { op: "kArrayIndex" estimator { alias_op: "kOr" } }
 op_models { op: "kNor" estimator { alias_op: "kOr" } }
 op_models { op: "kNand" estimator { alias_op: "kAnd" } }
 op_models { op: "kOneHotSel" estimator { alias_op: "kOr" } }
+op_models { op: "kOrReduce" estimator { alias_op: "kOr" } }
 
 data_points {
   operation {
