@@ -408,6 +408,8 @@ py_test(
         ":sample_summary_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/ir/python:op",
+        "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_protobuf//:protobuf_python",
     ],

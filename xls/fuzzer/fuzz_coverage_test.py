@@ -17,11 +17,14 @@
 import os
 import subprocess
 
+from absl import logging
+
 from google.protobuf import text_format
 from absl.testing import absltest
 from xls.common import runfiles
 from xls.common import test_base
 from xls.fuzzer import sample_summary_pb2
+from xls.ir.python import op as ir_op
 
 RUN_FUZZ_MULTIPROCESS_PATH = runfiles.get_path(
     'xls/fuzzer/run_fuzz_multiprocess')
@@ -136,9 +139,92 @@ class FuzzCoverageTest(test_base.TestCase):
     crasher_path = self.create_tempdir().full_path
     summaries_path = self.create_tempdir().full_path
 
+    # Test coverage of all ops.
+    expect_seen = [
+        ir_op.Ir_Op.ADD,
+        ir_op.Ir_Op.AND,
+        ir_op.Ir_Op.AND_REDUCE,
+        ir_op.Ir_Op.ARRAY,
+        ir_op.Ir_Op.ARRAY_CONCAT,
+        ir_op.Ir_Op.ARRAY_INDEX,
+        ir_op.Ir_Op.ARRAY_SLICE,
+        ir_op.Ir_Op.ARRAY_UPDATE,
+        ir_op.Ir_Op.BIT_SLICE,
+        ir_op.Ir_Op.BIT_SLICE_UPDATE,
+        ir_op.Ir_Op.CONCAT,
+        ir_op.Ir_Op.COUNTED_FOR,
+        ir_op.Ir_Op.DYNAMIC_BIT_SLICE,
+        ir_op.Ir_Op.ENCODE,
+        ir_op.Ir_Op.EQ,
+        ir_op.Ir_Op.GATE,
+        ir_op.Ir_Op.LITERAL,
+        ir_op.Ir_Op.MAP,
+        ir_op.Ir_Op.NE,
+        ir_op.Ir_Op.NEG,
+        ir_op.Ir_Op.NOT,
+        ir_op.Ir_Op.ONE_HOT,
+        ir_op.Ir_Op.ONE_HOT_SEL,
+        ir_op.Ir_Op.OR,
+        ir_op.Ir_Op.OR_REDUCE,
+        ir_op.Ir_Op.PARAM,
+        ir_op.Ir_Op.PRIORITY_SEL,
+        ir_op.Ir_Op.REVERSE,
+        ir_op.Ir_Op.SDIV,
+        ir_op.Ir_Op.SEL,
+        ir_op.Ir_Op.SGE,
+        ir_op.Ir_Op.SGT,
+        ir_op.Ir_Op.SHLL,
+        ir_op.Ir_Op.SHRA,
+        ir_op.Ir_Op.SHRL,
+        ir_op.Ir_Op.SIGN_EXT,
+        ir_op.Ir_Op.SLE,
+        ir_op.Ir_Op.SLT,
+        ir_op.Ir_Op.SMUL,
+        ir_op.Ir_Op.SMULP,
+        ir_op.Ir_Op.SUB,
+        ir_op.Ir_Op.TUPLE,
+        ir_op.Ir_Op.TUPLE_INDEX,
+        ir_op.Ir_Op.UDIV,
+        ir_op.Ir_Op.UGE,
+        ir_op.Ir_Op.UGT,
+        ir_op.Ir_Op.ULE,
+        ir_op.Ir_Op.ULT,
+        ir_op.Ir_Op.UMUL,
+        ir_op.Ir_Op.UMULP,
+        ir_op.Ir_Op.XOR,
+        ir_op.Ir_Op.XOR_REDUCE,
+        ir_op.Ir_Op.ZERO_EXT,
+    ]
+    expect_not_seen = [
+        ir_op.Ir_Op.AFTER_ALL,
+        ir_op.Ir_Op.ASSERT,
+        ir_op.Ir_Op.COVER,
+        ir_op.Ir_Op.DECODE,
+        ir_op.Ir_Op.DYNAMIC_COUNTED_FOR,
+        ir_op.Ir_Op.IDENTITY,
+        ir_op.Ir_Op.INPUT_PORT,
+        ir_op.Ir_Op.INSTANTIATION_INPUT,
+        ir_op.Ir_Op.INSTANTIATION_OUTPUT,
+        ir_op.Ir_Op.INVOKE,
+        ir_op.Ir_Op.NAND,
+        ir_op.Ir_Op.NOR,
+        ir_op.Ir_Op.OUTPUT_PORT,
+        ir_op.Ir_Op.RECEIVE,
+        ir_op.Ir_Op.REGISTER_READ,
+        ir_op.Ir_Op.REGISTER_WRITE,
+        ir_op.Ir_Op.SEND,
+        ir_op.Ir_Op.SMOD,
+        ir_op.Ir_Op.TRACE,
+        ir_op.Ir_Op.UMOD,
+    ]
+    # The set of expected to be seen and expected to be not seen should cover
+    # all ops.
+    self.assertEqual(
+        len(expect_seen) + len(expect_not_seen), len(ir_op.all_ops()))
+
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=2000', '--summary_path=' + summaries_path,
+        '--sample_count=5000', '--summary_path=' + summaries_path,
         '--calls_per_sample=1', '--worker_count=4'
     ])
 
@@ -149,29 +235,24 @@ class FuzzCoverageTest(test_base.TestCase):
     self.assertGreater(summary.get_op_count('param', type_str='tuple'), 0)
     self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
 
-    # Test coverage of all other ops.
-    expect_seen = (
-        'add and and_reduce array array_index array_update array_concat '
-        'bit_slice bit_slice_update concat counted_for dynamic_bit_slice '
-        'encode eq literal map ne neg not one_hot one_hot_sel or or_reduce '
-        'reverse sdiv sel sge sgt shll shra shrl sign_ext sle slt smul sub '
-        'tuple tuple_index udiv uge ugt ule ult umul xor xor_reduce zero_ext'
-    ).split()
+    for op in expect_seen:
+      logging.vlog(1, 'seen op %s: %d', ir_op.op_to_string(op),
+                   summary.get_op_count(ir_op.op_to_string(op)))
+    for op in expect_not_seen:
+      logging.vlog(1, 'not seen op %s: %d', ir_op.op_to_string(op),
+                   summary.get_op_count(ir_op.op_to_string(op)))
+
     for op in expect_seen:
       self.assertGreater(
-          summary.get_op_count(op),
+          summary.get_op_count(ir_op.op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to generate op "{op}"')
+          msg=f'Expected fuzzer to generate op "{ir_op.op_to_string(op)}"')
 
-    # These ops are not yet supported by the fuzzer.
-    expect_not_seen = ('after_all assert decode identity '
-                       'dynamic_counted_for invoke nand nor receive '
-                       'send smod umod').split()
     for op in expect_not_seen:
       self.assertEqual(
-          summary.get_op_count(op),
+          summary.get_op_count(ir_op.op_to_string(op)),
           0,
-          msg=f'Expected fuzzer to not generate op "{op}"')
+          msg=f'Expected fuzzer to not generate op "{ir_op.op_to_string(op)}"')
 
 
 if __name__ == '__main__':

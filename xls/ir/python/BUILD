@@ -243,6 +243,15 @@ cc_library(
 )
 
 xls_pybind_extension(
+    name = "op",
+    srcs = ["op.cc"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "//xls/ir:op",
+    ],
+)
+
+xls_pybind_extension(
     name = "value",
     srcs = ["value.cc"],
     py_deps = [
@@ -280,5 +289,14 @@ py_test(
         ":value",
         ":verifier",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+py_test(
+    name = "op_test",
+    srcs = ["op_test.py"],
+    deps = [
+        ":op",
+        "//xls/common:test_base",
     ],
 )
