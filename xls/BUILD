@@ -14,20 +14,6 @@
 
 # XLS: Accelerator Synthesis
 
-# XLS-internal-only.
-package_group(
-    name = "xls_internal",
-    packages = [
-        "-//xls/public/tests/...",
-        "//...",
-        "//xls/...",
-        "//third_party/xls_berkeley_softfloat/...",
-        "//third_party/xls_colors/...",
-        "//third_party/xls_go_math/...",
-        "//third_party/xls_machsuite/...",
-    ],
-)
-
 # The group of known users of XLS.
 # The targets listed with this visibility comprise the intended "public API" of
 # XLS, and are be supported and are "reasonably" stable, i.e., significant
@@ -38,10 +24,7 @@ package_group(
     name = "xls_public",
     # Everything the public can see is also visible internally.
     includes = [":xls_internal"],
-    packages = [
-        "//...",
-        "//xls/public/tests/...",
-    ],
+    packages = ["//..."],
 )
 
 # TODO(leary): 2020-06-29 This structure is a work-around to publically expose
@@ -76,6 +59,13 @@ package_group(
     name = "xls_best_effort_users",
     # Everything best effort users can see is also visible internally.
     includes = [":xls_internal"],
+    packages = ["//..."],
+)
+
+# XLS-internal-only.
+# Ideally only XLS internal implementation would be present in here.
+package_group(
+    name = "xls_internal",
     packages = ["//..."],
 )
 
