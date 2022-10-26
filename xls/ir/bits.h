@@ -60,6 +60,10 @@ class Bits {
   // absl::InlinedVector instead.
   explicit Bits(absl::Span<bool const> bits);
 
+  // Sets the values of a range. The range is defined as:
+  // [lower_index, upper_index).
+  void SetRange(int64_t start_index, int64_t end_index, bool value = true);
+
   // Returns a Bits object with all ones. If 'bit_count' is zero, an empty Bits
   // object is returned as, vacuously, an empty bits object has all of its bits
   // set to one.

@@ -14,6 +14,8 @@
 
 #include "xls/ir/interval_set.h"
 
+#include <cstdint>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
@@ -205,6 +207,20 @@ TEST(IntervalTest, Size) {
   too_big.AddInterval(MakeInterval(10, 5, 80));
   too_big.Normalize();
   EXPECT_EQ(too_big.Size(), absl::nullopt);
+}
+
+TEST(IntervalTest, IsTrueWhenMaskWith) {
+  IntervalSet example(3);
+  example.AddInterval(MakeInterval(0, 0, 3));
+  for (int64_t value = 0; value < 8; ++value) {
+    EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(value, 3)));
+  }
+  example.AddInterval(MakeInterval(2, 4, 3));
+  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(0, 3)));
+  EXPECT_FALSE(example.IsTrueWhenMaskWith(UBits(1, 3)));
+  for (int64_t value = 2; value < 8; ++value) {
+    EXPECT_TRUE(example.IsTrueWhenMaskWith(UBits(value, 3)));
+  }
 }
 
 TEST(IntervalTest, Covers) {

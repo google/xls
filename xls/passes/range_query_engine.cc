@@ -1040,7 +1040,9 @@ absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
         IntervalSet::Combine, result, tree);
   };
   for (int64_t i = 0; i < sel->cases().size(); ++i) {
-    if (selector_intervals.Covers(
+    // TODO(vmirian): Make implementation more efficient by considering only the
+    // ranges of interest.
+    if (selector_intervals.IsTrueWhenMaskWith(
             bits_ops::ShiftLeftLogical(UBits(1, sel->cases().size()), i))) {
       combine(sel->cases()[i]);
     }

@@ -278,6 +278,16 @@ std::optional<Bits> IntervalSet::Index(const Bits& index) const {
   return result.Slice(0, BitCount());
 }
 
+bool IntervalSet::IsTrueWhenMaskWith(const Bits& value) const {
+  XLS_CHECK_EQ(value.bit_count(), BitCount());
+  for (const Interval& interval : intervals_) {
+    if (interval.IsTrueWhenAndWith(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool IntervalSet::Covers(const Bits& bits) const {
   XLS_CHECK_EQ(bits.bit_count(), BitCount());
   for (const Interval& interval : intervals_) {

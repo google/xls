@@ -14,7 +14,11 @@
 
 #include "xls/ir/interval.h"
 
+#include <algorithm>
 #include <random>
+
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls {
 
@@ -257,6 +261,16 @@ bool Interval::IsMaximal() const {
   // improper intervals.
   Bits upper_plus_one = bits_ops::Add(upper_bound_, UBits(1, BitCount()));
   return bits_ops::UEqual(upper_plus_one, lower_bound_);
+}
+
+bool Interval::IsTrueWhenAndWith(const Bits& value) const {
+  XLS_CHECK_EQ(value.bit_count(), BitCount());
+  int64_t right_index = std::min(LowerBound().CountTrailingZeros(),
+                                 UpperBound().CountTrailingZeros());
+  int64_t left_index = BitCount() - UpperBound().CountLeadingZeros();
+  Bits interval_mask_value(BitCount());
+  interval_mask_value.SetRange(right_index, left_index);
+  return !bits_ops::And(interval_mask_value, value).IsZero();
 }
 
 bool Interval::Covers(const Bits& point) const {

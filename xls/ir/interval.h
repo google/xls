@@ -150,6 +150,10 @@ class Interval {
   // The zero-width interval is considered maximal.
   bool IsMaximal() const;
 
+  // Returns `true` when any values of the interval range AND'ed with the given
+  // value is true.
+  bool IsTrueWhenAndWith(const Bits& value) const;
+
   // Returns `true` if this interval covers the given point, `false` otherwise.
   bool Covers(const Bits& point) const;
 

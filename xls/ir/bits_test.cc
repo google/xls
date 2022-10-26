@@ -90,6 +90,15 @@ TEST(BitsTest, BitsVectorConstructor) {
             "0x1ab_cdef_1234_5678_90fe_dcba");
 }
 
+TEST(BitsTest, SetRange) {
+  Bits bits = Bits::FromBytes({0}, 6);
+  EXPECT_TRUE(bits.IsZero());
+
+  bits.SetRange(1, 3);
+
+  EXPECT_EQ(bits, Bits({false, true, true, false, false, false}));
+}
+
 TEST(BitsTest, BitsToBytes) {
   EXPECT_TRUE(Bits().ToBytes().empty());
   EXPECT_THAT(UBits(42, 6).ToBytes(), ElementsAre(42));

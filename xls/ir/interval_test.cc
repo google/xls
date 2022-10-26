@@ -267,6 +267,54 @@ TEST(IntervalTest, IsMaximal) {
   EXPECT_TRUE(Interval::Maximal(1000).IsMaximal());
 }
 
+// Test the IsTrueWhenMaskWith with an interval starting at non-zero.
+TEST(IntervalTest, NonZeroStartingValueIsTrueWhenMaskWith) {
+  Interval interval(UBits(1, 4), UBits(4, 4));
+
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(0, 4)));
+  for (int64_t value = 1; value < 8; ++value) {
+    EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(value, 4)));
+  }
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(8, 4)));
+  for (int64_t value = 9; value < 16; ++value) {
+    EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(value, 4)));
+  }
+}
+
+// Test the IsTrueWhenMaskWith with an interval starting at zero.
+TEST(IntervalTest, ZeroStartingValueIsTrueWhenMaskWith) {
+  Interval interval(UBits(0, 3), UBits(4, 3));
+
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(0, 3)));
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(1, 3)));
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(2, 3)));
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(3, 3)));
+  EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(4, 3)));
+  EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(5, 3)));
+  EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(6, 3)));
+  EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(7, 3)));
+}
+
+// Test the IsTrueWhenMaskWith with an interval that does not overlap.
+TEST(IntervalTest, NoOverlappingIntervalIsTrueWhenMaskWith) {
+  Interval interval(UBits(4, 3), UBits(0, 3));
+
+  for (int64_t value = 0; value < 8; ++value) {
+    EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(value, 3)));
+  }
+}
+
+// Test the IsTrueWhenMaskWith with an interval containing overlapping bits for
+// its range.
+TEST(IntervalTest, OverlappingBitsIsTrueWhenMaskWith) {
+  Interval interval(UBits(2, 3), UBits(7, 3));
+
+  EXPECT_FALSE(interval.IsTrueWhenAndWith(UBits(0, 3)));
+  for (int64_t value = 1; value < 8; ++value) {
+    EXPECT_TRUE(interval.IsTrueWhenAndWith(UBits(value, 3)));
+  }
+}
+
 TEST(IntervalTest, Covers) {
   Bits thirty_two = Bits::PowerOfTwo(5, 12);
   Bits sixty_four = Bits::PowerOfTwo(6, 12);

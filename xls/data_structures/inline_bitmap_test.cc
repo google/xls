@@ -50,6 +50,29 @@ TEST(InlineBitmapTest, FromWord) {
   }
 }
 
+TEST(InlineBitmapTest, SetRange) {
+  InlineBitmap b(/*bit_count=*/3);
+  b.SetRange(0, 0, true);
+  EXPECT_TRUE(b.IsAllZeroes());
+  b.SetRange(1, 2);
+  EXPECT_FALSE(b.Get(0));
+  EXPECT_TRUE(b.Get(1));
+  EXPECT_FALSE(b.Get(2));
+  b.SetRange(0, 3);
+  EXPECT_TRUE(b.IsAllOnes());
+  b.SetRange(0, 3, false);
+  EXPECT_TRUE(b.IsAllZeroes());
+}
+
+TEST(InlineBitmapTest, SetAllBitsToFalse) {
+  InlineBitmap b(/*bit_count=*/3);
+  EXPECT_TRUE(b.IsAllZeroes());
+  b.Set(1);
+  EXPECT_FALSE(b.IsAllZeroes());
+  b.SetAllBitsToFalse();
+  EXPECT_TRUE(b.IsAllZeroes());
+}
+
 TEST(InlineBitmapTest, OneBitBitmap) {
   InlineBitmap b(/*bit_count=*/1);
 
@@ -92,13 +115,13 @@ TEST(InlineBitmapTest, TwoBitBitmap) {
   EXPECT_FALSE(b.IsAllOnes());
   EXPECT_EQ(2, b.bit_count());
 
-  b.Set(0, true);
+  b.Set(0);
   EXPECT_FALSE(b.IsAllZeroes());
   EXPECT_FALSE(b.IsAllOnes());
   EXPECT_EQ(b.Get(0), true);
   EXPECT_EQ(b.Get(1), false);
 
-  b.Set(1, true);
+  b.Set(1);
   EXPECT_FALSE(b.IsAllZeroes());
   EXPECT_TRUE(b.IsAllOnes());
   EXPECT_EQ(b.Get(0), true);

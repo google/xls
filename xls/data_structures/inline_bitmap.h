@@ -15,6 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 #define XLS_DATA_STRUCTURES_INLINE_BITMAP_H_
 
+#include <algorithm>
 #include <cstdint>
 
 #include "absl/base/casts.h"
@@ -85,7 +86,7 @@ class InlineBitmap {
     uint64_t bitno = index % kWordBits;
     return (word >> bitno) & 1ULL;
   }
-  inline void Set(int64_t index, bool value) {
+  inline void Set(int64_t index, bool value = true) {
     XLS_DCHECK_GE(index, 0);
     XLS_DCHECK_LT(index, bit_count());
     uint64_t& word = data_[index / kWordBits];
@@ -95,6 +96,20 @@ class InlineBitmap {
     } else {
       word &= ~(1ULL << bitno);
     }
+  }
+  // Sets the values of a range. The range is defined as:
+  // [lower_index, upper_index).
+  inline void SetRange(int64_t lower_index, int64_t upper_index,
+                       bool value = true) {
+    XLS_DCHECK_GE(lower_index, 0);
+    XLS_DCHECK_LE(upper_index, bit_count());
+    for (int64_t index = lower_index; index < upper_index; ++index) {
+      Set(index, value);
+    }
+  }
+  // Sets all the values of the bitmap to false.
+  inline void SetAllBitsToFalse() {
+    std::fill(data_.begin(), data_.end(), 0ULL);
   }
 
   // Fast path for users of the InlineBitmap to get at the 64-bit word that

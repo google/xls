@@ -780,6 +780,7 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
   BValue expr = fb.PrioritySelect(selector, {x, y, z});
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  // Usual test case where only part of the valid inputs are covered.
   RangeQueryEngine engine;
 
   IntervalSetTree x_ist =
@@ -797,7 +798,6 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
   engine.SetIntervalSetTree(z.node(), z_ist);
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // Usual test case where only part of the valid inputs are covered.
   EXPECT_EQ(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
             engine.GetIntervalSetTree(expr.node()).Get({}));
 
@@ -814,6 +814,19 @@ TEST_F(RangeQueryEngineTest, PrioritySel) {
       IntervalSet::Combine(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
                            z_ist.Get({})),
       engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  // Test case with overlapping bits for selector.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(2, 3), UBits(6, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(IntervalSet::Combine(y_ist.Get({}), z_ist.Get({})),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
 
   // Test case where default is covered.
   engine = RangeQueryEngine();

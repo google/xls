@@ -150,6 +150,20 @@ class IntervalSet {
   // would be like indexing the array `[2, 3, 5, 6, 7]`.
   std::optional<Bits> Index(const Bits& index) const;
 
+  // Do any of the values within the interval ranges when bit mask with the
+  // given value produce a non-zero result?
+  //
+  // In other words, `intervals.IsTrueWhenMaskWith(m)` is the same as `there
+  // exists a value x contained in the interval ranges such that or_reduce(x &
+  // m) is true`.
+  //
+  // For example, `intervals.IsTrueWhenMaskWith(4)` where intervals is the set
+  // `{[2, 3], [5, 7]}`, the result would return true, since the values 4, 5, 6
+  // and 7 bit masked with 4 returns true. However, if intervals is the set
+  // `{[2, 3]}`, the result would return false, since no values bit masked with
+  // 4 returns true.
+  bool IsTrueWhenMaskWith(const Bits& value) const;
+
   // Do any of the intervals cover the given point?
   bool Covers(const Bits& bits) const;
 
