@@ -738,6 +738,29 @@ TEST_P(VastTest, Always) {
 end)");
 }
 
+TEST_P(VastTest, AlwaysSignalInSensitivityList) {
+  VerilogFile f(GetFileType());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* foo =
+      m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo());
+  LogicRef* bar =
+      m->AddReg("bar", f.BitVectorType(32, SourceInfo()), SourceInfo());
+
+  Always* always = f.Make<Always>(
+      SourceInfo(), std::vector<SensitivityListElement>{foo, bar});
+  always->statements()->Add<BlockingAssignment>(
+      SourceInfo(), foo, f.PlainLiteral(7, SourceInfo()));
+  always->statements()->Add<BlockingAssignment>(
+      SourceInfo(), bar, f.PlainLiteral(42, SourceInfo()));
+  m->AddModuleMember(always);
+
+  EXPECT_EQ(always->Emit(nullptr),
+            R"(always @ (foo or bar) begin
+  foo = 7;
+  bar = 42;
+end)");
+}
+
 TEST_P(VastTest, AlwaysCombTest) {
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());

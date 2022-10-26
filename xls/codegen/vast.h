@@ -923,7 +923,7 @@ struct ImplicitEventExpression {};
 // Elements which can appear in a sensitivity list for an always or always_ff
 // block.
 using SensitivityListElement =
-    std::variant<ImplicitEventExpression, PosEdge*, NegEdge*>;
+    std::variant<ImplicitEventExpression, PosEdge*, NegEdge*, LogicRef*>;
 
 // Base class for 'always' style blocks with a sensitivity list.
 class AlwaysBase : public StructuredProcedure {

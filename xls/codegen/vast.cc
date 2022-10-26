@@ -1115,7 +1115,8 @@ std::string EmitSensitivityListElement(LineInfo* line_info,
   return absl::visit(
       Visitor{[](ImplicitEventExpression e) -> std::string { return "*"; },
               [=](PosEdge* p) -> std::string { return p->Emit(line_info); },
-              [=](NegEdge* n) -> std::string { return n->Emit(line_info); }},
+              [=](NegEdge* n) -> std::string { return n->Emit(line_info); },
+              [=](LogicRef* s) -> std::string { return s->Emit(line_info); }},
       element);
 }
 
