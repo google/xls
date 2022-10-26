@@ -28,6 +28,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node_iterator.h"
 
@@ -701,6 +702,16 @@ class BlockGenerator {
           connections.push_back(
               Connection{output->port_name(),
                          std::get<Expression*>(node_exprs_.at(output))});
+        }
+        std::optional<Block::ClockPort> port =
+            block_instantiation->instantiated_block()->GetClockPort();
+        if (port.has_value()) {
+          if (mb_.clock() == nullptr) {
+            return absl::InternalError(
+                "The instantiated block requires a clock but the instantiating "
+                "block has no clock.");
+          }
+          connections.push_back(Connection{port.value().name, mb_.clock()});
         }
         mb_.instantiation_section()->Add<Instantiation>(
             SourceInfo(), block_instantiation->instantiated_block()->name(),

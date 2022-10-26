@@ -61,6 +61,19 @@ class BlockGeneratorTest : public VerilogTestBase {
     return bb.Build();
   }
 
+  // Make and return a register block.
+  absl::StatusOr<Block*> MakeRegisterBlock(std::string_view name,
+                                           std::string_view clock_name,
+                                           Package* package) {
+    Type* u32 = package->GetBitsType(32);
+    BlockBuilder bb(name, package);
+    BValue a = bb.InputPort("a", u32);
+    BValue reg_a = bb.InsertRegister(name, a);
+    bb.OutputPort("result", reg_a);
+    XLS_RETURN_IF_ERROR(bb.block()->AddClockPort(clock_name));
+    return bb.Build();
+  }
+
   // Make and return a block which instantiates the given block. Given block
   // should take two u32s (`a` and `b`) and return a u32 (`result`).
   absl::StatusOr<Block*> MakeDelegatingBlock(std::string_view name,
@@ -702,6 +715,66 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   // `out` should be: ((x + 1) - (y - 1)) << 1
   tb.NextCycle().Set("x", 0).Set("y", 0).ExpectEq("out", 4);
   tb.NextCycle().Set("x", 100).Set("y", 42).ExpectEq("out", 120);
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(BlockGeneratorTest, InstantiatedBlockWithClockButNoClock) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block,
+                           MakeRegisterBlock("my_register", "clk", &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * my_reg,
+      bb.block()->AddBlockInstantiation("my_reg", sub_block));
+  BValue x = bb.InputPort("x", u32);
+  bb.InstantiationInput(my_reg, "a", x);
+  BValue result = bb.InstantiationOutput(my_reg, "result");
+  bb.OutputPort("out", result);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  EXPECT_THAT(GenerateVerilog(block, codegen_options()).status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("The instantiated block requires a clock but "
+                                 "the instantiating block has no clock.")));
+}
+
+TEST_P(BlockGeneratorTest, InstantiatedBlockWithClock) {
+  Package package(TestBaseName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * sub_block,
+                           MakeRegisterBlock("my_register", "clk", &package));
+
+  BlockBuilder bb("my_block", &package);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * my_reg,
+      bb.block()->AddBlockInstantiation("my_reg", sub_block));
+  BValue x = bb.InputPort("x", u32);
+  bb.InstantiationInput(my_reg, "a", x);
+  BValue result = bb.InstantiationOutput(my_reg, "result");
+  bb.OutputPort("out", result);
+  XLS_ASSERT_OK(bb.block()->AddClockPort("the_clock"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleSignature sig,
+      GenerateSignature(codegen_options("the_clock"), block));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog);
+
+  ModuleTestbench tb = NewModuleTestbench(verilog, sig);
+
+  tb.Set("x", 100).ExpectX("out");
+  tb.NextCycle().Set("x", 101).ExpectEq("out", 100);
+  tb.NextCycle().Set("x", 102).ExpectEq("out", 101);
+  tb.NextCycle().Set("x", 0).ExpectEq("out", 102);
 
   XLS_ASSERT_OK(tb.Run());
 }

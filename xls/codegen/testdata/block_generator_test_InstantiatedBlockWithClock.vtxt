@@ -1,0 +1,26 @@
+module my_register(
+  input wire clk,
+  input wire [31:0] a,
+  output wire [31:0] result
+);
+  reg [31:0] my_register;
+  always @ (posedge clk) begin
+    my_register <= a;
+  end
+  assign result = my_register;
+endmodule
+
+
+module my_block(
+  input wire the_clock,
+  input wire [31:0] x,
+  output wire [31:0] out
+);
+  wire [31:0] instantiation_output_7;
+  my_register my_reg (
+    .a(x),
+    .result(instantiation_output_7),
+    .clk(the_clock)
+  );
+  assign out = instantiation_output_7;
+endmodule
