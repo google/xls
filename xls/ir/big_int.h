@@ -30,6 +30,9 @@ class BigInt {
   static BigInt MakeSigned(const Bits& bits);
   static BigInt MakeUnsigned(const Bits& bits);
 
+  // Returns 1 (as a BigInt).
+  static BigInt One();
+
   BigInt();
   BigInt(const BigInt& other);
   BigInt(BigInt&& other);
@@ -61,11 +64,19 @@ class BigInt {
   // Various arithmetic and comparison operations.
   static BigInt Add(const BigInt& lhs, const BigInt& rhs);
   static BigInt Sub(const BigInt& lhs, const BigInt& rhs);
+  static BigInt Negate(const BigInt& input);
+
   static BigInt Mul(const BigInt& lhs, const BigInt& rhs);
   static BigInt Div(const BigInt& lhs, const BigInt& rhs);
   static BigInt Mod(const BigInt& lhs, const BigInt& rhs);
-  static BigInt Negate(const BigInt& input);
+
   static bool LessThan(const BigInt& lhs, const BigInt& rhs);
+
+  // Operator overloads
+  BigInt operator/(const BigInt& rhs) const { return Div(*this, rhs); }
+
+  // Returns 2^e
+  static BigInt Exp2(int64_t e);
 
  private:
   BIGNUM bn_;

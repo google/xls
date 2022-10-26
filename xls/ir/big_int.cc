@@ -40,8 +40,7 @@ BigInt& BigInt::operator=(const BigInt& other) {
 }
 
 BigInt& BigInt::operator=(BigInt&& other) {
-  memcpy(&bn_, &other.bn_, sizeof(bn_));
-  BN_init(&other.bn_);
+  BN_copy(&bn_, &other.bn_);
   return *this;
 }
 
@@ -80,6 +79,13 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
   BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_);
   BN_add_word(&value.bn_, 1);
   BN_set_negative(&value.bn_, 1);
+  return value;
+}
+
+/* static */
+BigInt BigInt::One() {
+  BigInt value;
+  BN_one(&value.bn_);
   return value;
 }
 
@@ -227,6 +233,20 @@ int64_t BigInt::UnsignedBitCount() const {
   BN_CTX* ctx = BN_CTX_new();
   BN_div(/*quotient=*/nullptr, /*rem=*/&value.bn_, &lhs.bn_, &rhs.bn_, ctx);
   BN_CTX_free(ctx);
+  return value;
+}
+
+/* static */ BigInt BigInt::Exp2(int64_t e) {
+  XLS_CHECK_GE(e, 0);
+  BigInt one = BigInt::One();
+  if (e == 0) {
+    return one;
+  }
+
+  XLS_CHECK_LE(e, int64_t{std::numeric_limits<int>::max()});
+
+  BigInt value;
+  BN_lshift(&value.bn_, &one.bn_, static_cast<int>(e));
   return value;
 }
 

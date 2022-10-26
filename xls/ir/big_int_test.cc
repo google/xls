@@ -78,6 +78,29 @@ TEST_F(BigIntTest, CopyAssignment) {
   EXPECT_EQ(original, copy);
 }
 
+// This is a regression test for https://github.com/google/xls/issues/759
+// `operator=(BigInt&& other)` used to leak memory
+TEST_F(BigIntTest, CopyAssignNoLeak) {
+  {
+    BigInt x = BigInt::Exp2(1);
+
+    // tests operator=(BigInt&& other)
+    x = x / x;
+
+    EXPECT_EQ(x, BigInt::One());
+  }
+  {
+    BigInt x = BigInt::Exp2(1);
+    BigInt one = x / x;
+
+    // tests operator=(const BigInt& other)
+    x = one;
+
+    EXPECT_EQ(x, BigInt::One());
+    EXPECT_EQ(one, BigInt::One());
+  }
+}
+
 TEST_F(BigIntTest, MoveAssignment) {
   auto original = BigInt::MakeUnsigned(UBits(1, 64));
   auto moved = BigInt();
@@ -166,6 +189,12 @@ TEST_F(BigIntTest, MakeSigned) {
             wide_input);
 }
 
+TEST_F(BigIntTest, One) {
+  BigInt one = BigInt::One();
+  EXPECT_EQ(one.UnsignedBitCount(), 1);
+  EXPECT_EQ(one.ToUnsignedBits(), UBits(1, 1));
+}
+
 TEST_F(BigIntTest, ToSignedBitsWithBitCount) {
   XLS_ASSERT_OK_AND_ASSIGN(
       auto small_positive,
@@ -237,6 +266,15 @@ TEST_F(BigIntTest, Sub) {
           MakeBigInt("0xabcd_ffff_1234_aaaa_0101_3333_4444_1328_abcd_0042"),
           MakeBigInt("0xffff_1234_aaaa_0101_3333_4444_1328_abcd_0042_0033")),
       MakeBigInt("-0x5431_1235_9875_5657_3232_1110_cee4_98a4_5474_fff1"));
+}
+
+TEST_F(BigIntTest, Exp2) {
+  constexpr int many_bits = 33;
+  EXPECT_EQ(BigInt::Exp2(0), BigInt::One());
+  EXPECT_EQ(BigInt::Exp2(1), BigInt::MakeUnsigned(UBits(2, many_bits)));
+  EXPECT_EQ(BigInt::Exp2(2), BigInt::MakeUnsigned(UBits(4, many_bits)));
+  EXPECT_EQ(BigInt::Exp2(32),
+            BigInt::MakeUnsigned(UBits(4294967296ul, many_bits)));
 }
 
 TEST_F(BigIntTest, Negate) {
@@ -334,5 +372,6 @@ TEST_F(BigIntTest, LessThan) {
   EXPECT_FALSE(BigInt::LessThan(MakeBigInt(10), MakeBigInt(10)));
   EXPECT_FALSE(BigInt::LessThan(MakeBigInt(12), MakeBigInt(10)));
 }
+
 }  // namespace
 }  // namespace xls
