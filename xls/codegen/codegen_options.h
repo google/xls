@@ -21,6 +21,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/ir/op.h"
+#include "xls/ir/register.h"
 
 namespace xls::verilog {
 
@@ -74,6 +75,9 @@ class CodegenOptions {
   CodegenOptions& reset(std::string_view name, bool asynchronous,
                         bool active_low, bool reset_data_path);
   const std::optional<ResetProto>& reset() const { return reset_proto_; }
+
+  // Returns an xls::Reset constructed from the reset() proto.
+  std::optional<xls::Reset> ResetBehavior() const;
 
   // Specifies manual pipeline register load-enable control.
   CodegenOptions& manual_control(std::string_view input_name);

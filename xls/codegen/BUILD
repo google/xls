@@ -384,7 +384,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:op",
-        "@com_github_google_re2//:re2",
+        "//xls/ir:register",
     ],
 )
 

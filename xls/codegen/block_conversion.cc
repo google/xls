@@ -66,11 +66,7 @@ static absl::StatusOr<ResetInfo> MaybeAddResetPort(
     XLS_ASSIGN_OR_RETURN(reset_info.input_port,
                          block->AddInputPort(options.reset()->name(),
                                              block->package()->GetBitsType(1)));
-    reset_info.behavior = xls::Reset();
-    reset_info.behavior->reset_value = Value(UBits(0, 1));
-    reset_info.behavior->asynchronous = options.reset()->asynchronous();
-    reset_info.behavior->active_low = options.reset()->active_low();
-
+    reset_info.behavior = options.ResetBehavior();
     reset_info.reset_data_path = options.reset()->reset_data_path();
   }
 

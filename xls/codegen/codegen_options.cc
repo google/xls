@@ -101,6 +101,17 @@ CodegenOptions& CodegenOptions::reset(std::string_view name, bool asynchronous,
   return *this;
 }
 
+std::optional<xls::Reset> CodegenOptions::ResetBehavior() const {
+  if (!reset_proto_.has_value()) {
+    return std::nullopt;
+  }
+  return xls::Reset{
+      .reset_value = Value(UBits(0, 1)),
+      .asynchronous = reset_proto_->asynchronous(),
+      .active_low = reset_proto_->active_low(),
+  };
+}
+
 CodegenOptions& CodegenOptions::manual_control(std::string_view input_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
