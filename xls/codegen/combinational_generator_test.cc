@@ -541,12 +541,13 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
               IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return the highest index value.
-  ModuleTestbench mtb(result.verilog_text, GetFileType(), result.signature,
-                      GetSimulator());
-  mtb.Set("A", UBits(0xabcdef, 24));
-  mtb.Set("index", UBits(42, 8));
-  mtb.ExpectEq("out", 0xab);
-  XLS_EXPECT_OK(mtb.Run());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("A", UBits(0xabcdef, 24));
+  tbt.Set("index", UBits(42, 8));
+  tbt.ExpectEq("out", 0xab);
+  XLS_EXPECT_OK(tb.Run());
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
@@ -577,12 +578,13 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
               IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return X.
-  ModuleTestbench mtb(result.verilog_text, GetFileType(), result.signature,
-                      GetSimulator());
-  mtb.Set("A", UBits(0xabcdef, 24));
-  mtb.Set("index", UBits(3, 8));
-  mtb.ExpectX("out");
-  XLS_EXPECT_OK(mtb.Run());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("A", UBits(0xabcdef, 24));
+  tbt.Set("index", UBits(3, 8));
+  tbt.ExpectX("out");
+  XLS_EXPECT_OK(tb.Run());
 }
 
 TEST_P(CombinationalGeneratorTest, TwoDArray) {

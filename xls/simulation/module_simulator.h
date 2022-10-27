@@ -72,10 +72,10 @@ class ModuleSimulator {
 
  private:
   // Deassert all control inputs on the module.
-  absl::Status DeassertControlSignals(ModuleTestbench* tb) const;
+  absl::Status DeassertControlSignals(ModuleTestbenchThread* tbt) const;
 
   // Resets the module.
-  absl::Status ResetModule(ModuleTestbench* tb) const;
+  absl::Status ResetModule(ModuleTestbenchThread* tbt) const;
 
   ModuleSignature signature_;
   std::string verilog_text_;

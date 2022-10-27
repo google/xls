@@ -75,10 +75,11 @@ TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("in", 0xabcd).ExpectX("out");
-  tb.NextCycle().Set("in", 0x1122).ExpectX("out");
-  tb.NextCycle().ExpectEq("out", 0xabcd).SetX("in");
-  tb.NextCycle().ExpectEq("out", 0x1122);
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("in", 0xabcd).ExpectX("out");
+  tbt.NextCycle().Set("in", 0x1122).ExpectX("out");
+  tbt.NextCycle().ExpectEq("out", 0xabcd).SetX("in");
+  tbt.NextCycle().ExpectEq("out", 0x1122);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -88,10 +89,11 @@ TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("in", 0xabcd);
-  tb.WaitForNotX("out").ExpectEq("out", 0xabcd);
-  tb.SetX("in");
-  tb.WaitForX("out").ExpectX("out");
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("in", 0xabcd);
+  tbt.WaitForNotX("out").ExpectEq("out", 0xabcd);
+  tbt.SetX("in");
+  tbt.WaitForX("out").ExpectX("out");
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -106,10 +108,11 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
       {UBits(0xffffff000aaaaabbULL, 64), UBits(0x1122334455667788ULL, 64)});
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("in", input1);
-  tb.NextCycle().Set("in", input2);
-  tb.NextCycle().ExpectEq("out", input1).SetX("in");
-  tb.NextCycle().ExpectEq("out", input2);
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("in", input1);
+  tbt.NextCycle().Set("in", input2);
+  tbt.NextCycle().ExpectEq("out", input1).SetX("in");
+  tbt.NextCycle().ExpectEq("out", input2);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -121,10 +124,11 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
   // Drive the pipeline with a valid value, then X, then another valid
   // value.
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("in", 42);
-  tb.NextCycle().SetX("in");
-  tb.NextCycle().ExpectEq("out", 42).Set("in", 1234);
-  tb.AdvanceNCycles(2).ExpectEq("out", 1234);
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("in", 42);
+  tbt.NextCycle().SetX("in");
+  tbt.NextCycle().ExpectEq("out", 42).Set("in", 1234);
+  tbt.AdvanceNCycles(2).ExpectEq("out", 1234);
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -134,10 +138,11 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("in", 42);
-  tb.NextCycle().Set("in", 1234);
-  tb.NextCycle().ExpectEq("out", 42).SetX("in");
-  tb.NextCycle().ExpectEq("out", 7);
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("in", 42);
+  tbt.NextCycle().Set("in", 1234);
+  tbt.NextCycle().ExpectEq("out", 42).SetX("in");
+  tbt.NextCycle().ExpectEq("out", 7);
 
   EXPECT_THAT(
       tb.Run(),
@@ -186,15 +191,16 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   Bits out1_captured;
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.Set("x", 10);
-  tb.Set("y", 123);
-  tb.NextCycle().Capture("out0", &out0_captured);
-  tb.NextCycle()
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.Set("x", 10);
+  tbt.Set("y", 123);
+  tbt.NextCycle().Capture("out0", &out0_captured);
+  tbt.NextCycle()
       .ExpectEq("out0", 245)
       .Capture("out1", &out1_captured)
       .ExpectEq("out1", 134)
       .Set("x", 0);
-  tb.NextCycle().ExpectEq("out0", 0xff);
+  tbt.NextCycle().ExpectEq("out0", 0xff);
   XLS_ASSERT_OK(tb.Run());
 
   EXPECT_EQ(out0_captured, UBits(245, 8));
@@ -210,7 +216,8 @@ TEST_P(ModuleTestbenchTest, TestTimeout) {
                                f.PlainLiteral(0, SourceInfo()));
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.WaitFor("out");
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.WaitFor("out");
 
   EXPECT_THAT(tb.Run(),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
@@ -222,9 +229,10 @@ TEST_P(ModuleTestbenchTest, TracesFound) {
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.ExpectTrace("This is the first message.");
-  tb.ExpectTrace("This is the second message.");
-  tb.NextCycle();
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.ExpectTrace("This is the first message.");
+  tbt.ExpectTrace("This is the second message.");
+  tbt.NextCycle();
 
   XLS_ASSERT_OK(tb.Run());
 }
@@ -234,8 +242,9 @@ TEST_P(ModuleTestbenchTest, TracesNotFound) {
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.ExpectTrace("This is the missing message.");
-  tb.NextCycle();
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.ExpectTrace("This is the missing message.");
+  tbt.NextCycle();
 
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
                                  HasSubstr("This is the missing message.")));
@@ -246,9 +255,10 @@ TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
-  tb.ExpectTrace("This is the second message.");
-  tb.ExpectTrace("This is the first message.");
-  tb.NextCycle();
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+  tbt.ExpectTrace("This is the second message.");
+  tbt.ExpectTrace("This is the first message.");
+  tbt.NextCycle();
 
   EXPECT_THAT(tb.Run(), StatusIs(absl::StatusCode::kNotFound,
                                  HasSubstr("This is the first message.")));

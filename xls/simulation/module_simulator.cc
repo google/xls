@@ -43,25 +43,25 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
 }  // namespace
 
 absl::Status ModuleSimulator::DeassertControlSignals(
-    ModuleTestbench* tb) const {
+    ModuleTestbenchThread* tbt) const {
   if (signature_.proto().has_pipeline() &&
       signature_.proto().pipeline().has_pipeline_control()) {
     const PipelineControl& pipeline_control =
         signature_.proto().pipeline().pipeline_control();
     if (pipeline_control.has_valid()) {
-      tb->Set(pipeline_control.valid().input_name(), 0);
+      tbt->Set(pipeline_control.valid().input_name(), 0);
     }
   }
   return absl::OkStatus();
 }
 
-absl::Status ModuleSimulator::ResetModule(ModuleTestbench* tb) const {
+absl::Status ModuleSimulator::ResetModule(ModuleTestbenchThread* tbt) const {
   if (signature_.proto().has_reset()) {
     const ResetProto& reset = signature_.proto().reset();
-    tb->Set(reset.name(), reset.active_low() ? 0 : 1);
-    tb->AdvanceNCycles(5);
-    tb->Set(reset.name(), reset.active_low() ? 1 : 0);
-    tb->NextCycle();
+    tbt->Set(reset.name(), reset.active_low() ? 0 : 1);
+    tbt->AdvanceNCycles(5);
+    tbt->Set(reset.name(), reset.active_low() ? 1 : 0);
+    tbt->NextCycle();
   }
   return absl::OkStatus();
 }
@@ -116,17 +116,19 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
                      includes_);
 
+  ModuleTestbenchThread& tbt = tb.CreateThread();
+
   // Drive any control signals to an unasserted state so the all control inputs
   // are non-X when the device comes out of reset.
-  XLS_RETURN_IF_ERROR(DeassertControlSignals(&tb));
+  XLS_RETURN_IF_ERROR(DeassertControlSignals(&tbt));
 
   // Reset module (if the module has a reset signal).
-  XLS_RETURN_IF_ERROR(ResetModule(&tb));
+  XLS_RETURN_IF_ERROR(ResetModule(&tbt));
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64_t index) {
     for (const PortProto& input : signature_.data_inputs()) {
-      tb.Set(input.name(), inputs[index].at(input.name()));
+      tbt.Set(input.name(), inputs[index].at(input.name()));
     }
   };
 
@@ -138,7 +140,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     OutputMap& outputs = stable_outputs[index];
     for (const PortProto& output : signature_.data_outputs()) {
       outputs[output.name()] = std::make_unique<Bits>();
-      tb.Capture(output.name(), outputs.at(output.name()).get());
+      tbt.Capture(output.name(), outputs.at(output.name()).get());
     }
   };
 
@@ -146,12 +148,12 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       // Fixed latency interface: just wait for compute to complete.
-      tb.AdvanceNCycles(signature_.proto().fixed_latency().latency());
+      tbt.AdvanceNCycles(signature_.proto().fixed_latency().latency());
       capture_outputs(i);
 
       // The input data cannot be changed in the same cycle that the output is
       // being read so hold for one more cycle while output is read.
-      tb.NextCycle();
+      tbt.NextCycle();
     }
   } else if (signature_.proto().has_pipeline()) {
     const int64_t latency = signature_.proto().pipeline().latency();
@@ -164,7 +166,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
     if (pipeline_control.has_value() && pipeline_control->has_manual()) {
       // Drive the pipeline register load-enable signals high.
-      tb.Set(pipeline_control->manual().input_name(), Bits::AllOnes(latency));
+      tbt.Set(pipeline_control->manual().input_name(), Bits::AllOnes(latency));
     }
 
     // Expect the output_valid signal (if it exists) to be the given value or X.
@@ -172,21 +174,22 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       if (pipeline_control.has_value() && pipeline_control->has_valid() &&
           pipeline_control->valid().has_output_name()) {
         if (expect_x) {
-          tb.ExpectX(pipeline_control->valid().output_name());
+          tbt.ExpectX(pipeline_control->valid().output_name());
         } else {
-          tb.ExpectEq(pipeline_control->valid().output_name(), expected_value);
+          tbt.ExpectEq(pipeline_control->valid().output_name(),
+                       static_cast<int64_t>(expected_value));
         }
       }
     };
     while (cycle < inputs.size()) {
       drive_data(cycle);
       if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-        tb.Set(pipeline_control->valid().input_name(), 1);
+        tbt.Set(pipeline_control->valid().input_name(), 1);
       }
       // Pipelined interface: drive inputs for a cycle, then wait for compute to
       // complete.  A pipelined interface should not require that the inputs be
       // held for more than a cycle.
-      tb.NextCycle();
+      tbt.NextCycle();
       cycle++;
 
       if (cycle >= latency) {
@@ -202,29 +205,29 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       }
     }
     for (const PortProto& input : signature_.data_inputs()) {
-      tb.SetX(input.name());
+      tbt.SetX(input.name());
     }
     if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-      tb.Set(pipeline_control->valid().input_name(), 0);
+      tbt.Set(pipeline_control->valid().input_name(), 0);
     }
     if (cycle < latency - 1) {
-      tb.AdvanceNCycles(latency - 1 - cycle);
+      tbt.AdvanceNCycles(latency - 1 - cycle);
     }
     while (captured_outputs < inputs.size()) {
-      tb.NextCycle();
+      tbt.NextCycle();
       maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true);
       capture_outputs(captured_outputs);
       captured_outputs++;
     }
     // valid == 0 should have propagated all the way through the pipeline to
     // output_valid.
-    tb.NextCycle();
+    tbt.NextCycle();
     maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/false);
   } else if (signature_.proto().has_combinational()) {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       capture_outputs(i);
-      tb.NextCycle();
+      tbt.NextCycle();
     }
   } else {
     return absl::UnimplementedError(absl::StrCat(
