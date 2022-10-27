@@ -607,6 +607,451 @@ TEST_F(TranslatorPointerTest, Aliasing) {
   Run({}, 1 + 2 + 2 + 5, content);
 }
 
+TEST_F(TranslatorPointerTest, Nullptr) {
+  const std::string content = R"(
+      struct DebugWriter;
+
+      struct dec_ref_store_dataImpl {
+        struct DebugWriter* writer_ = nullptr;  // Lazily initialized writer.
+      };
+
+      #pragma hls_top
+      int test(int a) {
+          dec_ref_store_dataImpl aw;
+          (void)aw;
+          return a+5;
+      })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("CXXNullPtrLiteralExpr")));
+}
+
+TEST_F(TranslatorPointerTest, PointerInStruct) {
+  const std::string content = R"(
+    struct MyPtr {
+      int *p;
+    };
+
+    int my_package() {
+      int arr[3] = {1, 2, 3};
+      MyPtr ptr = {.p = &arr[1]};
+      return ptr.p[1];
+    })";
+
+  Run({}, 3, content);
+}
+
+TEST_F(TranslatorPointerTest, PointerInStruct2) {
+  const std::string content = R"(
+    struct MyPtr {
+      int *p;
+    };
+
+    int my_package() {
+      int arr[3] = {1, 2, 3};
+      MyPtr ptr;
+      ptr.p = &arr[0];
+      return ptr.p[1];
+    })";
+
+  Run({}, 2, content);
+}
+
+TEST_F(TranslatorPointerTest, ConstPointerToSingleValue) {
+  const std::string content = R"(
+    int my_package() {
+      int foo = 10;
+      const int &p = foo;
+      ++foo;
+      return p;
+    })";
+
+  Run({}, 11, content);
+}
+
+TEST_F(TranslatorPointerTest, PointerToSingleValue) {
+  const std::string content = R"(
+    int my_package() {
+      int foo = 10;
+      int &p = foo;
+      p = 3;
+      return foo;
+    })";
+
+  Run({}, 3, content);
+}
+
+TEST_F(TranslatorPointerTest, PointerToSingleValueInc) {
+  const std::string content = R"(
+    int my_package() {
+      int foo = 10;
+      int &p = foo;
+      p++;
+      return foo;
+    })";
+
+  Run({}, 11, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFromPointer) {
+  const std::string content = R"(
+
+    int my_package() {
+      int arr[3] = {1, 2, 3};
+      int* p = &arr[1];
+      int& ret = p[1];
+      return ret;
+    })";
+  Run({}, 3, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFromStruct) {
+  const std::string content = R"(
+    struct MyPtr {
+      int &p;
+    };
+
+    int my_package() {
+      int x = 55;
+      MyPtr my = {.p = x};
+      x += 10;
+      return my.p;
+    })";
+
+  Run({}, 65, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFromStruct2) {
+  const std::string content = R"(
+    struct MyPtr {
+      int &p;
+    };
+
+    int my_package() {
+      int x = 55;
+      MyPtr my = {.p = x};
+      my.p += 11;
+      return x;
+    })";
+
+  Run({}, 66, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceInNestedStruct) {
+  const std::string content = R"(
+    struct MyPtrInner {
+      int &p;
+      MyPtrInner(int &p) : p(p) { }
+    };
+
+    struct MyPtr {
+      MyPtrInner inner;
+      MyPtr(int& p) : inner(p) { }
+    };
+
+    int my_package() {
+      int x = 55;
+      MyPtr my(x);
+
+      return my.inner.p;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Compound lvalue not present")));
+}
+
+TEST_F(TranslatorPointerTest, ReferenceInNestedStruct2) {
+  const std::string content = R"(
+    struct MyPtrInner {
+      int &p;
+      MyPtrInner(int &p) : p(p) { }
+    };
+
+    struct MyPtr {
+      MyPtrInner inner;
+      MyPtr(int& p) : inner(p) { }
+    };
+
+    int my_package() {
+      int x = 55;
+      MyPtr my(x);
+
+      my.inner.p += 11;
+
+      return x;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Compound lvalue not present")));
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFuncParam) {
+  const std::string content = R"(
+
+    int foo(int& x) { 
+      return x*2;
+    }
+
+    int my_package() {
+      int x = 4;
+      int &y = x;
+      return foo(y);
+    })";
+
+  Run({}, 8, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFuncParam2) {
+  const std::string content = R"(
+
+    void foo(int& x) { 
+      x += 10;
+    }
+
+    int my_package() {
+      int x = 4;
+      int &y = x;
+      foo(y);
+      return x;
+    })";
+
+  Run({}, 14, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceFuncReturn) {
+  const std::string content = R"(
+    int* foop(int& xparam) {
+      return &xparam;
+    }
+
+    int& foo(int& xparam) {
+      return xparam;
+    }
+
+    int my_package() {
+      int x = 4;
+      
+      int &xr = x;
+      int &y = foo(xr);
+      return y;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Don't know how to translate lvalue of "
+                                     "type DeclRefExpr from callee context")));
+}
+
+TEST_F(TranslatorPointerTest, ReferenceReturnThis) {
+  const std::string content = R"(
+    struct MyPtr {
+      int val;
+
+      MyPtr& operator+=(int x) {
+        val += x;
+        return *this;
+      }
+      int getit()const {
+        return val;
+      }
+    };
+
+    int my_package() {
+      MyPtr my = {.val = 55};
+      MyPtr& ref = (my += 11);
+      my += 5;
+      ref += 7;
+      return ref.getit();
+    })";
+
+  Run({}, 55 + 11 + 5 + 7, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceMemberAccess) {
+  const std::string content = R"(
+    struct MyPtr {
+      int val;
+
+      MyPtr& operator+=(int x) {
+        val += x;
+        return *this;
+      }
+      int getit()const {
+        return val;
+      }
+    };
+
+    int my_package() {
+      MyPtr my = {.val = 55};
+      MyPtr& ref = my;
+      ref.val--;
+      return ref.getit();
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Unimplemented member access on type")));
+}
+
+TEST_F(TranslatorPointerTest, SetThis) {
+  const std::string content = R"(
+       struct Test {
+         void set_this(int v) {
+           Test t;
+           t.x = v;
+           *this = t;
+         }
+         int x;
+         int y;
+       };
+       int my_package(int a) {
+         Test s;
+         s.set_this(a);
+         s.y = 12;
+         return s.x+s.y;
+       })";
+  Run({{"a", 3}}, 15, content);
+}
+
+TEST_F(TranslatorPointerTest, ThisCall) {
+  const std::string content = R"(
+       struct Test {
+         void set_this(int v) {
+           Test t;
+           t.x = v;
+           *this = t;
+         }
+         void set_this_b(int v) {
+           set_this(v);
+         }
+         int x;
+         int y;
+       };
+       int my_package(int a) {
+         Test s;
+         s.set_this_b(a);
+         s.y = 12;
+         return s.x+s.y;
+       })";
+  Run({{"a", 3}}, 15, content);
+}
+
+TEST_F(TranslatorPointerTest, PointerToPointer) {
+  const std::string content = R"(
+    int my_package() {
+      int x = 1;
+      int *xp = &x;
+      int **xpp = &xp;
+      return **xpp;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Don't know how to convert")));
+}
+
+TEST_F(TranslatorPointerTest, ReturnReferenceToStatic) {
+  const std::string content = R"(
+       short& get_static() {
+        static short val_a = 11;
+        return val_a;
+       }
+
+       int my_package(int a) {
+        return get_static();
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Don't know how to translate lvalue")));
+}
+
+
+TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
+  const std::string content = R"(
+       struct Test {
+        int& ref;
+        int amt;
+        void add() {
+          ref += amt;
+        }
+       };
+       int my_package(int a) {
+         Test s = {.ref = a, .amt = 3};
+         s.add();
+         return a;
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Compound lvalue not present")));
+}
+
+TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    struct MyPtr {
+      int val;
+
+      MyPtr& getit(__xls_channel<int>& in) {
+        val += in.read();
+        return *this;
+      }
+
+      void inc() {
+        ++val;
+      }
+    };
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      MyPtr my = {.val = 55};
+      MyPtr& p = my.getit(in);
+      p.inc();
+      out.write(my.val);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(10, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(55+10+1, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+
 }  // namespace
 
 }  // namespace xlscc

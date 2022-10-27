@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+#include "absl/status/status.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -31,8 +31,7 @@ absl::Status Translator::GenerateMetadataType(
     const clang::QualType& type_in, xlscc_metadata::Type* type_out,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) {
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(type_in, xls::SourceInfo(),
-                                              /*allow_references=*/true));
+                       TranslateTypeFromClang(type_in, xls::SourceInfo()));
   const clang::RecordDecl* decl = type_in->getAsRecordDecl();
   if (decl != nullptr) {
     FillLocationRangeProto(decl->getSourceRange(),
@@ -95,17 +94,31 @@ absl::Status Translator::GenerateFunctionMetadata(
   FillLocationRangeProto(func->getSourceRange(),
                          output->mutable_whole_declaration_location());
 
-  XLS_RETURN_IF_ERROR(GenerateMetadataType(
-      func->getReturnType(), output->mutable_return_type(), aliases_used));
+  // Return metadata
+  {
+    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                         StripTypeQualifiers(func->getReturnType()));
+
+    XLS_RETURN_IF_ERROR(GenerateMetadataType(
+        stripped.base, output->mutable_return_type(), aliases_used));
+
+    if (stripped.is_ref) {
+      output->set_returns_reference(stripped.is_ref);
+    }
+  }
 
   if (clang::isa<clang::CXXMethodDecl>(func)) {
     auto method = clang::dyn_cast<clang::CXXMethodDecl>(func);
-    const clang::QualType& this_ptr_type = method->getThisType();
-    const clang::QualType& this_type = this_ptr_type->getPointeeType();
-    output->set_is_const(this_type.isConstQualified());
+    output->set_is_method(true);
 
-    XLS_RETURN_IF_ERROR(GenerateMetadataType(
-        this_type, output->mutable_this_type(), aliases_used));
+    if (!method->isStatic()) {
+      const clang::QualType& this_ptr_type = method->getThisType();
+      const clang::QualType& this_type = this_ptr_type->getPointeeType();
+      output->set_is_const(this_type.isConstQualified());
+
+      XLS_RETURN_IF_ERROR(GenerateMetadataType(
+          this_type, output->mutable_this_type(), aliases_used));
+    }
   }
 
   for (int64_t pi = 0; pi < func->getNumParams(); ++pi) {
@@ -139,6 +152,10 @@ absl::Status Translator::GenerateFunctionMetadata(
         GenerateMetadataCPPName(namedecl, proto_static_value->mutable_name()));
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
+    if (stripped.is_ref) {
+      return absl::UnimplementedError(
+          ErrorMessage(GetLoc(*p), "Metadata for static reference"));
+    }
     XLS_RETURN_IF_ERROR(GenerateMetadataType(
         stripped.base, proto_static_value->mutable_type(), aliases_used));
     XLS_ASSIGN_OR_RETURN(

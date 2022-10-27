@@ -68,7 +68,12 @@ class TranslatorMetadataTest : public XlsccTestBase {
     ASSERT_NE(meta->top_func_proto().name().id(), 0);
     meta->mutable_top_func_proto()->mutable_name()->clear_id();
 
-    clearIds(meta->mutable_top_func_proto()->mutable_return_type());
+    if (meta->mutable_top_func_proto()->has_return_type()) {
+      clearIds(meta->mutable_top_func_proto()->mutable_return_type());
+    }
+    if (meta->mutable_top_func_proto()->has_this_type()) {
+      clearIds(meta->mutable_top_func_proto()->mutable_this_type());
+    }
 
     meta->mutable_top_func_proto()
         ->mutable_return_location()
@@ -520,6 +525,8 @@ TEST_F(TranslatorMetadataTest, RefConstParams) {
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
                            translator_->GenerateMetadata());
 
+  standardizeMetadata(&meta);
+
   const std::string ref_meta_str = R"(
     top_func_proto 	 {
       name {
@@ -559,8 +566,6 @@ TEST_F(TranslatorMetadataTest, RefConstParams) {
   )";
   xlscc_metadata::MetadataOutput ref_meta;
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
-
-  standardizeMetadata(&meta);
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;
@@ -1177,6 +1182,88 @@ TEST_F(TranslatorMetadataTest, StaticSyntheticInt) {
   ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   standardizeMetadata(&meta);
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
+TEST_F(TranslatorMetadataTest, ReturnReference) {
+  const std::string content = R"(
+    struct Obj {
+      short a;
+
+    #pragma hls_top
+      Obj& me() {
+        return *this;
+      }
+
+      short val() const {
+        return a;
+      }
+    };)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+
+  standardizeMetadata(&meta);
+
+  const std::string ref_meta_str = R"(
+    structs 	 {
+      as_struct {
+        name {
+          as_inst {
+            name {
+              name: "Obj"
+              fully_qualified_name: "Obj"
+            }
+          }
+        }
+        fields {
+          name: "a"
+          type {
+            as_int {
+              width: 16
+              is_signed: true
+              is_synthetic: false
+            }
+          }
+        }
+        no_tuple: false
+      }
+    }
+    top_func_proto {
+      name {
+        name: "me"
+        fully_qualified_name: "Obj::me"
+        xls_name: "me"
+      }
+      return_type {
+        as_inst {
+          name {
+            name: "Obj"
+            fully_qualified_name: "Obj"
+          }
+        }
+      }
+      this_type {
+        as_inst {
+          name {
+            name: "Obj"
+            fully_qualified_name: "Obj"
+          }
+        }
+      }
+      is_const: false
+      is_method: true
+      returns_reference: true
+    }
+  )";
+  xlscc_metadata::MetadataOutput ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
 
   std::string diff;
   google::protobuf::util::MessageDifferencer differencer;

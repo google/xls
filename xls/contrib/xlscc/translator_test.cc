@@ -264,9 +264,6 @@ TEST_F(TranslatorTest, IncrementInArrayIndex2) {
          int operator=(int x) {
            return 0;
          }
-         int operator[](int idx) {
-           return 0;
-         }
        };
        long long my_package(long long a) {
          Blah arr[4];
@@ -2598,49 +2595,6 @@ TEST_F(TranslatorTest, ConstructorWithThis) {
   Run({{"a", 3}}, 13, content);
 }
 
-TEST_F(TranslatorTest, SetThis) {
-  const std::string content = R"(
-       struct Test {
-         void set_this(int v) {
-           Test t;
-           t.x = v;
-           *this = t;
-         }
-         int x;
-         int y;
-       };
-       int my_package(int a) {
-         Test s;
-         s.set_this(a);
-         s.y = 12;
-         return s.x+s.y;
-       })";
-  Run({{"a", 3}}, 15, content);
-}
-
-TEST_F(TranslatorTest, ThisCall) {
-  const std::string content = R"(
-       struct Test {
-         void set_this(int v) {
-           Test t;
-           t.x = v;
-           *this = t;
-         }
-         void set_this_b(int v) {
-           set_this(v);
-         }
-         int x;
-         int y;
-       };
-       int my_package(int a) {
-         Test s;
-         s.set_this_b(a);
-         s.y = 12;
-         return s.x+s.y;
-       })";
-  Run({{"a", 3}}, 15, content);
-}
-
 TEST_F(TranslatorTest, ExplicitDefaultConstructor) {
   const std::string content = R"(
          struct TestR {
@@ -2878,34 +2832,6 @@ TEST_F(TranslatorTest, ReferenceParameter) {
       })";
 
   Run({{"a", 3}}, 3 + 5 + 10, content);
-}
-
-TEST_F(TranslatorTest, ConstRefDecl) {
-  const std::string content = R"(
-      int my_package(int a) {
-        const int&x = a;
-        return x + 10;
-      })";
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("References not supported in this context")));
-}
-
-TEST_F(TranslatorTest, LValueDecl) {
-  const std::string content = R"(
-      int my_package(int a) {
-        int&x = a;
-        return x + 10;
-      })";
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("References not supported in this context")));
 }
 
 TEST_F(TranslatorTest, Namespace) {
@@ -3778,27 +3704,6 @@ TEST_F(TranslatorTest, BinaryOpComma) {
           return (a=5,a+1);
       })";
   Run({{"a", 1}}, 6, content);
-}
-
-TEST_F(TranslatorTest, ForwardDeclaredStructPtr) {
-  const std::string content = R"(
-      struct DebugWriter;
-
-      struct dec_ref_store_dataImpl {
-        struct DebugWriter* writer_ = nullptr;  // Lazily initialized writer.
-      };
-
-      #pragma hls_top
-      int test(int a) {
-          dec_ref_store_dataImpl aw;
-          (void)aw;
-          return a+5;
-      })";
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Unsupported CType subclass")));
 }
 
 // Check that hls_array_allow_default_pad pragma fills with 0's

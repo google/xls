@@ -64,6 +64,7 @@ class CType {
   virtual bool operator==(const CType& o) const = 0;
   bool operator!=(const CType& o) const;
 
+  virtual bool ContainsLValues() const;
   virtual int GetBitWidth() const;
   virtual explicit operator std::string() const;
   virtual xls::Type* GetXLSType(xls::Package* package) const;
@@ -214,6 +215,7 @@ class CStructType : public CType {
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
+  virtual bool ContainsLValues() const;
 
   // Returns true if the #pragma hls_notuple or hls_synthetic_int directive was
   // given for the struct
@@ -253,7 +255,6 @@ class CInternalTuple : public CType {
  private:
   std::vector<std::shared_ptr<CType>> fields_;
 };
-
 
 // An alias for a type that can be instantiated. Typically this is reduced to
 //  another CType via Translator::ResolveTypeInstance()
@@ -302,6 +303,7 @@ class CArrayType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
+  virtual bool ContainsLValues() const;
 
   int GetSize() const;
   std::shared_ptr<CType> GetElementType() const;
@@ -311,7 +313,7 @@ class CArrayType : public CType {
   int size_;
 };
 
-// Pointer or reference in C/C++
+// Pointer in C/C++
 class CPointerType : public CType {
  public:
   CPointerType(std::shared_ptr<CType> pointee_type);
@@ -324,6 +326,28 @@ class CPointerType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
+  virtual bool ContainsLValues() const;
+
+  std::shared_ptr<CType> GetPointeeType() const;
+
+ private:
+  std::shared_ptr<CType> pointee_type_;
+};
+
+// Reference in C/C++
+class CReferenceType : public CType {
+ public:
+  CReferenceType(std::shared_ptr<CType> pointee_type);
+  bool operator==(const CType& o) const override;
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+  virtual bool ContainsLValues() const;
 
   std::shared_ptr<CType> GetPointeeType() const;
 
@@ -359,12 +383,9 @@ struct IOChannel;
 // for consistency.
 class LValue {
  public:
-  LValue() {}
+  LValue() : is_null_(true) {}
   LValue(const clang::Expr* leaf) : leaf_(leaf) {
     XLS_CHECK_NE(leaf_, nullptr);
-    XLS_CHECK(leaf_->getStmtClass() == clang::Stmt::UnaryOperatorClass);
-    XLS_CHECK(static_cast<const clang::UnaryOperator*>(leaf_)->getOpcode() ==
-              clang::UO_AddrOf);
   }
   LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
@@ -376,28 +397,33 @@ class LValue {
     XLS_CHECK_NE(lvalue_true_.get(), nullptr);
     XLS_CHECK_NE(lvalue_false_.get(), nullptr);
   }
+  LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
+             compound_by_index)
+      : compound_by_index_(compound_by_index) {}
 
   bool is_select() const { return cond_.valid(); }
   xls::BValue cond() const { return cond_; }
   std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
+  const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>& get_compounds()
+      const {
+    return compound_by_index_;
+  }
 
-  const clang::Expr* leaf() const {
-    XLS_CHECK_NE(leaf_, nullptr);
-    return leaf_;
-  }
-  IOChannel* channel_leaf() const {
-    XLS_CHECK_NE(channel_leaf_, nullptr);
-    return channel_leaf_;
-  }
+  const clang::Expr* leaf() const { return leaf_; }
+  IOChannel* channel_leaf() const { return channel_leaf_; }
+  bool is_null() const { return is_null_; }
 
  private:
+  bool is_null_ = false;
   const clang::Expr* leaf_ = nullptr;
   IOChannel* channel_leaf_ = nullptr;
 
   xls::BValue cond_;
   std::shared_ptr<LValue> lvalue_true_ = nullptr;
   std::shared_ptr<LValue> lvalue_false_ = nullptr;
+
+  absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compound_by_index_;
 };
 
 // Immutable object representing an XLS[cc] value. The class associates an
@@ -414,22 +440,38 @@ class CValue {
          bool disable_type_check = false,
          std::shared_ptr<LValue> lvalue = nullptr)
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
-    XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
-              rvalue.BitCountOrDie() == type_->GetBitWidth());
-    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get()) &&
-                !dynamic_cast<CChannelType*>(type_.get())));
-    XLS_CHECK(!(lvalue && rvalue.valid()));
-    // Only supporting lvalues of the form &... for pointers
-    if (dynamic_cast<CPointerType*>(type_.get()) != nullptr) {
-      // Always get rvalue from lvalue, otherwise changes to the original won't
-      //  be reflected when the pointer is dereferenced.
-      XLS_CHECK(!rvalue.valid());
-    } else if (dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
-      XLS_CHECK(!rvalue.valid() && lvalue != nullptr);
-    } else if (dynamic_cast<CVoidType*>(type_.get()) != nullptr) {
-      XLS_CHECK(!rvalue.valid());
-    } else {
-      XLS_CHECK(rvalue.valid());
+    if (!disable_type_check) {
+      XLS_CHECK(!type_->StoredAsXLSBits() ||
+                rvalue.BitCountOrDie() == type_->GetBitWidth());
+      // Structs (and their aliases) can have compound lvalues and also rvalues
+      XLS_CHECK(!(lvalue && !dynamic_cast<CReferenceType*>(type_.get()) &&
+                  !dynamic_cast<CPointerType*>(type_.get()) &&
+                  !dynamic_cast<CChannelType*>(type_.get()) &&
+                  !dynamic_cast<CStructType*>(type_.get()) &&
+                  !dynamic_cast<CInstantiableTypeAlias*>(type_.get())));
+      XLS_CHECK(!(type_->ContainsLValues() && lvalue == nullptr));
+      // Pointers are stored as empty tuples in structs
+      const bool rvalue_empty =
+          !rvalue.valid() || (rvalue.GetType()->IsTuple() &&
+                              rvalue.GetType()->AsTupleOrDie()->size() == 0);
+      XLS_CHECK(!(lvalue && rvalue.valid()) ||
+                dynamic_cast<CStructType*>(type_.get()) ||
+                dynamic_cast<CInstantiableTypeAlias*>(type_.get()));
+      // Only supporting lvalues of the form &... for pointers
+      if (dynamic_cast<CPointerType*>(type_.get()) != nullptr ||
+          dynamic_cast<CReferenceType*>(type_.get()) != nullptr ||
+          dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
+        // Always get rvalue from lvalue, otherwise changes to the original
+        // won't
+        //  be reflected when the pointer is dereferenced.
+        XLS_CHECK(rvalue_empty);
+      } else if (dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
+        XLS_CHECK(rvalue_empty && lvalue != nullptr);
+      } else if (dynamic_cast<CVoidType*>(type_.get()) != nullptr) {
+        XLS_CHECK(rvalue_empty);
+      } else {
+        XLS_CHECK(rvalue.valid());
+      }
     }
   }
 
@@ -561,6 +603,8 @@ struct GeneratedFunction {
   int64_t return_value_count = 0;
 
   bool in_synthetic_int = false;
+
+  std::shared_ptr<LValue> return_lvalue;
 
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       declaration_order_by_name_;
@@ -1026,7 +1070,7 @@ class Translator {
   absl::StatusOr<CValue> GenerateIR_Call(
       const clang::FunctionDecl* funcdecl,
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
-      const xls::SourceInfo& loc);
+      std::shared_ptr<LValue> this_lval, const xls::SourceInfo& loc);
 
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
@@ -1171,9 +1215,14 @@ class Translator {
                                                    const xls::SourceInfo& loc);
   absl::StatusOr<xls::BValue> CreateDefaultValue(std::shared_ptr<CType> t,
                                                  const xls::SourceInfo& loc);
-  absl::StatusOr<xls::BValue> CreateInitListValue(
+  absl::StatusOr<CValue> CreateInitListValue(
       const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
       const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> CreateInitValue(const std::shared_ptr<CType>& ctype,
+                                         const clang::Expr* initializer,
+                                         const xls::SourceInfo& loc);
+  absl::StatusOr<std::shared_ptr<LValue>> CreateReferenceValue(
+      const clang::Expr* initializer, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GetOnReset(const xls::SourceInfo& loc);
   absl::StatusOr<bool> DeclIsOnReset(const clang::NamedDecl* decl);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
@@ -1226,8 +1275,7 @@ class Translator {
       const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
-      clang::QualType t, const xls::SourceInfo& loc,
-      bool allow_references = false);
+      clang::QualType t, const xls::SourceInfo& loc);
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
                                                 const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
@@ -1291,15 +1339,14 @@ class Translator {
   absl::StatusOr<xlscc_metadata::IntType> GenerateSyntheticInt(
       std::shared_ptr<CType> ctype);
 
-  // StructUpdate builds and returns a new BValue for a struct with the
+  // StructUpdate builds and returns a new CValue for a struct with the
   // value of one field changed. The other fields, if any, take their values
   // from struct_before, and the new value for the field named by field_name is
   // set to rvalue. The type of structure built is specified by type.
-  absl::StatusOr<xls::BValue> StructUpdate(xls::BValue struct_before,
-                                           CValue rvalue,
-                                           const clang::NamedDecl* field_name,
-                                           const CStructType& type,
-                                           const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> StructUpdate(CValue struct_before, CValue rvalue,
+                                      const clang::NamedDecl* field_name,
+                                      const CStructType& type,
+                                      const xls::SourceInfo& loc);
   // Creates an BValue for a struct of type stype from field BValues given in
   //  order within bvals.
   xls::BValue MakeStructXLS(const std::vector<xls::BValue>& bvals,

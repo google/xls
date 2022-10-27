@@ -617,7 +617,7 @@ TEST_F(TranslatorIOTest, IOSaveChannel) {
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("References not supported in this context")));
+          testing::HasSubstr("IO ops should be on channel parameters")));
 }
 
 TEST_F(TranslatorIOTest, IOMixedOps) {
@@ -635,10 +635,11 @@ TEST_F(TranslatorIOTest, IOMixedOps) {
 
   auto ret = SourceToIr(content);
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("should be either input or output")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Channels should be either input or output")));
 }
 
 TEST_F(TranslatorIOTest, IOSaveChannelStruct) {
@@ -664,13 +665,12 @@ TEST_F(TranslatorIOTest, IOSaveChannelStruct) {
          f.sub_send(7 + f.sub_recv(in));
        })";
 
-  ASSERT_THAT(
-      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
-                 /* io_test_mode= */ true)
-          .status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("References not supported in this context")));
+  ASSERT_THAT(SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+                         /* io_test_mode= */ true)
+                  .status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("IO ops should be on direct DeclRefs")));
 }
 
 TEST_F(TranslatorIOTest, IOUnrolled) {
@@ -757,6 +757,30 @@ TEST_F(TranslatorIOTest, IOInThisExpr) {
          {IOOpTest("in", xls::Value::Tuple({xls::Value(xls::SBits(5, 32))}),
                    true)},
          /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, IOInThisExprMutableTemp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Test {
+         int x;
+         int foo() {
+           return x;
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<Test>& in,
+                       __xls_channel<int>& out) {
+         out.write(3*in.read().foo());
+       })";
+
+  ASSERT_THAT(
+      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("References must be initialized to an lvalue")));
 }
 
 TEST_F(TranslatorIOTest, IOShortCircuitAnd) {

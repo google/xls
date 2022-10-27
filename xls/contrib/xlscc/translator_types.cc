@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "xls/contrib/xlscc/translator.h"
 
 using std::shared_ptr;
@@ -28,6 +29,8 @@ CType::~CType() {}
 bool CType::operator!=(const CType& o) const { return !(*this == o); }
 
 int CType::GetBitWidth() const { return 0; }
+
+bool CType::ContainsLValues() const { return false; }
 
 CType::operator std::string() const { return "CType"; }
 
@@ -403,6 +406,15 @@ int CStructType::GetBitWidth() const {
   return ret;
 }
 
+bool CStructType::ContainsLValues() const {
+  for (const std::shared_ptr<CField>& field : fields_) {
+    if (field->type()->ContainsLValues()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 CStructType::operator std::string() const {
   std::ostringstream ostr;
   ostr << "{";
@@ -538,6 +550,8 @@ bool CArrayType::operator==(const CType& o) const {
 
 int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
 
+bool CArrayType::ContainsLValues() const { return element_->ContainsLValues(); }
+
 absl::Status CField::GetMetadata(
     Translator& translator, xlscc_metadata::StructField* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
@@ -586,7 +600,9 @@ bool CPointerType::operator==(const CType& o) const {
   return *pointee_type_ == *o_derived->pointee_type_;
 }
 
-int CPointerType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
+int CPointerType::GetBitWidth() const { return 0; }
+
+bool CPointerType::ContainsLValues() const { return true; }
 
 std::shared_ptr<CType> CPointerType::GetPointeeType() const {
   return pointee_type_;
@@ -599,15 +615,50 @@ CPointerType::operator std::string() const {
 absl::Status CPointerType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
-  XLS_CHECK(false) << "TODO: Metadata for pointers";
-  return absl::OkStatus();
+  return absl::UnavailableError(
+      "Can't generate externally useful metadata for pointers");
 }
 
 absl::Status CPointerType::GetMetadataValue(
     Translator& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
-  XLS_CHECK(false) << "TODO: Metadata for pointers";
-  return absl::OkStatus();
+  return absl::UnavailableError(
+      "Can't generate externally useful metadata for pointers");
+}
+
+CReferenceType::CReferenceType(std::shared_ptr<CType> pointee_type)
+    : pointee_type_(pointee_type) {}
+
+bool CReferenceType::operator==(const CType& o) const {
+  if (!o.Is<CReferenceType>()) return false;
+  const auto* o_derived = o.As<CReferenceType>();
+  return *pointee_type_ == *o_derived->pointee_type_;
+}
+
+int CReferenceType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
+
+bool CReferenceType::ContainsLValues() const { return true; }
+
+std::shared_ptr<CType> CReferenceType::GetPointeeType() const {
+  return pointee_type_;
+}
+
+CReferenceType::operator std::string() const {
+  return absl::StrFormat("%s&", string(*pointee_type_));
+}
+
+absl::Status CReferenceType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  return absl::UnavailableError(
+      "Can't generate externally useful metadata for references");
+}
+
+absl::Status CReferenceType::GetMetadataValue(
+    Translator& translator, const ConstValue const_value,
+    xlscc_metadata::Value* output) const {
+  return absl::UnavailableError(
+      "Can't generate externally useful metadata for references");
 }
 
 CChannelType::CChannelType(std::shared_ptr<CType> item_type)
@@ -621,26 +672,22 @@ bool CChannelType::operator==(const CType& o) const {
 
 int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
 
-std::shared_ptr<CType> CChannelType::GetItemType() const {
-  return item_type_;
-}
+std::shared_ptr<CType> CChannelType::GetItemType() const { return item_type_; }
 
 CChannelType::operator std::string() const {
-  return absl::StrFormat("%s*", string(*item_type_));
+  return absl::StrFormat("channel<%s>", string(*item_type_));
 }
 
 absl::Status CChannelType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
-  XLS_CHECK(false) << "TODO: Metadata for channels";
-  return absl::OkStatus();
+  return absl::UnimplementedError("Metadata output for channels");
 }
 
 absl::Status CChannelType::GetMetadataValue(
     Translator& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
-  XLS_CHECK(false) << "TODO: Metadata for channels";
-  return absl::OkStatus();
+  return absl::UnimplementedError("Metadata output for channels");
 }
 
 }  //  namespace xlscc

@@ -75,6 +75,9 @@ message FunctionPrototype {
   // - if not const, has an implicit this return
   optional Type this_type = 8;
   optional bool is_const = 9;
+  // Can be a method without a this_type if it's static
+  optional bool is_method = 10;
+  optional bool returns_reference = 11;
 }
 
 // The name of a C++ symbol / object.
