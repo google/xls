@@ -315,6 +315,7 @@ def cc_xls_ir_jit_wrapper(
             "//xls/common/status:status_macros",
             "@com_google_absl//absl/status:statusor",
             "//xls/ir",
+            "//xls/ir:events",
             "//xls/ir:ir_parser",
             "//xls/public:function_builder",
             "//xls/public:value",

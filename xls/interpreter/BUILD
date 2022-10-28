@@ -42,6 +42,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:events",
         "//xls/ir:function_builder",
         "//xls/ir:keyword_args",
         "//xls/ir:value",
@@ -80,6 +81,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/ir",
+        "//xls/ir:events",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
     ],
@@ -160,6 +162,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:events",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:keyword_args",
@@ -194,6 +197,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/ir",
+        "//xls/ir:events",
     ],
 )
 
@@ -235,6 +239,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/ir",
         "//xls/ir:channel",
+        "//xls/ir:events",
         "//xls/ir:value",
     ],
 )

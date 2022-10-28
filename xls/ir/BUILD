@@ -247,11 +247,20 @@ cc_library(
 )
 
 cc_library(
+    name = "events",
+    srcs = ["events.cc"],
+    hdrs = ["events.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "ir",
     srcs = [
         "block.cc",
         "dfs_visitor.cc",
-        "events.cc",
         "function.cc",
         "function_base.cc",
         "instantiation.cc",
@@ -265,7 +274,6 @@ cc_library(
     hdrs = [
         "block.h",
         "dfs_visitor.h",
-        "events.h",
         "function.h",
         "function_base.h",
         "instantiation.h",

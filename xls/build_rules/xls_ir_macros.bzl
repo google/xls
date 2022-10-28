@@ -263,6 +263,7 @@ def xls_ir_cc_library_macro(
             "@llvm-project//llvm:Support",
             "//xls/common/status:status_macros",
             "//xls/ir",
+            "//xls/ir:events",
             "//xls/ir:type",
             "//xls/ir:value",
             "//xls/jit:aot_runtime",

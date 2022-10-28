@@ -85,7 +85,7 @@ cc_test(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/ir",
+        "//xls/ir:events",
         "//xls/ir:ir_parser",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:serial_proc_runtime",

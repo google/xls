@@ -27,7 +27,6 @@
 #include "xls/data_structures/transitive_closure.h"
 #include "xls/data_structures/union_find_map.h"
 #include "xls/interpreter/random_value.h"
-#include "xls/ir/events.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
