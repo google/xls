@@ -127,6 +127,14 @@ class DslxModuleAndPath {
 // Additional convenience functions are available.
 class IrWrapper {
  public:
+  // Flags to control ir creation.
+  // TODO(tedhong): 2022-10-14 - Convert this to a struct to enable greater
+  // control over codegen options.
+  enum class Flags {
+    kDefault = 0x0,
+    kSkipOpt = 0x1,
+  };
+
   // Retrieve a specific dslx module.
   absl::StatusOr<dslx::Module*> GetDslxModule(std::string_view name) const;
 
@@ -142,6 +150,9 @@ class IrWrapper {
 
   // Retrieve top level package.
   absl::StatusOr<Package*> GetIrPackage() const;
+
+  // Optimize the top-level package.
+  absl::Status OptimizeIr();
 
   // Retrieve and create (if needed) the JIT for the given function name.
   absl::StatusOr<FunctionJit*> GetAndMaybeCreateFunctionJit(
@@ -162,23 +173,15 @@ class IrWrapper {
   // an IrWrapper object.
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name, DslxModuleAndPath top_module,
-      std::vector<DslxModuleAndPath> import_modules);
+      std::vector<DslxModuleAndPath> import_modules,
+      Flags flags = Flags::kDefault);
 
   static absl::StatusOr<IrWrapper> Create(
       std::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
       std::string_view top_module_path,
-      std::unique_ptr<dslx::Module> other_module,
-      std::string_view other_module_path);
-
-  static absl::StatusOr<IrWrapper> Create(
-      std::string_view ir_package_name,
-      std::unique_ptr<dslx::Module> top_module,
-      std::string_view top_module_path,
-      absl::Span<std::unique_ptr<dslx::Module>> other_modules =
-          absl::Span<std::unique_ptr<dslx::Module>>{},
-      absl::Span<std::string_view> other_modules_path =
-          absl::Span<std::string_view>{});
+      std::unique_ptr<dslx::Module> other_module = nullptr,
+      std::string_view other_module_path = "", Flags flags = Flags::kDefault);
 
  private:
   // Construct this object with a default ImportData.
