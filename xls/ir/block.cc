@@ -399,6 +399,15 @@ absl::Status Block::AddClockPort(std::string_view name) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<InputPort*> Block::AddResetPort(std::string_view name) {
+  if (reset_port_.has_value()) {
+    return absl::InternalError("Block already has reset.");
+  }
+  XLS_ASSIGN_OR_RETURN(reset_port_,
+                       AddInputPort(name, package()->GetBitsType(1)));
+  return *reset_port_;
+}
+
 // Removes the element `node` from the vector element in the given map at the
 // given key. Used for updated register_read_ and register_write_ data members
 // of Block.

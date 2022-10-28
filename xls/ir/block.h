@@ -79,6 +79,11 @@ class Block : public FunctionBase {
   absl::Status AddClockPort(std::string_view name);
   std::optional<ClockPort> GetClockPort() const { return clock_port_; }
 
+  // Add/get a reset port to the block. Reset is represented as an input port,
+  // so it will also appear in GetInputPorts().
+  absl::StatusOr<InputPort*> AddResetPort(std::string_view name);
+  std::optional<InputPort*> GetResetPort() const { return reset_port_; }
+
   absl::Status RemoveNode(Node* n) override;
 
   // Re-orders the ports of the block as determined by `port_order`. The order
@@ -221,6 +226,7 @@ class Block : public FunctionBase {
   std::vector<Instantiation*> instantiation_vec_;
 
   std::optional<ClockPort> clock_port_;
+  std::optional<InputPort*> reset_port_;
 };
 
 }  // namespace xls

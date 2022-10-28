@@ -63,6 +63,27 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
                                                 const CodegenOptions& options);
 
+// Adds a register between the node and all its downstream users.
+// Returns the new register added.
+absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
+    std::string_view name_prefix,
+    const std::optional<xls::Reset>& reset_behavior,
+    std::optional<Node*> load_enable, Node* node, Block* block);
+
+// Add a zero-latency buffer after a set of data/valid/ready signal.
+//
+// Logic will be inserted immediately after from_data and from node.
+// Logic will be inserted immediately before from_rdy,
+//   from_rdy must be a node with a single operand.
+//
+// Updates valid_nodes with the additional nodes associated with valid
+// registers.
+absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
+    Node* from_data, Node* from_valid, Node* from_rdy,
+    std::string_view name_prefix,
+    const std::optional<xls::Reset>& reset_behavior, Block* block,
+    std::vector<Node*>& valid_nodes);
+
 }  // namespace verilog
 }  // namespace xls
 
