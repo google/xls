@@ -15,12 +15,14 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
+#include "xls/codegen/sram_configuration.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -105,15 +107,15 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.separate_lines(p.separate_lines());
 
   if (!p.gate_format().empty()) {
-    options.SetOpOverride(Op::kGate,
-                          std::make_unique<verilog::OpOverrideGateAssignment>(
-                              p.gate_format()));
+    options.SetOpOverride(
+        Op::kGate,
+        std::make_unique<verilog::OpOverrideGateAssignment>(p.gate_format()));
   }
 
   if (!p.assert_format().empty()) {
-    options.SetOpOverride(Op::kAssert,
-                          std::make_unique<verilog::OpOverrideAssertion>(
-                              p.assert_format()));
+    options.SetOpOverride(
+        Op::kAssert,
+        std::make_unique<verilog::OpOverrideAssertion>(p.assert_format()));
   }
 
   if (!p.smulp_format().empty()) {
@@ -131,6 +133,15 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.streaming_channel_data_suffix(p.streaming_channel_data_suffix());
   options.streaming_channel_valid_suffix(p.streaming_channel_valid_suffix());
   options.streaming_channel_ready_suffix(p.streaming_channel_ready_suffix());
+
+  std::vector<std::unique_ptr<verilog::SramConfiguration>> sram_configurations;
+  sram_configurations.reserve(p.sram_configurations_size());
+  for (const std::string& config_text : p.sram_configurations()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<verilog::SramConfiguration> config,
+                         verilog::SramConfiguration::ParseString(config_text));
+    sram_configurations.push_back(std::move(config));
+  }
+  options.sram_configurations(sram_configurations);
 
   return options;
 }

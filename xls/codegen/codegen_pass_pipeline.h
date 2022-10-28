@@ -26,9 +26,10 @@ namespace xls::verilog {
 // Verilog.
 std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline();
 
-// Runs the codegen pass pipeline on the given package with the given options.
-absl::Status RunCodegenPassPipeline(const CodegenPassOptions& options,
-                                    Package* package);
+// Runs the codegen pass pipeline on the given block with the given options.
+// Returns true if a change has been made by anything in the pipeline.
+absl::StatusOr<bool> RunCodegenPassPipeline(const CodegenPassOptions& options,
+                                            Block* block);
 
 }  // namespace xls::verilog
 

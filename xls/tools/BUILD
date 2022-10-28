@@ -927,6 +927,7 @@ cc_binary(
         "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:op_override_impls",
         "//xls/codegen:pipeline_generator",
+        "//xls/codegen:sram_configuration",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

@@ -49,6 +49,9 @@ class Block : public FunctionBase {
   // and represent ports on a Verilog module.
   using Port = std::variant<InputPort*, OutputPort*, ClockPort*>;
 
+  // Returns the name of the port.
+  static std::string PortName(const Port& port);
+
   // Returns the ports in the block. The ports are returned in the order that
   // they will be emitted in the generated Verilog module. Input and output
   // ports may be arbitrarily ordered.
@@ -163,8 +166,6 @@ class Block : public FunctionBase {
   std::string DumpIr() const override;
 
  private:
-  static std::string PortName(const Port& port);
-
   // Sets the name of the given port node (InputPort or OutputPort) to the given
   // name. Unlike xls::Node::SetName which may name the node `name` with an
   // added suffix to ensure name uniqueness, SetNamePortExactly ensures the

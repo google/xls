@@ -376,13 +376,11 @@ cc_library(
     deps = [
         ":module_signature_cc_proto",
         ":op_override",
+        ":sram_configuration",
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//xls/common:proto_adaptor_utils",
-        "//xls/common/logging",
-        "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:register",
     ],
@@ -416,6 +414,7 @@ cc_library(
         ":port_legalization_pass",
         ":register_legalization_pass",
         ":signature_generation_pass",
+        ":sram_rewrite_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
@@ -917,6 +916,58 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "sram_configuration",
+    srcs = ["sram_configuration.cc"],
+    hdrs = ["sram_configuration.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "sram_rewrite_pass",
+    srcs = ["sram_rewrite_pass.cc"],
+    hdrs = ["sram_rewrite_pass.h"],
+    deps = [
+        ":block_conversion",
+        ":codegen_pass",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "sram_rewrite_pass_test",
+    srcs = ["sram_rewrite_pass_test.cc"],
+    deps = [
+        ":block_conversion",
+        ":codegen_options",
+        ":codegen_pass_pipeline",
+        ":sram_rewrite_pass",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common:visitor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
         "@com_google_googletest//:gtest",
     ],
 )

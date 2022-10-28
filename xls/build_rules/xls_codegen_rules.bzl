@@ -224,6 +224,7 @@ def xls_ir_verilog_impl(ctx, src):
         "gate_format",
         "smulp_format",
         "umulp_format",
+        "sram_configurations",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)

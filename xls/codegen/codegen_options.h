@@ -20,6 +20,7 @@
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
+#include "xls/codegen/sram_configuration.h"
 #include "xls/ir/op.h"
 #include "xls/ir/register.h"
 
@@ -208,6 +209,14 @@ class CodegenOptions {
     return array_index_bounds_checking_;
   }
 
+  // List of channels to rewrite for SRAMs.
+  CodegenOptions& sram_configurations(
+      absl::Span<const std::unique_ptr<SramConfiguration>> sram_configurations);
+  absl::Span<const std::unique_ptr<SramConfiguration>> sram_configurations()
+      const {
+    return sram_configurations_;
+  }
+
  private:
   std::optional<std::string> entry_;
   std::optional<std::string> module_name_;
@@ -229,6 +238,7 @@ class CodegenOptions {
   std::string streaming_channel_ready_suffix_ = "_rdy";
   std::string streaming_channel_valid_suffix_ = "_vld";
   bool array_index_bounds_checking_ = true;
+  std::vector<std::unique_ptr<SramConfiguration>> sram_configurations_;
 };
 
 }  // namespace xls::verilog

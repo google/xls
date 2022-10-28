@@ -53,6 +53,10 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
+  sram_configurations_.reserve(options.sram_configurations().size());
+  for (auto& option : options.sram_configurations()) {
+    sram_configurations_.push_back(option->Clone());
+  }
 }
 
 CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
@@ -77,6 +81,10 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   array_index_bounds_checking_ = options.array_index_bounds_checking_;
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
+  }
+  sram_configurations_.reserve(options.sram_configurations().size());
+  for (auto& option : options.sram_configurations()) {
+    sram_configurations_.push_back(option->Clone());
   }
   return *this;
 }
@@ -129,8 +137,7 @@ std::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
 }
 
 CodegenOptions& CodegenOptions::valid_control(
-    std::string_view input_name,
-    std::optional<std::string_view> output_name) {
+    std::string_view input_name, std::optional<std::string_view> output_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
   }
@@ -230,6 +237,15 @@ CodegenOptions& CodegenOptions::streaming_channel_ready_suffix(
 
 CodegenOptions& CodegenOptions::array_index_bounds_checking(bool value) {
   array_index_bounds_checking_ = value;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::sram_configurations(
+    absl::Span<const std::unique_ptr<SramConfiguration>> sram_configurations) {
+  sram_configurations_.clear();
+  for (auto& config : sram_configurations) {
+    sram_configurations_.push_back(config->Clone());
+  }
   return *this;
 }
 

@@ -63,4 +63,5 @@ message CodegenFlagsProto {
   optional string streaming_channel_data_suffix = 28;
   optional string streaming_channel_valid_suffix = 29;
   optional string streaming_channel_ready_suffix = 30;
+  repeated string sram_configurations = 31;
 }
