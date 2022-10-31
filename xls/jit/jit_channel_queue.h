@@ -205,16 +205,22 @@ class JitChannelQueueManager : public ChannelQueueManager {
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadSafe(Package* package, JitRuntime* jit_runtime);
+  CreateThreadSafe(Package* package);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadUnsafe(Package* package, JitRuntime* jit_runtime);
+  CreateThreadUnsafe(Package* package);
 
   JitChannelQueue& GetJitQueue(Channel* channel);
 
+  JitRuntime& runtime() { return *runtime_; }
+
  protected:
   JitChannelQueueManager(Package* package,
-                         std::vector<std::unique_ptr<ChannelQueue>>&& queues)
-      : ChannelQueueManager(package, std::move(queues)) {}
+                         std::vector<std::unique_ptr<ChannelQueue>>&& queues,
+                         std::unique_ptr<JitRuntime> runtime)
+      : ChannelQueueManager(package, std::move(queues)),
+        runtime_(std::move(runtime)) {}
+
+  std::unique_ptr<JitRuntime> runtime_;
 };
 
 }  // namespace xls

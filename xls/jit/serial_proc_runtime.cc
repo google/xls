@@ -32,13 +32,12 @@ SerialProcRuntime::SerialProcRuntime(Package* package) : package_(package) {}
 
 absl::Status SerialProcRuntime::Init() {
   // Create a ProcJit and continuation for each proc.
-  XLS_ASSIGN_OR_RETURN(jit_runtime_, JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(queue_mgr_, JitChannelQueueManager::CreateThreadSafe(
-                                       package_, jit_runtime_.get()));
+  XLS_ASSIGN_OR_RETURN(queue_mgr_,
+                       JitChannelQueueManager::CreateThreadSafe(package_));
   for (const std::unique_ptr<Proc>& proc : package_->procs()) {
     XLS_ASSIGN_OR_RETURN(
         proc_jits_[proc.get()],
-        ProcJit::Create(proc.get(), jit_runtime_.get(), queue_mgr_.get()));
+        ProcJit::Create(proc.get(), &queue_mgr_->runtime(), queue_mgr_.get()));
     continuations_[proc.get()] = proc_jits_.at(proc.get())->NewContinuation();
   }
 

@@ -102,27 +102,29 @@ std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadSafe(Package* package,
-                                         JitRuntime* jit_runtime) {
+JitChannelQueueManager::CreateThreadSafe(Package* package) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (Channel* channel : package->channels()) {
     queues.push_back(
-        std::make_unique<ThreadSafeJitChannelQueue>(channel, jit_runtime));
+        std::make_unique<ThreadSafeJitChannelQueue>(channel, runtime.get()));
   }
-  return absl::WrapUnique(
-      new JitChannelQueueManager(package, std::move(queues)));
+  return absl::WrapUnique(new JitChannelQueueManager(package, std::move(queues),
+                                                     std::move(runtime)));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadUnsafe(Package* package,
-                                           JitRuntime* jit_runtime) {
+JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> runtime,
+                       JitRuntime::Create());
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (Channel* channel : package->channels()) {
     queues.push_back(
-        std::make_unique<ThreadUnsafeJitChannelQueue>(channel, jit_runtime));
+        std::make_unique<ThreadUnsafeJitChannelQueue>(channel, runtime.get()));
   }
-  return absl::WrapUnique(
-      new JitChannelQueueManager(package, std::move(queues)));
+  return absl::WrapUnique(new JitChannelQueueManager(package, std::move(queues),
+                                                     std::move(runtime)));
 }
 
 JitChannelQueue& JitChannelQueueManager::GetJitQueue(Channel* channel) {

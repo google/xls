@@ -47,9 +47,7 @@ INSTANTIATE_TEST_SUITE_P(
               .value();
         },
         [](Package* package) -> std::unique_ptr<ChannelQueueManager> {
-          return JitChannelQueueManager::CreateThreadSafe(package,
-                                                          GetJitRuntime())
-              .value();
+          return JitChannelQueueManager::CreateThreadSafe(package).value();
         })));
 
 }  // namespace

@@ -66,7 +66,7 @@ class SerialProcRuntime {
     return continuations_.at(proc)->GetEvents();
   }
 
-  JitRuntime& jit_runtime() { return *jit_runtime_; }
+  JitRuntime& jit_runtime() { return queue_mgr()->runtime(); }
 
  private:
   SerialProcRuntime(Package* package);
@@ -74,7 +74,6 @@ class SerialProcRuntime {
 
   Package* package_;
   std::unique_ptr<JitChannelQueueManager> queue_mgr_;
-  std::unique_ptr<JitRuntime> jit_runtime_;
 
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcJit>> proc_jits_;
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcContinuation>> continuations_;
