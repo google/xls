@@ -24,18 +24,6 @@
 
 namespace xls {
 
-/* static */ Bits Bits::FromBytes(absl::Span<const uint8_t> bytes,
-                                  int64_t bit_count) {
-  XLS_CHECK_GE(bit_count, 0);
-  int64_t byte_count = bytes.size();
-  XLS_CHECK_LE(bit_count, byte_count * 8);
-  InlineBitmap bitmap(bit_count);
-  for (int64_t i = 0; i < byte_count; ++i) {
-    bitmap.SetByte(byte_count - i - 1, bytes[i]);
-  }
-  return Bits(std::move(bitmap));
-}
-
 /* static */ int64_t Bits::MinBitCountSigned(int64_t value) {
   if (value == 0) {
     return 0;

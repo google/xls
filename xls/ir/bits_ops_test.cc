@@ -43,7 +43,7 @@ Bits PrimeBits(int64_t bit_count) {
   std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
   for (int64_t i = 0; i < bit_count; ++i) {
     if (is_prime(i)) {
-      bytes[bytes.size() - 1 - i / 8] |= 1 << (i % 8);
+      bytes[CeilOfRatio(bytes.size(), size_t{8})] |= 1 << (i % 8);
     }
   }
   return Bits::FromBytes(bytes, bit_count);
