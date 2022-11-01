@@ -83,6 +83,13 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
 }
 
 /* static */
+BigInt BigInt::Zero() {
+  BigInt value;
+  BN_zero(&value.bn_);
+  return value;
+}
+
+/* static */
 BigInt BigInt::One() {
   BigInt value;
   BN_one(&value.bn_);
@@ -256,8 +263,71 @@ int64_t BigInt::UnsignedBitCount() const {
   return value;
 }
 
+/* static */ BigInt BigInt::Absolute(const BigInt& input) {
+  BigInt r = input;
+  BN_set_negative(&r.bn_, 0);
+  return r;
+}
+
 /* static */ bool BigInt::LessThan(const BigInt& lhs, const BigInt& rhs) {
   return BN_cmp(&lhs.bn_, &rhs.bn_) < 0;
+}
+
+/* static */ bool BigInt::GreaterThan(const BigInt& lhs, const BigInt& rhs) {
+  return BN_cmp(&lhs.bn_, &rhs.bn_) > 0;
+}
+
+bool BigInt::operator<=(const BigInt& rhs) const {
+  return BN_cmp(&this->bn_, &rhs.bn_) <= 0;
+}
+
+bool BigInt::operator>=(const BigInt& rhs) const {
+  return BN_cmp(&this->bn_, &rhs.bn_) >= 0;
+}
+
+/* static */ bool BigInt::IsEven(const BigInt& input) {
+  return BN_is_odd(&input.bn_) == 0;
+}
+
+/* static */ bool BigInt::IsPowerOfTwo(const BigInt& input) {
+  if (input < BigInt::One()) {
+    return false;
+  }
+
+  const int64_t num_significant_bits = BN_num_bits(&input.bn_);
+  return BigInt::Exp2(num_significant_bits - 1) == input;
+}
+
+/* static */ int64_t BigInt::CeilingLog2(const BigInt& input) {
+  XLS_CHECK(!BN_is_negative(&input.bn_));
+
+  if (input == BigInt::Zero()) {
+    return std::numeric_limits<int64_t>::min();
+  }
+
+  if (input == BigInt::One()) {
+    return 0;
+  }
+
+  const int64_t num_significant_bits = BN_num_bits(&input.bn_);
+  if (BigInt::Exp2(num_significant_bits - 1) == input) {
+    return num_significant_bits - 1;
+  }
+
+  return num_significant_bits;
+}
+
+/* static */
+std::tuple<BigInt, int64_t> BigInt::FactorizePowerOfTwo(const BigInt& input) {
+  const BigInt zero = BigInt::Zero();
+  const BigInt two = BigInt::Exp2(1);
+  int64_t power = 0;
+  BigInt x = input;
+  while (IsEven(x) && x != zero) {
+    x = x / two;
+    power = power + 1;
+  }
+  return std::make_tuple(x, power);
 }
 
 std::ostream& operator<<(std::ostream& os, const BigInt& big_int) {

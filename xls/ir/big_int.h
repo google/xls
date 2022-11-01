@@ -30,6 +30,9 @@ class BigInt {
   static BigInt MakeSigned(const Bits& bits);
   static BigInt MakeUnsigned(const Bits& bits);
 
+  // Returns 0 (as a BigInt).
+  static BigInt Zero();
+
   // Returns 1 (as a BigInt).
   static BigInt One();
 
@@ -66,14 +69,45 @@ class BigInt {
   static BigInt Sub(const BigInt& lhs, const BigInt& rhs);
   static BigInt Negate(const BigInt& input);
 
+  // Returns absolute value.
+  static BigInt Absolute(const BigInt& input);
+
   static BigInt Mul(const BigInt& lhs, const BigInt& rhs);
   static BigInt Div(const BigInt& lhs, const BigInt& rhs);
   static BigInt Mod(const BigInt& lhs, const BigInt& rhs);
 
   static bool LessThan(const BigInt& lhs, const BigInt& rhs);
+  static bool GreaterThan(const BigInt& lhs, const BigInt& rhs);
+
+  // Returns true when input is even.
+  static bool IsEven(const BigInt& input);
+
+  // Returns true when input is a power of two. Otherwise returns false,
+  // including when input is non-positive.
+  static bool IsPowerOfTwo(const BigInt& input);
+
+  // Returns ceiling(logbase2(input)). Input must be non-negative.
+  // CeilingLog2(0) returns most-negative int64_t.
+  static int64_t CeilingLog2(const BigInt& input);
+
+  // Returns (odd, y) such that input = odd * 2^y. odd has the same sign as
+  // input.
+  //
+  // That is, factorizes input into an odd number and a power of two. Returns
+  // the odd number and the exponent.
+  //
+  // Special case: FactorizePowerOfTwo(0) = 0 * 2^0
+  static std::tuple<BigInt, int64_t> FactorizePowerOfTwo(const BigInt& input);
 
   // Operator overloads
+  BigInt operator+(const BigInt& rhs) const { return Add(*this, rhs); }
+  BigInt operator-(const BigInt& rhs) const { return Sub(*this, rhs); }
+  BigInt operator*(const BigInt& rhs) const { return Mul(*this, rhs); }
   BigInt operator/(const BigInt& rhs) const { return Div(*this, rhs); }
+  bool operator<(const BigInt& rhs) const { return LessThan(*this, rhs); }
+  bool operator<=(const BigInt& rhs) const;
+  bool operator>(const BigInt& rhs) const { return GreaterThan(*this, rhs); }
+  bool operator>=(const BigInt& rhs) const;
 
   // Returns 2^e
   static BigInt Exp2(int64_t e);

@@ -189,6 +189,12 @@ TEST_F(BigIntTest, MakeSigned) {
             wide_input);
 }
 
+TEST_F(BigIntTest, Zero) {
+  BigInt zero = BigInt::Zero();
+  EXPECT_EQ(zero.UnsignedBitCount(), 0);
+  EXPECT_EQ(zero.ToUnsignedBits(), UBits(0, 0));
+}
+
 TEST_F(BigIntTest, One) {
   BigInt one = BigInt::One();
   EXPECT_EQ(one.UnsignedBitCount(), 1);
@@ -285,6 +291,21 @@ TEST_F(BigIntTest, Negate) {
             MakeBigInt("-0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff"));
 }
 
+TEST_F(BigIntTest, Absolute) {
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(0)), MakeBigInt(0));
+
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(-1)), MakeBigInt(1));
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(1)), MakeBigInt(1));
+
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(-37)), MakeBigInt(37));
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(37)), MakeBigInt(37));
+
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(-9223372036854775807ll)),
+            MakeBigInt(9223372036854775807ll));
+  EXPECT_EQ(BigInt::Absolute(MakeBigInt(9223372036854775807ll)),
+            MakeBigInt(9223372036854775807ll));
+}
+
 TEST_F(BigIntTest, Multiply) {
   EXPECT_EQ(BigInt::Mul(MakeBigInt(0), MakeBigInt(0)), MakeBigInt(0));
   EXPECT_EQ(BigInt::Mul(MakeBigInt(123456), MakeBigInt(0)), MakeBigInt(0));
@@ -371,6 +392,153 @@ TEST_F(BigIntTest, LessThan) {
   EXPECT_TRUE(BigInt::LessThan(MakeBigInt(2), MakeBigInt(10)));
   EXPECT_FALSE(BigInt::LessThan(MakeBigInt(10), MakeBigInt(10)));
   EXPECT_FALSE(BigInt::LessThan(MakeBigInt(12), MakeBigInt(10)));
+
+  EXPECT_TRUE(MakeBigInt(2) < MakeBigInt(10));
+  EXPECT_FALSE(MakeBigInt(10) < MakeBigInt(10));
+  EXPECT_FALSE(MakeBigInt(12) < MakeBigInt(10));
+}
+
+TEST_F(BigIntTest, GreaterThan) {
+  EXPECT_FALSE(BigInt::GreaterThan(MakeBigInt(2), MakeBigInt(10)));
+  EXPECT_FALSE(BigInt::GreaterThan(MakeBigInt(10), MakeBigInt(10)));
+  EXPECT_TRUE(BigInt::GreaterThan(MakeBigInt(12), MakeBigInt(10)));
+
+  EXPECT_FALSE(MakeBigInt(2) > MakeBigInt(10));
+  EXPECT_FALSE(MakeBigInt(10) > MakeBigInt(10));
+  EXPECT_TRUE(MakeBigInt(12) > MakeBigInt(10));
+}
+
+TEST_F(BigIntTest, LessThanEqual) {
+  EXPECT_TRUE(MakeBigInt(2) <= MakeBigInt(10));
+  EXPECT_TRUE(MakeBigInt(10) <= MakeBigInt(10));
+  EXPECT_FALSE(MakeBigInt(12) <= MakeBigInt(10));
+}
+
+TEST_F(BigIntTest, GreaterThanEqual) {
+  EXPECT_FALSE(MakeBigInt(2) >= MakeBigInt(10));
+  EXPECT_TRUE(MakeBigInt(10) >= MakeBigInt(10));
+  EXPECT_TRUE(MakeBigInt(12) >= MakeBigInt(10));
+}
+
+TEST_F(BigIntTest, IsEven) {
+  EXPECT_TRUE(BigInt::IsEven(MakeBigInt(-4)));
+  EXPECT_FALSE(BigInt::IsEven(MakeBigInt(-3)));
+  EXPECT_TRUE(BigInt::IsEven(MakeBigInt(-2)));
+  EXPECT_FALSE(BigInt::IsEven(MakeBigInt(-1)));
+  EXPECT_TRUE(BigInt::IsEven(MakeBigInt(0)));
+  EXPECT_FALSE(BigInt::IsEven(MakeBigInt(1)));
+  EXPECT_TRUE(BigInt::IsEven(MakeBigInt(2)));
+  EXPECT_FALSE(BigInt::IsEven(MakeBigInt(3)));
+  EXPECT_TRUE(BigInt::IsEven(MakeBigInt(4)));
+}
+
+TEST_F(BigIntTest, IsPowerOfTwo) {
+  EXPECT_FALSE(BigInt::IsPowerOfTwo(MakeBigInt(-2)));
+  EXPECT_FALSE(BigInt::IsPowerOfTwo(MakeBigInt(-1)));
+  EXPECT_FALSE(BigInt::IsPowerOfTwo(MakeBigInt(0)));
+
+  EXPECT_FALSE(BigInt::IsPowerOfTwo(BigInt::Exp2(129) - BigInt::One()));
+  EXPECT_FALSE(BigInt::IsPowerOfTwo(BigInt::Exp2(129) + BigInt::One()));
+
+  EXPECT_TRUE(BigInt::IsPowerOfTwo(MakeBigInt(1)));
+  EXPECT_TRUE(BigInt::IsPowerOfTwo(MakeBigInt(2)));
+  EXPECT_TRUE(BigInt::IsPowerOfTwo(MakeBigInt(4)));
+  EXPECT_TRUE(BigInt::IsPowerOfTwo(BigInt::Exp2(129)));
+}
+
+TEST_F(BigIntTest, CeilingLog2) {
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(0)),
+            std::numeric_limits<int64_t>::min());
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(1)), 0);
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(2)), 1);
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(3)), 2);
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(4)), 2);
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(5)), 3);
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(6)), 3);
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(7)), 3);
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(8)), 3);
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(9)), 4);
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(15)), 4);
+
+  EXPECT_EQ(BigInt::CeilingLog2(MakeBigInt(4611686018427387903ul)), 62);
+  EXPECT_EQ(BigInt::CeilingLog2(BigInt::Exp2(62) - BigInt::One()), 62);
+
+  EXPECT_EQ(BigInt::CeilingLog2(BigInt::Exp2(128)), 128);
+  EXPECT_EQ(BigInt::CeilingLog2(BigInt::Exp2(128) - BigInt::One()), 128);
+
+  EXPECT_EQ(BigInt::CeilingLog2(BigInt::Exp2(128) + BigInt::One()), 129);
+  EXPECT_EQ(BigInt::CeilingLog2(BigInt::Exp2(129)), 129);
+}
+
+TEST_F(BigIntTest, FactorizePowerOfTwo) {
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(0));
+    EXPECT_EQ(odd, MakeBigInt(0));
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(1));
+    EXPECT_EQ(odd, MakeBigInt(1));
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(2));
+    EXPECT_EQ(odd, MakeBigInt(1));
+    EXPECT_EQ(exponent, 1);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(3));
+    EXPECT_EQ(odd, MakeBigInt(3));
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(4));
+    EXPECT_EQ(odd, MakeBigInt(1));
+    EXPECT_EQ(exponent, 2);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(6));
+    EXPECT_EQ(odd, MakeBigInt(3));
+    EXPECT_EQ(exponent, 1);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(40));
+    EXPECT_EQ(odd, MakeBigInt(5));
+    EXPECT_EQ(exponent, 3);
+  }
+  {
+    auto [odd, exponent] =
+        BigInt::FactorizePowerOfTwo(MakeBigInt(7) * BigInt::Exp2(129));
+    EXPECT_EQ(odd, MakeBigInt(7));
+    EXPECT_EQ(exponent, 129);
+  }
+
+  // negative
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(-1));
+    EXPECT_EQ(odd, MakeBigInt(-1));
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(-2));
+    EXPECT_EQ(odd, MakeBigInt(-1));
+    EXPECT_EQ(exponent, 1);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(-3));
+    EXPECT_EQ(odd, MakeBigInt(-3));
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = BigInt::FactorizePowerOfTwo(MakeBigInt(-4));
+    EXPECT_EQ(odd, MakeBigInt(-1));
+    EXPECT_EQ(exponent, 2);
+  }
 }
 
 }  // namespace

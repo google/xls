@@ -40,10 +40,7 @@ class ArithSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    // Some tests cover the divide by literal optimization so set
-    // `optimize_divides` to true. However, it is not yet safe to enable
-    // generally because bad code can be produced.
-    return ArithSimplificationPass(kMaxOptLevel, /*optimize_divides=*/true)
+    return ArithSimplificationPass(kMaxOptLevel)
         .Run(p, PassOptions(), &results);
   }
 
@@ -386,6 +383,95 @@ TEST_F(ArithSimplificationPassTest, UnsignedDivideAllNonPowersOfTwoExhaustive) {
   }
 }
 
+// Regression test for
+// https://github.com/google/xls/issues/736
+TEST_F(ArithSimplificationPassTest, UDivWrongIssue736) {
+  constexpr uint64_t nBits = 43;
+  constexpr uint64_t divisor = UINT64_C(1876853526877);
+
+  auto p = CreatePackage();
+  FunctionBuilder fb("UnsignedDivideBy" + std::to_string(divisor), p.get());
+  fb.UDiv(fb.Param("x", p->GetBitsType(nBits)),
+          fb.Literal(Value(UBits(divisor, nBits))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Clean up the dumped IR
+  PassResults results;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+              IsOkAndHolds(true));
+
+  std::string optimized_ir = f->DumpIr();
+
+  // A non-power of two divisor will be rewritten to shifts (which are further
+  // rewritten to slices), mul. No div, add, or sub.
+  EXPECT_TRUE(Contains(optimized_ir, "bit_slice"));
+  EXPECT_TRUE(Contains(optimized_ir, "umul"));
+  EXPECT_FALSE(Contains(optimized_ir, "div"));
+  EXPECT_FALSE(Contains(optimized_ir, "add"));
+  EXPECT_FALSE(Contains(optimized_ir, "sub"));
+
+  // compute x/divisor. assert result == expected
+  auto interp_and_check = [&f](uint64_t x, uint64_t expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(UBits(x, nBits))}));
+    EXPECT_EQ(r.value, Value(UBits(expected, nBits)));
+  };
+
+  // compute RoundToZero(i/divisor)
+  auto div_rt0 = [=](uint64_t i) { return i / divisor; };
+
+  // The input that triggered the bug
+  uint64_t x = UINT64_C(5864062014805);  // 0x555_5555_5555
+  interp_and_check(x, div_rt0(x));
+}
+
+// Regression test for
+// https://github.com/google/xls/issues/736
+TEST_F(ArithSimplificationPassTest, SDivWrongIssue736) {
+  constexpr uint64_t nBits = 66;
+  constexpr int64_t divisor =
+      INT64_C(2305843009213693950);  // floor(dividend/2 - 1) = 2^61 - 2
+
+  auto p = CreatePackage();
+  FunctionBuilder fb("UnsignedDivideBy" + std::to_string(divisor), p.get());
+  fb.SDiv(fb.Param("x", p->GetBitsType(nBits)),
+          fb.Literal(Value(SBits(divisor, nBits))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Clean up the dumped IR
+  PassResults results;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+              IsOkAndHolds(true));
+
+  std::string optimized_ir = f->DumpIr();
+
+  // A non-power of two divisor will be rewritten to shifts (which are further
+  // rewritten to slices), mul, sub. No div or add.
+  EXPECT_TRUE(Contains(optimized_ir, "bit_slice"));
+  EXPECT_TRUE(Contains(optimized_ir, "smul"));
+  EXPECT_TRUE(Contains(optimized_ir, "sub"));
+  EXPECT_FALSE(Contains(optimized_ir, "div"));
+  EXPECT_FALSE(Contains(optimized_ir, "add"));
+
+  // compute x/divisor. assert result == expected
+  auto interp_and_check = [&f](int64_t x, int64_t expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(UBits(x, nBits))}));
+    EXPECT_EQ(r.value, Value(UBits(expected, nBits)));
+  };
+
+  // compute RoundToZero(i/divisor)
+  auto div_rt0 = [=](int64_t i) { return i / divisor; };
+
+  // The input that triggered the bug
+  int64_t x = INT64_C(4611686018427387903);  // 2^62 - 1
+
+  // obviously, this should be 2
+  interp_and_check(x, div_rt0(x));
+}
+
 // Optimizes the IR for a divide by a power of two (which may be negative or
 // positive). Checks that optimized IR matches expected IR. Numerically
 // validates (via interpretation) the optimized IR, exhaustively up to 2^N.
@@ -471,7 +557,7 @@ TEST_F(ArithSimplificationPassTest, SignedDivideAllPowersOfTwoExhaustive) {
 void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
                                                                  int divisor) {
   auto p = CreatePackage();
-  FunctionBuilder fb(TestName(), p.get());
+  FunctionBuilder fb("SignedDivideBy" + std::to_string(divisor), p.get());
   fb.SDiv(fb.Param("x", p->GetBitsType(n)),
           fb.Literal(Value(SBits(divisor, n))));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
