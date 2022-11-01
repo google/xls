@@ -20,7 +20,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
@@ -58,8 +59,8 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
   XLS_ASSERT_OK(
       CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -126,8 +127,8 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
   XLS_ASSERT_OK(
       CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -182,8 +183,8 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
   XLS_ASSERT_OK(
       CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -236,8 +237,8 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
   XLS_ASSERT_OK(
       CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(

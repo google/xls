@@ -88,7 +88,7 @@ cc_test(
         "//xls/ir:events",
         "//xls/ir:ir_parser",
         "//xls/jit:jit_channel_queue",
-        "//xls/jit:serial_proc_runtime",
+        "//xls/jit:jit_proc_runtime",
         "@boringssl//:crypto",
     ],
 )
@@ -180,12 +180,13 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
+        "//xls/jit:jit_proc_runtime",
         "//xls/jit:proc_jit",
-        "//xls/jit:serial_proc_runtime",
         "@boringssl//:crypto",
     ],
 )

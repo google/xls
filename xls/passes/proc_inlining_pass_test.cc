@@ -22,7 +22,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -60,11 +61,11 @@ class ProcInliningPassTest : public IrTestBase {
     return changed;
   }
 
-  absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> CreateInterpreter(
+  absl::StatusOr<std::unique_ptr<SerialProcRuntime>> CreateInterpreter(
       Package* p,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                         CreateProcNetworkInterpreter(p));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> interpreter,
+                         CreateInterpreterSerialProcRuntime(p));
 
     for (auto [ch_name, ch_inputs] : inputs) {
       XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
@@ -104,9 +105,8 @@ class ProcInliningPassTest : public IrTestBase {
     testing::ScopedTrace trace(loc.file_name(), loc.line(),
                                "EvalAndExpect failed");
 
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        CreateInterpreter(p, inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
+                             CreateInterpreter(p, inputs));
 
     std::vector<Channel*> output_channels;
     absl::flat_hash_map<Channel*, int64_t> expected_output_count;
@@ -1718,7 +1718,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      std::unique_ptr<SerialProcRuntime> interpreter,
       CreateInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
   EXPECT_THAT(
       interpreter->Tick(),
@@ -1880,7 +1880,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
 
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
                            CreateInterpreter(p.get(), {{"in", {1, 2, 3}}}));
   XLS_EXPECT_OK(interpreter->Tick());
   EXPECT_THAT(interpreter->Tick(),
@@ -1939,7 +1939,7 @@ TEST_F(ProcInliningPassTest, DataLoss) {
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      std::unique_ptr<SerialProcRuntime> interpreter,
       CreateInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
 
   XLS_EXPECT_OK(interpreter->Tick());
@@ -1998,7 +1998,7 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
                            CreateInterpreter(p.get(), {{"in", {1, 2, 3}}}));
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
@@ -2591,9 +2591,8 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     // should be the same.
     absl::flat_hash_map<std::string, std::vector<int64_t>> inputs = {
         {"in", {2, 5, 7}}};
-    XLS_ASSERT_OK_AND_ASSIGN(
-        std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        CreateInterpreter(p.get(), inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
+                             CreateInterpreter(p.get(), inputs));
     ChannelQueue& output_queue = interpreter->queue_manager().GetQueue(ch_out);
     while (output_queue.GetSize() < inputs.at("in").size()) {
       XLS_ASSERT_OK(interpreter->Tick());
@@ -3130,7 +3129,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      std::unique_ptr<SerialProcRuntime> interpreter,
       CreateInterpreter(p.get(), {{"in", {1, 2, 3, 42, 123, 333}}}));
 
   // Data is lost on tick 3 because a receive does not fire and the fifo

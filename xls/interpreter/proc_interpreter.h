@@ -25,6 +25,7 @@
 #include "absl/strings/string_view.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"

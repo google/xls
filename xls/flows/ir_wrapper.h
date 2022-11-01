@@ -26,10 +26,10 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/serial_proc_runtime.h"
 
 namespace xls {
 

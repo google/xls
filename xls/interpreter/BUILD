@@ -43,7 +43,6 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:events",
-        "//xls/ir:function_builder",
         "//xls/ir:keyword_args",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
@@ -77,6 +76,7 @@ cc_library(
         ":channel_queue",
         ":ir_interpreter",
         ":proc_evaluator",
+        ":serial_proc_runtime",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -112,23 +112,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:channel",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "proc_network_interpreter_test",
-    srcs = ["proc_network_interpreter_test.cc"],
-    deps = [
-        ":proc_network_interpreter",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -188,20 +171,6 @@ cc_library(
 )
 
 cc_library(
-    name = "proc_network_interpreter",
-    srcs = ["proc_network_interpreter.cc"],
-    hdrs = ["proc_network_interpreter.h"],
-    deps = [
-        ":channel_queue",
-        ":proc_interpreter",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/ir",
-        "//xls/ir:events",
-    ],
-)
-
-cc_library(
     name = "random_value",
     srcs = ["random_value.cc"],
     hdrs = ["random_value.h"],
@@ -221,7 +190,6 @@ cc_library(
     hdrs = ["channel_queue_test_base.h"],
     deps = [
         ":channel_queue",
-        ":ir_interpreter",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "//xls/ir:channel",
@@ -261,5 +229,84 @@ cc_library(
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "proc_runtime",
+    srcs = ["proc_runtime.cc"],
+    hdrs = ["proc_runtime.h"],
+    deps = [
+        ":channel_queue",
+        ":proc_evaluator",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/jit:jit_channel_queue",
+    ],
+)
+
+cc_library(
+    name = "serial_proc_runtime",
+    srcs = ["serial_proc_runtime.cc"],
+    hdrs = ["serial_proc_runtime.h"],
+    deps = [
+        ":channel_queue",
+        ":proc_evaluator",
+        ":proc_runtime",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "serial_proc_runtime_test",
+    srcs = ["serial_proc_runtime_test.cc"],
+    deps = [
+        ":interpreter_proc_runtime",
+        ":proc_interpreter",
+        ":proc_runtime_test_base",
+        ":serial_proc_runtime",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir",
+        "//xls/jit:jit_channel_queue",
+        "//xls/jit:jit_proc_runtime",
+        "//xls/jit:proc_jit",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "proc_runtime_test_base",
+    testonly = True,
+    srcs = ["proc_runtime_test_base.cc"],
+    hdrs = ["proc_runtime_test_base.h"],
+    deps = [
+        ":proc_runtime",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "interpreter_proc_runtime",
+    srcs = ["interpreter_proc_runtime.cc"],
+    hdrs = ["interpreter_proc_runtime.h"],
+    deps = [
+        ":channel_queue",
+        ":proc_evaluator",
+        ":proc_interpreter",
+        ":serial_proc_runtime",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
     ],
 )

@@ -25,8 +25,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/value_view.h"
-#include "xls/jit/serial_proc_runtime.h"
 
 namespace xls {
 namespace {

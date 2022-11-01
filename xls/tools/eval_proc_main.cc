@@ -38,12 +38,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/block_interpreter.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/serial_proc_runtime.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/tools/eval_helpers.h"
 
 constexpr const char* kUsage = R"(
@@ -123,14 +123,19 @@ ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
 
 namespace xls {
 
-absl::Status RunIrInterpreter(
-    Package* package, const std::vector<int64_t>& ticks,
+absl::Status EvaluateProcs(
+    Package* package, bool use_jit, const std::vector<int64_t>& ticks,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
-  XLS_ASSIGN_OR_RETURN(auto interpreter, CreateProcNetworkInterpreter(package));
+  std::unique_ptr<SerialProcRuntime> runtime;
+  if (use_jit) {
+    XLS_ASSIGN_OR_RETURN(runtime, CreateJitSerialProcRuntime(package));
+  } else {
+    XLS_ASSIGN_OR_RETURN(runtime, CreateInterpreterSerialProcRuntime(package));
+  }
 
-  ChannelQueueManager& queue_manager = interpreter->queue_manager();
+  ChannelQueueManager& queue_manager = runtime->queue_manager();
   for (const auto& [channel_name, values] : inputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
                          queue_manager.GetQueueByName(channel_name));
@@ -140,32 +145,34 @@ absl::Status RunIrInterpreter(
   }
 
   for (int64_t this_ticks : ticks) {
-    interpreter->ResetState();
+    runtime->ResetState();
 
     XLS_CHECK_GT(this_ticks, 0);
     for (int i = 0; i < this_ticks; i++) {
-      XLS_RETURN_IF_ERROR(interpreter->Tick());
+      XLS_RETURN_IF_ERROR(runtime->Tick());
 
       // Sort the keys for stable print order.
-      absl::flat_hash_map<Proc*, std::vector<Value>> states =
-          interpreter->ResolveState();
+      absl::flat_hash_map<Proc*, std::vector<Value>> states;
       std::vector<Proc*> sorted_procs;
-      for (const auto& [k, v] : states) {
-        sorted_procs.push_back(k);
+      for (const auto& proc : package->procs()) {
+        sorted_procs.push_back(proc.get());
+        states[proc.get()] = runtime->ResolveState(proc.get());
       }
 
+      std::sort(sorted_procs.begin(), sorted_procs.end(),
+                [](Proc* a, Proc* b) { return a->name() < b->name(); });
+
       if (absl::GetFlag(FLAGS_show_trace)) {
-        for (const auto& [proc, events] : interpreter->GetInterpreterEvents()) {
-          for (const auto& msg : events.trace_msgs) {
+        for (Proc* proc : sorted_procs) {
+          for (const auto& msg :
+               runtime->GetInterpreterEvents(proc).trace_msgs) {
             std::cerr << "Proc " << proc->name() << " trace: " << msg << "\n";
           }
         }
       }
 
-      std::sort(sorted_procs.begin(), sorted_procs.end(),
-                [](Proc* a, Proc* b) { return a->name() < b->name(); });
-      for (const auto& proc : sorted_procs) {
-        const auto& state = states.at(proc);
+      for (const auto& proc : package->procs()) {
+        const auto& state = states.at(proc.get());
         XLS_VLOG(1) << "Proc " << proc->name() << " : "
                     << absl::StrFormat(
                            "{%s}", absl::StrJoin(state, ", ", ValueFormatter));
@@ -211,91 +218,6 @@ absl::Status RunIrInterpreter(
       int64_t index = 0;
       while (!out_queue->IsEmpty()) {
         std::optional<Value> out_val = out_queue->Read();
-        channel_values[index++] = out_val.value();
-      }
-      expected_outputs_for_channels.insert({channel->name(), channel_values});
-    }
-    std::cout << ChannelValuesToString(expected_outputs_for_channels);
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status RunSerialJit(
-    Package* package, const std::vector<int64_t>& ticks,
-    absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
-    absl::flat_hash_map<std::string, std::vector<Value>>
-        expected_outputs_for_channels) {
-  XLS_VLOG(1) << "Compiling...";
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
-                       SerialProcRuntime::Create(package));
-
-  XLS_VLOG(1) << "Writing inputs...";
-  for (const auto& [channel_name, values] : inputs_for_channels) {
-    XLS_ASSIGN_OR_RETURN(Channel * in_ch, package->GetChannel(channel_name));
-    for (const Value& value : values) {
-      XLS_RETURN_IF_ERROR(runtime->WriteValueToChannel(in_ch, value));
-    }
-  }
-
-  XLS_VLOG(1) << "Running...";
-  for (int64_t this_ticks : ticks) {
-    runtime->ResetState();
-
-    XLS_CHECK_GT(this_ticks, 0);
-    // If Tick() semantics change such that it returns once all Procs have run
-    // _at_all_ (instead of only returning when all procs have fully completed),
-    // then number-of-ticks-based timing won't work and we'll need to run based
-    // on collecting some number of outputs.
-    for (int64_t i = 0; i < this_ticks; i++) {
-      XLS_RETURN_IF_ERROR(runtime->Tick());
-
-      for (const std::unique_ptr<Proc>& proc : package->procs()) {
-        XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
-                             runtime->ProcState(proc.get()));
-        XLS_VLOG(1) << absl::StreamFormat(
-            "Proc %s : {%s}", proc->name(),
-            absl::StrJoin(values, ", ", ValueFormatter));
-      }
-    }
-  }
-
-  bool checked_any_output = false;
-
-  for (const auto& [channel_name, values] : expected_outputs_for_channels) {
-    XLS_ASSIGN_OR_RETURN(Channel * out_ch, package->GetChannel(channel_name));
-    uint64_t processed_count = 0;
-    for (const Value& value : values) {
-      ChannelQueue& queue = runtime->queue_mgr()->GetQueue(out_ch);
-      if (queue.IsEmpty()) {
-        XLS_LOG(WARNING) << "Warning: Didn't consume "
-                         << values.size() - processed_count
-                         << " expected values" << std::endl;
-        break;
-      }
-      std::optional<Value> out_val = queue.Read();
-      XLS_RET_CHECK(out_val.has_value())
-          << "No output value present on channel " << out_ch->name();
-      XLS_RET_CHECK_EQ(value, out_val.value())
-          << absl::StreamFormat("Mismatched after %d outputs", processed_count);
-      checked_any_output = true;
-      ++processed_count;
-    }
-  }
-
-  if (!checked_any_output && !expected_outputs_for_channels.empty()) {
-    return absl::UnknownError("No output verified (empty expected values?)");
-  }
-  if (expected_outputs_for_channels.empty()) {
-    for (Channel* channel : package->channels()) {
-      if (!channel->CanSend()) {
-        continue;
-      }
-      ChannelQueue& out_queue = runtime->queue_mgr()->GetQueue(channel);
-      std::vector<Value> channel_values(out_queue.GetSize());
-      int64_t index = 0;
-      while (!out_queue.IsEmpty()) {
-        std::optional<Value> out_val = out_queue.Read();
         channel_values[index++] = out_val.value();
       }
       expected_outputs_for_channels.insert({channel->name(), channel_values});
@@ -708,12 +630,12 @@ absl::Status RealMain(
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
   if (backend == "serial_jit") {
-    return RunSerialJit(package.get(), ticks, inputs_for_channels,
-                        expected_outputs_for_channels);
+    return EvaluateProcs(package.get(), /*use_jit=*/true, ticks,
+                         inputs_for_channels, expected_outputs_for_channels);
   }
   if (backend == "ir_interpreter") {
-    return RunIrInterpreter(package.get(), ticks, inputs_for_channels,
-                            expected_outputs_for_channels);
+    return EvaluateProcs(package.get(), /*use_jit=*/false, ticks,
+                         inputs_for_channels, expected_outputs_for_channels);
   }
   if (backend == "block_interpreter") {
     verilog::ModuleSignatureProto proto;

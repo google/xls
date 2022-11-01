@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,31 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_INTERPRETER_PROC_NETWORK_INTERPRETER_H_
-#define XLS_INTERPRETER_PROC_NETWORK_INTERPRETER_H_
+#ifndef XLS_INTERPRETER_PROC_RUNTIME_H_
+#define XLS_INTERPRETER_PROC_RUNTIME_H_
 
 #include <memory>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/proc_interpreter.h"
+#include "xls/interpreter/proc_evaluator.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
+#include "xls/jit/jit_channel_queue.h"
 
 namespace xls {
 
-// Class for interpreting a network of procs. Simultaneously interprets all
-// procs in a package handling all interproc communication via a channel queues.
-// ProcNetworkInterpreters are thread-compatible, but not thread-safe.
-class ProcNetworkInterpreter {
+// Abstract base class for interpreting the procs within a package.
+class ProcRuntime {
  public:
-  // Creates and returns an proc network interpreter for the given
-  // package.
-  static absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> Create(
+  ProcRuntime(
       Package* package,
-      std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
+      absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
       std::unique_ptr<ChannelQueueManager>&& queue_manager);
+
+  virtual ~ProcRuntime() = default;
 
   // Execute (up to) a single iteration of every proc in the package. If no
   // conditional send/receive nodes exist in the package then calling Tick will
@@ -68,41 +67,33 @@ class ProcNetworkInterpreter {
 
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 
-  // Returns the state values for each proc in the network.
-  absl::flat_hash_map<Proc*, std::vector<Value>> ResolveState() const;
+  // If the contained Channel queue manager is a JitChannelQueueManager then
+  // return it. Otherwise raise an error.
+  // TODO(meheff): 2022/10/26 Determine if there is a way of eliminating this
+  // method. Perhaps adding "raw" read/write methods to the ChannelQueue API
+  // making JitChannelQueues interface the same as a ChannelQueue
+  absl::StatusOr<JitChannelQueueManager*> GetJitChannelQueueManager();
 
+  // Returns the state values for a proc in the network.
+  std::vector<Value> ResolveState(Proc* proc) const {
+    return evaluator_contexts_.at(proc).continuation->GetState();
+  }
+
+  // Reset the state of all of the procs to their initial state.
   void ResetState();
 
   // Returns the events for each proc in the network.
-  absl::flat_hash_map<Proc*, InterpreterEvents> GetInterpreterEvents() const {
-    absl::flat_hash_map<Proc*, InterpreterEvents> result;
-    for (const auto& [proc, context] : evaluator_contexts_) {
-      result[proc] = context.continuation->GetEvents();
-    }
-    return result;
+  const InterpreterEvents& GetInterpreterEvents(Proc* proc) const {
+    return evaluator_contexts_.at(proc).continuation->GetEvents();
   }
 
- private:
-  ProcNetworkInterpreter(
-      Package* package,
-      absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
-      std::unique_ptr<ChannelQueueManager>&& queue_manager)
-      : package_(package), queue_manager_(std::move(queue_manager)) {
-    for (const std::unique_ptr<Proc>& proc : package_->procs()) {
-      std::unique_ptr<ProcContinuation> continuation =
-          evaluators.at(proc.get())->NewContinuation();
-      evaluator_contexts_[proc.get()] =
-          EvaluatorContext{.evaluator = std::move(evaluators.at(proc.get())),
-                           .continuation = std::move(continuation)};
-    }
-  }
-
+ protected:
   // Execute (up to) a single iteration of every proc in the package.
   struct NetworkTickResult {
     bool progress_made;
     std::vector<Channel*> blocked_channels;
   };
-  absl::StatusOr<NetworkTickResult> TickInternal();
+  virtual absl::StatusOr<NetworkTickResult> TickInternal() = 0;
 
   Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
@@ -113,11 +104,6 @@ class ProcNetworkInterpreter {
   absl::flat_hash_map<Proc*, EvaluatorContext> evaluator_contexts_;
 };
 
-// Create a proc network interpreter backed by ProcInterpreters and
-// ChannelQueues for the given package.
-absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
-CreateProcNetworkInterpreter(Package* package);
-
 }  // namespace xls
 
-#endif  // XLS_INTERPRETER_PROC_NETWORK_INTERPRETER_H_
+#endif  // XLS_INTERPRETER_PROC_RUNTIME_H_

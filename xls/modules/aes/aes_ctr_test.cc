@@ -36,7 +36,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/serial_proc_runtime.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 constexpr std::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
@@ -113,35 +113,36 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));
-  JitChannelQueue* cmd_queue =
-      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(cmd_channel);
-  cmd_queue->WriteRaw(reinterpret_cast<uint8_t*>(&command));
+  XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * qm,
+                       jit_data->proc_runtime->GetJitChannelQueueManager());
+  JitChannelQueue& cmd_queue = qm->GetJitQueue(cmd_channel);
+  cmd_queue.WriteRaw(reinterpret_cast<uint8_t*>(&command));
 
   XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
                        jit_data->package->GetChannel(kInputDataChannel));
-  JitChannelQueue* input_data_queue =
-      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(input_data_channel);
-  input_data_queue->WriteRaw(sample_data.input_blocks[0].data());
+  JitChannelQueue& input_data_queue = qm->GetJitQueue(input_data_channel);
+  input_data_queue.WriteRaw(sample_data.input_blocks[0].data());
 
   XLS_RETURN_IF_ERROR(jit_data->proc_runtime->Tick());
-  PrintTraceMessages(jit_data->proc_runtime->GetEvents(jit_data->proc));
+  PrintTraceMessages(
+      jit_data->proc_runtime->GetInterpreterEvents(jit_data->proc));
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
-    input_data_queue->WriteRaw(sample_data.input_blocks[i].data());
+    input_data_queue.WriteRaw(sample_data.input_blocks[i].data());
     XLS_RETURN_IF_ERROR(jit_data->proc_runtime->Tick());
-    PrintTraceMessages(jit_data->proc_runtime->GetEvents(jit_data->proc));
+    PrintTraceMessages(
+        jit_data->proc_runtime->GetInterpreterEvents(jit_data->proc));
   }
 
   // Finally, read out the ciphertext.
   XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
                        jit_data->package->GetChannel(kOutputDataChannel));
-  JitChannelQueue* output_data_queue =
-      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(output_data_channel);
+  JitChannelQueue& output_data_queue = qm->GetJitQueue(output_data_channel);
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(output_data_queue->ReadRaw(blocks[i].data()));
+    XLS_QCHECK(output_data_queue.ReadRaw(blocks[i].data()));
   }
 
   return blocks;
@@ -273,7 +274,7 @@ absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
 
   XLS_VLOG(1) << "JIT compiling.";
   XLS_ASSIGN_OR_RETURN(jit_data.proc_runtime,
-                       SerialProcRuntime::Create(jit_data.package.get()));
+                       CreateJitSerialProcRuntime(jit_data.package.get()));
   XLS_VLOG(1) << "Created JIT!";
 
   return jit_data;

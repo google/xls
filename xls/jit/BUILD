@@ -249,24 +249,9 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/ir",
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm-project//llvm:Core",
-    ],
-)
-
-cc_library(
-    name = "serial_proc_runtime",
-    srcs = ["serial_proc_runtime.cc"],
-    hdrs = ["serial_proc_runtime.h"],
-    deps = [
-        ":jit_channel_queue",
-        ":proc_jit",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
     ],
 )
 
@@ -318,6 +303,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/status:status_macros",
         "//xls/interpreter:proc_evaluator",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:events",
         "//xls/ir:type",
@@ -344,6 +330,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "jit_proc_runtime",
+    srcs = ["jit_proc_runtime.cc"],
+    hdrs = ["jit_proc_runtime.h"],
+    deps = [
+        ":jit_channel_queue",
+        ":proc_jit",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/interpreter:serial_proc_runtime",
+        "//xls/ir",
+        "//xls/ir:value",
+    ],
+)
+
 cc_test(
     name = "proc_jit_test",
     srcs = ["proc_jit_test.cc"],
@@ -358,23 +363,6 @@ cc_test(
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:proc_evaluator_test_base",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "serial_proc_runtime_test",
-    srcs = ["serial_proc_runtime_test.cc"],
-    deps = [
-        ":jit_channel_queue",
-        ":serial_proc_runtime",
-        "//xls/common:casts",
-        "//xls/common:thread",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
         "@com_google_googletest//:gtest",
     ],
 )

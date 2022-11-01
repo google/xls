@@ -32,8 +32,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/jit/serial_proc_runtime.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 // TODO(rspringer): This is a bit slow. Seems like we should be able to compute
@@ -102,7 +103,8 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        package->GetChannel(kCmdChannelName));
   XLS_ASSIGN_OR_RETURN(Value command, CreateCommandValue(sample_data, encrypt));
-  XLS_RETURN_IF_ERROR(runtime->WriteValueToChannel(cmd_channel, command));
+  XLS_RETURN_IF_ERROR(
+      runtime->queue_manager().GetQueue(cmd_channel).Write(command));
 
   // Then send all input data: the AAD followed by the message body.
   XLS_ASSIGN_OR_RETURN(Channel * data_in_channel,
@@ -110,14 +112,14 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   for (int i = 0; i < sample_data.aad.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(sample_data.aad[i]));
     XLS_RETURN_IF_ERROR(
-        runtime->WriteValueToChannel(data_in_channel, block_value));
+        runtime->queue_manager().GetQueue(data_in_channel).Write(block_value));
   }
 
   for (int i = 0; i < sample_data.input_data.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value,
                          BlockToValue(sample_data.input_data[i]));
     XLS_RETURN_IF_ERROR(
-        runtime->WriteValueToChannel(data_in_channel, block_value));
+        runtime->queue_manager().GetQueue(data_in_channel).Write(block_value));
   }
 
   // Tick the network until we have all results.
@@ -127,8 +129,8 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   int msg_blocks_left = sample_data.input_data.size();
   while (true) {
     XLS_RETURN_IF_ERROR(runtime->Tick());
-    XLS_ASSIGN_OR_RETURN(std::optional<Value> maybe_value,
-                         runtime->ReadValueFromChannel(data_out_channel));
+    std::optional<Value> maybe_value =
+        runtime->queue_manager().GetQueue(data_out_channel).Read();
     if (!maybe_value.has_value()) {
       continue;
     }
@@ -302,7 +304,7 @@ absl::StatusOr<JitData> CreateJitData() {
                        Parser::ParsePackage(ir_text));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
-                       SerialProcRuntime::Create(package.get()));
+                       CreateJitSerialProcRuntime(package.get()));
 
   JitData jit_data{std::move(package), std::move(runtime)};
   return jit_data;

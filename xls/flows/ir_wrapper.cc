@@ -27,6 +27,7 @@
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/passes/standard_pipeline.h"
 
@@ -256,7 +257,7 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
 absl::StatusOr<SerialProcRuntime*> IrWrapper::GetAndMaybeCreateProcRuntime() {
   if (proc_runtime_ == nullptr) {
     XLS_ASSIGN_OR_RETURN(proc_runtime_,
-                         SerialProcRuntime::Create(package_.get()));
+                         CreateJitSerialProcRuntime(package_.get()));
   }
   return proc_runtime_.get();
 }
@@ -264,14 +265,17 @@ absl::StatusOr<SerialProcRuntime*> IrWrapper::GetAndMaybeCreateProcRuntime() {
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
     std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
-  return &proc_runtime_->queue_mgr()->GetJitQueue(channel);
+  XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * jit_queue_manager,
+                       proc_runtime_->GetJitChannelQueueManager());
+  return &jit_queue_manager->GetJitQueue(channel);
 }
 
 absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(
     std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue, GetJitChannelQueue(name));
-
-  return JitChannelQueueWrapper::Create(queue, &proc_runtime_->jit_runtime());
+  XLS_ASSIGN_OR_RETURN(JitChannelQueueManager * jit_queue_manager,
+                       proc_runtime_->GetJitChannelQueueManager());
+  return JitChannelQueueWrapper::Create(queue, &jit_queue_manager->runtime());
 }
 
 }  // namespace xls

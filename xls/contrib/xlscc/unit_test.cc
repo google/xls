@@ -26,7 +26,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/value_helpers.h"
 
 using testing::Optional;
@@ -253,8 +254,9 @@ void XlsccTestBase::ProcTest(
 
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
-                           xls::CreateProcNetworkInterpreter(package_.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto interpreter,
+      xls::CreateInterpreterSerialProcRuntime(package_.get()));
 
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
@@ -279,11 +281,12 @@ void XlsccTestBase::ProcTest(
     XLS_ASSERT_OK(interpreter->Tick());
 
     XLS_LOG(INFO) << "State after tick " << tick;
-    for (const auto& [proc, state] : interpreter->ResolveState()) {
+    for (const auto& proc : package_->procs()) {
       XLS_LOG(INFO) << absl::StrFormat(
           "[%s]: %s", proc->name(),
-          absl::StrFormat("{%s}",
-                          absl::StrJoin(state, ", ", xls::ValueFormatter)));
+          absl::StrFormat(
+              "{%s}", absl::StrJoin(interpreter->ResolveState(proc.get()), ", ",
+                                    xls::ValueFormatter)));
     }
 
     // Check as we go

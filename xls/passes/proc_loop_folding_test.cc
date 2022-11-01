@@ -23,7 +23,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/proc_fir_filter.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/interpreter/interpreter_proc_runtime.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -226,8 +227,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -313,8 +314,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -399,8 +400,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -487,8 +488,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should just output 0 + 1 + ... + 9 each time (=45)
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -565,8 +566,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should output 0 + 3 + 6 + ... + 27 each time (=135)
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -647,8 +648,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
 
   // We will add the receive value + 1 to the accumulator 10 times. So it should
   // be equal to 10*(Receive + 1).
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -731,8 +732,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
 
   // We will add 1 to the accumulator 10 times, so the output should be the
   // initial value of the accumulator + 10.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -817,8 +818,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
 
   // We will add 1 to the accumulator 10 times, so the output should be 10 plus
   // one, from the use of the invariant after the loop.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -908,8 +909,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // We will add 1 to the accumulator 10 times, so the output should be 10.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -981,8 +982,8 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   EXPECT_THAT(Run(f), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -1070,8 +1071,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   EXPECT_THAT(Run(f, 2), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -1152,8 +1153,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   EXPECT_THAT(Run(f, 4), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
-                           CreateProcNetworkInterpreter(p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> pi,
+                           CreateInterpreterSerialProcRuntime(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(

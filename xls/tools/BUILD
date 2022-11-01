@@ -614,13 +614,13 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/interpreter:channel_queue",
+        "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:ir_interpreter",
-        "//xls/interpreter:proc_network_interpreter",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:value_helpers",
-        "//xls/jit:jit_channel_queue",
-        "//xls/jit:serial_proc_runtime",
+        "//xls/jit:jit_proc_runtime",
     ],
 )
 

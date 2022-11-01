@@ -20,6 +20,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"

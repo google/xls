@@ -37,10 +37,11 @@ cc_library(
         "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/jit:function_jit",
+        "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
-        "//xls/jit:serial_proc_runtime",
         "//xls/passes:standard_pipeline",
     ],
 )
@@ -57,8 +58,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:value_view",
-        "//xls/jit:serial_proc_runtime",
         "@com_google_googletest//:gtest",
     ],
 )
