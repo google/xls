@@ -53,9 +53,9 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
-  sram_configurations_.reserve(options.sram_configurations().size());
-  for (auto& option : options.sram_configurations()) {
-    sram_configurations_.push_back(option->Clone());
+  ram_configurations_.reserve(options.ram_configurations().size());
+  for (auto& option : options.ram_configurations()) {
+    ram_configurations_.push_back(option->Clone());
   }
 }
 
@@ -82,9 +82,9 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
-  sram_configurations_.reserve(options.sram_configurations().size());
-  for (auto& option : options.sram_configurations()) {
-    sram_configurations_.push_back(option->Clone());
+  ram_configurations_.reserve(options.ram_configurations().size());
+  for (auto& option : options.ram_configurations()) {
+    ram_configurations_.push_back(option->Clone());
   }
   return *this;
 }
@@ -240,11 +240,11 @@ CodegenOptions& CodegenOptions::array_index_bounds_checking(bool value) {
   return *this;
 }
 
-CodegenOptions& CodegenOptions::sram_configurations(
-    absl::Span<const std::unique_ptr<SramConfiguration>> sram_configurations) {
-  sram_configurations_.clear();
-  for (auto& config : sram_configurations) {
-    sram_configurations_.push_back(config->Clone());
+CodegenOptions& CodegenOptions::ram_configurations(
+    absl::Span<const std::unique_ptr<RamConfiguration>> ram_configurations) {
+  ram_configurations_.clear();
+  for (auto& config : ram_configurations) {
+    ram_configurations_.push_back(config->Clone());
   }
   return *this;
 }

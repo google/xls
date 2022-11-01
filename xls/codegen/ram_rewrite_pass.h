@@ -12,30 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_SRAM_CHANNEL_REWRITE_PASS_H_
-#define XLS_CODEGEN_SRAM_CHANNEL_REWRITE_PASS_H_
+#ifndef XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
+#define XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 
 namespace xls::verilog {
 
-// Rewrites selected channels to work with SRAMs.
+// Rewrites selected channels to work with RAMs.
 //
 // Request channels must be a 4-tuple, where the entries are (addr, wr_data, we,
 // re). Response channels must be a 1-tuple where the entry is (rd_data). The
 // selected channels will be rewritten by this pass to support interacting with
-// SRAM macros; in particular, the request data port will expanded into 4 ports
-// for each element of the tuple (addr, wr_data, we, re). Furthermore,
+// external RAMs; in particular, the request data port will expanded into 4
+// ports for each element of the tuple (addr, wr_data, we, re). Furthermore,
 // ready/valid ports will be replaced by internal signals to/from a skid buffer
-// added to catch the output of the SRAM. Note: this pass should generally be
+// added to catch the output of the RAM. Note: this pass should generally be
 // used in conjunction with a scheduling constraint to ensure that the receive
 // on the response channel comes a cycle after the send on the request channel.
-class SramRewritePass : public CodegenPass {
+class RamRewritePass : public CodegenPass {
  public:
-  SramRewritePass()
-      : CodegenPass("sram_channel_rewrite", "Rewrite channels to SRAMs") {}
-  ~SramRewritePass() override = default;
+  RamRewritePass()
+      : CodegenPass("ram_channel_rewrite", "Rewrite channels to RAMs") {}
+  ~RamRewritePass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
@@ -43,10 +43,10 @@ class SramRewritePass : public CodegenPass {
 };
 
 // Alias for function that rewrites the block in the CodegenPassUnit for the
-// given SramConfiguration.
-using sram_rewrite_function_t = std::function<absl::StatusOr<bool>(
-    CodegenPassUnit*, const CodegenPassOptions&, const SramConfiguration&)>;
+// given RamConfiguration.
+using ram_rewrite_function_t = std::function<absl::StatusOr<bool>(
+    CodegenPassUnit*, const CodegenPassOptions&, const RamConfiguration&)>;
 
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_SRAM_CHANNEL_REWRITE_PASS_H_
+#endif  // XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_

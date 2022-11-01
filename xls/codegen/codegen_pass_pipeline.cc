@@ -22,9 +22,9 @@
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
+#include "xls/codegen/ram_rewrite_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
-#include "xls/codegen/sram_rewrite_pass.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 
@@ -41,11 +41,11 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // interface.
   top->Add<SignatureGenerationPass>();
 
-  // Rewrite channels that codegen options have labeled as to/from an SRAM. This
+  // Rewrite channels that codegen options have labeled as to/from a RAM. This
   // removes ready+valid ports, instead AND-ing the request valid signal with
   // the read- and write-enable signals, as well as adding a skid buffer on the
   // response channel.
-  top->Add<SramRewritePass>();
+  top->Add<RamRewritePass>();
 
   // TODO(meheff): 2021/04/29. Add the following passes:
   // * pass to optionally generate pipeline.

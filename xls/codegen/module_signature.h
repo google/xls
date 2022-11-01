@@ -101,8 +101,8 @@ class ModuleSignatureBuilder {
 
   absl::Status RemoveStreamingChannel(std::string_view name);
 
-  ModuleSignatureBuilder& AddSramRWPort(
-      std::string_view sram_name, std::string_view req_name,
+  ModuleSignatureBuilder& AddRamRWPort(
+      std::string_view ram_name, std::string_view req_name,
       std::string_view resp_name, int64_t address_width, int64_t data_width,
       std::string_view address_name, std::string_view read_enable_name,
       std::string_view write_enable_name, std::string_view read_data_name,
@@ -150,7 +150,7 @@ class ModuleSignature {
     return streaming_channels_;
   }
 
-  absl::Span<const SramProto> srams() { return srams_; }
+  absl::Span<const RamProto> rams() { return rams_; }
 
   // Returns the total number of bits of the data input/outputs.
   int64_t TotalDataInputBits() const;
@@ -187,8 +187,8 @@ class ModuleSignature {
   std::vector<ChannelProto> single_value_channels_;
   std::vector<ChannelProto> streaming_channels_;
 
-  // Like the channels above, duplicate srams to enable a convenience method.
-  std::vector<SramProto> srams_;
+  // Like the channels above, duplicate rams to enable a convenience method.
+  std::vector<RamProto> rams_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the

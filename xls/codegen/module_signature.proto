@@ -67,9 +67,9 @@ message ChannelProto {
   optional int64 fifo_depth = 8;
 }
 
-// A RW SRAM port has a request side with a single address field, as well as
+// A RW RAM port has a request side with a single address field, as well as
 // signals to drive a read or write request.
-message SramRWRequestProto {
+message RamRWRequestProto {
   optional string name = 1;
   optional PortProto address = 2;
   optional PortProto read_enable = 3;
@@ -77,29 +77,29 @@ message SramRWRequestProto {
   optional PortProto write_data = 5;
 }
 
-// A RW SRAM port has a response side consisting of read data.
-message SramRWResponseProto {
+// A RW RAM port has a response side consisting of read data.
+message RamRWResponseProto {
   optional string name = 1;
   optional PortProto read_data = 2;
 }
 
-// A RW SRAM port consists of a RW request and RW response.
-message SramRWPortProto {
-  optional SramRWRequestProto request = 1;
-  optional SramRWResponseProto response = 2;
+// A RW RAM port consists of a RW request and RW response.
+message RamRWPortProto {
+  optional RamRWRequestProto request = 1;
+  optional RamRWResponseProto response = 2;
 }
 
-// A 1RW SRAM has a single RW port.
-message Sram1RWProto {
-  optional SramRWPortProto rw_port = 1;
+// A 1RW RAM has a single RW port.
+message Ram1RWProto {
+  optional RamRWPortProto rw_port = 1;
 }
 
-// An SRAM is one of potentially many SRAM kinds, each of which encapsulates
-// potentially many SRAM ports. Each port may have a request and response side.
-message SramProto {
+// A RAM is one of potentially many RAM kinds, each of which encapsulates
+// potentially many RAM ports. Each port may have a request and response side.
+message RamProto {
   optional string name = 1;
-  oneof sram_oneof {
-    Sram1RWProto sram_1rw = 2;
+  oneof ram_oneof {
+    Ram1RWProto ram_1rw = 2;
   }
 }
 
@@ -190,11 +190,11 @@ message ModuleSignatureProto {
   // The channels of the module.  Groups data ports together
   repeated ChannelProto data_channels = 12;
 
-  // The SRAM ports of the module. These start off as channels that get
-  // rewritten in a codegen pass. As they no longer resemble ordinary channels
-  // after the pass, we gather them here with a different proto to reflect that
-  // they drive SRAMs.
-  repeated SramProto srams = 13;
+  // The RAM ports of the module. These start off as channels that get rewritten
+  // in a codegen pass. As they no longer resemble ordinary channels after the
+  // pass, we gather them here with a different proto to reflect that they drive
+  // RAMs.
+  repeated RamProto rams = 13;
 
   // Name of the clock port (if any).
   optional string clock_name = 3;

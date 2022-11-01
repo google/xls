@@ -376,7 +376,7 @@ cc_library(
     deps = [
         ":module_signature_cc_proto",
         ":op_override",
-        ":sram_configuration",
+        ":ram_configuration",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
@@ -412,9 +412,9 @@ cc_library(
         ":codegen_wrapper_pass",
         ":mulp_combining_pass",
         ":port_legalization_pass",
+        ":ram_rewrite_pass",
         ":register_legalization_pass",
         ":signature_generation_pass",
-        ":sram_rewrite_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
         "//xls/passes:identity_removal_pass",
@@ -921,9 +921,9 @@ cc_test(
 )
 
 cc_library(
-    name = "sram_configuration",
-    srcs = ["sram_configuration.cc"],
-    hdrs = ["sram_configuration.h"],
+    name = "ram_configuration",
+    srcs = ["ram_configuration.cc"],
+    hdrs = ["ram_configuration.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
@@ -933,9 +933,9 @@ cc_library(
 )
 
 cc_library(
-    name = "sram_rewrite_pass",
-    srcs = ["sram_rewrite_pass.cc"],
-    hdrs = ["sram_rewrite_pass.h"],
+    name = "ram_rewrite_pass",
+    srcs = ["ram_rewrite_pass.cc"],
+    hdrs = ["ram_rewrite_pass.h"],
     deps = [
         ":block_conversion",
         ":codegen_pass",
@@ -952,13 +952,13 @@ cc_library(
 )
 
 cc_test(
-    name = "sram_rewrite_pass_test",
-    srcs = ["sram_rewrite_pass_test.cc"],
+    name = "ram_rewrite_pass_test",
+    srcs = ["ram_rewrite_pass_test.cc"],
     deps = [
         ":block_conversion",
         ":codegen_options",
         ":codegen_pass_pipeline",
-        ":sram_rewrite_pass",
+        ":ram_rewrite_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

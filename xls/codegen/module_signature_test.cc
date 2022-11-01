@@ -248,141 +248,116 @@ TEST(ModuleSignatureTest, FromProtoAndAddOutputPort) {
   EXPECT_EQ(signature.data_outputs()[2].width(), 10);
 }
 
-TEST(ModuleSignatureTest, SramPortInterfaceRW) {
+TEST(ModuleSignatureTest, RamPortInterfaceRW) {
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
-  b.AddDataInputAsBits("sram_resp_rd_data", 32);
-  b.AddDataOutputAsBits("sram_req_addr", 24);
-  b.AddDataOutputAsBits("sram_req_wr_data", 32);
-  b.AddDataOutputAsBits("sram_req_re", 1);
-  b.AddDataOutputAsBits("sram_req_we", 1);
+  b.AddDataInputAsBits("ram_resp_rd_data", 32);
+  b.AddDataOutputAsBits("ram_req_addr", 24);
+  b.AddDataOutputAsBits("ram_req_wr_data", 32);
+  b.AddDataOutputAsBits("ram_req_re", 1);
+  b.AddDataOutputAsBits("ram_req_we", 1);
 
-  b.AddSramRWPort(/*sram_name=*/"sram", /*req_name=*/"sram_req",
-                  /*resp_name=*/"sram_resp",
-                  /*address_width=*/24, /*data_width=*/32,
-                  /*address_name=*/"sram_req_addr",
-                  /*read_enable_name=*/"sram_req_re",
-                  /*write_enable_name=*/"sram_req_we",
-                  /*read_data_name=*/"sram_resp_rd_data",
-                  /*write_data_name=*/"sram_req_wr_data");
+  b.AddRamRWPort(/*ram_name=*/"ram", /*req_name=*/"ram_req",
+                 /*resp_name=*/"ram_resp",
+                 /*address_width=*/24, /*data_width=*/32,
+                 /*address_name=*/"ram_req_addr",
+                 /*read_enable_name=*/"ram_req_re",
+                 /*write_enable_name=*/"ram_req_we",
+                 /*read_data_name=*/"ram_resp_rd_data",
+                 /*write_data_name=*/"ram_req_wr_data");
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
-  EXPECT_EQ(signature.srams().size(), 1);
-  EXPECT_EQ(signature.srams().at(0).name(), "sram");
-  EXPECT_EQ(signature.srams().at(0).sram_oneof_case(),
-            SramProto::SramOneofCase::kSram1Rw);
-  EXPECT_EQ(signature.srams().at(0).sram_1rw().rw_port().request().name(),
-            "sram_req");
-  EXPECT_EQ(signature.srams().at(0).sram_1rw().rw_port().response().name(),
-            "sram_resp");
+  EXPECT_EQ(signature.rams().size(), 1);
+  EXPECT_EQ(signature.rams().at(0).name(), "ram");
+  EXPECT_EQ(signature.rams().at(0).ram_oneof_case(),
+            RamProto::RamOneofCase::kRam1Rw);
+  EXPECT_EQ(signature.rams().at(0).ram_1rw().rw_port().request().name(),
+            "ram_req");
+  EXPECT_EQ(signature.rams().at(0).ram_1rw().rw_port().response().name(),
+            "ram_resp");
 
   EXPECT_EQ(
-      signature.srams().at(0).sram_1rw().rw_port().request().address().name(),
-      "sram_req_addr");
+      signature.rams().at(0).ram_1rw().rw_port().request().address().name(),
+      "ram_req_addr");
   EXPECT_EQ(
-      signature.srams().at(0).sram_1rw().rw_port().request().address().width(),
+      signature.rams().at(0).ram_1rw().rw_port().request().address().width(),
       24);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .address()
                 .direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1rw().rw_port().request().read_enable().name(),
+      "ram_req_re");
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
-                .rw_port()
-                .request()
-                .read_enable()
-                .name(),
-            "sram_req_re");
-  EXPECT_EQ(signature.srams()
-                .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .read_enable()
                 .width(),
             1);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .read_enable()
                 .direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .write_enable()
                 .name(),
-            "sram_req_we");
-  EXPECT_EQ(signature.srams()
+            "ram_req_we");
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .write_enable()
                 .width(),
             1);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .write_enable()
                 .direction(),
             DirectionProto::DIRECTION_OUTPUT);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1rw().rw_port().response().read_data().name(),
+      "ram_resp_rd_data");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1rw().rw_port().response().read_data().width(),
+      32);
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
-                .rw_port()
-                .response()
-                .read_data()
-                .name(),
-            "sram_resp_rd_data");
-  EXPECT_EQ(signature.srams()
-                .at(0)
-                .sram_1rw()
-                .rw_port()
-                .response()
-                .read_data()
-                .width(),
-            32);
-  EXPECT_EQ(signature.srams()
-                .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .response()
                 .read_data()
                 .direction(),
             DirectionProto::DIRECTION_INPUT);
-  EXPECT_EQ(signature.srams()
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1rw().rw_port().request().write_data().name(),
+      "ram_req_wr_data");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1rw().rw_port().request().write_data().width(),
+      32);
+  EXPECT_EQ(signature.rams()
                 .at(0)
-                .sram_1rw()
-                .rw_port()
-                .request()
-                .write_data()
-                .name(),
-            "sram_req_wr_data");
-  EXPECT_EQ(signature.srams()
-                .at(0)
-                .sram_1rw()
-                .rw_port()
-                .request()
-                .write_data()
-                .width(),
-            32);
-  EXPECT_EQ(signature.srams()
-                .at(0)
-                .sram_1rw()
+                .ram_1rw()
                 .rw_port()
                 .request()
                 .write_data()

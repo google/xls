@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/sram_rewrite_pass.h"
+#include "xls/codegen/ram_rewrite_pass.h"
 
 #include <memory>
 #include <string>
@@ -102,8 +102,8 @@ CodegenPass* DefaultCodegenPassPipeline() {
   return singleton;
 }
 
-CodegenPass* SramRewritePassOnly() {
-  static SramRewritePass* singleton = new SramRewritePass();
+CodegenPass* RamRewritePassOnly() {
+  static RamRewritePass* singleton = new RamRewritePass();
   return singleton;
 }
 
@@ -111,15 +111,15 @@ std::string_view CodegenPassName(CodegenPass const* pass) {
   if (pass == DefaultCodegenPassPipeline()) {
     return "DefaultCodegenPassPipeline";
   }
-  if (pass == SramRewritePassOnly()) {
-    return "SramRewritePassOnly";
+  if (pass == RamRewritePassOnly()) {
+    return "RamRewritePassOnly";
   }
   // We're seeing an unknown codegen pass, so error
   XLS_LOG(FATAL) << "Unknown codegen pass!";
   return "";
 }
 
-struct SramChannelRewriteTestParam {
+struct RamChannelRewriteTestParam {
   std::string_view test_name;
   // IR must contain a proc named "my_proc"
   std::string_view ir_text;
@@ -128,9 +128,9 @@ struct SramChannelRewriteTestParam {
       req_resp_channel_pairs;
 };
 
-class SramRewritePassTest
+class RamRewritePassTest
     : public testing::TestWithParam<
-          std::tuple<SramChannelRewriteTestParam, CodegenPass*>> {
+          std::tuple<RamChannelRewriteTestParam, CodegenPass*>> {
  protected:
   CodegenOptions GetCodegenOptions() {
     auto& param = std::get<0>(GetParam());
@@ -143,18 +143,18 @@ class SramRewritePassTest
         .streaming_channel_valid_suffix("_valid")
         .streaming_channel_ready_suffix("_ready")
         .module_name("pipelined_proc");
-    std::vector<std::unique_ptr<SramConfiguration>> sram_configurations;
-    sram_configurations.reserve(param.req_resp_channel_pairs.size());
-    int sram_id = 0;
+    std::vector<std::unique_ptr<RamConfiguration>> ram_configurations;
+    ram_configurations.reserve(param.req_resp_channel_pairs.size());
+    int ram_id = 0;
     for (auto const& [req_name, resp_name] : param.req_resp_channel_pairs) {
-      sram_configurations.push_back(std::make_unique<Sram1RWConfiguration>(
-          /*sram_name=*/absl::StrFormat("sram%d", sram_id),
+      ram_configurations.push_back(std::make_unique<Ram1RWConfiguration>(
+          /*ram_name=*/absl::StrFormat("ram%d", ram_id),
           /*latency=*/1,
           /*request_name=*/req_name,
           /*response_name=*/resp_name));
-      sram_id++;
+      ram_id++;
     }
-    codegen_options.sram_configurations(sram_configurations);
+    codegen_options.ram_configurations(ram_configurations);
     return codegen_options;
   }
 
@@ -182,7 +182,7 @@ class SramRewritePassTest
   }
 };
 
-TEST_P(SramRewritePassTest, PortsUpdated) {
+TEST_P(RamRewritePassTest, PortsUpdated) {
   auto& param = std::get<0>(GetParam());
   CodegenOptions codegen_options = GetCodegenOptions();
   CodegenPassOptions pass_options{
@@ -200,7 +200,7 @@ TEST_P(SramRewritePassTest, PortsUpdated) {
 
   EXPECT_TRUE(changed);
 
-  int sram_id = 0;
+  int ram_id = 0;
   for (auto& [req_channel, resp_channel] : param.req_resp_channel_pairs) {
     EXPECT_THAT(
         block->GetPorts(),
@@ -209,24 +209,23 @@ TEST_P(SramRewritePassTest, PortsUpdated) {
                   Contains(PortByName(absl::StrCat(req_channel, "_ready"))))));
     EXPECT_THAT(
         block->GetPorts(),
-        AllOf(Contains(PortByName(absl::StrFormat("sram%d_addr", sram_id))),
-              Contains(PortByName(absl::StrFormat("sram%d_wr_data", sram_id))),
-              Contains(PortByName(absl::StrFormat("sram%d_we", sram_id))),
-              Contains(PortByName(absl::StrFormat("sram%d_re", sram_id)))));
+        AllOf(Contains(PortByName(absl::StrFormat("ram%d_addr", ram_id))),
+              Contains(PortByName(absl::StrFormat("ram%d_wr_data", ram_id))),
+              Contains(PortByName(absl::StrFormat("ram%d_we", ram_id))),
+              Contains(PortByName(absl::StrFormat("ram%d_re", ram_id)))));
     EXPECT_THAT(
         block->GetPorts(),
         Not(AnyOf(
-            Contains(PortByName(absl::StrFormat("sram%d_valid", sram_id))),
-            Contains(PortByName(absl::StrFormat("sram%d_data", sram_id))),
-            Contains(PortByName(absl::StrFormat("sram%d_ready", sram_id))))));
-    EXPECT_THAT(
-        block->GetPorts(),
-        Contains(PortByName(absl::StrFormat("sram%d_rd_data", sram_id))));
-    sram_id++;
+            Contains(PortByName(absl::StrFormat("ram%d_valid", ram_id))),
+            Contains(PortByName(absl::StrFormat("ram%d_data", ram_id))),
+            Contains(PortByName(absl::StrFormat("ram%d_ready", ram_id))))));
+    EXPECT_THAT(block->GetPorts(),
+                Contains(PortByName(absl::StrFormat("ram%d_rd_data", ram_id))));
+    ram_id++;
   }
 }
 
-TEST_P(SramRewritePassTest, ModuleSignatureUpdated) {
+TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
   // Module signature is generated by other codegen passes, only run this test
   // if we're running the full pass pipeline.
   if (std::get<1>(GetParam()) != DefaultCodegenPassPipeline()) {
@@ -257,10 +256,10 @@ TEST_P(SramRewritePassTest, ModuleSignatureUpdated) {
       EXPECT_NE(resp_channel, channel.name());
     }
     bool found = false;
-    for (auto& sram : unit.signature->srams()) {
-      EXPECT_EQ(sram.sram_oneof_case(), SramProto::SramOneofCase::kSram1Rw);
-      if (sram.sram_1rw().rw_port().request().name() == req_channel &&
-          sram.sram_1rw().rw_port().response().name() == resp_channel) {
+    for (auto& ram : unit.signature->rams()) {
+      EXPECT_EQ(ram.ram_oneof_case(), RamProto::RamOneofCase::kRam1Rw);
+      if (ram.ram_1rw().rw_port().request().name() == req_channel &&
+          ram.ram_1rw().rw_port().response().name() == resp_channel) {
         found = true;
       }
     }
@@ -277,8 +276,8 @@ constexpr std::pair<std::string_view, std::string_view> kThreeReqResp[] = {
     {"req2", "resp2"},
 };
 
-constexpr SramChannelRewriteTestParam kTestParameters[] = {
-    SramChannelRewriteTestParam{
+constexpr RamChannelRewriteTestParam kTestParameters[] = {
+    RamChannelRewriteTestParam{
         .test_name = "Simple32Bit",
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
@@ -299,7 +298,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
         .pipeline_stages = 2,
         .req_resp_channel_pairs = kSingleReqResp,
     },
-    SramChannelRewriteTestParam{
+    RamChannelRewriteTestParam{
         .test_name = "Simple32BitWithExtraneousChannels",
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
@@ -326,8 +325,8 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
         .pipeline_stages = 4,
         .req_resp_channel_pairs = kSingleReqResp,
     },
-    SramChannelRewriteTestParam{
-        .test_name = "32BitWithThreeSramChannels",
+    RamChannelRewriteTestParam{
+        .test_name = "32BitWithThreeRamChannels",
         .ir_text = R"(package  test
 chan req0((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
@@ -369,21 +368,21 @@ proc my_proc(__token: token, __state: (), init={()}) {
 };
 
 INSTANTIATE_TEST_SUITE_P(
-    SramRewritePassTestInstantiation, SramRewritePassTest,
+    RamRewritePassTestInstantiation, RamRewritePassTest,
     ::testing::Combine(testing::ValuesIn(kTestParameters),
                        testing::Values(DefaultCodegenPassPipeline(),
-                                       SramRewritePassOnly())),
+                                       RamRewritePassOnly())),
     [](const testing::TestParamInfo<
-        std::tuple<SramChannelRewriteTestParam, CodegenPass*>>& info) {
+        std::tuple<RamChannelRewriteTestParam, CodegenPass*>>& info) {
       return absl::StrCat(std::get<0>(info.param).test_name, "_",
                           CodegenPassName(std::get<1>(info.param)));
     });
 
 // Expects channels named "req" and "resp" and a top level proc named "my_proc".
 absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package) {
-  std::vector<std::unique_ptr<SramConfiguration>> sram_configurations;
-  sram_configurations.push_back(
-      std::make_unique<Sram1RWConfiguration>("sram", 1, "req", "resp"));
+  std::vector<std::unique_ptr<RamConfiguration>> ram_configurations;
+  ram_configurations.push_back(
+      std::make_unique<Ram1RWConfiguration>("ram", 1, "req", "resp"));
   CodegenOptions codegen_options;
   codegen_options.flop_inputs(false)
       .flop_outputs(false)
@@ -393,7 +392,7 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package) {
       .streaming_channel_valid_suffix("_valid")
       .streaming_channel_ready_suffix("_ready")
       .module_name("pipelined_proc")
-      .sram_configurations(std::move(sram_configurations));
+      .ram_configurations(std::move(ram_configurations));
   CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
@@ -458,7 +457,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
 }
 
 // Tests for checking invalid inputs
-TEST(SramRewritePassInvalidInputsTest, InvalidChannelFlowControl) {
+TEST(RamRewritePassInvalidInputsTest, InvalidChannelFlowControl) {
   // Try single_value channels instead of streaming
   std::string ir_text = MakeTestProc(
       TestProcVars{.req_chan_params = "kind=single_value, ops=send_only"});
@@ -469,7 +468,7 @@ TEST(SramRewritePassInvalidInputsTest, InvalidChannelFlowControl) {
               StatusIs(absl::StatusCode::kInternal));
 }
 
-TEST(SramRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple) {
+TEST(RamRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple) {
   // Try bits type instead of tuple for req channel
   std::string ir_text = MakeTestProc(TestProcVars{
       .req_type = "bits[32]", .send_value = "add(__state, __state)"});
@@ -479,7 +478,7 @@ TEST(SramRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple) {
                        HasSubstr("Request must be a tuple type")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple) {
+TEST(RamRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple) {
   // Try bits type instead of tuple for resp channel
   std::string ir_text = MakeTestProc(TestProcVars{.resp_type = "bits[32]"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
@@ -488,7 +487,7 @@ TEST(SramRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple) {
                        HasSubstr("Response must be a tuple type")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries) {
+TEST(RamRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries) {
   // Add an extra field to the req channel
   std::string ir_text = MakeTestProc(TestProcVars{
       .req_type = "(bits[32], bits[32], bits[1], bits[1], bits[1])",
@@ -500,7 +499,7 @@ TEST(SramRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries) {
                HasSubstr("Request must be a tuple type with 4 elements")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries) {
+TEST(RamRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries) {
   // Add an extra field to the response channel
   std::string ir_text =
       MakeTestProc(TestProcVars{.resp_type = "(bits[32], bits[1])"});
@@ -511,7 +510,7 @@ TEST(SramRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries) {
                HasSubstr("Response must be a tuple type with 1 element")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, RequestElementNotBits) {
+TEST(RamRewritePassInvalidInputsTest, RequestElementNotBits) {
   // Replace re with a token (re must be bits[1])
   std::string ir_text = MakeTestProc(TestProcVars{
       .req_type = "(bits[32], bits[32], bits[1], token)",
@@ -523,7 +522,7 @@ TEST(SramRewritePassInvalidInputsTest, RequestElementNotBits) {
                        HasSubstr("element must be type bits, got token")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, ResponseElementNotBits) {
+TEST(RamRewritePassInvalidInputsTest, ResponseElementNotBits) {
   // Replace re with a token (re must be bits[1])
   std::string ir_text = MakeTestProc(TestProcVars{.resp_type = "(token)"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
@@ -532,7 +531,7 @@ TEST(SramRewritePassInvalidInputsTest, ResponseElementNotBits) {
                        HasSubstr("element must be type bits, got token")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, WeMustBeWidth1) {
+TEST(RamRewritePassInvalidInputsTest, WeMustBeWidth1) {
   // Replace we with bits[32] (must be bits[1])
   std::string ir_text = MakeTestProc(TestProcVars{
       .req_type = "(bits[32], bits[32], bits[32], bits[1])",
@@ -544,7 +543,7 @@ TEST(SramRewritePassInvalidInputsTest, WeMustBeWidth1) {
                        HasSubstr("Request we element must have width 1")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, ReMustBeWidth1) {
+TEST(RamRewritePassInvalidInputsTest, ReMustBeWidth1) {
   // Replace re with bits[32] (must be bits[1])
   std::string ir_text = MakeTestProc(TestProcVars{
       .req_type = "(bits[32], bits[32], bits[1], bits[32])",
@@ -556,7 +555,7 @@ TEST(SramRewritePassInvalidInputsTest, ReMustBeWidth1) {
                        HasSubstr("Request re element must have width 1")));
 }
 
-TEST(SramRewritePassInvalidInputsTest, RespDataWidthMustMatchReqDataWidth) {
+TEST(RamRewritePassInvalidInputsTest, RespDataWidthMustMatchReqDataWidth) {
   // Try a 64-bit response (must match 32-bit request data width)
   std::string ir_text = MakeTestProc(TestProcVars{
       .resp_type = "(bits[64])",

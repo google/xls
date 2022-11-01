@@ -103,20 +103,20 @@ ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
 ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
           "Suffix to append to ready signals for streaming channels.");
 ABSL_FLAG(std::string, umulp_format, "", "Format string to use for smulp.");
-ABSL_FLAG(std::vector<std::string>, sram_configurations, {},
-          "A comma-separated list of sram configurations, each of the form "
-          "sram_name:sram_kind[:<kind-specific configuration>]. For example, a "
-          "single-port SRAM is specified "
-          "sram_name:1RW:request_channel:response_channel[:latency] (if "
-          "unspecified, latency is assumed to be 1. For a 1RW SRAM, the "
+ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
+          "A comma-separated list of ram configurations, each of the form "
+          "ram_name:ram_kind[:<kind-specific configuration>]. For example, a "
+          "single-port RAM is specified "
+          "ram_name:1RW:request_channel:response_channel[:latency] (if "
+          "unspecified, latency is assumed to be 1. For a 1RW RAM, the "
           "request channel must be a 4-tuple with entries (addr, wr_data, we, "
           "re) and the response channel must be a 1-tuple with entry "
           "(rd_data). This flag will codegen these channels specially to "
-          "support interacting with SRAM macros; in particular, the request "
+          "support interacting with external RAMs; in particular, the request "
           "data port will expanded into 4 ports for each element of the tuple "
           "(addr, wr_data, we, re). Furthermore, ready/valid ports will be "
           "replaced by internal signals to/from a skid buffer added to catch "
-          "the output of the SRAM. Note: this flag should generally be used in "
+          "the output of the RAM. Note: this flag should generally be used in "
           "conjunction with a scheduling constraint to ensure that the receive "
           "on the response channel comes a cycle after the send on the request "
           "channel.");
@@ -201,7 +201,7 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
   POPULATE_FLAG(streaming_channel_data_suffix);
   POPULATE_FLAG(streaming_channel_valid_suffix);
   POPULATE_FLAG(streaming_channel_ready_suffix);
-  POPULATE_REPEATED_FLAG(sram_configurations);
+  POPULATE_REPEATED_FLAG(ram_configurations);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
   return p;

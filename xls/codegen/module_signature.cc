@@ -192,20 +192,20 @@ absl::Status ModuleSignatureBuilder::RemoveStreamingChannel(
   return absl::OkStatus();
 }
 
-ModuleSignatureBuilder& ModuleSignatureBuilder::AddSramRWPort(
-    std::string_view sram_name, std::string_view req_name,
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddRamRWPort(
+    std::string_view ram_name, std::string_view req_name,
     std::string_view resp_name, int64_t address_width, int64_t data_width,
     std::string_view address_name, std::string_view read_enable_name,
     std::string_view write_enable_name, std::string_view read_data_name,
     std::string_view write_data_name) {
-  SramProto* sram = proto_.add_srams();
-  sram->set_name(ToProtoString(sram_name));
+  RamProto* ram = proto_.add_rams();
+  ram->set_name(ToProtoString(ram_name));
 
-  Sram1RWProto* sram_1rw = sram->mutable_sram_1rw();
-  SramRWPortProto* rw_port = sram_1rw->mutable_rw_port();
+  Ram1RWProto* ram_1rw = ram->mutable_ram_1rw();
+  RamRWPortProto* rw_port = ram_1rw->mutable_rw_port();
 
-  SramRWRequestProto* req = rw_port->mutable_request();
-  SramRWResponseProto* resp = rw_port->mutable_response();
+  RamRWRequestProto* req = rw_port->mutable_request();
+  RamRWResponseProto* resp = rw_port->mutable_response();
 
   req->set_name(ToProtoString(req_name));
   resp->set_name(ToProtoString(resp_name));
@@ -272,8 +272,8 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
     }
   }
 
-  for (const SramProto& sram_ports : proto.srams()) {
-    signature.srams_.push_back(sram_ports);
+  for (const RamProto& ram_ports : proto.rams()) {
+    signature.rams_.push_back(ram_ports);
   }
 
   return signature;

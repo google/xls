@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/sram_rewrite_pass.h"
+#include "xls/codegen/ram_rewrite_pass.h"
 
 #include <stdint.h>
 
@@ -57,7 +57,7 @@ absl::StatusOr<Channel*> GetStreamingChannel(Block* block,
 constexpr std::array<std::string_view, 4> kRwRequestTupleElementNames = {
     "addr", "wr_data", "we", "re"};
 
-struct Sram1RWPortBlockPorts {
+struct Ram1RWPortBlockPorts {
   OutputPort* req_data;
   OutputPort* req_valid;
   InputPort* req_ready;
@@ -66,8 +66,8 @@ struct Sram1RWPortBlockPorts {
   OutputPort* resp_ready;
 };
 
-absl::StatusOr<Sram1RWPortBlockPorts> GetRWBlockPorts(
-    Block* const block, const SramRWPortConfiguration& port_config) {
+absl::StatusOr<Ram1RWPortBlockPorts> GetRWBlockPorts(
+    Block* const block, const RamRWPortConfiguration& port_config) {
   XLS_ASSIGN_OR_RETURN(
       Channel * req_channel,
       GetStreamingChannel(block, port_config.request_channel_name));
@@ -153,7 +153,7 @@ absl::StatusOr<Sram1RWPortBlockPorts> GetRWBlockPorts(
         "request wr_data element (width=%d)",
         resp_tuple_tpe->element_type(0)->GetFlatBitCount(), data_width));
   }
-  return Sram1RWPortBlockPorts{
+  return Ram1RWPortBlockPorts{
       .req_data = req_data_port,
       .req_valid = req_valid_port,
       .req_ready = req_ready_port,
@@ -163,21 +163,21 @@ absl::StatusOr<Sram1RWPortBlockPorts> GetRWBlockPorts(
   };
 }
 
-// After modifying request/response channels to drive an SRAM, the channels no
+// After modifying request/response channels to drive a RAM, the channels no
 // longer fit neatly into how ModuleSignature represents channels. Instead,
-// there is a separate place in the signature that describes SRAM ports. This
+// there is a separate place in the signature that describes RAM ports. This
 // function removes channels from the "streaming channel" list and adds them,
-// along with other metadata, to the sram list.
-absl::Status UpdateModuleSignatureChannelsToSrams(
-    ModuleSignature* signature, std::string_view sram_name,
+// along with other metadata, to the ram list.
+absl::Status UpdateModuleSignatureChannelsToRams(
+    ModuleSignature* signature, std::string_view ram_name,
     std::string_view req_name, std::string_view resp_name, OutputPort* address,
     OutputPort* write_data, OutputPort* read_enable, OutputPort* write_enable,
     InputPort* read_data) {
   auto builder = ModuleSignatureBuilder::FromProto(signature->proto());
   XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(req_name));
   XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(resp_name));
-  builder.AddSramRWPort(
-      /*name=*/sram_name,
+  builder.AddRamRWPort(
+      /*name=*/ram_name,
       /*req_name=*/req_name, /*resp_name=*/resp_name,
       /*address_width=*/address->GetType()->GetFlatBitCount(),
       /*data_width=*/write_data->GetType()->GetFlatBitCount(),
@@ -191,18 +191,17 @@ absl::Status UpdateModuleSignatureChannelsToSrams(
   return absl::OkStatus();
 }
 
-absl::StatusOr<bool> Sram1RWRewrite(
+absl::StatusOr<bool> Ram1RWRewrite(
     CodegenPassUnit* unit, const CodegenPassOptions& pass_options,
-    const SramConfiguration& base_sram_configuration) {
-  auto& sram_config =
-      down_cast<const Sram1RWConfiguration&>(base_sram_configuration);
-  XLS_VLOG(2) << "Rewriting channels for sram " << sram_config.sram_name()
-              << ".";
+    const RamConfiguration& base_ram_configuration) {
+  auto& ram_config =
+      down_cast<const Ram1RWConfiguration&>(base_ram_configuration);
+  XLS_VLOG(2) << "Rewriting channels for ram " << ram_config.ram_name() << ".";
   Block* block = unit->block;
 
   XLS_ASSIGN_OR_RETURN(
-      Sram1RWPortBlockPorts rw_block_ports,
-      GetRWBlockPorts(block, sram_config.rw_port_configuration()));
+      Ram1RWPortBlockPorts rw_block_ports,
+      GetRWBlockPorts(block, ram_config.rw_port_configuration()));
   auto tuple_index = [block](Node* node, int idx) {
     return block->MakeNode<TupleIndex>(
         /*loc=*/SourceInfo(), node, /*index=*/idx);
@@ -225,15 +224,15 @@ absl::StatusOr<bool> Sram1RWRewrite(
 
   // Make names for each element of the request tuple. They will end up each
   // having their own port.
-  std::string_view sram_name = sram_config.sram_name();
+  std::string_view ram_name = ram_config.ram_name();
   std::string req_addr_name =
-      block->UniquifyNodeName(absl::StrCat(sram_name, "_addr"));
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_addr"));
   std::string req_wr_data_name =
-      block->UniquifyNodeName(absl::StrCat(sram_name, "_wr_data"));
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_wr_data"));
   std::string req_we_name =
-      block->UniquifyNodeName(absl::StrCat(sram_name, "_we"));
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_we"));
   std::string req_re_name =
-      block->UniquifyNodeName(absl::StrCat(sram_name, "_re"));
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_re"));
 
   // we is asserted when req.we is asserted and when the request is valid.
   XLS_ASSIGN_OR_RETURN(
@@ -259,14 +258,14 @@ absl::StatusOr<bool> Sram1RWRewrite(
       pass_options.codegen_options.ResetBehavior();
 
   XLS_ASSIGN_OR_RETURN(
-      Node * sram_resp_valid,
+      Node * ram_resp_valid,
       AddRegisterAfterNode(absl::StrCat(req_valid->GetName(), "_delay"),
                            reset_behavior, std::nullopt, req_re_valid_buf,
                            block));
 
   // Make a new response port with a new name.
   std::string resp_rd_data_name =
-      block->UniquifyNodeName(absl::StrCat(sram_name, "_rd_data"));
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_rd_data"));
   XLS_ASSIGN_OR_RETURN(
       InputPort * resp_rd_data_port,
       block->AddInputPort(resp_rd_data_name,
@@ -287,16 +286,16 @@ absl::StatusOr<bool> Sram1RWRewrite(
   XLS_RETURN_IF_ERROR(
       rw_block_ports.resp_ready->ReplaceOperandNumber(0, resp_ready_port_buf));
   XLS_RETURN_IF_ERROR(
-      rw_block_ports.resp_valid->ReplaceUsesWith(sram_resp_valid));
+      rw_block_ports.resp_valid->ReplaceUsesWith(ram_resp_valid));
   XLS_RETURN_IF_ERROR(
       rw_block_ports.req_ready->ReplaceUsesWith(resp_ready_port_buf));
 
-  // Add zero-latency buffer at output of sram
+  // Add zero-latency buffer at output of ram
   std::vector<Node*> valid_nodes;
   std::string zero_latency_buffer_name =
-      absl::StrCat(sram_name, "_sram_zero_latency0");
+      absl::StrCat(ram_name, "_ram_zero_latency0");
   XLS_RETURN_IF_ERROR(AddZeroLatencyBufferToRDVNodes(
-                          resp_rd_data_port, sram_resp_valid,
+                          resp_rd_data_port, ram_resp_valid,
                           resp_ready_port_buf, zero_latency_buffer_name,
                           reset_behavior, block, valid_nodes)
                           .status());
@@ -320,11 +319,11 @@ absl::StatusOr<bool> Sram1RWRewrite(
   XLS_RETURN_IF_ERROR(block->RemoveNode(rw_block_ports.resp_data));
 
   if (unit->signature.has_value()) {
-    XLS_RETURN_IF_ERROR(UpdateModuleSignatureChannelsToSrams(
+    XLS_RETURN_IF_ERROR(UpdateModuleSignatureChannelsToRams(
         &unit->signature.value(),
-        /*sram_name=*/sram_config.sram_name(),
-        /*req_name=*/sram_config.rw_port_configuration().request_channel_name,
-        /*resp_name=*/sram_config.rw_port_configuration().response_channel_name,
+        /*ram_name=*/ram_config.ram_name(),
+        /*req_name=*/ram_config.rw_port_configuration().request_channel_name,
+        /*resp_name=*/ram_config.rw_port_configuration().response_channel_name,
         /*address=*/req_addr_port,
         /*write_data=*/req_wr_data_port,
         /*read_enable=*/req_re_port,
@@ -335,42 +334,41 @@ absl::StatusOr<bool> Sram1RWRewrite(
   return true;
 }
 
-absl::flat_hash_map<std::string, sram_rewrite_function_t>*
-GetSramRewriteFunctionMap() {
+absl::flat_hash_map<std::string, ram_rewrite_function_t>*
+GetRamRewriteFunctionMap() {
   static auto* singleton =
-      new absl::flat_hash_map<std::string, sram_rewrite_function_t>{
-          {"1RW", Sram1RWRewrite},
+      new absl::flat_hash_map<std::string, ram_rewrite_function_t>{
+          {"1RW", Ram1RWRewrite},
       };
   return singleton;
 }
 
-absl::StatusOr<bool> SramRewrite(CodegenPassUnit* unit,
-                                 const CodegenPassOptions& pass_options,
-                                 const SramConfiguration& sram_configuration) {
-  absl::flat_hash_map<std::string, sram_rewrite_function_t>*
-      rewrite_function_map = GetSramRewriteFunctionMap();
-  auto itr = rewrite_function_map->find(sram_configuration.sram_kind());
+absl::StatusOr<bool> RamRewrite(CodegenPassUnit* unit,
+                                const CodegenPassOptions& pass_options,
+                                const RamConfiguration& ram_configuration) {
+  absl::flat_hash_map<std::string, ram_rewrite_function_t>*
+      rewrite_function_map = GetRamRewriteFunctionMap();
+  auto itr = rewrite_function_map->find(ram_configuration.ram_kind());
   if (itr == rewrite_function_map->end()) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("No SRAM rewriter found for SRAM kind %s.",
-                        sram_configuration.sram_kind()));
+        absl::StrFormat("No RAM rewriter found for RAM kind %s.",
+                        ram_configuration.ram_kind()));
   }
-  return itr->second(unit, pass_options, sram_configuration);
+  return itr->second(unit, pass_options, ram_configuration);
 }
 
 }  // namespace
 
 // This function finds all the ports related to each channel specified in
-// `codegen_options.sram_channels()` and invokes `RewriteSramChannel()` on them.
-absl::StatusOr<bool> SramRewritePass::RunInternal(
+// `codegen_options.ram_channels()` and invokes `RewriteRamChannel()` on them.
+absl::StatusOr<bool> RamRewritePass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
   bool changed = false;
 
-  for (auto& sram_configuration :
-       options.codegen_options.sram_configurations()) {
+  for (auto& ram_configuration : options.codegen_options.ram_configurations()) {
     XLS_ASSIGN_OR_RETURN(bool this_one_changed,
-                         SramRewrite(unit, options, *sram_configuration));
+                         RamRewrite(unit, options, *ram_configuration));
     changed |= this_one_changed;
   }
 

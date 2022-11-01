@@ -22,7 +22,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
-#include "xls/codegen/sram_configuration.h"
+#include "xls/codegen/ram_configuration.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -134,14 +134,14 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   options.streaming_channel_valid_suffix(p.streaming_channel_valid_suffix());
   options.streaming_channel_ready_suffix(p.streaming_channel_ready_suffix());
 
-  std::vector<std::unique_ptr<verilog::SramConfiguration>> sram_configurations;
-  sram_configurations.reserve(p.sram_configurations_size());
-  for (const std::string& config_text : p.sram_configurations()) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<verilog::SramConfiguration> config,
-                         verilog::SramConfiguration::ParseString(config_text));
-    sram_configurations.push_back(std::move(config));
+  std::vector<std::unique_ptr<verilog::RamConfiguration>> ram_configurations;
+  ram_configurations.reserve(p.ram_configurations_size());
+  for (const std::string& config_text : p.ram_configurations()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<verilog::RamConfiguration> config,
+                         verilog::RamConfiguration::ParseString(config_text));
+    ram_configurations.push_back(std::move(config));
   }
-  options.sram_configurations(sram_configurations);
+  options.ram_configurations(ram_configurations);
 
   return options;
 }
