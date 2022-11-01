@@ -69,7 +69,7 @@ TEST(Mux3VerilogTest, BasicCombSignaturePresent) {
 
 TEST(Mux3VerilogTest, BasicPipelineSignaturePresent) {
   constexpr const char kVerPath[] =
-      "xls/contrib/xlscc/examples/mux3_stages_5_v.v";
+      "xls/contrib/xlscc/examples/mux3_stages_5_v.sv";
 
   {
     SCOPED_TRACE("BasicPipelineSignaturePresent");
