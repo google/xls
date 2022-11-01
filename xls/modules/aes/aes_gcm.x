@@ -76,22 +76,21 @@ struct State {
     msg_blocks_left: u32,
 }
 
+// TODO(https://github.com/google/xls/issues/681): Proc-scope this.
 // Returns a "zero-valued" State structure, suitable for initializing the proc.
-fn initial_state() -> State {
-    State {
-        step: Step::IDLE,
-        command: Command {
-            encrypt: false,
-            msg_blocks: u32:0,
-            aad_blocks: u32:0,
-            key: Key:[u8:0, ...],
-            key_width: KeyWidth::KEY_128,
-            iv: InitVector:0,
-        },
-        msg_blocks_left: u32:0,
-        aad_blocks_left: u32:0,
-    }
-}
+const DEFAULT_INITIAL_STATE = State {
+    step: Step::IDLE,
+    command: Command {
+        encrypt: false,
+        msg_blocks: u32:0,
+        aad_blocks: u32:0,
+        key: Key:[u8:0, ...],
+        key_width: KeyWidth::KEY_128,
+        iv: InitVector:0,
+    },
+    msg_blocks_left: u32:0,
+    aad_blocks_left: u32:0,
+};
 
 // Returns the State structure to be used for the current "tick", whose
 // contents depend on a possible input command and the current state of the proc.
@@ -196,13 +195,13 @@ proc aes_gcm {
         let (ctr_cmd_in, ctr_cmd_out) = chan<aes_ctr::Command>;
         let (ctr_input_in, ctr_input_out) = chan<Block>;
         let (ctr_result_in, ctr_result_out) = chan<Block>;
-        let ctr_initial_state = aes_ctr::initial_state();
+        let ctr_initial_state = aes_ctr::DEFAULT_INITIAL_STATE;
         spawn aes_ctr::aes_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out)(ctr_initial_state);
 
         let (ghash_cmd_in, ghash_cmd_out) = chan<ghash::Command>;
         let (ghash_input_in, ghash_input_out) = chan<Block>;
         let (ghash_tag_in, ghash_tag_out) = chan<Block>;
-        let ghash_initial_state = ghash::initial_state();
+        let ghash_initial_state = ghash::DEFAULT_INITIAL_STATE;
         spawn ghash::ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out)(ghash_initial_state);
 
         (command_in, data_in, data_out,
@@ -297,7 +296,7 @@ proc aes_gcm_test_smoke_128 {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
         (command_out, input_out, result_in, terminator)
     }
 
@@ -363,7 +362,7 @@ proc aes_gcm_multi_block_gcm {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
         (command_out, input_out, result_in, terminator)
     }
 
@@ -483,7 +482,7 @@ proc aes_128_gcm_zero_block_commands {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
         (command_out, input_out, result_in, terminator)
     }
 
@@ -608,7 +607,7 @@ proc sample_generator_test {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
         (command_out, input_out, result_in, terminator)
     }
 

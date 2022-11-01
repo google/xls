@@ -135,6 +135,9 @@ inline std::string SpanToString(const std::optional<Span>& span) {
   return span->ToString();
 }
 
+// Returns a "fake" span suitable for use in creating testing ASTs.
+Span FakeSpan();
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_POS_H_

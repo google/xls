@@ -19,11 +19,11 @@
 
 #include "absl/container/btree_set.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/import_routines.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_info.h"
-#include "xls/ir/function_builder.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 
@@ -80,22 +80,31 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 // Args:
 //   module: Module we're converting a function within.
 //   entry_function_name: Entry function used as the root for conversion.
-//   type_info: Contains type information used in conversion -- note that his
-//    may be a "derived" (non-root) TypeInfo, e.g. when the function being
-//    converted is parametrically instantiated.
+//   import_data: The import data for typechecking, etc.
 //   symbolic_bindings: Parametric bindings to use during conversion, if this
 //     function is parametric.
+//   initial_state: If converting a proc, the name of a constant inside the
+//     proc's defining module containing the initial state for the proc.
 //
 // Returns an error status that indicates whether the conversion was successful.
 // On success there will be a corresponding (built) function inside of
 // "package".
 //
 // Implementation note: creates a temporary IR package based on module's name.
+struct IrConverterInitialState {
+  enum Kind {
+    kConstantName,
+    kIrValue,
+  };
+  Kind kind;
+  std::string value;
+};
+
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options,
-    std::optional<std::string_view> top_proc_initial_state);
+    std::optional<IrConverterInitialState> initial_state);
 
 // As above, but the package is provided explicitly.
 //
@@ -103,7 +112,7 @@ absl::StatusOr<std::string> ConvertOneFunction(
 // inside of it, it may not be nullptr.
 absl::Status ConvertOneFunctionIntoPackage(
     Module* module, std::string_view entry_function_name,
-    std::optional<std::string_view> top_proc_initial_state,
+    std::optional<IrConverterInitialState> initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package);
 

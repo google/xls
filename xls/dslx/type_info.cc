@@ -135,6 +135,17 @@ std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   return absl::nullopt;
 }
 
+absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
+    const AstNode* key) const {
+  auto maybe_type = GetItem(key);
+  if (maybe_type.has_value()) {
+    return *maybe_type;
+  }
+
+  return absl::NotFoundError(
+      absl::StrCat("Could not find concrete type for node: ", key->ToString()));
+}
+
 void TypeInfo::AddInvocationCallBindings(const Invocation* call,
                                             SymbolicBindings caller,
                                             SymbolicBindings callee) {

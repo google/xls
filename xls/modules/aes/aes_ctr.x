@@ -60,21 +60,19 @@ pub struct State {
   blocks_left: uN[32],
 }
 
-pub fn initial_state() -> State {
-    State {
-        step: Step::IDLE,
-        command: Command {
-            msg_bytes: u32:0,
-            key: Key:[u8:0, ...],
-            key_width: aes_common::KeyWidth::KEY_128,
-            iv: InitVector:uN[96]:0,
-            initial_ctr: u32:0,
-            ctr_stride: u32:0,
-        },
-        ctr: uN[32]:0,
-        blocks_left: uN[32]:0,
-    }
-}
+pub const DEFAULT_INITIAL_STATE = State {
+    step: Step::IDLE,
+    command: Command {
+        msg_bytes: u32:0,
+        key: Key:[u8:0, ...],
+        key_width: aes_common::KeyWidth::KEY_128,
+        iv: InitVector:uN[96]:0,
+        initial_ctr: u32:0,
+        ctr_stride: u32:0,
+    },
+    ctr: uN[32]:0,
+    blocks_left: uN[32]:0,
+};
 
 // Performs the actual work of encrypting (or decrypting!) a block in CTR mode.
 fn aes_ctr_encrypt(key: Key, key_width: aes_common::KeyWidth, ctr: uN[128], block: Block) -> Block {
@@ -146,7 +144,7 @@ proc aes_ctr_test_128 {
         let (command_in, command_out) = chan<Command>;
         let (ptxt_in, ptxt_out) = chan<Block>;
         let (ctxt_in, ctxt_out) = chan<Block>;
-        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(initial_state());
+        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(DEFAULT_INITIAL_STATE);
         (terminator, command_out, ptxt_out, ctxt_in)
     }
 

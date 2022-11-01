@@ -36,6 +36,9 @@ absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
                                         const SymbolicBindings& bindings);
 
 // Converts a concrete type to its corresponding IR representation.
+// TODO(rspringer): Only a fully-concretized type can be converted to IR,
+// meaning that SymbolicBindings shouldn't be necessary here. Verify that's the
+// case, and if so, remove the argument.
 absl::StatusOr<xls::Type*> TypeToIr(Package* package,
                                     const ConcreteType& concrete_type,
                                     const SymbolicBindings& bindings);

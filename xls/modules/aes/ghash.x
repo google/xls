@@ -181,18 +181,16 @@ pub struct State {
 }
 
 // Creates a zero-valued State struct, suitable for proc initialization.
-pub fn initial_state() -> State {
-    State {
-        step: Step::IDLE,
-        command: Command {
-            aad_blocks: u32:0,
-            ctxt_blocks: u32:0,
-            hash_key: ZERO_BLOCK,
-        },
-        input_blocks_left: u32:0,
-        last_tag: ZERO_BLOCK,
-    }
-}
+pub const DEFAULT_INITIAL_STATE = State {
+    step: Step::IDLE,
+    command: Command {
+        aad_blocks: u32:0,
+        ctxt_blocks: u32:0,
+        hash_key: ZERO_BLOCK,
+    },
+    input_blocks_left: u32:0,
+    last_tag: ZERO_BLOCK,
+};
 
 // Returns the state values to use during a proc "tick": either a new command
 // or the carried state, depending on the FSM step/state.
@@ -288,7 +286,7 @@ proc ghash_test {
         let (data_in, data_out) = chan<Block>;
         let (tag_in, tag_out) = chan<Block>;
 
-        spawn ghash(command_in, data_in, tag_out)(initial_state());
+        spawn ghash(command_in, data_in, tag_out)(DEFAULT_INITIAL_STATE);
         (command_out, data_out, tag_in, terminator,)
     }
 

@@ -162,6 +162,7 @@ class TypeInfo {
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
   std::optional<ConcreteType*> GetItem(const AstNode* key) const;
+  absl::StatusOr<ConcreteType*> GetItemOrError(const AstNode* key) const;
 
   // Attempts to resolve AST node 'key' to a type with subtype T; e.g:
   //

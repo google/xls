@@ -678,7 +678,7 @@ class SampleRunner:
         value.to_human_str() for value in proc_init_values
     ]
     proc_init_values_str = ','.join(proc_init_values_str_list)
-    args.append('--top_proc_initial_state=' + proc_init_values_str)
+    args.append('--initial_state_ir_value=' + proc_init_values_str)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)

@@ -66,7 +66,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, enum_type->size().GetAsInt64());
     return package->GetBitsType(bit_count);
   }
-  if (dynamic_cast<const TokenType*>(&concrete_type)) {
+  if (dynamic_cast<const TokenType*>(&concrete_type) != nullptr) {
     return package->GetTokenType();
   }
   std::vector<xls::Type*> members;

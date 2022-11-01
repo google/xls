@@ -16,8 +16,9 @@
 
 #include "absl/status/status.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
 

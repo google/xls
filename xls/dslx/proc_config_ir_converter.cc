@@ -20,7 +20,6 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/symbolic_bindings.h"
 
@@ -99,6 +98,14 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleColonRef(const ColonRef* node) {
+  XLS_VLOG(4) << "ProcConfigIrConverter::HandleColonRef: " << node->ToString();
+  XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
+  node_to_ir_[node] = ir_value;
+  return absl::OkStatus();
+}
+
 absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
   for (int i = 0; i < node->params().size(); i++) {
     XLS_RETURN_IF_ERROR(node->params()[i]->Accept(this));
@@ -108,8 +115,8 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
-  XLS_LOG(INFO) << "ProcConfigIrConverter::HandleInvocation: "
-                << node->ToString();
+  XLS_VLOG(4) << "ProcConfigIrConverter::HandleInvocation: "
+              << node->ToString();
   XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
   XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;

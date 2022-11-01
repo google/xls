@@ -46,4 +46,9 @@ namespace xls::dslx {
       absl::StrFormat("Cannot convert string to position: \"%s\"", s));
 }
 
+Span FakeSpan() {
+  Pos fake_pos("<fake>", 0, 0);
+  return Span(fake_pos, fake_pos);
+}
+
 }  // namespace xls::dslx

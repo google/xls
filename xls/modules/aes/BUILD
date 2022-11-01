@@ -60,7 +60,7 @@ xls_dslx_ir(
     name = "aes_ctr",
     dslx_top = "aes_ctr",
     ir_conv_args = {
-        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0), 0, 0)'",
+        "initial_state_constant": "DEFAULT_INITIAL_STATE",
     },
     library = ":aes_ctr_dslx",
 )
@@ -152,7 +152,7 @@ xls_dslx_ir(
     name = "aes_gcm",
     dslx_top = "aes_gcm",
     ir_conv_args = {
-        "top_proc_initial_state": "'(0, (0, 0, 0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0), 0, 0)'",
+        "initial_state_constant": "DEFAULT_INITIAL_STATE",
     },
     library = ":aes_gcm_dslx",
 )
@@ -217,7 +217,7 @@ xls_dslx_ir(
     name = "aes_ghash",
     dslx_top = "ghash",
     ir_conv_args = {
-        "top_proc_initial_state": "'(0, (0, 0, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]), 0, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])'",
+        "initial_state_constant": "DEFAULT_INITIAL_STATE",
     },
     library = ":ghash_dslx",
 )

@@ -49,16 +49,23 @@ std::string TestName() {
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
-    std::string_view program, std::string_view fn_name,
-    ImportData& import_data, const ConvertOptions& options,
-    std::optional<std::string_view> top_proc_state = std::nullopt) {
+    std::string_view program, std::string_view fn_name, ImportData& import_data,
+    const ConvertOptions& options,
+    std::optional<std::string> top_proc_state_constant = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
                         /*module_name=*/"test_module", &import_data));
+  std::optional<IrConverterInitialState> initial_state;
+  if (top_proc_state_constant.has_value()) {
+    initial_state.emplace(IrConverterInitialState{
+        .kind = IrConverterInitialState::Kind::kConstantName,
+        .value = top_proc_state_constant.value(),
+    });
+  }
   return ConvertOneFunction(
       tm.module, /*entry_function_name=*/fn_name, &import_data,
-      /*symbolic_bindings=*/nullptr, options, top_proc_state);
+      /*symbolic_bindings=*/nullptr, options, initial_state);
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
@@ -1668,7 +1675,9 @@ TEST(IrConverterTest, BoundaryChannels) {
 }
 
 TEST(IrConverterTest, TopProcWithState) {
-  constexpr std::string_view kProgram = R"(proc main {
+  constexpr std::string_view kProgram = R"(
+const INITIAL_STATE = (u32:4, [u32:4000, u32:4001, u32:0x24, u32:0x25]);
+proc main {
   config() { () }
 
   next(tok: token, state: (u32, u32[4])) { state }
@@ -1679,7 +1688,7 @@ TEST(IrConverterTest, TopProcWithState) {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  std::string initial_state_str = "(4, [4000, 4001, 0x24, 0x25])";
+  std::string initial_state_str = "INITIAL_STATE";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "main", import_data, options,
