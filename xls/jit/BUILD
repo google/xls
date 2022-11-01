@@ -14,6 +14,8 @@
 
 # Build rules for the IR JIT - converts XLS IR into native host code.
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -349,6 +351,31 @@ cc_library(
     ],
 )
 
+cc_binary(
+    name = "value_to_native_layout_benchmark",
+    srcs = ["value_to_native_layout_benchmark.cc"],
+    deps = [
+        ":jit_runtime",
+        "//xls/interpreter:random_value",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_binary(
+    name = "jit_channel_queue_benchmark",
+    srcs = ["jit_channel_queue_benchmark.cc"],
+    deps = [
+        ":jit_channel_queue",
+        ":jit_runtime",
+        "//xls/common/logging",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "@com_google_benchmark//:benchmark_main",
+    ],
+)
+
 cc_test(
     name = "proc_jit_test",
     srcs = ["proc_jit_test.cc"],
@@ -364,5 +391,13 @@ cc_test(
         "//xls/interpreter:proc_evaluator_test_base",
         "//xls/ir",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+build_test(
+    name = "metadata_proto_libraries_build",
+    targets = [
+        ":jit_channel_queue_benchmark",
+        ":value_to_native_layout_benchmark",
     ],
 )
