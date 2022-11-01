@@ -19,12 +19,15 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "xls_benchmark_ir",
+    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_dslx_verilog",
     "xls_eval_ir_test",
+    "xls_ir_opt_ir",
+    "xls_ir_verilog",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
@@ -144,9 +147,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "dot_product_dslx_test",
     srcs = ["dot_product.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
     deps = [":dot_product_dslx"],
 )
 
@@ -434,6 +434,89 @@ xls_dslx_opt_ir(
 xls_benchmark_ir(
     name = "large_array_benchmark_ir",
     src = ":large_array.ir",
+)
+
+xls_dslx_library(
+    name = "ram_dslx",
+    srcs = ["ram.x"],
+)
+
+xls_dslx_test(
+    name = "ram_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":ram_dslx",
+)
+
+xls_dslx_library(
+    name = "delay_dslx",
+    srcs = ["delay.x"],
+    deps = [":ram_dslx"],
+)
+
+xls_dslx_test(
+    name = "delay_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":delay_dslx",
+)
+
+xls_dslx_ir(
+    name = "delay_ir",
+    dslx_top = "Delay32x2048_init3",
+    ir_file = "delay.ir",
+    library = ":delay_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "delay_opt_ir",
+    src = "delay.ir",
+    top = "__delay__Delay32x2048_init3__Delay__DelayInternal_0__10_32_2048_64_1024_3_next",
+)
+
+xls_ir_verilog(
+    name = "delay_sv",
+    src = ":delay_opt_ir.opt.ir",
+    codegen_args = {
+        "module_name": "delay_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        # Specify a scheduling constraint on the ram request send -> ram
+        # response recv, which is precisely 1 cycle.
+        "io_constraints": "{req}:send:{resp}:recv:1:1".format(
+            req = "delay__ram_req",
+            resp = "delay__ram_resp",
+        ),
+        # Enable codegen pass that rewrites the req and resp channels to drive
+        # an external RAM. The configuration below means that the pair of
+        # channels `delay__ram_req` and `delay__ram_resp` drive a 1RW RAM
+        # and output ports should be prefixed with `ram`, e.g. `ram_addr`.
+        "ram_configurations": "ram:1RW:{req}:{resp}".format(
+            req = "delay__ram_req",
+            resp = "delay__ram_resp",
+        ),
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "flop_single_value_channels": "false",
+        "flop_outputs": "false",
+        "add_idle_output": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+    },
+    verilog_file = "delay.sv",
+)
+
+verilog_library(
+    name = "delay",
+    srcs = [":delay.sv"],
 )
 
 # TODO(cdleary): 2022-05-09 Get this target working as well, requires
