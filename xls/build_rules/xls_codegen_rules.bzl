@@ -235,7 +235,6 @@ def xls_ir_verilog_impl(ctx, src):
     verilog_filename = ctx.attr.verilog_file.name
     use_system_verilog = ("use_system_verilog" in codegen_args and
                           codegen_args["use_system_verilog"].lower() == "true")
-    my_args += " --use_system_verilog={}".format(use_system_verilog)
     validate_verilog_filename(verilog_filename, use_system_verilog)
     verilog_basename = split_filename(verilog_filename)[0]
 

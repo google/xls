@@ -108,9 +108,8 @@ xls_ir_verilog(
         "flop_inputs": "false",
         "flop_outputs": "false",
         "top": "Mux3_proc",
-        "use_system_verilog": "true",
     },
-    verilog_file = "mux3_stages_5_v.sv",
+    verilog_file = "mux3_stages_5_v.v",
 )
 
 xls_ir_verilog(
@@ -153,7 +152,7 @@ cc_test(
     srcs = ["mux3_v_test.cc"],
     data = [
         ":mux3_comb_v.v",
-        ":mux3_stages_5_v.sv",
+        ":mux3_stages_5_v.v",
     ],
     deps = [
         "//xls/common:xls_gunit_main",
