@@ -115,7 +115,6 @@ class SampleRunner:
                                              smp.options.to_json())
     args_filename = None
     ir_channel_names_filename = None
-    proc_init_values_filename = None
     if smp.args_batch:
       args_filename = self._write_file(
           'args.txt', sample.args_batch_to_text(smp.args_batch))
@@ -123,17 +122,12 @@ class SampleRunner:
       ir_channel_names_filename = self._write_file(
           'ir_channel_names.txt',
           sample.ir_channel_names_to_text(smp.ir_channel_names))
-    if smp.proc_init_values is not None:
-      proc_init_values_filename = self._write_file(
-          'proc_init_values.txt',
-          sample.proc_init_values_to_text(smp.proc_init_values))
 
     self.run_from_files(input_filename, json_options_filename, args_filename,
-                        ir_channel_names_filename, proc_init_values_filename)
+                        ir_channel_names_filename)
 
   def run_from_files(self, input_filename: Text, json_options_filename: Text,
-                     args_filename: Text, ir_channel_names_filename: Text,
-                     proc_init_values_filename: Text):
+                     args_filename: Text, ir_channel_names_filename: Text):
     """Runs a sample which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -145,8 +139,6 @@ class SampleRunner:
       args_filename: The optional filename of the serialized ArgsBatch.
       ir_channel_names_filename: The optional filename of the serialized
         IR channel names.
-      proc_init_values_filename: The optional filename of the serialized
-        ProcInitValues.
 
     Raises:
       SampleError: If an error was encountered.
@@ -162,7 +154,7 @@ class SampleRunner:
         self._run_function(input_filename, options, args_filename)
       elif options.top_type == sample.TopType.proc:
         self._run_proc(input_filename, options, args_filename,
-                       ir_channel_names_filename, proc_init_values_filename)
+                       ir_channel_names_filename)
       else:
         raise SampleError(f'Unsupported sample type : {options.top_type}.')
 
@@ -267,8 +259,7 @@ class SampleRunner:
     self._compare_results_function(results, args_batch)
 
   def _run_proc(self, input_filename: Text, options: sample.SampleOptions,
-                args_filename: Text, ir_channel_names_filename: Text,
-                proc_init_values_filename: Text):
+                args_filename: Text, ir_channel_names_filename: Text):
     """Runs a sample with a proc as the top which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -280,8 +271,6 @@ class SampleRunner:
       args_filename: The optional filename of the serialized ArgsBatch.
       ir_channel_names_filename: The optional filename of the serialized IR
         channel names.
-      proc_init_values_filename: The optional filename of the serialized
-        ProcInitValues.
 
     Raises:
       SampleError: If an error was encountered.
@@ -289,15 +278,11 @@ class SampleRunner:
     input_text = self._read_file(input_filename)
     args_batch: Optional[ArgsBatch] = None
     ir_channel_names: Optional[List[Text]] = None
-    proc_init_values: Optional[ProcInitValues] = None
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
     if ir_channel_names_filename:
       ir_channel_names = sample.parse_ir_channel_names(
           self._read_file(ir_channel_names_filename))
-    if proc_init_values_filename:
-      proc_init_values = sample.parse_proc_init_values(
-          self._read_file(proc_init_values_filename))
 
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference. Note the data is structure with a nested dictionary. The
@@ -313,7 +298,7 @@ class SampleRunner:
         logging.vlog(1, 'Interpreting DSLX file.')
         with Timer() as t:
           results['interpreted DSLX'] = self._interpret_dslx_proc(
-              input_text, 'main', args_batch, proc_init_values)
+              input_text, 'main', args_batch, options.proc_init_constant)
         logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                      t.elapsed_ns / 1e9)
         self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -322,8 +307,7 @@ class SampleRunner:
         return
 
       with Timer() as t:
-        ir_filename = self._dslx_to_ir_proc(input_filename, proc_init_values,
-                                            options)
+        ir_filename = self._dslx_to_ir_proc(input_filename, options)
       self.timing.convert_ir_ns = t.elapsed_ns
     else:
       ir_filename = self._write_file('sample.ir', input_text)
@@ -564,12 +548,11 @@ class SampleRunner:
 
   def _interpret_dslx_proc(
       self, text: str, top_name: str, args_batch: ArgsBatch,
-      proc_init_values: Optional[ProcInitValues]
-  ) -> Dict[Text, Sequence[Value]]:
+      proc_init_constant: str) -> Dict[Text, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     dslx_results = interpreter.run_proc(
-        text, top_name, args_batch, proc_init_values,
+        text, top_name, args_batch, proc_init_constant,
         runtime_build_actions.get_default_dslx_stdlib_path())
 
     ir_channel_values = collections.OrderedDict(
@@ -667,18 +650,14 @@ class SampleRunner:
     return self._write_file('sample.ir', ir_text)
 
   def _dslx_to_ir_proc(self, dslx_filename: Text,
-                       proc_init_values: ProcInitValues,
                        options: sample.SampleOptions) -> Text:
     """Converts the DSLX file to an IR file with a proc as the top whose filename is returned.
     """
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
-    proc_init_values_str_list = [
-        value.to_human_str() for value in proc_init_values
-    ]
-    proc_init_values_str = ','.join(proc_init_values_str_list)
-    args.append('--initial_state_ir_value=' + proc_init_values_str)
+    if options.proc_init_constant:
+      args.append('--initial_state_constant=' + options.proc_init_constant)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)

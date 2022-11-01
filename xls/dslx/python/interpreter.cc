@@ -168,7 +168,7 @@ PYBIND11_MODULE(interpreter, m) {
       "run_proc",
       [](std::string_view text, std::string_view top_name,
          const std::vector<std::vector<InterpValue>> args_batch,
-         const std::vector<InterpValue> proc_initial_values,
+         std::optional<std::string_view> proc_init_constant,
          std::string_view dslx_stdlib_path)
           -> absl::StatusOr<
               absl::flat_hash_map<std::string, std::vector<InterpValue>>> {
@@ -184,12 +184,22 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_CHECK(module_member.has_value());
         ModuleMember* member = module_member.value();
 
+        std::vector<InterpValue> initial_values;
+        if (proc_init_constant.has_value()) {
+          XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
+                               tm.module->GetConstantDef(*proc_init_constant));
+          XLS_ASSIGN_OR_RETURN(
+              InterpValue initial_state,
+              tm.type_info->GetConstExpr(constant_def->value()));
+          initial_values.push_back(initial_state);
+        }
+
         XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
         dslx::Proc* proc = std::get<dslx::Proc*>(*member);
-        return RunProc(proc, import_data, tm, args_batch, proc_initial_values);
+        return RunProc(proc, import_data, tm, args_batch, initial_values);
       },
       py::arg("text"), py::arg("top_name"), py::arg("args_batch"),
-      py::arg("proc_initial_values"), py::arg("dslx_stdlib_path"));
+      py::arg("proc_init_constant"), py::arg("dslx_stdlib_path"));
 }
 
 }  // namespace xls::dslx

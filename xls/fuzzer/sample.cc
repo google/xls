@@ -58,11 +58,6 @@ std::string IrChannelNamesToText(
   return absl::StrJoin(ir_channel_names, ", ");
 }
 
-std::string ProcInitValuesToText(
-    const std::vector<InterpValue>& proc_init_values) {
-  return InterpValueListToString(proc_init_values);
-}
-
 std::vector<std::string> ParseIrChannelNames(
     std::string_view ir_channel_names_text) {
   std::vector<std::string> ir_channel_names;
@@ -95,6 +90,9 @@ std::vector<std::string> ParseIrChannelNames(
 
 #undef HANDLE_BOOL
 
+  if (!parsed["proc_init_constant"].is_null()) {
+    options.proc_init_constant_ = parsed["proc_init_constant"].string_value();
+  }
   if (!parsed["codegen_args"].is_null()) {
     std::vector<std::string> codegen_args;
     for (const json11::Json& item : parsed["codegen_args"].array_items()) {
@@ -141,6 +139,12 @@ json11::Json SampleOptions::ToJson() const {
   HANDLE_BOOL(use_system_verilog);
 
 #undef HANDLE_BOOL
+
+  if (proc_init_constant_) {
+    json["proc_init_constant"] = *proc_init_constant_;
+  } else {
+    json["proc_init_constant"] = nullptr;
+  }
 
   if (codegen_args_) {
     json["codegen_args"] = *codegen_args_;
@@ -202,32 +206,21 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
 }
 
 bool Sample::ProcInitValuesEqual(const Sample& other) const {
-  if (proc_initial_values_.has_value() !=
-      other.proc_initial_values_.has_value()) {
+  if (proc_init_constant_.has_value() !=
+      other.proc_init_constant_.has_value()) {
     return false;
   }
-  if (!proc_initial_values_.has_value()) {
+  if (!proc_init_constant_.has_value()) {
     return true;
   }
-  if (proc_initial_values_.value().size() !=
-      other.proc_initial_values_.value().size()) {
-    return false;
-  }
-  for (int64_t i = 0; i < proc_initial_values_.value().size(); ++i) {
-    if (!proc_initial_values_.value()[i].Eq(
-            other.proc_initial_values_.value()[i])) {
-      return false;
-    }
-  }
-  return true;
+  return *proc_init_constant_ == *other.proc_init_constant_;
 }
 
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   std::optional<SampleOptions> options;
   std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
-  std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
-      std::nullopt;
+  std::optional<std::string> proc_init_constant = std::nullopt;
   std::vector<std::vector<InterpValue>> args_batch;
   std::vector<std::string_view> input_lines;
   for (std::string_view line : absl::StrSplit(s, '\n')) {
@@ -235,9 +228,6 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
       XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
     } else if (RE2::FullMatch(line, "\\s*//\\s*ir_channel_names:(.*)", &line)) {
       ir_channel_names = ParseIrChannelNames(line);
-    } else if (RE2::FullMatch(line, "\\s*//\\s*proc_initial_values:(.*)",
-                              &line)) {
-      XLS_ASSIGN_OR_RETURN(proc_initial_values, dslx::ParseArgs(line));
     } else if (RE2::FullMatch(line, "\\s*//\\s*args:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(auto args, dslx::ParseArgs(line));
       args_batch.push_back(std::move(args));
@@ -254,7 +244,7 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
   std::string input_text = absl::StrJoin(input_lines, "\n");
   return Sample(std::move(input_text), *std::move(options),
                 std::move(args_batch), std::move(ir_channel_names),
-                std::move(proc_initial_values));
+                std::move(proc_init_constant));
 }
 
 std::string Sample::Serialize() const {
@@ -266,11 +256,9 @@ std::string Sample::Serialize() const {
     lines.push_back(
         absl::StrCat("// ir_channel_names: ", ir_channel_names_str));
   }
-  if (proc_initial_values_.has_value()) {
-    std::string proc_initial_values_str =
-        ProcInitValuesToText(proc_initial_values_.value());
+  if (proc_init_constant_.has_value()) {
     lines.push_back(
-        absl::StrCat("// proc_initial_values: ", proc_initial_values_str));
+        absl::StrCat("// proc_init_constant: ", *proc_init_constant_));
   }
   for (const std::vector<InterpValue>& args : args_batch_) {
     std::string args_str = InterpValueListToString(args);

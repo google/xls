@@ -46,8 +46,6 @@ _ARGS_FILE = flags.DEFINE_string(
 _IR_CHANNEL_NAMES_FILE = flags.DEFINE_string(
     'ir_channel_names_file', None,
     'Optional ir names of input channels for a proc.')
-_PROC_INIT_VALUES_FILE = flags.DEFINE_string(
-    'proc_init_values_file', None, 'Optional initial values for proc.')
 
 
 def maybe_copy_file(file_path: Text, dir_path: Text) -> Text:
@@ -71,18 +69,14 @@ def run(run_dir: Text):
   input_filename = maybe_copy_file(_INPUT_FILE.value, run_dir)
   options_filename = maybe_copy_file(_OPTIONS_FILE.value, run_dir)
   args_filename = None
-  proc_init_values_filename = None
   ir_channel_names_filename = None
   if _ARGS_FILE.value:
     args_filename = maybe_copy_file(_ARGS_FILE.value, run_dir)
   if _IR_CHANNEL_NAMES_FILE.value:
     ir_channel_names_filename = maybe_copy_file(_IR_CHANNEL_NAMES_FILE.value,
                                                 run_dir)
-  if _PROC_INIT_VALUES_FILE.value:
-    proc_init_values_filename = maybe_copy_file(_PROC_INIT_VALUES_FILE.value,
-                                                run_dir)
   runner.run_from_files(input_filename, options_filename, args_filename,
-                        ir_channel_names_filename, proc_init_values_filename)
+                        ir_channel_names_filename)
 
 
 def main(argv):

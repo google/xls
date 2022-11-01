@@ -52,6 +52,7 @@ proc main {
 
 # A simple counter implementation using a proc in DSLX.
 PROC_COUNTER_DSLX = """
+const DEFAULT_INIT_STATE = u32:42;
 proc main {
   enable_counter: chan<bool> in;
   result: chan<u32> out;
@@ -521,7 +522,7 @@ class SampleRunnerTest(test_base.TestCase):
                 interp_value_from_ir_string('bits[32]:100'),
             ]],
             ir_channel_names=['sample__operand_0', 'sample__operand_1'],
-            proc_initial_values=[]))
+        ))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
         'sample__result : {\n  bits[32]:0x8e\n}')
@@ -533,15 +534,13 @@ class SampleRunnerTest(test_base.TestCase):
         sample.Sample(
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
+                proc_init_constant='DEFAULT_INIT_STATE',
                 ir_converter_args=['--top=main'],
                 top_type=sample.TopType.proc,
             ),
             args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                         [interp_value_from_ir_string('bits[1]:0')]],
-            ir_channel_names=['sample__enable_counter'],
-            proc_initial_values=[
-                interp_value_from_ir_string('bits[32]:42'),
-            ]))
+            ir_channel_names=['sample__enable_counter']))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
         'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}')
@@ -557,14 +556,14 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
+                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
               ),
               args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                           [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter'],
-              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+              ir_channel_names=['sample__enable_counter']))
     error_str = ('A channel named sample__enable_counter is present in '
                  'evaluated unopt IR (JIT), but it is not present in evaluated '
                  'unopt IR (interpreter).')
@@ -581,14 +580,14 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
+                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
               ),
               args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                           [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter'],
-              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+              ir_channel_names=['sample__enable_counter']))
     error_str = (
         'Results for evaluated unopt IR (JIT) has 0  channels, interpreted '
         'DSLX has 1 channels. The IR channel names in evaluated unopt IR (JIT)'
@@ -607,14 +606,14 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
+                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
               ),
               args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                           [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter'],
-              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+              ir_channel_names=['sample__enable_counter']))
     error_str = (
         'In evaluated unopt IR (JIT), channel \'sample__result\' has 1 '
         'entries. However, in interpreted DSLX, channel \'sample__result\' has'
@@ -637,14 +636,14 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
+                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
               ),
               args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                           [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter'],
-              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+              ir_channel_names=['sample__enable_counter']))
     error_str = (
         'In evaluated unopt IR (JIT), at position 1 channel \'sample__result\' '
         'has value u32:42. However, in interpreted DSLX, the value is u32:43.')

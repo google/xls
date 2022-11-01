@@ -13,9 +13,13 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
+#include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/visitor.h"
+#include "xls/dslx/ast.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/number_parser.h"
 
 namespace xls {
 
@@ -23,9 +27,14 @@ using dslx::ArrayType;
 using dslx::BitsType;
 using dslx::ChannelType;
 using dslx::ConcreteType;
+using dslx::ConstantDef;
+using dslx::Expr;
 using dslx::InterpValue;
 using dslx::InterpValueTag;
+using dslx::Module;
+using dslx::Number;
 using dslx::TupleType;
+using dslx::TypeAnnotation;
 
 bool ValueGenerator::RandomBool() {
   std::bernoulli_distribution d(0.5);
@@ -228,6 +237,145 @@ absl::StatusOr<std::vector<InterpValue>> ValueGenerator::GenerateInterpValues(
     args.push_back(std::move(arg));
   }
   return args;
+}
+
+absl::StatusOr<int64_t> ValueGenerator::GetArraySize(const Expr* dim) {
+  if (const auto* number = dynamic_cast<const dslx::Number*>(dim);
+      number != nullptr) {
+    return ParseNumberAsInt64(number->text());
+  }
+
+  if (auto* name_ref = dynamic_cast<const dslx::NameRef*>(dim);
+      name_ref != nullptr) {
+    const dslx::NameDef* name_def =
+        std::get<const dslx::NameDef*>(name_ref->name_def());
+    const dslx::AstNode* definer = name_def->definer();
+    if (const auto* const_def = dynamic_cast<const dslx::ConstantDef*>(definer);
+        const_def != nullptr) {
+      return GetArraySize(const_def->value());
+    }
+
+    const Expr* expr = dynamic_cast<const Expr*>(definer);
+    XLS_RET_CHECK_NE(expr, nullptr);
+    return GetArraySize(expr);
+  }
+
+  auto* constant_def = dynamic_cast<const ConstantDef*>(dim);
+  XLS_RET_CHECK_NE(constant_def, nullptr);
+
+  // Currently, the fuzzer only generates constants with Number-typed
+  // values. Should that change (e.g., Binop-defining RHS), this'll need to
+  // be updated.
+  Number* number = dynamic_cast<Number*>(constant_def->value());
+  XLS_RET_CHECK_NE(number, nullptr);
+  return ParseNumberAsInt64(number->text());
+}
+
+absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
+    Module* module, TypeAnnotation* type) {
+  dslx::Span fake_span = dslx::FakeSpan();
+  if (auto* builtin_type = dynamic_cast<dslx::BuiltinTypeAnnotation*>(type);
+      builtin_type != nullptr) {
+    XLS_ASSIGN_OR_RETURN(dslx::InterpValue num_value,
+                         GenerateBitValue(builtin_type->GetBitCount(),
+                                          builtin_type->GetSignedness()));
+    return module->Make<Number>(fake_span, num_value.ToHumanString(),
+                                dslx::NumberKind::kOther, type);
+  }
+
+  if (auto* array_type = dynamic_cast<dslx::ArrayTypeAnnotation*>(type);
+      array_type != nullptr) {
+    dslx::TypeAnnotation* element_type = array_type->element_type();
+    // Handle the array-type-is-actually-a-bits-type case.
+    if (auto* builtin_type_annot =
+            dynamic_cast<dslx::BuiltinTypeAnnotation*>(element_type);
+        builtin_type_annot != nullptr) {
+      dslx::BuiltinType builtin_type = builtin_type_annot->builtin_type();
+      if (builtin_type == dslx::BuiltinType::kBits ||
+          builtin_type == dslx::BuiltinType::kUN ||
+          builtin_type == dslx::BuiltinType::kSN) {
+        XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                             dslx::GetBuiltinTypeBitCount(builtin_type));
+        XLS_ASSIGN_OR_RETURN(bool signedness,
+                             dslx::GetBuiltinTypeSignedness(builtin_type));
+        XLS_ASSIGN_OR_RETURN(dslx::InterpValue num_value,
+                             GenerateBitValue(bit_count, signedness));
+        return module->Make<Number>(fake_span, num_value.ToString(),
+                                    dslx::NumberKind::kOther, type);
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, GetArraySize(array_type->dim()));
+    std::vector<Expr*> members;
+    members.reserve(array_size);
+    for (int i = 0; i < array_size; i++) {
+      XLS_ASSIGN_OR_RETURN(Expr * member,
+                           GenerateDslxConstant(module, element_type));
+      members.push_back(member);
+    }
+
+    return module->Make<dslx::Array>(fake_span, members,
+                                     /*has_ellipsis=*/false);
+  }
+
+  if (auto* tuple_type = dynamic_cast<dslx::TupleTypeAnnotation*>(type);
+      tuple_type != nullptr) {
+    std::vector<Expr*> members;
+    for (auto* member_type : tuple_type->members()) {
+      XLS_ASSIGN_OR_RETURN(Expr * member,
+                           GenerateDslxConstant(module, member_type));
+      members.push_back(member);
+    }
+    return module->Make<dslx::XlsTuple>(fake_span, members);
+  }
+
+  auto* typeref_type = dynamic_cast<dslx::TypeRefTypeAnnotation*>(type);
+  XLS_RET_CHECK_NE(typeref_type, nullptr);
+  auto* typeref = typeref_type->type_ref();
+  return std::visit(
+      Visitor{
+          [&](dslx::TypeDef* type_def) -> absl::StatusOr<Expr*> {
+            return GenerateDslxConstant(module, type_def->type_annotation());
+          },
+          [&](dslx::StructDef* struct_def) -> absl::StatusOr<Expr*> {
+            std::vector<std::pair<std::string, Expr*>> members;
+            for (const auto& [member_name, member_type] :
+                 struct_def->members()) {
+              XLS_ASSIGN_OR_RETURN(Expr * member_value,
+                                   GenerateDslxConstant(module, member_type));
+              members.push_back(
+                  std::make_pair(member_name->identifier(), member_value));
+            }
+            return module->Make<dslx::StructInstance>(fake_span, struct_def,
+                                                      members);
+          },
+          [&](dslx::EnumDef* enum_def) -> absl::StatusOr<Expr*> {
+            const std::vector<dslx::EnumMember>& values = enum_def->values();
+            int64_t value_idx = RandRange(values.size());
+            const dslx::EnumMember& value = values[value_idx];
+            auto* name_ref = module->Make<dslx::NameRef>(
+                fake_span, value.name_def->identifier(), value.name_def);
+            return module->Make<dslx::ColonRef>(fake_span, name_ref,
+                                                value.name_def->identifier());
+          },
+          [&](dslx::ColonRef* colon_ref) -> absl::StatusOr<Expr*> {
+            return absl::UnimplementedError(
+                "Generating constants of ColonRef types isn't yet supported.");
+          },
+      },
+      typeref->type_definition());
+}
+
+absl::StatusOr<ConstantDef*> ValueGenerator::GenerateConstantDef(
+    Module* module, TypeAnnotation* type, std::string_view name,
+    bool is_public) {
+  XLS_ASSIGN_OR_RETURN(Expr * value, GenerateDslxConstant(module, type));
+  auto* name_def =
+      module->Make<dslx::NameDef>(dslx::FakeSpan(), std::string(name), nullptr);
+  auto* constant_def =
+      module->Make<ConstantDef>(dslx::FakeSpan(), name_def, value, is_public);
+  name_def->set_definer(constant_def);
+  return constant_def;
 }
 
 }  // namespace xls

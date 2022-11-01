@@ -36,6 +36,7 @@ PYBIND11_MODULE(cpp_sample, m) {
   py::class_<SampleOptions>(m, "SampleOptions")
       .def(
           py::init([](std::optional<bool> input_is_dslx,
+                      std::optional<std::string> proc_init_constant,
                       std::optional<std::vector<std::string>> ir_converter_args,
                       std::optional<bool> convert_to_ir,
                       std::optional<bool> optimize_ir,
@@ -51,6 +52,9 @@ PYBIND11_MODULE(cpp_sample, m) {
             std::map<std::string, json11::Json> json;
             if (input_is_dslx) {
               json["input_is_dslx"] = *input_is_dslx;
+            }
+            if (proc_init_constant) {
+              json["proc_init_constant"] = *proc_init_constant;
             }
             if (ir_converter_args) {
               json["ir_converter_args"] = *ir_converter_args;
@@ -94,6 +98,7 @@ PYBIND11_MODULE(cpp_sample, m) {
             return SampleOptions::FromJson(json11::Json(json).dump()).value();
           }),
           py::arg("input_is_dslx") = absl::nullopt,
+          py::arg("proc_init_constant") = absl::nullopt,
           py::arg("ir_converter_args") = absl::nullopt,
           py::arg("convert_to_ir") = absl::nullopt,
           py::arg("optimize_ir") = absl::nullopt,
@@ -112,6 +117,8 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_static("from_json", &SampleOptions::FromJson)
       .def("to_json", &SampleOptions::ToJsonText)
       .def_property_readonly("input_is_dslx", &SampleOptions::input_is_dslx)
+      .def_property_readonly("proc_init_constant",
+                             &SampleOptions::proc_init_constant)
       .def_property_readonly("ir_converter_args",
                              &SampleOptions::ir_converter_args)
       .def_property_readonly("convert_to_ir", &SampleOptions::convert_to_ir)
@@ -159,8 +166,7 @@ PYBIND11_MODULE(cpp_sample, m) {
                       std::optional<std::vector<std::vector<dslx::InterpValue>>>
                           args_batch,
                       std::optional<std::vector<std::string>> ir_channel_names,
-                      std::optional<std::vector<dslx::InterpValue>>
-                          proc_initial_values) {
+                      std::optional<std::string> proc_init_constant) {
             std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
             if (args_batch.has_value()) {
               args_batch_vec = std::move(*args_batch);
@@ -168,12 +174,12 @@ PYBIND11_MODULE(cpp_sample, m) {
             return Sample(std::move(input_text), std::move(options),
                           std::move(args_batch_vec),
                           std::move(ir_channel_names),
-                          std::move(proc_initial_values));
+                          std::move(proc_init_constant));
           }),
           py::arg("input_text"), py::arg("options"),
           py::arg("args_batch") = absl::nullopt,
           py::arg("ir_channel_names") = absl::nullopt,
-          py::arg("proc_initial_values") = absl::nullopt)
+          py::arg("proc_init_constant") = absl::nullopt)
       .def(py::pickle(
           [](const Sample& self) { return py::make_tuple(self.Serialize()); },
           [](const py::tuple& t) {
@@ -194,7 +200,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("input_text", &Sample::input_text)
       .def_property_readonly("args_batch", &Sample::args_batch)
       .def_property_readonly("ir_channel_names", &Sample::ir_channel_names)
-      .def_property_readonly("proc_init_values", &Sample::proc_initial_values);
+      .def_property_readonly("proc_init_constant", &Sample::proc_init_constant);
 
   m.def("parse_args",
         [](std::string_view args_text) -> absl::StatusOr<py::tuple> {
@@ -209,7 +215,6 @@ PYBIND11_MODULE(cpp_sample, m) {
   m.def("parse_args_batch", &ParseArgsBatch);
   m.def("args_batch_to_text", &ArgsBatchToText);
   m.def("parse_proc_init_values", &ParseArgs);
-  m.def("proc_init_values_to_text", &ProcInitValuesToText);
   m.def("parse_ir_channel_names", &ParseIrChannelNames);
   m.def("ir_channel_names_to_text", &IrChannelNamesToText);
 }

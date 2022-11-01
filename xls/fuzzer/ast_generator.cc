@@ -1583,8 +1583,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   // What we place into the environment is a NameRef that refers to this RHS
   // value -- this way rules will pick up the expression names instead of
   // picking up the expression ASTs directly (which would cause duplication).
-  auto* name_def =
-      module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
+  auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
   auto* name_ref = MakeNameRef(name_def);
   (*env)[identifier] = TypedExpr{name_ref, rhs.type};
 
@@ -1813,7 +1812,15 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
   // 70% of the time: add a state to the param list.
   if (RandomFloat() >= 0.30) {
     params.insert(params.end(), GenerateParam());
-    proc_properties_.state_types.push_back(params.back()->type_annotation());
+    TypeAnnotation* state_type = params.back()->type_annotation();
+    proc_properties_.state_types.push_back(state_type);
+
+    // Generate a constant for the initial value.
+    XLS_ASSIGN_OR_RETURN(ConstantDef * init_constant,
+                         value_gen_.GenerateConstantDef(
+                             module_.get(), state_type, "DEFAULT_INIT_STATE",
+                             /*is_public=*/false));
+    constants_["DEFAULT_INIT_STATE"] = init_constant;
   }
 
   for (Param* param : params) {

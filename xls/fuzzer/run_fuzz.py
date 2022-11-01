@@ -110,12 +110,6 @@ def run_sample(smp: sample.Sample,
     _write_to_file(run_dir, args_filename,
                    sample.args_batch_to_text(smp.args_batch))
     args.append('--args_file=args.txt')
-  proc_init_values_filename = None
-  if smp.proc_init_values:
-    proc_init_values_filename = 'proc_init_values.txt'
-    _write_to_file(run_dir, proc_init_values_filename,
-                   sample.proc_init_values_to_text(smp.proc_init_values))
-    args.append('--proc_init_values_file=proc_init_values.txt')
   ir_channel_names_filename = None
   if smp.ir_channel_names:
     ir_channel_names_filename = 'ir_channel_names.txt'
@@ -132,7 +126,7 @@ def run_sample(smp: sample.Sample,
   logging.vlog(2, smp.input_text)
   runner = sample_runner.SampleRunner(run_dir)
   runner.run_from_files('sample.x', 'options.json', args_filename,
-                        ir_channel_names_filename, proc_init_values_filename)
+                        ir_channel_names_filename)
   timing = runner.timing
 
   timing.total_ns = int((time.time() - start) * 1e9)

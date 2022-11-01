@@ -132,17 +132,17 @@ static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
 GetProcInitValueTypes(dslx::Proc* proc, const TypecheckedModule& tm) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
-  std::vector<std::unique_ptr<ConcreteType>> proc_init_values;
+  std::vector<std::unique_ptr<ConcreteType>> proc_init_value_types;
   for (dslx::Param* param : proc->next()->params()) {
     XLS_CHECK(proc_type_info->GetItem(param).has_value());
     // Tokens do not have an initial value.
     if (proc_type_info->GetItem(param).value()->IsToken()) {
       continue;
     }
-    proc_init_values.push_back(
+    proc_init_value_types.push_back(
         proc_type_info->GetItem(param).value()->CloneToUnique());
   }
-  return proc_init_values;
+  return proc_init_value_types;
 }
 
 absl::StatusOr<Sample> GenerateFunctionSample(
@@ -190,12 +190,12 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
   std::vector<const ConcreteType*> proc_init_value =
       TranslateConcreteTypeList(proc_init_value_types);
 
-  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> proc_init_values,
-                       value_gen->GenerateInterpValues(proc_init_value));
-
+  // TODO(https://github.com/google/xls/issues/681): Hardcoding strings like
+  // this is Bad, but this is only a short-term situation. We're moving to
+  // proc-scoped init values shortly.
   return Sample(std::move(dslx_text), std::move(sample_options),
                 std::move(channel_values_batch), std::move(ir_channel_names),
-                std::move(proc_init_values));
+                "DEFAULT_INIT_STATE");
 }
 
 absl::StatusOr<Sample> GenerateSample(
