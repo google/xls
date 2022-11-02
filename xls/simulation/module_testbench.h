@@ -42,8 +42,13 @@ struct ModuleTestbenchData {
   // The design-under-test module name.
   std::string_view dut_module_name;
   // Map of each input/output port name to its width.
+  // In a ModuleTestBench, the port names also mirror the signal name used in a
+  // connection.
   absl::btree_map<std::string, int64_t> input_port_widths;
   absl::btree_map<std::string, int64_t> output_port_widths;
+  // The clock and reset names are global.
+  std::string clk_name;
+  std::optional<ResetProto> reset;
 };
 
 // Provides a fluent interface for driving inputs, capturing outputs, and
@@ -53,69 +58,78 @@ class ModuleTestbenchThread {
   // The shared_data is data that is shared amongst all threads. Cannot be
   // nullptr.
   //
-  // The init_values_after_reset is a name-value map with the name of the
-  // input signals mapped to their initial value after reset.
-  //
-  // The inputs_to_drive are the input signals of the design under test
-  // (DUT) that the thread is capable of driving, std::nullopt signifies all
-  // inputs (no constraint on the inputs).
-  // TODO(vmirian) : Consider merging init_values_after_reset and
-  // inputs_to_drive.
-  ModuleTestbenchThread(
-      const ModuleTestbenchData* shared_data,
-      absl::flat_hash_map<std::string, Bits> init_values_after_reset = {},
-      std::optional<std::vector<std::string>> inputs_to_drive = std::nullopt)
+  // The owned_signals_to_drive_ is a name-value map with the name of the
+  // input signals mapped to their initial value after reset. A value of
+  // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
+  // input signals of the design under test (DUT) that the thread is capable of
+  // driving.
+  ModuleTestbenchThread(const ModuleTestbenchData* shared_data,
+                        std::string_view done_signal_name,
+                        absl::flat_hash_map<std::string, std::optional<Bits>>
+                            owned_signals_to_drive)
       : shared_data_(XLS_DIE_IF_NULL(shared_data)),
-        init_values_after_reset_(std::move(init_values_after_reset)),
-        inputs_to_drive_(std::move(inputs_to_drive)) {}
+        done_signal_name_(done_signal_name),
+        owned_signals_to_drive_(std::move(owned_signals_to_drive)) {}
 
-  // Sets the given module input port to the given value in the current
+  std::string_view done_signal_name() const { return done_signal_name_; }
+
+  // Sets the given signal to the given value in the current
   // cycle. The value is sticky and remains driven to this value across cycle
   // boundaries until it is Set again (if ever).
-  ModuleTestbenchThread& Set(std::string_view input_port, const Bits& value);
-  ModuleTestbenchThread& Set(std::string_view input_port, uint64_t value);
+  ModuleTestbenchThread& Set(std::string_view signal_name, const Bits& value);
+  ModuleTestbenchThread& Set(std::string_view signal_name, uint64_t value);
 
-  // Sets the given module input to the unknown value in the current cycle. As
+  // Sets the given signal to the unknown value in the current cycle. As
   // with Set() this is sticky.
-  ModuleTestbenchThread& SetX(std::string_view input_port);
+  ModuleTestbenchThread& SetX(std::string_view signal_name);
 
   // Advances the simulation the given number of cycles.
   ModuleTestbenchThread& AdvanceNCycles(int64_t n_cycles);
 
-  // Wait for a given single-bit output port to be asserted (unasserted). If
+  // Wait for a given single-bit signal to be asserted (unasserted). If
   // the signal is already asserted (unasserted), this action takes no simulator
   // time.
-  ModuleTestbenchThread& WaitFor(std::string_view output_port);
-  ModuleTestbenchThread& WaitForNot(std::string_view output_port);
+  ModuleTestbenchThread& WaitFor(std::string_view signal_name);
+  ModuleTestbenchThread& WaitForNot(std::string_view signal_name);
 
-  // Wait for the given outputs to have X or non-X values. The output is
-  // considered to have an X value if *any* bit is X. The outputs may have
+  // Wait for the given signal to have X or non-X values. The signal is
+  // considered to have an X value if *any* bit is X. The signals may have
   // arbitrary width.
-  ModuleTestbenchThread& WaitForX(std::string_view output_port);
-  ModuleTestbenchThread& WaitForNotX(std::string_view output_port);
+  ModuleTestbenchThread& WaitForX(std::string_view signal_name);
+  ModuleTestbenchThread& WaitForNotX(std::string_view signal_name);
+
+  // The wait for a given signal to be equal/not equal to a value or 'X'. In
+  // contrast to the 'WaitFor*' functions above, these function treat the
+  // expression in the wait statement as an event and are triggered on
+  // immediately.
+  ModuleTestbenchThread& WaitForEvent(std::string_view signal_name, Bits value);
+  ModuleTestbenchThread& WaitForEventNot(std::string_view signal_name,
+                                         Bits value);
+  ModuleTestbenchThread& WaitForEventX(std::string_view signal_name);
+  ModuleTestbenchThread& WaitForEventNotX(std::string_view signal_name);
 
   // Advances the simulation a single cycle. Equivalent to AdvanceNCycles(1).
   ModuleTestbenchThread& NextCycle();
 
-  // Captures the value of the output port at the current cycle. The given
-  // pointer value is written with the output port value when Run is called.
-  ModuleTestbenchThread& Capture(std::string_view output_port, Bits* value);
+  // Captures the value of the signal at the current cycle. The given
+  // pointer value is written with the signal value when Run is called.
+  ModuleTestbenchThread& Capture(std::string_view signal_name, Bits* value);
 
-  // Expects the given output port is the given value (or X) in the current
+  // Expects the given signal is the given value (or X) in the current
   // cycle. An error is returned during Run if this expectation is not met.
   //
   // "loc" indicates the source position in the test where the expectation was
   // created, and is displayed on expectation failure.
   ModuleTestbenchThread& ExpectEq(
-      std::string_view output_port, const Bits& expected,
+      std::string_view signal_name, const Bits& expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
   ModuleTestbenchThread& ExpectEq(
-      std::string_view output_port, uint64_t expected,
+      std::string_view signal_name, uint64_t expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
-  // Similar to ExpectEq, but expects the given output port to be X. For this
-  // purpose an output port is considered to have the value X if *any* bit is X.
+  // Similar to ExpectEq, but expects the given signal to be X. For this
+  // purpose an signal is considered to have the value X if *any* bit is X.
   ModuleTestbenchThread& ExpectX(
-      std::string_view output_port,
+      std::string_view signal_name,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Expect to find a particular string in the simulation output,
@@ -129,36 +143,40 @@ class ModuleTestbenchThread {
   // Sentinel type for indicating an "X value, in lieu of some real bits value.
   struct IsX {};
 
-  // A pair of instance number and port name used as a key for associating a
+  // A pair of instance number and signal name used as a key for associating a
   // output display statement with a particular Capture or ExpectEq.
-  using InstancePort = std::pair<int64_t, std::string>;
+  using InstanceSignalName = std::pair<int64_t, std::string>;
 
   // Checks the stdout of a simulation run against expectations.
   absl::Status CheckOutput(
       std::string_view stdout_str,
-      const absl::flat_hash_map<InstancePort, std::variant<Bits, IsX>>&
+      const absl::flat_hash_map<InstanceSignalName, std::variant<Bits, IsX>>&
           parsed_values) const;
 
   // Emit the thread contents into the verilog file with the contents specified.
-  void EmitInto(StructuredProcedure* procedure, LogicRef* done_signal,
-                const absl::flat_hash_map<std::string, LogicRef*>& port_refs,
-                LogicRef* clk, std::optional<LogicRef*> reset,
-                std::optional<Bits> reset_end_value);
+  void EmitInto(StructuredProcedure* procedure,
+                const absl::flat_hash_map<std::string, LogicRef*>& signal_refs);
 
  private:
-  // Returns the width of the given port.
-  int64_t GetPortWidth(std::string_view port);
+  // Returns the width of the given signal.
+  int64_t GetSignalWidth(std::string_view name);
 
-  // CHECKs whether the given name is an input port that the thread is
+  // CHECKs whether the given name is a signal that the thread is
   // designated to drive.
-  void CheckIsMyInput(std::string_view name);
-  // CHECKs whether the given name is an input/output port.
-  void CheckIsInput(std::string_view name);
-  void CheckIsOutput(std::string_view name);
+  void CheckCanDriveSignal(std::string_view name);
+  // CHECKs whether the given name is a signal that the thread can read.
+  void CheckCanReadSignal(std::string_view name);
 
   const ModuleTestbenchData* shared_data_;
-  absl::flat_hash_map<std::string, Bits> init_values_after_reset_;
-  std::optional<std::vector<std::string>> inputs_to_drive_;
+  // The name of the thread's done signal. The signal is used to notify the
+  // testbench that the thread is done with its execution.
+  std::string done_signal_name_;
+  // The owned_signals_to_drive_ is a name-value map with the name of the
+  // input signals mapped to their initial value after reset. A value of
+  // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
+  // input signals of the design under test (DUT) that the thread is capable of
+  // driving.
+  absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive_;
 
   // The following structs define the actions which are set to occur during
   // simulation. This list of actions is built up by calling the methods on
@@ -170,30 +188,37 @@ class ModuleTestbenchThread {
   };
 
   // Drives the module input to a concrete value.
-  struct SetInput {
-    std::string port;
+  struct SetSignal {
+    std::string signal_name;
     Bits value;
   };
 
   // Drives the module input to an unknown value.
-  struct SetInputX {
-    std::string port;
+  struct SetSignalX {
+    std::string signal_name;
   };
 
   // Sentinel type for indicating an "not X" value, in lieu of some real bits
   // value.
   struct IsNotX {};
 
-  // Waits for an output port to equal a certain value.
-  struct WaitForOutput {
-    std::string port;
+  // Waits for a signal to equal a certain value.
+  struct WaitForSignal {
+    std::string signal_name;
     std::variant<Bits, IsX, IsNotX> value;
   };
 
+  // Waits for a signal event to equal a certain value.
+  struct WaitForSignalEvent {
+    std::string signal_name;
+    std::variant<Bits, IsX> value;
+    bool is_comparison_equal;
+  };
+
   // Inserts a Verilog display statement which prints the value of the given
-  // port.
-  struct DisplayOutput {
-    std::string port;
+  // signal.
+  struct DisplaySignal {
+    std::string signal_name;
 
     // A unique identifier which associates this display statement with a
     // particular Capture or ExpectEq call.
@@ -201,13 +226,13 @@ class ModuleTestbenchThread {
   };
 
   // The list of actions to perform during simulation.
-  using Action = std::variant<AdvanceCycle, SetInput, SetInputX, WaitForOutput,
-                              DisplayOutput>;
+  using Action = std::variant<AdvanceCycle, SetSignal, SetSignalX,
+                              WaitForSignal, DisplaySignal, WaitForSignalEvent>;
   std::vector<Action> actions_;
 
   // A map containing the pointers passed in to each Capture call. Use std::map
   // for stable iteration order.
-  std::map<InstancePort, Bits*> captures_;
+  std::map<InstanceSignalName, Bits*> captures_;
 
   // A map containing the expected values passed in to each ExpectEq call. Use
   // std::map for stable iteration order.
@@ -215,7 +240,7 @@ class ModuleTestbenchThread {
     std::variant<Bits, IsX> expected;
     xabsl::SourceLocation loc;
   };
-  std::map<InstancePort, Expectation> expectations_;
+  std::map<InstanceSignalName, Expectation> expectations_;
 
   // A increasing counter which is used to generate unique instance identifiers
   // for DisplayOutput and InstantPort objects.
@@ -243,15 +268,15 @@ class ModuleTestbench {
 
   // Returns a reference to a newly created thread to execute in the testbench.
   //
-  // The init_values_after_reset is a name-value map with the name of the
-  // signals mapped to their initial value after reset.
-  //
-  // The inputs_to_drive are the input signals of the design under test (DUT)
-  // that the thread is capable of driving, std::nullopt signifies all inputs
-  // (no constraint on the inputs).
+  // The owned_signals_to_drive is a name-value map with the name of the
+  // input signals mapped to their initial value after reset. A value of
+  // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
+  // input signals of the design under test (DUT) that the thread is capable of
+  // driving. A std::nullopt value for the map signifies all inputs (no
+  // constraint on the inputs). The latter is the default value of the map.
   ModuleTestbenchThread& CreateThread(
-      absl::flat_hash_map<std::string, Bits> init_values_after_reset = {},
-      std::optional<std::vector<std::string>> inputs_to_drive = std::nullopt);
+      std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
+          owned_signals_to_drive = std::nullopt);
 
   // Generates the Verilog representation of the testbench.
   std::string GenerateVerilog();
@@ -266,8 +291,6 @@ class ModuleTestbench {
   std::string verilog_text_;
   FileType file_type_;
   const VerilogSimulator* simulator_;
-  std::optional<std::string> clk_name_;
-  std::optional<ResetProto> reset_;
   absl::Span<const VerilogInclude> includes_;
 
   ModuleTestbenchData shared_data_;

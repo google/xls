@@ -14,6 +14,8 @@
 
 #include "xls/simulation/module_testbench.h"
 
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -125,13 +127,14 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineTwoThreads) {
   reset_proto.set_active_low(false);
 
   ModuleTestbench tb(m, GetSimulator(), "clk", reset_proto);
-  ModuleTestbenchThread& operand_0 = tb.CreateThread(
-      absl::flat_hash_map<std::string, Bits>{{"operand_0", UBits(0, 16)}},
-      std::vector<std::string>{"operand_0"});
-  ModuleTestbenchThread& operand_1 = tb.CreateThread(
-      absl::flat_hash_map<std::string, Bits>{{"operand_1", UBits(0, 16)}},
-      std::vector<std::string>{"operand_1"});
-  ModuleTestbenchThread& result = tb.CreateThread();
+  ModuleTestbenchThread& operand_0 =
+      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
+          {"operand_0", UBits(0, 16)}});
+  ModuleTestbenchThread& operand_1 =
+      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
+          {"operand_1", UBits(0, 16)}});
+  ModuleTestbenchThread& result =
+      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{});
   operand_0.Set("operand_0", 0x21);
   operand_1.Set("operand_1", 0x21);
   operand_0.NextCycle().Set("operand_0", 0x32);
@@ -180,6 +183,25 @@ TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
   tbt.WaitForNotX("out").ExpectEq("out", 0xabcd);
   tbt.SetX("in");
   tbt.WaitForX("out").ExpectX("out");
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(ModuleTestbenchTest, WaitForEvent) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+  ModuleTestbenchThread& input = tb.CreateThread();
+  ModuleTestbenchThread& output =
+      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{});
+  input.Set("in", 0xabcd);
+  input.NextCycle();
+  input.SetX("in");
+  input.NextCycle().NextCycle();
+  output.WaitForEventNotX("out").ExpectEq("out", 0xabcd);
+  output.WaitForEvent("out", UBits(0xabcd, 16)).ExpectEq("out", 0xabcd);
+  output.WaitForEventX("out").ExpectX("out");
 
   XLS_ASSERT_OK(tb.Run());
 }

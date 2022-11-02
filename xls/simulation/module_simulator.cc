@@ -14,6 +14,8 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include <optional>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"
@@ -38,6 +40,15 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
     outputs[pair.first] = FlattenValueToBits(pair.second);
   }
   return outputs;
+}
+
+absl::flat_hash_map<std::string, std::optional<Bits>> InitValuesToX(
+    absl::Span<const ModuleSimulator::BitsMap> inputs) {
+  absl::flat_hash_map<std::string, std::optional<Bits>> init_values;
+  for (const auto& [name, _] : inputs.front()) {
+    init_values[name] = std::nullopt;
+  }
+  return init_values;
 }
 
 }  // namespace
@@ -111,7 +122,14 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   absl::flat_hash_map<std::string, Bits> control_signals =
       DeassertControlSignals();
 
-  ModuleTestbenchThread& tbt = tb.CreateThread(control_signals);
+  absl::flat_hash_map<std::string, std::optional<Bits>>
+      init_values_after_reset = InitValuesToX(inputs);
+
+  for (const auto& [name, bit_value] : control_signals) {
+    init_values_after_reset[name] = bit_value;
+  }
+
+  ModuleTestbenchThread& tbt = tb.CreateThread(init_values_after_reset);
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64_t index) {

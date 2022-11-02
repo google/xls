@@ -97,81 +97,108 @@ ModuleTestbenchThread& ModuleTestbenchThread::AdvanceNCycles(int64_t n_cycles) {
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::WaitFor(
-    std::string_view output_port) {
-  XLS_CHECK_EQ(GetPortWidth(output_port), 1);
-  actions_.push_back(WaitForOutput{std::string(output_port), UBits(1, 1)});
+    std::string_view signal_name) {
+  XLS_CHECK_EQ(GetSignalWidth(signal_name), 1);
+  actions_.push_back(WaitForSignal{std::string(signal_name), UBits(1, 1)});
   return *this;
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::WaitForNot(
-    std::string_view output_port) {
-  XLS_CHECK_EQ(GetPortWidth(output_port), 1);
-  actions_.push_back(WaitForOutput{std::string(output_port), UBits(0, 1)});
+    std::string_view signal_name) {
+  XLS_CHECK_EQ(GetSignalWidth(signal_name), 1);
+  actions_.push_back(WaitForSignal{std::string(signal_name), UBits(0, 1)});
   return *this;
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::WaitForX(
-    std::string_view output_port) {
-  actions_.push_back(WaitForOutput{std::string(output_port), IsX{}});
+    std::string_view signal_name) {
+  actions_.push_back(WaitForSignal{std::string(signal_name), IsX{}});
   return *this;
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::WaitForNotX(
-    std::string_view output_port) {
-  actions_.push_back(WaitForOutput{std::string(output_port), IsNotX{}});
+    std::string_view signal_name) {
+  actions_.push_back(WaitForSignal{std::string(signal_name), IsNotX{}});
+  return *this;
+}
+ModuleTestbenchThread& ModuleTestbenchThread::WaitForEvent(
+    std::string_view signal_name, Bits value) {
+  XLS_CHECK_EQ(GetSignalWidth(signal_name), value.bit_count());
+  actions_.push_back(WaitForSignalEvent{std::string(signal_name), value,
+                                        /*is_comparison_equal=*/true});
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view input_port,
+ModuleTestbenchThread& ModuleTestbenchThread::WaitForEventNot(
+    std::string_view signal_name, Bits value) {
+  XLS_CHECK_EQ(GetSignalWidth(signal_name), value.bit_count());
+  actions_.push_back(WaitForSignalEvent{std::string(signal_name), value,
+                                        /*is_comparison_equal=*/false});
+  return *this;
+}
+
+ModuleTestbenchThread& ModuleTestbenchThread::WaitForEventX(
+    std::string_view signal_name) {
+  actions_.push_back(WaitForSignalEvent{std::string(signal_name), IsX{},
+                                        /*is_comparison_equal=*/true});
+  return *this;
+}
+
+ModuleTestbenchThread& ModuleTestbenchThread::WaitForEventNotX(
+    std::string_view signal_name) {
+  actions_.push_back(WaitForSignalEvent{std::string(signal_name), IsX{},
+                                        /*is_comparison_equal=*/false});
+  return *this;
+}
+
+ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view signal_name,
                                                   const Bits& value) {
-  CheckIsMyInput(input_port);
-  CheckIsInput(input_port);
-  actions_.push_back(SetInput{std::string(input_port), value});
+  CheckCanDriveSignal(signal_name);
+  actions_.push_back(SetSignal{std::string(signal_name), value});
   return *this;
 }
 
-ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view input_port,
+ModuleTestbenchThread& ModuleTestbenchThread::Set(std::string_view signal_name,
                                                   uint64_t value) {
-  CheckIsMyInput(input_port);
-  CheckIsInput(input_port);
-  return Set(input_port, UBits(value, GetPortWidth(input_port)));
+  CheckCanDriveSignal(signal_name);
+  return Set(signal_name, UBits(value, GetSignalWidth(signal_name)));
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::SetX(
-    std::string_view input_port) {
-  CheckIsMyInput(input_port);
-  CheckIsInput(input_port);
-  actions_.push_back(SetInputX{std::string(input_port)});
+    std::string_view signal_name) {
+  CheckCanDriveSignal(signal_name);
+  actions_.push_back(SetSignalX{std::string(signal_name)});
   return *this;
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::ExpectEq(
-    std::string_view output_port, const Bits& expected,
+    std::string_view signal_name, const Bits& expected,
     xabsl::SourceLocation loc) {
-  CheckIsOutput(output_port);
+  CheckCanReadSignal(signal_name);
   int64_t instance = next_instance_++;
-  auto key = std::make_pair(instance, std::string(output_port));
+  auto key = std::make_pair(instance, std::string(signal_name));
   XLS_CHECK(expectations_.find(key) == expectations_.end());
   expectations_[key] = Expectation{.expected = expected, .loc = loc};
-  actions_.push_back(DisplayOutput{std::string(output_port), instance});
+  actions_.push_back(DisplaySignal{std::string(signal_name), instance});
   return *this;
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::ExpectEq(
-    std::string_view output_port, uint64_t expected,
+    std::string_view signal_name, uint64_t expected,
     xabsl::SourceLocation loc) {
-  CheckIsOutput(output_port);
-  return ExpectEq(output_port, UBits(expected, GetPortWidth(output_port)), loc);
+  CheckCanReadSignal(signal_name);
+  return ExpectEq(signal_name, UBits(expected, GetSignalWidth(signal_name)),
+                  loc);
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::ExpectX(
-    std::string_view output_port, xabsl::SourceLocation loc) {
-  CheckIsOutput(output_port);
+    std::string_view signal_name, xabsl::SourceLocation loc) {
+  CheckCanReadSignal(signal_name);
   int64_t instance = next_instance_++;
-  auto key = std::make_pair(instance, std::string(output_port));
+  auto key = std::make_pair(instance, std::string(signal_name));
   XLS_CHECK(expectations_.find(key) == expectations_.end());
   expectations_[key] = Expectation{.expected = IsX(), .loc = loc};
-  actions_.push_back(DisplayOutput{std::string(output_port), instance});
+  actions_.push_back(DisplaySignal{std::string(signal_name), instance});
   return *this;
 }
 
@@ -182,108 +209,104 @@ ModuleTestbenchThread& ModuleTestbenchThread::ExpectTrace(
 }
 
 ModuleTestbenchThread& ModuleTestbenchThread::Capture(
-    std::string_view output_port, Bits* value) {
-  CheckIsOutput(output_port);
-  if (GetPortWidth(output_port) > 0) {
+    std::string_view signal_name, Bits* value) {
+  CheckCanReadSignal(signal_name);
+  if (GetSignalWidth(signal_name) > 0) {
     int64_t instance = next_instance_++;
-    actions_.push_back(DisplayOutput{std::string(output_port), instance});
-    auto key = std::make_pair(instance, std::string(output_port));
+    actions_.push_back(DisplaySignal{std::string(signal_name), instance});
+    auto key = std::make_pair(instance, std::string(signal_name));
     captures_[key] = value;
   }
   return *this;
 }
 
-int64_t ModuleTestbenchThread::GetPortWidth(std::string_view port) {
-  if (shared_data_->input_port_widths.contains(port)) {
-    return shared_data_->input_port_widths.at(port);
+int64_t ModuleTestbenchThread::GetSignalWidth(std::string_view name) {
+  if (name == done_signal_name_) {
+    return 1;
   }
-  return shared_data_->output_port_widths.at(port);
-}
-
-void ModuleTestbenchThread::CheckIsMyInput(std::string_view name) {
-  if (inputs_to_drive_.has_value()) {
-    absl::Span<const std::string> inputs = inputs_to_drive_.value();
-    XLS_CHECK(std::find(inputs.begin(), inputs.end(), name) != inputs.end())
-        << absl::StrFormat(
-               "'%s' is not an input port that the thread is designated to "
-               "drive.",
-               name);
+  if (shared_data_->input_port_widths.contains(name)) {
+    return shared_data_->input_port_widths.at(name);
   }
+  return shared_data_->output_port_widths.at(name);
 }
 
-void ModuleTestbenchThread::CheckIsInput(std::string_view name) {
-  XLS_CHECK(shared_data_->input_port_widths.contains(name))
-      << absl::StrFormat("'%s' is not an input port of module '%s'", name,
-                         shared_data_->dut_module_name);
+void ModuleTestbenchThread::CheckCanDriveSignal(std::string_view name) {
+  XLS_CHECK(owned_signals_to_drive_.contains(name) || name == done_signal_name_)
+      << absl::StrFormat(
+             "'%s' is not a signal that the thread is designated to drive.",
+             name);
 }
 
-void ModuleTestbenchThread::CheckIsOutput(std::string_view name) {
-  XLS_CHECK(shared_data_->output_port_widths.contains(name))
-      << absl::StrFormat("'%s' is not an output port of module '%s'", name,
-                         shared_data_->dut_module_name);
+void ModuleTestbenchThread::CheckCanReadSignal(std::string_view name) {
+  XLS_CHECK(shared_data_->output_port_widths.contains(name) ||
+            (shared_data_->reset.has_value() &&
+             shared_data_->reset.value().name() == name))
+      << absl::StrFormat(
+             "'%s' is not a signal that the thread is designated to read.",
+             name);
 }
 
 absl::Status ModuleTestbenchThread::CheckOutput(
     std::string_view stdout_str,
-    const absl::flat_hash_map<InstancePort, std::variant<Bits, IsX>>&
+    const absl::flat_hash_map<InstanceSignalName, std::variant<Bits, IsX>>&
         parsed_values) const {
-  // Write out module output port values to pointers passed in via Capture
+  // Write out module signal values to pointers passed in via Capture
   // calls.
   for (const auto& pair : captures_) {
-    auto cycle_port = pair.first;
+    auto cycle_signal = pair.first;
     Bits* value_ptr = pair.second;
-    if (!parsed_values.contains(cycle_port)) {
+    if (!parsed_values.contains(cycle_signal)) {
       return absl::NotFoundError(absl::StrFormat(
           "Output %s, instance #%d not found in Verilog simulator output.",
-          cycle_port.second, cycle_port.first));
+          cycle_signal.second, cycle_signal.first));
     }
-    if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+    if (std::holds_alternative<IsX>(parsed_values.at(cycle_signal))) {
       return absl::NotFoundError(absl::StrFormat(
           "Output %s, instance #%d holds X value in Verilog simulator output.",
-          cycle_port.second, cycle_port.first));
+          cycle_signal.second, cycle_signal.first));
     }
-    *value_ptr = std::get<Bits>(parsed_values.at(cycle_port));
+    *value_ptr = std::get<Bits>(parsed_values.at(cycle_signal));
   }
 
-  // Check the module output port value against any expectations.
+  // Check the signal value against any expectations.
   for (const auto& pair : expectations_) {
-    auto cycle_port = pair.first;
+    auto cycle_signal = pair.first;
     const Expectation& expectation = pair.second;
     auto get_source_location = [&]() {
       return absl::StrFormat("%s@%d", expectation.loc.file_name(),
                              expectation.loc.line());
     };
-    if (!parsed_values.contains(cycle_port)) {
+    if (!parsed_values.contains(cycle_signal)) {
       return absl::NotFoundError(absl::StrFormat(
           "%s: output '%s', instance #%d @ %s not found in Verilog "
           "simulator output.",
-          get_source_location(), cycle_port.second, cycle_port.first,
+          get_source_location(), cycle_signal.second, cycle_signal.first,
           ToString(expectation.loc)));
     }
     if (std::holds_alternative<Bits>(expectation.expected)) {
       const Bits& expected_bits = std::get<Bits>(expectation.expected);
-      if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+      if (std::holds_alternative<IsX>(parsed_values.at(cycle_signal))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, has X",
-            get_source_location(), cycle_port.second, cycle_port.first,
+            get_source_location(), cycle_signal.second, cycle_signal.first,
             expected_bits.ToString()));
       }
-      const Bits& actual_bits = std::get<Bits>(parsed_values.at(cycle_port));
+      const Bits& actual_bits = std::get<Bits>(parsed_values.at(cycle_signal));
       if (actual_bits != expected_bits) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, actual: "
             "%s",
-            get_source_location(), cycle_port.second, cycle_port.first,
+            get_source_location(), cycle_signal.second, cycle_signal.first,
             expected_bits.ToString(), actual_bits.ToString()));
       }
     } else {
       XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
-      if (std::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
+      if (std::holds_alternative<Bits>(parsed_values.at(cycle_signal))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have X value, has non X "
             "value: %s",
-            get_source_location(), cycle_port.second, cycle_port.first,
-            std::get<Bits>(parsed_values.at(cycle_port)).ToString()));
+            get_source_location(), cycle_signal.second, cycle_signal.first,
+            std::get<Bits>(parsed_values.at(cycle_signal)).ToString()));
       }
     }
   }
@@ -304,93 +327,121 @@ absl::Status ModuleTestbenchThread::CheckOutput(
 }
 
 void ModuleTestbenchThread::EmitInto(
-    StructuredProcedure* procedure, LogicRef* done_signal,
-    const absl::flat_hash_map<std::string, LogicRef*>& port_refs, LogicRef* clk,
-    std::optional<LogicRef*> reset, std::optional<Bits> reset_end_value) {
+    StructuredProcedure* procedure,
+    const absl::flat_hash_map<std::string, LogicRef*>& signal_refs) {
   XLS_CHECK_NE(procedure, nullptr);
   VerilogFile& file = *procedure->file();
+  LogicRef* clk = signal_refs.at(shared_data_->clk_name);
+  Visitor visitor{
+      [&](const AdvanceCycle& a) {
+        WaitNCycles(clk, procedure->statements(), a.amount);
+      },
+      [&](const SetSignal& s) {
+        if (GetSignalWidth(s.signal_name) > 0) {
+          procedure->statements()->Add<NonblockingAssignment>(
+              SourceInfo(), signal_refs.at(s.signal_name),
+              file.Literal(s.value, SourceInfo()));
+        }
+      },
+      [&](const SetSignalX& s) {
+        if (GetSignalWidth(s.signal_name) > 0) {
+          procedure->statements()->Add<NonblockingAssignment>(
+              SourceInfo(), signal_refs.at(s.signal_name),
+              file.Make<XSentinel>(SourceInfo(),
+                                   GetSignalWidth(s.signal_name)));
+        }
+      },
+      [&](const WaitForSignal& w) {
+        // WaitForSignal waits until the signal equals a certain value
+        // at the falling edge of the clock. Use a while loop to
+        // sample every cycle at the falling edge of the clock.
+        // TODO(meheff): If we switch to SystemVerilog this is better
+        // handled using a clocking block.
+        Expression* cmp;
+        if (std::holds_alternative<Bits>(w.value)) {
+          cmp = file.NotEquals(
+              signal_refs.at(w.signal_name),
+              file.Literal(std::get<Bits>(w.value), SourceInfo()),
+              SourceInfo());
+        } else if (std::holds_alternative<IsX>(w.value)) {
+          cmp = file.NotEqualsX(signal_refs.at(w.signal_name), SourceInfo());
+        } else {
+          XLS_CHECK(std::holds_alternative<IsNotX>(w.value));
+          cmp = file.EqualsX(signal_refs.at(w.signal_name), SourceInfo());
+        }
+        auto whle =
+            procedure->statements()->Add<WhileStatement>(SourceInfo(), cmp);
+        WaitNCycles(clk, whle->statements(), 1);
+      },
+      [&](const WaitForSignalEvent& w) {
+        Expression* cmp;
+        if (std::holds_alternative<Bits>(w.value)) {
+          if (w.is_comparison_equal) {
+            cmp =
+                file.Equals(signal_refs.at(w.signal_name),
+                            file.Literal(std::get<Bits>(w.value), SourceInfo()),
+                            SourceInfo());
+          } else {
+            cmp = file.NotEquals(
+                signal_refs.at(w.signal_name),
+                file.Literal(std::get<Bits>(w.value), SourceInfo()),
+                SourceInfo());
+          }
+        } else {
+          XLS_CHECK(std::holds_alternative<IsX>(w.value));
+          if (w.is_comparison_equal) {
+            cmp = file.EqualsX(signal_refs.at(w.signal_name), SourceInfo());
+          } else {
+            cmp = file.NotEqualsX(signal_refs.at(w.signal_name), SourceInfo());
+          }
+        }
+        procedure->statements()->Add<WaitStatement>(SourceInfo(), cmp);
+      },
+      [&](const DisplaySignal& c) {
+        // Use $strobe rather than $display to print value after all
+        // assignments in the simulator time slot and avoid any
+        // potential race conditions.
+        procedure->statements()->Add<Strobe>(
+            SourceInfo(),
+            std::vector<Expression*>{
+                file.Make<QuotedString>(
+                    SourceInfo(),
+                    absl::StrFormat("%%t OUTPUT %s = %d'h%%0x (#%d)",
+                                    c.signal_name,
+                                    GetSignalWidth(c.signal_name), c.instance)),
+                file.Make<SystemFunctionCall>(SourceInfo(), "time"),
+                signal_refs.at(c.signal_name)});
+      }};
   // The first statement must be to deassert the done signal of the thread.
-  procedure->statements()->Add<NonblockingAssignment>(
-      SourceInfo(), done_signal, file.Literal(UBits(0, 1), SourceInfo()));
-  WaitNCycles(clk, procedure->statements(), 1);
+  absl::visit(visitor,
+              Action{SetSignal{std::string(done_signal_name_), UBits(0, 1)}});
+  // Wait for a cycle is part of original protocol.
+  absl::visit(visitor, Action{AdvanceCycle{1}});
 
   // Some values must be initialize after a reset, for example control signals.
-  for (const auto& [port_name, value] : init_values_after_reset_) {
-    procedure->statements()->Add<NonblockingAssignment>(
-        SourceInfo(), port_refs.at(port_name),
-        file.Literal(value, SourceInfo()));
+  for (const auto& [signal_name, value] : owned_signals_to_drive_) {
+    if (value.has_value()) {
+      absl::visit(visitor, Action{SetSignal{signal_name, value.value()}});
+    } else {
+      absl::visit(visitor, Action{SetSignalX{signal_name}});
+    }
   }
   // The thread must wait for reset (if present).
-  if (reset.has_value() && reset_end_value.has_value()) {
-    Expression* reset_finished = file.Equals(
-        reset.value(), file.Literal(reset_end_value.value(), SourceInfo()),
-        SourceInfo());
-    procedure->statements()->Add<WaitStatement>(SourceInfo(), reset_finished);
+  if (shared_data_->reset.has_value()) {
+    absl::visit(visitor,
+                Action{WaitForSignalEvent{
+                    std::string(shared_data_->reset.value().name()),
+                    UBits(shared_data_->reset.value().active_low() ? 1 : 0, 1),
+                    /*is_comparison_equal=*/true}});
   }
   // All actions occur at the falling edge of the clock to avoid races with
   // signals changing at the rising edge of the clock.
   for (const Action& action : actions_) {
-    absl::visit(
-        Visitor{[&](const AdvanceCycle& a) {
-                  WaitNCycles(clk, procedure->statements(), a.amount);
-                },
-                [&](const SetInput& s) {
-                  if (GetPortWidth(s.port) > 0) {
-                    procedure->statements()->Add<NonblockingAssignment>(
-                        SourceInfo(), port_refs.at(s.port),
-                        file.Literal(s.value, SourceInfo()));
-                  }
-                },
-                [&](const SetInputX& s) {
-                  if (GetPortWidth(s.port) > 0) {
-                    procedure->statements()->Add<NonblockingAssignment>(
-                        SourceInfo(), port_refs.at(s.port),
-                        file.Make<XSentinel>(SourceInfo(),
-                                             GetPortWidth(s.port)));
-                  }
-                },
-                [&](const WaitForOutput& w) {
-                  // WaitForOutput waits until the signal equals a certain value
-                  // at the falling edge of the clock. Use a while loop to
-                  // sample every cycle at the falling edge of the clock.
-                  // TODO(meheff): If we switch to SystemVerilog this is better
-                  // handled using a clocking block.
-                  Expression* cmp;
-                  if (std::holds_alternative<Bits>(w.value)) {
-                    cmp = file.NotEquals(
-                        port_refs.at(w.port),
-                        file.Literal(std::get<Bits>(w.value), SourceInfo()),
-                        SourceInfo());
-                  } else if (std::holds_alternative<IsX>(w.value)) {
-                    cmp = file.NotEqualsX(port_refs.at(w.port), SourceInfo());
-                  } else {
-                    XLS_CHECK(std::holds_alternative<IsNotX>(w.value));
-                    cmp = file.EqualsX(port_refs.at(w.port), SourceInfo());
-                  }
-                  auto whle = procedure->statements()->Add<WhileStatement>(
-                      SourceInfo(), cmp);
-                  WaitNCycles(clk, whle->statements(), 1);
-                },
-                [&](const DisplayOutput& c) {
-                  // Use $strobe rather than $display to print value after all
-                  // assignments in the simulator time slot and avoid any
-                  // potential race conditions.
-                  procedure->statements()->Add<Strobe>(
-                      SourceInfo(),
-                      std::vector<Expression*>{
-                          file.Make<QuotedString>(
-                              SourceInfo(),
-                              absl::StrFormat("%%t OUTPUT %s = %d'h%%0x (#%d)",
-                                              c.port, GetPortWidth(c.port),
-                                              c.instance)),
-                          file.Make<SystemFunctionCall>(SourceInfo(), "time"),
-                          port_refs.at(c.port)});
-                }},
-        action);
+    absl::visit(visitor, action);
   }
   // The last statement must be to assert the done signal of the thread.
-  procedure->statements()->Add<NonblockingAssignment>(
-      SourceInfo(), done_signal, file.Literal(UBits(1, 1), SourceInfo()));
+  absl::visit(visitor,
+              Action{SetSignal{std::string(done_signal_name_), UBits(1, 1)}});
 }
 
 ModuleTestbench::ModuleTestbench(Module* module,
@@ -403,8 +454,6 @@ ModuleTestbench::ModuleTestbench(Module* module,
       file_type_(module->file()->use_system_verilog() ? FileType::kSystemVerilog
                                                       : FileType::kVerilog),
       simulator_(simulator),
-      clk_name_(clk_name),
-      reset_(reset),
       includes_(includes) {
   XLS_VLOG(3) << "Building ModuleTestbench for Verilog module:";
   XLS_VLOG_LINES(3, verilog_text_);
@@ -413,6 +462,14 @@ ModuleTestbench::ModuleTestbench(Module* module,
       shared_data_.input_port_widths;
   absl::btree_map<std::string, int64_t>& output_port_widths =
       shared_data_.output_port_widths;
+  shared_data_.reset = reset;
+
+  // Define default clock name to control the testbench.
+  if (!clk_name.has_value()) {
+    shared_data_.clk_name = "clk";
+  } else {
+    shared_data_.clk_name = clk_name.value();
+  }
 
   for (const Port& port : module->ports()) {
     const int64_t width = port.wire->data_type()->WidthAsInt64().value();
@@ -454,12 +511,15 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
   }
 
   // Add in any non-data ports.
-  if (signature.proto().has_clock_name()) {
-    clk_name_ = signature.proto().clock_name();
-    input_port_widths[*clk_name_] = 1;
+  // Define default clock name to control the testbench.
+  if (!signature.proto().has_clock_name()) {
+    shared_data_.clk_name = "clk";
+  } else {
+    shared_data_.clk_name = signature.proto().clock_name();
+    input_port_widths[shared_data_.clk_name] = 1;
   }
   if (signature.proto().has_reset()) {
-    reset_ = signature.proto().reset();
+    shared_data_.reset = signature.proto().reset();
     input_port_widths[signature.proto().reset().name()] = 1;
   }
   if (signature.proto().has_pipeline() &&
@@ -486,11 +546,24 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
 }
 
 ModuleTestbenchThread& ModuleTestbench::CreateThread(
-    absl::flat_hash_map<std::string, Bits> init_values_after_reset,
-    std::optional<std::vector<std::string>> inputs_to_drive) {
+    std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
+        owned_signals_to_drive) {
+  std::string done_signal_name =
+      absl::StrFormat("is_thread_%s_done", std::to_string(threads_.size()));
+  if (!owned_signals_to_drive.has_value()) {
+    owned_signals_to_drive =
+        absl::flat_hash_map<std::string, std::optional<Bits>>();
+    for (const auto& [name, width] : shared_data_.input_port_widths) {
+      if (name == shared_data_.clk_name) {
+        continue;
+      }
+      (*owned_signals_to_drive)[name] = std::nullopt;
+    }
+  }
   threads_.push_back(std::make_unique<ModuleTestbenchThread>(
-      &shared_data_, init_values_after_reset, inputs_to_drive));
-  return *threads_.back();
+      &shared_data_, done_signal_name, owned_signals_to_drive.value()));
+  ModuleTestbenchThread& thread = *threads_.back();
+  return thread;
 }
 
 absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
@@ -502,8 +575,8 @@ absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
   }
 
   // Scan the simulator output and pick out the OUTPUT lines holding the value
-  // of module output ports.
-  absl::flat_hash_map<ModuleTestbenchThread::InstancePort,
+  // of module signal.
+  absl::flat_hash_map<ModuleTestbenchThread::InstanceSignalName,
                       std::variant<Bits, ModuleTestbenchThread::IsX>>
       parsed_values;
 
@@ -554,10 +627,7 @@ std::string ModuleTestbench::GenerateVerilog() {
   VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
-  std::optional<LogicRef*> reset = std::nullopt;
-  std::optional<Bits> reset_end_value = std::nullopt;
-
-  absl::flat_hash_map<std::string, LogicRef*> port_refs;
+  absl::flat_hash_map<std::string, LogicRef*> signal_refs;
   std::vector<Connection> connections;
   for (const auto& pair : shared_data_.input_port_widths) {
     if (pair.second == 0) {
@@ -568,7 +638,7 @@ std::string ModuleTestbench::GenerateVerilog() {
     const std::string& port_name = pair.first;
     LogicRef* ref = m->AddReg(
         port_name, file.BitVectorType(pair.second, SourceInfo()), SourceInfo());
-    port_refs[port_name] = ref;
+    signal_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
 
@@ -580,14 +650,16 @@ std::string ModuleTestbench::GenerateVerilog() {
     }
     LogicRef* ref = m->AddWire(
         port_name, file.BitVectorType(width, SourceInfo()), SourceInfo());
-    port_refs[port_name] = ref;
+    signal_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
+
   // For combinational modules define, but do not connect a clock signal.
-  LogicRef* clk =
-      clk_name_.has_value()
-          ? port_refs.at(*clk_name_)
-          : m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo());
+  if (!signal_refs.contains(shared_data_.clk_name)) {
+    signal_refs[shared_data_.clk_name] =
+        m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo());
+  }
+  LogicRef* clk = signal_refs[shared_data_.clk_name];
 
   // Instantiate the device under test module.
   const char kInstantiationName[] = "dut";
@@ -597,11 +669,11 @@ std::string ModuleTestbench::GenerateVerilog() {
 
   std::vector<LogicRef*> done_signal_refs;
   for (int64_t index = 0; index < threads_.size(); ++index) {
-    std::string done_signal_name =
-        absl::StrFormat("is_thread_%s_done", std::to_string(index));
-    LogicRef* ref = m->AddReg(
-        done_signal_name, file.BitVectorType(1, SourceInfo()), SourceInfo());
+    LogicRef* ref =
+        m->AddReg(threads_[index]->done_signal_name(),
+                  file.BitVectorType(1, SourceInfo()), SourceInfo());
     done_signal_refs.push_back(ref);
+    signal_refs[threads_[index]->done_signal_name()] = ref;
   }
 
   {
@@ -622,18 +694,18 @@ std::string ModuleTestbench::GenerateVerilog() {
   {
     // Global reset controller. If a reset is present, the threads will wait
     // on this reset prior to starting their execution.
-    if (reset_.has_value()) {
-      reset = port_refs.at(reset_->name());
-      const Bits reset_start_value = UBits(reset_->active_low() ? 0 : 1, 1);
-      reset_end_value = UBits(reset_->active_low() ? 1 : 0, 1);
+    if (shared_data_.reset.has_value()) {
+      LogicRef* reset = signal_refs.at(shared_data_.reset->name());
+      const Bits reset_start_value =
+          UBits(shared_data_.reset->active_low() ? 0 : 1, 1);
+      const Bits reset_end_value =
+          UBits(shared_data_.reset->active_low() ? 1 : 0, 1);
       Initial* initial = m->Add<Initial>(SourceInfo());
       initial->statements()->Add<NonblockingAssignment>(
-          SourceInfo(), reset.value(),
-          file.Literal(reset_start_value, SourceInfo()));
+          SourceInfo(), reset, file.Literal(reset_start_value, SourceInfo()));
       WaitNCycles(clk, initial->statements(), kResetCycles);
       initial->statements()->Add<NonblockingAssignment>(
-          SourceInfo(), reset.value(),
-          file.Literal(reset_end_value.value(), SourceInfo()));
+          SourceInfo(), reset, file.Literal(reset_end_value, SourceInfo()));
       WaitNCycles(clk, initial->statements(), 1);
     }
   }
@@ -660,7 +732,7 @@ std::string ModuleTestbench::GenerateVerilog() {
     std::vector<Expression*> monitor_args = {
         file.Make<SystemFunctionCall>(SourceInfo(), "time")};
     for (const Connection& connection : connections) {
-      if (connection.port_name == clk_name_) {
+      if (connection.port_name == shared_data_.clk_name) {
         continue;
       }
       absl::StrAppend(&monitor_fmt, " ", connection.port_name, ": %d");
@@ -674,8 +746,7 @@ std::string ModuleTestbench::GenerateVerilog() {
   for (int64_t index = 0; index < threads_.size(); ++index) {
     // TODO(vmirian) : Consider lowering the thread to an 'always' block.
     Initial* initial = m->Add<Initial>(SourceInfo());
-    threads_[index]->EmitInto(initial, done_signal_refs[index], port_refs, clk,
-                              reset, reset_end_value);
+    threads_[index]->EmitInto(initial, signal_refs);
   }
 
   {
@@ -705,7 +776,7 @@ std::string ModuleTestbench::GenerateVerilog() {
     }
 
     // Add one final wait for a cycle. This ensures that any $strobe from
-    // DisplayOutput runs before the final $finish.
+    // DisplaySignal runs before the final $finish.
     always->statements()->Add<WaitStatement>(SourceInfo(), posedge_clk);
     always->statements()->Add<WaitStatement>(SourceInfo(), negedge_clk);
 
