@@ -51,13 +51,22 @@ struct ModuleTestbenchData {
 class ModuleTestbenchThread {
  public:
   // The shared_data is data that is shared amongst all threads. Cannot be
-  // nullptr. The inputs_to_drive are the input signals of the design under test
+  // nullptr.
+  //
+  // The init_values_after_reset is a name-value map with the name of the
+  // input signals mapped to their initial value after reset.
+  //
+  // The inputs_to_drive are the input signals of the design under test
   // (DUT) that the thread is capable of driving, std::nullopt signifies all
   // inputs (no constraint on the inputs).
+  // TODO(vmirian) : Consider merging init_values_after_reset and
+  // inputs_to_drive.
   ModuleTestbenchThread(
       const ModuleTestbenchData* shared_data,
+      absl::flat_hash_map<std::string, Bits> init_values_after_reset = {},
       std::optional<std::vector<std::string>> inputs_to_drive = std::nullopt)
       : shared_data_(XLS_DIE_IF_NULL(shared_data)),
+        init_values_after_reset_(std::move(init_values_after_reset)),
         inputs_to_drive_(std::move(inputs_to_drive)) {}
 
   // Sets the given module input port to the given value in the current
@@ -133,7 +142,8 @@ class ModuleTestbenchThread {
   // Emit the thread contents into the verilog file with the contents specified.
   void EmitInto(StructuredProcedure* procedure, LogicRef* done_signal,
                 const absl::flat_hash_map<std::string, LogicRef*>& port_refs,
-                LogicRef* clk);
+                LogicRef* clk, std::optional<LogicRef*> reset,
+                std::optional<Bits> reset_end_value);
 
  private:
   // Returns the width of the given port.
@@ -147,6 +157,7 @@ class ModuleTestbenchThread {
   void CheckIsOutput(std::string_view name);
 
   const ModuleTestbenchData* shared_data_;
+  absl::flat_hash_map<std::string, Bits> init_values_after_reset_;
   std::optional<std::vector<std::string>> inputs_to_drive_;
 
   // The following structs define the actions which are set to occur during
@@ -231,11 +242,15 @@ class ModuleTestbench {
                   absl::Span<const VerilogInclude> includes = {});
 
   // Returns a reference to a newly created thread to execute in the testbench.
+  //
+  // The init_values_after_reset is a name-value map with the name of the
+  // signals mapped to their initial value after reset.
+  //
   // The inputs_to_drive are the input signals of the design under test (DUT)
   // that the thread is capable of driving, std::nullopt signifies all inputs
   // (no constraint on the inputs).
-  // TODO(vmirian): 10-21-2022 Support more than a single thread.
   ModuleTestbenchThread& CreateThread(
+      absl::flat_hash_map<std::string, Bits> init_values_after_reset = {},
       std::optional<std::vector<std::string>> inputs_to_drive = std::nullopt);
 
   // Generates the Verilog representation of the testbench.
@@ -252,6 +267,7 @@ class ModuleTestbench {
   FileType file_type_;
   const VerilogSimulator* simulator_;
   std::optional<std::string> clk_name_;
+  std::optional<ResetProto> reset_;
   absl::Span<const VerilogInclude> includes_;
 
   ModuleTestbenchData shared_data_;

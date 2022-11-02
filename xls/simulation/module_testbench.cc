@@ -45,10 +45,16 @@ namespace xls {
 namespace verilog {
 namespace {
 
+// The number of cycles that the design under test (DUT) is being reset.
+static constexpr int64_t kResetCycles = 5;
+
 // Upper limit on the length of simulation. Simulation terminates with
 // $finish after this many cycles. This is to avoid test timeouts in cases
 // that the simulation logic does not terminate.
 static constexpr int64_t kSimulationCycleLimit = 10000;
+
+static_assert(kResetCycles < kSimulationCycleLimit,
+              "Reset cycles must be less than the simulation cycle limit.");
 
 std::string GetTimeoutMessage() {
   return absl::StrFormat("ERROR: timeout, simulation ran too long (%d cycles).",
@@ -299,14 +305,28 @@ absl::Status ModuleTestbenchThread::CheckOutput(
 
 void ModuleTestbenchThread::EmitInto(
     StructuredProcedure* procedure, LogicRef* done_signal,
-    const absl::flat_hash_map<std::string, LogicRef*>& port_refs,
-    LogicRef* clk) {
+    const absl::flat_hash_map<std::string, LogicRef*>& port_refs, LogicRef* clk,
+    std::optional<LogicRef*> reset, std::optional<Bits> reset_end_value) {
   XLS_CHECK_NE(procedure, nullptr);
   VerilogFile& file = *procedure->file();
   // The first statement must be to deassert the done signal of the thread.
   procedure->statements()->Add<NonblockingAssignment>(
       SourceInfo(), done_signal, file.Literal(UBits(0, 1), SourceInfo()));
   WaitNCycles(clk, procedure->statements(), 1);
+
+  // Some values must be initialize after a reset, for example control signals.
+  for (const auto& [port_name, value] : init_values_after_reset_) {
+    procedure->statements()->Add<NonblockingAssignment>(
+        SourceInfo(), port_refs.at(port_name),
+        file.Literal(value, SourceInfo()));
+  }
+  // The thread must wait for reset (if present).
+  if (reset.has_value() && reset_end_value.has_value()) {
+    Expression* reset_finished = file.Equals(
+        reset.value(), file.Literal(reset_end_value.value(), SourceInfo()),
+        SourceInfo());
+    procedure->statements()->Add<WaitStatement>(SourceInfo(), reset_finished);
+  }
   // All actions occur at the falling edge of the clock to avoid races with
   // signals changing at the rising edge of the clock.
   for (const Action& action : actions_) {
@@ -384,6 +404,7 @@ ModuleTestbench::ModuleTestbench(Module* module,
                                                       : FileType::kVerilog),
       simulator_(simulator),
       clk_name_(clk_name),
+      reset_(reset),
       includes_(includes) {
   XLS_VLOG(3) << "Building ModuleTestbench for Verilog module:";
   XLS_VLOG_LINES(3, verilog_text_);
@@ -438,6 +459,7 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
     input_port_widths[*clk_name_] = 1;
   }
   if (signature.proto().has_reset()) {
+    reset_ = signature.proto().reset();
     input_port_widths[signature.proto().reset().name()] = 1;
   }
   if (signature.proto().has_pipeline() &&
@@ -464,9 +486,10 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
 }
 
 ModuleTestbenchThread& ModuleTestbench::CreateThread(
+    absl::flat_hash_map<std::string, Bits> init_values_after_reset,
     std::optional<std::vector<std::string>> inputs_to_drive) {
-  threads_.push_back(
-      std::make_unique<ModuleTestbenchThread>(&shared_data_, inputs_to_drive));
+  threads_.push_back(std::make_unique<ModuleTestbenchThread>(
+      &shared_data_, init_values_after_reset, inputs_to_drive));
   return *threads_.back();
 }
 
@@ -531,6 +554,9 @@ std::string ModuleTestbench::GenerateVerilog() {
   VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
+  std::optional<LogicRef*> reset = std::nullopt;
+  std::optional<Bits> reset_end_value = std::nullopt;
+
   absl::flat_hash_map<std::string, LogicRef*> port_refs;
   std::vector<Connection> connections;
   for (const auto& pair : shared_data_.input_port_widths) {
@@ -594,6 +620,25 @@ std::string ModuleTestbench::GenerateVerilog() {
   }
 
   {
+    // Global reset controller. If a reset is present, the threads will wait
+    // on this reset prior to starting their execution.
+    if (reset_.has_value()) {
+      reset = port_refs.at(reset_->name());
+      const Bits reset_start_value = UBits(reset_->active_low() ? 0 : 1, 1);
+      reset_end_value = UBits(reset_->active_low() ? 1 : 0, 1);
+      Initial* initial = m->Add<Initial>(SourceInfo());
+      initial->statements()->Add<NonblockingAssignment>(
+          SourceInfo(), reset.value(),
+          file.Literal(reset_start_value, SourceInfo()));
+      WaitNCycles(clk, initial->statements(), kResetCycles);
+      initial->statements()->Add<NonblockingAssignment>(
+          SourceInfo(), reset.value(),
+          file.Literal(reset_end_value.value(), SourceInfo()));
+      WaitNCycles(clk, initial->statements(), 1);
+    }
+  }
+
+  {
     // Add a watchdog which stops the simulation after a long time.
     Initial* initial = m->Add<Initial>(SourceInfo());
     WaitNCycles(clk, initial->statements(), kSimulationCycleLimit);
@@ -629,7 +674,8 @@ std::string ModuleTestbench::GenerateVerilog() {
   for (int64_t index = 0; index < threads_.size(); ++index) {
     // TODO(vmirian) : Consider lowering the thread to an 'always' block.
     Initial* initial = m->Add<Initial>(SourceInfo());
-    threads_[index]->EmitInto(initial, done_signal_refs[index], port_refs, clk);
+    threads_[index]->EmitInto(initial, done_signal_refs[index], port_refs, clk,
+                              reset, reset_end_value);
   }
 
   {

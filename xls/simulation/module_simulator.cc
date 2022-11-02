@@ -42,28 +42,18 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
 
 }  // namespace
 
-absl::Status ModuleSimulator::DeassertControlSignals(
-    ModuleTestbenchThread* tbt) const {
+absl::flat_hash_map<std::string, Bits> ModuleSimulator::DeassertControlSignals()
+    const {
+  absl::flat_hash_map<std::string, Bits> control_signals;
   if (signature_.proto().has_pipeline() &&
       signature_.proto().pipeline().has_pipeline_control()) {
     const PipelineControl& pipeline_control =
         signature_.proto().pipeline().pipeline_control();
     if (pipeline_control.has_valid()) {
-      tbt->Set(pipeline_control.valid().input_name(), 0);
+      control_signals[pipeline_control.valid().input_name()] = UBits(0, 1);
     }
   }
-  return absl::OkStatus();
-}
-
-absl::Status ModuleSimulator::ResetModule(ModuleTestbenchThread* tbt) const {
-  if (signature_.proto().has_reset()) {
-    const ResetProto& reset = signature_.proto().reset();
-    tbt->Set(reset.name(), reset.active_low() ? 0 : 1);
-    tbt->AdvanceNCycles(5);
-    tbt->Set(reset.name(), reset.active_low() ? 1 : 0);
-    tbt->NextCycle();
-  }
-  return absl::OkStatus();
+  return control_signals;
 }
 
 absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
@@ -116,14 +106,12 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
                      includes_);
 
-  ModuleTestbenchThread& tbt = tb.CreateThread();
-
   // Drive any control signals to an unasserted state so the all control inputs
   // are non-X when the device comes out of reset.
-  XLS_RETURN_IF_ERROR(DeassertControlSignals(&tbt));
+  absl::flat_hash_map<std::string, Bits> control_signals =
+      DeassertControlSignals();
 
-  // Reset module (if the module has a reset signal).
-  XLS_RETURN_IF_ERROR(ResetModule(&tbt));
+  ModuleTestbenchThread& tbt = tb.CreateThread(control_signals);
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64_t index) {

@@ -132,6 +132,7 @@ cc_test(
         ":module_testbench",
         ":verilog_simulators",
         ":verilog_test_base",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:vast",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

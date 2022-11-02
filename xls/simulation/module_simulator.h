@@ -71,11 +71,9 @@ class ModuleSimulator {
   absl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
 
  private:
-  // Deassert all control inputs on the module.
-  absl::Status DeassertControlSignals(ModuleTestbenchThread* tbt) const;
-
-  // Resets the module.
-  absl::Status ResetModule(ModuleTestbenchThread* tbt) const;
+  // Deassert all control inputs on the module. Returns a map of the signal name
+  // to its deasserted value.
+  absl::flat_hash_map<std::string, Bits> DeassertControlSignals() const;
 
   ModuleSignature signature_;
   std::string verilog_text_;

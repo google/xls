@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
@@ -59,10 +60,13 @@ class ModuleTestbenchTest : public VerilogTestBase {
     return m;
   }
   // Creates and returns a adder module which flops its input twice.
+  // The flip-flops use a synchronous active-high reset.
   Module* MakeTwoStageAdderPipeline(VerilogFile* f, int64_t width = 16) {
     Module* m = f->AddModule("test_module", SourceInfo());
     LogicRef* clk =
         m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
+    LogicRef* reset =
+        m->AddInput("reset", f->ScalarType(SourceInfo()), SourceInfo());
     LogicRef* operand_0 = m->AddInput(
         "operand_0", f->BitVectorType(width, SourceInfo()), SourceInfo());
     LogicRef* operand_1 = m->AddInput(
@@ -77,7 +81,8 @@ class ModuleTestbenchTest : public VerilogTestBase {
     LogicRef* p1 =
         m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
 
-    auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
+    auto af = m->Add<AlwaysFlop>(
+        SourceInfo(), clk, Reset{reset, /*async*/ false, /*active_low*/ false});
     af->AddRegister(p0, result, SourceInfo());
     af->AddRegister(p1, p0, SourceInfo());
 
@@ -114,11 +119,18 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineTwoThreads) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageAdderPipeline(&f);
 
-  ModuleTestbench tb(m, GetSimulator(), "clk");
-  ModuleTestbenchThread& operand_0 =
-      tb.CreateThread(std::vector<std::string>{"operand_0"});
-  ModuleTestbenchThread& operand_1 =
-      tb.CreateThread(std::vector<std::string>{"operand_1"});
+  ResetProto reset_proto;
+  reset_proto.set_name("reset");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk", reset_proto);
+  ModuleTestbenchThread& operand_0 = tb.CreateThread(
+      absl::flat_hash_map<std::string, Bits>{{"operand_0", UBits(0, 16)}},
+      std::vector<std::string>{"operand_0"});
+  ModuleTestbenchThread& operand_1 = tb.CreateThread(
+      absl::flat_hash_map<std::string, Bits>{{"operand_1", UBits(0, 16)}},
+      std::vector<std::string>{"operand_1"});
   ModuleTestbenchThread& result = tb.CreateThread();
   operand_0.Set("operand_0", 0x21);
   operand_1.Set("operand_1", 0x21);
