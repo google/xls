@@ -111,8 +111,8 @@ class RunFuzzTest(parameterized.TestCase):
   @parameterized.named_parameters(*tuple(
       dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(40)))
   def test_first_n_seeds(self, seed):
-    for _ in range(_SAMPLE_COUNT):
-      self._run_fuzz(seed)
+    for i in range(_SAMPLE_COUNT):
+      self._run_fuzz(_SAMPLE_COUNT * seed + i)
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the

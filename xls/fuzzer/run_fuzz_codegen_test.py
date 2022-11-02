@@ -70,9 +70,9 @@ class RunFuzzTest(parameterized.TestCase):
   @parameterized.named_parameters(*tuple(
       dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(50)))
   def test_first_n_seeds(self, seed):
-    for _ in range(_SAMPLE_COUNT):
+    for i in range(_SAMPLE_COUNT):
       run_fuzz.generate_sample_and_run(
-          ast_generator.ValueGenerator(seed),
+          ast_generator.ValueGenerator(seed * _SAMPLE_COUNT + i),
           self._get_ast_options(),
           self._get_sample_options(),
           run_dir=self.create_tempdir().full_path,
