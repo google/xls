@@ -157,7 +157,6 @@ cc_library(
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
         "//xls/common:bits_util",
-        "//xls/common:endian",
         "//xls/common:math_util",
         "//xls/common/logging",
     ],
@@ -286,6 +285,7 @@ cc_test(
     srcs = ["inline_bitmap_test.cc"],
     deps = [
         ":inline_bitmap",
+        "@com_google_absl//absl/memory",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],

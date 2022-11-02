@@ -212,33 +212,12 @@ TEST(FunctionJitTest, PackedSmoke) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
-  uint8_t input_data[] = {0x5a};
+  uint8_t input_data[] = {0x5a, 0xa5};
   uint8_t output_data;
   PackedBitsView<8> input(input_data, 0);
   PackedBitsView<8> output(&output_data, 0);
   XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
   EXPECT_EQ(output_data, 0x5a);
-}
-
-TEST(FunctionJitTest, PackedSmokeWide) {
-  Package package("my_package");
-  std::string ir_text = R"(
-  fn get_identity(x: bits[80]) -> bits[80] {
-    one: bits[80] = literal(value=1)
-    ret x_plus_one: bits[80] = add(x, one)
-  }
-  )";
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
-                           Parser::ParseFunction(ir_text, &package));
-
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
-  uint8_t input_data[] = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa};
-  uint8_t output_data[10];
-  PackedBitsView<80> input(input_data, 0);
-  PackedBitsView<80> output(output_data, 0);
-  XLS_ASSERT_OK(jit->RunWithPackedViews(input, output));
-  EXPECT_THAT(output_data, testing::ElementsAre(0x2, 0x2, 0x3, 0x4, 0x5, 0x6,
-                                                0x7, 0x8, 0x9, 0xa));
 }
 
 // Tests PackedBitView<X> input/output handling.
@@ -264,8 +243,11 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   bzero(output_data.get(), byte_width);
 
   auto a_vector = a.ToBytes();
+  std::reverse(a_vector.begin(), a_vector.end());
   auto b_vector = b.ToBytes();
+  std::reverse(b_vector.begin(), b_vector.end());
   auto expected_vector = expected.ToBytes();
+  std::reverse(expected_vector.begin(), expected_vector.end());
   PackedBitsView<kBitWidth> a_view(a_vector.data(), 0);
   PackedBitsView<kBitWidth> b_view(b_vector.data(), 0);
   PackedBitsView<kBitWidth> output(output_data.get(), 0);
@@ -330,6 +312,7 @@ struct TestData {
     BitsRope rope(value.GetFlatBitCount());
     FlattenValue(value, rope);
     std::vector<uint8_t> bytes = rope.Build().ToBytes();
+    std::reverse(bytes.begin(), bytes.end());
     return bytes;
   }
 

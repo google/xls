@@ -18,11 +18,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/memory/memory.h"
 
 namespace xls {
 namespace {
-
-using testing::ElementsAre;
 
 TEST(InlineBitmapTest, FromWord) {
   {
@@ -48,34 +47,6 @@ TEST(InlineBitmapTest, FromWord) {
     auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
                                     /*bit_count=*/64, /*fill=*/false);
     EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
-  }
-
-  {
-    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
-                                    /*bit_count=*/128, /*fill=*/false);
-    EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
-    EXPECT_EQ(b.GetWord(1), 0);
-  }
-
-  {
-    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
-                                    /*bit_count=*/128, /*fill=*/true);
-    EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
-    EXPECT_EQ(b.GetWord(1), 0xffffffffffffffff);
-  }
-
-  {
-    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
-                                    /*bit_count=*/101, /*fill=*/true);
-    EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
-    EXPECT_EQ(b.GetWord(1), 0x0000001fffffffff);
-  }
-
-  {
-    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
-                                    /*bit_count=*/101, /*fill=*/false);
-    EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
-    EXPECT_EQ(b.GetWord(1), 0);
   }
 }
 
@@ -197,7 +168,7 @@ TEST(InlineBitmapTest, BytesAndBits) {
   EXPECT_FALSE(b.Get(15));
 }
 
-TEST(InlineBitmapTest, GetSetBytesAndWords) {
+TEST(InlineBitmapTest, BytesAndWords) {
   {
     InlineBitmap b16(/*bit_count=*/16);
     b16.SetByte(0, 0xaa);
@@ -238,73 +209,6 @@ TEST(InlineBitmapTest, GetSetBytesAndWords) {
     b.SetByte(8, 0x1);
     EXPECT_EQ(b.GetWord(0), 0xff00000000000000) << std::hex << b.GetWord(0);
     EXPECT_EQ(b.GetWord(1), 0x1) << std::hex << b.GetWord(1);
-  }
-
-  {
-    InlineBitmap b(/*bit_count=*/65);
-    b.SetByte(7, 0xff);
-    // Only bits 0 of this byte is in range, so the higher bits should be masked
-    // off.
-    b.SetByte(8, 0xff);
-    EXPECT_EQ(b.GetWord(0), 0xff00000000000000) << std::hex << b.GetWord(0);
-    EXPECT_EQ(b.GetWord(1), 0x1) << std::hex << b.GetWord(1);
-  }
-}
-
-TEST(InlineBitmapTest, FromToBytes) {
-  {
-    InlineBitmap b = InlineBitmap::FromBytes(0, absl::Span<const uint8_t>());
-    EXPECT_EQ(b.bit_count(), 0);
-    b.WriteBytesToBuffer(absl::Span<uint8_t>());
-  }
-  {
-    InlineBitmap b = InlineBitmap::FromBytes(1, {0x1});
-    EXPECT_EQ(b.bit_count(), 1);
-    std::vector<uint8_t> bytes(1);
-    b.WriteBytesToBuffer(absl::MakeSpan(bytes));
-    EXPECT_THAT(bytes, ElementsAre(0x01));
-  }
-  {
-    // Extra bits should be masked off.
-    InlineBitmap b = InlineBitmap::FromBytes(1, {0xff});
-    EXPECT_EQ(b.bit_count(), 1);
-    std::vector<uint8_t> bytes(1);
-    b.WriteBytesToBuffer(absl::MakeSpan(bytes));
-    EXPECT_THAT(bytes, ElementsAre(0x01));
-  }
-  {
-    InlineBitmap b = InlineBitmap::FromBytes(32, {0x01, 0x02, 0x03, 0x04});
-    // Verify the endianness is as expected (little-endian).
-    EXPECT_TRUE(b.Get(0));
-    EXPECT_FALSE(b.Get(1));
-    EXPECT_FALSE(b.Get(8));
-    EXPECT_TRUE(b.Get(9));
-    EXPECT_EQ(b.bit_count(), 32);
-    std::vector<uint8_t> bytes(4);
-    b.WriteBytesToBuffer(absl::MakeSpan(bytes));
-    EXPECT_THAT(bytes, ElementsAre(0x01, 0x02, 0x03, 0x04));
-  }
-  {
-    InlineBitmap b = InlineBitmap::FromBytes(
-        128, {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
-              0x0b, 0x0c, 0x0d, 0x0e, 0x0f});
-    // Verify the endianness is as expected (little-endian).
-    EXPECT_FALSE(b.Get(0));
-    EXPECT_FALSE(b.Get(1));
-    EXPECT_FALSE(b.Get(2));
-    EXPECT_FALSE(b.Get(3));
-
-    EXPECT_TRUE(b.Get(8));
-    EXPECT_FALSE(b.Get(9));
-    EXPECT_FALSE(b.Get(10));
-    EXPECT_FALSE(b.Get(11));
-
-    EXPECT_EQ(b.bit_count(), 128);
-    std::vector<uint8_t> bytes(16);
-    b.WriteBytesToBuffer(absl::MakeSpan(bytes));
-    EXPECT_THAT(
-        bytes, ElementsAre(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                           0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f));
   }
 }
 

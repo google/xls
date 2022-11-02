@@ -100,9 +100,6 @@ absl::Status CBitsType::GetMetadataValue(Translator& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
   vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
-  // Bits::ToBytes is little-endian, data is stored in the proto as
-  // big-endian.
-  std::reverse(bytes.begin(), bytes.end());
   output->set_as_bits(bytes.data(), bytes.size());
   return absl::OkStatus();
 }
@@ -308,9 +305,6 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
   if (write_as_bits) {
     XLS_CHECK(const_value.rvalue().IsBits());
     vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
-    // Bits::ToBytes is little-endian, data is stored in the proto as
-    // big-endian.
-    std::reverse(bytes.begin(), bytes.end());
     output->set_as_bits(bytes.data(), bytes.size());
 
     return absl::OkStatus();

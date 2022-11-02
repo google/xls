@@ -2680,7 +2680,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     for (int i = 0; i < truncated_n; ++i) {
       truncated.emplace_back(api_raw[i]);
     }
-    // FromBytes() accepts little endian format
+    // Convert to big endian
+    std::reverse(truncated.begin(), truncated.end());
+    // FromBytes() accepts big endian format
     auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
     return CValue(context().fb->Literal(lbits, loc), ctype);
   }

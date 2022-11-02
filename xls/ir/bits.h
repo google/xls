@@ -81,9 +81,7 @@ class Bits {
   // order where the byte zero is the most significant byte. The size of 'bytes'
   // must be at least than bit_count / 8. Any bits beyond 'bit_count' in 'bytes'
   // are ignored.
-  static Bits FromBytes(absl::Span<const uint8_t> bytes, int64_t bit_count) {
-    return Bits(InlineBitmap::FromBytes(bit_count, bytes));
-  }
+  static Bits FromBytes(absl::Span<const uint8_t> bytes, int64_t bit_count);
 
   // Constructs a Bits object from a bitmap.
   static Bits FromBitmap(InlineBitmap bitmap) {
@@ -97,8 +95,8 @@ class Bits {
     }
   }
 
-  // Return the Bits object as a vector of bytes. Bytes are in little endian
-  // order where the byte zero of the returned vector is the least significant
+  // Return the Bits object as a vector of bytes. Bytes are in big endian order
+  // where the byte zero of the returned vector is the most significant
   // byte. The returned vector has size ceil(bit_count()/8). Any bits in the
   // returned vector beyond the bit_count()-th are set to zero.
   std::vector<uint8_t> ToBytes() const {
@@ -109,8 +107,23 @@ class Bits {
 
   // Implements ToBytes() as above by inserting values into a user-provided raw
   // byte buffer.
-  void ToBytes(absl::Span<uint8_t> bytes) const {
-    bitmap_.WriteBytesToBuffer(bytes);
+  //
+  // "big_endian" determines whether the least significant byte from this bits
+  // object ends up in the 0th byte (on false), or in the N-1th byte (on true).
+  // This can be useful to control when calling machine code.
+  void ToBytes(absl::Span<uint8_t> bytes, bool big_endian = true) const {
+    int64_t byte_count = bitmap_.byte_count();
+    XLS_DCHECK(bytes.size() >= byte_count);
+    // Use raw access to avoid evaluating ABSL_ASSERT on every reference.
+    uint8_t* buffer = bytes.data();
+    for (int64_t i = 0; i < byte_count; ++i) {
+      int64_t index = big_endian ? byte_count - i - 1 : i;
+      buffer[index] = bitmap_.GetByte(i);
+    }
+    // Mask off final byte.
+    if (bit_count() % 8 != 0) {
+      buffer[big_endian ? 0 : byte_count - 1] &= Mask(bit_count() % 8);
+    }
   }
 
   // Return the Bits object as a vector of bits. The n-th element of the

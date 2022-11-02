@@ -69,13 +69,24 @@ Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
       const BitsType* bits_type = result_type->AsBitsOrDie();
       int64_t bit_count = bits_type->bit_count();
       int64_t byte_count = CeilOfRatio(bit_count, kCharBit);
+      absl::InlinedVector<uint8_t, 8> data;
+      data.reserve(byte_count);
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
       if (unpoison) {
         __msan_unpoison(buffer, byte_count);
       }
 #endif  // ABSL_HAVE_MEMORY_SANITIZER
-      return Value(
-          Bits::FromBytes(absl::MakeSpan(buffer, byte_count), bit_count));
+      for (int i = 0; i < byte_count; ++i) {
+        data.push_back(buffer[i]);
+      }
+
+      // We could copy the data out of the buffer to avoid a swap, but it's
+      // probably not worth the effort.
+      if (data_layout_.isLittleEndian()) {
+        ByteSwap(absl::MakeSpan(data));
+      }
+
+      return Value(Bits::FromBytes(absl::MakeSpan(data), bit_count));
     }
     case TypeKind::kTuple: {
       // Just as with arg packing, we need the DataLayout to tell us where each
@@ -143,9 +154,8 @@ void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,
   if (value.IsBits()) {
     const Bits& bits = value.bits();
     int64_t byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
-    // Underlying Bits object relies on little-endianness.
-    XLS_CHECK(data_layout_.isLittleEndian());
-    bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count));
+    bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count),
+                 data_layout_.isBigEndian());
 
     // Zero out any padding bits. Bits type are stored in the JIT as the next
     // power of two size.  LLVM requires all padding bits to be zero for safe

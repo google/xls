@@ -166,11 +166,7 @@ absl::StatusOr<InterpValueProto> ToProto(const InterpValue& v) {
     BitsValueProto* bvp = proto.mutable_bits();
     bvp->set_is_signed(v.IsSBits());
     bvp->set_bit_count(v.GetBitCount().value());
-    // Bits::ToBytes is in little-endian format. The proto stores data in
-    // big-endian.
-    std::vector<uint8_t> bytes = v.GetBitsOrDie().ToBytes();
-    std::reverse(bytes.begin(), bytes.end());
-    *bvp->mutable_data() = U8sToString(bytes);
+    *bvp->mutable_data() = U8sToString(v.GetBitsOrDie().ToBytes());
   } else {
     return absl::UnimplementedError(
         "TypeInfoProto: convert InterpValue to proto: " + v.ToString());
@@ -350,15 +346,9 @@ absl::Span<const uint8_t> ToU8Span(const std::string& s) {
 absl::StatusOr<InterpValue> FromProto(const InterpValueProto& ivp) {
   switch (ivp.value_oneof_case()) {
     case InterpValueProto::ValueOneofCase::kBits: {
-      std::vector<uint8_t> bytes;
-      for (uint8_t i8 : ToU8Span(ivp.bits().data())) {
-        bytes.push_back(i8);
-      }
-      // Bits::FromBytes expects data in little-endian format.
-      std::reverse(bytes.begin(), bytes.end());
       return InterpValue::MakeBits(
           ivp.bits().is_signed(),
-          Bits::FromBytes(bytes, ivp.bits().bit_count()));
+          Bits::FromBytes(ToU8Span(ivp.bits().data()), ivp.bits().bit_count()));
     }
     default:
       break;

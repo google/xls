@@ -492,9 +492,3 @@ cc_library(
         "//xls/common/status:matchers",
     ],
 )
-
-cc_library(
-    name = "endian",
-    hdrs = ["endian.h"],
-    deps = ["@com_google_absl//absl/base:config"],
-)

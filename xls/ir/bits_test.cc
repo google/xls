@@ -49,7 +49,7 @@ Bits PrimeBits(int64_t bit_count) {
   std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
   for (int64_t i = 0; i < bit_count; ++i) {
     if (is_prime(i)) {
-      bytes[i / 8] |= 1 << (i % 8);
+      bytes[bytes.size() - 1 - i / 8] |= 1 << (i % 8);
     }
   }
   return Bits::FromBytes(bytes, bit_count);
@@ -75,18 +75,18 @@ TEST(BitsTest, BitsVectorConstructor) {
 
   EXPECT_EQ(Bits::FromBytes({42}, 6), UBits(42, 6));
   EXPECT_EQ(Bits::FromBytes({42}, 8), UBits(42, 8));
-  EXPECT_EQ(Bits::FromBytes({42, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 80),
+  EXPECT_EQ(Bits::FromBytes({0, 0, 0, 0, 0, 0, 0, 0, 0, 42}, 80),
             UBits(42, 80));
-  EXPECT_EQ(Bits::FromBytes({42, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 73),
+  EXPECT_EQ(Bits::FromBytes({0, 0, 0, 0, 0, 0, 0, 0, 0, 42}, 73),
             UBits(42, 73));
 
-  EXPECT_EQ(Bits::FromBytes({0xef, 0xbe, 0xad, 0xde}, 32),
+  EXPECT_EQ(Bits::FromBytes({0xde, 0xad, 0xbe, 0xef}, 32),
             UBits(0xdeadbeefULL, 32));
 
-  std::vector<uint8_t> bytes = {0x1,  0xab, 0xcd, 0xef, 0x12, 0x34,
-                                0x56, 0x78, 0x90, 0xfe, 0xdc, 0xba};
-  std::reverse(bytes.begin(), bytes.end());
-  EXPECT_EQ(Bits::FromBytes(bytes, 89).ToString(FormatPreference::kHex),
+  EXPECT_EQ(Bits::FromBytes({0x1, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
+                             0x90, 0xfe, 0xdc, 0xba},
+                            89)
+                .ToString(FormatPreference::kHex),
             "0x1ab_cdef_1234_5678_90fe_dcba");
 }
 
@@ -102,24 +102,32 @@ TEST(BitsTest, SetRange) {
 TEST(BitsTest, BitsToBytes) {
   EXPECT_TRUE(Bits().ToBytes().empty());
   EXPECT_THAT(UBits(42, 6).ToBytes(), ElementsAre(42));
-  EXPECT_THAT(UBits(123, 16).ToBytes(), ElementsAre(123, 0));
+  EXPECT_THAT(UBits(123, 16).ToBytes(), ElementsAre(0, 123));
   EXPECT_THAT(UBits(42, 80).ToBytes(),
-              ElementsAre(42, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 42));
   EXPECT_THAT(UBits(42, 77).ToBytes(),
-              ElementsAre(42, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-  std::vector<uint8_t> bytes = {0x1,  0xab, 0xcd, 0xef, 0x12, 0x34,
-                                0x56, 0x78, 0x90, 0xfe, 0xdc, 0xba};
-  std::reverse(bytes.begin(), bytes.end());
-  EXPECT_THAT(Bits::FromBytes(bytes, 89).ToBytes(),
-              ElementsAre(0xba, 0xdc, 0xfe, 0x90, 0x78, 0x56, 0x34, 0x12, 0xef,
-                          0xcd, 0xab, 0x1));
+              ElementsAre(0, 0, 0, 0, 0, 0, 0, 0, 0, 42));
+  EXPECT_THAT(Bits::FromBytes({0x1, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78,
+                               0x90, 0xfe, 0xdc, 0xba},
+                              89)
+                  .ToBytes(),
+              ElementsAre(0x1, 0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x90,
+                          0xfe, 0xdc, 0xba));
+
   EXPECT_THAT(
       Bits::AllOnes(65).ToBytes(),
-      ElementsAre(0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01));
+      ElementsAre(0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff));
   {
     Bits wide_bits = Bits::AllOnes(75);
     std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
-    wide_bits.ToBytes(absl::MakeSpan(bytes));
+    wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/true);
+    EXPECT_THAT(bytes, ElementsAre(0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                                   0xff, 0xff, 0xff));
+  }
+  {
+    Bits wide_bits = Bits::AllOnes(75);
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
+    wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/false);
     EXPECT_THAT(bytes, ElementsAre(0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
                                    0xff, 0xff, 0x07));
   }
@@ -129,7 +137,17 @@ TEST(BitsTest, BitsToBytes) {
         Bits wide_bits,
         ParseNumber("0x4ff_ffff_0000_1111_2222_3333_4444_ffff_0000_cc31"));
     std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
-    wide_bits.ToBytes(absl::MakeSpan(bytes));
+    wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/true);
+    EXPECT_THAT(bytes, ElementsAre(0x4, 0xff, 0xff, 0xff, 0x00, 0x00, 0x11,
+                                   0x11, 0x22, 0x22, 0x33, 0x33, 0x44, 0x44,
+                                   0xff, 0xff, 0x00, 0x00, 0xcc, 0x31));
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Bits wide_bits,
+        ParseNumber("0x4ff_ffff_0000_1111_2222_3333_4444_ffff_0000_cc31"));
+    std::vector<uint8_t> bytes(CeilOfRatio(wide_bits.bit_count(), int64_t{8}));
+    wide_bits.ToBytes(absl::MakeSpan(bytes), /*big_endian=*/false);
     EXPECT_THAT(bytes, ElementsAre(0x31, 0xcc, 0x00, 0x00, 0xff, 0xff, 0x44,
                                    0x44, 0x33, 0x33, 0x22, 0x22, 0x11, 0x11,
                                    0x00, 0x00, 0xff, 0xff, 0xff, 0x4));

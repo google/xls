@@ -93,8 +93,6 @@ enum AstNodeKindProto {
 message BitsValueProto {
   optional bool is_signed = 1;
   optional int32 bit_count = 2;
-  // Data is stored in big endian format (byte 0 holds the most-significant bits
-  // of the value).
   optional bytes data = 3;
 }
 

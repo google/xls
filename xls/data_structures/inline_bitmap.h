@@ -21,7 +21,6 @@
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"
 #include "xls/common/bits_util.h"
-#include "xls/common/endian.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 
@@ -30,9 +29,6 @@ namespace xls {
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
  public:
-  // Constructs an InlineBitmap of width `bit_count` using the bits in
-  // `word`. Of `bit_count` is greater than 64, then all high bits are set to
-  // `fill`.
   static InlineBitmap FromWord(uint64_t word, int64_t bit_count,
                                bool fill = false) {
     InlineBitmap result(bit_count, fill);
@@ -42,23 +38,10 @@ class InlineBitmap {
     return result;
   }
 
-  // Constructs a bitmap of width `bit_count` using the bytes (in little-endian
-  // layout). Bytes be of size at least `ceil(bit_count / 8)`.
-  static InlineBitmap FromBytes(int64_t bit_count,
-                                absl::Span<const uint8_t> bytes) {
-    InlineBitmap result(bit_count, false);
-    int64_t byte_count = CeilOfRatio(bit_count, int64_t{8});
-    XLS_CHECK_GE(bytes.size(), byte_count);
-    std::memcpy(result.data_.data(), bytes.data(), byte_count);
-    result.MaskLastWord();
-    return result;
-  }
-
   explicit InlineBitmap(int64_t bit_count, bool fill = false)
       : bit_count_(bit_count),
         data_(CeilOfRatio(bit_count, kWordBits), fill ? -1ULL : 0ULL) {
     XLS_DCHECK_GE(bit_count, 0);
-    MaskLastWord();
   }
 
   bool operator==(const InlineBitmap& other) const {
@@ -151,27 +134,17 @@ class InlineBitmap {
   // is mapped to the least significant bits of word 1, and so on.
   void SetByte(int64_t byteno, uint8_t value) {
     XLS_DCHECK_LT(byteno, byte_count());
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
+    // Implementation note: this relies on the endianness of the machine.
     absl::bit_cast<uint8_t*>(data_.data())[byteno] = value;
     // Ensure the data is appropriately masked in case this byte writes to that
     // region of bits.
     MaskLastWord();
   }
 
-  // Returns the byte at the given offset. Byte order is little-endian.
   uint8_t GetByte(int64_t byteno) const {
     XLS_DCHECK_LT(byteno, byte_count());
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
+    // Implementation note: this relies on the endianness of the machine.
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
-  }
-
-  // Writes the underlying byts of the inline bit map to the given
-  // buffer. Byte order is little-endian. Writes out Ceil(bit_count_ / 8) number
-  // of bytes.
-  void WriteBytesToBuffer(absl::Span<uint8_t> bytes) const {
-    XLS_CHECK(kEndianness == Endianness::kLittleEndian);
-    std::memcpy(bytes.data(), data_.data(),
-                CeilOfRatio(bit_count_, int64_t{8}));
   }
 
   // Compares against another InlineBitmap as if they were unsigned
@@ -236,9 +209,6 @@ class InlineBitmap {
   int64_t word_count() const { return data_.size(); }
 
   void MaskLastWord() {
-    if (word_count() == 0) {
-      return;
-    }
     int64_t last_wordno = word_count() - 1;
     data_[last_wordno] &= MaskForWord(last_wordno);
   }

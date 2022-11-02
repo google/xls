@@ -220,6 +220,7 @@ TEST(PackedArrayViewTest, ExtractsUnaligned) {
     }
   }
   std::vector<uint8_t> buffer = rope.Build().ToBytes();
+  std::reverse(buffer.begin(), buffer.end());
 
   PackedArrayView<PackedBitsView<kElementBits>, kNumElements> array_view(
       buffer.data(), kBitOffset);
@@ -258,7 +259,7 @@ TEST(PackedTupleViewTest, ExtractsSimpleUnaligned) {
 
   std::vector<uint8_t> buffer(CeilOfRatio(kValueBits + kBitOffset, kCharBit),
                               0);
-  rope.Build().ToBytes(absl::MakeSpan(buffer));
+  rope.Build().ToBytes(absl::MakeSpan(buffer), false);
 
   TupleT tuple_view(buffer.data(), kBitOffset);
   uint8_t sign_data = 0;
