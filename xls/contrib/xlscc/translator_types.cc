@@ -428,7 +428,7 @@ CStructType::operator std::string() const {
     ostr << "[" << it->index() << "] "
          << (it->name() != nullptr ? it->name()->getNameAsString()
                                    : std::string("nullptr"))
-         << ": " << string(*it->type());
+         << ": " << string(*it->type()) << " ";
   }
   ostr << "}";
   return ostr.str();
@@ -681,13 +681,19 @@ CChannelType::operator std::string() const {
 absl::Status CChannelType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
-  return absl::UnimplementedError("Metadata output for channels");
+  XLS_RETURN_IF_ERROR(item_type_->GetMetadata(
+      translator, output->mutable_as_channel()->mutable_item_type(),
+      aliases_used));
+
+  return absl::OkStatus();
 }
 
 absl::Status CChannelType::GetMetadataValue(
     Translator& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
-  return absl::UnimplementedError("Metadata output for channels");
+  return absl::OkStatus();
 }
+
+bool CChannelType::ContainsLValues() const { return true; }
 
 }  //  namespace xlscc

@@ -206,7 +206,7 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
     const clang::SourceLocation& loc) {
-      return FindPragmaForLoc(sm_->getPresumedLoc(loc));
+  return FindPragmaForLoc(sm_->getPresumedLoc(loc));
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
@@ -266,7 +266,8 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
                  std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_Unroll);
       } else if ((at = match_pragma(line,
-                 "#pragma hls_array_allow_default_pad")) != std::string::npos) {
+                                    "#pragma hls_array_allow_default_pad")) !=
+                 std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_ArrayAllowDefaultPad);
       } else if ((at = match_pragma(line, "#pragma hls_top")) !=
                      std::string::npos ||
@@ -439,7 +440,14 @@ void LibToolThread::Run() {
 template<int N>
 struct __xls_bits { };
 
-template<typename T>
+// Should match OpType
+enum __xls_channel_dir {
+  __xls_channel_dir_Unknown=0,    // OpType::kNull
+  __xls_channel_dir_Out=2,        // OpType::kSend
+  __xls_channel_dir_In=1          // OpType::kRecv
+};
+
+template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
 class __xls_channel {
  public:
   T read() {

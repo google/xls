@@ -32,8 +32,10 @@ absl::Status Translator::GenerateExternalChannels(
     const HLSChannel& hls_channel =
         channels_by_name.at(param->getNameAsString());
     if (hls_channel.type() == ChannelType::FIFO) {
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                           GetChannelType(param, loc));
+      XLS_ASSIGN_OR_RETURN(
+          auto channel_type_tuple,
+          GetChannelType(param->getType(), param->getASTContext(), loc));
+      std::shared_ptr<CType> ctype = std::get<0>(channel_type_tuple);
       XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
                            TranslateTypeToXLS(ctype, loc));
 
@@ -345,11 +347,11 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    const clang::NamedDecl* param =
+    const clang::NamedDecl* decl =
         prepared.xls_func->decls_by_io_channel.at(op.channel);
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      xls::Channel* xls_channel = external_channels_by_decl_.at(param);
+      xls::Channel* xls_channel = external_channels_by_decl_.at(decl);
       prepared.xls_channel_by_function_channel[op.channel] = xls_channel;
     }
   }
@@ -361,8 +363,9 @@ absl::Status Translator::GenerateIRBlockPrepare(
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
         if (op.channel->channel_op_type == OpType::kRecv) {
-          XLS_ASSIGN_OR_RETURN(xls::BValue val,
-                CreateDefaultValue(op.channel->item_type, body_loc));
+          XLS_ASSIGN_OR_RETURN(
+              xls::BValue val,
+              CreateDefaultValue(op.channel->item_type, body_loc));
           if (!op.is_blocking) {
             val = pb.Tuple({val, pb.Literal(xls::UBits(1, 1))});
           }

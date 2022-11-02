@@ -617,8 +617,8 @@ TEST_F(TranslatorPointerTest, Nullptr) {
 
       #pragma hls_top
       int test(int a) {
-          dec_ref_store_dataImpl aw;
-          (void)aw;
+          struct DebugWriter* writer_ = nullptr;  // Lazily initialized writer.
+          (void)writer_;
           return a+5;
       })";
 
@@ -656,7 +656,35 @@ TEST_F(TranslatorPointerTest, PointerInStruct2) {
       return ptr.p[1];
     })";
 
-  Run({}, 2, content);
+  // Default constructor causes lvalue translation
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
+}
+
+TEST_F(TranslatorPointerTest, PointerInStruct3) {
+  const std::string content = R"(
+    struct MyPtr {
+      int *p;
+      int get()const {
+        return p[1];
+      }
+    };
+
+    int my_package() {
+      int arr[3] = {1, 2, 3};
+      MyPtr ptr;
+      ptr.p = &arr[0];
+      return ptr.get();
+    })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
 }
 
 TEST_F(TranslatorPointerTest, ConstPointerToSingleValue) {
@@ -758,10 +786,11 @@ TEST_F(TranslatorPointerTest, ReferenceInNestedStruct) {
       return my.inner.p;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Compound lvalue not present")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
 }
 
 TEST_F(TranslatorPointerTest, ReferenceInNestedStruct2) {
@@ -785,10 +814,11 @@ TEST_F(TranslatorPointerTest, ReferenceInNestedStruct2) {
       return x;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Compound lvalue not present")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
 }
 
 TEST_F(TranslatorPointerTest, ReferenceFuncParam) {
@@ -976,7 +1006,6 @@ TEST_F(TranslatorPointerTest, ReturnReferenceToStatic) {
                   testing::HasSubstr("Don't know how to translate lvalue")));
 }
 
-
 TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
   const std::string content = R"(
        struct Test {
@@ -992,10 +1021,11 @@ TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
          return a;
        })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Compound lvalue not present")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
 }
 
 TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
@@ -1039,18 +1069,68 @@ TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
     ch_out1->set_type(FIFO);
   }
 
-
   absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
   inputs["in"] = {xls::Value(xls::SBits(10, 32))};
 
   {
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(55+10+1, 32))};
+    outputs["out"] = {xls::Value(xls::SBits(55 + 10 + 1, 32))};
 
     ProcTest(content, block_spec, inputs, outputs);
   }
 }
 
+TEST_F(TranslatorPointerTest, ReferenceToTernary) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& r = a ? x : y;
+      x = 100;
+      return r;
+    })";
+
+  Run({{"a", 0}}, 15, content);
+  Run({{"a", 1}}, 100, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceToTernarySet) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& r = a ? x : y;
+      r = 100;
+      return x;
+    })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr(
+                      "Ternaries in lvalues only supported for pointers")));
+}
+
+TEST_F(TranslatorPointerTest, SetPointerInMethod) {
+  const std::string content = R"(
+    struct MyPtr {
+      int *p;
+      void setit(int* xp) {
+        p = xp;
+      }
+    };
+
+    int my_package() {
+      int arr[3] = {1, 2, 3};
+      MyPtr ptr = {.p = &arr[1]};
+      ptr.setit(&arr[2]);
+      return ptr.p[1];
+    })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Don't know how to create LValue for member")));
+}
 
 }  // namespace
 

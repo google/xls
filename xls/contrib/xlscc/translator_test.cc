@@ -3778,21 +3778,6 @@ TEST_F(TranslatorTest, EnumArrayInitializer) {
   Run({{"a", 2}}, static_cast<int64_t>(true), content);
 }
 
-TEST_F(TranslatorTest, NonparameterIOOps) {
-  const std::string content = R"(
-      #pragma hls_top
-      void my_package(__xls_channel<int>& in) {
-         __xls_channel<int> out;
-         out.write(3*in.read());
-       })";
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("IO ops should be on channel parameters")));
-}
-
 TEST_F(TranslatorTest, ChannelTemplateType) {
   const std::string content = R"(
       #include "/xls_builtin.h"
@@ -3828,6 +3813,18 @@ TEST_F(TranslatorTest, ChannelTemplateType) {
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr(
                       "Channel type should be a template specialization")));
+}
+
+TEST_F(TranslatorTest, ClassMemberInit) {
+  const std::string content = R"(
+    struct Foo {
+      int x = 10;
+    };
+    int my_package(int a) {
+      Foo foo;
+      return a + foo.x;
+    })";
+  Run({{"a", 100}}, 110, content);
 }
 
 }  // namespace

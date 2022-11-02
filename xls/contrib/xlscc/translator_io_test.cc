@@ -153,7 +153,7 @@ class TranslatorIOTest : public XlsccTestBase {
   }
 };
 
-TEST_F(TranslatorIOTest, IO) {
+TEST_F(TranslatorIOTest, Basic) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -167,7 +167,7 @@ TEST_F(TranslatorIOTest, IO) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
-TEST_F(TranslatorIOTest, IOReadToParam) {
+TEST_F(TranslatorIOTest, ReadToParam) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -183,7 +183,7 @@ TEST_F(TranslatorIOTest, IOReadToParam) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
-TEST_F(TranslatorIOTest, IONonblockingRead) {
+TEST_F(TranslatorIOTest, NonblockingRead) {
   const std::string content = R"(
     #include "/xls_builtin.h"
     #pragma hls_top
@@ -207,7 +207,7 @@ TEST_F(TranslatorIOTest, IONonblockingRead) {
          /*outputs=*/{IOOpTest("out", 1, true)});
 }
 
-TEST_F(TranslatorIOTest, IOProcNonblockingRead) {
+TEST_F(TranslatorIOTest, ProcNonblockingRead) {
   const std::string content = R"(
     #include "/xls_builtin.h"
 
@@ -253,7 +253,7 @@ TEST_F(TranslatorIOTest, IOProcNonblockingRead) {
   }
 }
 
-TEST_F(TranslatorIOTest, IONonblockingReadStruct) {
+TEST_F(TranslatorIOTest, NonblockingReadStruct) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Test {
@@ -287,7 +287,7 @@ TEST_F(TranslatorIOTest, IONonblockingReadStruct) {
          /*outputs=*/{IOOpTest("out", 0, false)});
 }
 
-TEST_F(TranslatorIOTest, IOUnsequencedCheck) {
+TEST_F(TranslatorIOTest, UnsequencedCheck) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -301,7 +301,7 @@ TEST_F(TranslatorIOTest, IOUnsequencedCheck) {
          /*outputs=*/{IOOpTest("out", 30, true)});
 }
 
-TEST_F(TranslatorIOTest, IOMulti) {
+TEST_F(TranslatorIOTest, Multi) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -335,7 +335,7 @@ TEST_F(TranslatorIOTest, IOMulti) {
   }
 }
 
-TEST_F(TranslatorIOTest, IOWriteConditional) {
+TEST_F(TranslatorIOTest, WriteConditional) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -355,7 +355,7 @@ TEST_F(TranslatorIOTest, IOWriteConditional) {
          /*outputs=*/{IOOpTest("out", 100, true)});
 }
 
-TEST_F(TranslatorIOTest, IOReadConditional) {
+TEST_F(TranslatorIOTest, ReadConditional) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -376,7 +376,7 @@ TEST_F(TranslatorIOTest, IOReadConditional) {
          /*outputs=*/{IOOpTest("out", 3, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutine) {
+TEST_F(TranslatorIOTest, Subroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in, int &v) {
@@ -399,7 +399,7 @@ TEST_F(TranslatorIOTest, IOSubroutine) {
          {IOOpTest("out", 5 + 7 - 1, true), IOOpTest("out", 55, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutineDeclOrder) {
+TEST_F(TranslatorIOTest, SubroutineDeclOrder) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in, int &v);
@@ -423,7 +423,7 @@ TEST_F(TranslatorIOTest, IOSubroutineDeclOrder) {
          {IOOpTest("out", 5 + 7 - 1, true), IOOpTest("out", 55, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutineDeclMissing) {
+TEST_F(TranslatorIOTest, SubroutineDeclMissing) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in, int &v);
@@ -446,7 +446,7 @@ TEST_F(TranslatorIOTest, IOSubroutineDeclMissing) {
                   testing::HasSubstr("sub_recv used but has no body")));
 }
 
-TEST_F(TranslatorIOTest, IOSubroutine2) {
+TEST_F(TranslatorIOTest, Subroutine2) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in, int &v) {
@@ -471,7 +471,7 @@ TEST_F(TranslatorIOTest, IOSubroutine2) {
           IOOpTest("out", 55, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutine3) {
+TEST_F(TranslatorIOTest, Subroutine3) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in, int &v) {
@@ -496,7 +496,7 @@ TEST_F(TranslatorIOTest, IOSubroutine3) {
           IOOpTest("out", 2 * (5 + 7 - 1), true), IOOpTest("out", 55, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutine4) {
+TEST_F(TranslatorIOTest, Subroutine4) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recvA(__xls_channel<int>& in) {
@@ -527,7 +527,7 @@ TEST_F(TranslatorIOTest, IOSubroutine4) {
          {IOOpTest("out", 20, true), IOOpTest("out", 20, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSubroutine5) {
+TEST_F(TranslatorIOTest, Subroutine5) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int sub_recv(__xls_channel<int>& in) {
@@ -552,7 +552,7 @@ TEST_F(TranslatorIOTest, IOSubroutine5) {
          {IOOpTest("out", 20, true), IOOpTest("out", 20, true)});
 }
 
-TEST_F(TranslatorIOTest, IOMethodSubroutine) {
+TEST_F(TranslatorIOTest, MethodSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
@@ -576,7 +576,7 @@ TEST_F(TranslatorIOTest, IOMethodSubroutine) {
          /*outputs=*/{IOOpTest("out", 5 + 7, true), IOOpTest("out", 55, true)});
 }
 
-TEST_F(TranslatorIOTest, IOOperatorSubroutine) {
+TEST_F(TranslatorIOTest, OperatorSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Foo {
@@ -599,7 +599,7 @@ TEST_F(TranslatorIOTest, IOOperatorSubroutine) {
           testing::HasSubstr("IO ops in operator calls are not supported")));
 }
 
-TEST_F(TranslatorIOTest, IOSaveChannel) {
+TEST_F(TranslatorIOTest, SaveChannel) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -611,16 +611,12 @@ TEST_F(TranslatorIOTest, IOSaveChannel) {
          out_.write(in.read());
        })";
 
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("IO ops should be on channel parameters")));
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 111, true)},
+         /*outputs=*/{IOOpTest("out", 111, true)});
 }
 
-TEST_F(TranslatorIOTest, IOMixedOps) {
+TEST_F(TranslatorIOTest, MixedOps) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -642,38 +638,7 @@ TEST_F(TranslatorIOTest, IOMixedOps) {
           testing::HasSubstr("Channels should be either input or output")));
 }
 
-TEST_F(TranslatorIOTest, IOSaveChannelStruct) {
-  const std::string content = R"(
-       #include "/xls_builtin.h"
-       struct Foo {
-         __xls_channel<int>& out_;
-
-         Foo(__xls_channel<int>& out) : out_(out) {
-         }
-
-         int sub_recv(__xls_channel<int>& in) {
-           return in.read();
-         }
-         void sub_send(int v) {
-           out_.write(v);
-         }
-       };
-       #pragma hls_top
-       void my_package(__xls_channel<int>& in,
-                       __xls_channel<int>& out) {
-         Foo f(out);
-         f.sub_send(7 + f.sub_recv(in));
-       })";
-
-  ASSERT_THAT(SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
-                         /* io_test_mode= */ true)
-                  .status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("IO ops should be on direct DeclRefs")));
-}
-
-TEST_F(TranslatorIOTest, IOUnrolled) {
+TEST_F(TranslatorIOTest, Unrolled) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -690,7 +655,7 @@ TEST_F(TranslatorIOTest, IOUnrolled) {
           IOOpTest("out", 2, true), IOOpTest("out", 3, true)});
 }
 
-TEST_F(TranslatorIOTest, IOUnrolledSubroutine) {
+TEST_F(TranslatorIOTest, UnrolledSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        void sub(__xls_channel<int>& in,
@@ -716,7 +681,7 @@ TEST_F(TranslatorIOTest, IOUnrolledSubroutine) {
           IOOpTest("out", 10, true), IOOpTest("out", 30, true)});
 }
 
-TEST_F(TranslatorIOTest, IOUnrolledUnsequenced) {
+TEST_F(TranslatorIOTest, UnrolledUnsequenced) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -737,7 +702,7 @@ TEST_F(TranslatorIOTest, IOUnrolledUnsequenced) {
          /*outputs=*/{IOOpTest("out", 260, true)});
 }
 
-TEST_F(TranslatorIOTest, IOInThisExpr) {
+TEST_F(TranslatorIOTest, InThisExpr) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Test {
@@ -759,7 +724,7 @@ TEST_F(TranslatorIOTest, IOInThisExpr) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
-TEST_F(TranslatorIOTest, IOInThisExprMutableTemp) {
+TEST_F(TranslatorIOTest, InThisExprMutableTemp) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        struct Test {
@@ -774,16 +739,14 @@ TEST_F(TranslatorIOTest, IOInThisExprMutableTemp) {
          out.write(3*in.read().foo());
        })";
 
-  ASSERT_THAT(
-      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
-                 /* io_test_mode= */ true)
-          .status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          testing::HasSubstr("References must be initialized to an lvalue")));
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", xls::Value::Tuple({xls::Value(xls::SBits(5, 32))}),
+                   true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
-TEST_F(TranslatorIOTest, IOShortCircuitAnd) {
+TEST_F(TranslatorIOTest, ShortCircuitAnd) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -803,7 +766,7 @@ TEST_F(TranslatorIOTest, IOShortCircuitAnd) {
          /*outputs=*/{IOOpTest("out", 101, true)});
 }
 
-TEST_F(TranslatorIOTest, IOShortCircuitOr) {
+TEST_F(TranslatorIOTest, ShortCircuitOr) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -823,7 +786,7 @@ TEST_F(TranslatorIOTest, IOShortCircuitOr) {
          /*outputs=*/{IOOpTest("out", 101, true)});
 }
 
-TEST_F(TranslatorIOTest, IONoShortCircuitAnd) {
+TEST_F(TranslatorIOTest, NoShortCircuitAnd) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        #pragma hls_top
@@ -846,7 +809,7 @@ TEST_F(TranslatorIOTest, IONoShortCircuitAnd) {
          /*outputs=*/{IOOpTest("out", 1001, true)});
 }
 
-TEST_F(TranslatorIOTest, IOConstCondition) {
+TEST_F(TranslatorIOTest, ConstCondition) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        template<bool direction_read>
@@ -871,7 +834,7 @@ TEST_F(TranslatorIOTest, IOConstCondition) {
          /*outputs=*/{IOOpTest("out", 6, true)});
 }
 
-TEST_F(TranslatorIOTest, IOConstConditionShortCircuitAnd) {
+TEST_F(TranslatorIOTest, ConstConditionShortCircuitAnd) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        template<bool direction_read>
@@ -898,7 +861,7 @@ TEST_F(TranslatorIOTest, IOConstConditionShortCircuitAnd) {
          /*outputs=*/{IOOpTest("out", 6, true)});
 }
 
-TEST_F(TranslatorIOTest, IOSelectChannel) {
+TEST_F(TranslatorIOTest, SelectChannel) {
   const std::string content = R"(
        #include "/xls_builtin.h"
        int do_read(__xls_channel<int>& in) {
@@ -912,12 +875,190 @@ TEST_F(TranslatorIOTest, IOSelectChannel) {
          out.write(do_read(sel ? inA : inB));
        })";
 
-  ASSERT_THAT(SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+  ASSERT_THAT(
+      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("Ternary on lvalues")));
+}
+
+TEST_F(TranslatorIOTest, NonparameterIOOps) {
+  const std::string content = R"(
+      #pragma hls_top
+      void my_package(__xls_channel<int>& in) {
+         __xls_channel<int> out;
+         out.write(3*in.read());
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Channel declaration initialized to channel value")));
+}
+
+TEST_F(TranslatorIOTest, Struct) {
+  const std::string content = R"(
+struct Block {
+  __xls_channel<int, __xls_channel_dir_In>& in;
+  __xls_channel<int, __xls_channel_dir_Out>& out;
+};
+
+#pragma hls_top
+void Run(__xls_channel<int, __xls_channel_dir_In>& in,
+         __xls_channel<int, __xls_channel_dir_Out>& out) {
+
+  Block block = {.in = in, .out = out};
+  block.out.write(block.in.read() * 3);
+}
+)";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, Class) {
+  const std::string content = R"(
+class Block {
+ public:
+  __xls_channel<int, __xls_channel_dir_In>& in;
+  __xls_channel<int, __xls_channel_dir_Out>& out;
+
+  void Run() {
+    out.write(in.read() * 3);
+  }
+};
+
+#pragma hls_top
+void Run(__xls_channel<int, __xls_channel_dir_In>& in,
+         __xls_channel<int, __xls_channel_dir_Out>& out) {
+  Block block = {.in = in, .out = out};
+  block.Run();
+}
+)";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, SaveChannelStruct) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Foo {
+         __xls_channel<int>& out_;
+
+         int sub_recv(__xls_channel<int>& in) {
+           return in.read();
+         }
+         void sub_send(int v) {
+           out_.write(v);
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         Foo f = {.out_ = out};
+        f.sub_send(7 + f.sub_recv(in));
+
+
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 7 + 5, true)});
+}
+
+TEST_F(TranslatorIOTest, SaveChannelStructConstructorChannelInit) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Foo {
+         __xls_channel<int>& out_;
+
+         Foo(__xls_channel<int>& out) : out_(out) { }
+
+         int sub_recv(__xls_channel<int>& in) {
+           return in.read();
+         }
+         void sub_send(int v) {
+           out_.write(v);
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         Foo f(out);
+        f.sub_send(7 + f.sub_recv(in));
+
+
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 7 + 5, true)});
+}
+
+TEST_F(TranslatorIOTest, SaveChannelIOInConstructor) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Foo {
+         __xls_channel<int>& out_;
+
+         Foo(__xls_channel<int>& out) : out_(out) {
+          out.write(5000);
+         }
+
+         int sub_recv(__xls_channel<int>& in) {
+           return in.read();
+         }
+         void sub_send(int v) {
+           out_.write(v);
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         Foo f(out);
+         f.sub_send(7 + f.sub_recv(in));
+
+
+       })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 5, true)},
+      /*outputs=*/{IOOpTest("out", 5000, true), IOOpTest("out", 7 + 5, true)});
+}
+
+TEST_F(TranslatorIOTest, MuxTwoInputs) {
+  const std::string content = R"(
+    struct Foo {
+      int x;
+    };
+
+    #pragma hls_top
+    void foo(int& dir,
+              __xls_channel<Foo>& in1,
+              __xls_channel<Foo>& in2,
+              __xls_channel<Foo>& out) {
+
+      Foo v;
+
+      if (dir == 0) {
+        v = in1.read();
+      } else {
+        v = in2.read();
+      }
+
+      out.write(v);
+    })";
+
+  ASSERT_THAT(SourceToIr(content, /*func=*/nullptr, /* clang_argv= */ {},
                          /* io_test_mode= */ true)
                   .status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("IO ops should be on direct DeclRefs")));
+              xls::status_testing::StatusIs(absl::StatusCode::kOk));
 }
 
 }  // namespace

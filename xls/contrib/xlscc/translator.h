@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "clang/include/clang/AST/ASTContext.h"
 #include "clang/include/clang/AST/Decl.h"
@@ -370,9 +371,11 @@ class CChannelType : public CType {
                                 xlscc_metadata::Value* output) const override;
 
   std::shared_ptr<CType> GetItemType() const;
+  bool ContainsLValues() const;
 
  private:
   std::shared_ptr<CType> item_type_;
+  // TODO(seanhaskell): Direction info
 };
 
 struct IOChannel;
@@ -413,6 +416,28 @@ class LValue {
   const clang::Expr* leaf() const { return leaf_; }
   IOChannel* channel_leaf() const { return channel_leaf_; }
   bool is_null() const { return is_null_; }
+
+  std::string debug_string() const {
+    if (is_null()) {
+      return "null";
+    }
+    if (leaf() != nullptr) {
+      return absl::StrFormat("leaf(%p)", leaf());
+    }
+    if (channel_leaf() != nullptr) {
+      return absl::StrFormat("channel(%p)", channel_leaf());
+    }
+    if (is_select()) {
+      return absl::StrFormat("%s ? %s : %s", cond().ToString(),
+                             lvalue_true()->debug_string(),
+                             lvalue_false()->debug_string());
+    }
+    std::string ret;
+    for (const auto& [idx, lval] : get_compounds()) {
+      ret += absl::StrFormat("[%i]: %s ", idx, lval->debug_string());
+    }
+    return ret;
+  }
 
  private:
   bool is_null_ = false;
@@ -605,6 +630,8 @@ struct GeneratedFunction {
   bool in_synthetic_int = false;
 
   std::shared_ptr<LValue> return_lvalue;
+
+  std::shared_ptr<LValue> this_lvalue;
 
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       declaration_order_by_name_;
@@ -1070,7 +1097,11 @@ class Translator {
   absl::StatusOr<CValue> GenerateIR_Call(
       const clang::FunctionDecl* funcdecl,
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
-      std::shared_ptr<LValue> this_lval, const xls::SourceInfo& loc);
+      std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc);
+
+  absl::Status TranslateLValueChannels(std::shared_ptr<LValue> caller_lval,
+                                       std::shared_ptr<LValue> callee_lval,
+                                       const xls::SourceInfo& loc);
 
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
@@ -1133,12 +1164,14 @@ class Translator {
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
                                        bool mask = false);
-  absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
-                                  const xls::SourceInfo& loc);
-  // Examines variables in context to update GeneratedFunction io channels maps
-  absl::Status ExtractExternalIOChannelDecls();
-  absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
-      const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc);
+  absl::Status CreateChannelParam(
+      const clang::NamedDecl* channel_name,
+      const std::tuple<std::shared_ptr<CType>, OpType>& channel_type_tuple,
+      const xls::SourceInfo& loc);
+  IOChannel* AddChannel(const clang::NamedDecl* decl, IOChannel new_channel);
+  absl::StatusOr<std::tuple<std::shared_ptr<CType>, OpType>> GetChannelType(
+      const clang::QualType& channel_type, clang::ASTContext& ctx,
+      const xls::SourceInfo& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceInfo& loc);
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
@@ -1146,7 +1179,7 @@ class Translator {
   // Returns nullptr if the parameter isn't a channel
   absl::StatusOr<IOChannel*> GetChannelForExprOrNull(const clang::Expr* object);
   // Returns nullptr if the parameter isn't a channel
-  absl::StatusOr<const clang::ParmVarDecl*> GetChannelParamForExprOrNull(
+  absl::StatusOr<const clang::NamedDecl*> GetChannelParamForExprOrNull(
       const clang::Expr* object);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,

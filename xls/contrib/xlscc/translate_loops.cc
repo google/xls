@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
@@ -365,7 +366,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     std::vector<const clang::NamedDecl*>& vars_changed_in_body,
     const xls::SourceInfo& loc) {
   const uint64_t total_context_values = context_ctype->fields().size();
-
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 
   // Generate body function
@@ -400,18 +400,25 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       if (enclosing_channel.generated != nullptr) {
         continue;
       }
+      // TODO(seanhaskell): Merge with AddChannel
       generated_func.io_channels.push_back(enclosing_channel);
       IOChannel* inner_channel = &generated_func.io_channels.back();
       inner_channel->total_ops = 0;
 
+      const clang::NamedDecl* decl =
+          enclosing_func.decls_by_io_channel.at(&enclosing_channel);
+
+      generated_func.io_channels_by_decl[decl] = inner_channel;
+      generated_func.decls_by_io_channel[inner_channel] = decl;
+
       auto channel_type =
           std::make_shared<CChannelType>(inner_channel->item_type);
       auto lvalue = std::make_shared<LValue>(inner_channel);
-      XLS_RETURN_IF_ERROR(DeclareVariable(
-          enclosing_func.decls_by_io_channel.at(&enclosing_channel),
-          CValue(/*rvalue=*/xls::BValue(), channel_type,
-                 /*disable_type_check=*/true, lvalue),
-          loc, /*check_unique_ids=*/false));
+      XLS_RETURN_IF_ERROR(
+          DeclareVariable(decl,
+                          CValue(/*rvalue=*/xls::BValue(), channel_type,
+                                 /*disable_type_check=*/true, lvalue),
+                          loc, /*check_unique_ids=*/false));
     }
 
     // Context in
@@ -431,8 +438,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     }
 
     xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
-
-    XLS_RETURN_IF_ERROR(ExtractExternalIOChannelDecls());
 
     // Generate body
     // Don't apply continue conditions to increment
@@ -594,10 +599,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     if (op.channel->generated != nullptr) {
       continue;
     }
-
     const clang::NamedDecl* param =
         generated_func.decls_by_io_channel.at(op.channel);
-
     XLS_CHECK(io_test_mode_ || external_channels_by_decl_.contains(param));
   }
 

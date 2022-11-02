@@ -136,6 +136,11 @@ message ArrayType {
   optional int32 size = 2;
 }
 
+// Channel type
+message ChannelType {
+  optional Type item_type = 1;
+}
+
 // Generic type
 message Type {
   optional VoidType as_void = 1;
@@ -147,6 +152,7 @@ message Type {
   optional StructType as_struct = 7;
   optional SourceLocationRange declaration_location = 8;
   optional InternalTupleType as_tuple = 9;
+  optional ChannelType as_channel = 10;
 }
 
 // A field in a structure

@@ -33,6 +33,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.input_value = CValue(default_bval, channel->item_type);
     return &op;
   }
+
   XLS_CHECK_NE(channel, nullptr);
   XLS_CHECK_EQ(op.channel, nullptr);
   op.channel_op_index = channel->total_ops++;
@@ -101,45 +102,68 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   return &context().sf->io_ops.back();
 }
 
-absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
-    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
+absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
+                                               const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
+  absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
+      TranslateTypeFromClang(stripped.base, loc);
+
+  // Ignore un-translatable types like pointers
+  if (!obj_type_ret.ok()) {
+    return false;
+  }
+
+  return obj_type_ret.value()->Is<CChannelType>();
+}
+
+absl::StatusOr<std::tuple<std::shared_ptr<CType>, OpType>>
+Translator::GetChannelType(const clang::QualType& channel_type,
+                           clang::ASTContext& ctx, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                       StripTypeQualifiers(channel_param->getType()));
+                       StripTypeQualifiers(channel_type));
   auto template_spec = clang::dyn_cast<const clang::TemplateSpecializationType>(
       stripped.base.getTypePtr());
   if (template_spec == nullptr) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel type should be a template specialization"));
   }
-  if (template_spec->template_arguments().size() != 1) {
+  if ((template_spec->template_arguments().size() != 1) &&
+      (template_spec->template_arguments().size() != 2)) {
     return absl::UnimplementedError(
-        ErrorMessage(loc, "Channel should have 1 template args"));
+        ErrorMessage(loc, "Channel should have 1 or 2 template args"));
+  }
+  OpType op_type = OpType::kNull;
+  if (template_spec->template_arguments().size() == 2) {
+    const clang::TemplateArgument& arg = template_spec->template_arguments()[1];
+    XLS_ASSIGN_OR_RETURN(int64_t val,
+                         EvaluateInt64(*arg.getAsExpr(), ctx, loc));
+    op_type = static_cast<OpType>(val);
   }
   const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
-  return TranslateTypeFromClang(arg.getAsType(), loc);
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
+                       TranslateTypeFromClang(arg.getAsType(), loc));
+  return std::tuple<std::shared_ptr<CType>, OpType>(item_type, op_type);
 }
 
 absl::Status Translator::CreateChannelParam(
-    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
-  XLS_CHECK(!context().variables.contains(channel_param));
-
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       GetChannelType(channel_param, loc));
+    const clang::NamedDecl* channel_name,
+    const std::tuple<std::shared_ptr<CType>, OpType>& channel_type_tuple,
+    const xls::SourceInfo& loc) {
+  std::shared_ptr<CType> ctype = std::get<0>(channel_type_tuple);
 
   IOChannel new_channel;
 
   new_channel.item_type = ctype;
-  new_channel.unique_name = channel_param->getNameAsString();
+  new_channel.unique_name = channel_name->getNameAsString();
 
-  context().sf->io_channels.push_back(new_channel);
+  // TODO: Merge with TranslateTypeFromClang
 
   auto channel_type = std::make_shared<CChannelType>(ctype);
-  auto lvalue = std::make_shared<LValue>(&context().sf->io_channels.back());
-  XLS_RETURN_IF_ERROR(
-      DeclareVariable(channel_param,
-                      CValue(/*rvalue=*/xls::BValue(), channel_type,
-                             /*disable_type_check=*/true, lvalue),
-                      loc));
+  auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
+  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
+              /*disable_type_check=*/true, lvalue);
+
+  XLS_RETURN_IF_ERROR(DeclareVariable(channel_name, cval, loc));
 
   return absl::OkStatus();
 }
@@ -247,8 +271,8 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           {
             PushContextGuard condition_guard(*this, loc);
             XLS_RETURN_IF_ERROR(and_condition(read_ready, loc));
-            XLS_RETURN_IF_ERROR(Assign(
-              assign_ret_value_to, ret_object_value, loc));
+            XLS_RETURN_IF_ERROR(
+                Assign(assign_ret_value_to, ret_object_value, loc));
           }
           CValue ret_struct = CValue(read_ready, std::make_shared<CBoolType>());
           ret.value = ret_struct;
@@ -263,18 +287,17 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   return ret;
 }
 
-absl::Status Translator::ExtractExternalIOChannelDecls() {
-  for (const auto& [decl, cval] : context().variables) {
-    auto channel_type = dynamic_cast<const CChannelType*>(cval.type().get());
-    if (channel_type == nullptr) {
-      continue;
-    }
-    XLS_CHECK_NE(cval.lvalue(), nullptr);
-    XLS_CHECK_NE(cval.lvalue()->channel_leaf(), nullptr);
-    context().sf->io_channels_by_decl[decl] = cval.lvalue()->channel_leaf();
-    context().sf->decls_by_io_channel[cval.lvalue()->channel_leaf()] = decl;
+IOChannel* Translator::AddChannel(const clang::NamedDecl* decl,
+                                  IOChannel new_channel) {
+  context().sf->io_channels.push_back(new_channel);
+  IOChannel* ret = &context().sf->io_channels.back();
+
+  if (decl != nullptr) {
+    context().sf->io_channels_by_decl[decl] = ret;
+    context().sf->decls_by_io_channel[ret] = decl;
   }
-  return absl::OkStatus();
+
+  return ret;
 }
 
 }  // namespace xlscc
