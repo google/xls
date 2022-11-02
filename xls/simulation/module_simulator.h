@@ -20,7 +20,6 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/value.h"
-#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
@@ -49,7 +48,7 @@ class ModuleSimulator {
 
   // Simulates the module with the given inputs as Bits types. Returns a
   // map containing the outputs by port name.
-  absl::StatusOr<BitsMap> Run(const BitsMap& inputs) const;
+  absl::StatusOr<BitsMap> RunFunction(const BitsMap& inputs) const;
 
   // As above but expects that there is a single data output of the module
   // otherwise an error is returned. Returns the single output value.
@@ -62,13 +61,13 @@ class ModuleSimulator {
       absl::Span<const BitsMap> inputs) const;
 
   // Overloads which accept Values rather than Bits.
-  absl::StatusOr<Value> Run(
+  absl::StatusOr<Value> RunFunction(
       const absl::flat_hash_map<std::string, Value>& inputs) const;
   absl::StatusOr<std::vector<Value>> RunBatched(
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const;
 
-  // Overload which accepts arguments as a Span.
-  absl::StatusOr<Value> Run(absl::Span<const Value> inputs) const;
+  // Runs a function with arguments as a Span.
+  absl::StatusOr<Value> RunFunction(absl::Span<const Value> inputs) const;
 
  private:
   // Deassert all control inputs on the module. Returns a map of the signal name

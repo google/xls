@@ -138,7 +138,7 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(absl::flat_hash_map<std::string, Value>()),
+      simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))})));
 }
 
@@ -161,7 +161,7 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
+  EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({})));
 }
 
@@ -184,7 +184,7 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
+  EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
 }
 
@@ -210,9 +210,9 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
-                             {"b", Value::Tuple({})},
-                             {"c", Value(UBits(100, 8))}}),
+  EXPECT_THAT(simulator.RunFunction({{"a", Value(UBits(42, 8))},
+                                     {"b", Value::Tuple({})},
+                                     {"c", Value(UBits(100, 8))}}),
               IsOkAndHolds(Value(UBits(142, 8))));
 }
 
@@ -234,7 +234,7 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value::Tuple({})}}),
               IsOkAndHolds(Value::Tuple({})));
 }
 
@@ -262,7 +262,7 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
+  EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
 }
@@ -313,7 +313,7 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
       NewModuleSimulator(result.verilog_text, result.signature);
   Value array = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
-  EXPECT_THAT(simulator.Run({{"x", array}}), IsOkAndHolds(array));
+  EXPECT_THAT(simulator.RunFunction({{"x", array}}), IsOkAndHolds(array));
 }
 
 TEST_P(PipelineGeneratorTest, TupleOfArrays) {
@@ -346,7 +346,7 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
   Value array_0 = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   Value array_1 = Value::ArrayOrDie({Value(UBits(4, 16)), Value(UBits(5, 16))});
-  EXPECT_THAT(simulator.Run({{"x", Value::Tuple({array_0, array_1})}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value::Tuple({array_0, array_1})}}),
               IsOkAndHolds(Value::Tuple({array_1, array_0})));
 }
 
@@ -381,10 +381,12 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
   Value inner_array_1 = Value::ArrayOrDie(
       {Value(UBits(44, 8)), Value(UBits(22, 8)), Value(UBits(11, 8))});
   Value array = Value::ArrayOrDie({inner_array_0, inner_array_1});
-  EXPECT_THAT(simulator.Run({{"a", array}, {"index", Value(UBits(0, 16))}}),
-              IsOkAndHolds(inner_array_0));
-  EXPECT_THAT(simulator.Run({{"a", array}, {"index", Value(UBits(1, 16))}}),
-              IsOkAndHolds(inner_array_1));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", array}, {"index", Value(UBits(0, 16))}}),
+      IsOkAndHolds(inner_array_0));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", array}, {"index", Value(UBits(1, 16))}}),
+      IsOkAndHolds(inner_array_1));
 }
 
 TEST_P(PipelineGeneratorTest, TreeOfAdds) {

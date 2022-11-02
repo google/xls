@@ -132,7 +132,7 @@ TEST_P(ModuleSimulatorTest, FixedLatency) {
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -200,7 +200,7 @@ endmodule
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(7, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 2);
   ASSERT_TRUE(outputs.contains("out1"));
@@ -235,7 +235,7 @@ endmodule
   {
     absl::flat_hash_map<std::string, Bits> inputs;
     inputs["x"] = UBits(7, 8);
-    EXPECT_THAT(simulator.Run(inputs),
+    EXPECT_THAT(simulator.RunFunction(inputs),
                 StatusIs(absl::StatusCode::kInvalidArgument,
                          HasSubstr("Input 'y' was not passed as an argument")));
   }
@@ -245,7 +245,7 @@ endmodule
     inputs["x"] = UBits(7, 8);
     inputs["y"] = UBits(7, 32);
     EXPECT_THAT(
-        simulator.Run(inputs),
+        simulator.RunFunction(inputs),
         StatusIs(
             absl::StatusCode::kInvalidArgument,
             HasSubstr("Expected input 'y' to have width 8, has width 32")));
@@ -256,7 +256,7 @@ endmodule
     inputs["x"] = UBits(1, 8);
     inputs["y"] = UBits(2, 8);
     inputs["z"] = UBits(3, 8);
-    EXPECT_THAT(simulator.Run(inputs),
+    EXPECT_THAT(simulator.RunFunction(inputs),
                 StatusIs(absl::StatusCode::kInvalidArgument,
                          HasSubstr("Unexpected input value named 'z'")));
   }

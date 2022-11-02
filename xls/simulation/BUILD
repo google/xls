@@ -75,7 +75,9 @@ cc_library(
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir:bits",
         "//xls/ir:value",
+        "//xls/tools:eval_helpers",
     ],
 )
 

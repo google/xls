@@ -69,7 +69,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -140,7 +140,7 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -219,7 +219,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
   inputs["y"] = UBits(123, 32);
   inputs["z"] = UBits(3, 32);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -256,7 +256,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
   inputs["y"] = UBits(123, 32);
   inputs["z"] = UBits(3, 32);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -294,7 +294,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
   inputs["y"] = UBits(123, 32);
   inputs["z"] = UBits(3, 32);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -336,21 +336,22 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
           HasSubstr("Expected input 'in' to have width 16, has width 17")));
 
   // Run with Value inputs.
-  EXPECT_THAT(simulator.Run({{"in", Value::Tuple({Value(UBits(0x11, 8)),
+  EXPECT_THAT(
+      simulator.RunFunction({{"in", Value::Tuple({Value(UBits(0x11, 8)),
                                                   Value(UBits(0x78, 8))})}}),
-              IsOkAndHolds(Value(UBits(0x89, 8))));
+      IsOkAndHolds(Value(UBits(0x89, 8))));
 
   // Run with wrong-type Value inputs (tuple element wrong width).
   EXPECT_THAT(
-      simulator.Run({{"in", Value::Tuple({Value(UBits(0x11, 8)),
-                                          Value(UBits(0x78, 9))})}}),
+      simulator.RunFunction({{"in", Value::Tuple({Value(UBits(0x11, 8)),
+                                                  Value(UBits(0x78, 9))})}}),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Input value 'in' is wrong type. Expected '(bits[8], "
                          "bits[8])', got '(bits[8], bits[9])'")));
 
   // Run with wrong-type Value inputs where the input is the right flattened
   // width.
-  EXPECT_THAT(simulator.Run({{"in", Value(UBits(0x1234, 16))}}),
+  EXPECT_THAT(simulator.RunFunction({{"in", Value(UBits(0x1234, 16))}}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Input value 'in' is wrong type. Expected "
                                  "'(bits[8], bits[8])', got 'bits[16]'")));
@@ -373,7 +374,7 @@ TEST_P(ModuleSimulatorCodegenTest, CombinationalModule) {
   inputs["x"] = UBits(42, 8);
   inputs["y"] = UBits(100, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -394,7 +395,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnLiteral) {
       NewModuleSimulator(result.verilog_text, result.signature);
   absl::flat_hash_map<std::string, Bits> outputs;
   XLS_ASSERT_OK_AND_ASSIGN(
-      outputs, simulator.Run(absl::flat_hash_map<std::string, Bits>()));
+      outputs, simulator.RunFunction(absl::flat_hash_map<std::string, Bits>()));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -416,7 +417,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnParameter) {
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.Run(inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, simulator.RunFunction(inputs));
 
   EXPECT_EQ(outputs.size(), 1);
   ASSERT_TRUE(outputs.contains("out"));
@@ -443,10 +444,11 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
 
   absl::flat_hash_map<std::string, Bits> outputs;
   XLS_ASSERT_OK(
-      simulator.Run(ModuleSimulator::BitsMap({{"in", UBits(10, 8)}})));
+      simulator.RunFunction(ModuleSimulator::BitsMap({{"in", UBits(10, 8)}})));
 
   auto run_status =
-      simulator.Run(ModuleSimulator::BitsMap({{"in", UBits(100, 8)}})).status();
+      simulator.RunFunction(ModuleSimulator::BitsMap({{"in", UBits(100, 8)}}))
+          .status();
   if (GetParam().use_system_verilog) {
     // Asserts are only emitted in SystemVerilog.
     EXPECT_THAT(run_status, StatusIs(absl::StatusCode::kAborted,
@@ -470,7 +472,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughArrayCombinationalModule) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(Value input, Value::UBitsArray({1, 2, 3}, 8));
-  XLS_ASSERT_OK_AND_ASSIGN(Value output, simulator.Run({input}));
+  XLS_ASSERT_OK_AND_ASSIGN(Value output, simulator.RunFunction({input}));
 
   EXPECT_EQ(output, input);
 }
@@ -488,8 +490,9 @@ TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Value output, simulator.Run({Value(UBits(1, 8)), Value(UBits(2, 8)),
-                                   Value(UBits(3, 8))}));
+      Value output,
+      simulator.RunFunction(
+          {Value(UBits(1, 8)), Value(UBits(2, 8)), Value(UBits(3, 8))}));
 
   EXPECT_EQ(output, Value::UBitsArray({1, 2, 3}, 8).value());
 }

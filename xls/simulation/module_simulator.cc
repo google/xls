@@ -67,7 +67,7 @@ absl::flat_hash_map<std::string, Bits> ModuleSimulator::DeassertControlSignals()
   return control_signals;
 }
 
-absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
+absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::RunFunction(
     const ModuleSimulator::BitsMap& inputs) const {
   XLS_ASSIGN_OR_RETURN(auto outputs, RunBatched({inputs}));
   XLS_RET_CHECK_EQ(outputs.size(), 1);
@@ -77,7 +77,7 @@ absl::StatusOr<ModuleSimulator::BitsMap> ModuleSimulator::Run(
 absl::StatusOr<Bits> ModuleSimulator::RunAndReturnSingleOutput(
     const BitsMap& inputs) const {
   BitsMap outputs;
-  XLS_ASSIGN_OR_RETURN(outputs, Run(inputs));
+  XLS_ASSIGN_OR_RETURN(outputs, RunFunction(inputs));
   if (outputs.size() != 1) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Expected exactly one data output, got %d", outputs.size()));
@@ -89,7 +89,7 @@ absl::StatusOr<std::vector<ModuleSimulator::BitsMap>>
 ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   XLS_VLOG(1) << "Running Verilog module with signature:\n"
               << signature_.ToString();
-  if (XLS_VLOG_IS_ON(2)) {
+  if (XLS_VLOG_IS_ON(1)) {
     XLS_VLOG(1) << "Arguments:\n";
     for (int64_t i = 0; i < inputs.size(); ++i) {
       const auto& input = inputs[i];
@@ -263,7 +263,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   return outputs;
 }
 
-absl::StatusOr<Value> ModuleSimulator::Run(
+absl::StatusOr<Value> ModuleSimulator::RunFunction(
     const absl::flat_hash_map<std::string, Value>& inputs) const {
   absl::flat_hash_map<std::string, Value> input_map(inputs.begin(),
                                                     inputs.end());
@@ -294,11 +294,11 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
   return outputs;
 }
 
-absl::StatusOr<Value> ModuleSimulator::Run(
+absl::StatusOr<Value> ModuleSimulator::RunFunction(
     absl::Span<const Value> inputs) const {
   absl::flat_hash_map<std::string, Value> kwargs;
   XLS_ASSIGN_OR_RETURN(kwargs, signature_.ToKwargs(inputs));
-  return Run(kwargs);
+  return RunFunction(kwargs);
 }
 
 }  // namespace verilog

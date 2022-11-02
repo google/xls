@@ -108,7 +108,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsTupleLiteral) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(absl::flat_hash_map<std::string, Value>()),
+      simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 32))})));
 }
 
@@ -121,7 +121,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsEmptyTuple) {
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
+  EXPECT_THAT(simulator.RunFunction(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({})));
 }
 
@@ -134,7 +134,7 @@ TEST_P(CombinationalGeneratorTest, PassesEmptyTuple) {
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value::Tuple({})}}),
               IsOkAndHolds(Value::Tuple({})));
 }
 
@@ -151,9 +151,9 @@ TEST_P(CombinationalGeneratorTest, TakesEmptyTuple) {
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
-                             {"b", Value::Tuple({})},
-                             {"c", Value(UBits(100, 8))}}),
+  EXPECT_THAT(simulator.RunFunction({{"a", Value(UBits(42, 8))},
+                                     {"b", Value::Tuple({})},
+                                     {"c", Value(UBits(100, 8))}}),
               IsOkAndHolds(Value(UBits(142, 8))));
 }
 
@@ -227,12 +227,13 @@ TEST_P(CombinationalGeneratorTest, ExpressionsOfTuples) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value(UBits(42, 8))},
                              {"b", Value(UBits(123, 10))},
                              {"c", Value::Tuple({Value(UBits(333, 10)),
                                                  Value(UBits(222, 16))})}}),
-              IsOkAndHolds(Value::Tuple(
-                  {Value(UBits(165, 16)), Value(UBits(111, 16))})));
+      IsOkAndHolds(
+          Value::Tuple({Value(UBits(165, 16)), Value(UBits(111, 16))})));
 }
 
 TEST_P(CombinationalGeneratorTest, TupleLiterals) {
@@ -262,7 +263,7 @@ top fn main(x: bits[123]) -> bits[123] {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0x40, 123))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0x40, 123))}}),
               IsOkAndHolds(Value(UBits(0x12340, 123))));
 }
 
@@ -289,12 +290,12 @@ top fn main(x: bits[32], y: bits[32]) -> bits[44] {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(
-      simulator.Run({{"x", Value(UBits(0, 32))}, {"y", Value(UBits(1, 32))}}),
-      IsOkAndHolds(Value(UBits(2, 44))));
-  EXPECT_THAT(
-      simulator.Run({{"x", Value(UBits(1, 32))}, {"y", Value(UBits(0, 32))}}),
-      IsOkAndHolds(Value(UBits(4, 44))));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"x", Value(UBits(0, 32))}, {"y", Value(UBits(1, 32))}}),
+              IsOkAndHolds(Value(UBits(2, 44))));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"x", Value(UBits(1, 32))}, {"y", Value(UBits(0, 32))}}),
+              IsOkAndHolds(Value(UBits(4, 44))));
 }
 
 TEST_P(CombinationalGeneratorTest, OneHot) {
@@ -318,21 +319,21 @@ top fn main(x: bits[3]) -> bits[4] {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b000, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b000, 3))}}),
               IsOkAndHolds(Value(UBits(0b1000, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b001, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b001, 3))}}),
               IsOkAndHolds(Value(UBits(0b0001, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b010, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b010, 3))}}),
               IsOkAndHolds(Value(UBits(0b0010, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b011, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b011, 3))}}),
               IsOkAndHolds(Value(UBits(0b0001, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b100, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b100, 3))}}),
               IsOkAndHolds(Value(UBits(0b0100, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b101, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b101, 3))}}),
               IsOkAndHolds(Value(UBits(0b0001, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b110, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b110, 3))}}),
               IsOkAndHolds(Value(UBits(0b0010, 4))));
-  EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b111, 3))}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", Value(UBits(0b111, 3))}}),
               IsOkAndHolds(Value(UBits(0b0001, 4))));
 }
 
@@ -360,13 +361,17 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x0000, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x0000, 16))));
   args["p"] = Value(UBits(0b01, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
   args["p"] = Value(UBits(0b10, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0xf0f0, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0xf0f0, 16))));
   args["p"] = Value(UBits(0b11, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0xf0ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0xf0ff, 16))));
 }
 
 TEST_P(CombinationalGeneratorTest, PrioritySelect) {
@@ -393,13 +398,17 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x0000, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x0000, 16))));
   args["p"] = Value(UBits(0b01, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
   args["p"] = Value(UBits(0b10, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0xf0f0, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0xf0f0, 16))));
   args["p"] = Value(UBits(0b11, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
 }
 
 TEST_P(CombinationalGeneratorTest, PrioritySelectNoDefault) {
@@ -429,13 +438,17 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
   args["p"] = Value(UBits(0b01, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
   args["p"] = Value(UBits(0b10, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
   args["p"] = Value(UBits(0b11, 2));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
 }
 
 TEST_P(CombinationalGeneratorTest, PrioritySelectOneHot) {
@@ -463,9 +476,11 @@ top fn main(p: bits[1], x: bits[16], y: bits[16]) -> bits[16] {
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b0, 1));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0xf0f0, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0xf0f0, 16))));
   args["p"] = Value(UBits(0b1, 1));
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(Value(UBits(0x00ff, 16))));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value(UBits(0x00ff, 16))));
 }
 
 TEST_P(CombinationalGeneratorTest, UncommonParameterTypes) {
@@ -508,7 +523,7 @@ top fn main(a: bits[32],
   std::vector<Value> arguments = RandomFunctionArguments(fn, &engine);
   XLS_ASSERT_OK_AND_ASSIGN(
       Value expected, DropInterpreterEvents(InterpretFunction(fn, arguments)));
-  EXPECT_THAT(simulator.Run(arguments), IsOkAndHolds(expected));
+  EXPECT_THAT(simulator.RunFunction(arguments), IsOkAndHolds(expected));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
@@ -530,15 +545,18 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(1, 8))}}),
-              IsOkAndHolds(Value(UBits(40, 8))));
-  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+      IsOkAndHolds(Value(UBits(40, 8))));
+  EXPECT_THAT(
+      simulator.RunFunction({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(3, 8))}}),
-              IsOkAndHolds(Value(UBits(50, 8))));
-  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+      IsOkAndHolds(Value(UBits(50, 8))));
+  EXPECT_THAT(
+      simulator.RunFunction({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(42, 8))}}),
-              IsOkAndHolds(Value(UBits(50, 8))));
+      IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return the highest index value.
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
@@ -570,12 +588,14 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(1, 8))}}),
-              IsOkAndHolds(Value(UBits(40, 8))));
-  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+      IsOkAndHolds(Value(UBits(40, 8))));
+  EXPECT_THAT(
+      simulator.RunFunction({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(2, 8))}}),
-              IsOkAndHolds(Value(UBits(50, 8))));
+      IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return X.
   ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
@@ -609,9 +629,9 @@ TEST_P(CombinationalGeneratorTest, TwoDArray) {
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value(UBits(123, 8))},
-                             {"b", Value(UBits(42, 8))},
-                             {"c", Value(UBits(100, 8))}}),
+  EXPECT_THAT(simulator.RunFunction({{"a", Value(UBits(123, 8))},
+                                     {"b", Value(UBits(42, 8))},
+                                     {"c", Value(UBits(100, 8))}}),
               IsOkAndHolds(Value(UBits(142, 8))));
 }
 
@@ -632,7 +652,8 @@ TEST_P(CombinationalGeneratorTest, ReturnTwoDArray) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run({{"a", Value(UBits(123, 8))}, {"b", Value(UBits(42, 8))}}),
+      simulator.RunFunction(
+          {{"a", Value(UBits(123, 8))}, {"b", Value(UBits(42, 8))}}),
       IsOkAndHolds(Value::ArrayOrDie({
           Value::ArrayOrDie({Value(UBits(123, 8)), Value(UBits(42, 8))}),
           Value::ArrayOrDie({Value(UBits(42, 8)), Value(UBits(123, 8))}),
@@ -670,13 +691,13 @@ top fn main(idx: bits[2]) -> bits[32][3] {
     return array.value();
   };
 
-  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+  EXPECT_THAT(simulator.RunFunction({{"idx", Value(UBits(0b00, 2))}}),
               IsOkAndHolds(make_array({99, 2, 3})));
-  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+  EXPECT_THAT(simulator.RunFunction({{"idx", Value(UBits(0b01, 2))}}),
               IsOkAndHolds(make_array({1, 99, 3})));
-  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+  EXPECT_THAT(simulator.RunFunction({{"idx", Value(UBits(0b10, 2))}}),
               IsOkAndHolds(make_array({1, 2, 99})));
-  EXPECT_THAT(simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+  EXPECT_THAT(simulator.RunFunction({{"idx", Value(UBits(0b11, 2))}}),
               IsOkAndHolds(make_array({1, 2, 3})));
 }
 
@@ -723,19 +744,19 @@ top fn main(idx: bits[2]) -> bits[32][2][3] {
   };
 
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b00, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_array({98, 99}), make_array({3, 4}), make_array({5, 6})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b01, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_array({1, 2}), make_array({98, 99}), make_array({5, 6})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b10, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_array({1, 2}), make_array({3, 4}), make_array({98, 99})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b11, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_array({1, 2}), make_array({3, 4}), make_array({5, 6})})));
 }
@@ -783,19 +804,19 @@ top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   };
 
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b00, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b00, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_tuple({98, 99}), make_tuple({3, 4}), make_tuple({5, 6})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b01, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_tuple({1, 2}), make_tuple({98, 99}), make_tuple({5, 6})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b10, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b10, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_tuple({1, 2}), make_tuple({3, 4}), make_tuple({98, 99})})));
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b11, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b11, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_tuple({1, 2}), make_tuple({3, 4}), make_tuple({5, 6})})));
 }
@@ -853,7 +874,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   };
 
   EXPECT_THAT(
-      simulator.Run({{"idx", Value(UBits(0b01, 2))}}),
+      simulator.RunFunction({{"idx", Value(UBits(0b01, 2))}}),
       IsOkAndHolds(make_array_of_values(
           {make_tuple({Value(UBits(1, 32)), make_array({2, 3})}),
            make_tuple({Value(UBits(98, 32)), make_array({99, 100})})})));
@@ -879,9 +900,9 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value(UBits(0, 8))},
-                             {"b", Value(UBits(42, 8))},
-                             {"c", Value(UBits(1, 8))}}),
+  EXPECT_THAT(simulator.RunFunction({{"a", Value(UBits(0, 8))},
+                                     {"b", Value(UBits(42, 8))},
+                                     {"c", Value(UBits(1, 8))}}),
               IsOkAndHolds(Value(UBits(42, 8))));
 }
 
@@ -912,35 +933,35 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Value d_in,
       Parser::ParseTypedValue("[bits[8]:0x7, bits[8]:0x8, bits[8]:0x9]"));
-  EXPECT_THAT(simulator.Run({{"p", Value(UBits(0, 8))},
-                             {"x", x_in},
-                             {"y", y_in},
-                             {"z", z_in},
-                             {"d", d_in}}),
+  EXPECT_THAT(simulator.RunFunction({{"p", Value(UBits(0, 8))},
+                                     {"x", x_in},
+                                     {"y", y_in},
+                                     {"z", z_in},
+                                     {"d", d_in}}),
               IsOkAndHolds(x_in));
-  EXPECT_THAT(simulator.Run({{"p", Value(UBits(1, 8))},
-                             {"x", x_in},
-                             {"y", y_in},
-                             {"z", z_in},
-                             {"d", d_in}}),
+  EXPECT_THAT(simulator.RunFunction({{"p", Value(UBits(1, 8))},
+                                     {"x", x_in},
+                                     {"y", y_in},
+                                     {"z", z_in},
+                                     {"d", d_in}}),
               IsOkAndHolds(y_in));
-  EXPECT_THAT(simulator.Run({{"p", Value(UBits(2, 8))},
-                             {"x", x_in},
-                             {"y", y_in},
-                             {"z", z_in},
-                             {"d", d_in}}),
+  EXPECT_THAT(simulator.RunFunction({{"p", Value(UBits(2, 8))},
+                                     {"x", x_in},
+                                     {"y", y_in},
+                                     {"z", z_in},
+                                     {"d", d_in}}),
               IsOkAndHolds(z_in));
-  EXPECT_THAT(simulator.Run({{"p", Value(UBits(3, 8))},
-                             {"x", x_in},
-                             {"y", y_in},
-                             {"z", z_in},
-                             {"d", d_in}}),
+  EXPECT_THAT(simulator.RunFunction({{"p", Value(UBits(3, 8))},
+                                     {"x", x_in},
+                                     {"y", y_in},
+                                     {"z", z_in},
+                                     {"d", d_in}}),
               IsOkAndHolds(d_in));
-  EXPECT_THAT(simulator.Run({{"p", Value(UBits(100, 8))},
-                             {"x", x_in},
-                             {"y", y_in},
-                             {"z", z_in},
-                             {"d", d_in}}),
+  EXPECT_THAT(simulator.RunFunction({{"p", Value(UBits(100, 8))},
+                                     {"x", x_in},
+                                     {"y", y_in},
+                                     {"z", z_in},
+                                     {"d", d_in}}),
               IsOkAndHolds(d_in));
 }
 
@@ -963,12 +984,12 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Value y_in,
       Parser::ParseTypedValue("[bits[8]:0x1, bits[8]:0x2, bits[8]:0x3]"));
-  EXPECT_THAT(
-      simulator.Run({{"p", Value(UBits(0, 1))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(x_in));
-  EXPECT_THAT(
-      simulator.Run({{"p", Value(UBits(1, 1))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(y_in));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"p", Value(UBits(0, 1))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(x_in));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"p", Value(UBits(1, 1))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(y_in));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
@@ -988,18 +1009,18 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
       Value x_in, Parser::ParseTypedValue("[bits[8]:0x0f, bits[8]:0xf0]"));
   XLS_ASSERT_OK_AND_ASSIGN(
       Value y_in, Parser::ParseTypedValue("[bits[8]:0xab, bits[8]:0xcd]"));
-  EXPECT_THAT(
-      simulator.Run({{"s", Value(UBits(0b00, 2))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(Value::UBitsArray({0x0, 0x0}, 8).value()));
-  EXPECT_THAT(
-      simulator.Run({{"s", Value(UBits(0b01, 2))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(Value::UBitsArray({0x0f, 0xf0}, 8).value()));
-  EXPECT_THAT(
-      simulator.Run({{"s", Value(UBits(0b10, 2))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(Value::UBitsArray({0xab, 0xcd}, 8).value()));
-  EXPECT_THAT(
-      simulator.Run({{"s", Value(UBits(0b11, 2))}, {"x", x_in}, {"y", y_in}}),
-      IsOkAndHolds(Value::UBitsArray({0xaf, 0xfd}, 8).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"s", Value(UBits(0b00, 2))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(Value::UBitsArray({0x0, 0x0}, 8).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"s", Value(UBits(0b01, 2))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(Value::UBitsArray({0x0f, 0xf0}, 8).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"s", Value(UBits(0b10, 2))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(Value::UBitsArray({0xab, 0xcd}, 8).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"s", Value(UBits(0b11, 2))}, {"x", x_in}, {"y", y_in}}),
+              IsOkAndHolds(Value::UBitsArray({0xaf, 0xfd}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
@@ -1025,7 +1046,8 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
   XLS_ASSERT_OK_AND_ASSIGN(Value ret,
                            Value::UBitsArray({1, 2, 3, 4, 5, 1, 2}, 32));
 
-  EXPECT_THAT(simulator.Run({{"a0", a0}, {"a1", a1}}), IsOkAndHolds(ret));
+  EXPECT_THAT(simulator.RunFunction({{"a0", a0}, {"a1", a1}}),
+              IsOkAndHolds(ret));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
@@ -1054,7 +1076,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
   XLS_ASSERT_OK_AND_ASSIGN(Value ret,
                            Value::SBitsArray({1, 2, -1, -1, 3, 4, 5}, 32));
 
-  EXPECT_THAT(simulator.Run({{"a0", a0}, {"a1", a1}, {"a2", a2}}),
+  EXPECT_THAT(simulator.RunFunction({{"a0", a0}, {"a1", a1}, {"a2", a2}}),
               IsOkAndHolds(ret));
 }
 
@@ -1082,7 +1104,7 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
                            Value::SBits2DArray({{5, 6}, {1, 2}, {3, 4}}, 32));
 
   std::vector<Value> args;
-  EXPECT_THAT(simulator.Run(args), IsOkAndHolds(ret));
+  EXPECT_THAT(simulator.RunFunction(args), IsOkAndHolds(ret));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
@@ -1102,14 +1124,16 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(2, 16))}}),
-              IsOkAndHolds(Value(UBits(33, 8))));
+      IsOkAndHolds(Value(UBits(33, 8))));
 
   // OOB access should return the last element.
-  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(42, 16))}}),
-              IsOkAndHolds(Value(UBits(33, 8))));
+      IsOkAndHolds(Value(UBits(33, 8))));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexWithNarrowIndex) {
@@ -1131,10 +1155,10 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithNarrowIndex) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(
-      simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()},
-                     {"idx", Value(UBits(1, 2))}}),
-      IsOkAndHolds(Value(UBits(22, 8))));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()},
+                   {"idx", Value(UBits(1, 2))}}),
+              IsOkAndHolds(Value(UBits(22, 8))));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexWithLiteralIndex) {
@@ -1153,9 +1177,9 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithLiteralIndex) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(
-      simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()}}),
-      IsOkAndHolds(Value(UBits(44, 8))));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()}}),
+              IsOkAndHolds(Value(UBits(44, 8))));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {
@@ -1173,9 +1197,9 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(
-      simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()}}),
-      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"a", Value::UBitsArray({11, 22, 33}, 8).value()}}),
+              IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSingleElement) {
@@ -1197,7 +1221,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSingleElement) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"idx0", Value(UBits(0, 16))},
            {"idx1", Value(UBits(1, 16))}}),
@@ -1221,17 +1245,17 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSubArray) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"idx", Value(UBits(0, 16))}}),
       IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"idx", Value(UBits(1, 16))}}),
       IsOkAndHolds(Value::UBitsArray({44, 55, 66}, 8).value()));
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"idx", Value(UBits(42, 16))}}),
       IsOkAndHolds(Value::UBitsArray({44, 55, 66}, 8).value()));
@@ -1254,9 +1278,10 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateLiteralIndex) {
 
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"value", Value(UBits(123, 8))}}),
-              IsOkAndHolds(Value::UBitsArray({11, 123, 33}, 8).value()));
+      IsOkAndHolds(Value::UBitsArray({11, 123, 33}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateVariableIndex) {
@@ -1275,15 +1300,17 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateVariableIndex) {
                                  result.verilog_text);
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
-  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(0, 32))},
                              {"value", Value(UBits(123, 8))}}),
-              IsOkAndHolds(Value::UBitsArray({123, 22, 33}, 8).value()));
+      IsOkAndHolds(Value::UBitsArray({123, 22, 33}, 8).value()));
   // Out-of-bounds should just return the original array.
-  EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(3, 32))},
                              {"value", Value(UBits(123, 8))}}),
-              IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
+      IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralIndex) {
@@ -1304,7 +1331,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))}}),
       IsOkAndHolds(
@@ -1329,7 +1356,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))},
            {"idx0", Value(UBits(1, 32))},
@@ -1338,7 +1365,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
           Value::UBits2DArray({{11, 22, 33}, {123, 55, 66}}, 8).value()));
   // Out-of-bounds should just return the original array.
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))},
            {"idx0", Value(UBits(1, 32))},
@@ -1346,7 +1373,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
       IsOkAndHolds(
           Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()));
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))},
            {"idx0", Value(UBits(11, 32))},
@@ -1371,7 +1398,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralAndVariableIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))},
            {"idx", Value(UBits(0, 32))}}),
@@ -1379,7 +1406,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralAndVariableIndex) {
           Value::UBits2DArray({{11, 22, 123}, {44, 55, 66}}, 8).value()));
   // Out-of-bounds should just return the original array.
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value(UBits(123, 8))},
            {"idx", Value(UBits(10, 32))}}),
@@ -1404,7 +1431,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayLiteralIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value::UBitsArray({101, 102, 103}, 8).value()}}),
       IsOkAndHolds(
@@ -1428,7 +1455,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayVariableIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value::UBitsArray({101, 102, 103}, 8).value()},
            {"idx", Value(UBits(1, 37))}}),
@@ -1436,7 +1463,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayVariableIndex) {
           Value::UBits2DArray({{11, 22, 33}, {101, 102, 103}}, 8).value()));
   // Out-of-bounds should just return the original array.
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value::UBitsArray({101, 102, 103}, 8).value()},
            {"idx", Value(UBits(2, 37))}}),
@@ -1462,7 +1489,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayNilIndex) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
-      simulator.Run(
+      simulator.RunFunction(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"value", Value::UBits2DArray({{101, 102, 103}, {104, 105, 106}}, 8)
                          .value()}}),
@@ -1541,10 +1568,12 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
                            Value::UBitsArray({1, 2, 3, 4, 5}, 32));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 1))}}),
-              IsOkAndHolds(Value::UBitsArray({1, 2, 3}, 32).value()));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 1))}}),
-              IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(0, 1))}}),
+      IsOkAndHolds(Value::UBitsArray({1, 2, 3}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(1, 1))}}),
+      IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1565,11 +1594,12 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
                            Value::UBitsArray({1, 2, 3, 4, 5}, 32));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 100))}}),
-              IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
   EXPECT_THAT(
-      simulator.Run({{"a", a_value}, {"start", Value(Bits::AllOnes(100))}}),
-      IsOkAndHolds(Value::UBitsArray({5, 5, 5}, 32).value()));
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(1, 100))}}),
+      IsOkAndHolds(Value::UBitsArray({2, 3, 4}, 32).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"a", a_value}, {"start", Value(Bits::AllOnes(100))}}),
+              IsOkAndHolds(Value::UBitsArray({5, 5, 5}, 32).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
@@ -1586,15 +1616,18 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
   ModuleSimulator simulator =
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value, Value::UBitsArray({1, 2, 3}, 32));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 32))}}),
-              IsOkAndHolds(Value::UBitsArray({1, 2, 3, 3, 3}, 32).value()));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 32))}}),
-              IsOkAndHolds(Value::UBitsArray({2, 3, 3, 3, 3}, 32).value()));
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(2, 32))}}),
-              IsOkAndHolds(Value::UBitsArray({3, 3, 3, 3, 3}, 32).value()));
   EXPECT_THAT(
-      simulator.Run({{"a", a_value}, {"start", Value(UBits(123456, 32))}}),
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(0, 32))}}),
+      IsOkAndHolds(Value::UBitsArray({1, 2, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(1, 32))}}),
+      IsOkAndHolds(Value::UBitsArray({2, 3, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(2, 32))}}),
       IsOkAndHolds(Value::UBitsArray({3, 3, 3, 3, 3}, 32).value()));
+  EXPECT_THAT(simulator.RunFunction(
+                  {{"a", a_value}, {"start", Value(UBits(123456, 32))}}),
+              IsOkAndHolds(Value::UBitsArray({3, 3, 3, 3, 3}, 32).value()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1621,17 +1654,21 @@ TEST_P(CombinationalGeneratorTest, TwoDArraySlice) {
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
                            Value::UBits2DArray({{1, 2}, {3, 4}, {5, 6}}, 32));
 
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 16))}}),
-              IsOkAndHolds(Value::UBits2DArray({{1, 2}, {3, 4}}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(0, 16))}}),
+      IsOkAndHolds(Value::UBits2DArray({{1, 2}, {3, 4}}, 32).value()));
 
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 16))}}),
-              IsOkAndHolds(Value::UBits2DArray({{3, 4}, {5, 6}}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(1, 16))}}),
+      IsOkAndHolds(Value::UBits2DArray({{3, 4}, {5, 6}}, 32).value()));
 
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(2, 16))}}),
-              IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(2, 16))}}),
+      IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
 
-  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(10, 16))}}),
-              IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
+  EXPECT_THAT(
+      simulator.RunFunction({{"a", a_value}, {"start", Value(UBits(10, 16))}}),
+      IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1736,7 +1773,7 @@ TEST_P(CombinationalGeneratorTest, OneBitTupleIndex) {
       NewModuleSimulator(result.verilog_text, result.signature);
   XLS_ASSERT_OK_AND_ASSIGN(Value x_value,
                            Value::Array({Value::Tuple({Value(UBits(1, 1))})}));
-  EXPECT_THAT(simulator.Run({{"x", x_value}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", x_value}}),
               IsOkAndHolds(Value(UBits(1, 1))));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
@@ -1758,9 +1795,9 @@ TEST_P(CombinationalGeneratorTest, ArrayEq) {
       NewModuleSimulator(result.verilog_text, result.signature);
   Value a = Value::UBitsArray({1, 2, 3, 4, 5}, 32).value();
   Value b = Value::UBitsArray({1, 20, 3, 4, 5}, 32).value();
-  EXPECT_THAT(simulator.Run({{"x", a}, {"y", b}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", a}, {"y", b}}),
               IsOkAndHolds(Value(UBits(0, 1))));
-  EXPECT_THAT(simulator.Run({{"x", a}, {"y", a}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", a}, {"y", a}}),
               IsOkAndHolds(Value(UBits(1, 1))));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
@@ -1783,9 +1820,9 @@ TEST_P(CombinationalGeneratorTest, TwoDArrayNe) {
       NewModuleSimulator(result.verilog_text, result.signature);
   Value a = Value::UBits2DArray({{1, 0, 1}, {1, 1, 0}}, 1).value();
   Value b = Value::UBits2DArray({{1, 1, 1}, {1, 1, 0}}, 1).value();
-  EXPECT_THAT(simulator.Run({{"x", a}, {"y", b}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", a}, {"y", b}}),
               IsOkAndHolds(Value(UBits(1, 1))));
-  EXPECT_THAT(simulator.Run({{"x", a}, {"y", a}}),
+  EXPECT_THAT(simulator.RunFunction({{"x", a}, {"y", a}}),
               IsOkAndHolds(Value(UBits(0, 1))));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),

@@ -51,16 +51,16 @@ PYBIND11_MODULE(module_simulator, m) {
 
   absl::StatusOr<Value> (ModuleSimulator::*run_kwargs)(
       const absl::flat_hash_map<std::string, Value>&) const =
-      &ModuleSimulator::Run;
-  absl::StatusOr<Value> (ModuleSimulator::*run)(absl::Span<const Value> inputs)
-      const = &ModuleSimulator::Run;
+      &ModuleSimulator::RunFunction;
+  absl::StatusOr<Value> (ModuleSimulator::*run_function)(
+      absl::Span<const Value> inputs) const = &ModuleSimulator::RunFunction;
 
   py::class_<ModuleSimulatorWrapper>(m, "ModuleSimulator")
       .def(py::init<const ModuleSignature&, std::string_view, bool>(),
            py::arg("signature"), py::arg("verilog_text"),
            py::arg("is_system_verilog"))
       .def("run_kwargs", run_kwargs, py::arg("args"))
-      .def("run", run, py::arg("args"));
+      .def("run_function", run_function, py::arg("args"));
 }
 
 }  // namespace verilog
