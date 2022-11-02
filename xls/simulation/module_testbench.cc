@@ -27,6 +27,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
@@ -297,11 +298,14 @@ absl::Status ModuleTestbenchThread::CheckOutput(
 }
 
 void ModuleTestbenchThread::EmitInto(
-    StructuredProcedure* procedure,
+    StructuredProcedure* procedure, LogicRef* done_signal,
     const absl::flat_hash_map<std::string, LogicRef*>& port_refs,
     LogicRef* clk) {
   XLS_CHECK_NE(procedure, nullptr);
   VerilogFile& file = *procedure->file();
+  // The first statement must be to deassert the done signal of the thread.
+  procedure->statements()->Add<NonblockingAssignment>(
+      SourceInfo(), done_signal, file.Literal(UBits(0, 1), SourceInfo()));
   WaitNCycles(clk, procedure->statements(), 1);
   // All actions occur at the falling edge of the clock to avoid races with
   // signals changing at the rising edge of the clock.
@@ -364,9 +368,9 @@ void ModuleTestbenchThread::EmitInto(
                 }},
         action);
   }
-  // Add one final wait for a cycle. This ensures that any $strobe from
-  // DisplayOutput runs before the final $finish.
-  WaitNCycles(clk, procedure->statements(), 1);
+  // The last statement must be to assert the done signal of the thread.
+  procedure->statements()->Add<NonblockingAssignment>(
+      SourceInfo(), done_signal, file.Literal(UBits(1, 1), SourceInfo()));
 }
 
 ModuleTestbench::ModuleTestbench(Module* module,
@@ -384,9 +388,9 @@ ModuleTestbench::ModuleTestbench(Module* module,
   XLS_VLOG(3) << "Building ModuleTestbench for Verilog module:";
   XLS_VLOG_LINES(3, verilog_text_);
   shared_data_.dut_module_name = module->name();
-  absl::flat_hash_map<std::string, int64_t>& input_port_widths =
+  absl::btree_map<std::string, int64_t>& input_port_widths =
       shared_data_.input_port_widths;
-  absl::flat_hash_map<std::string, int64_t>& output_port_widths =
+  absl::btree_map<std::string, int64_t>& output_port_widths =
       shared_data_.output_port_widths;
 
   for (const Port& port : module->ports()) {
@@ -416,9 +420,9 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
   XLS_VLOG_LINES(3, verilog_text_);
   XLS_VLOG(3) << "With signature:\n" << signature;
   shared_data_.dut_module_name = signature.module_name();
-  absl::flat_hash_map<std::string, int64_t>& input_port_widths =
+  absl::btree_map<std::string, int64_t>& input_port_widths =
       shared_data_.input_port_widths;
-  absl::flat_hash_map<std::string, int64_t>& output_port_widths =
+  absl::btree_map<std::string, int64_t>& output_port_widths =
       shared_data_.output_port_widths;
 
   for (const PortProto& port : signature.data_inputs()) {
@@ -463,7 +467,6 @@ ModuleTestbenchThread& ModuleTestbench::CreateThread(
     std::optional<std::vector<std::string>> inputs_to_drive) {
   threads_.push_back(
       std::make_unique<ModuleTestbenchThread>(&shared_data_, inputs_to_drive));
-  XLS_CHECK_EQ(threads_.size(), 1) << "Only a single thread can be created.";
   return *threads_.back();
 }
 
@@ -524,7 +527,7 @@ absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
   return absl::OkStatus();
 }
 
-absl::Status ModuleTestbench::Run() {
+std::string ModuleTestbench::GenerateVerilog() {
   VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
@@ -560,11 +563,20 @@ absl::Status ModuleTestbench::Run() {
           ? port_refs.at(*clk_name_)
           : m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo());
 
-  // Instatiate the device under test module.
+  // Instantiate the device under test module.
   const char kInstantiationName[] = "dut";
   m->Add<Instantiation>(
       SourceInfo(), shared_data_.dut_module_name, kInstantiationName,
       /*parameters=*/absl::Span<const Connection>(), connections);
+
+  std::vector<LogicRef*> done_signal_refs;
+  for (int64_t index = 0; index < threads_.size(); ++index) {
+    std::string done_signal_name =
+        absl::StrFormat("is_thread_%s_done", std::to_string(index));
+    LogicRef* ref = m->AddReg(
+        done_signal_name, file.BitVectorType(1, SourceInfo()), SourceInfo());
+    done_signal_refs.push_back(ref);
+  }
 
   {
     // Generate the clock. It has a frequency of two time units. Start clk at 0
@@ -617,13 +629,49 @@ absl::Status ModuleTestbench::Run() {
   for (int64_t index = 0; index < threads_.size(); ++index) {
     // TODO(vmirian) : Consider lowering the thread to an 'always' block.
     Initial* initial = m->Add<Initial>(SourceInfo());
-    threads_[index]->EmitInto(initial, port_refs, clk);
-    initial->statements()->Add<Finish>(SourceInfo());
+    threads_[index]->EmitInto(initial, done_signal_refs[index], port_refs, clk);
   }
 
+  {
+    // Add a finish statement when all threads are complete.
+
+    // The sensitivity_list must also include the clock to trigger the always
+    // block since we are using conditions that verifies the level of the clock.
+    std::vector<SensitivityListElement> sensitivity_list;
+    sensitivity_list.push_back(clk);
+    for (LogicRef* done_signal_ref : done_signal_refs) {
+      sensitivity_list.push_back(done_signal_ref);
+    }
+    Always* always = m->Add<Always>(SourceInfo(), sensitivity_list);
+
+    Expression* posedge_clk =
+        file.Equals(clk, file.Literal(UBits(1, 1), SourceInfo()), SourceInfo());
+    Expression* negedge_clk =
+        file.Equals(clk, file.Literal(UBits(0, 1), SourceInfo()), SourceInfo());
+    // Wait for a cycle to mimic the startup protocol in the threads.
+    always->statements()->Add<WaitStatement>(SourceInfo(), posedge_clk);
+    always->statements()->Add<WaitStatement>(SourceInfo(), negedge_clk);
+    for (LogicRef* done_signal_ref : done_signal_refs) {
+      Expression* cmp =
+          file.Equals(done_signal_ref, file.Literal(UBits(1, 1), SourceInfo()),
+                      SourceInfo());
+      always->statements()->Add<WaitStatement>(SourceInfo(), cmp);
+    }
+
+    // Add one final wait for a cycle. This ensures that any $strobe from
+    // DisplayOutput runs before the final $finish.
+    always->statements()->Add<WaitStatement>(SourceInfo(), posedge_clk);
+    always->statements()->Add<WaitStatement>(SourceInfo(), negedge_clk);
+
+    always->statements()->Add<Finish>(SourceInfo());
+  }
   // Concatentate the module Verilog with the testbench verilog to create the
   // verilog text to pass to the simulator.
-  std::string verilog_text = absl::StrCat(verilog_text_, "\n\n", file.Emit());
+  return absl::StrCat(verilog_text_, "\n\n", file.Emit());
+}
+
+absl::Status ModuleTestbench::Run() {
+  std::string verilog_text = GenerateVerilog();
   XLS_VLOG(2) << verilog_text;
 
   std::pair<std::string, std::string> stdout_stderr;

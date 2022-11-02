@@ -102,9 +102,11 @@ cc_library(
     deps = [
         ":verilog_simulator",
         ":verilog_simulators",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
         "//xls/common:source_location",
@@ -123,6 +125,9 @@ cc_library(
 cc_test(
     name = "module_testbench_test",
     srcs = ["module_testbench_test.cc"],
+    data = glob([
+        "testdata/module_testbench_test_*",
+    ]),
     deps = [
         ":module_testbench",
         ":verilog_simulators",

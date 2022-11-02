@@ -31,6 +31,9 @@ using status_testing::StatusIs;
 using ::testing::ContainsRegex;
 using ::testing::HasSubstr;
 
+constexpr char kTestName[] = "module_testbench_test";
+constexpr char kTestdataPath[] = "xls/simulation/testdata";
+
 class ModuleTestbenchTest : public VerilogTestBase {
  protected:
   // Creates and returns a module which simply flops its input twice.
@@ -55,6 +58,34 @@ class ModuleTestbenchTest : public VerilogTestBase {
     m->Add<ContinuousAssignment>(SourceInfo(), out, p1);
     return m;
   }
+  // Creates and returns a adder module which flops its input twice.
+  Module* MakeTwoStageAdderPipeline(VerilogFile* f, int64_t width = 16) {
+    Module* m = f->AddModule("test_module", SourceInfo());
+    LogicRef* clk =
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
+    LogicRef* operand_0 = m->AddInput(
+        "operand_0", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    LogicRef* operand_1 = m->AddInput(
+        "operand_1", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    LogicRef* result = m->AddWire(
+        "result", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
+                                 SourceInfo());
+
+    LogicRef* p0 =
+        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    LogicRef* p1 =
+        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
+
+    auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
+    af->AddRegister(p0, result, SourceInfo());
+    af->AddRegister(p1, p0, SourceInfo());
+
+    m->Add<ContinuousAssignment>(SourceInfo(), result,
+                                 f->Add(operand_0, operand_1, SourceInfo()));
+    m->Add<ContinuousAssignment>(SourceInfo(), out, p1);
+    return m;
+  }
   // Creates and returns a module which simply prints two messages.
   Module* MakeTwoMessageModule(VerilogFile* f) {
     Module* m = f->AddModule("test_module", SourceInfo());
@@ -69,6 +100,49 @@ class ModuleTestbenchTest : public VerilogTestBase {
     return m;
   }
 };
+
+TEST_P(ModuleTestbenchTest, TwoStagePipelineZeroThreads) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageIdentityPipeline(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineTwoThreads) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageAdderPipeline(&f);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk");
+  ModuleTestbenchThread& operand_0 =
+      tb.CreateThread(std::vector<std::string>{"operand_0"});
+  ModuleTestbenchThread& operand_1 =
+      tb.CreateThread(std::vector<std::string>{"operand_1"});
+  ModuleTestbenchThread& result = tb.CreateThread();
+  operand_0.Set("operand_0", 0x21);
+  operand_1.Set("operand_1", 0x21);
+  operand_0.NextCycle().Set("operand_0", 0x32);
+  operand_1.NextCycle().Set("operand_1", 0x32);
+  operand_0.NextCycle().Set("operand_0", 0x80);
+  operand_1.NextCycle().Set("operand_1", 0x2a);
+  operand_0.NextCycle().SetX("operand_0");
+  operand_1.NextCycle().SetX("operand_1");
+  result.ExpectX("out")
+      .NextCycle()
+      .ExpectX("out")
+      .NextCycle()
+      .ExpectEq("out", 0x42)
+      .NextCycle()
+      .ExpectEq("out", 0x64)
+      .NextCycle()
+      .ExpectEq("out", 0xaa);
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 tb.GenerateVerilog());
+
+  XLS_ASSERT_OK(tb.Run());
+}
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
   VerilogFile f = NewVerilogFile();

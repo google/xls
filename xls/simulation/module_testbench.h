@@ -25,6 +25,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "xls/codegen/module_signature.h"
@@ -41,8 +42,8 @@ struct ModuleTestbenchData {
   // The design-under-test module name.
   std::string_view dut_module_name;
   // Map of each input/output port name to its width.
-  absl::flat_hash_map<std::string, int64_t> input_port_widths;
-  absl::flat_hash_map<std::string, int64_t> output_port_widths;
+  absl::btree_map<std::string, int64_t> input_port_widths;
+  absl::btree_map<std::string, int64_t> output_port_widths;
 };
 
 // Provides a fluent interface for driving inputs, capturing outputs, and
@@ -130,7 +131,7 @@ class ModuleTestbenchThread {
           parsed_values) const;
 
   // Emit the thread contents into the verilog file with the contents specified.
-  void EmitInto(StructuredProcedure* procedure,
+  void EmitInto(StructuredProcedure* procedure, LogicRef* done_signal,
                 const absl::flat_hash_map<std::string, LogicRef*>& port_refs,
                 LogicRef* clk);
 
@@ -236,6 +237,9 @@ class ModuleTestbench {
   // TODO(vmirian): 10-21-2022 Support more than a single thread.
   ModuleTestbenchThread& CreateThread(
       std::optional<std::vector<std::string>> inputs_to_drive = std::nullopt);
+
+  // Generates the Verilog representation of the testbench.
+  std::string GenerateVerilog();
 
   // Runs the simulation.
   absl::Status Run();
