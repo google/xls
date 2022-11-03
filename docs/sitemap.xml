@@ -21,6 +21,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://google.github.io/xls/codegen_options/</loc>
+         <lastmod>2022-11-03</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://google.github.io/xls/contributing/</loc>
          <lastmod>2022-11-03</lastmod>
          <changefreq>daily</changefreq>
