@@ -120,7 +120,10 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
           "conjunction with a scheduling constraint to ensure that the receive "
           "on the response channel comes a cycle after the send on the request "
           "channel.");
-// LINT.ThenChange(//xls/build_rules/xls_codegen_rules.bzl)
+// LINT.ThenChange(
+//   //xls/build_rules/xls_codegen_rules.bzl,
+//   //docs_src/codegen_options.md
+// )
 
 namespace xls {
 namespace {

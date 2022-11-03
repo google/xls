@@ -50,7 +50,8 @@ class OpOverrideAssignment : public OpOverride {
 //
 // Format string supports the following placeholders:
 //
-//  {condition} : Identifier (or expression) of the condition of the assert.
+//  {condition} : Identifier (or expression) of the condition of the gate
+//                operation.
 //  {input}     : The identifier (or expression) for the data input of the gate
 //                operation.
 //  {output}    : The identifier of the gate operation.
@@ -89,9 +90,9 @@ class OpOverrideGateAssignment : public OpOverrideAssignment {
 // Format string supports the following placeholders:
 //
 //  {message}   : Message of the assert operation.
-//  {condition} : Condition of the assert.
-//  {label}     : Label of the assert operation. Returns error if the operation
-//                has no label.
+//  {condition} : Condition of the assert operation.
+//  {label}     : Label of the assert operation. Returns error no label is
+//                specified.
 //  {clk}       : Name of the clock signal. Returns error if no clock is
 //                specified.
 //  {rst}       : Name of the reset signal. Returns error if no reset is
@@ -118,6 +119,45 @@ class OpOverrideAssertion : public OpOverride {
   std::string assertion_format_string_;
 };
 
+// Uses format string to override an op with a module instantiation.
+//
+// Format string supports the following placeholders:
+//
+//  {inputX}       : 'X' is an integer from 0 to (N-1), where N is the number of
+//                   inputs. These placeholders are the name (or expression) of
+//                   the (potentially many) inputs.
+//  {inputX_width} : 'X' is an integer from 0 to (N-1), where N is the number of
+//                   inputs. These placeholders are the name (or expression) of
+//                   the (potentially many) inputs.
+//  {output}       : The identifier of the output.
+//  {output_width} : The width of the output.
+//
+// For example, the format string:
+//
+//    multp #(
+//      .x_width({input0_width}),
+//      .y_width({input1_width}),
+//      .z_width({output_width}>>1)
+//    ) {output}_inst (
+//      .x({input0}),
+//      .y({input1}),
+//      .z0({output}[({output_width}>>1)-1:0]),
+//      .z1({output}[({output_width}>>1)*2-1:({output_width}>>1)})])
+//    );
+//
+//
+// Might result in the following emitted Verilog:
+//
+//    multp #(
+//      .x_width(16),
+//      .y_width(16),
+//      .z_width(32>>1)
+//    ) multp_out_inst (
+//      .x(lhs),
+//      .y(rhs),
+//      .z0(multp_out[(32>>1)-1:0]),
+//      .z1(multp_out[(32>>1)*2-1:(32>>1)])
+//    );
 class OpOverrideInstantiation : public OpOverride {
  public:
   explicit OpOverrideInstantiation(std::string_view fmt_string)

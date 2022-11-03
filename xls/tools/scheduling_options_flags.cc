@@ -61,7 +61,10 @@ ABSL_FLAG(std::vector<std::string>, io_constraints, {},
 ABSL_FLAG(bool, receives_first_sends_last, false,
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
-// LINT.ThenChange(//xls/build_rules/xls_codegen_rules.bzl)
+// LINT.ThenChange(
+//   //xls/build_rules/xls_codegen_rules.bzl,
+//   //docs_src/codegen_options.md
+// )
 
 namespace xls {
 
