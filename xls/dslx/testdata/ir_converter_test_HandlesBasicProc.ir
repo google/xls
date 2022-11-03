@@ -22,10 +22,11 @@ proc __test_module__main__producer_0_next(__token: token, __state: bits[32], ini
 
 proc __test_module__main__consumer_0_next(__token: token, __state: bits[32], init={0}) {
   receive.16: (token, bits[32]) = receive(__token, channel_id=0, id=16)
-  i: bits[32] = tuple_index(receive.16, index=1, id=18)
-  tok: token = tuple_index(receive.16, index=0, id=17)
+  i: bits[32] = tuple_index(receive.16, index=1, id=19)
+  tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
   literal.15: bits[1] = literal(value=1, id=15)
-  add.19: bits[32] = add(i, i, id=19)
-  after_all.20: token = after_all(__token, tok, id=20)
-  next (after_all.20, add.19)
+  tok: token = tuple_index(receive.16, index=0, id=18)
+  add.20: bits[32] = add(i, i, id=20)
+  after_all.21: token = after_all(__token, tuple_index.17, id=21)
+  next (after_all.21, add.20)
 }

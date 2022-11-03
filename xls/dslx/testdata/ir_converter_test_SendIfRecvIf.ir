@@ -24,8 +24,9 @@ proc __test_module__main__consumer_0_next(__token: token, __state: bits[1], init
   receive.16: (token, bits[32]) = receive(__token, predicate=__state, channel_id=0, id=16)
   tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
   literal.15: bits[1] = literal(value=1, id=15)
-  foo: bits[32] = tuple_index(receive.16, index=1, id=18)
-  not.19: bits[1] = not(__state, id=19)
-  after_all.20: token = after_all(__token, tuple_index.17, id=20)
-  next (after_all.20, not.19)
+  tuple_index.18: token = tuple_index(receive.16, index=0, id=18)
+  foo: bits[32] = tuple_index(receive.16, index=1, id=19)
+  not.20: bits[1] = not(__state, id=20)
+  after_all.21: token = after_all(__token, tuple_index.17, id=21)
+  next (after_all.21, not.20)
 }

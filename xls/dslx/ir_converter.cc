@@ -1094,10 +1094,6 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
         XLS_CHECK_LT(index, tuple_type->size())
             << "index: " << index << " type: " << tuple_type->ToString();
         BValue tuple_index = function_builder_->TupleIndex(tuple, index, loc);
-        if (level == 1 && index == 0 &&
-            tuple_type->element_type(0)->IsToken()) {
-          tokens_.push_back(tuple_index);
-        }
         return tuple_index;
       }));
       if (x->is_leaf()) {
@@ -2112,6 +2108,8 @@ absl::Status FunctionConverter::HandleRecv(const Recv* node) {
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   BValue value = builder_ptr->Receive(std::get<Channel*>(ir_value), token);
+  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(token_value);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }
@@ -2140,6 +2138,8 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   BValue value =
       builder_ptr->ReceiveNonBlocking(std::get<Channel*>(ir_value), token);
+  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(token_value);
   node_to_ir_[node] = value;
 
   return absl::OkStatus();
@@ -2170,6 +2170,8 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
   BValue value =
       builder_ptr->ReceiveIf(std::get<Channel*>(ir_value), token, predicate);
+  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(token_value);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }
@@ -2200,6 +2202,8 @@ absl::Status FunctionConverter::HandleRecvIfNonBlocking(
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
   BValue value = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
                                                    token, predicate);
+  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  tokens_.push_back(token_value);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }

@@ -140,15 +140,15 @@ chan test_package__output(bits[32], id=2, kind=streaming, ops=send_only, flow_co
 
 proc __top__foo_0_next(__token: token, init={}) {
   receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
-  tok: token = tuple_index(receive.4, index=0, id=5, pos=[(0,8,9)])
-  receive.7: (token, bits[32]) = receive(tok, channel_id=1, id=7)
-  a: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,8,14)])
-  b: bits[32] = tuple_index(receive.7, index=1, id=9, pos=[(0,9,14)])
-  tok__1: token = tuple_index(receive.7, index=0, id=8, pos=[(0,9,9)])
-  add.10: bits[32] = add(a, b, id=10, pos=[(0,10,36)])
-  tok__2: token = send(tok__1, add.10, channel_id=2, id=11)
-  after_all.13: token = after_all(__token, tok, tok__1, tok__2, id=13)
-  next (after_all.13)
+  tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,8,9)])
+  receive.8: (token, bits[32]) = receive(tok, channel_id=1, id=8)
+  a: bits[32] = tuple_index(receive.4, index=1, id=7, pos=[(0,8,14)])
+  b: bits[32] = tuple_index(receive.8, index=1, id=11, pos=[(0,9,14)])
+  tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,9,9)])
+  add.12: bits[32] = add(a, b, id=12, pos=[(0,10,36)])
+  tok__2: token = send(tok__1, add.12, channel_id=2, id=13)
+  after_all.15: token = after_all(__token, tok, tok__1, tok__2, id=15)
+  next (after_all.15)
 }
 )");
 
