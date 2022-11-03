@@ -89,6 +89,9 @@ class Bindings {
  public:
   explicit Bindings(Bindings* parent = nullptr) : parent_(parent) {}
 
+  // Returns a copy of this bindings object.
+  Bindings Clone() const;
+
   // The "Cronus" method. This adds a child's bindings to this object, i.e., it
   // "commits" changes made in a child Bindings to this parent object.
   void ConsumeChild(Bindings* child) {
@@ -157,7 +160,8 @@ class Bindings {
       return *std::move(result);
     }
     return ParseErrorStatus(
-        span, absl::StrFormat("Cannot find a definition for name: '%s'", name));
+        span,
+        absl::StrFormat("Cannot find a definition for name: \"%s\"", name));
   }
 
   // Resolves "name" as an AST binding and returns the associated NameDefNode.

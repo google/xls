@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
@@ -28,6 +29,7 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
 #include "xls/ir/name_uniquer.h"
+#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -1915,16 +1917,42 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // transaction mechanism.
   Transaction txn(this, &bindings);
   auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
+  // Create a separate Bindings object to see what's added during member
+  // collection, so we can report better errors below. Members will be added to
+  // "bindings" in the next call.
+  Bindings memberless_bindings = bindings.Clone();
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_members,
                        CollectProcMembers(&bindings));
   std::move(cleanup).Invoke();
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
                        CollectProcMembers(&bindings));
 
-  XLS_ASSIGN_OR_RETURN(
-      Function * config,
-      ParseProcConfig(&bindings, parametric_bindings, config_members,
-                      name_def->identifier(), is_public));
+  // The config function can't see proc members, since they have no value until
+  // the config function completes, so we use the outer bindings here. If/when
+  // we support proc-scoped functions, we'll need to do something fancier.
+  absl::StatusOr<Function*> config_or =
+      ParseProcConfig(&memberless_bindings, parametric_bindings, config_members,
+                      name_def->identifier(), is_public);
+  if (!config_or.ok()) {
+    absl::Status status = config_or.status();
+    std::string bad_name;
+    if (RE2::PartialMatch(
+            status.message(),
+            "Cannot find a definition for name: \"([a-zA-Z0-9_]+)\"",
+            &bad_name) &&
+        !memberless_bindings.HasName(bad_name) && bindings.HasName(bad_name)) {
+      xabsl::StatusBuilder builder(status);
+      builder << absl::StrFormat(
+          "\"%s\" is a proc member, "
+          "but those cannot be referenced "
+          "from within a proc config function.",
+          bad_name);
+      return builder;
+    }
+
+    return status;
+  }
+  Function* config = config_or.value();
   XLS_RETURN_IF_ERROR(module_->AddTop(config));
   outer_bindings->Add(config->name_def()->identifier(), config->name_def());
 

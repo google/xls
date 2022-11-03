@@ -106,13 +106,13 @@ TEST(BindingsTest, BindingsStack) {
 
   EXPECT_THAT(top.ResolveNodeOrError("b", span),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot find a definition for name: 'b'")));
+                       HasSubstr("Cannot find a definition for name: \"b\"")));
   EXPECT_THAT(leaf1.ResolveNodeOrError("b", span),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot find a definition for name: 'b'")));
+                       HasSubstr("Cannot find a definition for name: \"b\"")));
   EXPECT_THAT(leaf0.ResolveNodeOrError("c", span),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot find a definition for name: 'c'")));
+                       HasSubstr("Cannot find a definition for name: \"c\"")));
 
   EXPECT_THAT(leaf0.ResolveNodeOrError("b", span), IsOkAndHolds(b));
   EXPECT_THAT(leaf1.ResolveNodeOrError("c", span), IsOkAndHolds(c));
@@ -1074,7 +1074,30 @@ fn my_fun() -> MyEnum {
   auto module_status = parser.ParseModule();
   ASSERT_THAT(module_status, StatusIs(absl::StatusCode::kInvalidArgument,
                                       "ParseError: test.x:7:3-7:6 Cannot find "
-                                      "a definition for name: 'FOO'"));
+                                      "a definition for name: \"FOO\""));
+}
+
+TEST_F(ParserTest, ProcConfigCantSeeMembers) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+  x12: chan<u8> in;
+  config(x27: chan<u8> in) {
+    (x12,)
+  }
+  next(x0: token) {
+    ()
+  }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  auto module_status = parser.ParseModule();
+  ASSERT_THAT(
+      module_status,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               "ParseError: test.x:5:6-5:9 "
+               "Cannot find a definition for name: \"x12\"; "
+               "\"x12\" is a proc member, but those cannot be referenced "
+               "from within a proc config function."));
 }
 
 TEST_F(ParserTest, NumberSpan) {

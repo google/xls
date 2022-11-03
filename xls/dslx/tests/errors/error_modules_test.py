@@ -163,7 +163,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_co_recursion(self):
     stderr = self._run('xls/dslx/tests/errors/co_recursion.x')
     self.assertIn('xls/dslx/tests/errors/co_recursion.x:17:3-17:6', stderr)
-    self.assertIn("Cannot find a definition for name: 'bar'", stderr)
+    self.assertIn('Cannot find a definition for name: "bar"', stderr)
 
   def test_self_recursion(self):
     stderr = self._run('xls/dslx/tests/errors/self_recursion.x')

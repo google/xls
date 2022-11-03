@@ -158,8 +158,12 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
 absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
   const NameDef* name_def = std::get<const NameDef*>(node->name_def());
-  auto rhs = node_to_ir_.at(name_def);
-  node_to_ir_[node] = rhs;
+  auto iter = node_to_ir_.find(name_def);
+  if (iter == node_to_ir_.end()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "Could not find converted value for node \"", node->ToString(), "\"."));
+  }
+  node_to_ir_[node] = ProcConfigValue(iter->second);
   return absl::OkStatus();
 }
 
