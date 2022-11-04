@@ -1859,7 +1859,7 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
       /*next_name_def=*/next_function->name_def(),
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*members=*/proc_properties_.params,
-      /*config=*/config_function, /*next=*/next_function,
+      /*config=*/config_function, /*next=*/next_function, std::nullopt,
       /*is_public=*/false);
   name_def->set_definer(proc);
   return proc;

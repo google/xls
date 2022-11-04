@@ -48,7 +48,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc =
       module.Make<Proc>(Span::Fake(), name_def, config_name_def, next_name_def,
-                        bindings, members, config, next, /*is_public=*/true);
+                        bindings, members, config, next, /*init=*/std::nullopt,
+                        /*is_public=*/true);
   XLS_ASSERT_OK(module.AddTop(original_proc));
   name_def->set_definer(original_proc);
 
@@ -94,7 +95,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc = import_module->Make<Proc>(
       Span::Fake(), name_def, config_name_def, next_name_def, bindings, members,
-      config, next, /*is_public=*/true);
+      config, next, /*init=*/std::nullopt, /*is_public=*/true);
   XLS_ASSERT_OK(import_module->AddTop(original_proc));
   name_def->set_definer(original_proc);
 

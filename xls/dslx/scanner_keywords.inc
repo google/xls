@@ -20,7 +20,6 @@
   X(kJoin, JOIN, "join")                                              \
   X(kAs, AS, "as")                                                    \
   X(kCarry, CARRY, "carry")                                           \
-  X(kConfig, CONFIG, "config")                                        \
   X(kConst, CONST, "const")                                           \
   X(kElse, ELSE, "else")                                              \
   X(kEnum, ENUM, "enum")                                              \
@@ -33,7 +32,6 @@
   X(kOut, OUT, "out")                                                 \
   X(kLet, LET, "let")                                                 \
   X(kMatch, MATCH, "match")                                           \
-  X(kNext, NEXT, "next")                                              \
   X(kPub, PUB, "pub")                                                 \
   X(kProc, PROC, "proc")                                              \
   X(kRecv, RECV, "recv")                                              \

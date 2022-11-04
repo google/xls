@@ -1057,6 +1057,23 @@ TEST_F(ParserTest, BuiltinFailWithLabels) {
   RoundTrip(std::string(kProgram));
 }
 
+TEST_F(ParserTest, ProcWithInit) {
+  constexpr std::string_view kProgram = R"(proc foo {
+  member: u32;
+  init() {
+    u32:0
+  }
+  config() {
+    (u32:1,)
+  }
+  next(tok: token, state: u32) {
+    state
+  }
+})";
+
+  RoundTrip(std::string(kProgram));
+}
+
 // -- Parse-time errors
 
 TEST_F(ParserTest, BadEnumRef) {

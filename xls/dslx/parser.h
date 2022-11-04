@@ -508,7 +508,7 @@ class Parser : public TokenParser {
   // and "next" elements.
   absl::StatusOr<std::vector<Param*>> CollectProcMembers(Bindings* bindings);
 
-  // Parses Proc config and next functions, respectively.
+  // Parses Proc config, next, and init functions, respectively.
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
@@ -518,6 +518,10 @@ class Parser : public TokenParser {
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
       std::string_view proc_name, bool is_public);
+  absl::StatusOr<Function*> ParseProcInit(
+      Bindings* bindings,
+      const std::vector<ParametricBinding*>& parametric_bindings,
+      std::string_view proc_name);
 
   std::unique_ptr<Module> module_;
 

@@ -1507,7 +1507,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
            NameDef* config_name_def, NameDef* next_name_def,
            const std::vector<ParametricBinding*>& parametric_bindings,
            const std::vector<Param*>& members, Function* config, Function* next,
-           bool is_public)
+           std::optional<Function*> init, bool is_public)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
@@ -1516,6 +1516,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       parametric_bindings_(parametric_bindings),
       config_(config),
       next_(next),
+      init_(init),
       members_(members),
       is_public_(is_public) {}
 
@@ -1529,6 +1530,9 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   }
   results.push_back(config_);
   results.push_back(next_);
+  if (init_.has_value()) {
+    results.push_back(*init_);
+  }
   return results;
 }
 
@@ -1555,12 +1559,19 @@ std::string Proc::ToString() const {
   if (!members_str.empty()) {
     members_str.append("\n");
   }
+
+  std::string init_str = "";
+  if (init_.has_value()) {
+    init_str =
+        absl::StrCat(Indent(init_.value()->ToUndecoratedString("init")), "\n");
+  }
+
   constexpr std::string_view kTemplate = R"(%sproc %s%s {
-%s%s
+%s%s%s
 %s
 })";
   return absl::StrFormat(kTemplate, pub_str, name_def()->identifier(),
-                         parametric_str, Indent(members_str),
+                         parametric_str, Indent(members_str), init_str,
                          Indent(config_->ToUndecoratedString("config")),
                          Indent(next_->ToUndecoratedString("next")));
 }

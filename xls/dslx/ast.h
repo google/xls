@@ -1344,6 +1344,7 @@ class Function : public AstNode {
     kNormal,
     kProcConfig,
     kProcNext,
+    kProcInit,
   };
 
   Function(Module* owner, Span span, NameDef* name_def,
@@ -1405,7 +1406,7 @@ class Proc : public AstNode {
        NameDef* next_name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
        const std::vector<Param*>& members, Function* config, Function* next,
-       bool is_public);
+       std::optional<Function*> init, bool is_public);
   AstNodeKind kind() const override { return AstNodeKind::kProc; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1436,6 +1437,7 @@ class Proc : public AstNode {
 
   Function* config() const { return config_; }
   Function* next() const { return next_; }
+  std::optional<Function*> init() const { return init_; }
   const std::vector<Param*>& members() const { return members_; }
 
  private:
@@ -1447,6 +1449,7 @@ class Proc : public AstNode {
 
   Function* config_;
   Function* next_;
+  std::optional<Function*> init_;
   std::vector<Param*> members_;
   bool is_public_;
 };

@@ -505,6 +505,10 @@ class AstCloner : public AstNodeVisitor {
       new_members.push_back(down_cast<Param*>(old_to_new_.at(member)));
     }
 
+    std::optional<Function*> init;
+    if (n->init().has_value()) {
+      init = down_cast<Function*>(old_to_new_.at(n->init().value()));
+    }
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     Proc* p = module_->Make<Proc>(
         n->span(), new_name_def,
@@ -512,7 +516,7 @@ class AstCloner : public AstNodeVisitor {
         down_cast<NameDef*>(old_to_new_.at(n->next_name_def())),
         new_parametric_bindings, new_members,
         down_cast<Function*>(old_to_new_.at(n->config())),
-        down_cast<Function*>(old_to_new_.at(n->next())), n->is_public());
+        down_cast<Function*>(old_to_new_.at(n->next())), init, n->is_public());
     new_name_def->set_definer(p);
     old_to_new_[n] = p;
     return absl::OkStatus();
