@@ -1361,10 +1361,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       case TokenKind::kColon: {  // Possibly a Number of ColonRef type.
         Span span(new_pos, GetPos());
         // The only valid construct here would be declaring a number via
-        // ColonRef-colon-Number, e.g., "module::type:7"
+        // ColonRef-colon-Number, e.g., "module::type:7".
         if (dynamic_cast<ColonRef*>(lhs) == nullptr) {
           goto done;
         }
+
         auto* type_ref = module_->Make<TypeRef>(span, lhs->ToString(),
                                                 ToTypeDefinition(lhs).value());
         auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
@@ -1434,12 +1435,35 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
           }
           default:
             XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-            lhs = module_->Make<Index>(Span(new_pos, GetPos()), lhs, index);
+
+            // It's either an Index if the LHS is a NameRef or
+            // ColonRef-to-ConstantDef, or an Array if lhs is a
+            // ColonRef-to-type.
+            Span span(new_pos, GetPos());
+            XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+            if (peek->kind() == TokenKind::kColon) {
+              DropTokenOrDie();
+              // TODO(rspringer): We can't currently support parameterized
+              // ColonRef-to-types with this function structure.
+              auto* type_ref = module_->Make<TypeRef>(
+                  span, lhs->ToString(), down_cast<ColonRef*>(lhs));
+              auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
+                  span, type_ref, /*parametrics=*/std::vector<Expr*>());
+              auto* array_type = module_->Make<ArrayTypeAnnotation>(
+                  span, type_ref_type, index);
+              XLS_ASSIGN_OR_RETURN(Array * array, ParseArray(outer_bindings));
+              array->set_type_annotation(array_type);
+              lhs = array;
+              lhs->SetParentage();
+            } else {
+              lhs = module_->Make<Index>(span, lhs, index);
+            }
         }
         break;
       }
       case TokenKind::kOAngle: {
         // Comparison op or parametric function invocation.
+        // TODO(rspringer): Or parameterization on ColonRef-to-type.
         Transaction sub_txn(this, outer_bindings);
         auto sub_cleanup =
             absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });

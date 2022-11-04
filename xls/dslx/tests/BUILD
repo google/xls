@@ -43,6 +43,11 @@ bzl_library(
 dslx_lang_test(name = "tuple_with_array_member")
 
 dslx_lang_test(
+    name = "array_of_imported_struct",
+    dslx_deps = [":mod_imported_dslx"],
+)
+
+dslx_lang_test(
     name = "binops",
     test_ir_equivalence = False,
 )
