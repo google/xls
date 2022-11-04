@@ -53,19 +53,32 @@ py_library(
 )
 
 py_test(
-    name = "run_fuzz_test",
-    srcs = ["run_fuzz_test.py"],
+    name = "run_fuzz_minimizer_test",
+    srcs = ["run_fuzz_minimizer_test.py"],
     data = [
         "//xls/tools:parse_ir",
     ],
     python_version = "PY3",
-    shard_count = 50,
     srcs_version = "PY3",
     tags = ["optonly"],
     deps = [
         ":run_fuzz",
         ":sample_runner",
         "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_sample",
+    ],
+)
+
+py_test(
+    name = "run_fuzz_test",
+    srcs = ["run_fuzz_test.py"],
+    python_version = "PY3",
+    shard_count = 50,
+    srcs_version = "PY3",
+    tags = ["optonly"],
+    deps = [
+        ":run_fuzz",
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
