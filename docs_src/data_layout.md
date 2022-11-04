@@ -14,13 +14,13 @@ the ultimate container of actual data for any XLS IR type: tuples and arrays may
 be contain any number of tuple, array, or bits types, but whatever the layout of
 the type tree, all leaf nodes are Bits. When accessing the underlying storage of
 a `Bits` via the `ToBytes()` member function, the results are returned in a
-big-endian layout, i.e, with the most-significant data elements stored in the
-lowest addressable location. For example, the 32-bit value 12,345,678
+little-endian layout, i.e, with the least-significant data elements stored in
+the lowest addressable location. For example, the 32-bit value 12,345,678
 (0xBC614E), would be returned as:
 
 ```
 High  <--  Low
-0x 4E 61 BC 00
+0x 00 BC 61 4E
 ```
 
 ## Host data layout

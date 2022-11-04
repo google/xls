@@ -145,10 +145,6 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
 
   if (xls_bits.bit_count() > 64) {
     std::vector<uint8_t> bytes = xls_bits.ToBytes();
-    if (data_layout_.isLittleEndian()) {
-      ByteSwap(absl::MakeSpan(bytes));
-    }
-
     bytes.resize(xls::RoundUpToNearest(bytes.size(), 8UL), 0);
 
     auto array_ref =

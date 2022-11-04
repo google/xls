@@ -3026,6 +3026,8 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
   XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
+  // FromBytes expects data in little-endian format.
+  std::reverse(bytes.begin(), bytes.end());
   Value expected(
       Bits::FromBytes(bytes, literal_width).Slice(slice_start, slice_width));
   EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
@@ -3078,6 +3080,8 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
   if (slice_start > literal_width) {
     expected = Value(Bits(slice_width));
   } else {
+    // FromBytes expects data in little-endian format.
+    std::reverse(bytes.begin(), bytes.end());
     Bits operand = Bits::FromBytes(bytes, literal_width);
     Bits shifted = bits_ops::ShiftRightLogical(operand, slice_start);
     Bits truncated = shifted.Slice(0, slice_width);

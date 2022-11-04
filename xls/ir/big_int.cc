@@ -52,6 +52,8 @@ bool BigInt::operator==(const BigInt& other) const {
 BigInt BigInt::MakeUnsigned(const Bits& bits) {
   BigInt value;
   std::vector<uint8_t> byte_vector = bits.ToBytes();
+  // ToBytes returns in little-endian. BN expects big-endian.
+  std::reverse(byte_vector.begin(), byte_vector.end());
   BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_);
   return value;
 }
@@ -66,6 +68,8 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
   // get the magnitude. Then negate it to produce the correct value in the
   // BigInt.
   std::vector<uint8_t> byte_vector = bits.ToBytes();
+  // ToBytes returns in little-endian. BN expects big-endian.
+  std::reverse(byte_vector.begin(), byte_vector.end());
   for (auto& byte : byte_vector) {
     byte = ~byte;
   }
@@ -123,6 +127,8 @@ Bits BigInt::ToSignedBits() const {
 
   int64_t result_bit_count = SignedBitCount();
   BitsRope rope(result_bit_count);
+  // FromBytes expects bytes in little endian order.
+  std::reverse(byte_vector.begin(), byte_vector.end());
   rope.push_back(Bits::FromBytes(byte_vector, result_bit_count - 1));
   rope.push_back(is_negative ? Bits::AllOnes(1) : Bits(1));
   return rope.Build();
@@ -135,6 +141,8 @@ Bits BigInt::ToUnsignedBits() const {
   byte_vector.resize(BN_num_bytes(&bn_));
 
   XLS_CHECK(BN_bn2bin_padded(byte_vector.data(), byte_vector.size(), &bn_));
+  // FromBytes expects bytes in little endian order.
+  std::reverse(byte_vector.begin(), byte_vector.end());
   return Bits::FromBytes(byte_vector, bit_count);
 }
 
