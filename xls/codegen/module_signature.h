@@ -18,6 +18,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -141,12 +143,12 @@ class ModuleSignature {
   absl::Span<const PortProto> data_outputs() const { return data_outputs_; }
 
   // Returns the single value channels of the module.
-  absl::Span<const ChannelProto> single_value_channels() {
+  absl::Span<const ChannelProto> single_value_channels() const {
     return single_value_channels_;
   }
 
   // Returns the streaming channels of the module.
-  absl::Span<const ChannelProto> streaming_channels() {
+  absl::Span<const ChannelProto> streaming_channels() const {
     return streaming_channels_;
   }
 
@@ -164,11 +166,32 @@ class ModuleSignature {
       const absl::flat_hash_map<std::string, Bits>& input_bits) const;
   absl::Status ValidateInputs(
       const absl::flat_hash_map<std::string, Value>& input_values) const;
+  absl::Status ValidateChannelInputs(
+      const std::pair<std::string, std::vector<Bits>>& channel_values) const;
+  absl::Status ValidateChannelInputs(
+      const std::pair<std::string, std::vector<Value>>& channel_values) const;
 
   // Converts the ordered set of Value arguments to the module of the signature
   // into an argument name-value map.
   absl::StatusOr<absl::flat_hash_map<std::string, Value>> ToKwargs(
       absl::Span<const Value> inputs) const;
+
+  absl::StatusOr<PortProto> GetInputPortProtoByName(
+      std::string_view name) const;
+  absl::StatusOr<PortProto> GetOutputPortProtoByName(
+      std::string_view name) const;
+  absl::StatusOr<ChannelProto> GetInputChannelProtoByName(
+      std::string_view name) const;
+  absl::StatusOr<ChannelProto> GetOutputChannelProtoByName(
+      std::string_view name) const;
+  absl::Span<const ChannelProto> GetInputChannels() const {
+    return input_channels_;
+  }
+  absl::Span<const ChannelProto> GetOutputChannels() const {
+    return output_channels_;
+  }
+  absl::StatusOr<std::string> GetChannelNameWith(
+      std::string_view port_name) const;
 
   // Replace the signature with block metrics created during codegen.
   // TODO(tedhong): 2022-01-28 Support incremental update of metrics.
@@ -186,9 +209,30 @@ class ModuleSignature {
   // the convenience methods single_value_channels() and streaming_channels()
   std::vector<ChannelProto> single_value_channels_;
   std::vector<ChannelProto> streaming_channels_;
+  std::vector<ChannelProto> input_channels_;
+  std::vector<ChannelProto> output_channels_;
 
   // Like the channels above, duplicate rams to enable a convenience method.
   std::vector<RamProto> rams_;
+
+  // Map from port name to channel name.
+  absl::flat_hash_map<std::string, std::string> port_name_to_channel_name;
+
+  // For below, const iterators (e.g. std::vector<PortProto>::const_iterator)
+  // were used since there are no modifiers for the ModuleSignature, thus the
+  // corresponding vectors will not change.
+  // TODO(vmirian) : 10-28-2022 Support I/O channels and I/O ports.
+  //
+  // Map from input/output port name to a port proto reference.
+  absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
+      input_port_map_;
+  absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
+      output_port_map_;
+  // Map from channel name to a channel proto reference.
+  absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
+      input_channel_map_;
+  absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
+      output_channel_map_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the

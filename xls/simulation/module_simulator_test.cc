@@ -27,6 +27,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -262,8 +263,223 @@ endmodule
   }
 }
 
+TEST_P(ModuleSimulatorTest, RunInputSeriesProcCombinational) {
+  const std::string text = R"(
+module proc_adder(
+  input wire [31:0] operand_0,
+  input wire operand_0_vld,
+  input wire [31:0] operand_1,
+  input wire operand_1_vld,
+  input wire result_rdy,
+  output wire [31:0] result,
+  output wire result_vld,
+  output wire operand_0_rdy,
+  output wire operand_1_rdy
+);
+  wire [31:0] result_val;
+  assign result_val = operand_0 + operand_1;
+  assign result = result_val;
+  assign result_vld = operand_0_vld & operand_1_vld;
+  assign operand_0_rdy = result_rdy;
+  assign operand_1_rdy = result_rdy;
+endmodule
+
+)";
+
+  ModuleSignatureBuilder b("proc_adder");
+  b.WithCombinationalInterface();
+  b.AddDataInputAsBits("operand_0", 32);
+  b.AddDataInputAsBits("operand_0_vld", 1);
+  b.AddDataInputAsBits("operand_1", 32);
+  b.AddDataInputAsBits("operand_1_vld", 1);
+  b.AddDataInputAsBits("result_rdy", 1);
+  b.AddDataOutputAsBits("result", 32);
+  b.AddDataOutputAsBits("result_vld", 1);
+  b.AddDataOutputAsBits("operand_0_rdy", 1);
+  b.AddDataOutputAsBits("operand_1_rdy", 1);
+  b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "operand_0", "operand_0_vld", "operand_0_rdy");
+  b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "operand_1", "operand_1_vld", "operand_1_rdy");
+  b.AddStreamingChannel("result", ChannelOps::kSendOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42, "result",
+                        "result_vld", "result_rdy");
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ModuleSimulator simulator = NewModuleSimulator(text, signature);
+
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["result"] = 2;
+  {
+    // Test with Bits.
+    absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+    input_values["operand_0"] = {UBits(41, 32), UBits(32, 32)};
+    input_values["operand_1"] = {UBits(1, 32), UBits(32, 32)};
+
+    absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+    result_values["result"] = {UBits(42, 32), UBits(64, 32)};
+    EXPECT_THAT(
+        simulator.RunInputSeriesProc(input_values, output_channel_counts),
+        IsOkAndHolds(result_values));
+  }
+  {
+    // Test with Values.
+    absl::flat_hash_map<std::string, std::vector<Value>> input_values;
+    input_values["operand_0"] = {Value(UBits(41, 32)), Value(UBits(32, 32))};
+    input_values["operand_1"] = {Value(UBits(1, 32)), Value(UBits(32, 32))};
+
+    absl::flat_hash_map<std::string, std::vector<Value>> result_values;
+    result_values["result"] = {Value(UBits(42, 32)), Value(UBits(64, 32))};
+    EXPECT_THAT(
+        simulator.RunInputSeriesProc(input_values, output_channel_counts),
+        IsOkAndHolds(result_values));
+  }
+}
+
+TEST_P(ModuleSimulatorTest, RunInputSeriesProcPipeline) {
+  const std::string text = R"(
+module proc_adder_pipeline(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] operand_0,
+  input wire operand_0_vld,
+  input wire [31:0] operand_1,
+  input wire operand_1_vld,
+  input wire result_rdy,
+  output wire [31:0] result,
+  output wire result_vld,
+  output wire operand_0_rdy,
+  output wire operand_1_rdy
+);
+  reg [31:0] p0_operand_0_val;
+  reg [31:0] p0_operand_1_val;
+  reg p0_valid;
+  reg [31:0] __operand_0_reg;
+  reg __operand_0_valid_reg;
+  reg [31:0] __operand_1_reg;
+  reg __operand_1_valid_reg;
+  reg [31:0] __result_reg;
+  reg __result_valid_reg;
+  wire result_valid_inv;
+  wire __result_vld_buf;
+  wire result_valid_load_en;
+  wire result_load_en;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire and_53;
+  wire p0_data_enable;
+  wire p0_load_en;
+  wire operand_0_valid_inv;
+  wire operand_1_valid_inv;
+  wire operand_0_valid_load_en;
+  wire operand_1_valid_load_en;
+  wire operand_0_load_en;
+  wire operand_1_load_en;
+  wire [31:0] result_val;
+  assign result_valid_inv = ~__result_valid_reg;
+  assign __result_vld_buf = p0_valid;
+  assign result_valid_load_en = result_rdy | result_valid_inv;
+  assign result_load_en = __result_vld_buf & result_valid_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p0_valid & result_load_en | p1_not_valid;
+  assign and_53 = __operand_0_valid_reg & __operand_1_valid_reg;
+  assign p0_data_enable = p0_enable & and_53;
+  assign p0_load_en = p0_data_enable | rst;
+  assign operand_0_valid_inv = ~__operand_0_valid_reg;
+  assign operand_1_valid_inv = ~__operand_1_valid_reg;
+  assign operand_0_valid_load_en = p0_load_en | operand_0_valid_inv;
+  assign operand_1_valid_load_en = p0_load_en | operand_1_valid_inv;
+  assign operand_0_load_en = operand_0_vld & operand_0_valid_load_en;
+  assign operand_1_load_en = operand_1_vld & operand_1_valid_load_en;
+  assign result_val = p0_operand_0_val + p0_operand_1_val;
+  always @ (posedge clk) begin
+    p0_operand_0_val <= p0_load_en ? __operand_0_reg : p0_operand_0_val;
+    p0_operand_1_val <= p0_load_en ? __operand_1_reg : p0_operand_1_val;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+      __operand_0_reg <= 32'h0000_0000;
+      __operand_0_valid_reg <= 1'h0;
+      __operand_1_reg <= 32'h0000_0000;
+      __operand_1_valid_reg <= 1'h0;
+      __result_reg <= 32'h0000_0000;
+      __result_valid_reg <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? and_53 : p0_valid;
+      __operand_0_reg <= operand_0_load_en ? operand_0 : __operand_0_reg;
+      __operand_0_valid_reg <= operand_0_valid_load_en ? operand_0_vld : __operand_0_valid_reg;
+      __operand_1_reg <= operand_1_load_en ? operand_1 : __operand_1_reg;
+      __operand_1_valid_reg <= operand_1_valid_load_en ? operand_1_vld : __operand_1_valid_reg;
+      __result_reg <= result_load_en ? result_val : __result_reg;
+      __result_valid_reg <= result_valid_load_en ? __result_vld_buf : __result_valid_reg;
+    end
+  end
+  assign result = __result_reg;
+  assign result_vld = __result_valid_reg;
+  assign operand_0_rdy = operand_0_load_en;
+  assign operand_1_rdy = operand_1_load_en;
+endmodule
+
+)";
+
+  ModuleSignatureBuilder b("proc_adder_pipeline");
+  b.WithClock("clk");
+  b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
+  b.WithPipelineInterface(2, 1);
+  b.AddDataInputAsBits("operand_0", 32);
+  b.AddDataInputAsBits("operand_0_vld", 1);
+  b.AddDataInputAsBits("operand_1", 32);
+  b.AddDataInputAsBits("operand_1_vld", 1);
+  b.AddDataInputAsBits("result_rdy", 1);
+  b.AddDataOutputAsBits("result", 32);
+  b.AddDataOutputAsBits("result_vld", 1);
+  b.AddDataOutputAsBits("operand_0_rdy", 1);
+  b.AddDataOutputAsBits("operand_1_rdy", 1);
+  b.AddStreamingChannel("operand_0", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "operand_0", "operand_0_vld", "operand_0_rdy");
+  b.AddStreamingChannel("operand_1", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "operand_1", "operand_1_vld", "operand_1_rdy");
+  b.AddStreamingChannel("result", ChannelOps::kSendOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42, "result",
+                        "result_vld", "result_rdy");
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ModuleSimulator simulator = NewModuleSimulator(text, signature);
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["result"] = 2;
+  {
+    // Test with Bits.
+    absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+    input_values["operand_0"] = {UBits(41, 32), UBits(32, 32)};
+    input_values["operand_1"] = {UBits(1, 32), UBits(32, 32)};
+
+    absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+    result_values["result"] = {UBits(42, 32), UBits(64, 32)};
+    EXPECT_THAT(
+        simulator.RunInputSeriesProc(input_values, output_channel_counts),
+        IsOkAndHolds(result_values));
+  }
+  {
+    // Test with Values.
+    absl::flat_hash_map<std::string, std::vector<Value>> input_values;
+    input_values["operand_0"] = {Value(UBits(41, 32)), Value(UBits(32, 32))};
+    input_values["operand_1"] = {Value(UBits(1, 32)), Value(UBits(32, 32))};
+
+    absl::flat_hash_map<std::string, std::vector<Value>> result_values;
+    result_values["result"] = {Value(UBits(42, 32)), Value(UBits(64, 32))};
+    EXPECT_THAT(
+        simulator.RunInputSeriesProc(input_values, output_channel_counts),
+        IsOkAndHolds(result_values));
+  }
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorTestInstantiation, ModuleSimulatorTest,
-                         testing::ValuesIn(kVerilogOnlySimulationTargets),
+                         testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleSimulatorTest>);
 
 }  // namespace

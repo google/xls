@@ -15,10 +15,12 @@
 #include "xls/simulation/module_simulator.h"
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/flattening.h"
@@ -26,7 +28,9 @@
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/simulation/module_testbench.h"
+#include "xls/tools/eval_helpers.h"
 
 namespace xls {
 namespace verilog {
@@ -49,6 +53,24 @@ absl::flat_hash_map<std::string, std::optional<Bits>> InitValuesToX(
     init_values[name] = std::nullopt;
   }
   return init_values;
+}
+
+// Converts a list of IR Value to a list of IR Bits.
+std::vector<Bits> ValueListToBitsList(const absl::Span<const Value>& values) {
+  std::vector<Bits> bits_list;
+  for (const Value& value : values) {
+    bits_list.push_back(FlattenValueToBits(value));
+  }
+  return bits_list;
+}
+
+// Converts a list of IR Bits to a list of IR Values.
+std::vector<Value> BitsListToValueList(const absl::Span<const Bits>& bits) {
+  std::vector<Value> values_list;
+  for (const Bits& bits : bits) {
+    values_list.push_back(Value(bits));
+  }
+  return values_list;
 }
 
 }  // namespace
@@ -292,6 +314,186 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
     outputs.push_back(std::move(output));
   }
   return outputs;
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Bits>>>
+ModuleSimulator::RunInputSeriesProc(
+    const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+    const absl::flat_hash_map<std::string, int64_t>& output_channel_counts)
+    const {
+  XLS_VLOG(1) << "Running Verilog module with signature:\n"
+              << signature_.ToString();
+  if (XLS_VLOG_IS_ON(1)) {
+    absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
+    for (const auto& [channel_name, channel_values] : channel_inputs) {
+      channel_inputs_values[channel_name] = BitsListToValueList(channel_values);
+    }
+    XLS_VLOG(1) << "Input channel values:\n";
+    XLS_VLOG(1) << ChannelValuesToString(channel_inputs_values);
+  }
+  XLS_VLOG(2) << "Verilog:\n" << verilog_text_;
+
+  if (channel_inputs.empty()) {
+    return absl::flat_hash_map<std::string, std::vector<Bits>>();
+  }
+
+  for (const auto& [channel_name, channel_values] : channel_inputs) {
+    XLS_RETURN_IF_ERROR(
+        signature_.ValidateChannelInputs({channel_name, channel_values}));
+  }
+
+  // Ensure all output channels have an expected read count.
+  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
+    std::string_view channel_name = channel_proto.name();
+    if (!output_channel_counts.contains(channel_name)) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Channel '%s' not found in expected output channel counts map.",
+          channel_name));
+    }
+    int64_t read_count = output_channel_counts.at(channel_name);
+    if (read_count < 0) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Output channel '%s' has a negative read count.", channel_name));
+    }
+  }
+
+  if (!signature_.proto().has_clock_name() &&
+      !signature_.proto().has_combinational()) {
+    return absl::InvalidArgumentError("Expected clock in signature");
+  }
+
+  ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
+                     includes_);
+
+  int64_t max_channel_reads = 0;
+  for (const auto& [_, read_count] : output_channel_counts) {
+    max_channel_reads = std::max(max_channel_reads, read_count);
+  }
+
+  // TODO(vmirian) : 10-30-2022 Ensure semantics work for single value channel.
+  for (const auto& [channel_name, channel_values] : channel_inputs) {
+    XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
+                         signature_.GetInputChannelProtoByName(channel_name));
+    absl::flat_hash_map<std::string, std::optional<Bits>>
+        owned_signals_to_drive;
+    std::string_view data_port_name = channel_proto.data_port_name();
+    owned_signals_to_drive[data_port_name] = std::nullopt;
+    std::optional<std::string> valid_port_name;
+    std::optional<std::string> ready_port_name;
+    if (channel_proto.has_valid_port_name()) {
+      valid_port_name = channel_proto.valid_port_name();
+      owned_signals_to_drive[valid_port_name.value()] = UBits(0, 1);
+    }
+    if (channel_proto.has_ready_port_name()) {
+      ready_port_name = channel_proto.ready_port_name();
+    }
+    ModuleTestbenchThread& tbt =
+        tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false);
+    for (const Bits& value : channel_values) {
+      tbt.Set(data_port_name, value);
+      if (valid_port_name.has_value()) {
+        tbt.Set(valid_port_name.value(), UBits(1, 1));
+      }
+      tbt.NextCycle();
+      if (ready_port_name.has_value()) {
+        tbt.WaitFor(ready_port_name.value());
+      }
+    }
+    if (valid_port_name.has_value()) {
+      tbt.SetX(valid_port_name.value());
+    }
+  }
+  // Use std::unique_ptr for pointer stability necessary for
+  // ModuleTestbench::Capture().
+  using OutputMap = absl::flat_hash_map<std::string, std::unique_ptr<Bits>>;
+  std::vector<OutputMap> stable_outputs(max_channel_reads);
+  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
+    std::string_view data_port_name = channel_proto.data_port_name();
+    absl::flat_hash_map<std::string, std::optional<Bits>>
+        owned_signals_to_drive;
+    std::vector<std::string> input_driver_names;
+    std::optional<std::string> valid_port_name;
+    std::optional<std::string> ready_port_name;
+    if (channel_proto.has_valid_port_name()) {
+      valid_port_name = channel_proto.valid_port_name();
+    }
+    if (channel_proto.has_ready_port_name()) {
+      ready_port_name = channel_proto.ready_port_name();
+      owned_signals_to_drive[ready_port_name.value()] = UBits(0, 1);
+    }
+    ModuleTestbenchThread& tbt = tb.CreateThread(owned_signals_to_drive);
+    for (int64_t read_count = 0;
+         read_count < output_channel_counts.at(channel_proto.name());
+         ++read_count) {
+      if (ready_port_name.has_value()) {
+        tbt.Set(ready_port_name.value(), UBits(1, 1));
+      }
+      if (valid_port_name.has_value()) {
+        tbt.WaitFor(valid_port_name.value());
+      }
+      OutputMap& outputs = stable_outputs[read_count];
+      outputs[data_port_name] = std::make_unique<Bits>();
+      tbt.Capture(data_port_name, outputs.at(data_port_name).get());
+      tbt.NextCycle();
+    }
+    if (ready_port_name.has_value()) {
+      tbt.SetX(ready_port_name.value());
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(tb.Run());
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> channel_outputs;
+  for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
+    channel_outputs[channel_proto.name()] = std::vector<Bits>();
+  }
+
+  for (const OutputMap& outputs : stable_outputs) {
+    for (const auto& [data_port_name, value] : outputs) {
+      XLS_ASSIGN_OR_RETURN(std::string channel_name,
+                           signature_.GetChannelNameWith(data_port_name));
+      XLS_ASSIGN_OR_RETURN(
+          ChannelProto channel_proto,
+          signature_.GetOutputChannelProtoByName(channel_name));
+      channel_outputs[channel_proto.name()].push_back(*value);
+    }
+  }
+
+  if (XLS_VLOG_IS_ON(1)) {
+    absl::flat_hash_map<std::string, std::vector<Value>> result_channel_values;
+    for (const auto& [channel_name, channel_values] : channel_outputs) {
+      result_channel_values[channel_name] = BitsListToValueList(channel_values);
+    }
+    XLS_VLOG(1) << "Result channel values:\n";
+    XLS_VLOG(1) << ChannelValuesToString(result_channel_values);
+  }
+  return channel_outputs;
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+ModuleSimulator::RunInputSeriesProc(
+    const absl::flat_hash_map<std::string, std::vector<Value>>& channel_inputs,
+    const absl::flat_hash_map<std::string, int64_t>& output_channel_counts)
+    const {
+  if (channel_inputs.empty()) {
+    return absl::flat_hash_map<std::string, std::vector<Value>>();
+  }
+
+  using MapT = absl::flat_hash_map<std::string, std::vector<Bits>>;
+  MapT channel_inputs_bits;
+  for (const auto& [channel_name, channel_values] : channel_inputs) {
+    channel_inputs_bits[channel_name] = ValueListToBitsList(channel_values);
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      MapT channel_outputs_bits,
+      RunInputSeriesProc(channel_inputs_bits, output_channel_counts));
+
+  absl::flat_hash_map<std::string, std::vector<Value>> channel_outputs;
+  for (const auto& [channel_name, channel_values] : channel_outputs_bits) {
+    channel_outputs[channel_name] = BitsListToValueList(channel_values);
+  }
+  return channel_outputs;
 }
 
 absl::StatusOr<Value> ModuleSimulator::RunFunction(

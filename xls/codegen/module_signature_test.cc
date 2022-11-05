@@ -24,6 +24,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
@@ -182,6 +183,123 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             "streaming_out_data");
   EXPECT_FALSE(signature.streaming_channels().at(1).has_valid_port_name());
   EXPECT_FALSE(signature.streaming_channels().at(1).has_ready_port_name());
+}
+
+TEST(ModuleSignatureTest, GetByName) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+  b.AddDataOutputAsBits("streaming_in_ready", 1);
+
+  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "streaming_in_data", "streaming_in_valid",
+                        "streaming_in_ready");
+
+  b.AddDataOutputAsBits("single_val_out_port", 64);
+
+  b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
+                          "single_val_out_port");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  XLS_EXPECT_OK(signature.GetInputPortProtoByName("streaming_in_data"));
+  XLS_EXPECT_OK(signature.GetInputPortProtoByName("streaming_in_valid"));
+  XLS_EXPECT_OK(signature.GetOutputPortProtoByName("streaming_in_ready"));
+
+  XLS_EXPECT_OK(signature.GetInputChannelProtoByName("streaming_in"));
+
+  XLS_EXPECT_OK(signature.GetOutputPortProtoByName("single_val_out_port"));
+  XLS_EXPECT_OK(signature.GetOutputChannelProtoByName("single_val_out"));
+
+  // Test that a port/channel that is an input is not an output, and vice versa.
+  EXPECT_THAT(
+      signature.GetOutputPortProtoByName("streaming_in_data"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an output")));
+  EXPECT_THAT(
+      signature.GetOutputPortProtoByName("streaming_in_valid"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an output")));
+  EXPECT_THAT(
+      signature.GetInputPortProtoByName("streaming_in_ready"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an input")));
+
+  EXPECT_THAT(
+      signature.GetOutputChannelProtoByName("streaming_in"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an output")));
+
+  EXPECT_THAT(
+      signature.GetInputPortProtoByName("single_val_out_port"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an input")));
+  EXPECT_THAT(
+      signature.GetInputChannelProtoByName("single_val_out"),
+      StatusIs(absl::StatusCode::kNotFound, HasSubstr("is not an input")));
+}
+
+TEST(ModuleSignatureTest, GetChannels) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+  b.AddDataOutputAsBits("streaming_in_ready", 1);
+
+  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "streaming_in_data", "streaming_in_valid",
+                        "streaming_in_ready");
+
+  b.AddDataOutputAsBits("single_val_out_port", 64);
+
+  b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
+                          "single_val_out_port");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  absl::Span<const ChannelProto> input_channels = signature.GetInputChannels();
+  EXPECT_EQ(input_channels.size(), 1);
+  EXPECT_EQ(input_channels.at(0).name(), "streaming_in");
+
+  absl::Span<const ChannelProto> output_channels =
+      signature.GetOutputChannels();
+  EXPECT_EQ(output_channels.size(), 1);
+  EXPECT_EQ(output_channels.at(0).name(), "single_val_out");
+}
+
+TEST(ModuleSignatureTest, GetChannelNameWith) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+  b.AddDataOutputAsBits("streaming_in_ready", 1);
+
+  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "streaming_in_data", "streaming_in_valid",
+                        "streaming_in_ready");
+
+  b.AddDataOutputAsBits("single_val_out_port", 64);
+
+  b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
+                          "single_val_out_port");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  EXPECT_THAT(signature.GetChannelNameWith("streaming_in_data"),
+              IsOkAndHolds("streaming_in"));
+  EXPECT_THAT(signature.GetChannelNameWith("streaming_in_valid"),
+              IsOkAndHolds("streaming_in"));
+  EXPECT_THAT(signature.GetChannelNameWith("streaming_in_ready"),
+              IsOkAndHolds("streaming_in"));
+
+  EXPECT_THAT(signature.GetChannelNameWith("single_val_out_port"),
+              IsOkAndHolds("single_val_out"));
+
+  EXPECT_THAT(signature.GetChannelNameWith("does not exist"),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("is not referenced by a channel")));
 }
 
 TEST(ModuleSignatureTest, RemoveStreamingChannel) {

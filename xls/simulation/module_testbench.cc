@@ -221,7 +221,7 @@ ModuleTestbenchThread& ModuleTestbenchThread::Capture(
 }
 
 int64_t ModuleTestbenchThread::GetSignalWidth(std::string_view name) {
-  if (name == done_signal_name_) {
+  if (done_signal_name_.has_value() && name == done_signal_name_.value()) {
     return 1;
   }
   if (shared_data_->input_port_widths.contains(name)) {
@@ -231,7 +231,9 @@ int64_t ModuleTestbenchThread::GetSignalWidth(std::string_view name) {
 }
 
 void ModuleTestbenchThread::CheckCanDriveSignal(std::string_view name) {
-  XLS_CHECK(owned_signals_to_drive_.contains(name) || name == done_signal_name_)
+  XLS_CHECK(
+      owned_signals_to_drive_.contains(name) ||
+      (done_signal_name_.has_value() && name == done_signal_name_.value()))
       << absl::StrFormat(
              "'%s' is not a signal that the thread is designated to drive.",
              name);
@@ -413,8 +415,10 @@ void ModuleTestbenchThread::EmitInto(
                 signal_refs.at(c.signal_name)});
       }};
   // The first statement must be to deassert the done signal of the thread.
-  absl::visit(visitor,
-              Action{SetSignal{std::string(done_signal_name_), UBits(0, 1)}});
+  if (done_signal_name_.has_value()) {
+    absl::visit(visitor,
+                Action{SetSignal{done_signal_name_.value(), UBits(0, 1)}});
+  }
   // Wait for a cycle is part of original protocol.
   absl::visit(visitor, Action{AdvanceCycle{1}});
 
@@ -440,8 +444,10 @@ void ModuleTestbenchThread::EmitInto(
     absl::visit(visitor, action);
   }
   // The last statement must be to assert the done signal of the thread.
-  absl::visit(visitor,
-              Action{SetSignal{std::string(done_signal_name_), UBits(1, 1)}});
+  if (done_signal_name_.has_value()) {
+    absl::visit(visitor,
+                Action{SetSignal{done_signal_name_.value(), UBits(1, 1)}});
+  }
 }
 
 ModuleTestbench::ModuleTestbench(Module* module,
@@ -547,9 +553,13 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
 
 ModuleTestbenchThread& ModuleTestbench::CreateThread(
     std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
-        owned_signals_to_drive) {
-  std::string done_signal_name =
-      absl::StrFormat("is_thread_%s_done", std::to_string(threads_.size()));
+        owned_signals_to_drive,
+    bool emit_done_signal) {
+  std::optional<std::string> done_signal_name = std::nullopt;
+  if (emit_done_signal) {
+    done_signal_name =
+        absl::StrFormat("is_thread_%s_done", std::to_string(threads_.size()));
+  }
   if (!owned_signals_to_drive.has_value()) {
     owned_signals_to_drive =
         absl::flat_hash_map<std::string, std::optional<Bits>>();
@@ -561,7 +571,7 @@ ModuleTestbenchThread& ModuleTestbench::CreateThread(
     }
   }
   threads_.push_back(std::make_unique<ModuleTestbenchThread>(
-      &shared_data_, done_signal_name, owned_signals_to_drive.value()));
+      &shared_data_, owned_signals_to_drive.value(), done_signal_name));
   ModuleTestbenchThread& thread = *threads_.back();
   return thread;
 }
@@ -669,11 +679,14 @@ std::string ModuleTestbench::GenerateVerilog() {
 
   std::vector<LogicRef*> done_signal_refs;
   for (int64_t index = 0; index < threads_.size(); ++index) {
+    if (!threads_[index]->done_signal_name().has_value()) {
+      continue;
+    }
     LogicRef* ref =
-        m->AddReg(threads_[index]->done_signal_name(),
+        m->AddReg(threads_[index]->done_signal_name().value(),
                   file.BitVectorType(1, SourceInfo()), SourceInfo());
     done_signal_refs.push_back(ref);
-    signal_refs[threads_[index]->done_signal_name()] = ref;
+    signal_refs[threads_[index]->done_signal_name().value()] = ref;
   }
 
   {

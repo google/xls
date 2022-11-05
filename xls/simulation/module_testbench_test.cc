@@ -117,7 +117,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineZeroThreads) {
   XLS_ASSERT_OK(tb.Run());
 }
 
-TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineTwoThreads) {
+TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineThreeThreadsWithDoneSignal) {
   VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageAdderPipeline(&f);
 
@@ -133,6 +133,51 @@ TEST_P(ModuleTestbenchTest, TwoStageAdderPipelineTwoThreads) {
   ModuleTestbenchThread& operand_1 =
       tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{
           {"operand_1", UBits(0, 16)}});
+  ModuleTestbenchThread& result =
+      tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{});
+  operand_0.Set("operand_0", 0x21);
+  operand_1.Set("operand_1", 0x21);
+  operand_0.NextCycle().Set("operand_0", 0x32);
+  operand_1.NextCycle().Set("operand_1", 0x32);
+  operand_0.NextCycle().Set("operand_0", 0x80);
+  operand_1.NextCycle().Set("operand_1", 0x2a);
+  operand_0.NextCycle().SetX("operand_0");
+  operand_1.NextCycle().SetX("operand_1");
+  result.ExpectX("out")
+      .NextCycle()
+      .ExpectX("out")
+      .NextCycle()
+      .ExpectEq("out", 0x42)
+      .NextCycle()
+      .ExpectEq("out", 0x64)
+      .NextCycle()
+      .ExpectEq("out", 0xaa);
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 tb.GenerateVerilog());
+
+  XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(ModuleTestbenchTest,
+       TwoStageAdderPipelineThreeThreadsWithDoneSignalAtOutputOnly) {
+  VerilogFile f = NewVerilogFile();
+  Module* m = MakeTwoStageAdderPipeline(&f);
+
+  ResetProto reset_proto;
+  reset_proto.set_name("reset");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  ModuleTestbench tb(m, GetSimulator(), "clk", reset_proto);
+  ModuleTestbenchThread& operand_0 = tb.CreateThread(
+      absl::flat_hash_map<std::string, std::optional<Bits>>{
+          {"operand_0", UBits(0, 16)}},
+      /*emit_done_signal=*/false);
+  ModuleTestbenchThread& operand_1 = tb.CreateThread(
+      absl::flat_hash_map<std::string, std::optional<Bits>>{
+          {"operand_1", UBits(0, 16)}},
+      /*emit_done_signal=*/false);
   ModuleTestbenchThread& result =
       tb.CreateThread(absl::flat_hash_map<std::string, std::optional<Bits>>{});
   operand_0.Set("operand_0", 0x21);
@@ -373,7 +418,7 @@ TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleTestbenchTestInstantiation, ModuleTestbenchTest,
-                         testing::ValuesIn(kVerilogOnlySimulationTargets),
+                         testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<ModuleTestbenchTest>);
 
 }  // namespace

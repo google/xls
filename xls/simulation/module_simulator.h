@@ -66,6 +66,20 @@ class ModuleSimulator {
   absl::StatusOr<std::vector<Value>> RunBatched(
       absl::Span<const absl::flat_hash_map<std::string, Value>> inputs) const;
 
+  // Runs the given channel inputs and expects a number of values at an output
+  // channel on the a design under test (DUT) derived from a proc.
+  absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Bits>>>
+  RunInputSeriesProc(
+      const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts)
+      const;
+  // Overload of the above function that accepts Values rather than Bits.
+  absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+  RunInputSeriesProc(const absl::flat_hash_map<std::string, std::vector<Value>>&
+                         channel_inputs,
+                     const absl::flat_hash_map<std::string, int64_t>&
+                         output_channel_counts) const;
+
   // Runs a function with arguments as a Span.
   absl::StatusOr<Value> RunFunction(absl::Span<const Value> inputs) const;
 

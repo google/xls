@@ -14,8 +14,11 @@
 
 #include "xls/codegen/module_signature.h"
 
+#include <cstdint>
 #include <memory>
+#include <string_view>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -238,17 +241,160 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRamRWPort(
   return *this;
 }
 
-absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
-  return ModuleSignature::FromProto(proto_);
-}
-
-/*static*/ absl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
-    const ModuleSignatureProto& proto) {
+static absl::Status ValidateProto(const ModuleSignatureProto& proto) {
   // TODO(meheff): do more validation here.
   // Validate widths/number of function type.
   if (proto.has_pipeline() && !proto.has_clock_name()) {
     return absl::InvalidArgumentError("Missing clock signal");
   }
+  for (const PortProto& port : proto.data_ports()) {
+    if (!port.has_name() || port.name().empty()) {
+      return absl::InvalidArgumentError("A name is required for all ports.");
+    }
+    if (port.direction() == DirectionProto::DIRECTION_INVALID) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' has an invalid port direction.", port.name()));
+    }
+  }
+  auto data_ports = proto.data_ports();
+  absl::flat_hash_map<std::string, int64_t> name_data_ports_map;
+  for (int64_t index = 0; index < data_ports.size(); ++index) {
+    std::string_view port_name = data_ports[index].name();
+    if (name_data_ports_map.contains(port_name)) {
+      return absl::FailedPreconditionError(absl::StrFormat(
+          "Port name '%s' found more than once in signature proto.",
+          port_name));
+    }
+    name_data_ports_map[data_ports[index].name()] = index;
+  }
+
+  absl::flat_hash_map<std::string, std::string> port_name_to_channel_reference;
+  for (const ChannelProto& channel : proto.data_channels()) {
+    if (!channel.has_name() || channel.name().empty()) {
+      return absl::InvalidArgumentError("A name is required for all channels.");
+    }
+
+    if (channel.supported_ops() == ChannelOpsProto::CHANNEL_OPS_INVALID) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Channel '%s' has an invalid entry for support ops.",
+                          channel.name()));
+    }
+
+    if (channel.kind() == ChannelKindProto::CHANNEL_KIND_INVALID) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Channel '%s' has an invalid kind.", channel.name()));
+    }
+
+    if (!channel.has_data_port_name() || channel.data_port_name().empty()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "The data port of channel '%s' is not assigned.", channel.name()));
+    }
+
+    // Ensure the channel names exist in the port list.
+    if (channel.has_data_port_name() &&
+        !name_data_ports_map.contains(channel.data_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' of channel '%s' is not present in the port list.",
+          channel.data_port_name(), channel.name()));
+    }
+    if (channel.has_valid_port_name() &&
+        !name_data_ports_map.contains(channel.valid_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' of channel '%s' is not present in the port list.",
+          channel.valid_port_name(), channel.name()));
+    }
+    if (channel.has_ready_port_name() &&
+        !name_data_ports_map.contains(channel.ready_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' of channel '%s' is not present in the port list.",
+          channel.ready_port_name(), channel.name()));
+    }
+
+    // Ensure that ports are referenced by at most one channel.
+    if (port_name_to_channel_reference.contains(channel.data_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' referenced by more than one channel: found in channel "
+          "'%s' and channel '%s'.",
+          channel.data_port_name(),
+          port_name_to_channel_reference[channel.data_port_name()],
+          channel.name()));
+    }
+    if (channel.has_valid_port_name() &&
+        port_name_to_channel_reference.contains(channel.valid_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' referenced by more than one channel: found in channel "
+          "'%s' and channel '%s'.",
+          channel.valid_port_name(),
+          port_name_to_channel_reference[channel.valid_port_name()],
+          channel.name()));
+    }
+    if (channel.has_ready_port_name() &&
+        port_name_to_channel_reference.contains(channel.ready_port_name())) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Port '%s' referenced by more than one channel: found in channel "
+          "'%s' and channel '%s'.",
+          channel.ready_port_name(),
+          port_name_to_channel_reference[channel.ready_port_name()],
+          channel.name()));
+    }
+
+    // TODO (vmirian): 10-30-2022 Investigate that channel port directions can
+    // be derived from channel ops.
+    int64_t data_port_index = name_data_ports_map[channel.data_port_name()];
+    if (channel.has_valid_port_name()) {
+      int64_t valid_port_index = name_data_ports_map[channel.valid_port_name()];
+      PortProto data_port = proto.data_ports(data_port_index);
+      PortProto valid_port = proto.data_ports(valid_port_index);
+      if (data_port.direction() != valid_port.direction()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "For channel '%s', data port '%s' and valid port '%s' must have "
+            "the same direction.",
+            data_port.name(), valid_port.name(), channel.name()));
+      }
+      if (valid_port.width() != 1) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "For channel '%s', valid port '%s' must have a width of 1 bit.",
+            valid_port.name(), channel.name()));
+      }
+    }
+    if (channel.has_ready_port_name()) {
+      int64_t ready_port_index = name_data_ports_map[channel.valid_port_name()];
+      PortProto data_port = proto.data_ports(data_port_index);
+      PortProto ready_port = proto.data_ports(ready_port_index);
+      if (data_port.direction() != ready_port.direction()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "For channel '%s', data port '%s' and ready port '%s' must have "
+            "the same direction.",
+            data_port.name(), ready_port.name(), channel.name()));
+      }
+      if (ready_port.width() != 1) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "For channel '%s', ready port '%s' must have a width of 1 bit.",
+            ready_port.name(), channel.name()));
+      }
+    }
+
+    port_name_to_channel_reference[channel.data_port_name()] = channel.name();
+    if (channel.has_valid_port_name()) {
+      port_name_to_channel_reference[channel.valid_port_name()] =
+          channel.name();
+    }
+    if (channel.has_ready_port_name()) {
+      port_name_to_channel_reference[channel.ready_port_name()] =
+          channel.name();
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
+  XLS_RETURN_IF_ERROR(ValidateProto(proto_));
+  return ModuleSignature::FromProto(proto_);
+}
+
+/*static*/ absl::StatusOr<ModuleSignature> ModuleSignature::FromProto(
+    const ModuleSignatureProto& proto) {
+  XLS_RETURN_IF_ERROR(ValidateProto(proto));
 
   ModuleSignature signature;
   signature.proto_ = proto;
@@ -262,6 +408,24 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
     }
   }
 
+  // Makes a name-port map from the port list.
+  auto port_map_builder = [&](const std::vector<PortProto>& ports)
+      -> absl::StatusOr<absl::flat_hash_map<
+          std::string, std::vector<PortProto>::const_iterator>> {
+    absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
+        name_port_map;
+    for (std::vector<PortProto>::const_iterator iter = ports.cbegin();
+         iter != ports.cend(); ++iter) {
+      name_port_map[iter->name()] = iter;
+    }
+    return name_port_map;
+  };
+
+  XLS_ASSIGN_OR_RETURN(signature.input_port_map_,
+                       port_map_builder(signature.data_inputs_));
+  XLS_ASSIGN_OR_RETURN(signature.output_port_map_,
+                       port_map_builder(signature.data_outputs_));
+
   for (const ChannelProto& channel : proto.data_channels()) {
     if (channel.kind() == CHANNEL_KIND_SINGLE_VALUE) {
       signature.single_value_channels_.push_back(channel);
@@ -269,6 +433,53 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
       signature.streaming_channels_.push_back(channel);
     } else {
       return absl::InvalidArgumentError("Invalid channel kind.");
+    }
+  }
+
+  for (const ChannelProto& channel : proto.data_channels()) {
+    if (signature.input_port_map_.contains(channel.data_port_name())) {
+      signature.input_channels_.push_back(channel);
+    } else {
+      signature.output_channels_.push_back(channel);
+    }
+  }
+  // Creates a name-channel map from the channel list.
+  //
+  // TODO (vmirian) : 10-28-2022 There may be an efficient way to implement
+  // the following by using channel ops.
+  auto channel_map_builder = [&](const std::vector<ChannelProto>& channels)
+      -> absl::StatusOr<absl::flat_hash_map<
+          std::string, std::vector<ChannelProto>::const_iterator>> {
+    absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
+        name_channel_map;
+    for (std::vector<ChannelProto>::const_iterator iter = channels.cbegin();
+         iter != channels.cend(); ++iter) {
+      std::string_view channel_name = iter->name();
+      if (name_channel_map.contains(channel_name)) {
+        return absl::FailedPreconditionError(absl::StrFormat(
+            "Channel name '%s' found more than once in signature proto.",
+            channel_name));
+      }
+      name_channel_map[channel_name] = iter;
+    }
+    return name_channel_map;
+  };
+
+  XLS_ASSIGN_OR_RETURN(signature.input_channel_map_,
+                       channel_map_builder(signature.input_channels_));
+  XLS_ASSIGN_OR_RETURN(signature.output_channel_map_,
+                       channel_map_builder(signature.output_channels_));
+
+  for (const ChannelProto& channel : proto.data_channels()) {
+    signature.port_name_to_channel_name[channel.data_port_name()] =
+        channel.name();
+    if (channel.has_valid_port_name()) {
+      signature.port_name_to_channel_name[channel.valid_port_name()] =
+          channel.name();
+    }
+    if (channel.has_ready_port_name()) {
+      signature.port_name_to_channel_name[channel.ready_port_name()] =
+          channel.name();
     }
   }
 
@@ -295,9 +506,9 @@ int64_t ModuleSignature::TotalDataOutputBits() const {
   return total;
 }
 
-// Checks that the given inputs match one-to-one to the input ports (matched by
-// name). Returns a vector containing the inputs in the same order as the input
-// ports.
+// Checks that the given inputs match one-to-one to the input ports (matched
+// by name). Returns a vector containing the inputs in the same order as the
+// input ports.
 template <typename T>
 static absl::StatusOr<std::vector<const T*>> CheckAndReturnOrderedInputs(
     absl::Span<const PortProto> input_ports,
@@ -384,6 +595,49 @@ absl::Status ModuleSignature::ValidateInputs(
   return absl::OkStatus();
 }
 
+absl::Status ModuleSignature::ValidateChannelInputs(
+    const std::pair<std::string, std::vector<Bits>>& channel_values) const {
+  if (!input_channel_map_.contains(channel_values.first)) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Channel '%s' is not an input channel.", channel_values.first));
+  }
+  const ChannelProto& channel = *input_channel_map_.at(channel_values.first);
+  PortProto port = *input_port_map_.at(channel.data_port_name());
+  absl::Span<const Bits> values = channel_values.second;
+  for (const Bits& value : values) {
+    if (port.width() != value.bit_count()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected input '%s' to have width %d, has width %d",
+                          port.name(), port.width(), value.bit_count()));
+    }
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ModuleSignature::ValidateChannelInputs(
+    const std::pair<std::string, std::vector<Value>>& channel_values) const {
+  if (!input_channel_map_.contains(channel_values.first)) {
+    return absl::FailedPreconditionError(absl::StrFormat(
+        "Channel '%s' is not an input channel.", channel_values.first));
+  }
+  const ChannelProto& channel = *input_channel_map_.at(channel_values.first);
+  TypeProto expected_type_proto =
+      input_port_map_.at(channel.data_port_name())->type();
+  absl::Span<const Value> values = channel_values.second;
+  for (const Value& value : values) {
+    XLS_ASSIGN_OR_RETURN(TypeProto value_type_proto, value.TypeAsProto());
+    XLS_ASSIGN_OR_RETURN(bool types_equal, TypeProtosEqual(expected_type_proto,
+                                                           value_type_proto));
+    if (!types_equal) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Input value '%s' is wrong type. Expected '%s', got '%s'",
+          channel.data_port_name(), TypeProtoToString(expected_type_proto),
+          TypeProtoToString(value_type_proto)));
+    }
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<absl::flat_hash_map<std::string, Value>>
 ModuleSignature::ToKwargs(absl::Span<const Value> inputs) const {
   if (inputs.size() != data_inputs().size()) {
@@ -395,6 +649,51 @@ ModuleSignature::ToKwargs(absl::Span<const Value> inputs) const {
     kwargs[data_inputs()[i].name()] = inputs[i];
   }
   return kwargs;
+}
+
+absl::StatusOr<PortProto> ModuleSignature::GetInputPortProtoByName(
+    std::string_view name) const {
+  if (!input_port_map_.contains(name)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Port '%s' is not an input port.", name));
+  }
+  return *input_port_map_.at(name);
+}
+
+absl::StatusOr<PortProto> ModuleSignature::GetOutputPortProtoByName(
+    std::string_view name) const {
+  if (!output_port_map_.contains(name)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Port '%s' is not an output port.", name));
+  }
+  return *output_port_map_.at(name);
+}
+
+absl::StatusOr<ChannelProto> ModuleSignature::GetInputChannelProtoByName(
+    std::string_view name) const {
+  if (!input_channel_map_.contains(name)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Channel '%s' is not an input channel.", name));
+  }
+  return *input_channel_map_.at(name);
+}
+
+absl::StatusOr<ChannelProto> ModuleSignature::GetOutputChannelProtoByName(
+    std::string_view name) const {
+  if (!output_channel_map_.contains(name)) {
+    return absl::NotFoundError(
+        absl::StrFormat("Channel '%s' is not an output channel.", name));
+  }
+  return *output_channel_map_.at(name);
+}
+
+absl::StatusOr<std::string> ModuleSignature::GetChannelNameWith(
+    std::string_view port_name) const {
+  if (!port_name_to_channel_name.contains(port_name)) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Port name '%s' is not referenced by a channel.", port_name));
+  }
+  return port_name_to_channel_name.at(port_name);
 }
 
 absl::Status ModuleSignature::ReplaceBlockMetrics(

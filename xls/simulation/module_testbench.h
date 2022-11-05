@@ -63,15 +63,22 @@ class ModuleTestbenchThread {
   // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
   // input signals of the design under test (DUT) that the thread is capable of
   // driving.
-  ModuleTestbenchThread(const ModuleTestbenchData* shared_data,
-                        std::string_view done_signal_name,
-                        absl::flat_hash_map<std::string, std::optional<Bits>>
-                            owned_signals_to_drive)
+  //
+  // The done_signal_name is the name of the thread's done signal. The signal is
+  // used to notify the testbench that the thread is done with its execution. If
+  // its value is std::nullopt, then the thread does not emit the done signal.
+  ModuleTestbenchThread(
+      const ModuleTestbenchData* shared_data,
+      absl::flat_hash_map<std::string, std::optional<Bits>>
+          owned_signals_to_drive,
+      std::optional<std::string> done_signal_name = std::nullopt)
       : shared_data_(XLS_DIE_IF_NULL(shared_data)),
-        done_signal_name_(done_signal_name),
-        owned_signals_to_drive_(std::move(owned_signals_to_drive)) {}
+        owned_signals_to_drive_(std::move(owned_signals_to_drive)),
+        done_signal_name_(std::move(done_signal_name)) {}
 
-  std::string_view done_signal_name() const { return done_signal_name_; }
+  std::optional<std::string> done_signal_name() const {
+    return done_signal_name_;
+  }
 
   // Sets the given signal to the given value in the current
   // cycle. The value is sticky and remains driven to this value across cycle
@@ -168,15 +175,16 @@ class ModuleTestbenchThread {
   void CheckCanReadSignal(std::string_view name);
 
   const ModuleTestbenchData* shared_data_;
-  // The name of the thread's done signal. The signal is used to notify the
-  // testbench that the thread is done with its execution.
-  std::string done_signal_name_;
   // The owned_signals_to_drive_ is a name-value map with the name of the
   // input signals mapped to their initial value after reset. A value of
   // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
   // input signals of the design under test (DUT) that the thread is capable of
   // driving.
   absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive_;
+  // The name of the thread's done signal. The signal is used to notify the
+  // testbench that the thread is done with its execution. If its value is
+  // std::nullopt, then the thread does not emit the done signal.
+  std::optional<std::string> done_signal_name_;
 
   // The following structs define the actions which are set to occur during
   // simulation. This list of actions is built up by calling the methods on
@@ -276,7 +284,8 @@ class ModuleTestbench {
   // constraint on the inputs). The latter is the default value of the map.
   ModuleTestbenchThread& CreateThread(
       std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
-          owned_signals_to_drive = std::nullopt);
+          owned_signals_to_drive = std::nullopt,
+      bool emit_done_signal = true);
 
   // Generates the Verilog representation of the testbench.
   std::string GenerateVerilog();
