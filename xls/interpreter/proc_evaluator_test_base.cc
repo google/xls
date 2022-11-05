@@ -31,6 +31,32 @@ using status_testing::IsOkAndHolds;
 using testing::ElementsAre;
 using testing::Optional;
 
+TEST_P(ProcEvaluatorTestBase, EmptyProc) {
+  auto package = CreatePackage();
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
+
+  std::unique_ptr<ChannelQueueManager> queue_manager =
+      GetParam().CreateQueueManager(package.get());
+  std::unique_ptr<ProcEvaluator> evaluator =
+      GetParam().CreateEvaluator(proc, queue_manager.get());
+
+  std::unique_ptr<ProcContinuation> continuation = evaluator->NewContinuation();
+
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel = std::nullopt,
+                              .progress_made = true}));
+
+  EXPECT_THAT(
+      evaluator->Tick(*continuation),
+      IsOkAndHolds(TickResult{.execution_state = TickExecutionState::kCompleted,
+                              .channel = std::nullopt,
+                              .progress_made = true}));
+}
+
 TEST_P(ProcEvaluatorTestBase, ProcIota) {
   auto package = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(

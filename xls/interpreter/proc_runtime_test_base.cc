@@ -28,6 +28,7 @@
 namespace xls {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::Optional;
@@ -104,6 +105,29 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(std::string_view proc_name,
                            pb.Subtract(run_length, pb.Literal(UBits(1, 32)))});
 
   return pb.Build(send, {this_char, next_num_remaining});
+}
+
+TEST_P(ProcRuntimeTestBase, EmptyProc) {
+  auto package = CreatePackage();
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
+
+  std::unique_ptr<ProcRuntime> runtime =
+      GetParam().CreateRuntime(package.get());
+
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+
+  // Expecting no output should result in zero ticks because the output
+  // condition is trivially satisfied.
+  EXPECT_THAT(runtime->TickUntilOutput({}), IsOkAndHolds(0));
+
+  // Ticking until blocked should result in an error returns (max tick count
+  // reached).
+  EXPECT_THAT(runtime->TickUntilBlocked(/*max_ticks=*/100),
+              StatusIs(absl::StatusCode::kDeadlineExceeded,
+                       HasSubstr("Exceeded limit of 100 ticks")));
 }
 
 TEST_P(ProcRuntimeTestBase, ProcIotaWithExplicitTicks) {
