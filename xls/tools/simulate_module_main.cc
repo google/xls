@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
@@ -29,6 +36,7 @@
 #include "xls/ir/value.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
+#include "xls/tools/eval_helpers.h"
 
 const char kUsage[] = R"(
 Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
@@ -52,11 +60,29 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, args_file, "",
           "Batch of arguments to pass to the module, one set per line. Each "
           "line should contain a semicolon-separated set of arguments. Cannot "
-          "be specified with --args.");
+          "be specified with --args or --channel_values_file.");
 ABSL_FLAG(std::string, args, "",
           "The semicolon-separated arguments to pass to the module. The "
           "number of arguments must match the number of and types of the "
-          "inputs of the module. Cannot be specified with --args_file.");
+          "inputs of the module. Cannot be specified with --args_file or "
+          "--channel_values_file.");
+ABSL_FLAG(
+    std::string, channel_values_file, "",
+    "Path to file containing inputs for the channels.\n"
+    "The file format is:\n"
+    "CHANNEL_NAME : {\n"
+    "  VALUE\n"
+    "}\n"
+    "where CHANNEL_NAME is the name of the channel and VALUE is one XLS Value "
+    "in human-readable form. There is one VALUE per line. There may be zero or "
+    "more occurrences of VALUE for a channel. The file may contain one or more "
+    "channels. Cannot be specified with --args_file or --args.");
+ABSL_FLAG(std::vector<std::string>, output_channel_counts, {},
+          "Comma separated list of output_channel_name=count pairs, for "
+          "example: result=2. 'output_channel_name' represents an output "
+          "channel name, and 'count' is an integer representing the number of "
+          "values expected from the given channel during simulation. Must be "
+          "specified with 'channel_values_file'.");
 ABSL_FLAG(std::string, verilog_simulator, "",
           "The Verilog simulator to use. If not specified, the default "
           "simulator is used.");
@@ -68,16 +94,34 @@ ABSL_FLAG(std::string, file_type, "",
 namespace xls {
 namespace {
 
-absl::Status RealMain(std::string_view verilog_text,
-                      verilog::FileType file_type,
-                      const verilog::ModuleSignature& signature,
-                      absl::Span<const std::string> args_strings,
-                      const verilog::VerilogSimulator* verilog_simulator) {
-  verilog::ModuleSimulator simulator(signature, verilog_text, file_type,
-                                     verilog_simulator);
+struct FunctionInput {
+  std::vector<std::string> args_strings;
+};
 
+struct ProcInput {
+  absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs;
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+};
+
+using InputType = std::variant<FunctionInput, ProcInput>;
+
+absl::Status RunProc(const verilog::ModuleSimulator& simulator,
+                     const verilog::ModuleSignature& signature,
+                     ProcInput proc_input) {
+  using MapT = absl::flat_hash_map<std::string, std::vector<Value>>;
+  XLS_ASSIGN_OR_RETURN(
+      MapT channel_outputs,
+      simulator.RunInputSeriesProc(proc_input.channel_inputs,
+                                   proc_input.output_channel_counts));
+  std::cout << ChannelValuesToString(channel_outputs) << std::endl;
+  return absl::OkStatus();
+}
+
+absl::Status RunFunction(const verilog::ModuleSimulator& simulator,
+                         const verilog::ModuleSignature& signature,
+                         FunctionInput function_input) {
   std::vector<absl::flat_hash_map<std::string, Value>> args_sets;
-  for (std::string_view args_string : args_strings) {
+  for (std::string_view args_string : function_input.args_strings) {
     std::vector<Value> arg_values;
     for (std::string_view arg : absl::StrSplit(args_string, ';')) {
       XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(arg));
@@ -87,14 +131,28 @@ absl::Status RealMain(std::string_view verilog_text,
     XLS_ASSIGN_OR_RETURN(MapT args_set, signature.ToKwargs(arg_values));
     args_sets.push_back(std::move(args_set));
   }
+
   XLS_ASSIGN_OR_RETURN(std::vector<Value> outputs,
                        simulator.RunBatched(args_sets));
 
   for (const Value& output : outputs) {
     std::cout << output.ToString(FormatPreference::kHex) << std::endl;
   }
-
   return absl::OkStatus();
+}
+
+absl::Status RealMain(std::string_view verilog_text,
+                      verilog::FileType file_type,
+                      const verilog::ModuleSignature& signature,
+                      InputType inputs,
+                      const verilog::VerilogSimulator* verilog_simulator) {
+  verilog::ModuleSimulator simulator(signature, verilog_text, file_type,
+                                     verilog_simulator);
+
+  if (std::holds_alternative<FunctionInput>(inputs)) {
+    return RunFunction(simulator, signature, std::get<FunctionInput>(inputs));
+  }
+  return RunProc(simulator, signature, std::get<ProcInput>(inputs));
 }
 
 }  // namespace
@@ -147,18 +205,55 @@ int main(int argc, char** argv) {
     }
   }
 
-  std::vector<std::string> args_strings;
-  XLS_QCHECK(!absl::GetFlag(FLAGS_args).empty() ^
-             !absl::GetFlag(FLAGS_args_file).empty())
-      << "Must specify either --args_file or --args, but not both.";
-  if (!absl::GetFlag(FLAGS_args).empty()) {
-    args_strings.push_back(absl::GetFlag(FLAGS_args));
+  int64_t arg_count = absl::GetFlag(FLAGS_args).empty() ? 0 : 1;
+  arg_count += absl::GetFlag(FLAGS_args_file).empty() ? 0 : 1;
+  arg_count += absl::GetFlag(FLAGS_channel_values_file).empty() ? 0 : 1;
+  XLS_QCHECK_EQ(arg_count, 1)
+      << "Must specify one of: --args_file or --args or --channel_values_file.";
+
+  if (absl::GetFlag(FLAGS_channel_values_file).empty()) {
+    XLS_QCHECK(absl::GetFlag(FLAGS_output_channel_counts).empty())
+        << "'--output_channel_counts' can only be specified with "
+           "'--channel_values_file'.";
   } else {
-    absl::StatusOr<std::string> args_file_contents =
+    XLS_QCHECK(!absl::GetFlag(FLAGS_output_channel_counts).empty())
+        << "'--output_channel_counts' must be specified with "
+           "'--channel_values_file'.";
+  }
+
+  xls::InputType input;
+  if (!absl::GetFlag(FLAGS_args).empty()) {
+    input =
+        xls::FunctionInput{std::vector<std::string>{absl::GetFlag(FLAGS_args)}};
+  } else if (!absl::GetFlag(FLAGS_args_file).empty()) {
+    absl::StatusOr<std::string> args_file_contents_or =
         xls::GetFileContents(absl::GetFlag(FLAGS_args_file));
-    XLS_QCHECK_OK(args_file_contents.status());
-    args_strings = absl::StrSplit(args_file_contents.value(), '\n',
-                                  absl::SkipWhitespace());
+    XLS_QCHECK_OK(args_file_contents_or.status());
+    input = xls::FunctionInput{absl::StrSplit(args_file_contents_or.value(),
+                                              '\n', absl::SkipWhitespace())};
+  } else {
+    absl::StatusOr<std::string> channel_values_file_contents =
+        xls::GetFileContents(absl::GetFlag(FLAGS_channel_values_file));
+    XLS_QCHECK_OK(channel_values_file_contents.status());
+    absl::StatusOr<absl::flat_hash_map<std::string, std::vector<xls::Value>>>
+        channel_values_or =
+            xls::ParseChannelValues(channel_values_file_contents.value());
+    XLS_QCHECK_OK(channel_values_or.status());
+    absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+    for (std::string_view output_channel_count :
+         absl::GetFlag(FLAGS_output_channel_counts)) {
+      std::vector<std::string> split =
+          absl::StrSplit(output_channel_count, '=');
+      XLS_QCHECK_EQ(split.size(), 2) << "Format of 'output_channel_counts' "
+                                        "should be output_channel_name=count";
+      int64_t count;
+      bool successful = absl::SimpleAtoi(split[1], &count);
+      XLS_QCHECK(successful) << absl::StrFormat(
+          "For entry '%s', '%s' is expected to be an integer value.",
+          output_channel_count, split[1]);
+      output_channel_counts[split[0]] = count;
+    }
+    input = xls::ProcInput{channel_values_or.value(), output_channel_counts};
   }
 
   XLS_QCHECK(!absl::GetFlag(FLAGS_signature_file).empty())
@@ -171,7 +266,7 @@ int main(int argc, char** argv) {
   XLS_QCHECK_OK(signature_status.status());
 
   XLS_QCHECK_OK(xls::RealMain(verilog_text.value(), file_type,
-                              signature_status.value(), args_strings,
+                              signature_status.value(), input,
                               verilog_simulator));
 
   return EXIT_SUCCESS;

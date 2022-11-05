@@ -946,10 +946,12 @@ cc_binary(
     name = "simulate_module_main",
     srcs = ["simulate_module_main.cc"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
         "//xls/common:init_xls",
@@ -961,6 +963,7 @@ cc_binary(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
+        "//xls/tools:eval_helpers",
     ],
 )
 

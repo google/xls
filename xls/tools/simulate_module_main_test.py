@@ -23,18 +23,41 @@ from xls.common import test_base
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
 
-ADD_IR = """package add
+ADD_IR_FUNCTION = """package add
 
 top fn add(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 """
 
+ADD_IR_PROC = '''package sample
+
+file_number 0 "fake_file.x"
+
+chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+top proc __sample__main_0_next(__token: token, init={}) {
+  receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
+  receive.7: (token, bits[32]) = receive(__token, channel_id=1, id=7)
+  tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])
+  tok_operand_1_val: token = tuple_index(receive.7, index=0, id=8, pos=[(0,15,9)])
+  operand_0_val: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,14,28)])
+  operand_1_val: bits[32] = tuple_index(receive.7, index=1, id=9, pos=[(0,15,28)])
+  tok_recv: token = after_all(tok_operand_0_val, tok_operand_1_val, id=10)
+  result_val: bits[32] = add(operand_0_val, operand_1_val, id=11, pos=[(0,18,35)])
+  tok_send: token = send(tok_recv, result_val, channel_id=2, id=12)
+  after_all.14: token = after_all(__token, tok_operand_0_val, tok_operand_1_val, tok_recv, tok_send, id=14)
+  next (after_all.14)
+}
+'''
+
 
 class SimulateModuleMainTest(test_base.TestCase):
 
-  def test_single_arg_inline(self):
-    ir_file = self.create_tempfile(content=ADD_IR)
+  def test_single_arg_inline_function(self):
+    ir_file = self.create_tempfile(content=ADD_IR_FUNCTION)
     verilog_file = self.create_tempfile()
     signature_file = self.create_tempfile()
     subprocess.check_call([
@@ -53,8 +76,8 @@ class SimulateModuleMainTest(test_base.TestCase):
     ])
     self.assertEqual('bits[32]:0x82', result.decode('utf-8').strip())
 
-  def test_multi_arg_from_file(self):
-    ir_file = self.create_tempfile(content=ADD_IR)
+  def test_multi_arg_from_file_function(self):
+    ir_file = self.create_tempfile(content=ADD_IR_FUNCTION)
     verilog_file = self.create_tempfile()
     signature_file = self.create_tempfile()
     subprocess.check_call([
@@ -80,6 +103,37 @@ class SimulateModuleMainTest(test_base.TestCase):
     self.assertMultiLineEqual('bits[32]:0xf01\nbits[32]:0x2a\n',
                               result.decode('utf-8'))
 
+  def test_multi_arg_from_file_proc(self):
+    ir_file = self.create_tempfile(content=ADD_IR_PROC)
+    verilog_file = self.create_tempfile()
+    signature_file = self.create_tempfile()
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--output_verilog_path=' + verilog_file.full_path,
+        '--output_signature_path=' + signature_file.full_path,
+        '--alsologtostderr',
+        ir_file.full_path,
+    ])
+    channel_values_file = self.create_tempfile(content="""sample__operand_1 : {
+  bits[32]:0xf00
+  bits[32]:2
+}
+sample__operand_0 : {
+  bits[32]:1
+  bits[32]:40
+}
+    """)
+    result = subprocess.check_output([
+        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
+        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        '--signature_file=' + signature_file.full_path,
+        '--channel_values_file=' + channel_values_file.full_path,
+        '--output_channel_counts=sample__result=2', verilog_file.full_path
+    ])
+    self.assertMultiLineEqual(
+        'sample__result : {\n  bits[32]:0xf01\n  bits[32]:0x2a\n}\n',
+        result.decode('utf-8'))
 
 if __name__ == '__main__':
   test_base.main()
