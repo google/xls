@@ -25,6 +25,7 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
+#include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
@@ -91,7 +92,7 @@ class XlsccTestBase : public xls::IrTestBase {
     bool condition;
   };
 
-  void ProcTest(std::string content, const xlscc::HLSBlock& block_spec,
+  void ProcTest(std::string content, std::optional<xlscc::HLSBlock> block_spec,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     inputs_by_channel,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -102,8 +103,13 @@ class XlsccTestBase : public xls::IrTestBase {
   absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
       std::string_view name_cont);
 
+  absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();
+
+  absl::StatusOr<xlscc::HLSBlock> GetBlockSpec();
+
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
+  xlscc::HLSBlock block_spec_;
 };
 
 #endif  // XLS_CONTRIB_XLSCC_UNIT_TEST_H_

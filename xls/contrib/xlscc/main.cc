@@ -53,6 +53,10 @@ ABSL_FLAG(std::string, block_pb, "",
 
 ABSL_FLAG(bool, block_pb_text, false, "Input HLSBlock protobuf as textproto?");
 
+ABSL_FLAG(bool, block_from_class, false,
+          "Generate HLSBlock from top class? In this case block_pb is an "
+          "output, if specified");
+
 ABSL_FLAG(std::string, top, "", "Top function name");
 
 ABSL_FLAG(std::string, package, "", "Package name to generate");
@@ -99,15 +103,19 @@ absl::Status Run(std::string_view cpp_path) {
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 
+  const bool block_from_class = absl::GetFlag(FLAGS_block_from_class);
+
   HLSBlock block;
-  if (!block_pb_name.empty()) {
-    if (!absl::GetFlag(FLAGS_block_pb_text)) {
-      std::ifstream file_in(block_pb_name);
-      if (!block.ParseFromIstream(&file_in)) {
-        return absl::InvalidArgumentError("Couldn't parse protobuf");
+  if (!block_from_class) {
+    if (!block_pb_name.empty()) {
+      if (!absl::GetFlag(FLAGS_block_pb_text)) {
+        std::ifstream file_in(block_pb_name);
+        if (!block.ParseFromIstream(&file_in)) {
+          return absl::InvalidArgumentError("Couldn't parse protobuf");
+        }
+      } else {
+        XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(block_pb_name, &block));
       }
-    } else {
-      XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(block_pb_name, &block));
     }
   }
 
@@ -183,10 +191,23 @@ absl::Status Run(std::string_view cpp_path) {
     translator.AddSourceInfoToPackage(package);
     XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   } else {
-    XLS_ASSIGN_OR_RETURN(
-        xls::Proc * proc,
-        translator.GenerateIR_Block(
-            &package, block, absl::GetFlag(FLAGS_top_level_init_interval)));
+    xls::Proc* proc = nullptr;
+
+    if (!block_from_class) {
+      XLS_ASSIGN_OR_RETURN(
+          proc,
+          translator.GenerateIR_Block(
+              &package, block, absl::GetFlag(FLAGS_top_level_init_interval)));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          proc,
+          translator.GenerateIR_BlockFromClass(
+              &package, &block, absl::GetFlag(FLAGS_top_level_init_interval)));
+
+      if (!block_pb_name.empty()) {
+        XLS_RETURN_IF_ERROR(xls::SetTextProtoFile(block_pb_name, block));
+      }
+    }
 
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
     std::cerr << "Saving Package IR..." << std::endl;

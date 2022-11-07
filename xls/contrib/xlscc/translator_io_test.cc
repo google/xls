@@ -1032,6 +1032,30 @@ TEST_F(TranslatorIOTest, SaveChannelIOInConstructor) {
       /*outputs=*/{IOOpTest("out", 5000, true), IOOpTest("out", 7 + 5, true)});
 }
 
+TEST_F(TranslatorIOTest, SaveChannelStructAssignMember) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Foo {
+         __xls_channel<int>& out_;
+         int x_ = 7;
+
+         void Run(__xls_channel<int>& in) {
+           x_ += in.read();
+           out_.write(x_);
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         Foo f = {.out_ = out};
+         f.Run(in);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 7 + 5, true)});
+}
+
 TEST_F(TranslatorIOTest, MuxTwoInputs) {
   const std::string content = R"(
     struct Foo {

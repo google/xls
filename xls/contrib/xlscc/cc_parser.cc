@@ -443,11 +443,12 @@ struct __xls_bits { };
 // Should match OpType
 enum __xls_channel_dir {
   __xls_channel_dir_Unknown=0,    // OpType::kNull
-  __xls_channel_dir_Out=2,        // OpType::kSend
-  __xls_channel_dir_In=1          // OpType::kRecv
+  __xls_channel_dir_Out=1,        // OpType::kSend
+  __xls_channel_dir_In=2          // OpType::kRecv
 };
 
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
+
 class __xls_channel {
  public:
   T read() {

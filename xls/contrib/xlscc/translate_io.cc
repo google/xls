@@ -116,9 +116,9 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
   return obj_type_ret.value()->Is<CChannelType>();
 }
 
-absl::StatusOr<std::tuple<std::shared_ptr<CType>, OpType>>
-Translator::GetChannelType(const clang::QualType& channel_type,
-                           clang::ASTContext& ctx, const xls::SourceInfo& loc) {
+absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
+    const clang::QualType& channel_type, clang::ASTContext& ctx,
+    const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_type));
   auto template_spec = clang::dyn_cast<const clang::TemplateSpecializationType>(
@@ -142,23 +142,18 @@ Translator::GetChannelType(const clang::QualType& channel_type,
   const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
                        TranslateTypeFromClang(arg.getAsType(), loc));
-  return std::tuple<std::shared_ptr<CType>, OpType>(item_type, op_type);
+  return std::make_shared<CChannelType>(item_type, op_type);
 }
 
 absl::Status Translator::CreateChannelParam(
     const clang::NamedDecl* channel_name,
-    const std::tuple<std::shared_ptr<CType>, OpType>& channel_type_tuple,
+    const std::shared_ptr<CChannelType>& channel_type,
     const xls::SourceInfo& loc) {
-  std::shared_ptr<CType> ctype = std::get<0>(channel_type_tuple);
-
   IOChannel new_channel;
 
-  new_channel.item_type = ctype;
+  new_channel.item_type = channel_type->GetItemType();
   new_channel.unique_name = channel_name->getNameAsString();
 
-  // TODO: Merge with TranslateTypeFromClang
-
-  auto channel_type = std::make_shared<CChannelType>(ctype);
   auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
   CValue cval(/*rvalue=*/xls::BValue(), channel_type,
               /*disable_type_check=*/true, lvalue);

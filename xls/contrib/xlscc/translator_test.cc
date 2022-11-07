@@ -2563,6 +2563,28 @@ TEST_F(TranslatorTest, Constructor) {
   Run({{"a", 3}}, 15, content);
 }
 
+TEST_F(TranslatorTest, Destructor) {
+  const std::string content = R"(
+      struct Test {
+        Test() : x(5) {
+          y = 10;
+        }
+        ~Test() {
+
+        }
+        int x;
+        int y;
+      };
+      int my_package(int a) {
+        Test s;
+        return s.x+s.y;
+      })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("aren't yet called")));
+}
+
 TEST_F(TranslatorTest, ConstructorWithArg) {
   const std::string content = R"(
       struct Test {
@@ -3822,7 +3844,8 @@ TEST_F(TranslatorTest, ClassMemberInit) {
     };
     int my_package(int a) {
       Foo foo;
-      return a + foo.x;
+      foo.x += a;
+      return foo.x;
     })";
   Run({{"a", 100}}, 110, content);
 }
@@ -3830,4 +3853,3 @@ TEST_F(TranslatorTest, ClassMemberInit) {
 }  // namespace
 
 }  // namespace xlscc
-

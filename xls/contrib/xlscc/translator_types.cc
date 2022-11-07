@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
 using std::shared_ptr;
@@ -30,7 +31,9 @@ bool CType::operator!=(const CType& o) const { return !(*this == o); }
 
 int CType::GetBitWidth() const { return 0; }
 
-bool CType::ContainsLValues() const { return false; }
+absl::StatusOr<bool> CType::ContainsLValues(Translator& translator) const {
+  return false;
+}
 
 CType::operator std::string() const { return "CType"; }
 
@@ -332,6 +335,15 @@ bool CInstantiableTypeAlias::operator==(const CType& o) const {
   return base_ == o_derived->base_;
 }
 
+absl::StatusOr<bool> CInstantiableTypeAlias::ContainsLValues(
+    Translator& translator) const {
+  auto temp_alias = std::make_shared<CInstantiableTypeAlias>(base_);
+  XLS_ASSIGN_OR_RETURN(auto resolved,
+                       translator.ResolveTypeInstance(temp_alias));
+  XLS_ASSIGN_OR_RETURN(bool ret, resolved->ContainsLValues(translator));
+  return ret;
+}
+
 CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
                          bool no_tuple_flag, bool synthetic_int_flag)
     : no_tuple_flag_(no_tuple_flag),
@@ -412,9 +424,12 @@ int CStructType::GetBitWidth() const {
   return ret;
 }
 
-bool CStructType::ContainsLValues() const {
+absl::StatusOr<bool> CStructType::ContainsLValues(
+    Translator& translator) const {
   for (const std::shared_ptr<CField>& field : fields_) {
-    if (field->type()->ContainsLValues()) {
+    XLS_ASSIGN_OR_RETURN(bool ret, field->type()->ContainsLValues(translator));
+
+    if (ret) {
       return true;
     }
   }
@@ -556,7 +571,10 @@ bool CArrayType::operator==(const CType& o) const {
 
 int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
 
-bool CArrayType::ContainsLValues() const { return element_->ContainsLValues(); }
+absl::StatusOr<bool> CArrayType::ContainsLValues(Translator& translator) const {
+  XLS_ASSIGN_OR_RETURN(bool ret, element_->ContainsLValues(translator));
+  return ret;
+}
 
 absl::Status CField::GetMetadata(
     Translator& translator, xlscc_metadata::StructField* output,
@@ -608,7 +626,10 @@ bool CPointerType::operator==(const CType& o) const {
 
 int CPointerType::GetBitWidth() const { return 0; }
 
-bool CPointerType::ContainsLValues() const { return true; }
+absl::StatusOr<bool> CPointerType::ContainsLValues(
+    Translator& translator) const {
+  return true;
+}
 
 std::shared_ptr<CType> CPointerType::GetPointeeType() const {
   return pointee_type_;
@@ -643,7 +664,10 @@ bool CReferenceType::operator==(const CType& o) const {
 
 int CReferenceType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
 
-bool CReferenceType::ContainsLValues() const { return true; }
+absl::StatusOr<bool> CReferenceType::ContainsLValues(
+    Translator& translator) const {
+  return true;
+}
 
 std::shared_ptr<CType> CReferenceType::GetPointeeType() const {
   return pointee_type_;
@@ -667,13 +691,14 @@ absl::Status CReferenceType::GetMetadataValue(
       "Can't generate externally useful metadata for references");
 }
 
-CChannelType::CChannelType(std::shared_ptr<CType> item_type)
-    : item_type_(item_type) {}
+CChannelType::CChannelType(std::shared_ptr<CType> item_type, OpType op_type)
+    : item_type_(item_type), op_type_(op_type) {}
 
 bool CChannelType::operator==(const CType& o) const {
   if (!o.Is<CChannelType>()) return false;
   const auto* o_derived = o.As<CChannelType>();
-  return *item_type_ == *o_derived->item_type_;
+  return *item_type_ == *o_derived->item_type_ &&
+         op_type_ == o_derived->op_type_;
 }
 
 int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
@@ -681,7 +706,10 @@ int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
 std::shared_ptr<CType> CChannelType::GetItemType() const { return item_type_; }
 
 CChannelType::operator std::string() const {
-  return absl::StrFormat("channel<%s>", string(*item_type_));
+  return absl::StrFormat("channel<%s,%s>", string(*item_type_),
+                         (op_type_ == OpType::kRecv)
+                             ? "recv"
+                             : ((op_type_ == OpType::kSend) ? "send" : "null"));
 }
 
 absl::Status CChannelType::GetMetadata(
@@ -700,6 +728,11 @@ absl::Status CChannelType::GetMetadataValue(
   return absl::OkStatus();
 }
 
-bool CChannelType::ContainsLValues() const { return true; }
+absl::StatusOr<bool> CChannelType::ContainsLValues(
+    Translator& translator) const {
+  return true;
+}
+
+OpType CChannelType::GetOpType() const { return op_type_; }
 
 }  //  namespace xlscc

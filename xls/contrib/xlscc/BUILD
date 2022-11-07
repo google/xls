@@ -93,6 +93,7 @@ cc_library(
     hdrs = ["unit_test.h"],
     deps = [
         ":cc_parser",
+        ":hls_block_cc_proto",
         ":translator",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",

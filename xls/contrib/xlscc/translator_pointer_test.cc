@@ -1080,6 +1080,43 @@ TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
   }
 }
 
+TEST_F(TranslatorPointerTest, PipelinedLoopUsingReference) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int val = 5;
+      int&ref = val;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<3;++i) {
+        ref += in.read();
+      }
+      out.write(val);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                    testing::HasSubstr("LValue translation")));
+}
+
 TEST_F(TranslatorPointerTest, ReferenceToTernary) {
   const std::string content = R"(
     int my_package(int a) {

@@ -65,7 +65,7 @@ class CType {
   virtual bool operator==(const CType& o) const = 0;
   bool operator!=(const CType& o) const;
 
-  virtual bool ContainsLValues() const;
+  virtual absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
   virtual int GetBitWidth() const;
   virtual explicit operator std::string() const;
   virtual xls::Type* GetXLSType(xls::Package* package) const;
@@ -216,7 +216,7 @@ class CStructType : public CType {
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
-  virtual bool ContainsLValues() const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
   // Returns true if the #pragma hls_notuple or hls_synthetic_int directive was
   // given for the struct
@@ -286,6 +286,7 @@ class CInstantiableTypeAlias : public CType {
                                 xlscc_metadata::Value* output) const override;
   explicit operator std::string() const override;
   int GetBitWidth() const override;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
  private:
   const clang::NamedDecl* base_;
@@ -304,7 +305,7 @@ class CArrayType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  virtual bool ContainsLValues() const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
   int GetSize() const;
   std::shared_ptr<CType> GetElementType() const;
@@ -327,7 +328,7 @@ class CPointerType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  virtual bool ContainsLValues() const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
   std::shared_ptr<CType> GetPointeeType() const;
 
@@ -348,7 +349,7 @@ class CReferenceType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  virtual bool ContainsLValues() const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
   std::shared_ptr<CType> GetPointeeType() const;
 
@@ -356,10 +357,13 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
+enum class OpType { kNull = 0, kSend, kRecv };
+enum class InterfaceType { kNull = 0, kDirect, kFIFO };
+
 // __xls_channel in C/C++
 class CChannelType : public CType {
  public:
-  CChannelType(std::shared_ptr<CType> item_type);
+  CChannelType(std::shared_ptr<CType> item_type, OpType op_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -371,11 +375,13 @@ class CChannelType : public CType {
                                 xlscc_metadata::Value* output) const override;
 
   std::shared_ptr<CType> GetItemType() const;
-  bool ContainsLValues() const;
+  OpType GetOpType() const;
+
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
 
  private:
   std::shared_ptr<CType> item_type_;
-  // TODO(seanhaskell): Direction info
+  OpType op_type_;
 };
 
 struct IOChannel;
@@ -402,7 +408,17 @@ class LValue {
   }
   LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
              compound_by_index)
-      : compound_by_index_(compound_by_index) {}
+      : compound_by_index_(compound_by_index) {
+    absl::flat_hash_set<int64_t> to_erase;
+    for (const auto& [idx, lval] : compound_by_index_) {
+      if (lval == nullptr) {
+        to_erase.insert(idx);
+      }
+    }
+    for (int64_t idx : to_erase) {
+      compound_by_index_.erase(idx);
+    }
+  }
 
   bool is_select() const { return cond_.valid(); }
   xls::BValue cond() const { return cond_; }
@@ -411,6 +427,12 @@ class LValue {
   const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>& get_compounds()
       const {
     return compound_by_index_;
+  }
+  std::shared_ptr<LValue> get_compound_or_null(int64_t idx) const {
+    if (compound_by_index_.contains(idx)) {
+      return compound_by_index_.at(idx);
+    }
+    return nullptr;
   }
 
   const clang::Expr* leaf() const { return leaf_; }
@@ -434,7 +456,8 @@ class LValue {
     }
     std::string ret;
     for (const auto& [idx, lval] : get_compounds()) {
-      ret += absl::StrFormat("[%i]: %s ", idx, lval->debug_string());
+      ret += absl::StrFormat("[%i]: %s ", idx,
+                             lval ? lval->debug_string() : "(null)");
     }
     return ret;
   }
@@ -474,7 +497,6 @@ class CValue {
                   !dynamic_cast<CChannelType*>(type_.get()) &&
                   !dynamic_cast<CStructType*>(type_.get()) &&
                   !dynamic_cast<CInstantiableTypeAlias*>(type_.get())));
-      XLS_CHECK(!(type_->ContainsLValues() && lvalue == nullptr));
       // Pointers are stored as empty tuples in structs
       const bool rvalue_empty =
           !rvalue.valid() || (rvalue.GetType()->IsTuple() &&
@@ -560,8 +582,6 @@ class ConstValue {
   xls::Value value_;
   std::shared_ptr<CType> type_;
 };
-
-enum class OpType { kNull = 0, kSend, kRecv };
 
 // Tracks information about an __xls_channel parameter to a function
 struct IOChannel {
@@ -864,12 +884,19 @@ class Translator {
   //  method prototype.
   absl::StatusOr<GeneratedFunction*> GenerateIR_Top_Function(
       xls::Package* package, bool force_static = false,
+      bool member_references_become_channels = false,
       int default_init_interval = 0);
 
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(xls::Package* package,
                                               const HLSBlock& block,
                                               int top_level_init_interval = 0);
+
+  // Generates IR as an HLS block / XLS proc.
+  // Top is a method, block specification is extracted from the class.
+  absl::StatusOr<xls::Proc*> GenerateIR_BlockFromClass(
+      xls::Package* package, HLSBlock* block_spec_out,
+      int top_level_init_interval = 0);
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1047,7 +1074,7 @@ class Translator {
                                   TranslationContext& to,
                                   const xls::SourceInfo& loc);
 
-  xls::Package* package_;
+  xls::Package* package_ = nullptr;
   int default_init_interval_ = 0;
 
   // Initially contains keys for the parameters of the top function,
@@ -1099,9 +1126,21 @@ class Translator {
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
       std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc);
 
-  absl::Status TranslateLValueChannels(std::shared_ptr<LValue> caller_lval,
-                                       std::shared_ptr<LValue> callee_lval,
-                                       const xls::SourceInfo& loc);
+  absl::Status FailIfTypeHasDtors(const clang::CXXRecordDecl* cxx_record);
+  bool LValueContainsOnlyChannels(std::shared_ptr<LValue> lvalue);
+
+  absl::Status TranslateAddCallerChannelsByCalleeChannel(
+      std::shared_ptr<LValue> caller_lval, std::shared_ptr<LValue> callee_lval,
+      const xls::SourceInfo& loc);
+
+  absl::Status ValidateLValue(std::shared_ptr<LValue> lval,
+                              const xls::SourceInfo& loc);
+
+  absl::StatusOr<std::shared_ptr<LValue>> TranslateLValueChannels(
+      std::shared_ptr<LValue> outer_lval,
+      const absl::flat_hash_map<IOChannel*, IOChannel*>&
+          inner_channels_by_outer_channel,
+      const xls::SourceInfo& loc);
 
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
@@ -1121,28 +1160,49 @@ class Translator {
         return_index_for_static;
     absl::flat_hash_map<const clang::NamedDecl*, int64_t>
         state_index_for_static;
+    int64_t state_init_count = 0;
     xls::BValue token;
   };
 
+  struct ExternalChannelInfo {
+    const clang::NamedDecl* decl;
+    std::shared_ptr<CChannelType> channel_type;
+    InterfaceType interface_type;
+    bool extra_return = false;
+  };
+
+  absl::StatusOr<xls::Proc*> GenerateIR_Block(
+      xls::Package* package, const HLSBlock& block,
+      std::shared_ptr<CStructType> this_type,
+      const clang::CXXRecordDecl* this_decl,
+      const std::list<ExternalChannelInfo>& top_decls,
+      const xls::SourceInfo& body_loc, int top_level_init_interval,
+      bool force_static, bool member_references_become_channels);
+
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
   absl::Status GenerateIRBlockCheck(
-      absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
-      const HLSBlock& block, const clang::FunctionDecl* definition,
+      const HLSBlock& block, const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc);
 
   // Creates xls::Channels in the package
   absl::Status GenerateExternalChannels(
-      const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
-      const HLSBlock& block, const clang::FunctionDecl* definition,
+      const HLSBlock& block, const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& loc);
+
+  absl::StatusOr<xls::Value> GenerateTopClassInitValue(
+      std::shared_ptr<CStructType> this_type,
+      // Can be nullptr
+      const clang::CXXRecordDecl* this_decl, const xls::SourceInfo& body_loc);
 
   // Prepares IO channels for generating XLS Proc
   // definition can be null, and then channels_by_name can also be null. They
   // are only used for direct-ins
   absl::Status GenerateIRBlockPrepare(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-      int64_t next_state_index, const clang::FunctionDecl* definition,
-      const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
+      int64_t next_state_index, std::shared_ptr<CStructType> this_type,
+      // Can be nullptr
+      const clang::CXXRecordDecl* this_decl,
+      const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc);
 
   // Returns last invoke's return value
@@ -1166,12 +1226,13 @@ class Translator {
                                        bool mask = false);
   absl::Status CreateChannelParam(
       const clang::NamedDecl* channel_name,
-      const std::tuple<std::shared_ptr<CType>, OpType>& channel_type_tuple,
+      const std::shared_ptr<CChannelType>& channel_type,
       const xls::SourceInfo& loc);
   IOChannel* AddChannel(const clang::NamedDecl* decl, IOChannel new_channel);
-  absl::StatusOr<std::tuple<std::shared_ptr<CType>, OpType>> GetChannelType(
+  absl::StatusOr<std::shared_ptr<CChannelType>> GetChannelType(
       const clang::QualType& channel_type, clang::ASTContext& ctx,
       const xls::SourceInfo& loc);
+
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceInfo& loc);
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
@@ -1220,6 +1281,8 @@ class Translator {
       std::string_view name_prefix, IOChannel* context_out_channel,
       IOChannel* context_in_channel, xls::Type* context_xls_type,
       std::shared_ptr<CStructType> context_ctype,
+      absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
+          lvalues_out,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
           variable_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
@@ -1292,7 +1355,8 @@ class Translator {
       const clang::FunctionDecl*& funcdecl);
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, std::string_view name_override = "",
-      bool force_static = false);
+      bool force_static = false,
+      bool member_references_become_channels = false);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)

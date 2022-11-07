@@ -220,7 +220,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 }
 
 void XlsccTestBase::ProcTest(
-    std::string content, const xlscc::HLSBlock& block_spec,
+    std::string content, std::optional<xlscc::HLSBlock> block_spec,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
@@ -236,10 +236,19 @@ void XlsccTestBase::ProcTest(
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
     XLS_ASSERT_OK(ScanFile(temp));
     package_.reset(new xls::Package("my_package"));
-    XLS_ASSERT_OK(translator_
-                      ->GenerateIR_Block(package_.get(), block_spec,
-                                         top_level_init_interval)
-                      .status());
+    if (block_spec.has_value()) {
+      block_spec_ = block_spec.value();
+      XLS_ASSERT_OK(translator_
+                        ->GenerateIR_Block(package_.get(), block_spec.value(),
+                                           top_level_init_interval)
+                        .status());
+    } else {
+      XLS_ASSERT_OK(translator_
+                        ->GenerateIR_BlockFromClass(package_.get(),
+                                                    &block_spec_,
+                                                    top_level_init_interval)
+                        .status());
+    }
     package_text = package_->DumpIr();
     ir_texts.push_back(package_text);
   }
@@ -332,9 +341,20 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
         return absl::NotFoundError(absl::StrFormat(
             "Proc with name containing %s already found", name_cont));
       }
-      ret = proc->GetStateElementType(0)->GetFlatBitCount();
+      for (xls::Param* state_param : proc->StateParams()) {
+        ret += state_param->GetType()->GetFlatBitCount();
+      }
       already_found = true;
     }
   }
   return ret;
+}
+
+absl::StatusOr<xlscc_metadata::MetadataOutput>
+XlsccTestBase::GenerateMetadata() {
+  return translator_->GenerateMetadata();
+}
+
+absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
+  return block_spec_;
 }
