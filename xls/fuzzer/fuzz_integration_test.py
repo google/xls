@@ -120,7 +120,13 @@ class FuzzIntegrationTest(absltest.TestCase):
 
     crasher_count = 0
     sample_count = 0
-    start = datetime.datetime.now()
+
+    def now():
+      # Add a timezone so duration is accurately tracked across daylight savings
+      # time changes.
+      return datetime.datetime.now(tz=datetime.timezone.utc)
+
+    start = now()
     duration = None if _DURATION.value is None else cli_helpers.parse_duration(
         _DURATION.value)
 
@@ -130,7 +136,7 @@ class FuzzIntegrationTest(absltest.TestCase):
         if done:
           logging.info('Generated target number of samples. Exiting.')
       else:
-        done = datetime.datetime.now() - start >= duration
+        done = now() - start >= duration
         if done:
           logging.info('Ran for target duration of %s. Exiting.', duration)
       return not done
