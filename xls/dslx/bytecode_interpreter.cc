@@ -1203,6 +1203,37 @@ absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
+                                             const ConcreteType* type,
+                                             int indent = 0) {
+  if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
+      array_type != nullptr) {
+    return absl::StrFormat("%s:%s", array_type->ToString(), value.ToString());
+  }
+
+  if (const auto* struct_type = dynamic_cast<const StructType*>(type);
+      struct_type != nullptr) {
+    std::string indent_str(indent * 4, ' ');
+    std::vector<std::string> members;
+    members.reserve(struct_type->size());
+    for (int i = 0; i < struct_type->size(); i++) {
+      std::string sub_indent_str((indent + 1) * 4, ' ');
+      const ConcreteType& member_type = struct_type->GetMemberType(i);
+      XLS_ASSIGN_OR_RETURN(std::string member_value,
+                           PrettyPrintValue(value.GetValuesOrDie()[i],
+                                            &member_type, indent + 1));
+      members.push_back(absl::StrFormat("%s%s: %s", sub_indent_str,
+                                        struct_type->GetMemberName(i),
+                                        member_value));
+    }
+
+    return absl::StrFormat("%s {\n%s\n%s}",
+                           struct_type->nominal_type().identifier(),
+                           absl::StrJoin(members, "\n"), indent_str);
+  }
+  return value.ToString();
+}
+
 absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
   XLS_VLOG(3) << "Executing builtin AssertEq.";
   XLS_RET_CHECK_GE(stack_.size(), 2);
@@ -1213,9 +1244,21 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
 
   XLS_RETURN_IF_ERROR(EvalEq(bytecode));
   if (stack_.back().IsFalse()) {
-    std::string message =
-        absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were not equal",
-                        lhs.ToHumanString(), rhs.ToHumanString());
+    const TypeInfo* type_info = frames_.back().type_info();
+    XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
+                         bytecode.invocation_data());
+    XLS_ASSIGN_OR_RETURN(
+        ConcreteType * lhs_type,
+        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
+    XLS_ASSIGN_OR_RETURN(
+        ConcreteType * rhs_type,
+        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
+    XLS_ASSIGN_OR_RETURN(std::string pretty_lhs,
+                         PrettyPrintValue(lhs, lhs_type));
+    XLS_ASSIGN_OR_RETURN(std::string pretty_rhs,
+                         PrettyPrintValue(rhs, rhs_type));
+    std::string message = absl::StrFormat(
+        "\n  lhs: %s\n  rhs: %s\n  were not equal", pretty_lhs, pretty_rhs);
     if (lhs.IsArray() && rhs.IsArray()) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<int64_t> i,
@@ -1243,8 +1286,37 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertLt(const Bytecode& bytecode) {
 
   XLS_RETURN_IF_ERROR(EvalLt(bytecode));
   if (stack_.back().IsFalse()) {
+    const TypeInfo* type_info = frames_.back().type_info();
+    XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
+                         bytecode.invocation_data());
+    XLS_ASSIGN_OR_RETURN(
+        ConcreteType * lhs_type,
+        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
+    XLS_ASSIGN_OR_RETURN(
+        ConcreteType * rhs_type,
+        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
+    XLS_ASSIGN_OR_RETURN(std::string pretty_lhs,
+                         PrettyPrintValue(lhs, lhs_type));
+    XLS_ASSIGN_OR_RETURN(std::string pretty_rhs,
+                         PrettyPrintValue(rhs, rhs_type));
     std::string message = absl::StrFormat(
-        "\n  want: %s < %s", lhs.ToHumanString(), rhs.ToHumanString());
+        "\n  lhs: %s\n was not less than rhs: %s", pretty_lhs, pretty_rhs);
+    if (lhs.IsArray() && rhs.IsArray()) {
+      const auto& lhs_values = lhs.GetValuesOrDie();
+      const auto& rhs_values = rhs.GetValuesOrDie();
+      int first_idx = -1;
+      for (int i = 0; i < lhs_values.size(); i++) {
+        if (rhs_values[i] >= lhs_values[i]) {
+          first_idx = i;
+          break;
+        }
+      }
+      XLS_RET_CHECK_NE(first_idx, -1);
+      message +=
+          absl::StrFormat("; first differing index: %d :: %s vs %s", first_idx,
+                          lhs_values[first_idx].ToHumanString(),
+                          rhs_values[first_idx].ToHumanString());
+    }
     return FailureErrorStatus(bytecode.source_span(), message);
   }
 

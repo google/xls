@@ -605,7 +605,7 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn('lhs: [1, 2]\n', stderr)
+    self.assertIn('lhs: sN[32][2]:[s32:1, s32:2]\n', stderr)
     self.assertIn('first differing index: 0', stderr)
 
   def test_first_failing_test(self):

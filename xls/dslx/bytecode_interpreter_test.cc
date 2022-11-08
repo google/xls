@@ -16,6 +16,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/strings/match.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode_cache.h"
@@ -138,8 +139,8 @@ fn main() -> u32{
 
   ImportData import_data(CreateImportDataForTest());
   absl::StatusOr<InterpValue> value = Interpret(&import_data, kProgram, "main");
-  EXPECT_THAT(value.status(),
-              StatusIs(absl::StatusCode::kInternal, HasSubstr("want")));
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("not less than")));
 }
 
 // This test won't work unless BytecodeEmitterTest.DestructuringLet works!
@@ -1446,6 +1447,57 @@ proc BTester {
   absl::StatusOr<TestResult> result = ParseAndTest(
       kProgram, kModuleName, std::string{temp_file.path()}, options);
   EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
+}
+
+TEST(BytecodeInterpreterTest, PrettyPrintsStructs) {
+  constexpr std::string_view kProgram = R"(
+struct InnerStruct {
+    x: u32,
+    y: u32,
+}
+
+struct MyStruct {
+    a: u32,
+    b: u16[4],
+    c: InnerStruct,
+}
+
+fn doomed() {
+    let a = MyStruct {
+        a: u32:0,
+        b: u16[4]:[u16:1, u16:2, u16:3, u16:4],
+        c: InnerStruct {
+            x: u32:5,
+            y: u32:6,
+        }
+    };
+
+    let b = MyStruct {
+        a: u32:7,
+        b: u16[4]:[u16:8, ...],
+        c: InnerStruct {
+            x: u32:12,
+            y: u32:13,
+        }
+    };
+
+    assert_eq(a, b)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  absl::StatusOr<InterpValue> value =
+      Interpret(&import_data, kProgram, "doomed");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("were not equal")));
+  EXPECT_TRUE(absl::StrContains(value.status().message(),
+                                R"(lhs: MyStruct {
+    a: u32:0
+    b: uN[16][4]:[u16:1, u16:2, u16:3, u16:4]
+    c: InnerStruct {
+        x: u32:5
+        y: u32:6
+    }
+})"));
 }
 
 }  // namespace

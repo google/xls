@@ -363,6 +363,7 @@ class InterpValue {
   // compares across Bits-, array-, and tuple-valued objects. For this set, the
   // ordering Bits < arrays < tuples has been arbitrarily defined.
   bool operator<(const InterpValue& rhs) const;
+  bool operator>=(const InterpValue& rhs) const;
 
  private:
   friend struct InterpValuePickler;

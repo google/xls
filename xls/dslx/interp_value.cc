@@ -761,6 +761,10 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
   return false;
 }
 
+bool InterpValue::operator>=(const InterpValue& rhs) const {
+  return !(*this < rhs);
+}
+
 std::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value) {
   if (function_value.IsBuiltinFunction()) {
