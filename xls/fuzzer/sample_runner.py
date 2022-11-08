@@ -19,7 +19,7 @@ import collections
 import os
 import subprocess
 import time
-from typing import Text, Tuple, Optional, Dict, Sequence, List
+from typing import Optional, Sequence
 
 from absl import logging
 
@@ -44,8 +44,62 @@ CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
 
 
-ArgsBatch = List[List[Value]]
-ProcInitValues = List[Value]
+ArgsBatch = list[list[Value]]
+ProcInitValues = list[Value]
+
+
+def convert_args_batch_to_ir_channel_values(
+    args_batch: Optional[ArgsBatch],
+    ir_channel_names: Optional[list[str]]) -> dict[str, Sequence[IRValue]]:
+  """Converts args batch to a channel-name-to-ir-values map.
+
+  Args:
+    args_batch: The channel values.
+    ir_channel_names: List of channel names.
+
+  Returns:
+    Dictionary with the key being the channel name and its corresponding value
+    being a list of IR values (channel-name-to-ir-values map).
+
+  Raises:
+    ValueError: If the number of values in a args batch sample is not equivalent
+    to the number of channels.
+  """
+  all_channel_values: dict[str, list[Value]] = collections.defaultdict(list)
+  for channel_values in args_batch:
+    if len(channel_values) != len(ir_channel_names):
+      raise ValueError(
+          'Invalid number of values in args_batch sample; '
+          f'expected: {len(ir_channel_names)}, got: {len(channel_values)}')
+    for i, value in enumerate(channel_values):
+      all_channel_values[ir_channel_names[i]].append(value)
+
+  ir_channel_values: dict[str, Sequence[IRValue]] = {}
+  for key, values in all_channel_values.items():
+    ir_channel_values[key] = Value.convert_values_to_ir(values)
+
+  return ir_channel_values
+
+
+def convert_ir_channel_values_to_channel_values(
+    ir_channel_values: dict[str,
+                            Sequence[IRValue]]) -> dict[str, Sequence[Value]]:
+  """Converts a channel-name-to-ir-values map to a channel-name-to-values map.
+
+  Args:
+    ir_channel_values: Dictionary with the key being the channel name and its
+      corresponding value being a list of IR values (channel-name-to-ir-values
+      map).
+
+  Returns:
+    Dictionary with the key being the channel name and its corresponding value
+    being a list of Values (channel-name-to-values map).
+  """
+  channel_values: dict[str, list[Value]] = collections.defaultdict(list)
+  for key, values in ir_channel_values.items():
+    for value in values:
+      channel_values[key].append(interp_value_from_ir_string(value.to_str()))
+  return channel_values
 
 
 class SampleError(XlsError):
@@ -55,7 +109,7 @@ class SampleError(XlsError):
   miscompares(among others).
   """
 
-  def __init__(self, msg: Text, is_timeout: bool = False):
+  def __init__(self, msg: str, is_timeout: bool = False):
     super(SampleError, self).__init__(msg)
     # Whether the sample resulted in a timeout.
     self.is_timeout = is_timeout
@@ -94,7 +148,7 @@ class SampleRunner:
   enable easier debugging and replay.
   """
 
-  def __init__(self, run_dir: Text):
+  def __init__(self, run_dir: str):
     self._run_dir = run_dir
     self.timing = sample_summary_pb2.SampleTimingProto()
 
@@ -126,8 +180,8 @@ class SampleRunner:
     self.run_from_files(input_filename, json_options_filename, args_filename,
                         ir_channel_names_filename)
 
-  def run_from_files(self, input_filename: Text, json_options_filename: Text,
-                     args_filename: Text, ir_channel_names_filename: Text):
+  def run_from_files(self, input_filename: str, json_options_filename: str,
+                     args_filename: str, ir_channel_names_filename: str):
     """Runs a sample which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -168,8 +222,8 @@ class SampleRunner:
       raise SampleError(
           msg, is_timeout=isinstance(e, subprocess.TimeoutExpired)) from e
 
-  def _run_function(self, input_filename: Text, options: sample.SampleOptions,
-                    args_filename: Text):
+  def _run_function(self, input_filename: str, options: sample.SampleOptions,
+                    args_filename: str):
     """Runs a sample with a function as the top which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -190,7 +244,7 @@ class SampleRunner:
 
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference.
-    results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
+    results: dict[str, Sequence[Value]] = {}
     if options.input_is_dslx:
       if args_batch:
         logging.vlog(1, 'Interpreting DSLX file.')
@@ -258,8 +312,8 @@ class SampleRunner:
 
     self._compare_results_function(results, args_batch)
 
-  def _run_proc(self, input_filename: Text, options: sample.SampleOptions,
-                args_filename: Text, ir_channel_names_filename: Text):
+  def _run_proc(self, input_filename: str, options: sample.SampleOptions,
+                args_filename: str, ir_channel_names_filename: str):
     """Runs a sample with a proc as the top which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -277,12 +331,20 @@ class SampleRunner:
     """
     input_text = self._read_file(input_filename)
     args_batch: Optional[ArgsBatch] = None
-    ir_channel_names: Optional[List[Text]] = None
+    ir_channel_names: Optional[list[str]] = None
+    ir_channel_values_filename: Optional[str] = None
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
     if ir_channel_names_filename:
       ir_channel_names = sample.parse_ir_channel_names(
           self._read_file(ir_channel_names_filename))
+    if args_batch and ir_channel_names:
+      ir_channel_values = convert_args_batch_to_ir_channel_values(
+          args_batch, ir_channel_names)
+      ir_channel_values_file_content = (
+          eval_helpers.channel_values_to_string(ir_channel_values))
+      ir_channel_values_filename = self._write_file(
+          'channel_inputs.txt', ir_channel_values_file_content)
 
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference. Note the data is structure with a nested dictionary. The
@@ -290,8 +352,7 @@ class SampleRunner:
     # value of the dictionary is another dictionary where the key is the IR
     # channel name. The value of the nested dictionary is a sequence of values
     # corresponding to the channel.
-    results = collections.OrderedDict(
-    )  # type : Dict[Text, Dict[Text, Sequence[Value]]]
+    results: dict[str, dict[str, Sequence[Value]]] = {}
 
     if options.input_is_dslx:
       if args_batch:
@@ -317,13 +378,15 @@ class SampleRunner:
       # JIT. This exercises the interpreter and serves as a reference.
       with Timer() as t:
         results['evaluated unopt IR (interpreter)'] = self._evaluate_ir_proc(
-            ir_filename, args_batch, ir_channel_names, False, options)
+            ir_filename, len(args_batch), ir_channel_values_filename, False,
+            options)
       self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
 
       if options.use_jit:
         with Timer() as t:
           results['evaluated unopt IR (JIT)'] = self._evaluate_ir_proc(
-              ir_filename, args_batch, ir_channel_names, True, options)
+              ir_filename, len(args_batch), ir_channel_values_filename, True,
+              options)
         self.timing.unoptimized_jit_ns = t.elapsed_ns
 
     if options.optimize_ir:
@@ -335,27 +398,40 @@ class SampleRunner:
         if options.use_jit:
           with Timer() as t:
             results['evaluated opt IR (JIT)'] = self._evaluate_ir_proc(
-                opt_ir_filename, args_batch, ir_channel_names, True, options)
+                opt_ir_filename, len(args_batch), ir_channel_values_filename,
+                True, options)
           self.timing.optimized_jit_ns = t.elapsed_ns
         with Timer() as t:
           results['evaluated opt IR (interpreter)'] = self._evaluate_ir_proc(
-              opt_ir_filename, args_batch, ir_channel_names, False, options)
+              opt_ir_filename, len(args_batch), ir_channel_values_filename,
+              False, options)
         self.timing.optimized_interpret_ir_ns = t.elapsed_ns
 
       if options.codegen:
         with Timer() as t:
-          self._codegen(opt_ir_filename, options.codegen_args, options)
+          verilog_filename = self._codegen(opt_ir_filename,
+                                           options.codegen_args, options)
         self.timing.codegen_ns = t.elapsed_ns
 
         if options.simulate:
-          assert args_filename is not None
+          assert ir_channel_values_filename is not None
           with Timer() as t:
-            results['simulated'] = self._simulate_proc()
+            assert results
+            # Pick the first key as a reference to derive the
+            # output_channel_counts.
+            reference = next(iter(results))
+            output_channel_counts = self._get_output_channel_counts(
+                results[reference])
+            output_channel_counts_str = self._get_output_channel_to_string(
+                output_channel_counts)
+            results['simulated'] = self._simulate_proc(
+                verilog_filename, 'module_sig.textproto',
+                ir_channel_values_filename, output_channel_counts_str, options)
           self.timing.simulate_ns = t.elapsed_ns
 
     self._compare_results_proc(results)
 
-  def _run_command(self, desc: Text, args: Sequence[Text],
+  def _run_command(self, desc: str, args: Sequence[str],
                    options: sample.SampleOptions) -> str:
     """Runs the given commands.
 
@@ -406,18 +482,18 @@ class SampleRunner:
 
     return comp.stdout.decode('utf-8')
 
-  def _write_file(self, filename: Text, content: Text) -> Text:
+  def _write_file(self, filename: str, content: str) -> str:
     """Writes the given content into a named file in the run directory."""
     with open(os.path.join(self._run_dir, filename), 'w') as f:
       f.write(content)
     return filename
 
-  def _read_file(self, filename: Text) -> Text:
+  def _read_file(self, filename: str) -> str:
     """Returns the content of the named text file in the run directory."""
     with open(os.path.join(self._run_dir, filename), 'r') as f:
       return f.read()
 
-  def _compare_results_function(self, results: Dict[Text, Sequence[Value]],
+  def _compare_results_function(self, results: dict[str, Sequence[Value]],
                                 args_batch: Optional[ArgsBatch]):
     """Compares a set of results as for equality.
 
@@ -477,8 +553,8 @@ class SampleRunner:
                               f'\n{", ".join(values_matches)} ='
                               f'\n   {values[i].to_ir_str()}')
 
-  def _compare_results_proc(self, results: Dict[Text, Dict[Text,
-                                                           Sequence[Value]]]):
+  def _compare_results_proc(self, results: dict[str, dict[str,
+                                                          Sequence[Value]]]):
     """Compares a set of results as for equality.
 
     Each entry in the map is sequence of Values generated from some source
@@ -536,7 +612,7 @@ class SampleRunner:
                 f'{value}.')
 
   def _interpret_dslx_function(self, text: str, top_name: str,
-                               args_batch: ArgsBatch) -> Tuple[Value, ...]:
+                               args_batch: ArgsBatch) -> tuple[Value, ...]:
     """Interprets a DSLX module with a function as the top returns the result Values.
     """
     dslx_results = interpreter.run_function_batched(
@@ -548,22 +624,21 @@ class SampleRunner:
 
   def _interpret_dslx_proc(
       self, text: str, top_name: str, args_batch: ArgsBatch,
-      proc_init_constant: str) -> Dict[Text, Sequence[Value]]:
+      proc_init_constant: str) -> dict[str, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     dslx_results = interpreter.run_proc(
         text, top_name, args_batch, proc_init_constant,
         runtime_build_actions.get_default_dslx_stdlib_path())
 
-    ir_channel_values = collections.OrderedDict(
-    )  # type: Dict[Text, Sequence[IRValue]]
+    ir_channel_values: dict[str, Sequence[IRValue]] = {}
     for key, values in dslx_results.items():
       ir_channel_values[key] = Value.convert_values_to_ir(values)
     self._write_file('sample.x.results',
                      eval_helpers.channel_values_to_string(ir_channel_values))
     return dslx_results
 
-  def _parse_values(self, s: Text) -> Tuple[Value, ...]:
+  def _parse_values(self, s: str) -> tuple[Value, ...]:
     """Parses a line-deliminated sequence of text-formatted Values.
 
     Example of expected input:
@@ -582,9 +657,9 @@ class SampleRunner:
         for line in s.split('\n')
         if line.strip())
 
-  def _evaluate_ir_function(self, ir_filename: Text, args_filename: Text,
+  def _evaluate_ir_function(self, ir_filename: str, args_filename: str,
                             use_jit: bool,
-                            options: sample.SampleOptions) -> Tuple[Value, ...]:
+                            options: sample.SampleOptions) -> tuple[Value, ...]:
     """Evaluate the IR file with a function as the top and returns the result Values.
     """
     results_text = self._run_command(
@@ -597,49 +672,25 @@ class SampleRunner:
     return self._parse_values(results_text)
 
   def _evaluate_ir_proc(
-      self, ir_filename: Text, args_batch: Optional[ArgsBatch],
-      ir_channel_names: Optional[List[Text]], use_jit: bool,
-      options: sample.SampleOptions) -> Dict[Text, Sequence[Value]]:
+      self, ir_filename: str, ticks: int,
+      ir_channel_values_filename: Optional[str], use_jit: bool,
+      options: sample.SampleOptions) -> dict[str, Sequence[Value]]:
     """Evaluate the IR file with a proc as the top and returns the result Values.
     """
-    all_channel_values = {k: [] for k in ir_channel_names
-                         }  # type: Dict[Text, List[Value]]
-    for channel_values in args_batch:
-      assert len(channel_values) == len(ir_channel_names)
-      for i in range(len(channel_values)):
-        all_channel_values[ir_channel_names[i]].append(channel_values[i])
-
-    ir_channel_values = collections.OrderedDict(
-    )  # type: Dict[Text, Sequence[IRValue]]
-    for key, values in all_channel_values.items():
-      ir_channel_values[key] = Value.convert_values_to_ir(values)
-
-    channel_values_filename_content = (
-        eval_helpers.channel_values_to_string(ir_channel_values))
-    channel_values_filename = self._write_file('channel_inputs.txt',
-                                               channel_values_filename_content)
-
-    results_text = self._run_command(
-        'Evaluating IR file ({}): {}'.format(
-            'JIT' if use_jit else 'interpreter', ir_filename),
-        (EVAL_PROC_MAIN_PATH,
-         '--inputs_for_all_channels=' + channel_values_filename,
-         '--ticks=' + str(len(args_batch)), '--backend=' +
-         ('serial_jit' if use_jit else 'ir_interpreter'), ir_filename), options)
+    evaluation_type = 'JIT' if use_jit else 'interpreter'
+    desc = f'Evaluating IR file ({evaluation_type}): {ir_filename}'
+    backend_type = 'serial_jit' if use_jit else 'ir_interpreter'
+    args = (EVAL_PROC_MAIN_PATH,
+            '--inputs_for_all_channels=' + ir_channel_values_filename,
+            '--ticks=' + str(ticks), '--backend=' + backend_type, ir_filename)
+    results_text = self._run_command(desc, args, options)
     self._write_file(ir_filename + '.results', results_text)
 
-    ir_channel_values_result = (
-        eval_helpers.parse_channel_values(results_text, len(args_batch)))
-    channel_values_result = {k: [] for k in ir_channel_values_result.keys()
-                            }  # type: Dict[Text, List[Value]]
-    for key, values in ir_channel_values_result.items():
-      for value in values:
-        channel_values_result[key].append(
-            interp_value_from_ir_string(value.to_str()))
-    return channel_values_result
+    ir_channel_values = eval_helpers.parse_channel_values(results_text, ticks)
+    return convert_ir_channel_values_to_channel_values(ir_channel_values)
 
-  def _dslx_to_ir_function(self, dslx_filename: Text,
-                           options: sample.SampleOptions) -> Text:
+  def _dslx_to_ir_function(self, dslx_filename: str,
+                           options: sample.SampleOptions) -> str:
     """Converts the DSLX file to an IR file with a function as the top whose filename is returned.
     """
     args = [IR_CONVERTER_MAIN_PATH]
@@ -649,8 +700,8 @@ class SampleRunner:
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)
 
-  def _dslx_to_ir_proc(self, dslx_filename: Text,
-                       options: sample.SampleOptions) -> Text:
+  def _dslx_to_ir_proc(self, dslx_filename: str,
+                       options: sample.SampleOptions) -> str:
     """Converts the DSLX file to an IR file with a proc as the top whose filename is returned.
     """
     args = [IR_CONVERTER_MAIN_PATH]
@@ -662,15 +713,15 @@ class SampleRunner:
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)
 
-  def _optimize_ir(self, ir_filename: Text,
-                   options: sample.SampleOptions) -> Text:
+  def _optimize_ir(self, ir_filename: str,
+                   options: sample.SampleOptions) -> str:
     """Optimizes the IR file and returns the resulting filename."""
     opt_ir_text = self._run_command('Optimizing IR',
                                     (IR_OPT_MAIN_PATH, ir_filename), options)
     return self._write_file('sample.opt.ir', opt_ir_text)
 
-  def _codegen(self, ir_filename: Text, codegen_args: Sequence[Text],
-               options: sample.SampleOptions) -> Text:
+  def _codegen(self, ir_filename: str, codegen_args: Sequence[str],
+               options: sample.SampleOptions) -> str:
     """Generates Verilog from the IR file and return the Verilog filename."""
     args = [
         CODEGEN_MAIN_PATH, '--output_signature_path=module_sig.textproto',
@@ -682,10 +733,11 @@ class SampleRunner:
     return self._write_file(
         'sample.sv' if options.use_system_verilog else 'sample.v', verilog_text)
 
-  def _simulate_function(self, verilog_filename: Text,
-                         module_sig_filename: Text, args_filename: Text,
-                         options: sample.SampleOptions) -> Tuple[Value, ...]:
-    """Simulates the Verilog file and returns the results Values."""
+  def _simulate_function(self, verilog_filename: str, module_sig_filename: str,
+                         args_filename: str,
+                         options: sample.SampleOptions) -> tuple[Value, ...]:
+    """Simulates the Verilog file representing a function and returns the results Values.
+    """
     simulator_args = [
         SIMULATE_MODULE_MAIN_PATH,
         '--signature_file=' + module_sig_filename,
@@ -702,7 +754,61 @@ class SampleRunner:
     self._write_file(verilog_filename + '.results', results_text)
     return self._parse_values(results_text)
 
-  # TODO(vmirian): 10-18-2022 Implement simulation for proc.
-  def _simulate_proc(self) -> Dict[Text, Sequence[Value]]:
-    """Simulates the Verilog file and returns the results Values."""
-    raise SampleError('Simulation for procs are not supported.')
+  def _get_output_channel_counts(
+      self, output_channel_values: dict[str,
+                                        Sequence[Value]]) -> dict[str, int]:
+    """Returns a output-channel-count map from an output-channel-values map."""
+    output_channel_counts: dict[str, int] = {}
+    for channel_name, channel_values in output_channel_values.items():
+      output_channel_counts[channel_name] = len(channel_values)
+    return output_channel_counts
+
+  def _get_output_channel_to_string(
+      self, output_channel_values: dict[str, int]) -> str:
+    """Returns a string representation of the output-channel-count map.
+
+    The string format is output_channel_name=count for each entry in the
+    map. The entries of the map are comma separated. For example, given an
+    output-channel-count map:
+
+    {{foo, 42}{bar,64}}
+
+    the string representation is:
+
+    foo=42,bar=64.
+
+    Args:
+      output_channel_values: Dictionary with the key being the channel name and
+        its corresponding value a count of values (output-channel-count map).
+
+    Returns:
+      A string representation of the output-channel-count map.
+    """
+    output_channel_counts_strings = []
+    for channel_name, count in output_channel_values.items():
+      output_channel_counts_strings.append(f'{channel_name}={count}')
+    return ','.join(output_channel_counts_strings)
+
+  def _simulate_proc(
+      self, verilog_filename: str, module_sig_filename: str,
+      ir_channel_values_filename: str, output_channel_counts: str,
+      options: sample.SampleOptions) -> dict[str, Sequence[Value]]:
+    """Simulates the Verilog file representing a proc and returns the results Values.
+    """
+    simulator_args = [
+        SIMULATE_MODULE_MAIN_PATH, '--signature_file=' + module_sig_filename,
+        '--channel_values_file=' + ir_channel_values_filename,
+        '--output_channel_counts=' + output_channel_counts
+    ]
+    if options.simulator:
+      simulator_args.append('--verilog_simulator=' + options.simulator)
+    simulator_args.append(verilog_filename)
+
+    check_simulator.check_simulator(options.simulator)
+
+    results_text = self._run_command(f'Simulating Verilog {verilog_filename}',
+                                     simulator_args, options)
+    self._write_file(verilog_filename + '.results', results_text)
+
+    ir_channel_values = eval_helpers.parse_channel_values(results_text)
+    return convert_ir_channel_values_to_channel_values(ir_channel_values)

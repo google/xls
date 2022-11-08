@@ -22,6 +22,8 @@ from xls.common import test_base
 from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_sample as sample
+from xls.ir.python import bits
+from xls.ir.python.value import Value as IRValue
 
 
 # An adder implementation using a proc in DSLX.
@@ -507,14 +509,17 @@ class SampleRunnerTest(test_base.TestCase):
                   ]]))
     self.assertIn('timed out after 3 seconds', str(e.exception))
 
-  def test_interpret_dslx_ir_proc_with_no_state(self):
+  def test_proc_with_no_state_combinational(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     runner.run(
         sample.Sample(
             PROC_ADDER_DSLX,
             sample.SampleOptions(
+                codegen=True,
+                codegen_args=['--generator=combinational'],
                 ir_converter_args=['--top=main'],
+                simulate=True,
                 top_type=sample.TopType.proc,
             ),
             args_batch=[[
@@ -523,11 +528,18 @@ class SampleRunnerTest(test_base.TestCase):
             ]],
             ir_channel_names=['sample__operand_0', 'sample__operand_1'],
         ))
+    expected_result = 'sample__result : {\n  bits[32]:0x8e\n}'
     self.assertEqual(
-        _read_file(sample_dir, 'sample.x.results').strip(),
-        'sample__result : {\n  bits[32]:0x8e\n}')
+        _read_file(sample_dir, 'sample.x.results').strip(), expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.ir.results').strip(), expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.opt.ir.results').strip(),
+        expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.sv.results').strip(), expected_result)
 
-  def test_interpret_dslx_ir_proc_with_state(self):
+  def test_proc_with_state_pipeline(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     runner.run(
@@ -535,15 +547,26 @@ class SampleRunnerTest(test_base.TestCase):
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
                 proc_init_constant='DEFAULT_INIT_STATE',
+                codegen=True,
+                codegen_args=('--generator=pipeline', '--pipeline_stages=2',
+                              '--reset=rst'),
                 ir_converter_args=['--top=main'],
+                simulate=True,
                 top_type=sample.TopType.proc,
             ),
             args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                         [interp_value_from_ir_string('bits[1]:0')]],
             ir_channel_names=['sample__enable_counter']))
+    expected_result = 'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}'
     self.assertEqual(
-        _read_file(sample_dir, 'sample.x.results').strip(),
-        'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}')
+        _read_file(sample_dir, 'sample.x.results').strip(), expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.ir.results').strip(), expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.opt.ir.results').strip(),
+        expected_result)
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.sv.results').strip(), expected_result)
 
   def test_miscompare_number_of_channels(self):
     sample_dir = self._make_sample_dir()
@@ -649,6 +672,63 @@ class SampleRunnerTest(test_base.TestCase):
         'has value u32:42. However, in interpreted DSLX, the value is u32:43.')
     self.assertIn(error_str, str(e.exception))
     self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))
+
+  def test_convert_args_batch_to_ir_channel_values(self):
+    args_batch = [[
+        interp_value_from_ir_string('bits[8]:42'),
+        interp_value_from_ir_string('bits[8]:64')
+    ],
+                  [
+                      interp_value_from_ir_string('bits[8]:21'),
+                      interp_value_from_ir_string('bits[8]:32')
+                  ]]
+    ir_channel_names = ['channel_zero', 'channel_one']
+    ir_channel_values = sample_runner.convert_args_batch_to_ir_channel_values(
+        args_batch, ir_channel_names)
+    self.assertContainsSubset(
+        ir_channel_values, {
+            'channel_zero': [
+                interp_value_from_ir_string('bits[8]:42'),
+                interp_value_from_ir_string('bits[8]:21')
+            ],
+            'channel_one': [
+                interp_value_from_ir_string('bits[8]:64'),
+                interp_value_from_ir_string('bits[8]:32')
+            ]
+        })
+
+  def test_convert_args_batch_to_ir_channel_values_value_error(self):
+    args_batch = [[interp_value_from_ir_string('bits[8]:42')],
+                  [interp_value_from_ir_string('bits[8]:21')]]
+    ir_channel_names = ['channel_zero', 'channel_one']
+    with self.assertRaises(ValueError) as e:
+      sample_runner.convert_args_batch_to_ir_channel_values(
+          args_batch, ir_channel_names)
+    self.assertIn('Invalid number of values in args_batch sample',
+                  str(e.exception))
+
+  def test_convert_ir_channel_values_to_channel_values(self):
+    ir_channel_values = {
+        'channel_zero': [
+            IRValue(bits.UBits(42, 8)),
+            IRValue(bits.UBits(21, 8))
+        ],
+        'channel_one': [IRValue(bits.UBits(64, 8)),
+                        IRValue(bits.UBits(32, 8))]
+    }
+    channel_values = sample_runner.convert_ir_channel_values_to_channel_values(
+        ir_channel_values)
+    self.assertContainsSubset(
+        channel_values, {
+            'channel_zero': [
+                interp_value_from_ir_string('bits[8]:42'),
+                interp_value_from_ir_string('bits[8]:21')
+            ],
+            'channel_one': [
+                interp_value_from_ir_string('bits[8]:64'),
+                interp_value_from_ir_string('bits[8]:32')
+            ]
+        })
 
 
 if __name__ == '__main__':

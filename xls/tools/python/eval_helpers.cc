@@ -25,11 +25,15 @@
 
 namespace xls {
 
+namespace py = pybind11;
+
 PYBIND11_MODULE(eval_helpers, m) {
   ImportStatusModule();
 
   m.def("channel_values_to_string", &ChannelValuesToString);
-  m.def("parse_channel_values", &ParseChannelValues);
+  m.def("parse_channel_values", &ParseChannelValues,
+        py::arg("all_channel_values"),
+        py::arg("max_values_count") = absl::nullopt);
 }
 
 }  // namespace xls

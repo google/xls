@@ -207,6 +207,8 @@ py_test(
         "//xls/common:test_base",
         "//xls/dslx/python:interp_value",
         "//xls/fuzzer/python:cpp_sample",
+        "//xls/ir/python:bits",
+        "//xls/ir/python:value",
     ],
 )
 
