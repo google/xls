@@ -501,103 +501,71 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   return SimplificationResult::kDidNotChange;
 }
 
-absl::StatusOr<SimplificationResult> Simplify(
-    FunctionBase* f, std::optional<std::vector<Value>> inputs,
-    std::mt19937* rng, std::string* which_transform) {
-  if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.3) {
-    XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
-                         RunRandomPass(f, rng, which_transform));
-    if (pass_result != SimplificationResult::kDidNotChange) {
-      return pass_result;
+absl::StatusOr<SimplificationResult> SimplifyNode(
+    Node* n, std::mt19937* rng, std::string* which_transform) {
+  FunctionBase* f = n->function_base();
+  if (((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
+       (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) &&
+      Random0To1(rng) < 0.3) {
+    XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(n));
+    absl::flat_hash_set<std::string> preserved_channels;
+    for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
+      preserved_channels.insert(chan);
     }
-  }
-
-  if (absl::GetFlag(FLAGS_use_optimization_pipeline) &&
-      Random0To1(rng) < 0.05) {
-    // Try to run the sample through the entire optimization pipeline.
-    XLS_ASSIGN_OR_RETURN(bool changed, RunStandardPassPipeline(f->package()));
-    if (changed) {
-      *which_transform = "Optimization pipeline";
-      return SimplificationResult::kDidChange;
-    }
-  }
-
-  if (Random0To1(rng) < 0.2) {
-    XLS_ASSIGN_OR_RETURN(SimplificationResult result,
-                         SimplifyReturnValue(f, rng, which_transform));
-    if (result == SimplificationResult::kDidChange) {
-      return result;
-    }
-  }
-
-  if (inputs.has_value() && Random0To1(rng) < 0.3) {
-    // Try to replace a parameter with a literal equal to the respective input
-    // value.
-    int64_t param_no = absl::Uniform<int64_t>(*rng, 0, f->params().size());
-    Param* param = f->params()[param_no];
-    if (!param->GetType()->IsToken()) {
-      XLS_RETURN_IF_ERROR(
-          param->ReplaceUsesWithNew<Literal>(inputs->at(param_no)).status());
-      *which_transform = absl::StrFormat(
-          "random replace parameter %d (%s) with literal of input value: %s",
-          param_no, param->GetName(), inputs->at(param_no).ToString());
-      return SimplificationResult::kDidChange;
-    }
-  }
-
-  absl::flat_hash_set<std::string> preserved_channels;
-  for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
-    preserved_channels.insert(chan);
-  }
-
-  absl::flat_hash_map<Channel*, absl::flat_hash_set<Node*>> channel_to_nodes;
-  for (Node* node : f->nodes()) {
-    if (node->Is<Receive>() || node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(node));
-      channel_to_nodes[c].insert(node);
-    }
-  }
-
-  // Pick a random node and try to do something with it.
-  int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
-  Node* n = *std::next(f->nodes().begin(), i);
-
-  if (!n->operands().empty() && Random0To1(rng) < 0.3) {
-    if ((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
-        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) {
-      XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(n));
-      if ((c->supported_ops() != ChannelOps::kSendReceive) &&
-          !preserved_channels.contains(c->name())) {
-        if (n->Is<Send>() && channel_to_nodes.at(c).size() == 1) {
-          XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
-          *which_transform = "remove send: %s" + n->GetName();
-          XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-          XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
-          return SimplificationResult::kDidChange;
-        }
-        if (n->Is<Receive>() && channel_to_nodes.at(c).size() == 1) {
-          XLS_ASSIGN_OR_RETURN(
-              Node * zero,
-              f->MakeNode<Literal>(
-                  SourceInfo(),
-                  ZeroOfType(n->GetType()->AsTupleOrDie()->element_type(1))));
-          XLS_ASSIGN_OR_RETURN(
-              Node * tuple,
-              f->MakeNode<Tuple>(SourceInfo(),
-                                 std::vector<Node*>{n->operand(0), zero}));
-          XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(tuple));
-          *which_transform = "remove receive: %s" + n->GetName();
-          XLS_RETURN_IF_ERROR(f->RemoveNode(n));
-          XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
-          return SimplificationResult::kDidChange;
-        }
+    absl::flat_hash_map<Channel*, absl::flat_hash_set<Node*>> channel_to_nodes;
+    for (Node* node : f->nodes()) {
+      if (node->Is<Receive>() || node->Is<Send>()) {
+        XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(node));
+        channel_to_nodes[c].insert(node);
       }
     }
-
-    if (TypeHasToken(n->GetType())) {
-      return SimplificationResult::kDidNotChange;
+    if ((c->supported_ops() != ChannelOps::kSendReceive) &&
+        !preserved_channels.contains(c->name())) {
+      if (n->Is<Send>() && channel_to_nodes.at(c).size() == 1) {
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+        *which_transform = "remove send: %s" + n->GetName();
+        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+        XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+        return SimplificationResult::kDidChange;
+      }
+      if (n->Is<Receive>() && channel_to_nodes.at(c).size() == 1) {
+        // A receive can have two possible types:
+        //   blocking     : (token, <data type>)
+        //   non-blocking : (token, <data type>, bits[1])
+        // Create a tuple of the correct type containing the token and literal
+        // values for the other elements.
+        TupleType* tuple_type = n->GetType()->AsTupleOrDie();
+        std::vector<Node*> tuple_elements = {n->operand(0)};
+        for (int64_t i = 1; i < tuple_type->size(); ++i) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * zero,
+              f->MakeNode<Literal>(SourceInfo(),
+                                   ZeroOfType(tuple_type->element_type(i))));
+          tuple_elements.push_back(zero);
+        }
+        XLS_ASSIGN_OR_RETURN(Node * tuple,
+                             f->MakeNode<Tuple>(SourceInfo(), tuple_elements));
+        XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(tuple));
+        *which_transform = "remove receive: %s" + n->GetName();
+        XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+        XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+        return SimplificationResult::kDidChange;
+      }
     }
+  }
 
+  if (TypeHasToken(n->GetType())) {
+    return SimplificationResult::kDidNotChange;
+  }
+
+  if (OpIsSideEffecting(n->op()) && !n->Is<Param>() && n->IsDead() &&
+      Random0To1(rng) < 0.3) {
+    *which_transform = "remove userless side-effecting node: " + n->GetName();
+    XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+    return SimplificationResult::kDidChange;
+  }
+
+  if (!n->operands().empty() && Random0To1(rng) < 0.3) {
     // Try to replace a node with one of its (potentially truncated/extended)
     // operands.
     int64_t operand_no = absl::Uniform<int64_t>(*rng, 0, n->operand_count());
@@ -640,10 +608,6 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
-  if (TypeHasToken(n->GetType())) {
-    return SimplificationResult::kDidNotChange;
-  }
-
   // Replace node with a constant (all zeros or all ones).
   if (n->Is<Param>() && n->IsDead()) {
     // Can't replace unused params with constant.
@@ -669,6 +633,56 @@ absl::StatusOr<SimplificationResult> Simplify(
       n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
   *which_transform = "random replace with zero: " + n->GetName();
   return SimplificationResult::kDidChange;
+}
+
+absl::StatusOr<SimplificationResult> Simplify(
+    FunctionBase* f, std::optional<std::vector<Value>> inputs,
+    std::mt19937* rng, std::string* which_transform) {
+  if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.2) {
+    XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
+                         RunRandomPass(f, rng, which_transform));
+    if (pass_result != SimplificationResult::kDidNotChange) {
+      return pass_result;
+    }
+  }
+
+  if (absl::GetFlag(FLAGS_use_optimization_pipeline) &&
+      Random0To1(rng) < 0.05) {
+    // Try to run the sample through the entire optimization pipeline.
+    XLS_ASSIGN_OR_RETURN(bool changed, RunStandardPassPipeline(f->package()));
+    if (changed) {
+      *which_transform = "Optimization pipeline";
+      return SimplificationResult::kDidChange;
+    }
+  }
+
+  if (Random0To1(rng) < 0.2) {
+    XLS_ASSIGN_OR_RETURN(SimplificationResult result,
+                         SimplifyReturnValue(f, rng, which_transform));
+    if (result == SimplificationResult::kDidChange) {
+      return result;
+    }
+  }
+
+  if (inputs.has_value() && Random0To1(rng) < 0.3) {
+    // Try to replace a parameter with a literal equal to the respective input
+    // value.
+    int64_t param_no = absl::Uniform<int64_t>(*rng, 0, f->params().size());
+    Param* param = f->params()[param_no];
+    if (!param->GetType()->IsToken()) {
+      XLS_RETURN_IF_ERROR(
+          param->ReplaceUsesWithNew<Literal>(inputs->at(param_no)).status());
+      *which_transform = absl::StrFormat(
+          "random replace parameter %d (%s) with literal of input value: %s",
+          param_no, param->GetName(), inputs->at(param_no).ToString());
+      return SimplificationResult::kDidChange;
+    }
+  }
+
+  // Pick a random node and try to do something with it.
+  int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
+  Node* n = *std::next(f->nodes().begin(), i);
+  return SimplifyNode(n, rng, which_transform);
 }
 
 // Runs removal of dead nodes (transitively), and then any dead parameters.

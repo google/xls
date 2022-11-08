@@ -176,21 +176,7 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
         ir_file.full_path,
     ],
                                            encoding='utf-8')
-    self.assertEqual(
-        minimized_ir, '''package foo
-
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-
-top proc foo(tkn: token, init={}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0, id=1)
-  literal.12: bits[32] = literal(value=0, id=12)
-  tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
-  send.4: token = send(tkn, literal.12, channel_id=1, id=4)
-  after_all.5: token = after_all(tuple_index.2, send.4, id=5)
-  next (after_all.5)
-}
-''')
+    self.assertIn('proc foo', minimized_ir)
 
   def test_proc_remove_sends(self):
     input_ir = '''package foo
@@ -218,19 +204,8 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
         ir_file.full_path,
     ],
                                            encoding='utf-8')
-    self.assertEqual(
-        minimized_ir, '''package foo
-
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-
-top proc foo(tkn: token, init={}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0, id=1)
-  tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
-  after_all.5: token = after_all(tuple_index.2, tkn, id=5)
-  literal.11: bits[32] = literal(value=0, id=11)
-  next (after_all.5)
-}
-''')
+    self.assertIn('receive', minimized_ir)
+    self.assertNotIn('send', minimized_ir)
 
   def test_remove_receives(self):
     input_ir = '''package foo
@@ -258,18 +233,8 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
         ir_file.full_path,
     ],
                                            encoding='utf-8')
-    self.assertEqual(
-        minimized_ir, '''package foo
-
-chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-
-top proc foo(tkn: token, init={}) {
-  literal.16: bits[32] = literal(value=0, id=16)
-  send.4: token = send(tkn, literal.16, channel_id=1, id=4)
-  after_all.5: token = after_all(tkn, send.4, id=5)
-  next (after_all.5)
-}
-''')
+    self.assertNotIn('receive', minimized_ir)
+    self.assertIn('send', minimized_ir)
 
   def test_proc_remove_sends_and_receives(self):
     input_ir = '''package foo
@@ -298,14 +263,8 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
         ir_file.full_path,
     ],
                                            encoding='utf-8')
-    self.assertEqual(
-        minimized_ir, """package foo
-
-top proc foo(tkn: token, init={}) {
-  after_all.5: token = after_all(tkn, tkn, id=5)
-  next (after_all.5)
-}
-""")
+    self.assertNotIn('receive', minimized_ir)
+    self.assertNotIn('send', minimized_ir)
 
   def test_proc_preserve_channels(self):
     input_ir = '''package foo
@@ -335,19 +294,8 @@ top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2
         ir_file.full_path,
     ],
                                            encoding='utf-8')
-    self.assertEqual(
-        minimized_ir, '''package foo
-
-chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-
-top proc foo(tkn: token, init={}) {
-  receive.1: (token, bits[32]) = receive(tkn, channel_id=0, id=1)
-  tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
-  after_all.5: token = after_all(tuple_index.2, tkn, id=5)
-  literal.11: bits[32] = literal(value=0, id=11)
-  next (after_all.5)
-}
-''')
+    self.assertIn('chan input', minimized_ir)
+    self.assertNotIn('chan output', minimized_ir)
 
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should
@@ -385,6 +333,23 @@ top proc foo(tkn: token, init={}) {
     self.assertIn('main function provided does not fail',
                   comp.stderr.decode('utf-8'))
 
+  def test_remove_userless_sideeffecting_op(self):
+    input_ir = """package foo
+
+top fn foo(x: bits[32], y: bits[1]) -> bits[32] {
+  gate_node: bits[32] = gate(y, x)
+  ret test_node: bits[32] = identity(x)
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script only checks to see if `test_node` is in the IR.
+    self._write_sh_script(test_sh_file.full_path, ['/bin/grep test_node $1'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path
+    ])
+    self.assertNotIn('gate_node', minimized_ir.decode('utf-8'))
 
 if __name__ == '__main__':
   absltest.main()
