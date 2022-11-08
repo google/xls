@@ -48,6 +48,12 @@ ABSL_FLAG(std::string, output_header, "",
           "Path at which to write the output header file.");
 ABSL_FLAG(std::string, output_source, "",
           "Path at which to write the output object-wrapping source file.");
+ABSL_FLAG(
+    std::string, header_include_path, "",
+    "The path in the source tree at which the header should be #included. This "
+    "is copied verbatim into an #include directive in the generated source "
+    "file (the .cc file specified with --output_source). This flag is "
+    "required.");
 
 namespace xls {
 
@@ -221,6 +227,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
                       const std::string& output_object_path,
                       const std::string& output_header_path,
                       const std::string& output_source_path,
+                      const std::string& header_include_path,
                       const std::vector<std::string>& namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string input_ir, GetFileContents(input_ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -245,7 +252,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
 
   XLS_ASSIGN_OR_RETURN(
       std::string source_text,
-      GenerateWrapperSource(f, object_code, output_header_path, namespaces));
+      GenerateWrapperSource(f, object_code, header_include_path, namespaces));
   XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, source_text));
 
   return absl::OkStatus();
@@ -268,6 +275,10 @@ int main(int argc, char** argv) {
              !output_source_path.empty())
       << "All of --output_{object,header,source}_path must be specified.";
 
+  std::string header_include_path = absl::GetFlag(FLAGS_header_include_path);
+  XLS_QCHECK(!header_include_path.empty())
+      << "Must specify --header_include_path.";
+
   std::vector<std::string> namespaces;
   std::string namespaces_string = absl::GetFlag(FLAGS_namespaces);
   if (!namespaces_string.empty()) {
@@ -275,7 +286,7 @@ int main(int argc, char** argv) {
   }
   absl::Status status =
       xls::RealMain(input_ir_path, top, output_object_path, output_header_path,
-                    output_source_path, namespaces);
+                    output_source_path, header_include_path, namespaces);
   if (!status.ok()) {
     std::cout << status.message();
     return 1;

@@ -1033,16 +1033,25 @@ def _xls_ir_cc_library_impl(ctx):
     """
     src = ctx.file.src
 
-    header_file = ctx.actions.declare_file(ctx.outputs.header_file.basename)
+    # Source files (.h and .cc) files are first generated unformatted, then
+    # formatted with clangformat.
     object_file = ctx.actions.declare_file(ctx.outputs.object_file.basename)
+    unformatted_header_file = ctx.actions.declare_file(
+        ctx.outputs.header_file.basename + ".unformatted",
+    )
+    unformatted_source_file = ctx.actions.declare_file(
+        ctx.outputs.source_file.basename + ".unformatted",
+    )
+
+    header_file = ctx.actions.declare_file(ctx.outputs.header_file.basename)
     source_file = ctx.actions.declare_file(ctx.outputs.source_file.basename)
-    generated_files = [object_file, header_file, source_file]
 
     aot_compiler_args = ctx.actions.args()
     aot_compiler_args.add("-input", src)
-    aot_compiler_args.add("-output_header", header_file.path)
+    aot_compiler_args.add("-output_header", unformatted_header_file.path)
     aot_compiler_args.add("-output_object", object_file.path)
-    aot_compiler_args.add("-output_source", source_file.path)
+    aot_compiler_args.add("-output_source", unformatted_source_file.path)
+    aot_compiler_args.add("-header_include_path", header_file.short_path)
     if ctx.attr.namespaces:
         aot_compiler_args.add("-namespaces", ctx.attr.namespaces)
 
@@ -1056,7 +1065,7 @@ def _xls_ir_cc_library_impl(ctx):
     runfiles = get_runfiles_for_xls(ctx, [aot_compiler_tool_runfiles], [src])
 
     ctx.actions.run(
-        outputs = generated_files,
+        outputs = [object_file, unformatted_header_file, unformatted_source_file],
         tools = [aot_compiler_tool],
         inputs = runfiles.files,
         arguments = [aot_compiler_args],
@@ -1065,10 +1074,34 @@ def _xls_ir_cc_library_impl(ctx):
         progress_message = "AOT compiling %s" % src.path,
     )
 
+    ctx.actions.run_shell(
+        inputs = [unformatted_header_file],
+        outputs = [header_file],
+        tools = [ctx.executable._clang_format],
+        progress_message = "Formatting %s" % header_file.basename,
+        command = "{clang_format} {unformatted} > {formatted}".format(
+            clang_format = ctx.executable._clang_format.path,
+            unformatted = unformatted_header_file.path,
+            formatted = header_file.path,
+        ),
+    )
+
+    ctx.actions.run_shell(
+        inputs = [unformatted_source_file],
+        outputs = [source_file],
+        tools = [ctx.executable._clang_format],
+        progress_message = "Formatting %s" % source_file.basename,
+        command = "{clang_format} {unformatted} > {formatted}".format(
+            clang_format = ctx.executable._clang_format.path,
+            unformatted = unformatted_source_file.path,
+            formatted = source_file.path,
+        ),
+    )
+
     return [
         DefaultInfo(
             files = depset(
-                direct = generated_files,
+                direct = [object_file, header_file, source_file],
                 transitive = get_transitive_built_files_for_xls(
                     ctx,
                     [ctx.attr.src],
@@ -1105,6 +1138,12 @@ xls_ir_cc_library = rule(
             "namespaces": attr.string(
                 doc = "Comma-separated list of nested namespaces in which to " +
                       "place the generated function.",
+            ),
+            "_clang_format": attr.label(
+                executable = True,
+                allow_files = True,
+                cfg = "exec",
+                default = Label("@llvm_toolchain_llvm//:bin/clang-format"),
             ),
         },
     ),
