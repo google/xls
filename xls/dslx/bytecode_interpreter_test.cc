@@ -1507,5 +1507,64 @@ fn doomed() {
 })"));
 }
 
+TEST(BytecodeInterpreterTest, PrettyPrintsArrays) {
+  constexpr std::string_view kProgram = R"(
+struct InnerStruct {
+    x: u32,
+    y: u32,
+}
+
+struct MyStruct {
+    c: InnerStruct[2],
+}
+
+fn doomed() {
+    let a = MyStruct {
+        c: InnerStruct[2]:[
+            InnerStruct {
+                x: u32:1,
+                y: u32:2,
+            },
+            InnerStruct {
+                x: u32:3,
+                y: u32:4,
+            }
+        ],
+    };
+    let b = MyStruct {
+        c: InnerStruct[2]:[
+            InnerStruct {
+                x: u32:5,
+                y: u32:6,
+            },
+            InnerStruct {
+                x: u32:7,
+                y: u32:8,
+            },
+        ],
+    };
+
+    assert_eq(a, b)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  absl::StatusOr<InterpValue> value =
+      Interpret(&import_data, kProgram, "doomed");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("were not equal")));
+  EXPECT_TRUE(absl::StrContains(value.status().message(),
+                                R"(lhs: MyStruct {
+    c: InnerStruct[2]:[
+        InnerStruct {
+            x: u32:1
+            y: u32:2
+        },
+        InnerStruct {
+            x: u32:3
+            y: u32:4
+        }
+    ])"));
+}
+
 }  // namespace
 }  // namespace xls::dslx

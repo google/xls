@@ -1206,14 +1206,38 @@ absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
 absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
                                              const ConcreteType* type,
                                              int indent = 0) {
+  std::string indent_str(indent * 4, ' ');
   if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
       array_type != nullptr) {
-    return absl::StrFormat("%s:%s", array_type->ToString(), value.ToString());
+    const ConcreteType* element_type = &array_type->element_type();
+    std::vector<std::string> elements;
+    for (const auto& element_value : value.GetValuesOrDie()) {
+      XLS_ASSIGN_OR_RETURN(
+          std::string element,
+          PrettyPrintValue(element_value, element_type, indent + 1));
+      elements.push_back(element);
+    }
+
+    std::string element_type_name = element_type->ToString();
+    std::string value_prefix = "";
+    std::string separator = ", ";
+    std::string value_suffix = "";
+    if (const auto* struct_type = dynamic_cast<const StructType*>(element_type);
+        struct_type != nullptr) {
+      element_type_name = struct_type->nominal_type().identifier();
+      std::string next_indent((indent + 1) * 4, ' ');
+      value_prefix = absl::StrCat("\n", next_indent);
+      separator = absl::StrCat(",", value_prefix);
+      value_suffix = absl::StrCat("\n", indent_str);
+    }
+
+    return absl::StrFormat("%s[%d]:[%s%s%s]", element_type_name,
+                           value.GetValuesOrDie().size(), value_prefix,
+                           absl::StrJoin(elements, separator), value_suffix);
   }
 
   if (const auto* struct_type = dynamic_cast<const StructType*>(type);
       struct_type != nullptr) {
-    std::string indent_str(indent * 4, ' ');
     std::vector<std::string> members;
     members.reserve(struct_type->size());
     for (int i = 0; i < struct_type->size(); i++) {
