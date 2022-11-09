@@ -17,10 +17,12 @@
 #include <algorithm>
 #include <optional>
 #include <set>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
@@ -375,7 +377,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
     case ChannelOpType::kSend:
       return TypedExpr{module_->Make<Send>(fake_span_, token_name_ref,
                                            chan_expr, payload.value().expr),
-                       MakeTupleType({token.type})};
+                       token.type};
     case ChannelOpType::kSendIf:
       return TypedExpr{
           module_->Make<SendIf>(fake_span_, token_name_ref, chan_expr,
@@ -410,8 +412,120 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Env* env) {
                    MakeTypeAnnotation(false, 1)};
 }
 
+class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
+ public:
+  FindTokenTypeVisitor() : token_found_(false) {}
+
+  bool GetTokenFound() const { return token_found_; }
+
+  absl::Status HandleBuiltinTypeAnnotation(
+      const BuiltinTypeAnnotation* builtin_type) override {
+    if (!token_found_) {
+      token_found_ = builtin_type->builtin_type() == BuiltinType::kToken;
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTupleTypeAnnotation(
+      const TupleTypeAnnotation* tuple_type) override {
+    for (TypeAnnotation* member_type : tuple_type->members()) {
+      if (token_found_) {
+        break;
+      }
+      XLS_RETURN_IF_ERROR(member_type->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleArrayTypeAnnotation(
+      const ArrayTypeAnnotation* array_type) override {
+    return array_type->element_type()->Accept(this);
+  }
+
+  absl::Status HandleTypeRefTypeAnnotation(
+      const TypeRefTypeAnnotation* type_ref_type) override {
+    return type_ref_type->type_ref()->Accept(this);
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* type_ref) override {
+    const TypeDefinition& type_def = type_ref->type_definition();
+    if (std::holds_alternative<TypeDef*>(type_def)) {
+      return std::get<TypeDef*>(type_def)->Accept(this);
+    }
+    if (std::holds_alternative<StructDef*>(type_def)) {
+      return std::get<StructDef*>(type_def)->Accept(this);
+    }
+    if (std::holds_alternative<EnumDef*>(type_def)) {
+      return std::get<EnumDef*>(type_def)->Accept(this);
+    }
+    XLS_CHECK(std::holds_alternative<ColonRef*>(type_def));
+    return std::get<ColonRef*>(type_def)->Accept(this);
+  }
+
+  absl::Status HandleTypeDef(const TypeDef* type_def) override {
+    return type_def->type_annotation()->Accept(this);
+  }
+
+  absl::Status HandleStructDef(const StructDef* struct_def) override {
+    for (const std::pair<NameDef*, TypeAnnotation*>& member_pair :
+         struct_def->members()) {
+      if (token_found_) {
+        break;
+      }
+      XLS_RETURN_IF_ERROR(member_pair.second->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleEnumDef(const EnumDef* enum_def) override {
+    return enum_def->type_annotation()->Accept(this);
+  }
+
+  absl::Status HandleColonRef(const ColonRef* colon_def) override {
+    return absl::InternalError("ColonRef are not supported by the fuzzer.");
+  }
+
+ private:
+  bool token_found_;
+};
+
+/* static */ absl::StatusOr<bool> AstGenerator::ContainsToken(
+    TypeAnnotation* type) {
+  FindTokenTypeVisitor token_visitor;
+  XLS_RETURN_IF_ERROR(type->Accept(&token_visitor));
+  return token_visitor.GetTokenFound();
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
+    Env* env, int64_t min_size) {
+  auto take = [&](const TypedExpr& e) -> bool {
+    if (!IsTuple(e.type)) {
+      return false;
+    }
+    TupleTypeAnnotation* tuple_type =
+        dynamic_cast<TupleTypeAnnotation*>(e.type);
+    if (tuple_type->size() < min_size) {
+      return false;
+    }
+    absl::StatusOr<bool> contains_token_or = ContainsToken(tuple_type);
+    XLS_CHECK_OK(contains_token_or.status());
+    return !contains_token_or.value();
+  };
+  return ChooseEnvValue(env, take);
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueNotContainingToken(
+    Env* env) {
+  auto take = [&](const TypedExpr& e) -> bool {
+    absl::StatusOr<bool> contains_token_or = ContainsToken(e.type);
+    XLS_CHECK_OK(contains_token_or.status());
+    return !contains_token_or.value();
+  };
+  return ChooseEnvValue(env, take);
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueTuple(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueTupleWithoutToken(env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, lhs.type));
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
@@ -730,9 +844,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
-  // Choose an arbitrary value from the environment, then gather all elements
-  // from the environment of that type.
-  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValue(env));
+  // Choose an arbitrary non-token value from the environment, then gather all
+  // elements from the environment of that type.
+  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueNotContainingToken(env));
   std::vector<TypedExpr> values = GatherAllValues(
       env, [&](const TypedExpr& t) { return t.type == value.type; });
   XLS_RET_CHECK(!values.empty());
@@ -986,7 +1100,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   int64_t total_bit_count = 0;
   int64_t element_count = GenerateNaryOperandCount(env, 0);
   for (int64_t i = 0; i < element_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotContainingToken(env));
     members.push_back(e);
     total_bit_count += GetTypeBitCount(e.type);
   }

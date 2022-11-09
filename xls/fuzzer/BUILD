@@ -445,6 +445,7 @@ cc_library(
     deps = [
         ":value_generator",
         "//xls/common:casts",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:ast",

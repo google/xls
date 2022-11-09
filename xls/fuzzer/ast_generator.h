@@ -148,6 +148,7 @@ class AstGenerator {
   static bool EnvContainsTuple(const Env& e);
   static bool EnvContainsToken(const Env& e);
   static bool EnvContainsChannel(const Env& e);
+  static absl::StatusOr<bool> ContainsToken(TypeAnnotation* type);
 
   // Generates a function with name "name".
   absl::Status GenerateFunctionInModule(std::string name);
@@ -257,6 +258,11 @@ class AstGenerator {
     auto take = [&](const TypedExpr& e) -> bool { return !IsArray(e.type); };
     return ChooseEnvValue(env, take);
   }
+
+  absl::StatusOr<TypedExpr> ChooseEnvValueTupleWithoutToken(
+      Env* env, int64_t min_size = 0);
+
+  absl::StatusOr<TypedExpr> ChooseEnvValueNotContainingToken(Env* env);
 
   // Generates the body of a function AST node with the given
   // parameters. call_depth is the depth of the call stack (via map or other
