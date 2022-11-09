@@ -521,6 +521,7 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 simulate=True,
                 top_type=sample.TopType.proc,
+                use_system_verilog=False,
             ),
             args_batch=[[
                 interp_value_from_ir_string('bits[32]:42'),
@@ -537,8 +538,10 @@ class SampleRunnerTest(test_base.TestCase):
         _read_file(sample_dir, 'sample.opt.ir.results').strip(),
         expected_result)
     self.assertEqual(
-        _read_file(sample_dir, 'sample.sv.results').strip(), expected_result)
+        _read_file(sample_dir, 'sample.v.results').strip(), expected_result)
 
+  @test_base.skipIf(not check_simulator.runs_system_verilog(),
+                    'uses SystemVerilog')
   def test_proc_with_state_pipeline(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
@@ -553,6 +556,7 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 simulate=True,
                 top_type=sample.TopType.proc,
+                use_system_verilog=True,
             ),
             args_batch=[[interp_value_from_ir_string('bits[1]:1')],
                         [interp_value_from_ir_string('bits[1]:0')]],
