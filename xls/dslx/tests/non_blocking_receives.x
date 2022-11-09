@@ -19,6 +19,8 @@ proc test_impl {
   in1: chan<u32> in;
   out0 : chan<u32> out;
 
+  init { u32:0 }
+
   config(in0: chan<u32> in,
          in1: chan<u32> in,
          out0: chan<u32> out) {
@@ -43,35 +45,38 @@ proc test_impl {
 }
 
 pub proc proc_main {
+  init { () }
+
   config(in0: chan<u32> in,
          in1: chan<u32> in,
          out0: chan<u32> out) {
-    spawn test_impl(in0, in1, out0)
-        (u32:0);
+    spawn test_impl(in0, in1, out0);
     ()
   }
 
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
-#[test_proc()]
+#[test_proc]
 proc test_main {
   terminator: chan<bool> out;
   in0: chan<u32> out;
   in1: chan<u32> out;
   out0: chan<u32> in;
 
+  init { () }
+
   config(terminator: chan<bool> out) {
     let (in0_p, in0_c) = chan<u32>;
     let (in1_p, in1_c) = chan<u32>;
     let (out0_p, out0_c) = chan<u32>;
 
-    spawn proc_main(in0_c, in1_c, out0_p)();
+    spawn proc_main(in0_c, in1_c, out0_p);
 
     (terminator, in0_c, in1_c, out0_c)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     // Not sending on either channel means output is 0.
     let x = u32:0;
     let (tok, v) = recv(tok, out0);

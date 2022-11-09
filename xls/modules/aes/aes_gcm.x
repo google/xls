@@ -76,22 +76,6 @@ struct State {
     msg_blocks_left: u32,
 }
 
-// TODO(https://github.com/google/xls/issues/681): Proc-scope this.
-// Returns a "zero-valued" State structure, suitable for initializing the proc.
-const DEFAULT_INITIAL_STATE = State {
-    step: Step::IDLE,
-    command: Command {
-        encrypt: false,
-        msg_blocks: u32:0,
-        aad_blocks: u32:0,
-        key: Key:[u8:0, ...],
-        key_width: KeyWidth::KEY_128,
-        iv: InitVector:0,
-    },
-    msg_blocks_left: u32:0,
-    aad_blocks_left: u32:0,
-};
-
 // Returns the State structure to be used for the current "tick", whose
 // contents depend on a possible input command and the current state of the proc.
 fn get_current_state(state: State, command: Command) -> State {
@@ -189,20 +173,34 @@ proc aes_gcm {
     ghash_input_out: chan<Block> out;
     ghash_tag_in: chan<Block> in;
 
+    init {
+        State {
+            step: Step::IDLE,
+            command: Command {
+                encrypt: false,
+                msg_blocks: u32:0,
+                aad_blocks: u32:0,
+                key: Key:[u8:0, ...],
+                key_width: KeyWidth::KEY_128,
+                iv: InitVector:0,
+            },
+            msg_blocks_left: u32:0,
+            aad_blocks_left: u32:0,
+        }
+    }
+
     config(command_in: chan<Command> in,
            data_in: chan<Block> in,
            data_out: chan<Block> out) {
         let (ctr_cmd_in, ctr_cmd_out) = chan<aes_ctr::Command>;
         let (ctr_input_in, ctr_input_out) = chan<Block>;
         let (ctr_result_in, ctr_result_out) = chan<Block>;
-        let ctr_initial_state = aes_ctr::DEFAULT_INITIAL_STATE;
-        spawn aes_ctr::aes_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out)(ctr_initial_state);
+        spawn aes_ctr::aes_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out);
 
         let (ghash_cmd_in, ghash_cmd_out) = chan<ghash::Command>;
         let (ghash_input_in, ghash_input_out) = chan<Block>;
         let (ghash_tag_in, ghash_tag_out) = chan<Block>;
-        let ghash_initial_state = ghash::DEFAULT_INITIAL_STATE;
-        spawn ghash::ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out)(ghash_initial_state);
+        spawn ghash::ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out);
 
         (command_in, data_in, data_out,
          ctr_cmd_out, ctr_input_out, ctr_result_in,
@@ -285,22 +283,24 @@ proc aes_gcm {
 
 // Tests encryption of a single block of plaintext with a single block of AAD.
 // 256-bit testing is run via the cc_test.
-#[test_proc()]
+#[test_proc]
 proc aes_gcm_test_smoke_128 {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_out: chan<Block> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
+        spawn aes_gcm(command_in, input_in, result_out);
         (command_out, input_out, result_in, terminator)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let command = Command {
             encrypt: true,
             msg_blocks: u32:1,
@@ -351,22 +351,24 @@ proc aes_gcm_test_smoke_128 {
 }
 
 // Tests encryption with three blocks of plaintext and two blocks of AAD.
-#[test_proc()]
+#[test_proc]
 proc aes_gcm_multi_block_gcm {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_out: chan<Block> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
+        spawn aes_gcm(command_in, input_in, result_out);
         (command_out, input_out, result_in, terminator)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let key = Key:[
             u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
             u8:0x76, u8:0x54, u8:0x32, u8:0x10,
@@ -471,22 +473,24 @@ proc aes_gcm_multi_block_gcm {
 // commands: 0 blocks of AAD, 0 blocks of msg, or 0 blocks of either.
 // We can't inspect proc internal state, so we finish up this sequence with a
 // normal encryption and verify the results.
-#[test_proc()]
+#[test_proc]
 proc aes_128_gcm_zero_block_commands {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_in: chan<Block> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
+        spawn aes_gcm(command_in, input_in, result_out);
         (command_out, input_out, result_in, terminator)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let key = Key:[
             u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
             u8:0x76, u8:0x54, u8:0x32, u8:0x10,
@@ -596,22 +600,24 @@ proc aes_128_gcm_zero_block_commands {
 }
 
 // Test of sample_generator.cc output.
-#[test_proc()]
+#[test_proc]
 proc sample_generator_test {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_in: chan<Block> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out)(DEFAULT_INITIAL_STATE);
+        spawn aes_gcm(command_in, input_in, result_out);
         (command_out, input_out, result_in, terminator)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let key = Key:[
             u8:0x66, u8:0x63, u8:0x23, u8:0x41,
             u8:0x15, u8:0xb9, u8:0x6c, u8:0x76,

@@ -240,9 +240,8 @@ class Bytecode {
     // The arguments to the proc's `config` function.
     std::vector<InterpValue> config_args;
 
-    // `next_args` should _not_ include proc members or the implicit token;
-    // they'll be added to the arg list by the interpreter.
-    std::vector<InterpValue> next_args;
+    // The initial state of the new proc.
+    InterpValue initial_state;
 
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.

@@ -476,8 +476,7 @@ class Parser : public TokenParser {
   absl::StatusOr<TestFunction*> ParseTestFunction(
       Bindings* bindings, const Span& directive_span);
 
-  absl::StatusOr<TestProc*> ParseTestProc(
-      Bindings* bindings, const std::vector<Expr*>& initial_values);
+  absl::StatusOr<TestProc*> ParseTestProc(Bindings* bindings);
 
   // Parses a constant definition (e.g. at the top level of a module). Token
   // cursor should be over the `const` keyword.
@@ -522,6 +521,13 @@ class Parser : public TokenParser {
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
       std::string_view proc_name);
+
+  // We use this function instead of CloneAst because we don't want to clone the
+  // underlying StructDefs, EnumDefs, etc., or else ConcreteType comparisons
+  // will fail (StructType::operator==).
+  // TODO(rspringer): Should we change that operator to use structural instead
+  // of pointer equality?
+  absl::StatusOr<TypeAnnotation*> CloneReturnType(TypeAnnotation* input);
 
   std::unique_ptr<Module> module_;
 

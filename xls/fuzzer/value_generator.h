@@ -73,22 +73,18 @@ class ValueGenerator {
   absl::StatusOr<std::vector<dslx::InterpValue>> GenerateInterpValues(
       absl::Span<const dslx::ConcreteType* const> arg_types);
 
-  // Randomly generates and returns a top-level ConstantDef with a value of
-  // the given type.
+  // Randomly generates an Expr* holding a value of the given type.
   // Note: Currently, AstGenerator only produces single-dimensional arrays with
   // [AST] Number-typed or ConstantDef-defined sizes. If that changes, then this
   // function will need to be modified.
-  absl::StatusOr<dslx::ConstantDef*> GenerateConstantDef(
-      dslx::Module* module, dslx::TypeAnnotation* type, std::string_view name,
-      bool is_public);
+  absl::StatusOr<dslx::Expr*> GenerateDslxConstant(dslx::Module* module,
+                                                   dslx::TypeAnnotation* type);
 
   std::mt19937& rng() { return rng_; }
 
  private:
   absl::StatusOr<dslx::InterpValue> GenerateUnbiasedValue(
       const dslx::BitsType& bits_type);
-  absl::StatusOr<dslx::Expr*> GenerateDslxConstant(dslx::Module* module,
-                                                   dslx::TypeAnnotation* type);
 
   // Evaluates the given Expr* (holding the declaration of an
   // ArrayTypeAnnotation's size) and returns its resolved integer value.

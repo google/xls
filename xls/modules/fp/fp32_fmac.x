@@ -20,48 +20,51 @@ const F32_ZERO = float32::zero(false);
 const F32_ONE = float32::one(false);
 
 proc fp32_fmac {
-  config(input_a: chan<F32> in, input_b: chan<F32> in,
-         reset: chan<bool> in, output: chan<F32> out) {
-    spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output)
-        (F32_ZERO);
-    ()
-  }
+    init { () }
 
-  // Nothing to do here - the spawned fmac does all the lifting.
-  next(tok: token) { () }
+    config(input_a: chan<F32> in, input_b: chan<F32> in,
+          reset: chan<bool> in, output: chan<F32> out) {
+        spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output);
+        ()
+    }
+
+    // Nothing to do here - the spawned fmac does all the lifting.
+    next(tok: token, state: ()) { () }
 }
 
-#[test_proc()]
+#[test_proc]
 proc smoke_test {
-  input_a_p: chan<F32> out;
-  input_b_p: chan<F32> out;
-  reset_p: chan<bool> out;
-  output_c: chan<F32> in;
-  terminator: chan<bool> out;
+    input_a_p: chan<F32> out;
+    input_b_p: chan<F32> out;
+    reset_p: chan<bool> out;
+    output_c: chan<F32> in;
+    terminator: chan<bool> out;
 
-  config(terminator: chan<bool> out) {
-    let (input_a_p, input_a_c) = chan<F32>;
-    let (input_b_p, input_b_c) = chan<F32>;
-    let (reset_p, reset_c) = chan<bool>;
-    let (output_p, output_c) = chan<F32>;
-    spawn fp32_fmac(input_a_c, input_b_c, reset_c, output_p)();
-    (input_a_p, input_b_p, reset_p, output_c, terminator)
-  }
+    init { () }
 
-  next(tok: token) {
-      let tok = send(tok, input_a_p, F32_ZERO);
-      let tok = send(tok, input_b_p, F32_ZERO);
-      let tok = send(tok, reset_p, false);
-      let (tok, result) = recv(tok, output_c);
-      let _ = assert_eq(result, F32_ZERO);
+    config(terminator: chan<bool> out) {
+        let (input_a_p, input_a_c) = chan<F32>;
+        let (input_b_p, input_b_c) = chan<F32>;
+        let (reset_p, reset_c) = chan<bool>;
+        let (output_p, output_c) = chan<F32>;
+        spawn fp32_fmac(input_a_c, input_b_c, reset_c, output_p);
+        (input_a_p, input_b_p, reset_p, output_c, terminator)
+    }
 
-      let tok = send(tok, input_a_p, F32_ONE);
-      let tok = send(tok, input_b_p, F32_ZERO);
-      let tok = send(tok, reset_p, false);
-      let (tok, result) = recv(tok, output_c);
-      let _ = assert_eq(result, F32_ZERO);
+    next(tok: token, state: ()) {
+        let tok = send(tok, input_a_p, F32_ZERO);
+        let tok = send(tok, input_b_p, F32_ZERO);
+        let tok = send(tok, reset_p, false);
+        let (tok, result) = recv(tok, output_c);
+        let _ = assert_eq(result, F32_ZERO);
 
-      let tok = send(tok, terminator, true);
-      ()
-  }
+        let tok = send(tok, input_a_p, F32_ONE);
+        let tok = send(tok, input_b_p, F32_ZERO);
+        let tok = send(tok, reset_p, false);
+        let (tok, result) = recv(tok, output_c);
+        let _ = assert_eq(result, F32_ZERO);
+
+        let tok = send(tok, terminator, true);
+        ()
+    }
 }

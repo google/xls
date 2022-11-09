@@ -631,12 +631,17 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
     const ConversionRecord& function_cr = *iter_func;
     for (auto iter_subject = iter_func + 1; iter_subject != ready->end();) {
       const ConversionRecord& subject_cr = *iter_subject;
-      if (function_cr.f() == subject_cr.f() &&
-          // functions must not be derived from a spawned/invoked proc.
-          (!function_cr.HasProcId() || !subject_cr.HasProcId()) &&
-          // functions must not be a parametric function.
-          (!function_cr.f()->IsParametric() ||
-           !subject_cr.f()->IsParametric())) {
+
+      bool same_fns = function_cr.f() == subject_cr.f();
+      bool either_is_proc_instance_fn =
+          function_cr.f()->tag() == Function::Tag::kProcConfig ||
+          function_cr.f()->tag() == Function::Tag::kProcNext ||
+          subject_cr.f()->tag() == Function::Tag::kProcConfig ||
+          subject_cr.f()->tag() == Function::Tag::kProcNext;
+      bool either_is_parametric =
+          function_cr.f()->IsParametric() || subject_cr.f()->IsParametric();
+
+      if (same_fns && !either_is_proc_instance_fn && !either_is_parametric) {
         iter_subject = ready->erase(iter_subject);
         continue;
       }
@@ -896,13 +901,16 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
                                    /*invocation=*/nullptr, f->owner(),
                                    type_info, SymbolicBindings(), &ready, {},
                                    /*is_top=*/true));
+    RemoveFunctionDuplicates(&ready);
     return ready;
   }
 
   Proc* p = std::get<Proc*>(entry);
   XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
                        type_info->GetTopLevelProcTypeInfo(p));
-  return GetOrderForProc(p, new_ti, /*is_top=*/true);
+  XLS_ASSIGN_OR_RETURN(ready, GetOrderForProc(p, new_ti, /*is_top=*/true));
+  RemoveFunctionDuplicates(&ready);
+  return ready;
 }
 
 }  // namespace xls::dslx

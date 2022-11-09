@@ -12,70 +12,77 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc producer {
-  p: chan<u32> out;
+    p: chan<u32> out;
 
-  config(p: chan<u32> out) {
-    (p,)
-  }
+    init { true }
 
-  next(tok: token, do_send: bool) {
-    let tok = send_if(tok, p, do_send, ((do_send) as u32));
-    !do_send
-  }
+    config(p: chan<u32> out) {
+        (p,)
+    }
+
+    next(tok: token, do_send: bool) {
+        let tok = send_if(tok, p, do_send, ((do_send) as u32));
+        !do_send
+    }
 }
 
 proc consumer {
-  c: chan<u32> in;
+    c: chan<u32> in;
 
-  config(c: chan<u32> in) {
-    (c,)
-  }
+    init { true }
 
-  next(tok: token, do_recv: bool) {
-    let (tok, foo) = recv_if(tok, c, do_recv);
-    !do_recv
-  }
+    config(c: chan<u32> in) {
+        (c,)
+    }
+
+    next(tok: token, do_recv: bool) {
+        let (tok, foo) = recv_if(tok, c, do_recv);
+        !do_recv
+    }
 }
 
 proc main {
+    init { () }
     config() {
         let (p, c) = chan<u32>;
-        spawn producer(p)(true);
-        spawn consumer(c)(true);
+        spawn producer(p);
+        spawn consumer(c);
         ()
     }
-    next(tok: token) { () }
+    next(tok: token, state: ()) { () }
 }
 
-#[test_proc()]
+#[test_proc]
 proc test_main {
-  terminator: chan<bool> out;
-  data0: chan<u32> in;
-  data1: chan<u32> out;
+    terminator: chan<bool> out;
+    data0: chan<u32> in;
+    data1: chan<u32> out;
 
-  config(terminator: chan<bool> out) {
-    let (data0_p, data0_c) = chan<u32>;
-    let (data1_p, data1_c) = chan<u32>;
+    init { () }
 
-    spawn producer(data0_p)(true);
-    spawn consumer(data1_c)(true);
+    config(terminator: chan<bool> out) {
+        let (data0_p, data0_c) = chan<u32>;
+        let (data1_p, data1_c) = chan<u32>;
 
-    (terminator, data0_c, data1_p)
-  }
+        spawn producer(data0_p);
+        spawn consumer(data1_c);
 
-  next(tok: token) {
-    // Sending consumer data.
-    let tok = send(tok, data1, u32:10);
-    let tok = send(tok, data1, u32:20);
+        (terminator, data0_c, data1_p)
+    }
 
-    // Receiving producer data.
-    let (tok, v) = recv(tok, data0);
-    let _ = assert_eq(v, u32:1);
+    next(tok: token, state: ()) {
+        // Sending consumer data.
+        let tok = send(tok, data1, u32:10);
+        let tok = send(tok, data1, u32:20);
 
-    let (tok, v) = recv(tok, data0);
-    let _ = assert_eq(v, u32:1);
+        // Receiving producer data.
+        let (tok, v) = recv(tok, data0);
+        let _ = assert_eq(v, u32:1);
 
-    let tok = send(tok, terminator, true);
-    ()
-  }
+        let (tok, v) = recv(tok, data0);
+        let _ = assert_eq(v, u32:1);
+
+        let tok = send(tok, terminator, true);
+        ()
+    }
 }

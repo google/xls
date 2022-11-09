@@ -1381,6 +1381,9 @@ class Function : public AstNode {
   }
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* return_type() const { return return_type_; }
+  void set_return_type(TypeAnnotation* return_type) {
+    return_type_ = return_type;
+  }
 
   Tag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
@@ -1406,7 +1409,7 @@ class Proc : public AstNode {
        NameDef* next_name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
        const std::vector<Param*>& members, Function* config, Function* next,
-       std::optional<Function*> init, bool is_public);
+       Function* init, bool is_public);
   AstNodeKind kind() const override { return AstNodeKind::kProc; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1437,7 +1440,7 @@ class Proc : public AstNode {
 
   Function* config() const { return config_; }
   Function* next() const { return next_; }
-  std::optional<Function*> init() const { return init_; }
+  Function* init() const { return init_; }
   const std::vector<Param*>& members() const { return members_; }
 
  private:
@@ -1449,7 +1452,7 @@ class Proc : public AstNode {
 
   Function* config_;
   Function* next_;
-  std::optional<Function*> init_;
+  Function* init_;
   std::vector<Param*> members_;
   bool is_public_;
 };
@@ -2337,18 +2340,13 @@ class TestFunction : public AstNode {
 // ```
 class TestProc : public AstNode {
  public:
-  TestProc(Module* owner, Proc* proc, std::vector<Expr*> next_args)
-      : AstNode(owner), proc_(proc), next_args_(std::move(next_args)) {}
+  TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
   AstNodeKind kind() const override { return AstNodeKind::kTestProc; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTestProc(this);
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> children{proc_};
-    for (Expr* expr : next_args_) {
-      children.push_back(expr);
-    }
-    return children;
+    return {proc_};
   }
   std::string_view GetNodeTypeName() const override { return "TestProc"; }
   std::string ToString() const override;
@@ -2356,13 +2354,10 @@ class TestProc : public AstNode {
   Proc* proc() const { return proc_; }
   std::optional<Span> GetSpan() const override { return proc_->span(); }
 
-  const std::vector<Expr*>& next_args() const { return next_args_; }
-
   const std::string& identifier() const { return proc_->identifier(); }
 
  private:
   Proc* proc_;
-  std::vector<Expr*> next_args_;
 };
 
 // Represents a function to be quick-check'd.

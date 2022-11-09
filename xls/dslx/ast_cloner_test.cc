@@ -228,6 +228,9 @@ TEST(AstClonerTest, Procs) {
   config() {
     (u32:7, u64:0xfffffffffffff)
   }
+  init {
+    u19:0
+  }
   next(tok: token, state: u19) {
     (((((a) as u64)) + (b)) as u19)
   }
@@ -259,13 +262,16 @@ fn my_test() {
 }
 
 TEST(AstClonerTest, TestProcs) {
-  constexpr std::string_view kProgram = R"(#[test_proc(u64:0)]
+  constexpr std::string_view kProgram = R"(#[test_proc]
 proc my_test_proc {
   a: u32;
   b: uN[127];
   terminator: chan<bool> out;
   config(terminator: chan<bool> out) {
     (u32:0, uN[127]:127, terminator)
+  }
+  init {
+    u64:1
   }
   next(tok: token, state: u64) {
     ((state) + (((a) as u64))) + (((b) as u64))
@@ -343,6 +349,9 @@ fn my_function(a: u32) -> u16 {
 proc my_proc {
   a: u8;
   b: u32;
+  init {
+    u16:0
+  }
   config() {
     (u8:32, u32:8)
   }
@@ -363,6 +372,9 @@ enum MyEnum : u8 {
 fn my_function(a: u32) -> u16 {
   ((a) as u16)
 }
+fn my_proc.init() -> u16 {
+  u16:0
+}
 fn my_proc.config() -> (u8, u32) {
   (u8:32, u32:8)
 }
@@ -375,6 +387,9 @@ proc my_proc {
   b: u32;
   config() {
     (u8:32, u32:8)
+  }
+  init {
+    u16:0
   }
   next(tok: token, state: u16) {
     let x = my_function(((state) as u32));
@@ -520,8 +535,11 @@ proc MyProc {
   config() {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u64>;
-    spawn other_module::OtherProc(input_c, output_p)();
+    spawn other_module::OtherProc(input_c, output_p);
     (input_p, output_c)
+  }
+  init {
+    u32:0
   }
   next(tok: token, state: u32) {
     let tok = send(tok, input_p, state);
@@ -536,8 +554,11 @@ proc MyProc {
 fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
   let (input_p, input_c) = chan<u32>;
   let (output_p, output_c) = chan<u64>;
-  spawn other_module::OtherProc(input_c, output_p)();
+  spawn other_module::OtherProc(input_c, output_p);
   (input_p, output_c)
+}
+fn MyProc.init() -> u32 {
+  u32:0
 }
 fn MyProc.next(tok: token, state: u32) -> u32 {
   let tok = send(tok, input_p, state);
@@ -553,8 +574,11 @@ proc MyProc {
   config() {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u64>;
-    spawn other_module::OtherProc(input_c, output_p)();
+    spawn other_module::OtherProc(input_c, output_p);
     (input_p, output_c)
+  }
+  init {
+    u32:0
   }
   next(tok: token, state: u32) {
     let tok = send(tok, input_p, state);
@@ -571,6 +595,25 @@ proc MyProc {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
+}
+
+// A ConstRef doesn't own its underlying NameDef. So don't clone it.
+TEST(AstClonerTest, DoesntCloneConstRefNameDefs) {
+  constexpr std::string_view kProgram = R"(
+const FOO = u32:42;
+fn bar() -> u32{
+  FOO
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main,
+                           module->GetMemberOrError<Function>("bar"));
+  ConstRef* orig_ref = down_cast<ConstRef*>(main->body()->body());
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
+  ConstRef* new_ref = down_cast<ConstRef*>(clone);
+  EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());
 }
 
 }  // namespace

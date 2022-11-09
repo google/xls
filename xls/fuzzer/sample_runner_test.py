@@ -33,6 +33,8 @@ proc main {
   operand_1: chan<u32> in;
   result: chan<u32> out;
 
+  init { () }
+
   config(operand_0: chan<u32> in,
          operand_1: chan<u32> in,
          result: chan<u32> out
@@ -40,7 +42,7 @@ proc main {
     (operand_0, operand_1, result)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok_operand_0_val, operand_0_val) = recv(tok, operand_0);
     let (tok_operand_1_val, operand_1_val) = recv(tok, operand_1);
     let tok_recv = join(tok_operand_0_val, tok_operand_1_val);
@@ -54,10 +56,11 @@ proc main {
 
 # A simple counter implementation using a proc in DSLX.
 PROC_COUNTER_DSLX = """
-const DEFAULT_INIT_STATE = u32:42;
 proc main {
   enable_counter: chan<bool> in;
   result: chan<u32> out;
+
+  init { u32:42 }
 
   config(enable_counter: chan<bool> in,
          result: chan<u32> out
@@ -549,11 +552,10 @@ class SampleRunnerTest(test_base.TestCase):
         sample.Sample(
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
-                proc_init_constant='DEFAULT_INIT_STATE',
+                ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2',
                               '--reset=rst'),
-                ir_converter_args=['--top=main'],
                 simulate=True,
                 top_type=sample.TopType.proc,
                 use_system_verilog=True,
@@ -583,7 +585,6 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
-                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
@@ -607,7 +608,6 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
-                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
@@ -633,7 +633,6 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
-                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,
@@ -663,7 +662,6 @@ class SampleRunnerTest(test_base.TestCase):
           sample.Sample(
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
-                  proc_init_constant='DEFAULT_INIT_STATE',
                   ir_converter_args=['--top=main'],
                   top_type=sample.TopType.proc,
                   optimize_ir=False,

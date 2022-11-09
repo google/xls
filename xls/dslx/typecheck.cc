@@ -247,22 +247,20 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
       std::get<const NameDef*>(subject_nameref->name_def())->definer();
   Import* import = dynamic_cast<Import*>(definer);
 
-  std::optional<const ImportedInfo*> imported =
-      ctx->type_info()->GetImported(import);
-  XLS_RET_CHECK(imported.has_value());
+  XLS_ASSIGN_OR_RETURN(const ImportedInfo* imported,
+                       ctx->type_info()->GetImportedOrError(import));
 
-  XLS_ASSIGN_OR_RETURN(TypeInfo * imported_type_info,
-                       ctx->type_info_owner().New(imported.value()->module,
-                                                  imported.value()->type_info));
+  XLS_ASSIGN_OR_RETURN(
+      TypeInfo * imported_type_info,
+      ctx->type_info_owner().New(imported->module, imported->type_info));
   std::unique_ptr<DeduceCtx> imported_ctx =
-      ctx->MakeCtx(imported_type_info, imported.value()->module);
-  imported_ctx->AddFnStackEntry(
-      FnStackEntry::MakeTop(imported.value()->module));
+      ctx->MakeCtx(imported_type_info, imported->module);
+  imported_ctx->AddFnStackEntry(FnStackEntry::MakeTop(imported->module));
 
   return imported_ctx;
 }
 
-// Checks a single #[test_proc()] construct.
+// Checks a single #[test_proc] construct.
 absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
                            DeduceCtx* ctx) {
   Proc* proc = test_proc->proc();
@@ -324,33 +322,22 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                          ctx->type_info()->GetTopLevelProcTypeInfo(proc));
 
-    // Verify that the initial 'next' args match the next fn's param types.
+    // Evaluate the init() fn's return type matches the expected state param.
     const std::vector<Param*> next_params = proc->next()->params();
-    for (int i = 0; i < test_proc->next_args().size(); i++) {
-      std::optional<ConcreteType*> param_type =
-          type_info->GetItem(next_params[i + 1]);
-      if (!param_type.has_value()) {
-        return absl::InternalError(absl::StrCat(
-            "Missing type for next param: ", next_params[i + 1]->ToString()));
-      }
-
-      ScopedFnStackEntry scoped(ctx, module);
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> next_arg_type,
-                           ctx->Deduce(test_proc->next_args()[i]));
-      // We need to eagerly evaluate next args: we can't wait to do so inside
-      // the BytecodeInterpreter, as that'd create a circular dependency.
-      XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), type_info,
-          ctx->fn_stack().back().symbolic_bindings(), test_proc->next_args()[i],
-          nullptr));
-      scoped.Finish();
-      if (**param_type != *next_arg_type) {
-        return TypeInferenceErrorStatus(
-            proc->next()->span(), nullptr,
-            absl::StrFormat(
-                "'next' param and actual arg types differ: %s vs %s.",
-                param_type.value()->ToString(), next_arg_type->ToString()));
-      }
+    XLS_RETURN_IF_ERROR(CheckFunction(proc->init(), ctx));
+    XLS_RET_CHECK_EQ(proc->next()->params().size(), 2);
+    XLS_ASSIGN_OR_RETURN(ConcreteType * state_type,
+                         type_info->GetItemOrError(next_params[1]));
+    // TestProcs can't be parameterized, so we don't need to worry about any
+    // TypeInfo children, etc.
+    XLS_ASSIGN_OR_RETURN(
+        ConcreteType * init_type,
+        type_info->GetItemOrError(proc->init()->return_type()));
+    if (*state_type != *init_type) {
+      return TypeInferenceErrorStatus(
+          proc->next()->span(), nullptr,
+          absl::StrFormat("'next' state param and init types differ: %s vs %s.",
+                          state_type->ToString(), init_type->ToString()));
     }
   }
 
@@ -606,6 +593,18 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                                  return_type->ToString(),
                                  body_type->ToString());
   if (*return_type != *body_type) {
+    if (f->tag() == Function::Tag::kProcInit) {
+      return XlsTypeErrorStatus(
+          f->body()->span(), *body_type, *return_type,
+          absl::StrFormat("'next' state param and 'init' types differ."));
+    }
+
+    if (f->tag() == Function::Tag::kProcNext) {
+      return XlsTypeErrorStatus(
+          f->body()->span(), *body_type, *return_type,
+          absl::StrFormat("'next' input and output state types differ."));
+    }
+
     return XlsTypeErrorStatus(
         f->body()->span(), *body_type, *return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
@@ -618,6 +617,19 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
                                                              ctx->type_info()));
     XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
+
+    // Need to capture the initial value for top-level procs. For spawned procs,
+    // DeduceSpawn() handles this.
+    Proc* p = f->proc().value();
+    Function* init = p->init();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                         ctx->Deduce(init->body()));
+    // No need for SymbolicBindings; top-level procs can't be parameterized.
+    XLS_ASSIGN_OR_RETURN(InterpValue init_value,
+                         ConstexprEvaluator::EvaluateToValue(
+                             ctx->import_data(), ctx->type_info(),
+                             SymbolicBindings(), init->body()));
+    ctx->type_info()->NoteConstExpr(init->body(), init_value);
   }
 
   // Implementation note: though we could have all functions have
@@ -658,13 +670,18 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
     arg_types.push_back(std::make_unique<TokenType>());
     instantiate_args.push_back(
         {std::make_unique<TokenType>(), invocation->span()});
-  }
-
-  for (Expr* arg : args) {
+    XLS_RET_CHECK_EQ(invocation->args().size(), 1);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                         DeduceAndResolve(arg, ctx));
+                         DeduceAndResolve(invocation->args()[0], ctx));
     arg_types.push_back(type->CloneToUnique());
-    instantiate_args.push_back({std::move(type), arg->span()});
+    instantiate_args.push_back({std::move(type), invocation->span()});
+  } else {
+    for (Expr* arg : args) {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                           DeduceAndResolve(arg, ctx));
+      arg_types.push_back(type->CloneToUnique());
+      instantiate_args.push_back({std::move(type), arg->span()});
+    }
   }
 
   // Make a copy; the fn stack can get re-allocated, etc.
@@ -775,6 +792,18 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
 
   // Assert type consistency between the body and deduced return types.
   if (*tab.type != *resolved_body_type) {
+    if (callee_fn->tag() == Function::Tag::kProcInit) {
+      return XlsTypeErrorStatus(
+          callee_fn->body()->span(), *body_type, *tab.type,
+          absl::StrFormat("'next' state param and 'init' types differ."));
+    }
+
+    if (callee_fn->tag() == Function::Tag::kProcNext) {
+      return XlsTypeErrorStatus(
+          callee_fn->body()->span(), *body_type, *tab.type,
+          absl::StrFormat("'next' input and output state types differ."));
+    }
+
     return XlsTypeErrorStatus(
         callee_fn->body()->span(), *body_type, *tab.type,
         absl::StrFormat("Return type of function body for '%s' did not match "
@@ -783,7 +812,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   }
 
   original_ti->SetInvocationTypeInfo(invocation, tab.symbolic_bindings,
-                                        ctx->type_info());
+                                     ctx->type_info());
 
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
   ctx->PopFnStackEntry();

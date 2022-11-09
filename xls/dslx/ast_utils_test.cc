@@ -29,6 +29,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       module.Make<NameDef>(Span::Fake(), "config_name", nullptr);
   NameDef* next_name_def =
       module.Make<NameDef>(Span::Fake(), "next_name", nullptr);
+  NameDef* init_name_def =
+      module.Make<NameDef>(Span::Fake(), "init_name", nullptr);
   BuiltinTypeAnnotation* return_type = module.Make<BuiltinTypeAnnotation>(
       Span::Fake(), BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
   Number* body =
@@ -44,11 +46,16 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcNext, /*is_public=*/true);
+  Function* init = module.Make<Function>(
+      Span::Fake(), init_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, block,
+      Function::Tag::kProcNext, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc =
       module.Make<Proc>(Span::Fake(), name_def, config_name_def, next_name_def,
-                        bindings, members, config, next, /*init=*/std::nullopt,
+                        bindings, members, config, next, init,
                         /*is_public=*/true);
   XLS_ASSERT_OK(module.AddTop(original_proc));
   name_def->set_definer(original_proc);
@@ -74,6 +81,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       import_module->Make<NameDef>(Span::Fake(), "config_name", nullptr);
   NameDef* next_name_def =
       import_module->Make<NameDef>(Span::Fake(), "next_name", nullptr);
+  NameDef* init_name_def =
+      import_module->Make<NameDef>(Span::Fake(), "init_name", nullptr);
   BuiltinTypeAnnotation* return_type =
       import_module->Make<BuiltinTypeAnnotation>(
           Span::Fake(), BuiltinType::kU32,
@@ -91,11 +100,16 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcNext, /*is_public=*/true);
+  Function* init = import_module->Make<Function>(
+      Span::Fake(), init_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, block,
+      Function::Tag::kProcInit, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc = import_module->Make<Proc>(
       Span::Fake(), name_def, config_name_def, next_name_def, bindings, members,
-      config, next, /*init=*/std::nullopt, /*is_public=*/true);
+      config, next, init, /*is_public=*/true);
   XLS_ASSERT_OK(import_module->AddTop(original_proc));
   name_def->set_definer(original_proc);
 

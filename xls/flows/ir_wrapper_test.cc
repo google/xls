@@ -105,7 +105,10 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
     (in_0, in_1, output)
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     let (tok, a) = recv(tok, in_0);
     let (tok, b) = recv(tok, in_1);
     let tok = send(tok, output, (a) + (b));
@@ -140,12 +143,12 @@ chan test_package__output(bits[32], id=2, kind=streaming, ops=send_only, flow_co
 
 proc __top__foo_0_next(__token: token, init={}) {
   receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
-  tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,8,9)])
+  tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,11,9)])
   receive.8: (token, bits[32]) = receive(tok, channel_id=1, id=8)
-  a: bits[32] = tuple_index(receive.4, index=1, id=7, pos=[(0,8,14)])
-  b: bits[32] = tuple_index(receive.8, index=1, id=11, pos=[(0,9,14)])
-  tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,9,9)])
-  add.12: bits[32] = add(a, b, id=12, pos=[(0,10,36)])
+  a: bits[32] = tuple_index(receive.4, index=1, id=7, pos=[(0,11,14)])
+  b: bits[32] = tuple_index(receive.8, index=1, id=11, pos=[(0,12,14)])
+  tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,12,9)])
+  add.12: bits[32] = add(a, b, id=12, pos=[(0,13,36)])
   tok__2: token = send(tok__1, add.12, channel_id=2, id=13)
   after_all.15: token = after_all(__token, tok, tok__1, tok__2, id=15)
   next (after_all.15)

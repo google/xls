@@ -129,8 +129,6 @@ def _convert_to_ir(ctx, src):
     IR_CONV_FLAGS = (
         "dslx_path",
         "emit_fail_as_assert",
-        "initial_state_constant",
-        "initial_state_ir_value",
         "warnings_as_errors",
     )
 

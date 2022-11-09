@@ -189,6 +189,9 @@ TEST_F(ParserTest, ParseSimpleProc) {
   config() {
     ()
   }
+  init {
+    u32:0
+  }
   next(tok: token, addend: u32) {
     (x) + (addend)
   }
@@ -211,6 +214,9 @@ TEST_F(ParserTest, ParseProcNetwork) {
   config(limit: u32, c: chan<u32> out) {
     (c, limit)
   }
+  init {
+    u32:0
+  }
   next(tok: token, i: u32) {
     let tok = send(tok, c_, i);
     (i) + (1)
@@ -221,6 +227,9 @@ proc consumer<N: u32> {
   config(c: chan<u32> in) {
     (c,)
   }
+  init {
+    u32:0
+  }
   next(tok: token, i: u32) {
     let (tok1, e) = recv(tok, c_);
     (i) + (1)
@@ -229,11 +238,14 @@ proc consumer<N: u32> {
 proc main {
   config() {
     let (p, c) = chan<u32>;
-    spawn producer(u32:10, p)(0);
-    spawn consumer(range(10), c)(0);
+    spawn producer(u32:10, p);
+    spawn consumer(range(10), c);
     ()
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     ()
   }
 })";
@@ -269,6 +281,9 @@ TEST_F(ParserTest, ChannelArraysOneD) {
   config(c: chan<u32> out) {
     (c,)
   }
+  init {
+    u32:100
+  }
   next(tok: token, i: u32) {
     let _ = recv(tok, c);
     (i) + (i)
@@ -278,10 +293,13 @@ proc producer {
   channels: chan<u32>[32] out;
   config() {
     let (ps, cs) = chan<u32>[32];
-    spawn consumer((cs)[0])();
+    spawn consumer((cs)[0]);
     (ps,)
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     let tok = send(tok, (channels)[0], u32:0);
     ()
   }
@@ -296,6 +314,9 @@ TEST_F(ParserTest, ChannelArraysThreeD) {
   config(c: chan<u32> out) {
     (c,)
   }
+  init {
+    u32:0
+  }
   next(tok: token, i: u32) {
     let tok = recv(tok, c);
     (i) + (i)
@@ -305,10 +326,13 @@ proc producer {
   channels: chan<u32>[32][64][128] out;
   config() {
     let (ps, cs) = chan<u32>[32][64][128];
-    spawn consumer((cs)[0])();
+    spawn consumer((cs)[0]);
     (ps,)
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     let tok = send(tok, (((channels)[0])[1])[2], u32:0);
     ()
   }
@@ -323,6 +347,9 @@ TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   config(c: chan<u32> in) {
     (c,)
   }
+  init {
+    false
+  }
   next(tok: token, do_send: bool) {
     let _ = send_if(tok, c, do_send, ((do_send) as u32));
     (!(do_send),)
@@ -332,6 +359,9 @@ proc consumer {
   c: chan<u32> in;
   config(c: chan<u32> in) {
     (c,)
+  }
+  init {
+    false
   }
   next(tok: token, do_recv: bool) {
     let (_, foo) = recv_if(tok, c, do_recv);
@@ -349,6 +379,9 @@ TEST_F(ParserTest, ParseSendIfAndRecvNb) {
   config(c: chan<u32> in) {
     (c,)
   }
+  init {
+    false
+  }
   next(tok: token, do_send: bool) {
     let _ = send_if(tok, c, do_send, ((do_send) as u32));
     (!(do_send),)
@@ -359,7 +392,10 @@ proc consumer {
   config(c: chan<u32> in) {
     (c,)
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     let (_, foo, valid) = recv_non_blocking(tok, c);
     let _ = assert_eq(!((foo) ^ (valid)), true);
     ()
@@ -375,7 +411,10 @@ TEST_F(ParserTest, ParseRecvIfNb) {
   config(c: chan<u32> in) {
     (c,)
   }
-  next(tok: token) {
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
     let tok = recv_if_non_blocking(tok, c, true);
     ()
   }
@@ -392,6 +431,9 @@ TEST_F(ParserTest, ParseJoin) {
   c3: chan<u32> in;
   config(c0: chan<u32> out, c1: chan<u32> out, c2: chan<u32> out, c3: chan<u32> in) {
     (c0, c1, c2, c3)
+  }
+  init {
+    u32:0
   }
   next(tok: token, state: u32) {
     let tok0 = send(tok, c0, ((state) as u32));
@@ -414,13 +456,16 @@ TEST_F(ParserTest, ParseTestProc) {
   config(input: chan<u32> in, output: chan<u32> out) {
     (input, output)
   }
+  init {
+    u32:0
+  }
   next(tok: token, x: u32) {
     let (tok, y) = recv(tok, input);
     let tok = send(tok, output, (x) + (y));
     ((x) + (y),)
   }
 }
-#[test_proc(u32:0)]
+#[test_proc]
 proc tester {
   p: chan<u32> out;
   c: chan<u32> in;
@@ -428,8 +473,11 @@ proc tester {
   config(terminator: chan<u32> out) {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u32>;
-    spawn testee(input_c, output_p)(u32:0);
+    spawn testee(input_c, output_p);
     (input_p, output_c, terminator)
+  }
+  init {
+    u32:0
   }
   next(tok: token, iter: u32) {
     let tok = send(tok, p, u32:0);
@@ -1060,11 +1108,11 @@ TEST_F(ParserTest, BuiltinFailWithLabels) {
 TEST_F(ParserTest, ProcWithInit) {
   constexpr std::string_view kProgram = R"(proc foo {
   member: u32;
-  init() {
-    u32:0
-  }
   config() {
     (u32:1,)
+  }
+  init {
+    u32:0
   }
   next(tok: token, state: u32) {
     state

@@ -21,29 +21,33 @@ import xls.modules.fp.apfloat_fma
 type APFloat = apfloat::APFloat;
 
 pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
-  input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in;
-  input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in;
-  reset: chan<bool> in;
-  output: chan<APFloat<EXP_SZ, SFD_SZ>> out;
+    input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in;
+    input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in;
+    reset: chan<bool> in;
+    output: chan<APFloat<EXP_SZ, SFD_SZ>> out;
 
-  config(input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in,
-         input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in,
-         reset: chan<bool> in,
-         output: chan<APFloat<EXP_SZ, SFD_SZ>> out) {
-    (input_a, input_b, reset, output)
-  }
+    init {
+        apfloat::zero<EXP_SZ, SFD_SZ>(false)
+    }
 
-  next(tok: token, acc: APFloat<EXP_SZ, SFD_SZ>) {
-    let (tok0, a) = recv(tok, input_a);
-    let (tok1, b) = recv(tok, input_b);
-    let (tok2, do_reset) = recv(tok, reset);
+    config(input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in,
+        input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in,
+        reset: chan<bool> in,
+        output: chan<APFloat<EXP_SZ, SFD_SZ>> out) {
+        (input_a, input_b, reset, output)
+    }
 
-    let acc = apfloat_fma::fma<EXP_SZ, SFD_SZ>(a, b, acc);
-    let zero = apfloat::zero<EXP_SZ, SFD_SZ>(false);
-    let acc = if do_reset { zero } else { acc };
+    next(tok: token, acc: APFloat<EXP_SZ, SFD_SZ>) {
+        let (tok0, a) = recv(tok, input_a);
+        let (tok1, b) = recv(tok, input_b);
+        let (tok2, do_reset) = recv(tok, reset);
 
-    let tok3 = join(tok0, tok1, tok2);
-    let _ = send(tok3, output, acc);
-    acc
-  }
+        let acc = apfloat_fma::fma<EXP_SZ, SFD_SZ>(a, b, acc);
+        let zero = apfloat::zero<EXP_SZ, SFD_SZ>(false);
+        let acc = if do_reset { zero } else { acc };
+
+        let tok3 = join(tok0, tok1, tok2);
+        let _ = send(tok3, output, acc);
+        acc
+    }
 }

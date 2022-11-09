@@ -1155,15 +1155,17 @@ fn main() {
 TEST(TypecheckTest, CantSendOnNonMember) {
   constexpr std::string_view kProgram = R"(
 proc foo {
-  config() {
-    ()
-  }
+    init { () }
 
-  next(tok: token) {
-    let foo = u32:0;
-    let tok = send(tok, foo, u32:0x0);
-    ()
-  }
+    config() {
+        ()
+    }
+
+    next(tok: token, state: ()) {
+        let foo = u32:0;
+        let tok = send(tok, foo, u32:0x0);
+        ()
+    }
 }
 )";
   EXPECT_THAT(
@@ -1176,15 +1178,15 @@ proc foo {
 TEST(TypecheckTest, CantSendOnNonChannel) {
   constexpr std::string_view kProgram = R"(
 proc foo {
-  bar: u32;
-  config() {
-    (u32:0,)
-  }
-
-  next(tok: token) {
-    let tok = send(tok, bar, u32:0x0);
-    ()
-  }
+    bar: u32;
+    init { () }
+    config() {
+        (u32:0,)
+    }
+    next(tok: token, state: ()) {
+        let tok = send(tok, bar, u32:0x0);
+        ()
+    }
 }
 )";
   EXPECT_THAT(
@@ -1197,25 +1199,28 @@ proc foo {
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
   constexpr std::string_view kProgram = R"(
 proc foo {
-  c : chan<u32> out;
-  config(c: chan<u32> out) {
-    (c,)
-  }
-
-  next(tok: token, state: u32) {
-    let (tok, x) = recv(tok, c);
-    (state + x,)
-  }
+    c : chan<u32> out;
+    init {
+        u32:0
+    }
+    config(c: chan<u32> out) {
+        (c,)
+    }
+    next(tok: token, state: u32) {
+        let (tok, x) = recv(tok, c);
+        (state + x,)
+    }
 }
 
 proc entry {
-  c: chan<u32> in;
-  config() {
-    let (p, c) = chan<u32>;
-    spawn foo(c)(u32:0);
-    (p,)
-  }
-  next (tok: token) { () }
+    c: chan<u32> in;
+    init { () }
+    config() {
+        let (p, c) = chan<u32>;
+        spawn foo(c);
+        (p,)
+    }
+    next (tok: token, state: ()) { () }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
@@ -1226,21 +1231,52 @@ proc entry {
 TEST(TypecheckTest, CantSendOnOutputChannel) {
   constexpr std::string_view kProgram = R"(
 proc entry {
-  p: chan<u32> out;
-  c: chan<u32> in;
-  config() {
-    let (p, c) = chan<u32>;
-    (p, c)
-  }
-  next (tok: token) {
-    let tok = send(tok, c, u32:0);
-    ()
-  }
+    p: chan<u32> out;
+    c: chan<u32> in;
+    init { () }
+    config() {
+        let (p, c) = chan<u32>;
+        (p, c)
+    }
+    next (tok: token, state: ()) {
+        let tok = send(tok, c, u32:0);
+        ()
+    }
 }
 )";
   EXPECT_THAT(Typecheck(kProgram),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot send on an input channel.")));
+}
+
+TEST(TypecheckTest, InitDoesntMatchStateParam) {
+  constexpr std::string_view kProgram = R"(
+proc oopsie {
+    init { u32:0xbeef }
+    config() { () }
+    next(tok: token, state: u33) {
+      state
+    }
+})";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("'next' state param and 'init' types differ")));
+}
+
+TEST(TypecheckTest, NextReturnDoesntMatchState) {
+  constexpr std::string_view kProgram = R"(
+proc oopsie {
+    init { u32:0xbeef }
+    config() { () }
+    next(tok: token, state: u32) {
+      state as u33
+    }
+})";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("input and output state types differ")));
 }
 
 TEST(TypecheckTest, BasicTupleIndex) {

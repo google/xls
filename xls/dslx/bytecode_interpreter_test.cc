@@ -19,7 +19,6 @@
 #include "absl/strings/match.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/bytecode_cache.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -1389,18 +1388,24 @@ fn main() -> MyU9 {
 TEST(BytecodeInterpreterTest, DistinctNestedParametricProcs) {
   // Tests that B, which has one set of parameters, can instantiate A, which has
   // a different set of parameters.
+  // TODO(rspringer): Once this goes in, open a bug: if init() is changed to
+  // "{ N }", it fails, because N can't be evaluated to a value: it's computed
+  // without applying the caller bindings.
   constexpr std::string_view kProgram = R"(
 proc A<N: u32> {
     data_in: chan<u32> in;
     data_out: chan<u32> out;
 
+    init {
+        N
+    }
     config(data_in: chan<u32> in, data_out: chan<u32> out) {
         (data_in, data_out)
     }
     next(tok: token, state: u32) {
         let (tok, x) = recv(tok, data_in);
         let tok = send(tok, data_out, x + N + state);
-        (state + u32:1)
+        state + u32:1
     }
 }
 
@@ -1408,33 +1413,35 @@ proc B<M: u32, N: u32> {
     data_in: chan<u32> in;
     data_out: chan<u32> out;
 
+    init { () }
     config(data_in: chan<u32> in, data_out: chan<u32> out) {
-        spawn A<N>(data_in, data_out)(u32:0);
+        spawn A<N>(data_in, data_out);
         (data_in, data_out)
     }
-    next(tok: token) {
+    next(tok: token, state: ()) {
         ()
     }
 }
 
-
-#[test_proc()]
+#[test_proc]
 proc BTester {
     data_in: chan<u32> out;
     data_out: chan<u32> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (data_in_p, data_in_c) = chan<u32>;
         let (data_out_p, data_out_c) = chan<u32>;
-        spawn B<u32:5, u32:3>(data_in_c, data_out_p)();
+        spawn B<u32:5, u32:3>(data_in_c, data_out_p);
         (data_in_p, data_out_c, terminator)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let tok = send(tok, data_in, u32:3);
         let (tok, result) = recv(tok, data_out);
-        let _ = assert_eq(result, u32:6);
+        let _ = assert_eq(result, u32:9);
         let tok = send(tok, terminator, true);
         ()
     }

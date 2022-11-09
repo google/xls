@@ -16,23 +16,28 @@ proc proc_under_test {
   a: u32;
   input_c: chan<u32> in;
 
+  init { () }
+
   config(c: chan<u32> in) {
     (u32:0, c)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok, val) = recv(tok, input_c);
     ()
   }
 }
 
-#[test_proc(u32:0)]
+#[test_proc]
 proc test_main {
   input_p: chan<u32> out;
   terminator_p: chan<bool> out;
+
+  init { u32:0 }
+
   config(terminator_p: chan<bool> out) {
     let (p, c) = chan<u32>;
-    spawn proc_under_test(c)();
+    spawn proc_under_test(c);
     (p, terminator_p)
   }
 

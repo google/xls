@@ -51,8 +51,7 @@ class XlsColorsTest : public xls::IrTestBase {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string package_text,
         xls::dslx::ConvertOneFunction(tm.module, "hsv2rgb", &import_data,
-                                      /*symbolic_bindings=*/nullptr, options,
-                                      std::nullopt));
+                                      /*symbolic_bindings=*/nullptr, options));
     const uint8_t kS = 255;
     const uint8_t kV = 255;
     const uint16_t kHStep = 8;

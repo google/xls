@@ -1811,13 +1811,6 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
     params.insert(params.end(), GenerateParam());
     TypeAnnotation* state_type = params.back()->type_annotation();
     proc_properties_.state_types.push_back(state_type);
-
-    // Generate a constant for the initial value.
-    XLS_ASSIGN_OR_RETURN(ConstantDef * init_constant,
-                         value_gen_.GenerateConstantDef(
-                             module_.get(), state_type, "DEFAULT_INIT_STATE",
-                             /*is_public=*/false));
-    constants_["DEFAULT_INIT_STATE"] = init_constant;
   }
 
   for (Param* param : params) {
@@ -1834,7 +1827,25 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
       /*params=*/params,
-      /*return_type=*/retval.type, block, Function::Tag::kNormal,
+      /*return_type=*/retval.type, block, Function::Tag::kProcNext,
+      /*is_public=*/false);
+  name_def->set_definer(f);
+  return f;
+}
+
+absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
+    std::string_view name, TypeAnnotation* return_type) {
+  NameDef* name_def = module_->Make<NameDef>(fake_span_, std::string(name),
+                                             /*definer=*/nullptr);
+
+  XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_.GenerateDslxConstant(
+                                                 module_.get(), return_type));
+  Block* b = module_->Make<Block>(fake_span_, init_constant);
+  Function* f = module_->Make<Function>(
+      fake_span_, name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(),
+      /*return_type=*/return_type, b, Function::Tag::kProcInit,
       /*is_public=*/false);
   name_def->set_definer(f);
   return f;
@@ -1849,14 +1860,19 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
   XLS_ASSIGN_OR_RETURN(
       Function * config_function,
       GenerateProcConfigFunction("config", proc_properties_.params));
+
+  XLS_ASSIGN_OR_RETURN(
+      Function * init_fn,
+      GenerateProcInitFunction(absl::StrCat(name, ".init"),
+                               next_function->params()[1]->type_annotation()));
+
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Proc* proc = module_->Make<Proc>(
-      fake_span_, name_def, /*config_name_def=*/config_function->name_def(),
-      /*next_name_def=*/next_function->name_def(),
+      fake_span_, name_def, config_function->name_def(),
+      next_function->name_def(),
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      /*members=*/proc_properties_.params,
-      /*config=*/config_function, /*next=*/next_function, std::nullopt,
+      proc_properties_.params, config_function, next_function, init_fn,
       /*is_public=*/false);
   name_def->set_definer(proc);
   return proc;

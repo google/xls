@@ -231,16 +231,18 @@ fn main() -> u32 { f() }
 TEST(ExtractConversionOrderTest, BasicProcWithEntry) {
   constexpr std::string_view kProgram = R"(
 proc foo {
+  init { () }
   config() { () }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
 proc main {
+  init { () }
   config() {
-    spawn foo()();
+    spawn foo();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -251,38 +253,43 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
                            tm.module->GetMemberOrError<Proc>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
-  ASSERT_EQ(4, order.size());
+  ASSERT_EQ(5, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
   ASSERT_TRUE(order[2].proc_id().has_value());
   ASSERT_TRUE(order[3].proc_id().has_value());
-  EXPECT_EQ(order[0].f()->identifier(), "main.config");
-  EXPECT_EQ(order[0].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[0].f()->identifier(), "foo.init");
+  EXPECT_EQ(order[0].proc_id().value().ToString(), "main->foo:0");
   EXPECT_FALSE(order[0].IsTop());
-  EXPECT_EQ(order[1].f()->identifier(), "foo.config");
-  EXPECT_EQ(order[1].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_EQ(order[1].f()->identifier(), "main.config");
+  EXPECT_EQ(order[1].proc_id().value().ToString(), "main:0");
   EXPECT_FALSE(order[1].IsTop());
-  EXPECT_EQ(order[2].f()->identifier(), "main.next");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
-  EXPECT_TRUE(order[2].IsTop());
-  EXPECT_EQ(order[3].f()->identifier(), "foo.next");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->foo:0");
-  EXPECT_FALSE(order[3].IsTop());
+  EXPECT_EQ(order[2].f()->identifier(), "foo.config");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_FALSE(order[2].IsTop());
+  EXPECT_EQ(order[3].f()->identifier(), "main.next");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "main:0");
+  EXPECT_TRUE(order[3].IsTop());
+  EXPECT_EQ(order[4].f()->identifier(), "foo.next");
+  EXPECT_EQ(order[4].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_FALSE(order[4].IsTop());
 }
 
 TEST(ExtractConversionOrderTest, BasicProc) {
   constexpr std::string_view kProgram = R"(
 proc foo {
+  init { () }
   config() { () }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
 proc main {
+  init { () }
   config() {
-    spawn foo()();
+    spawn foo();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -291,19 +298,22 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
-  ASSERT_EQ(4, order.size());
+  ASSERT_EQ(5, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
   ASSERT_TRUE(order[2].proc_id().has_value());
   ASSERT_TRUE(order[3].proc_id().has_value());
-  EXPECT_EQ(order[0].f()->identifier(), "main.config");
-  EXPECT_EQ(order[0].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[1].f()->identifier(), "foo.config");
-  EXPECT_EQ(order[1].proc_id().value().ToString(), "main->foo:0");
-  EXPECT_EQ(order[2].f()->identifier(), "main.next");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[3].f()->identifier(), "foo.next");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->foo:0");
+  ASSERT_TRUE(order[4].proc_id().has_value());
+  EXPECT_EQ(order[0].f()->identifier(), "foo.init");
+  EXPECT_EQ(order[0].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_EQ(order[1].f()->identifier(), "main.config");
+  EXPECT_EQ(order[1].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[2].f()->identifier(), "foo.config");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "main->foo:0");
+  EXPECT_EQ(order[3].f()->identifier(), "main.next");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[4].f()->identifier(), "foo.next");
+  EXPECT_EQ(order[4].proc_id().value().ToString(), "main->foo:0");
 }
 
 TEST(ExtractConversionOrderTest, ProcNetworkWithEntry) {
@@ -317,6 +327,7 @@ fn f1() -> u32 {
 }
 
 proc p2 {
+  init { u32:0 }
   config() { () }
 
   next(tok: token, x: u32) {
@@ -325,8 +336,9 @@ proc p2 {
 }
 
 proc p1 {
+  init { u32:0 }
   config() {
-    spawn p2()(u32:0);
+    spawn p2();
     ()
   }
   next(tok: token, i: u32) {
@@ -335,9 +347,10 @@ proc p1 {
 }
 
 proc p0 {
+  init { u32:1 }
   config() {
-    spawn p2()(u32:1);
-    spawn p1()(u32:2);
+    spawn p2();
+    spawn p1();
     ()
   }
   next(tok: token, i: u32) {
@@ -347,13 +360,14 @@ proc p0 {
 }
 
 proc main {
+  init { () }
   config() {
-    spawn p0()(u32:3);
-    spawn p1()(u32:4);
-    spawn p2()(u32:5);
+    spawn p0();
+    spawn p1();
+    spawn p2();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -364,12 +378,12 @@ proc main {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
                            tm.module->GetMemberOrError<Proc>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
-  ASSERT_EQ(18, order.size());
-  ASSERT_FALSE(order[0].proc_id().has_value());
+  ASSERT_EQ(21, order.size());
+  ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_FALSE(order[1].proc_id().has_value());
   ASSERT_TRUE(order[2].proc_id().has_value());
   ASSERT_TRUE(order[3].proc_id().has_value());
-  ASSERT_TRUE(order[4].proc_id().has_value());
+  ASSERT_FALSE(order[4].proc_id().has_value());
   ASSERT_TRUE(order[5].proc_id().has_value());
   ASSERT_TRUE(order[6].proc_id().has_value());
   ASSERT_TRUE(order[7].proc_id().has_value());
@@ -383,57 +397,60 @@ proc main {
   ASSERT_TRUE(order[15].proc_id().has_value());
   ASSERT_TRUE(order[16].proc_id().has_value());
   ASSERT_TRUE(order[17].proc_id().has_value());
-  EXPECT_EQ(order[0].f()->identifier(), "f0");
+  ASSERT_TRUE(order[18].proc_id().has_value());
+  ASSERT_TRUE(order[19].proc_id().has_value());
+  ASSERT_TRUE(order[20].proc_id().has_value());
+  EXPECT_EQ(order[0].f()->identifier(), "p2.init");
   EXPECT_FALSE(order[0].IsTop());
-  EXPECT_EQ(order[1].f()->identifier(), "f1");
+  EXPECT_EQ(order[0].proc_id().value().ToString(), "main->p0->p2:0");
+  EXPECT_EQ(order[1].f()->identifier(), "f0");
   EXPECT_FALSE(order[1].IsTop());
-  EXPECT_EQ(order[2].f()->identifier(), "main.config");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[2].f()->identifier(), "p1.init");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "main->p0->p1:0");
   EXPECT_FALSE(order[2].IsTop());
-  EXPECT_EQ(order[3].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->p2:0");
+  EXPECT_EQ(order[3].f()->identifier(), "p0.init");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->p0:0");
   EXPECT_FALSE(order[3].IsTop());
-  EXPECT_EQ(order[4].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[4].proc_id().value().ToString(), "main->p1:0");
+  EXPECT_EQ(order[4].f()->identifier(), "f1");
   EXPECT_FALSE(order[4].IsTop());
-  EXPECT_EQ(order[5].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[5].proc_id().value().ToString(), "main->p1->p2:0");
+  EXPECT_EQ(order[5].f()->identifier(), "main.config");
+  EXPECT_EQ(order[5].proc_id().value().ToString(), "main:0");
   EXPECT_FALSE(order[5].IsTop());
-  EXPECT_EQ(order[6].f()->identifier(), "p0.config");
-  EXPECT_EQ(order[6].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[6].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[6].proc_id().value().ToString(), "main->p2:0");
   EXPECT_FALSE(order[6].IsTop());
   EXPECT_EQ(order[7].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[7].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_EQ(order[7].proc_id().value().ToString(), "main->p1:0");
   EXPECT_FALSE(order[7].IsTop());
   EXPECT_EQ(order[8].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[8].proc_id().value().ToString(), "main->p0->p1->p2:0");
+  EXPECT_EQ(order[8].proc_id().value().ToString(), "main->p1->p2:0");
   EXPECT_FALSE(order[8].IsTop());
-  EXPECT_EQ(order[9].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[9].proc_id().value().ToString(), "main->p0->p2:0");
+  EXPECT_EQ(order[9].f()->identifier(), "p0.config");
+  EXPECT_EQ(order[9].proc_id().value().ToString(), "main->p0:0");
   EXPECT_FALSE(order[9].IsTop());
-  EXPECT_EQ(order[10].f()->identifier(), "main.next");
-  EXPECT_EQ(order[10].proc_id().value().ToString(), "main:0");
-  EXPECT_TRUE(order[10].IsTop());
-  EXPECT_EQ(order[11].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[11].proc_id().value().ToString(), "main->p0->p2:0");
+  EXPECT_EQ(order[10].f()->identifier(), "p1.config");
+  EXPECT_EQ(order[10].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_FALSE(order[10].IsTop());
+  EXPECT_EQ(order[11].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[11].proc_id().value().ToString(), "main->p0->p1->p2:0");
   EXPECT_FALSE(order[11].IsTop());
-  EXPECT_EQ(order[12].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p0->p1->p2:0");
+  EXPECT_EQ(order[12].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p0->p2:0");
   EXPECT_FALSE(order[12].IsTop());
-  EXPECT_EQ(order[13].f()->identifier(), "p1.next");
-  EXPECT_EQ(order[13].proc_id().value().ToString(), "main->p0->p1:0");
-  EXPECT_FALSE(order[13].IsTop());
-  EXPECT_EQ(order[14].f()->identifier(), "p0.next");
-  EXPECT_EQ(order[14].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[13].f()->identifier(), "main.next");
+  EXPECT_EQ(order[13].proc_id().value().ToString(), "main:0");
+  EXPECT_TRUE(order[13].IsTop());
+  EXPECT_EQ(order[14].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[14].proc_id().value().ToString(), "main->p0->p2:0");
   EXPECT_FALSE(order[14].IsTop());
   EXPECT_EQ(order[15].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[15].proc_id().value().ToString(), "main->p1->p2:0");
+  EXPECT_EQ(order[15].proc_id().value().ToString(), "main->p0->p1->p2:0");
   EXPECT_FALSE(order[15].IsTop());
   EXPECT_EQ(order[16].f()->identifier(), "p1.next");
-  EXPECT_EQ(order[16].proc_id().value().ToString(), "main->p1:0");
+  EXPECT_EQ(order[16].proc_id().value().ToString(), "main->p0->p1:0");
   EXPECT_FALSE(order[16].IsTop());
-  EXPECT_EQ(order[17].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[17].proc_id().value().ToString(), "main->p2:0");
+  EXPECT_EQ(order[17].f()->identifier(), "p0.next");
+  EXPECT_EQ(order[17].proc_id().value().ToString(), "main->p0:0");
   EXPECT_FALSE(order[17].IsTop());
 }
 
@@ -448,6 +465,7 @@ fn f1() -> u32 {
 }
 
 proc p2 {
+  init { u32:3 }
   config() { () }
 
   next(tok: token, x: u32) {
@@ -456,8 +474,9 @@ proc p2 {
 }
 
 proc p1 {
+  init { u32:8 }
   config() {
-    spawn p2()(u32:0);
+    spawn p2();
     ()
   }
   next(tok: token, i: u32) {
@@ -466,9 +485,10 @@ proc p1 {
 }
 
 proc p0 {
+  init { u32:1000 }
   config() {
-    spawn p2()(u32:1);
-    spawn p1()(u32:2);
+    spawn p2();
+    spawn p1();
     ()
   }
   next(tok: token, i: u32) {
@@ -478,13 +498,14 @@ proc p0 {
 }
 
 proc main {
+  init { () }
   config() {
-    spawn p0()(u32:3);
-    spawn p1()(u32:4);
-    spawn p2()(u32:5);
+    spawn p0();
+    spawn p1();
+    spawn p2();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -493,7 +514,7 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
-  ASSERT_EQ(18, order.size());
+  ASSERT_EQ(21, order.size());
   ASSERT_FALSE(order[0].proc_id().has_value());
   ASSERT_FALSE(order[1].proc_id().has_value());
   ASSERT_TRUE(order[2].proc_id().has_value());
@@ -512,70 +533,84 @@ proc main {
   ASSERT_TRUE(order[15].proc_id().has_value());
   ASSERT_TRUE(order[16].proc_id().has_value());
   ASSERT_TRUE(order[17].proc_id().has_value());
+  ASSERT_TRUE(order[18].proc_id().has_value());
+  ASSERT_TRUE(order[19].proc_id().has_value());
+  ASSERT_TRUE(order[20].proc_id().has_value());
+
   EXPECT_EQ(order[0].f()->identifier(), "f0");
   EXPECT_EQ(order[1].f()->identifier(), "f1");
-  EXPECT_EQ(order[2].f()->identifier(), "main.config");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[3].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->p2:0");
-  EXPECT_EQ(order[4].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[4].proc_id().value().ToString(), "main->p1:0");
-  EXPECT_EQ(order[5].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[5].proc_id().value().ToString(), "main->p1->p2:0");
-  EXPECT_EQ(order[6].f()->identifier(), "p0.config");
-  EXPECT_EQ(order[6].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[2].f()->identifier(), "p2.init");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "main->p0->p2:0");
+  EXPECT_EQ(order[3].f()->identifier(), "p1.init");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_EQ(order[4].f()->identifier(), "p0.init");
+  EXPECT_EQ(order[4].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[5].f()->identifier(), "main.config");
+  EXPECT_EQ(order[5].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[6].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[6].proc_id().value().ToString(), "main->p2:0");
   EXPECT_EQ(order[7].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[7].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_EQ(order[7].proc_id().value().ToString(), "main->p1:0");
   EXPECT_EQ(order[8].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[8].proc_id().value().ToString(), "main->p0->p1->p2:0");
-  EXPECT_EQ(order[9].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[9].proc_id().value().ToString(), "main->p0->p2:0");
-  EXPECT_EQ(order[10].f()->identifier(), "main.next");
-  EXPECT_EQ(order[10].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[11].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[11].proc_id().value().ToString(), "main->p0->p2:0");
-  EXPECT_EQ(order[12].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p0->p1->p2:0");
-  EXPECT_EQ(order[13].f()->identifier(), "p1.next");
-  EXPECT_EQ(order[13].proc_id().value().ToString(), "main->p0->p1:0");
-  EXPECT_EQ(order[14].f()->identifier(), "p0.next");
-  EXPECT_EQ(order[14].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[8].proc_id().value().ToString(), "main->p1->p2:0");
+  EXPECT_EQ(order[9].f()->identifier(), "p0.config");
+  EXPECT_EQ(order[9].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[10].f()->identifier(), "p1.config");
+  EXPECT_EQ(order[10].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_EQ(order[11].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[11].proc_id().value().ToString(), "main->p0->p1->p2:0");
+  EXPECT_EQ(order[12].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p0->p2:0");
+  EXPECT_EQ(order[13].f()->identifier(), "main.next");
+  EXPECT_EQ(order[13].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[14].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[14].proc_id().value().ToString(), "main->p0->p2:0");
   EXPECT_EQ(order[15].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[15].proc_id().value().ToString(), "main->p1->p2:0");
+  EXPECT_EQ(order[15].proc_id().value().ToString(), "main->p0->p1->p2:0");
   EXPECT_EQ(order[16].f()->identifier(), "p1.next");
-  EXPECT_EQ(order[16].proc_id().value().ToString(), "main->p1:0");
-  EXPECT_EQ(order[17].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[17].proc_id().value().ToString(), "main->p2:0");
+  EXPECT_EQ(order[16].proc_id().value().ToString(), "main->p0->p1:0");
+  EXPECT_EQ(order[17].f()->identifier(), "p0.next");
+  EXPECT_EQ(order[17].proc_id().value().ToString(), "main->p0:0");
+  EXPECT_EQ(order[18].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[18].proc_id().value().ToString(), "main->p1->p2:0");
+  EXPECT_EQ(order[19].f()->identifier(), "p1.next");
+  EXPECT_EQ(order[19].proc_id().value().ToString(), "main->p1:0");
+  EXPECT_EQ(order[20].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[20].proc_id().value().ToString(), "main->p2:0");
 }
 
 TEST(ExtractConversionOrderTest, ProcNetworkWithTwoTopLevelProcs) {
   constexpr std::string_view kProgram = R"(
 proc p2 {
+  init { () }
   config() { () }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
 proc p1 {
+  init { () }
   config() { () }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
 proc p0 {
+  init { () }
   config() {
-    spawn p1()();
-    spawn p2()();
+    spawn p1();
+    spawn p2();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 
 proc main {
+  init { () }
   config() {
-    spawn p1()();
-    spawn p2()();
+    spawn p1();
+    spawn p2();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -584,7 +619,7 @@ proc main {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrder(tm.module, tm.type_info));
-  ASSERT_EQ(12, order.size());
+  ASSERT_EQ(14, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
   ASSERT_TRUE(order[1].proc_id().has_value());
   ASSERT_TRUE(order[2].proc_id().has_value());
@@ -597,30 +632,37 @@ proc main {
   ASSERT_TRUE(order[9].proc_id().has_value());
   ASSERT_TRUE(order[10].proc_id().has_value());
   ASSERT_TRUE(order[11].proc_id().has_value());
-  EXPECT_EQ(order[0].f()->identifier(), "p0.config");
-  EXPECT_EQ(order[0].proc_id().value().ToString(), "p0:0");
-  EXPECT_EQ(order[1].f()->identifier(), "p2.config");
+  ASSERT_TRUE(order[12].proc_id().has_value());
+  ASSERT_TRUE(order[13].proc_id().has_value());
+  EXPECT_EQ(order[0].f()->identifier(), "p1.init");
+  EXPECT_EQ(order[0].proc_id().value().ToString(), "p0->p1:0");
+  EXPECT_EQ(order[1].f()->identifier(), "p2.init");
   EXPECT_EQ(order[1].proc_id().value().ToString(), "p0->p2:0");
-  EXPECT_EQ(order[2].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "p0->p1:0");
-  EXPECT_EQ(order[3].f()->identifier(), "p0.next");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "p0:0");
-  EXPECT_EQ(order[4].f()->identifier(), "p1.next");
+  EXPECT_EQ(order[2].f()->identifier(), "p0.config");
+  EXPECT_EQ(order[2].proc_id().value().ToString(), "p0:0");
+  EXPECT_EQ(order[3].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[3].proc_id().value().ToString(), "p0->p2:0");
+
+  EXPECT_EQ(order[4].f()->identifier(), "p1.config");
   EXPECT_EQ(order[4].proc_id().value().ToString(), "p0->p1:0");
-  EXPECT_EQ(order[5].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[5].proc_id().value().ToString(), "p0->p2:0");
-  EXPECT_EQ(order[6].f()->identifier(), "main.config");
-  EXPECT_EQ(order[6].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[7].f()->identifier(), "p2.config");
-  EXPECT_EQ(order[7].proc_id().value().ToString(), "main->p2:0");
-  EXPECT_EQ(order[8].f()->identifier(), "p1.config");
-  EXPECT_EQ(order[8].proc_id().value().ToString(), "main->p1:0");
-  EXPECT_EQ(order[9].f()->identifier(), "main.next");
-  EXPECT_EQ(order[9].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[10].f()->identifier(), "p1.next");
+  EXPECT_EQ(order[5].f()->identifier(), "p0.next");
+  EXPECT_EQ(order[5].proc_id().value().ToString(), "p0:0");
+  EXPECT_EQ(order[6].f()->identifier(), "p1.next");
+  EXPECT_EQ(order[6].proc_id().value().ToString(), "p0->p1:0");
+  EXPECT_EQ(order[7].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[7].proc_id().value().ToString(), "p0->p2:0");
+  EXPECT_EQ(order[8].f()->identifier(), "main.config");
+  EXPECT_EQ(order[8].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[9].f()->identifier(), "p2.config");
+  EXPECT_EQ(order[9].proc_id().value().ToString(), "main->p2:0");
+  EXPECT_EQ(order[10].f()->identifier(), "p1.config");
   EXPECT_EQ(order[10].proc_id().value().ToString(), "main->p1:0");
-  EXPECT_EQ(order[11].f()->identifier(), "p2.next");
-  EXPECT_EQ(order[11].proc_id().value().ToString(), "main->p2:0");
+  EXPECT_EQ(order[11].f()->identifier(), "main.next");
+  EXPECT_EQ(order[11].proc_id().value().ToString(), "main:0");
+  EXPECT_EQ(order[12].f()->identifier(), "p1.next");
+  EXPECT_EQ(order[12].proc_id().value().ToString(), "main->p1:0");
+  EXPECT_EQ(order[13].f()->identifier(), "p2.next");
+  EXPECT_EQ(order[13].proc_id().value().ToString(), "main->p2:0");
 }
 
 }  // namespace

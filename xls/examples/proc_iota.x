@@ -17,6 +17,8 @@
 proc producer {
   c: chan<u32> out;
 
+  init { u32:0 }
+
   config(input_c: chan<u32> out) {
     (input_c,)
   }
@@ -31,6 +33,8 @@ proc producer {
 proc consumer<N:u32> {
   c: chan<u32> in;
 
+  init { u32: 0 }
+
   config(input_c: chan<u32> in) {
     (input_c,)
   }
@@ -42,14 +46,16 @@ proc consumer<N:u32> {
 }
 
 proc main {
+  init { () }
+
   config() {
     let (p, c) = chan<u32>;
-    spawn producer(p)(u32:0);
-    spawn consumer<u32:2>(c)(u32:0);
+    spawn producer(p);
+    spawn consumer<u32:2>(c);
     ()
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }

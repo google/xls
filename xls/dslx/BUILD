@@ -684,6 +684,7 @@ cc_library(
     hdrs = ["parser.h"],
     deps = [
         ":ast",
+        ":ast_cloner",
         ":ast_utils",
         ":bindings",
         ":builtins_metadata",

@@ -217,6 +217,18 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
   return it2->second;
 }
 
+absl::StatusOr<TypeInfo*> TypeInfo::GetInvocationTypeInfoOrError(
+    const Invocation* invocation, const SymbolicBindings& caller) const {
+  auto maybe_ti = GetInvocationTypeInfo(invocation, caller);
+  if (maybe_ti.has_value()) {
+    return *maybe_ti;
+  }
+
+  return absl::NotFoundError(
+      absl::StrCat("Could not find child type info with caller bindngs: ",
+                   caller.ToString()));
+}
+
 void TypeInfo::SetInvocationTypeInfo(const Invocation* invocation,
                                      SymbolicBindings caller,
                                      TypeInfo* type_info) {
@@ -323,6 +335,17 @@ std::optional<const ImportedInfo*> TypeInfo::GetImported(
     return absl::nullopt;
   }
   return &it->second;
+}
+
+absl::StatusOr<const ImportedInfo*> TypeInfo::GetImportedOrError(
+    Import* import) const {
+  auto maybe_imported = GetImported(import);
+  if (maybe_imported.has_value()) {
+    return maybe_imported.value();
+  }
+
+  return absl::NotFoundError(
+      absl::StrCat("Could not find import for \"", import->ToString(), "\"."));
 }
 
 std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {

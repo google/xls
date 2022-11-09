@@ -19,13 +19,15 @@ proc Main {
     data_in: chan<u32> in;
     result_out: chan<(u32, bool)> out;
 
+    init { () }
+
     config(do_recv_in: chan<bool> in,
            data_in: chan<u32> in,
            result_out: chan<(u32, bool)> out) {
         (do_recv_in, data_in, result_out)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let (tok, do_recv) = recv(tok, do_recv_in);
         let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv);
         let _ = send(tok, result_out, (foo, foo_valid));
@@ -33,22 +35,24 @@ proc Main {
     }
 }
 
-#[test_proc()]
+#[test_proc]
 proc Tester {
     terminator: chan<bool> out;
     do_recv_out: chan<bool> out;
     data_out: chan<u32> out;
     result_in: chan<(u32, bool)> in;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (do_recv_out, do_recv_in) = chan<bool>;
         let (data_out, data_in) = chan<u32>;
         let (result_out, result_in) = chan<(u32, bool)>;
-        spawn Main(do_recv_in, data_in, result_out)();
+        spawn Main(do_recv_in, data_in, result_out);
         (terminator, do_recv_out, data_out, result_in)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         // First, tell the proc to receive without data present. Expect a
         // result of 0.
         let tok = send(tok, do_recv_out, true);

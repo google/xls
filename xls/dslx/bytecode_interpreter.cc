@@ -66,13 +66,13 @@ BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
     : import_data_(import_data) {}
 
 absl::Status BytecodeInterpreter::InitFrame(
-    BytecodeFunction* bf, const std::vector<InterpValue>& args) {
+    BytecodeFunction* bf, const std::vector<InterpValue>& args,
+    const TypeInfo* type_info) {
   XLS_RET_CHECK(frames_.empty());
 
   // In "mission mode" we expect type_info to be non-null in the frame, but for
   // bytecode-level testing we may not have an AST.
-  TypeInfo* type_info = nullptr;
-  if (bf->owner() != nullptr) {
+  if (type_info == nullptr && bf->owner() != nullptr) {
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
   frames_.push_back(
@@ -84,7 +84,7 @@ absl::Status BytecodeInterpreter::InitFrame(
 BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
                                   const std::vector<InterpValue>& args) {
   auto interp = absl::WrapUnique(new BytecodeInterpreter(import_data, bf));
-  XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args));
+  XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
   return interp;
 }
 
@@ -396,7 +396,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     return absl::InvalidArgumentError("Bytecode cache is NULL.");
   }
 
-  if (f->IsParametric()) {
+  if (f->IsParametric() || f->tag() == Function::Tag::kProcInit) {
     XLS_RET_CHECK(caller_bindings.has_value());
     std::optional<TypeInfo*> maybe_type_info =
         type_info->GetInvocationTypeInfo(invocation,
@@ -1720,17 +1720,10 @@ ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
 
 absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-    InterpValue terminator, const std::vector<Expr*>& next_args,
-    std::vector<ProcInstance>* proc_instances) {
-  std::vector<InterpValue> next_arg_values;
-  for (const Expr* arg : next_args) {
-    XLS_ASSIGN_OR_RETURN(InterpValue arg_value, type_info->GetConstExpr(arg));
-    next_arg_values.push_back(arg_value);
-  }
-
-  return EvalSpawn(
-      import_data, type_info, absl::nullopt, absl::nullopt, root_proc,
-      /*config_args=*/{terminator}, next_arg_values, proc_instances);
+    InterpValue terminator, std::vector<ProcInstance>* proc_instances) {
+  return EvalSpawn(import_data, type_info, absl::nullopt, absl::nullopt,
+                   root_proc,
+                   /*config_args=*/{terminator}, proc_instances);
 }
 
 absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
@@ -1740,8 +1733,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                        bytecode.spawn_data());
   return EvalSpawn(import_data(), frame.type_info(),
                    spawn_data->caller_bindings, spawn_data->spawn,
-                   spawn_data->proc, spawn_data->config_args,
-                   spawn_data->next_args, proc_instances_);
+                   spawn_data->proc, spawn_data->config_args, proc_instances_);
 }
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
@@ -1749,8 +1741,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     const std::optional<SymbolicBindings>& caller_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,
     const std::vector<InterpValue>& config_args,
-    const std::vector<InterpValue>& next_args,
     std::vector<ProcInstance>* proc_instances) {
+  const TypeInfo* parent_ti = type_info;
   auto get_parametric_type_info =
       [type_info](const Spawn* spawn, const Invocation* invoc,
                   const std::optional<SymbolicBindings>& caller_bindings)
@@ -1772,7 +1764,6 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   if (maybe_spawn.has_value()) {
     // We're guaranteed that these have values if the proc is parametric (the
     // root proc can't be parametric).
-    XLS_RET_CHECK(maybe_spawn.has_value());
     XLS_ASSIGN_OR_RETURN(type_info,
                          get_parametric_type_info(maybe_spawn.value(),
                                                   maybe_spawn.value()->config(),
@@ -1785,7 +1776,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
   ProcConfigBytecodeInterpreter cbi(import_data, config_bf.get(),
                                     proc_instances);
-  XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args));
+  XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
   XLS_RETURN_IF_ERROR(cbi.Run());
   XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
   InterpValue constants_tuple = cbi.stack().back();
@@ -1797,8 +1788,21 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   // as the implicit token and the _actual_ state args themselves.
   std::vector<InterpValue> full_next_args = *constants;
   full_next_args.push_back(InterpValue::MakeToken());
-  full_next_args.insert(full_next_args.end(), next_args.begin(),
-                        next_args.end());
+  InterpValue initial_state(InterpValue::MakeToken());
+  if (maybe_spawn.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        initial_state,
+        parent_ti->GetConstExpr(maybe_spawn.value()->next()->args()[0]));
+  } else {
+    // If this is the top-level proc, then we can get its initial state from the
+    // ModuleMember typechecking, since A) top-level procs can't be
+    // parameterized and B) typechecking will eagerly constexpr evaluate init
+    // functions.
+    XLS_ASSIGN_OR_RETURN(initial_state,
+                         parent_ti->GetConstExpr(proc->init()->body()));
+  }
+
+  full_next_args.insert(full_next_args.end(), initial_state);
 
   std::vector<NameDef*> member_defs;
   member_defs.reserve(proc->members().size());
@@ -1842,7 +1846,8 @@ absl::Status ProcInstance::Run() {
                  result_value.GetLength().value() == 0);
     }
 
-    XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_));
+    XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,
+                                                /*type_info=*/nullptr));
     return absl::OkStatus();
   }
 

@@ -180,18 +180,6 @@ pub struct State {
     last_tag: Block,
 }
 
-// Creates a zero-valued State struct, suitable for proc initialization.
-pub const DEFAULT_INITIAL_STATE = State {
-    step: Step::IDLE,
-    command: Command {
-        aad_blocks: u32:0,
-        ctxt_blocks: u32:0,
-        hash_key: ZERO_BLOCK,
-    },
-    input_blocks_left: u32:0,
-    last_tag: ZERO_BLOCK,
-};
-
 // Returns the state values to use during a proc "tick": either a new command
 // or the carried state, depending on the FSM step/state.
 fn get_current_state(state: State, command: Command) -> State {
@@ -227,6 +215,20 @@ pub proc ghash {
     command_in: chan<Command> in;
     input_in: chan<Block> in;
     tag_out: chan<Block> out;
+
+    init {
+        State {
+            step: Step::IDLE,
+            command: Command {
+                aad_blocks: u32:0,
+                ctxt_blocks: u32:0,
+                hash_key: ZERO_BLOCK,
+            },
+            input_blocks_left: u32:0,
+            last_tag: ZERO_BLOCK,
+        }
+    }
+
 
     config(command_in: chan<Command> in, input_in: chan<Block> in,
            tag_out: chan<Block> out) {
@@ -274,23 +276,25 @@ pub proc ghash {
 
 // General test of GHASH operation. Verified against the Go cipher package's
 // GCM implementation.
-#[test_proc()]
+#[test_proc]
 proc ghash_test {
 	command_out: chan<Command> out;
     data_out: chan<Block> out;
     tag_in: chan<Block> in;
     terminator: chan<bool> out;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
 		let (command_in, command_out) = chan<Command>;
         let (data_in, data_out) = chan<Block>;
         let (tag_in, tag_out) = chan<Block>;
 
-        spawn ghash(command_in, data_in, tag_out)(DEFAULT_INITIAL_STATE);
+        spawn ghash(command_in, data_in, tag_out);
         (command_out, data_out, tag_in, terminator,)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         // Test 1: single AAD block, single ctxt block.
         let key = Key:[u8:0, ...];
         // No real need to use AES here, but no reason to _remove_ it, either.

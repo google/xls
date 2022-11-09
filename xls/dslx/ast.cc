@@ -1185,13 +1185,9 @@ std::string Spawn::ToString() const {
       config_->args(), ", ",
       [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
 
-  std::string next_args = absl::StrJoin(
-      next_->args(), ", ",
-      [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
-
   std::string body_str = absl::StrCat(";\n", body_->ToString());
-  return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee()->ToString(),
-                         param_str, config_args, next_args, body_str);
+  return absl::StrFormat("spawn %s%s(%s)%s", callee()->ToString(), param_str,
+                         config_args, body_str);
 }
 
 // -- class FormatMacro
@@ -1507,7 +1503,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
            NameDef* config_name_def, NameDef* next_name_def,
            const std::vector<ParametricBinding*>& parametric_bindings,
            const std::vector<Param*>& members, Function* config, Function* next,
-           std::optional<Function*> init, bool is_public)
+           Function* init, bool is_public)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
@@ -1530,9 +1526,7 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   }
   results.push_back(config_);
   results.push_back(next_);
-  if (init_.has_value()) {
-    results.push_back(*init_);
-  }
+  results.push_back(init_);
   return results;
 }
 
@@ -1560,20 +1554,20 @@ std::string Proc::ToString() const {
     members_str.append("\n");
   }
 
-  std::string init_str = "";
-  if (init_.has_value()) {
-    init_str =
-        absl::StrCat(Indent(init_.value()->ToUndecoratedString("init")), "\n");
-  }
+  // Init functions are special, since they shouldn't be printed with
+  // parentheses (since they can't take args).
+  std::string init_str =
+      Indent(absl::StrCat("init ", init_->body()->ToString()));
 
   constexpr std::string_view kTemplate = R"(%sproc %s%s {
-%s%s%s
+%s%s
+%s
 %s
 })";
   return absl::StrFormat(kTemplate, pub_str, name_def()->identifier(),
-                         parametric_str, Indent(members_str), init_str,
+                         parametric_str, Indent(members_str),
                          Indent(config_->ToUndecoratedString("config")),
-                         Indent(next_->ToUndecoratedString("next")));
+                         init_str, Indent(next_->ToUndecoratedString("next")));
 }
 
 std::vector<std::string> Proc::GetFreeParametricKeys() const {
@@ -1718,14 +1712,7 @@ std::vector<AstNode*> Join::GetChildren(bool want_types) const {
 // -- class TestProc
 
 std::string TestProc::ToString() const {
-  std::vector<std::string> next_args;
-  next_args.reserve(next_args_.size());
-  for (const auto* expr : next_args_) {
-    next_args.push_back(expr->ToString());
-  }
-
-  return absl::StrFormat("#[test_proc(%s)]\n%s", absl::StrJoin(next_args, ", "),
-                         proc_->ToString());
+  return absl::StrFormat("#[test_proc]\n%s", proc_->ToString());
 }
 
 // -- class BuiltinTypeAnnotation

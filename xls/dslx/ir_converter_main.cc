@@ -35,16 +35,6 @@ ABSL_FLAG(std::string, top, "",
           "top entity in the generated IR. When not provided, all functions "
           "and procs are converted, there is no top entity defined in the "
           "generated IR.");
-ABSL_FLAG(std::string, initial_state_constant, "",
-          "If converting a proc, the name of a constant (in the proc's module) "
-          "that defines the initial value for the top-level proc state. "
-          "Requires --top and a top-level proc. "
-          "Mutually exclusive with --initial_state_ir_value.");
-ABSL_FLAG(std::string, initial_state_ir_value, "",
-          "If converting a proc, the text representation of an IR value to use "
-          "to initialze the proc state. "
-          "Requires --top and a top-level proc. "
-          "Mutually exclusive with --initial_state_constant.");
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",
@@ -96,7 +86,6 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
 // "package".
 static absl::Status AddPathToPackage(
     std::string_view path, std::optional<std::string_view> entry,
-    std::optional<IrConverterInitialState> initial_state,
     const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
     bool warnings_as_errors, bool* printed_error) {
@@ -132,8 +121,7 @@ static absl::Status AddPathToPackage(
 
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
-        module.get(), entry.value(), initial_state,
-        /*import_data=*/&import_data,
+        module.get(), entry.value(), /*import_data=*/&import_data,
         /*symbolic_bindings=*/nullptr, convert_options, package));
   } else {
     XLS_RETURN_IF_ERROR(
@@ -145,7 +133,6 @@ static absl::Status AddPathToPackage(
 
 absl::Status RealMain(absl::Span<const std::string_view> paths,
                       std::optional<std::string_view> top,
-                      std::optional<IrConverterInitialState> initial_state,
                       std::optional<std::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
@@ -179,9 +166,9 @@ absl::Status RealMain(absl::Span<const std::string_view> paths,
     if (path == "-") {
       path = "/dev/stdin";
     }
-    XLS_RETURN_IF_ERROR(AddPathToPackage(
-        path, top, initial_state, convert_options, stdlib_path, dslx_paths,
-        &package.value(), warnings_as_errors, printed_error));
+    XLS_RETURN_IF_ERROR(
+        AddPathToPackage(path, top, convert_options, stdlib_path, dslx_paths,
+                         &package.value(), warnings_as_errors, printed_error));
   }
   std::cout << package->DumpIr();
 
@@ -219,49 +206,13 @@ int main(int argc, char* argv[]) {
     package_name = absl::GetFlag(FLAGS_package_name);
   }
 
-  std::optional<std::string> initial_state_constant;
-  if (!absl::GetFlag(FLAGS_initial_state_constant).empty()) {
-    if (!top.has_value()) {
-      XLS_LOG(QFATAL)
-          << "--initial_state_constant requires that --top is also set.";
-    }
-    initial_state_constant = absl::GetFlag(FLAGS_initial_state_constant);
-  }
-
-  std::optional<std::string> initial_state_ir_value;
-  if (!absl::GetFlag(FLAGS_initial_state_ir_value).empty()) {
-    if (!top.has_value()) {
-      XLS_LOG(QFATAL)
-          << "--initial_state_ir_value requires that --top is also set.";
-    }
-    initial_state_ir_value = absl::GetFlag(FLAGS_initial_state_ir_value);
-  }
-  if (initial_state_constant.has_value() &&
-      initial_state_ir_value.has_value()) {
-    XLS_LOG(QFATAL) << "Only one of --initial_state_constant and "
-                    << "--initial_state_value may be set.";
-  }
-
-  std::optional<xls::dslx::IrConverterInitialState> initial_state;
-  if (initial_state_constant.has_value()) {
-    initial_state = xls::dslx::IrConverterInitialState{
-        .kind = xls::dslx::IrConverterInitialState::Kind::kConstantName,
-        .value = initial_state_constant.value(),
-    };
-  } else if (initial_state_ir_value.has_value()) {
-    initial_state = xls::dslx::IrConverterInitialState{
-        .kind = xls::dslx::IrConverterInitialState::Kind::kIrValue,
-        .value = initial_state_ir_value.value(),
-    };
-  }
-
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool verify_ir = absl::GetFlag(FLAGS_verify);
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
-      args, top, initial_state, package_name, stdlib_path, dslx_paths,
-      emit_fail_as_assert, verify_ir, warnings_as_errors, &printed_error);
+      args, top, package_name, stdlib_path, dslx_paths, emit_fail_as_assert,
+      verify_ir, warnings_as_errors, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

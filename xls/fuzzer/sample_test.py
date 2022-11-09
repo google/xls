@@ -68,13 +68,11 @@ class SampleTest(absltest.TestCase):
         '"codegen_args": ["--generator=pipeline", '
         '"--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, '
         '"ir_converter_args": ["--top=main"], "optimize_ir": true, '
-        '"proc_init_constant": "HAM_SANDWICH", '
         '"proc_ticks": null, "simulate": false, "simulator": null, '
         '"timeout_seconds": 42, "top_type": 0, "use_jit": true, '
         '"use_system_verilog": true}')
     expected_object = sample.SampleOptions(
         input_is_dslx=True,
-        proc_init_constant='HAM_SANDWICH',
         ir_converter_args=['--top=main'],
         calls_per_sample=42,
         convert_to_ir=True,
@@ -99,7 +97,7 @@ class SampleTest(absltest.TestCase):
         '{"calls_per_sample": 1, "codegen": false, "codegen_args": null, '
         '"convert_to_ir": true, '
         '"input_is_dslx": true, "ir_converter_args": null, '
-        '"optimize_ir": true, "proc_init_constant": null, "proc_ticks": null, '
+        '"optimize_ir": true, "proc_ticks": null, '
         '"simulate": false, "simulator": null, "timeout_seconds": null, '
         '"top_type": 0, "use_jit": true, "use_system_verilog": true}')
     self.assertEqual(got.to_json(), want_text)
@@ -129,7 +127,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"calls_per_sample": 42, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_init_constant": null, "proc_ticks": null, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "top_type": 0, "use_jit": true, "use_system_verilog": true}
+        // options: {"calls_per_sample": 42, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_ticks": null, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "top_type": 0, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
@@ -165,7 +163,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"calls_per_sample": 42, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_init_constant": null, "proc_ticks": null, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "top_type": 0, "use_jit": true, "use_system_verilog": true}
+        // options: {"calls_per_sample": 42, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_ticks": null, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "top_type": 0, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
@@ -234,7 +232,7 @@ class SampleTest(absltest.TestCase):
 
   def test_serialize_deserialize_proc(self):
     crasher = textwrap.dedent("""\
-    // options: {"calls_per_sample" : 0, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": false, "proc_init_constant": "DEFAULT_INIT_STATE", "proc_ticks": 42, "top_type": 1}
+    // options: {"calls_per_sample" : 0, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": false, "proc_ticks": 42, "top_type": 1}
     // args: bits[32]:0x10; bits[1]:1
     // ir_channel_names: sample__input, sample__enable
     const DEFAULT_INIT_STATE = u32:42;
@@ -300,7 +298,6 @@ class SampleTest(absltest.TestCase):
             convert_to_ir=True,
             ir_converter_args=['--top=main'],
             optimize_ir=False,
-            proc_init_constant='DEFAULT_INIT_STATE',
             top_type=sample.TopType.proc,
             calls_per_sample=0,
             proc_ticks=42),

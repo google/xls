@@ -366,16 +366,4 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
       typeref->type_definition());
 }
 
-absl::StatusOr<ConstantDef*> ValueGenerator::GenerateConstantDef(
-    Module* module, TypeAnnotation* type, std::string_view name,
-    bool is_public) {
-  XLS_ASSIGN_OR_RETURN(Expr * value, GenerateDslxConstant(module, type));
-  auto* name_def =
-      module->Make<dslx::NameDef>(dslx::FakeSpan(), std::string(name), nullptr);
-  auto* constant_def =
-      module->Make<ConstantDef>(dslx::FakeSpan(), name_def, value, is_public);
-  name_def->set_definer(constant_def);
-  return constant_def;
-}
-
 }  // namespace xls

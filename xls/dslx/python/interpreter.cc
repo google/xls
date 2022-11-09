@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/base/casts.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -33,13 +32,9 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
-#include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/parser.h"
 #include "xls/dslx/python/errors.h"
 #include "xls/dslx/symbolic_bindings.h"
-#include "xls/dslx/typecheck.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -72,8 +67,7 @@ absl::StatusOr<std::vector<InterpValue>> RunFunctionBatched(
 
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<InterpValue>>>
 RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
-        const std::vector<std::vector<InterpValue>>& channel_values,
-        const std::vector<InterpValue>& proc_initial_values) {
+        const std::vector<std::vector<InterpValue>>& channel_values) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
   std::vector<ProcInstance> proc_instances;
@@ -114,7 +108,7 @@ RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
 
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::EvalSpawn(
       &import_data, proc_type_info, absl::nullopt, absl::nullopt, proc,
-      config_args, proc_initial_values, &proc_instances));
+      config_args, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
   for (int i = 0; i < channel_values.size(); i++) {
@@ -168,7 +162,6 @@ PYBIND11_MODULE(interpreter, m) {
       "run_proc",
       [](std::string_view text, std::string_view top_name,
          const std::vector<std::vector<InterpValue>> args_batch,
-         std::optional<std::string_view> proc_init_constant,
          std::string_view dslx_stdlib_path)
           -> absl::StatusOr<
               absl::flat_hash_map<std::string, std::vector<InterpValue>>> {
@@ -184,22 +177,12 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_CHECK(module_member.has_value());
         ModuleMember* member = module_member.value();
 
-        std::vector<InterpValue> initial_values;
-        if (proc_init_constant.has_value()) {
-          XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
-                               tm.module->GetConstantDef(*proc_init_constant));
-          XLS_ASSIGN_OR_RETURN(
-              InterpValue initial_state,
-              tm.type_info->GetConstExpr(constant_def->value()));
-          initial_values.push_back(initial_state);
-        }
-
         XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
         dslx::Proc* proc = std::get<dslx::Proc*>(*member);
-        return RunProc(proc, import_data, tm, args_batch, initial_values);
+        return RunProc(proc, import_data, tm, args_batch);
       },
       py::arg("text"), py::arg("top_name"), py::arg("args_batch"),
-      py::arg("proc_init_constant"), py::arg("dslx_stdlib_path"));
+      py::arg("dslx_stdlib_path"));
 }
 
 }  // namespace xls::dslx

@@ -34,6 +34,7 @@ TEST(ProcConfigIrConverterTest, BasicConversion) {
 proc test_proc {
   c: chan<u32> in;
   x: u32;
+  init { u32: 0 }
   config(c: chan<u32> in, ham_sandwich: u32) {
     (c, ham_sandwich)
   }
@@ -45,12 +46,13 @@ proc test_proc {
 
 proc main {
   c: chan<u32> out;
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn test_proc(c, u32:7)(u32:8);
+    spawn test_proc(c, u32:7);
     (p,)
   }
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }
@@ -88,22 +90,24 @@ TEST(ProcConfigIrConverterTest, CatchesMissingArgMap) {
   constexpr std::string_view kModule = R"(
 proc test_proc {
   c: chan<u32> in;
+  init { () }
   config(c: chan<u32> in) {
     (c,)
   }
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }
 
 proc main {
   c: chan<u32> out;
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn test_proc(c)();
+    spawn test_proc(c);
     (p,)
   }
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }

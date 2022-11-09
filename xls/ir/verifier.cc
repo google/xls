@@ -1267,10 +1267,10 @@ class NodeChecker : public DfsVisitor {
                                         int64_t expected_bit_count = -1) const {
     Node* operand = node->operand(operand_no);
     if (!operand->GetType()->IsBits()) {
-      return absl::InternalError(
-          StrFormat("Expected operand %d of %s have Bits type, has type %s: %s",
-                    operand_no, node->GetName(), node->GetType()->ToString(),
-                    node->ToString()));
+      return absl::InternalError(StrFormat(
+          "Expected operand %d of %s to have Bits type, has type %s: %s",
+          operand_no, node->GetName(), node->GetType()->ToString(),
+          node->ToString()));
     }
     if (expected_bit_count != -1 &&
         operand->BitCountOrDie() != expected_bit_count) {

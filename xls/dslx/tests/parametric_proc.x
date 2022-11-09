@@ -16,11 +16,13 @@ proc parametric<N: u32, M: u32> {
   c: chan<uN[M]> in;
   p: chan<uN[M]> out;
 
+  init { () }
+
   config(c: chan<uN[M]> in, p: chan<uN[M]> out) {
     (c, p)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok, input) = recv(tok, c);
     let output = (input as uN[N] * uN[N]:2) as uN[M];
     let tok = send(tok, p, output);
@@ -28,11 +30,13 @@ proc parametric<N: u32, M: u32> {
   }
 }
 
-#[test_proc()]
+#[test_proc]
 proc test_proc {
   terminator: chan<bool> out;
   output_c: chan<u37> in;
   input_p: chan<u37> out;
+
+  init { () }
 
   config(terminator: chan<bool> out) {
     let (input_p, input_c) = chan<u37>;
@@ -41,7 +45,7 @@ proc test_proc {
     (terminator, output_c, input_p)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let tok = send(tok, input_p, u37:1);
     let (tok, result) = recv(tok, output_c);
     let _ = assert_eq(result, u37:2);

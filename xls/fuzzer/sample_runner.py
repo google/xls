@@ -359,7 +359,7 @@ class SampleRunner:
         logging.vlog(1, 'Interpreting DSLX file.')
         with Timer() as t:
           results['interpreted DSLX'] = self._interpret_dslx_proc(
-              input_text, 'main', args_batch, options.proc_init_constant)
+              input_text, 'main', args_batch)
         logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                      t.elapsed_ns / 1e9)
         self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -622,13 +622,12 @@ class SampleRunner:
                      '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)
 
-  def _interpret_dslx_proc(
-      self, text: str, top_name: str, args_batch: ArgsBatch,
-      proc_init_constant: str) -> dict[str, Sequence[Value]]:
+  def _interpret_dslx_proc(self, text: str, top_name: str,
+                           args_batch: ArgsBatch) -> dict[str, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     dslx_results = interpreter.run_proc(
-        text, top_name, args_batch, proc_init_constant,
+        text, top_name, args_batch,
         runtime_build_actions.get_default_dslx_stdlib_path())
 
     ir_channel_values: dict[str, Sequence[IRValue]] = {}
@@ -707,8 +706,6 @@ class SampleRunner:
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
-    if options.proc_init_constant:
-      args.append('--initial_state_constant=' + options.proc_init_constant)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)

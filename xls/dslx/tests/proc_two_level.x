@@ -18,11 +18,13 @@ proc doubler {
   c: chan<u32> in;
   p: chan<u32> out;
 
+  init { () }
+
   config(c: chan<u32> in, p: chan<u32> out) {
     (c, p)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok, input) = recv(tok, c);
     let tok = send(tok, p, input * u32:2);
     ()
@@ -36,10 +38,12 @@ proc strange_mather {
   doubler_output_c: chan<u32> in;
   factor: u32;
 
+  init { u32:0 }
+
   config(c: chan<u32> in, p: chan<u32> out, factor: u32) {
     let (doubler_input_c, doubler_input_p) = chan<u32>;
     let (doubler_output_c, doubler_output_p) = chan<u32>;
-    spawn doubler(doubler_input_c, doubler_output_p)();
+    spawn doubler(doubler_input_c, doubler_output_p);
     (c, p, doubler_input_p, doubler_output_c, factor)
   }
 
@@ -54,20 +58,22 @@ proc strange_mather {
   }
 }
 
-#[test_proc()]
+#[test_proc]
 proc test_proc {
   terminator: chan<bool> out;
   p: chan<u32> out;
   c: chan<u32> in;
 
+  init { () }
+
   config(terminator: chan<bool> out) {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u32>;
-    spawn strange_mather(input_c, output_p, u32:2)(u32:0);
+    spawn strange_mather(input_c, output_p, u32:2);
     (terminator, input_p, output_c)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let tok = send(tok, p, u32:1);
     let (tok, res) = recv(tok, c);
     let _ = assert_eq(res, u32:0);

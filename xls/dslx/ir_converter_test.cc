@@ -50,22 +50,14 @@ std::string TestName() {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     std::string_view program, std::string_view fn_name, ImportData& import_data,
-    const ConvertOptions& options,
-    std::optional<std::string> top_proc_state_constant = std::nullopt) {
+    const ConvertOptions& options) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
                         /*module_name=*/"test_module", &import_data));
-  std::optional<IrConverterInitialState> initial_state;
-  if (top_proc_state_constant.has_value()) {
-    initial_state.emplace(IrConverterInitialState{
-        .kind = IrConverterInitialState::Kind::kConstantName,
-        .value = top_proc_state_constant.value(),
-    });
-  }
-  return ConvertOneFunction(
-      tm.module, /*entry_function_name=*/fn_name, &import_data,
-      /*symbolic_bindings=*/nullptr, options, initial_state);
+  return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
+                            &import_data,
+                            /*symbolic_bindings=*/nullptr, options);
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
@@ -1478,6 +1470,7 @@ fn callee(x:u32) -> u32 {
 TEST(IrConverterTest, HandlesChannelDecls) {
   const std::string kProgram = R"(
 proc main {
+  init { () }
   config() {
     let (p0, c0) : (chan<u32> out, chan<u32> in) = chan<u32>;
     let (p1, c1) : (chan<u64> out, chan<u64> in) = chan<u64>;
@@ -1486,7 +1479,7 @@ proc main {
     ()
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }
@@ -1507,6 +1500,9 @@ TEST(IrConverterTest, HandlesBasicProc) {
   const std::string kProgram = R"(
 proc producer {
   c: chan<u32> out;
+  init {
+    u32:0
+  }
   config(input_c: chan<u32> out) {
     (input_c,)
   }
@@ -1518,6 +1514,9 @@ proc producer {
 
 proc consumer {
   c: chan<u32> in;
+  init {
+    u32:0
+  }
   config(input_c: chan<u32> in) {
     (input_c,)
   }
@@ -1528,13 +1527,14 @@ proc consumer {
 }
 
 proc main {
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn producer(p)(u32:0);
-    spawn consumer(c)(u32:0);
+    spawn producer(p);
+    spawn consumer(c);
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
 )";
 
@@ -1553,6 +1553,10 @@ TEST(IrConverterTest, SendIfRecvIf) {
   constexpr std::string_view kProgram = R"(proc producer {
   c: chan<u32> out;
 
+  init {
+    false
+  }
+
   config(c: chan<u32> out) {
     (c,)
   }
@@ -1566,6 +1570,10 @@ TEST(IrConverterTest, SendIfRecvIf) {
 proc consumer {
   c: chan<u32> in;
 
+  init {
+    false
+  }
+
   config(c: chan<u32> in) {
     (c,)
   }
@@ -1577,13 +1585,14 @@ proc consumer {
 }
 
 proc main {
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn producer(p)(true);
-    spawn consumer(c)(true);
+    spawn producer(p);
+    spawn consumer(c);
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 })";
 
   ConvertOptions options;
@@ -1603,6 +1612,10 @@ TEST(IrConverterTest, Join) {
   p1: chan<u32> out;
   p2: chan<u32> out;
   c3: chan<u32> in;
+
+  init {
+    u32:0
+  }
 
   config() {
     let (p0, c0) = chan<u32>;
@@ -1624,14 +1637,14 @@ TEST(IrConverterTest, Join) {
 }
 
 proc main {
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn foo()(u32: 0);
+    spawn foo();
     ()
   }
-  next(tok: token) { () }
+  next(tok: token, state: ()) { () }
 }
-
 )";
 
   ConvertOptions options;
@@ -1651,11 +1664,13 @@ TEST(IrConverterTest, BoundaryChannels) {
   in_1: chan<u32> in;
   output: chan<u32> out;
 
+  init { () }
+
   config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
     (in_0, in_1, output)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok, a) = recv(tok, in_0);
     let (tok, b) = recv(tok, in_1);
     let tok = send(tok, output, a + b);
@@ -1676,8 +1691,10 @@ TEST(IrConverterTest, BoundaryChannels) {
 
 TEST(IrConverterTest, TopProcWithState) {
   constexpr std::string_view kProgram = R"(
-const INITIAL_STATE = (u32:4, [u32:4000, u32:4001, u32:0x24, u32:0x25]);
 proc main {
+  init {
+    (u32:4, u32[4]:[u32:4000, u32:4001, u32:36, ...])
+  }
   config() { () }
 
   next(tok: token, state: (u32, u32[4])) { state }
@@ -1688,11 +1705,9 @@ proc main {
   options.emit_positions = false;
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
-  std::string initial_state_str = "INITIAL_STATE";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
-      ConvertOneFunctionForTest(kProgram, "main", import_data, options,
-                                initial_state_str));
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
   ExpectIr(converted, TestName());
 }
 

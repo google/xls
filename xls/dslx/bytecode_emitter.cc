@@ -25,7 +25,6 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interp_value_helpers.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value
@@ -1089,8 +1088,9 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
 
   XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> config_args,
                        convert_args(node->config()->args()));
-  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> next_args,
-                       convert_args(node->next()->args()));
+  XLS_RET_CHECK_EQ(node->next()->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(InterpValue initial_state,
+                       type_info_->GetConstExpr(node->next()->args()[0]));
 
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
@@ -1104,7 +1104,7 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
     final_bindings = *maybe_callee_bindings.value();
   }
 
-  Bytecode::SpawnData spawn_data{node, proc, config_args, next_args,
+  Bytecode::SpawnData spawn_data{node, proc, config_args, initial_state,
                                  final_bindings};
   Add(Bytecode::MakeSpawn(node->span(), spawn_data));
   return node->body()->AcceptExpr(this);

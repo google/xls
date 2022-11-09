@@ -90,9 +90,6 @@ std::vector<std::string> ParseIrChannelNames(
 
 #undef HANDLE_BOOL
 
-  if (!parsed["proc_init_constant"].is_null()) {
-    options.proc_init_constant_ = parsed["proc_init_constant"].string_value();
-  }
   if (!parsed["codegen_args"].is_null()) {
     std::vector<std::string> codegen_args;
     for (const json11::Json& item : parsed["codegen_args"].array_items()) {
@@ -139,12 +136,6 @@ json11::Json SampleOptions::ToJson() const {
   HANDLE_BOOL(use_system_verilog);
 
 #undef HANDLE_BOOL
-
-  if (proc_init_constant_) {
-    json["proc_init_constant"] = *proc_init_constant_;
-  } else {
-    json["proc_init_constant"] = nullptr;
-  }
 
   if (codegen_args_) {
     json["codegen_args"] = *codegen_args_;
@@ -205,22 +196,10 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   return true;
 }
 
-bool Sample::ProcInitValuesEqual(const Sample& other) const {
-  if (proc_init_constant_.has_value() !=
-      other.proc_init_constant_.has_value()) {
-    return false;
-  }
-  if (!proc_init_constant_.has_value()) {
-    return true;
-  }
-  return *proc_init_constant_ == *other.proc_init_constant_;
-}
-
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   std::optional<SampleOptions> options;
   std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
-  std::optional<std::string> proc_init_constant = std::nullopt;
   std::vector<std::vector<InterpValue>> args_batch;
   std::vector<std::string_view> input_lines;
   for (std::string_view line : absl::StrSplit(s, '\n')) {
@@ -243,8 +222,7 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
 
   std::string input_text = absl::StrJoin(input_lines, "\n");
   return Sample(std::move(input_text), *std::move(options),
-                std::move(args_batch), std::move(ir_channel_names),
-                std::move(proc_init_constant));
+                std::move(args_batch), std::move(ir_channel_names));
 }
 
 std::string Sample::Serialize() const {
@@ -255,10 +233,6 @@ std::string Sample::Serialize() const {
         IrChannelNamesToText(ir_channel_names_.value());
     lines.push_back(
         absl::StrCat("// ir_channel_names: ", ir_channel_names_str));
-  }
-  if (proc_init_constant_.has_value()) {
-    lines.push_back(
-        absl::StrCat("// proc_init_constant: ", *proc_init_constant_));
   }
   for (const std::vector<InterpValue>& args : args_batch_) {
     std::string args_str = InterpValueListToString(args);

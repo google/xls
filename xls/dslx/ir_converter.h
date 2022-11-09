@@ -83,28 +83,16 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 //   import_data: The import data for typechecking, etc.
 //   symbolic_bindings: Parametric bindings to use during conversion, if this
 //     function is parametric.
-//   initial_state: If converting a proc, the name of a constant inside the
-//     proc's defining module containing the initial state for the proc.
 //
 // Returns an error status that indicates whether the conversion was successful.
 // On success there will be a corresponding (built) function inside of
 // "package".
 //
 // Implementation note: creates a temporary IR package based on module's name.
-struct IrConverterInitialState {
-  enum Kind {
-    kConstantName,
-    kIrValue,
-  };
-  Kind kind;
-  std::string value;
-};
-
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options,
-    std::optional<IrConverterInitialState> initial_state);
+    const ConvertOptions& options);
 
 // As above, but the package is provided explicitly.
 //
@@ -112,7 +100,6 @@ absl::StatusOr<std::string> ConvertOneFunction(
 // inside of it, it may not be nullptr.
 absl::Status ConvertOneFunctionIntoPackage(
     Module* module, std::string_view entry_function_name,
-    std::optional<IrConverterInitialState> initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package);
 

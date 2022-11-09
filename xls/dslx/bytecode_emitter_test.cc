@@ -1208,12 +1208,13 @@ TEST(BytecodeEmitterTest, BasicProc) {
 proc Foo {
   x: chan<u32> in;
   y: u32;
+  init { () }
   config() {
     let (p, c) = chan<u32>;
     (p, u32:100)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }
@@ -1232,13 +1233,13 @@ proc Foo {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
-      "literal (channel, channel) @ test.x:6:18-6:26",
-      "expand_tuple @ test.x:6:9-6:15",
-      "store 0 @ test.x:6:10-6:11",
-      "store 1 @ test.x:6:13-6:14",
-      "load 0 @ test.x:7:6-7:7",
-      "literal u32:100 @ test.x:7:13-7:16",
-      "create_tuple 2 @ test.x:7:5-7:17"};
+      "literal (channel, channel) @ test.x:7:18-7:26",
+      "expand_tuple @ test.x:7:9-7:15",
+      "store 0 @ test.x:7:10-7:11",
+      "store 1 @ test.x:7:13-7:14",
+      "load 0 @ test.x:8:6-8:7",
+      "literal u32:100 @ test.x:8:13-8:16",
+      "create_tuple 2 @ test.x:8:5-8:17"};
 
   for (int i = 0; i < config_bytecodes.size(); i++) {
     ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
@@ -1256,6 +1257,10 @@ proc Child {
     (c, a as u32, (a + b as u64))
   }
 
+  init {
+    u64:1234
+  }
+
   next(tok: token, a: u64) {
     let (tok, b) = recv(tok, c);
     a + x as u64 + y + b as u64
@@ -1264,13 +1269,14 @@ proc Child {
 
 proc Parent {
   p: chan<u32> out;
+  init { () }
   config() {
     let (p, c) = chan<u32>;
-    spawn Child(c, u64:100, uN[128]:200)(u64:300);
+    spawn Child(c, u64:100, uN[128]:200);
     (p,)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     ()
   }
 }
@@ -1318,22 +1324,22 @@ proc Parent {
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
   ASSERT_EQ(next_bytecodes.size(), 16);
   const std::vector<std::string> kNextExpected = {
-      "load 3 @ test.x:12:25-12:28",
-      "load 0 @ test.x:12:30-12:31",
-      "literal u1:1 @ test.x:12:20-12:32",
-      "recv uN[32] @ test.x:12:20-12:32",
-      "expand_tuple @ test.x:12:9-12:17",
-      "store 5 @ test.x:12:10-12:13",
-      "store 6 @ test.x:12:15-12:16",
-      "load 4 @ test.x:13:5-13:6",
-      "load 1 @ test.x:13:9-13:10",
-      "cast uN[64] @ test.x:13:9-13:17",
-      "add @ test.x:13:7-13:8",
-      "load 2 @ test.x:13:20-13:21",
-      "add @ test.x:13:18-13:19",
-      "load 6 @ test.x:13:24-13:25",
-      "cast uN[64] @ test.x:13:24-13:32",
-      "add @ test.x:13:22-13:23"};
+      "load 3 @ test.x:16:25-16:28",
+      "load 0 @ test.x:16:30-16:31",
+      "literal u1:1 @ test.x:16:20-16:32",
+      "recv uN[32] @ test.x:16:20-16:32",
+      "expand_tuple @ test.x:16:9-16:17",
+      "store 5 @ test.x:16:10-16:13",
+      "store 6 @ test.x:16:15-16:16",
+      "load 4 @ test.x:17:5-17:6",
+      "load 1 @ test.x:17:9-17:10",
+      "cast uN[64] @ test.x:17:9-17:17",
+      "add @ test.x:17:7-17:8",
+      "load 2 @ test.x:17:20-17:21",
+      "add @ test.x:17:18-17:19",
+      "load 6 @ test.x:17:24-17:25",
+      "cast uN[64] @ test.x:17:24-17:32",
+      "add @ test.x:17:22-17:23"};
   for (int i = 0; i < next_bytecodes.size(); i++) {
     ASSERT_EQ(next_bytecodes[i].ToString(), kNextExpected[i]);
   }

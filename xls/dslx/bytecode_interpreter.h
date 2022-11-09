@@ -86,7 +86,8 @@ class BytecodeInterpreter {
       const std::vector<InterpValue>& args,
       PostFnEvalHook post_fn_eval_hook = nullptr);
   absl::Status InitFrame(BytecodeFunction* bf,
-                         const std::vector<InterpValue>& args);
+                         const std::vector<InterpValue>& args,
+                         const TypeInfo* type_info);
 
   const std::vector<InterpValue>& stack() { return stack_; }
 
@@ -238,8 +239,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // should be placed.
   static absl::Status InitializeProcNetwork(
       ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-      InterpValue terminator, const std::vector<Expr*>& next_args,
-      std::vector<ProcInstance>* proc_instances);
+      InterpValue terminator, std::vector<ProcInstance>* proc_instances);
 
   virtual ~ProcConfigBytecodeInterpreter() = default;
 
@@ -252,7 +252,6 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
                                 std::optional<const Spawn*> maybe_spawn,
                                 Proc* proc,
                                 const std::vector<InterpValue>& config_args,
-                                const std::vector<InterpValue>& next_args,
                                 std::vector<ProcInstance>* proc_instances);
 
  private:

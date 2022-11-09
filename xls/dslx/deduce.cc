@@ -2422,11 +2422,10 @@ absl::StatusOr<TypeAndBindings> DeduceInstantiation(
     const std::vector<InstantiateArg>& args,
     std::function<absl::StatusOr<Function*>(const Instantiation*, DeduceCtx*)>
         resolve_fn,
-    std::function<absl::Status(Function*, DeduceCtx*)> typecheck_fn,
     const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env = {}) {
   bool is_parametric_fn = false;
+  // We can't resolve builtins as AST Functions, hence this check.
   if (!IsBuiltinFn(invocation->callee())) {
-    // We can't resolve builtins as AST Functions, hence this check.
     XLS_ASSIGN_OR_RETURN(Function * f, resolve_fn(invocation, ctx));
     is_parametric_fn = f->IsParametric() || f->proc().has_value();
   }
@@ -2438,6 +2437,8 @@ absl::StatusOr<TypeAndBindings> DeduceInstantiation(
     return ctx->typecheck_invocation()(ctx, invocation, constexpr_env);
   }
 
+  // If it's non-parametric, then we assume it's been already checked at module
+  // top.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> callee_type,
                        ctx->Deduce(invocation->callee()));
   return TypeAndBindings{down_cast<FunctionType*>(callee_type.get())
@@ -2452,17 +2453,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       ctx->fn_stack().back().symbolic_bindings();
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString()
               << " caller symbolic bindings: " << caller_symbolic_bindings;
-
-  // Gather up the type of all the (actual) arguments.
-  std::vector<InstantiateArg> config_args;
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
-      node, node->callee(), node->config()->args(), ctx, &config_args));
-
-  std::vector<InstantiateArg> next_args;
-  next_args.emplace_back(
-      InstantiateArg{std::make_unique<TokenType>(), node->span()});
-  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
-      node, node->callee(), node->next()->args(), ctx, &next_args));
 
   auto resolve_proc = [](const Instantiation* node,
                          DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
@@ -2481,9 +2471,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   };
 
   XLS_ASSIGN_OR_RETURN(Proc * proc, resolve_proc(node, ctx));
-  auto typecheck_fn = [](Function* f, DeduceCtx* ctx) {
-    return ctx->typecheck_function()(f, ctx);
-  };
   auto resolve_config = [proc](const Instantiation* node,
                                DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     return proc->config();
@@ -2492,6 +2479,27 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                              DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     return proc->next();
   };
+
+  auto resolve_init = [proc](const Instantiation* node,
+                             DeduceCtx* ctx) -> absl::StatusOr<Function*> {
+    return proc->init();
+  };
+
+  XLS_ASSIGN_OR_RETURN(
+      TypeAndBindings init_tab,
+      DeduceInstantiation(ctx, down_cast<Invocation*>(node->next()->args()[0]),
+                          {}, resolve_init, {}));
+
+  // Gather up the type of all the (actual) arguments.
+  std::vector<InstantiateArg> config_args;
+  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
+      node, node->callee(), node->config()->args(), ctx, &config_args));
+
+  std::vector<InstantiateArg> next_args;
+  next_args.emplace_back(
+      InstantiateArg{std::make_unique<TokenType>(), node->span()});
+  XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
+      node, node->callee(), node->next()->args(), ctx, &next_args));
 
   // For each [constexpr] arg, mark the associated Param as constexpr.
   absl::flat_hash_map<const Param*, InterpValue> constexpr_env;
@@ -2510,21 +2518,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // in the BytecodeEmitter, since that'd lead to a circular dependency between
   // it and the ConstexprEvaluator, so we have to do it eagerly here.
   // Un-wind that, if possible.
-  for (int i = 0; i < node->next()->args().size(); i++) {
-    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
-        node->next()->args()[i], nullptr));
-  }
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+      down_cast<Invocation*>(node->next()->args()[0]),
+      /*concrete_type=*/nullptr));
 
-  XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
-      DeduceInstantiation(ctx, node->config(), config_args, resolve_config,
-                          typecheck_fn, constexpr_env));
+  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
+                       DeduceInstantiation(ctx, node->config(), config_args,
+                                           resolve_config, constexpr_env));
 
-  std::optional<TypeInfo*> maybe_config_ti =
-      ctx->type_info()->GetInvocationTypeInfo(node->config(),
-                                              tab.symbolic_bindings);
-  XLS_RET_CHECK(maybe_config_ti.has_value());
+  XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
+                       ctx->type_info()->GetInvocationTypeInfoOrError(
+                           node->config(), tab.symbolic_bindings));
 
   // Now we need to get the [constexpr] Proc member values so we can set them
   // when typechecking the `next` function. Those values are the elements in the
@@ -2548,17 +2553,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   constexpr_env.clear();
   XLS_RET_CHECK_EQ(tuple->members().size(), proc->members().size());
   for (int i = 0; i < tuple->members().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        InterpValue value,
-        ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), maybe_config_ti.value(),  // ctx->type_info(),
-            GetCurrentSymbolicBindings(ctx), tuple->members()[i], nullptr));
+    XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
+                                                ctx->import_data(), config_ti,
+                                                GetCurrentSymbolicBindings(ctx),
+                                                tuple->members()[i], nullptr));
     constexpr_env.insert({proc->members()[i], value});
   }
 
   XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->next(), next_args,
-                                          resolve_next, typecheck_fn,
-                                          constexpr_env)
+                                          resolve_next, constexpr_env)
                           .status());
 
   return ctx->Deduce(node->body());
@@ -2629,13 +2632,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     return fn;
   };
 
-  auto typecheck_fn = [](Function* f, DeduceCtx* ctx) {
-    return ctx->typecheck_function()(f, ctx);
-  };
-
-  XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
-      DeduceInstantiation(ctx, node, args, resolve_fn, typecheck_fn));
+  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
+                       DeduceInstantiation(ctx, node, args, resolve_fn));
 
   ConcreteType* ct = ctx->type_info()->GetItem(node->callee()).value();
   FunctionType* ft = dynamic_cast<FunctionType*>(ct);

@@ -120,9 +120,8 @@ class FunctionConverter {
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
-  absl::StatusOr<xls::Function*> HandleFunction(
-      Function* node, TypeInfo* type_info,
-      const SymbolicBindings* symbolic_bindings);
+  absl::Status HandleFunction(Function* node, TypeInfo* type_info,
+                              const SymbolicBindings* symbolic_bindings);
 
   absl::Status HandleProcNextFunction(
       Function* pf, const Invocation* invocation, TypeInfo* type_info,
@@ -2355,7 +2354,7 @@ static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
+absl::Status FunctionConverter::HandleFunction(
     Function* node, TypeInfo* type_info,
     const SymbolicBindings* symbolic_bindings) {
   XLS_RET_CHECK(type_info != nullptr);
@@ -2370,6 +2369,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 
   // We use a function builder for the duration of converting this AST Function.
   const bool requires_implicit_token = GetRequiresImplicitToken(node);
+  std::string fn_name = node->identifier();
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(module_->name(), node->identifier(),
@@ -2456,7 +2456,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   }
 
   package_data_.ir_to_dslx[f] = node;
-  return f;
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleProcNextFunction(
@@ -3309,14 +3309,30 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   }
 
   if (f->tag() == Function::Tag::kProcNext) {
+    if (!proc_data->id_to_initial_value.contains(record.proc_id().value())) {
+      Proc* p = f->proc().value();
+      XLS_ASSIGN_OR_RETURN(
+          ConcreteType * foo,
+          record.type_info()->GetItemOrError(p->init()->body()));
+
+      // If there's no value in the map, then this should be a top-level proc.
+      // Verify that there are no symbolic bindings.
+      XLS_RET_CHECK(record.symbolic_bindings().empty());
+      XLS_ASSIGN_OR_RETURN(InterpValue iv, ConstexprEvaluator::EvaluateToValue(
+                                               import_data, record.type_info(),
+                                               record.symbolic_bindings(),
+                                               p->init()->body(), foo));
+      XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
+      proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
+    }
+
     return converter.HandleProcNextFunction(
         f, record.invocation(), record.type_info(), import_data,
         &record.symbolic_bindings(), record.proc_id().value(), proc_data);
   }
 
-  return converter
-      .HandleFunction(f, record.type_info(), &record.symbolic_bindings())
-      .status();
+  return converter.HandleFunction(f, record.type_info(),
+                                  &record.symbolic_bindings());
 }
 
 // Creates the recv- and send-only channels needed for the top-level proc - it
@@ -3357,10 +3373,10 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
 //   import_data: Contains type information used in conversion.
 //   options: Conversion option flags.
 //   package: output of function
-static absl::Status ConvertCallGraph(
-    absl::Span<const ConversionRecord> order, ImportData* import_data,
-    const ConvertOptions& options, PackageData& package_data,
-    std::optional<IrConverterInitialState> initial_state = absl::nullopt) {
+static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
+                                     ImportData* import_data,
+                                     const ConvertOptions& options,
+                                     PackageData& package_data) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, "\n\t",
@@ -3403,15 +3419,6 @@ static absl::Status ConvertCallGraph(
     }
   }
 
-  // If the top proc requires state and we don't have it, we can't convert!
-  if (top_proc != nullptr && top_proc->next()->params().size() > 1 &&
-      !initial_state.has_value()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("The top proc, \"%s\", requires a state parameter, "
-                        "but no initial state was provided.",
-                        top_proc->identifier()));
-  }
-
   for (const auto& record : order) {
     if (record.f()->tag() == Function::Tag::kProcConfig &&
         record.f()->proc().value() == top_proc) {
@@ -3427,53 +3434,6 @@ static absl::Status ConvertCallGraph(
   }
 
   // Set first proc's initial value.
-  if (initial_state.has_value()) {
-    XLS_QCHECK(first_proc_next != nullptr)
-        << "Initial proc state specified, but no top-level proc was found.";
-
-    const std::vector<Param*>& next_params = first_proc_next->f()->params();
-    if (next_params.size() != 2) {
-      return absl::InvalidArgumentError(
-          absl::StrCat("Initial value specified for proc \"",
-                       first_proc_next->f()->proc().value()->identifier(),
-                       "\", but its `next` function does not carry state."));
-    }
-
-    TypeInfo* type_info = first_proc_next->type_info();
-    auto maybe_concrete_type = type_info->GetItem(next_params.at(1));
-    if (!maybe_concrete_type.has_value()) {
-      return absl::InternalError(
-          absl::StrCat("Could not find concrete type for proc \"",
-                       first_proc_next->f()->proc().value()->identifier(),
-                       "\"'s state element."));
-    }
-
-    Value initial_state_value;
-    if (initial_state->kind == IrConverterInitialState::Kind::kConstantName) {
-      std::string constant_name = initial_state->value;
-      XLS_ASSIGN_OR_RETURN(
-          ConstantDef * constant_def,
-          first_proc_next->module()->GetConstantDef(constant_name));
-      XLS_ASSIGN_OR_RETURN(
-          InterpValue interp_value,
-          first_proc_next->type_info()->GetConstExpr(constant_def->value()));
-      XLS_ASSIGN_OR_RETURN(initial_state_value,
-                           InterpValueToValue(interp_value));
-    } else {
-      // No parametric bindings on the top-level block.
-      XLS_ASSIGN_OR_RETURN(
-          ConcreteType * dslx_type,
-          type_info->GetItemOrError(next_params[1]->type_annotation()));
-      XLS_ASSIGN_OR_RETURN(
-          Type * ir_type,
-          TypeToIr(package_data.package, *dslx_type, SymbolicBindings()));
-      XLS_ASSIGN_OR_RETURN(initial_state_value,
-                           Parser::ParseValue(initial_state->value, ir_type));
-    }
-    proc_data.id_to_initial_value[first_proc_next->proc_id().value()] =
-        initial_state_value;
-  }
-
   if (first_proc_config != nullptr) {
     XLS_RET_CHECK(first_proc_config->proc_id().has_value());
     ProcId proc_id = first_proc_config->proc_id().value();
@@ -3533,40 +3493,33 @@ template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     Module* module, BlockT* block, ImportData* import_data,
     const SymbolicBindings* symbolic_bindings, const ConvertOptions& options,
-    Package* package,
-    std::optional<IrConverterInitialState> top_proc_initial_state) {
+    Package* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
                        GetOrderForEntry(block, func_type_info));
   PackageData package_data{package};
-  XLS_RETURN_IF_ERROR(ConvertCallGraph(order, import_data, options,
-                                       package_data, top_proc_initial_state));
+  XLS_RETURN_IF_ERROR(
+      ConvertCallGraph(order, import_data, options, package_data));
   return absl::OkStatus();
 }
 
 absl::Status ConvertOneFunctionIntoPackage(
     Module* module, std::string_view entry_function_name,
-    std::optional<IrConverterInitialState> top_proc_initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
-    if (top_proc_initial_state.has_value()) {
-      return absl::InvalidArgumentError(
-          "Cannot specify top proc initial state "
-          "when converting a (non-proc) function.");
-    }
-    return ConvertOneFunctionIntoPackageInternal(
-        module, fn_or.value(), import_data, symbolic_bindings, options, package,
-        top_proc_initial_state);
+    return ConvertOneFunctionIntoPackageInternal(module, fn_or.value(),
+                                                 import_data, symbolic_bindings,
+                                                 options, package);
   }
 
   auto proc_or = module->GetMemberOrError<Proc>(entry_function_name);
   if (proc_or.ok()) {
-    return ConvertOneFunctionIntoPackageInternal(
-        module, proc_or.value(), import_data, symbolic_bindings, options,
-        package, top_proc_initial_state);
+    return ConvertOneFunctionIntoPackageInternal(module, proc_or.value(),
+                                                 import_data, symbolic_bindings,
+                                                 options, package);
   }
 
   return absl::InvalidArgumentError(
@@ -3578,12 +3531,11 @@ absl::Status ConvertOneFunctionIntoPackage(
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options,
-    std::optional<IrConverterInitialState> top_proc_initial_state) {
+    const ConvertOptions& options) {
   Package package(module->name());
-  XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
-      module, entry_function_name, top_proc_initial_state, import_data,
-      symbolic_bindings, options, &package));
+  XLS_RETURN_IF_ERROR(
+      ConvertOneFunctionIntoPackage(module, entry_function_name, import_data,
+                                    symbolic_bindings, options, &package));
   return package.DumpIr();
 }
 

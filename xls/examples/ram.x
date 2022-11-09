@@ -29,16 +29,16 @@ pub struct RamResp<DATA_WIDTH: u32> {
   data: bits[DATA_WIDTH],
 }
 
-fn ZeroInit<DATA_WIDTH:u32, SIZE:u32>() -> bits[DATA_WIDTH][SIZE] {
-  bits[DATA_WIDTH][SIZE]: [bits[DATA_WIDTH]: 0, ...]
-}
-
 // Models a single-port RAM.
 // Use the wrapper proc SinglePortRamModel to hide the proc state
 // initialization.
-proc SinglePortRamModelInternal<DATA_WIDTH:u32, SIZE:u32, ADDR_WIDTH:u32> {
+proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32, ADDR_WIDTH:u32=std::clog2(SIZE)> {
   req_chan: chan<RamReq<ADDR_WIDTH, DATA_WIDTH>> in;
   resp_chan : chan<RamResp<DATA_WIDTH>> out;
+
+  init {
+      bits[DATA_WIDTH][SIZE]: [bits[DATA_WIDTH]: 0, ...]
+  }
 
   config(req: chan<RamReq<ADDR_WIDTH, DATA_WIDTH>> in,
          resp: chan<RamResp<DATA_WIDTH>> out) {
@@ -64,45 +64,22 @@ proc SinglePortRamModelInternal<DATA_WIDTH:u32, SIZE:u32, ADDR_WIDTH:u32> {
   }
 }
 
-// A proc modeling a single-port RAM.
-// This proc is suitable for special codegen via the --ram_configurations
-// option.
-//
-// Note that this proc initializes the memory to zero.
-//
-// TODO(rigge): further parameterize to control RAM functionality, for example
-// ReadBeforeWrite.
-pub proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
-                             ADDR_WIDTH:u32=std::clog2(SIZE)> {
-  req: chan<RamReq<ADDR_WIDTH, DATA_WIDTH>> in;
-  resp: chan<RamResp<DATA_WIDTH>> out;
-
-  config(req: chan<RamReq<ADDR_WIDTH, DATA_WIDTH>> in,
-         resp: chan<RamResp<DATA_WIDTH>> out) {
-    spawn SinglePortRamModelInternal<DATA_WIDTH, SIZE, ADDR_WIDTH>(req, resp)(
-        ZeroInit<DATA_WIDTH, SIZE>());
-    (req, resp)
-  }
-
-  next(tok: token) {
-      ()
-  }
-}
-
-#[test_proc()]
+#[test_proc]
 proc SinglePortRamModelTest {
   req_out: chan<RamReq<u32:10, u32:32>> out;
   resp_in: chan<RamResp<u32:32>> in;
   terminator: chan<bool> out;
 
+  init { () }
+
   config(terminator: chan<bool> out) {
     let (req_p, req_c) = chan<RamReq<u32:10, u32:32>>;
     let (resp_p, resp_c) = chan<RamResp<u32:32>>;
-    spawn SinglePortRamModel<u32:32, u32:1024>(req_c, resp_p)();
+    spawn SinglePortRamModel<u32:32, u32:1024, >(req_c, resp_p);
     (req_p, resp_c, terminator)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let MAX_OFFSET = u32:30;
     let _ = trace!(MAX_OFFSET);
     let tok = for (offset, tok): (u32, token) in range(u32:0, MAX_OFFSET) {

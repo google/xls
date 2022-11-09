@@ -67,10 +67,6 @@ class SampleOptions {
   bool input_is_dslx() const { return input_is_dslx_; }
   TopType top_type() const { return top_type_; }
 
-  const std::optional<std::string>& proc_init_constant() const {
-    return proc_init_constant_;
-  }
-
   const std::optional<std::vector<std::string>>& ir_converter_args() const {
     return ir_converter_args_;
   }
@@ -115,8 +111,6 @@ class SampleOptions {
   bool input_is_dslx_ = true;
   // The type of the top.
   TopType top_type_ = TopType::kFunction;
-  // The name of the [DSLX] constant to use for initialization.
-  std::optional<std::string> proc_init_constant_;
   // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
   std::optional<std::vector<std::string>> ir_converter_args_;
   // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
@@ -181,18 +175,14 @@ class Sample {
   //  <code sample>
   std::string ToCrasher(std::string_view error_message) const;
 
-  // TODO(https://github.com/google/xls/issues/681): Remove
-  // 'proc_initial_values'.
   Sample(
       std::string input_text, SampleOptions options,
       std::vector<std::vector<dslx::InterpValue>> args_batch,
-      std::optional<std::vector<std::string>> ir_channel_names = std::nullopt,
-      std::optional<std::string> proc_init_constant = std::nullopt)
+      std::optional<std::vector<std::string>> ir_channel_names = std::nullopt)
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
         args_batch_(std::move(args_batch)),
-        ir_channel_names_(std::move(ir_channel_names)),
-        proc_init_constant_(std::move(proc_init_constant)) {}
+        ir_channel_names_(std::move(ir_channel_names)) {}
 
   const SampleOptions& options() const { return options_; }
   const std::string& input_text() const { return input_text_; }
@@ -202,23 +192,17 @@ class Sample {
   const std::optional<std::vector<std::string>>& ir_channel_names() const {
     return ir_channel_names_;
   }
-  const std::optional<std::string>& proc_init_constant() const {
-    return proc_init_constant_;
-  }
 
   bool operator==(const Sample& other) const {
     return input_text_ == other.input_text_ && options_ == other.options_ &&
            ArgsBatchEqual(other) &&
-           ir_channel_names_ == other.ir_channel_names_ &&
-           ProcInitValuesEqual(other);
+           ir_channel_names_ == other.ir_channel_names_;
   }
   bool operator!=(const Sample& other) const { return !((*this) == other); }
 
  private:
   // Returns whether the argument batch is the same as in "other".
   bool ArgsBatchEqual(const Sample& other) const;
-  // Returns whether the proc initial values is the same as in "other".
-  bool ProcInitValuesEqual(const Sample& other) const;
 
   std::string input_text_;  // Code sample as text.
   SampleOptions options_;   // How to run the sample.
@@ -227,8 +211,6 @@ class Sample {
   std::vector<std::vector<dslx::InterpValue>> args_batch_;
   // Channel names as they appear in the IR.
   std::optional<std::vector<std::string>> ir_channel_names_;
-  // Name of the constant to use for proc initial values.
-  std::optional<std::string> proc_init_constant_;
 };
 
 }  // namespace xls

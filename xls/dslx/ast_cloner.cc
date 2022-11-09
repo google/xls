@@ -186,10 +186,8 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleConstRef(const ConstRef* n) override {
-    XLS_RETURN_IF_ERROR(n->name_def()->Accept(this));
-    old_to_new_[n] = module_->Make<ConstRef>(
-        n->span(), n->identifier(),
-        down_cast<NameDef*>(old_to_new_.at(n->name_def())));
+    old_to_new_[n] =
+        module_->Make<ConstRef>(n->span(), n->identifier(), n->name_def());
     return absl::OkStatus();
   }
 
@@ -437,20 +435,8 @@ class AstCloner : public AstNodeVisitor {
   }
 
   absl::Status HandleNameRef(const NameRef* n) override {
-    AnyNameDef any_name_def;
-    if (std::holds_alternative<const NameDef*>(n->name_def())) {
-      auto* name_def = std::get<const NameDef*>(n->name_def());
-      XLS_RETURN_IF_ERROR(name_def->Accept(this));
-      any_name_def = down_cast<NameDef*>(old_to_new_.at(name_def));
-    } else {
-      auto* builtin_name_def = std::get<BuiltinNameDef*>(n->name_def());
-      XLS_RETURN_IF_ERROR(builtin_name_def->Accept(this));
-      any_name_def =
-          down_cast<BuiltinNameDef*>(old_to_new_.at(builtin_name_def));
-    }
-
     old_to_new_[n] =
-        module_->Make<NameRef>(n->span(), n->identifier(), any_name_def);
+        module_->Make<NameRef>(n->span(), n->identifier(), n->name_def());
     return absl::OkStatus();
   }
 
@@ -505,10 +491,6 @@ class AstCloner : public AstNodeVisitor {
       new_members.push_back(down_cast<Param*>(old_to_new_.at(member)));
     }
 
-    std::optional<Function*> init;
-    if (n->init().has_value()) {
-      init = down_cast<Function*>(old_to_new_.at(n->init().value()));
-    }
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
     Proc* p = module_->Make<Proc>(
         n->span(), new_name_def,
@@ -516,7 +498,8 @@ class AstCloner : public AstNodeVisitor {
         down_cast<NameDef*>(old_to_new_.at(n->next_name_def())),
         new_parametric_bindings, new_members,
         down_cast<Function*>(old_to_new_.at(n->config())),
-        down_cast<Function*>(old_to_new_.at(n->next())), init, n->is_public());
+        down_cast<Function*>(old_to_new_.at(n->next())),
+        down_cast<Function*>(old_to_new_.at(n->init())), n->is_public());
     new_name_def->set_definer(p);
     old_to_new_[n] = p;
     return absl::OkStatus();
@@ -728,14 +711,8 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleTestProc(const TestProc* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    std::vector<Expr*> new_next_args;
-    new_next_args.reserve(n->next_args().size());
-    for (const Expr* next_arg : n->next_args()) {
-      new_next_args.push_back(down_cast<Expr*>(old_to_new_.at(next_arg)));
-    }
-
-    old_to_new_[n] = module_->Make<TestProc>(
-        down_cast<Proc*>(old_to_new_.at(n->proc())), new_next_args);
+    old_to_new_[n] =
+        module_->Make<TestProc>(down_cast<Proc*>(old_to_new_.at(n->proc())));
     return absl::OkStatus();
   }
 

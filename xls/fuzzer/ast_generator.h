@@ -173,6 +173,11 @@ class AstGenerator {
   absl::StatusOr<Function*> GenerateProcNextFunction(Env* env,
                                                      std::string name);
 
+  // Generate a function to return a constant with the given TypeAnnotation to
+  // serve as a Proc's [required] init function.
+  absl::StatusOr<Function*> GenerateProcInitFunction(
+      std::string_view name, TypeAnnotation* return_type);
+
   // Generate an DSLX proc with the given name.
   absl::StatusOr<Proc*> GenerateProc(std::string name);
 

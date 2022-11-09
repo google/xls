@@ -16,29 +16,32 @@
 proc consumer {
   cs: chan<u16>[128][64] in;
   ps: chan<u16>[128] out;
+  init { () }
   config(cs: chan<u16>[128][64] out, ps: chan<u16>[128] in) {
     (cs, ps)
   }
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let (tok, i) = recv(tok, cs[0][0]);
     let tok = send(tok, ps[1], i + i);
     ()
   }
 }
 
-#[test_proc()]
+#[test_proc]
 proc producer {
   ps: chan<u16>[128][64][32] out;
   cs: chan<u16>[128][64][32] in;
   terminator: chan<bool> out;
 
+  init { () }
+
   config(terminator: chan<bool> out) {
     let (ps, cs) = chan<u16>[128][64][32];
-    spawn consumer(cs[0], ps[0][1])();
+    spawn consumer(cs[0], ps[0][1]);
     (ps, cs, terminator)
   }
 
-  next(tok: token) {
+  next(tok: token, state: ()) {
     let tok = send(tok, ps[0][0][0], u16:1);
     let (tok, result) = recv(tok, cs[0][1][1]);
     let _ = assert_eq(result, u16:2);

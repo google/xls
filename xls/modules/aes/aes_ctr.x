@@ -60,20 +60,6 @@ pub struct State {
   blocks_left: uN[32],
 }
 
-pub const DEFAULT_INITIAL_STATE = State {
-    step: Step::IDLE,
-    command: Command {
-        msg_bytes: u32:0,
-        key: Key:[u8:0, ...],
-        key_width: aes_common::KeyWidth::KEY_128,
-        iv: InitVector:uN[96]:0,
-        initial_ctr: u32:0,
-        ctr_stride: u32:0,
-    },
-    ctr: uN[32]:0,
-    blocks_left: uN[32]:0,
-};
-
 // Performs the actual work of encrypting (or decrypting!) a block in CTR mode.
 fn aes_ctr_encrypt(key: Key, key_width: aes_common::KeyWidth, ctr: uN[128], block: Block) -> Block {
     // TODO(rspringer): Avoid the need for this two-step type conversion.
@@ -99,6 +85,22 @@ pub proc aes_ctr {
     command_in: chan<Command> in;
     ptxt_in: chan<Block> in;
     ctxt_out: chan<Block> out;
+
+    init {
+        State {
+            step: Step::IDLE,
+            command: Command {
+                msg_bytes: u32:0,
+                key: Key:[u8:0, ...],
+                key_width: aes_common::KeyWidth::KEY_128,
+                iv: InitVector:uN[96]:0,
+                initial_ctr: u32:0,
+                ctr_stride: u32:0,
+            },
+            ctr: uN[32]:0,
+            blocks_left: uN[32]:0,
+        }
+    }
 
     config(command_in: chan<Command> in,
            ptxt_in: chan<Block> in, ctxt_out: chan<Block> out) {
@@ -132,7 +134,7 @@ pub proc aes_ctr {
     }
 }
 
-#[test_proc()]
+#[test_proc]
 proc aes_ctr_test_128 {
     terminator: chan<bool> out;
 
@@ -140,15 +142,17 @@ proc aes_ctr_test_128 {
     ptxt_out: chan<Block>out;
     ctxt_in: chan<Block> in;
 
+    init { () }
+
     config(terminator: chan<bool> out) {
         let (command_in, command_out) = chan<Command>;
         let (ptxt_in, ptxt_out) = chan<Block>;
         let (ctxt_in, ctxt_out) = chan<Block>;
-        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(DEFAULT_INITIAL_STATE);
+        spawn aes_ctr(command_in, ptxt_in, ctxt_out);
         (terminator, command_out, ptxt_out, ctxt_in)
     }
 
-    next(tok: token) {
+    next(tok: token, state: ()) {
         let key = Key:[
             u8:0x00, u8:0x01, u8:0x02, u8:0x03,
             u8:0x04, u8:0x05, u8:0x06, u8:0x07,
