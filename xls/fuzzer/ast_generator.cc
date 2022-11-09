@@ -869,13 +869,10 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
 
 TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   TypeAnnotation* type;
-  bool is_signed;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
-    is_signed = bas->signedness;
   } else {
     BuiltinTypeAnnotation* builtin_type = GeneratePrimitiveType();
-    is_signed = builtin_type->GetSignedness();
     type = builtin_type;
   }
   int64_t bit_count = GetTypeBitCount(type);

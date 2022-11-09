@@ -117,7 +117,7 @@ RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
       config_args, proc_initial_values, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
-  for (const std::vector<InterpValue>& values : channel_values) {
+  for (int i = 0; i < channel_values.size(); i++) {
     XLS_RETURN_IF_ERROR(proc_instances[0].Run());
   }
 
