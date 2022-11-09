@@ -16,11 +16,11 @@
 
 #include <memory>
 
-#include "google/protobuf/text_format.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
 #include "xls/netlist/netlist.pb.h"
 

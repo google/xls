@@ -17,12 +17,12 @@
 #include <ostream>
 #include <vector>
 
-#include "google/protobuf/message.h"
-#include "google/protobuf/text_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "google/protobuf/message.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"

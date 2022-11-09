@@ -14,12 +14,12 @@
 
 #include "xls/tools/proto_to_dslx.h"
 
+#include "absl/container/btree_map.h"
+#include "absl/strings/str_replace.h"
 #include "google/protobuf/compiler/importer.h"
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/text_format.h"
-#include "absl/container/btree_map.h"
-#include "absl/strings/str_replace.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"

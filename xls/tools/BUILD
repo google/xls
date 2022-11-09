@@ -288,13 +288,13 @@ cc_library(
     srcs = ["proto_to_dslx.cc"],
     hdrs = ["proto_to_dslx.h"],
     deps = [
-        # protobuf compiler import
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
+        # protobuf compiler import
         "//xls/common:proto_adaptor_utils",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",

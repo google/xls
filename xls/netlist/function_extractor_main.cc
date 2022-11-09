@@ -15,9 +15,9 @@
 // Simple driver function for FunctionExtractor; preprocesses a netlist into a
 // CellLibraryProto for colocation with the original library.
 
-#include "google/protobuf/text_format.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

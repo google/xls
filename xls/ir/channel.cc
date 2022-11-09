@@ -14,10 +14,10 @@
 
 #include "xls/ir/channel.h"
 
-#include "google/protobuf/text_format.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/value_helpers.h"
 

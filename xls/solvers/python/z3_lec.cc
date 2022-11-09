@@ -14,8 +14,8 @@
 
 #include "xls/solvers/z3_lec.h"
 
-#include "google/protobuf/text_format.h"
 #include "absl/status/statusor.h"
+#include "google/protobuf/text_format.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
 #include "xls/common/file/filesystem.h"

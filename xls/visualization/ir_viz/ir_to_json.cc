@@ -14,13 +14,13 @@
 
 #include "xls/visualization/ir_viz/ir_to_json.h"
 
-#include "google/protobuf/util/json_util.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "google/protobuf/util/json_util.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/analyze_critical_path.h"

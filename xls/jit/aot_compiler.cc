@@ -17,7 +17,6 @@
 // wrap (i.e., simplify) execution of the generated code, and writes the trio to
 // disk.
 
-#include "google/protobuf/text_format.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
@@ -25,6 +24,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
