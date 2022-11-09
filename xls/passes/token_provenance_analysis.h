@@ -15,11 +15,11 @@
 #ifndef XLS_PASSES_TOKEN_PROVENANCE_ANALYSIS_H_
 #define XLS_PASSES_TOKEN_PROVENANCE_ANALYSIS_H_
 
+#include <string>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/data_structures/leaf_type_tree.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 
@@ -31,6 +31,8 @@ using TokenProvenance = absl::flat_hash_map<Node*, LeafTypeTree<Node*>>;
 // side-effecting node produced that token. If a leaf type in one of the
 // `LeafTypeTree`s is not a token, the corresponding `Node*` will be `nullptr`.
 absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f);
+
+std::string ToString(const TokenProvenance& provenance);
 
 }  // namespace xls
 

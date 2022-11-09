@@ -139,5 +139,28 @@ TEST_F(TokenDependencyPassTest, DependentSends) {
                           m::TupleIndex()));
 }
 
+TEST_F(TokenDependencyPassTest, SideEffectingNontokenOps) {
+  // Regression test for https://github.com/google/xls/issues/776
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[32], id=0, kind=streaming, ops=receive_only,
+       flow_control=ready_valid, metadata="""""")
+
+     top proc main(__token: token, init={}) {
+       rcv: (token, bits[32]) = receive(__token, channel_id=0)
+       tkn: token = tuple_index(rcv, index=0)
+       data: bits[32] = tuple_index(rcv, index=1)
+       one: bits[1] = literal(value=1)
+       g: bits[32] = gate(one, data)
+       next (tkn)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  // Should not crash.
+  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+}
+
 }  // namespace
 }  // namespace xls

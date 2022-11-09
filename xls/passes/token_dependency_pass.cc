@@ -17,6 +17,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/transitive_closure.h"
@@ -29,6 +30,15 @@ namespace xls {
 absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
+
+  auto relation_to_string = [](const NodeRelation& relation) {
+    std::vector<std::string> lines;
+    for (const auto& [n, s] : relation) {
+      lines.push_back(absl::StrFormat("  %s : {%s}", n->GetName(),
+                                      absl::StrJoin(s, ", ", NodeFormatter)));
+    }
+    return absl::StrJoin(lines, "\n");
+  };
 
   // This is a relation over the set of side-effecting nodes (and AfterAlls) in
   // the program. If a token consumed by node A was produced by node B (ignoring
@@ -51,6 +61,8 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       }
     }
   }
+  XLS_VLOG(3) << "Token deps:";
+  XLS_VLOG_LINES(3, relation_to_string(token_deps));
 
   // This is a relation over the set of nodes in the program. If a value was
   // consumed by node A was produced by node B, then there will be an edge from
@@ -64,8 +76,13 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
     }
   }
 
+  XLS_VLOG(3) << "Data deps:";
+  XLS_VLOG_LINES(3, relation_to_string(data_deps));
+
   // The transitive closure of the token dependency relation.
   NodeRelation token_deps_closure = TransitiveClosure<Node*>(token_deps);
+  XLS_VLOG(3) << "Token deps closure:";
+  XLS_VLOG_LINES(3, relation_to_string(token_deps_closure));
 
   auto dfs = [&](Node* root,
                  const NodeRelation& dag) -> absl::flat_hash_set<Node*> {
@@ -91,8 +108,11 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
   // data-dependent on, but not token-dependent on.
   NodeRelation io_to_receive;
 
+  auto is_side_effecting_token_op = [](Node* n) {
+    return OpIsSideEffecting(n->op()) && TypeHasToken(n->GetType());
+  };
   for (Node* a : f->nodes()) {
-    if (!(OpIsSideEffecting(a->op()) && TypeHasToken(a->GetType()))) {
+    if (!is_side_effecting_token_op(a)) {
       continue;
     }
     if (a->GetType()->IsToken()) {
@@ -106,8 +126,7 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       if (a == b) {
         continue;
       }
-
-      if (!OpIsSideEffecting(b->op())) {
+      if (!is_side_effecting_token_op(b)) {
         continue;
       }
 
@@ -118,6 +137,9 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       io_to_receive[b].insert(a);
     }
   }
+
+  XLS_VLOG(3) << "IO to receive:";
+  XLS_VLOG_LINES(3, relation_to_string(io_to_receive));
 
   // A relation similar to `io_to_receive`, except that only the earliest
   // effectful nodes are included. For example, if `io_to_receive` contains
@@ -131,6 +153,8 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
       }
     }
   }
+  XLS_VLOG(3) << "Minimal IO to receive:";
+  XLS_VLOG_LINES(3, relation_to_string(minimal_io_to_receive));
 
   bool changed = false;
 

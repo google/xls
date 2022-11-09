@@ -24,7 +24,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -65,8 +68,24 @@ absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
   for (Node* node : f->nodes()) {
     result.insert({node, visitor.ConsumeValue(node)});
   }
-
+  XLS_VLOG_LINES(3, ToString(result));
   return result;
+}
+
+std::string ToString(const TokenProvenance& provenance) {
+  std::vector<std::string> lines;
+  FunctionBase* f = provenance.begin()->first->function_base();
+  lines.push_back(absl::StrFormat("TokenProvenance for `%s`", f->name()));
+  for (Node* node : f->nodes()) {
+    if (!provenance.contains(node)) {
+      continue;
+    }
+    lines.push_back(absl::StrFormat(
+        "  %s : %s", node->GetName(), provenance.at(node).ToString([](Node* n) {
+          return n == nullptr ? "(nullptr)" : n->GetName();
+        })));
+  }
+  return absl::StrJoin(lines, "\n");
 }
 
 }  // namespace xls
