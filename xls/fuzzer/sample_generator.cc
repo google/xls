@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <variant>
 
 #include "absl/status/status.h"
@@ -104,25 +105,45 @@ GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
   return params;
 }
 
-// Returns the member types of a Proc.
+// Returns the input channel payload types of a Proc.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-GetMemberTypesOfProc(dslx::Proc* proc, const TypecheckedModule& tm) {
-  std::vector<std::unique_ptr<ConcreteType>> params;
+GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
+                                  const TypecheckedModule& tm) {
+  std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types;
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
   for (dslx::Param* member : proc->members()) {
-    XLS_CHECK(proc_type_info->GetItem(member).has_value());
-    params.push_back(proc_type_info->GetItem(member).value()->CloneToUnique());
+    dslx::ChannelTypeAnnotation* channel_type =
+        dynamic_cast<dslx::ChannelTypeAnnotation*>(member->type_annotation());
+    if (channel_type == nullptr) {
+      continue;
+    }
+    if (channel_type->direction() !=
+        dslx::ChannelTypeAnnotation::Direction::kIn) {
+      continue;
+    }
+    dslx::TypeAnnotation* payload_type = channel_type->payload();
+    XLS_CHECK(proc_type_info->GetItem(payload_type).has_value());
+    input_channel_payload_types.push_back(
+        proc_type_info->GetItem(payload_type).value()->CloneToUnique());
   }
-  return params;
+  return input_channel_payload_types;
 }
 
-// Returns the IR names of the proc channels.
-static std::vector<std::string> GetProcIRChannelNames(dslx::Proc* proc) {
+// Returns the input channel names of the proc.
+static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
   std::vector<std::string> channel_names;
   for (dslx::Param* member : proc->members()) {
-    channel_names.push_back(
-        absl::StrCat(proc->owner()->name(), "__", member->identifier()));
+    dslx::ChannelTypeAnnotation* channel_type =
+        dynamic_cast<dslx::ChannelTypeAnnotation*>(member->type_annotation());
+    if (channel_type == nullptr) {
+      continue;
+    }
+    if (channel_type->direction() !=
+        dslx::ChannelTypeAnnotation::Direction::kIn) {
+      continue;
+    }
+    channel_names.push_back(member->identifier());
   }
   return channel_names;
 }
@@ -170,19 +191,27 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
                                           const SampleOptions& sample_options,
                                           ValueGenerator* value_gen,
                                           const std::string& dslx_text) {
-  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> top_params,
-                       GetMemberTypesOfProc(proc, tm));
-  std::vector<const ConcreteType*> params =
-      TranslateConcreteTypeList(top_params);
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types,
+      GetInputChannelPayloadTypesOfProc(proc, tm));
+  std::vector<const ConcreteType*> input_channel_payload_types_ptr =
+      TranslateConcreteTypeList(input_channel_payload_types);
 
   std::vector<std::vector<InterpValue>> channel_values_batch;
   for (int64_t i = 0; i < sample_options.proc_ticks().value(); ++i) {
-    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> channel_values,
-                         value_gen->GenerateInterpValues(params));
+    XLS_ASSIGN_OR_RETURN(
+        std::vector<InterpValue> channel_values,
+        value_gen->GenerateInterpValues(input_channel_payload_types_ptr));
     channel_values_batch.push_back(std::move(channel_values));
   }
 
-  std::vector<std::string> ir_channel_names = GetProcIRChannelNames(proc);
+  std::vector<std::string> input_channel_names =
+      GetInputChannelNamesOfProc(proc);
+  std::vector<std::string> ir_channel_names(input_channel_names.size());
+  for (int64_t index = 0; index < input_channel_names.size(); ++index) {
+    ir_channel_names[index] =
+        absl::StrCat(proc->owner()->name(), "__", input_channel_names[index]);
+  }
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<ConcreteType>> proc_init_value_types,
