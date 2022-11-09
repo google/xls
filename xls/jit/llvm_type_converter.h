@@ -22,6 +22,7 @@
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/type_layout.h"
 
 namespace xls {
 
@@ -124,12 +125,21 @@ class LlvmTypeConverter {
       llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder,
       std::optional<llvm::Type*> dest_type = std::nullopt) const;
 
+  // Creates a TypeLayout object describing the native layout of given xls type.
+  TypeLayout CreateTypeLayout(Type* xls_type);
+
  private:
   using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 
   // Handles the special (and base) case of converting Bits types to LLVM.
   absl::StatusOr<llvm::Constant*> ToIntegralConstant(llvm::Type* type,
                                                      const Value& value) const;
+
+  // Helper method for computing the layouts of leaf elements for building a
+  // TypeLayout object.
+  void ComputeElementLayouts(Type* xls_type,
+                             std::vector<ElementLayout>* layouts,
+                             int64_t offset);
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;

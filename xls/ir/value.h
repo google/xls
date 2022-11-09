@@ -83,6 +83,16 @@ class Value {
     return Array(elements).value();
   }
 
+  // Construct an array using the given elements. Ownership of the vector is
+  // transferred to the Value. DCHECK fails if not all elements are the same
+  // type.
+  static Value ArrayOwned(std::vector<Value>&& elements) {
+    for (int64_t i = 1; i < elements.size(); ++i) {
+      XLS_DCHECK(elements[0].SameTypeAs(elements[i]));
+    }
+    return Value(ValueKind::kArray, std::move(elements));
+  }
+
   static Value Token() {
     return Value(ValueKind::kToken, std::vector<Value>({}));
   }

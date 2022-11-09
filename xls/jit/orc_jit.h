@@ -24,7 +24,6 @@
 #include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
-#include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 

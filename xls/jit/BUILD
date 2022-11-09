@@ -247,6 +247,7 @@ cc_library(
     srcs = ["llvm_type_converter.cc"],
     hdrs = ["llvm_type_converter.h"],
     deps = [
+        ":type_layout",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
@@ -355,7 +356,8 @@ cc_binary(
     name = "value_to_native_layout_benchmark",
     srcs = ["value_to_native_layout_benchmark.cc"],
     deps = [
-        ":jit_runtime",
+        ":llvm_type_converter",
+        ":orc_jit",
         "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:ir_parser",
@@ -373,6 +375,40 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:channel",
         "@com_google_benchmark//:benchmark_main",
+    ],
+)
+
+cc_library(
+    name = "type_layout",
+    srcs = ["type_layout.cc"],
+    hdrs = ["type_layout.h"],
+    deps = [
+        "@com_google_absl//absl/types:span",
+        "//xls/ir:type",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_test(
+    name = "type_layout_test",
+    srcs = ["type_layout_test.cc"],
+    deps = [
+        ":llvm_type_converter",
+        ":orc_jit",
+        ":type_layout",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:bits_util",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:matchers",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/interpreter:random_value",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:number_parser",
+        "//xls/ir:type",
+        "@com_google_googletest//:gtest",
     ],
 )
 

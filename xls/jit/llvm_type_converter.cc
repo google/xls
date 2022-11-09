@@ -223,4 +223,52 @@ llvm::Value* LlvmTypeConverter::ClearPaddingBits(
   return builder.CreateAnd(value, PaddingMask(xls_type, builder));
 }
 
+void LlvmTypeConverter::ComputeElementLayouts(
+    Type* xls_type, std::vector<ElementLayout>* layouts, int64_t offset) {
+  if (xls_type->IsToken()) {
+    layouts->push_back(ElementLayout{.offset = offset,
+                                     .data_size = 0,
+                                     .padded_size = GetTypeByteSize(xls_type)});
+    return;
+  }
+  if (xls_type->IsBits()) {
+    layouts->push_back(ElementLayout{
+        .offset = offset,
+        .data_size =
+            CeilOfRatio(xls_type->AsBitsOrDie()->bit_count(), int64_t{8}),
+        .padded_size = GetTypeByteSize(xls_type)});
+    return;
+  }
+  if (xls_type->IsArray()) {
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    Type* element_type = array_type->element_type();
+    llvm::Type* llvm_element_type =
+        ConvertToLlvmType(array_type->element_type());
+    for (int64_t i = 0; i < array_type->size(); ++i) {
+      llvm::Constant* index =
+          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context_), i);
+      int64_t element_offset =
+          data_layout_.getIndexedOffsetInType(llvm_element_type, index);
+      ComputeElementLayouts(element_type, layouts, offset + element_offset);
+    }
+    return;
+  }
+  XLS_CHECK(xls_type->IsTuple());
+  TupleType* tuple_type = xls_type->AsTupleOrDie();
+  llvm::Type* llvm_type = ConvertToLlvmType(tuple_type);
+  const llvm::StructLayout* layout =
+      data_layout_.getStructLayout(llvm::cast<llvm::StructType>(llvm_type));
+  for (int64_t i = 0; i < tuple_type->size(); ++i) {
+    Type* element_type = tuple_type->element_type(i);
+    ComputeElementLayouts(element_type, layouts,
+                          offset + layout->getElementOffset(i));
+  }
+}
+
+TypeLayout LlvmTypeConverter::CreateTypeLayout(Type* xls_type) {
+  std::vector<ElementLayout> element_layouts;
+  ComputeElementLayouts(xls_type, &element_layouts, /*offset=*/0);
+  return TypeLayout(xls_type, GetTypeByteSize(xls_type), element_layouts);
+}
+
 }  // namespace xls

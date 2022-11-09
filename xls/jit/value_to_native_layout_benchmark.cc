@@ -18,7 +18,8 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
-#include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 namespace {
@@ -39,25 +40,32 @@ const char* kValueTypes[] = {
     "(bits[3], (), bits[5], bits[7])[3][10][42]",
 };
 
+static TypeLayout CreateTypeLayout(Type* type) {
+  std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
+  LlvmTypeConverter type_converter(orc_jit->GetContext(),
+                                   orc_jit->CreateDataLayout().value());
+  return type_converter.CreateTypeLayout(type);
+}
+
 static void BM_ValueToNativeLayout(benchmark::State& state) {
   Package package("BM");
   Type* type = Parser::ParseType(kValueTypes[state.range(0)], &package).value();
   std::minstd_rand bitgen;
   Value value = RandomValue(type, &bitgen);
-  std::unique_ptr<JitRuntime> jit_runtime = JitRuntime::Create().value();
-  std::vector<uint8_t> buffer(jit_runtime->GetTypeByteSize(type));
+  TypeLayout type_layout = CreateTypeLayout(type);
+  std::vector<uint8_t> buffer(type_layout.size());
   for (auto _ : state) {
-    jit_runtime->BlitValueToBuffer(value, type, absl::MakeSpan(buffer));
+    type_layout.ValueToNativeLayout(value, buffer.data());
   }
 }
 
 static void BM_NativeLayoutToValue(benchmark::State& state) {
   Package package("BM");
   Type* type = Parser::ParseType(kValueTypes[state.range(0)], &package).value();
-  std::unique_ptr<JitRuntime> jit_runtime = JitRuntime::Create().value();
-  std::vector<uint8_t> buffer(jit_runtime->GetTypeByteSize(type), 0);
+  TypeLayout type_layout = CreateTypeLayout(type);
+  std::vector<uint8_t> buffer(type_layout.size(), 0);
   for (auto _ : state) {
-    benchmark::DoNotOptimize(jit_runtime->UnpackBuffer(buffer.data(), type));
+    benchmark::DoNotOptimize(type_layout.NativeLayoutToValue(buffer.data()));
   }
 }
 

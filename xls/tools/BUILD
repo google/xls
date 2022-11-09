@@ -795,6 +795,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
+        "//xls/jit:llvm_type_converter",
         "//xls/jit:orc_jit",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:IRReader",

@@ -31,7 +31,7 @@ namespace xls {
 class InlineBitmap {
  public:
   // Constructs an InlineBitmap of width `bit_count` using the bits in
-  // `word`. Of `bit_count` is greater than 64, then all high bits are set to
+  // `word`. If `bit_count` is greater than 64, then all high bits are set to
   // `fill`.
   static InlineBitmap FromWord(uint64_t word, int64_t bit_count,
                                bool fill = false) {
