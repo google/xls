@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import subprocess
+import textwrap
 
 from absl import logging
 
@@ -56,6 +57,24 @@ proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
 }
 """
 
+PROC_IR_CONDITIONAL = """package foo
+
+file_number 0 "fake_file.x"
+
+chan input(bits[8], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
+chan output(bits[8], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
+
+proc test_proc(__token: token, init={}) {
+  receive.4: (token, bits[8]) = receive(__token, channel_id=0, id=4)
+  recv_val: bits[8] = tuple_index(receive.4, index=1, id=7, pos=[(0,7,19)])
+  literal.8: bits[8] = literal(value=42, id=8, pos=[(0,8,39)])
+  recv_tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,7,9)])
+  do_send: bits[1] = ne(recv_val, literal.8, id=9, pos=[(0,8,33)])
+  send_tok: token = send(recv_tok, recv_val, predicate=do_send, channel_id=1, id=10)
+  after_all.12: token = after_all(__token, recv_tok, send_tok, id=12)
+  next (after_all.12)
+}
+"""
 
 BLOCK_IR = """package foo
 
@@ -335,22 +354,26 @@ class EvalProcTest(absltest.TestCase):
 
   def test_basic(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(content="""
-bits[64]:42
-bits[64]:101
-""")
-    input_file_2 = self.create_tempfile(content="""
-bits[64]:10
-bits[64]:6
-""")
-    output_file = self.create_tempfile(content="""
-bits[64]:62
-bits[64]:127
-""")
-    output_file_2 = self.create_tempfile(content="""
-bits[64]:55
-bits[64]:55
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -370,22 +393,26 @@ bits[64]:55
 
   def test_reset_static(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(content="""
-bits[64]:42
-bits[64]:101
-""")
-    input_file_2 = self.create_tempfile(content="""
-bits[64]:10
-bits[64]:6
-""")
-    output_file = self.create_tempfile(content="""
-bits[64]:62
-bits[64]:117
-""")
-    output_file_2 = self.create_tempfile(content="""
-bits[64]:55
-bits[64]:55
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:117
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "1,1", "-v=3",
@@ -406,22 +433,26 @@ bits[64]:55
   def test_block(self):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(content="""
-bits[64]:42
-bits[64]:101
-""")
-    input_file_2 = self.create_tempfile(content="""
-bits[64]:10
-bits[64]:6
-""")
-    output_file = self.create_tempfile(content="""
-bits[64]:62
-bits[64]:127
-""")
-    output_file_2 = self.create_tempfile(content="""
-bits[64]:55
-bits[64]:55
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -440,22 +471,26 @@ bits[64]:55
   def test_block_no_output(self):
     ir_file = self.create_tempfile(content=BLOCK_IR_BROKEN)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(content="""
-bits[64]:42
-bits[64]:101
-""")
-    input_file_2 = self.create_tempfile(content="""
-bits[64]:10
-bits[64]:6
-""")
-    output_file = self.create_tempfile(content="""
-bits[64]:62
-bits[64]:127
-""")
-    output_file_2 = self.create_tempfile(content="""
-bits[64]:55
-bits[64]:55
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:42
+          bits[64]:101
+        """))
+    input_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:10
+          bits[64]:6
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:62
+          bits[64]:127
+        """))
+    output_file_2 = self.create_tempfile(
+        content=textwrap.dedent("""
+          bits[64]:55
+          bits[64]:55
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -479,26 +514,28 @@ bits[64]:55
 
   def test_all_channels_in_a_single_file_proc(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(content="""
-in_ch : {
-  bits[64]:42
-  bits[64]:101
-}
-in_ch_2 : {
-  bits[64]:10
-  bits[64]:6
-}
-""")
-    output_file = self.create_tempfile(content="""
-out_ch : {
-  bits[64]:62
-  bits[64]:127
-}
-out_ch_2 : {
-  bits[64]:55
-  bits[64]:55
-}
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          in_ch : {
+            bits[64]:42
+            bits[64]:101
+          }
+          in_ch_2 : {
+            bits[64]:10
+            bits[64]:6
+          }
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          out_ch : {
+            bits[64]:62
+            bits[64]:127
+          }
+          out_ch_2 : {
+            bits[64]:55
+            bits[64]:55
+          }
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -515,26 +552,28 @@ out_ch_2 : {
   def test_all_channels_in_a_single_file_block(self):
     ir_file = self.create_tempfile(content=BLOCK_IR)
     signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
-    input_file = self.create_tempfile(content="""
-in_ch : {
-  bits[64]:42
-  bits[64]:101
-}
-in_ch_2 : {
-  bits[64]:10
-  bits[64]:6
-}
-""")
-    output_file = self.create_tempfile(content="""
-out_ch : {
-  bits[64]:62
-  bits[64]:127
-}
-out_ch_2 : {
-  bits[64]:55
-  bits[64]:55
-}
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          in_ch : {
+            bits[64]:42
+            bits[64]:101
+          }
+          in_ch_2 : {
+            bits[64]:10
+            bits[64]:6
+          }
+        """))
+    output_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          out_ch : {
+            bits[64]:62
+            bits[64]:127
+          }
+          out_ch_2 : {
+            bits[64]:55
+            bits[64]:55
+          }
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -549,16 +588,17 @@ out_ch_2 : {
 
   def test_output_channels_stdout_display_proc(self):
     ir_file = self.create_tempfile(content=PROC_IR)
-    input_file = self.create_tempfile(content="""
-in_ch : {
-  bits[64]:42
-  bits[64]:101
-}
-in_ch_2 : {
-  bits[64]:10
-  bits[64]:6
-}
-""")
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          in_ch : {
+            bits[64]:42
+            bits[64]:101
+          }
+          in_ch_2 : {
+            bits[64]:10
+            bits[64]:6
+          }
+        """))
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
@@ -575,6 +615,30 @@ in_ch_2 : {
     self.assertIn("out_ch : {", output.stdout)
     self.assertIn("out_ch_2 : {", output.stdout)
 
+  def test_output_channels_with_no_values_stdout_display_proc(self):
+    ir_file = self.create_tempfile(content=PROC_IR_CONDITIONAL)
+    input_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          input : {
+            bits[8]:42
+            bits[8]:42
+            bits[8]:42
+            bits[8]:42
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "4", "-v=3",
+        "--logtostderr", "--inputs_for_all_channels", input_file.full_path
+    ]
+
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
+    self.assertIn("output : {\n}", output.stdout)
+
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
+    self.assertIn("output : {\n}", output.stdout)
 
 if __name__ == "__main__":
   absltest.main()
