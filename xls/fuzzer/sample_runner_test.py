@@ -552,10 +552,10 @@ class SampleRunnerTest(test_base.TestCase):
         sample.Sample(
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
-                ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2',
                               '--reset=rst'),
+                ir_converter_args=['--top=main'],
                 simulate=True,
                 top_type=sample.TopType.proc,
                 use_system_verilog=True,
@@ -616,9 +616,9 @@ class SampleRunnerTest(test_base.TestCase):
                           [interp_value_from_ir_string('bits[1]:0')]],
               ir_channel_names=['sample__enable_counter']))
     error_str = (
-        'Results for evaluated unopt IR (JIT) has 0  channels, interpreted '
-        'DSLX has 1 channels. The IR channel names in evaluated unopt IR (JIT)'
-        ' are: [].The IR channel names in interpreted DSLX are: '
+        'Results for evaluated unopt IR (JIT) has 0 channel(s), interpreted '
+        'DSLX has 1 channel(s). The IR channel names in evaluated unopt IR '
+        '(JIT) are: [].The IR channel names in interpreted DSLX are: '
         '[\'sample__result\'].')
     self.assertIn(error_str, str(e.exception))
     self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))

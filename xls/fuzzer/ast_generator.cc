@@ -1892,7 +1892,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   std::vector<Expr*> tuple_members;
   std::vector<TypeAnnotation*> tuple_member_types;
   for (Param* proc_param : proc_params) {
-    params.push_back(GenerateParam(proc_param->type_annotation()));
+    params.push_back(module_->Make<Param>(proc_param->name_def(),
+                                          proc_param->type_annotation()));
     tuple_members.push_back(MakeNameRef(proc_param->name_def()));
     tuple_member_types.push_back(proc_param->type_annotation());
   }
@@ -1920,12 +1921,13 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
   Param* token_param = module_->Make<Param>(token_name_def, MakeTokenType());
   std::vector<Param*> params = {token_param};
 
-  // 70% of the time: add a state to the param list.
-  if (RandomFloat() >= 0.30) {
-    params.insert(params.end(), GenerateParam());
-    TypeAnnotation* state_type = params.back()->type_annotation();
-    proc_properties_.state_types.push_back(state_type);
+  TypeAnnotation* state_param_type = nullptr;
+  // 30% of the time: generate an empty state type described by an empty tuple.
+  if (RandomFloat() <= 0.30) {
+    state_param_type = MakeTupleType({});
   }
+  params.insert(params.end(), GenerateParam(state_param_type));
+  proc_properties_.state_types.push_back(params.back()->type_annotation());
 
   for (Param* param : params) {
     (*env)[param->identifier()] =
@@ -1975,10 +1977,11 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
       Function * config_function,
       GenerateProcConfigFunction("config", proc_properties_.params));
 
+  XLS_CHECK_EQ(proc_properties_.state_types.size(), 1);
   XLS_ASSIGN_OR_RETURN(
       Function * init_fn,
       GenerateProcInitFunction(absl::StrCat(name, ".init"),
-                               next_function->params()[1]->type_annotation()));
+                               proc_properties_.state_types[0]));
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);

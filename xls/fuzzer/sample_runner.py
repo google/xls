@@ -15,7 +15,6 @@
 
 """Library for operating on a generated code sample in the fuzzer."""
 
-import collections
 import os
 import subprocess
 import time
@@ -65,7 +64,7 @@ def convert_args_batch_to_ir_channel_values(
     ValueError: If the number of values in a args batch sample is not equivalent
     to the number of channels.
   """
-  all_channel_values: dict[str, list[Value]] = collections.defaultdict(list)
+  all_channel_values: dict[str, list[Value]] = {k: [] for k in ir_channel_names}
   for channel_values in args_batch:
     if len(channel_values) != len(ir_channel_names):
       raise ValueError(
@@ -95,7 +94,8 @@ def convert_ir_channel_values_to_channel_values(
     Dictionary with the key being the channel name and its corresponding value
     being a list of Values (channel-name-to-values map).
   """
-  channel_values: dict[str, list[Value]] = collections.defaultdict(list)
+  channel_values: dict[str,
+                       list[Value]] = {k: [] for k in ir_channel_values.keys()}
   for key, values in ir_channel_values.items():
     for value in values:
       channel_values[key].append(interp_value_from_ir_string(value.to_str()))
@@ -338,13 +338,21 @@ class SampleRunner:
     if ir_channel_names_filename:
       ir_channel_names = sample.parse_ir_channel_names(
           self._read_file(ir_channel_names_filename))
-    if args_batch and ir_channel_names:
+    if args_batch is not None and ir_channel_names is not None:
       ir_channel_values = convert_args_batch_to_ir_channel_values(
           args_batch, ir_channel_names)
       ir_channel_values_file_content = (
           eval_helpers.channel_values_to_string(ir_channel_values))
       ir_channel_values_filename = self._write_file(
           'channel_inputs.txt', ir_channel_values_file_content)
+
+    tick_count = len(args_batch)
+    # Special case: When there no inputs for a proc, typically when there are
+    # no channels for a proc, tick_count results to 0. Set the tick_count to a
+    # non-zero value to execute in the eval proc main (bypasses a restriction on
+    # the number of ticks in eval proc main).
+    if tick_count == 0:
+      tick_count = 1
 
     # Gather results in an OrderedDict because the first entered result is used
     # as a reference. Note the data is structure with a nested dictionary. The
@@ -378,14 +386,13 @@ class SampleRunner:
       # JIT. This exercises the interpreter and serves as a reference.
       with Timer() as t:
         results['evaluated unopt IR (interpreter)'] = self._evaluate_ir_proc(
-            ir_filename, len(args_batch), ir_channel_values_filename, False,
-            options)
+            ir_filename, tick_count, ir_channel_values_filename, False, options)
       self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
 
       if options.use_jit:
         with Timer() as t:
           results['evaluated unopt IR (JIT)'] = self._evaluate_ir_proc(
-              ir_filename, len(args_batch), ir_channel_values_filename, True,
+              ir_filename, tick_count, ir_channel_values_filename, True,
               options)
         self.timing.unoptimized_jit_ns = t.elapsed_ns
 
@@ -398,13 +405,13 @@ class SampleRunner:
         if options.use_jit:
           with Timer() as t:
             results['evaluated opt IR (JIT)'] = self._evaluate_ir_proc(
-                opt_ir_filename, len(args_batch), ir_channel_values_filename,
-                True, options)
+                opt_ir_filename, tick_count, ir_channel_values_filename, True,
+                options)
           self.timing.optimized_jit_ns = t.elapsed_ns
         with Timer() as t:
           results['evaluated opt IR (interpreter)'] = self._evaluate_ir_proc(
-              opt_ir_filename, len(args_batch), ir_channel_values_filename,
-              False, options)
+              opt_ir_filename, tick_count, ir_channel_values_filename, False,
+              options)
         self.timing.optimized_interpret_ir_ns = t.elapsed_ns
 
       if options.codegen:
@@ -584,7 +591,7 @@ class SampleRunner:
       if len(all_channel_values_ref) != len(all_channel_values):
         raise SampleError(
             f'Results for {reference} has {len(all_channel_values_ref)} '
-            f' channels, {name} has {len(all_channel_values)} channels. '
+            f'channel(s), {name} has {len(all_channel_values)} channel(s). '
             f'The IR channel names in {reference} are: '
             f'{list(all_channel_values_ref.keys())}.'
             f'The IR channel names in {name} are: '
@@ -671,7 +678,7 @@ class SampleRunner:
     return self._parse_values(results_text)
 
   def _evaluate_ir_proc(
-      self, ir_filename: str, ticks: int,
+      self, ir_filename: str, tick_count: int,
       ir_channel_values_filename: Optional[str], use_jit: bool,
       options: sample.SampleOptions) -> dict[str, Sequence[Value]]:
     """Evaluate the IR file with a proc as the top and returns the result Values.
@@ -681,11 +688,13 @@ class SampleRunner:
     backend_type = 'serial_jit' if use_jit else 'ir_interpreter'
     args = (EVAL_PROC_MAIN_PATH,
             '--inputs_for_all_channels=' + ir_channel_values_filename,
-            '--ticks=' + str(ticks), '--backend=' + backend_type, ir_filename)
+            '--ticks=' + str(tick_count), '--backend=' + backend_type,
+            ir_filename)
     results_text = self._run_command(desc, args, options)
     self._write_file(ir_filename + '.results', results_text)
 
-    ir_channel_values = eval_helpers.parse_channel_values(results_text, ticks)
+    ir_channel_values = eval_helpers.parse_channel_values(
+        results_text, tick_count)
     return convert_ir_channel_values_to_channel_values(ir_channel_values)
 
   def _dslx_to_ir_function(self, dslx_filename: str,
