@@ -211,17 +211,17 @@ string. These format strings use placeholders to fill in relevant information.
     -   `flop`: Adds a pipeline stage at the beginning or end of the block to
         hold inputs or outputs. This is essentially a single-element FIFO.
 
-        ![Flop Outputs](./images/flop_outputs.svg)
+        ![Flop Outputs](./flop_outputs.svg)
 
     -   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
         skid buffer can hold 2 entries.
 
-        ![Skid Buffer](./images/skid_buffer.svg)
+        ![Skid Buffer](./skid_buffer.svg)
 
     -   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
         block. This is essentially a single-element FIFO with bypass.
 
-        ![Zero Latency Buffer](./images/zero_latency_buffer.svg)
+        ![Zero Latency Buffer](./zero_latency_buffer.svg)
 
 -   `--flop_single_value_channels` control if single-value channels should be
     flopped.
