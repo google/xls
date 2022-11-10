@@ -57,6 +57,38 @@ using QueueTypes =
     ::testing::Types<ThreadSafeJitChannelQueue, ThreadUnsafeJitChannelQueue>;
 TYPED_TEST_SUITE(JitChannelQueueTest, QueueTypes);
 
+// An empty tuple represents a zero width.
+TYPED_TEST(JitChannelQueueTest, ChannelWithEmptyTuple) {
+  Package package("test");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
+                                     package.GetTupleType({})));
+  TypeParam queue(channel, GetJitRuntime());
+
+  EXPECT_TRUE(queue.IsEmpty());
+  std::vector<uint8_t> send_buffer(0);
+  std::vector<uint8_t> recv_buffer(0);
+  // Send and receive immediately.
+  for (int64_t i = 0; i < 10; i++) {
+    queue.WriteRaw(send_buffer.data());
+    EXPECT_FALSE(queue.IsEmpty());
+    EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
+    EXPECT_TRUE(queue.IsEmpty());
+  }
+
+  EXPECT_FALSE(queue.ReadRaw(recv_buffer.data()));
+
+  // Send then receive.
+  for (int64_t i = 0; i < 10; i++) {
+    queue.WriteRaw(send_buffer.data());
+  }
+  for (int64_t i = 0; i < 10; i++) {
+    EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
+  }
+  EXPECT_TRUE(queue.IsEmpty());
+}
+
 TYPED_TEST(JitChannelQueueTest, BasicAccess) {
   Package package("test");
   XLS_ASSERT_OK_AND_ASSIGN(

@@ -159,5 +159,40 @@ TEST_P(ChannelQueueTestBase, EmptyGenerator) {
   EXPECT_EQ(queue->Read(), std::nullopt);
 }
 
+TEST_P(ChannelQueueTestBase, ChannelWithEmptyTuple) {
+  Package package(TestName());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel,
+      package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
+                                     package.GetTupleType({})));
+  auto queue = GetParam().CreateQueue(channel);
+
+  EXPECT_EQ(queue->channel(), channel);
+  EXPECT_EQ(queue->GetSize(), 0);
+  EXPECT_TRUE(queue->IsEmpty());
+
+  XLS_ASSERT_OK(queue->Write(Value::Tuple({})));
+  EXPECT_EQ(queue->GetSize(), 1);
+  EXPECT_FALSE(queue->IsEmpty());
+
+  XLS_ASSERT_OK(queue->Write(Value::Tuple({})));
+  EXPECT_EQ(queue->GetSize(), 2);
+  EXPECT_FALSE(queue->IsEmpty());
+
+  EXPECT_THAT(queue->Read(), Optional(Value::Tuple({})));
+  EXPECT_EQ(queue->GetSize(), 1);
+  EXPECT_FALSE(queue->IsEmpty());
+
+  EXPECT_THAT(queue->Read(), Optional(Value::Tuple({})));
+  EXPECT_EQ(queue->GetSize(), 0);
+  EXPECT_TRUE(queue->IsEmpty());
+
+  EXPECT_EQ(queue->Read(), std::nullopt);
+  EXPECT_EQ(queue->channel(), channel);
+  EXPECT_EQ(queue->GetSize(), 0);
+  EXPECT_TRUE(queue->IsEmpty());
+  EXPECT_EQ(queue->Read(), std::nullopt);
+}
+
 }  // namespace
 }  // namespace xls

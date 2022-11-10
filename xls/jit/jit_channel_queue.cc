@@ -45,6 +45,12 @@ ByteQueue::ByteQueue(int64_t channel_element_size, bool is_single_value)
           RoundUpToNearest(channel_element_size,
                            static_cast<int64_t>(alignof(std::max_align_t)))),
       is_single_value_(is_single_value) {
+  // Special case to handle empty tuples. Assigning the allocated element size
+  // to one serves as a tangible instance for the number of elements within the
+  // queue.
+  if (allocated_element_size_ == 0) {
+    allocated_element_size_ = 1;
+  }
   // Align the vector allocation to a power of 2 for efficient utilization
   // of the memory.
   int64_t element_size_2 = 1 << CeilOfLog2(allocated_element_size_);
