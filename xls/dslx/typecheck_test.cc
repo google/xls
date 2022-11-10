@@ -884,6 +884,21 @@ fn f() -> Foo {
                HasSubstr("Cannot use '+' on values with enum type Foo")));
 }
 
+TEST(TypecheckTest, SlicesWithMismatchedTypes) {
+  EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { x[s4:0 : s5:1] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Slice limit type (sN[5]) did not match")));
+}
+
+TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
+  EXPECT_THAT(Typecheck("fn f(x: uN[128]) -> uN[128] { x[s4:0 :] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Slice limit does not fit in index type")));
+  EXPECT_THAT(Typecheck("fn f(x: uN[8]) -> uN[8] { x[s3:0 :] }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Slice limit does not fit in index type")));
+}
+
 TEST(TypecheckTest, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> bits[0] { x[0+:bits[0]] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));

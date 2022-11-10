@@ -1434,6 +1434,49 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   XLS_ASSIGN_OR_RETURN(StartAndWidth saw,
                        ResolveBitSliceIndices(bit_count, start, limit));
   ctx->type_info()->AddSliceStartAndWidth(slice, fn_symbolic_bindings, saw);
+
+  // Make sure the start and end types match and that the limit fits.
+  std::unique_ptr<ConcreteType> start_type;
+  std::unique_ptr<ConcreteType> limit_type;
+  if (slice->start() == nullptr && slice->limit() == nullptr) {
+    start_type = BitsType::MakeS32();
+    limit_type = BitsType::MakeS32();
+  } else if (slice->start() != nullptr && slice->limit() == nullptr) {
+    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
+                         ctx->type_info()->GetItemAs<BitsType>(slice->start()));
+    start_type = tmp->CloneToUnique();
+    limit_type = start_type->CloneToUnique();
+  } else if (slice->start() == nullptr && slice->limit() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
+                         ctx->type_info()->GetItemAs<BitsType>(slice->limit()));
+    limit_type = tmp->CloneToUnique();
+    start_type = limit_type->CloneToUnique();
+  } else {
+    XLS_ASSIGN_OR_RETURN(BitsType * tmp,
+                         ctx->type_info()->GetItemAs<BitsType>(slice->start()));
+    start_type = tmp->CloneToUnique();
+    XLS_ASSIGN_OR_RETURN(tmp,
+                         ctx->type_info()->GetItemAs<BitsType>(slice->limit()));
+    limit_type = tmp->CloneToUnique();
+  }
+
+  if (*start_type != *limit_type) {
+    return TypeInferenceErrorStatus(
+        node->span(), limit_type.get(),
+        absl::StrFormat(
+            "Slice limit type (%s) did not match slice start type (%s).",
+            limit_type->ToString(), start_type->ToString()));
+  }
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim type_width_dim,
+                       start_type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t type_width, type_width_dim.GetAsInt64());
+  if (Bits::MinBitCountSigned(saw.start + saw.width) > type_width) {
+    return TypeInferenceErrorStatus(
+        node->span(), limit_type.get(),
+        absl::StrFormat("Slice limit does not fit in index type: %d.",
+                        saw.start + saw.width));
+  }
+
   return std::make_unique<BitsType>(/*signed=*/false, saw.width);
 }
 
