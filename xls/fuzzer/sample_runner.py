@@ -197,6 +197,7 @@ class SampleRunner:
     Raises:
       SampleError: If an error was encountered.
     """
+    logging.vlog(1, 'Running sample in directory %s', self._run_dir)
     logging.vlog(1, 'Reading sample files.')
     options = sample.SampleOptions.from_json(
         self._read_file(json_options_filename))
@@ -216,7 +217,8 @@ class SampleRunner:
       # Note: this is a bit of a hack because pybind11 doesn't make it very
       # possible to define custom __str__ on exception types. Our C++ exception
       # types have a field called "message" generally so we look for that.
-      msg = e.message if hasattr(e, 'message') else str(e)
+      msg = (e.message if hasattr(e, 'message') else
+             str(e)) + '\n(run dir: {})'.format(self._run_dir)
       logging.exception('Exception when running sample: %s', msg)
       self._write_file('exception.txt', msg)
       raise SampleError(

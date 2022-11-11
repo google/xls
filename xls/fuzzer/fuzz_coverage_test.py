@@ -72,6 +72,11 @@ class FuzzSummary:
 
 class FuzzCoverageTest(test_base.TestCase):
 
+  def _create_tempdir(self) -> str:
+    # Don't cleanup temporary directory if test fails.
+    return self.create_tempdir(
+        cleanup=test_base.TempFileCleanup.SUCCESS).full_path
+
   def _read_summaries(self, summary_dir: str) -> FuzzSummary:
     summaries = sample_summary_pb2.SampleSummariesProto()
     for filename in os.listdir(summary_dir):
@@ -87,8 +92,8 @@ class FuzzCoverageTest(test_base.TestCase):
   def test_timing(self):
     # Verify the the elapsed time for the various operations performed by the
     # fuzzer are non-zero.
-    crasher_path = self.create_tempdir().full_path
-    summaries_path = self.create_tempdir().full_path
+    crasher_path = self._create_tempdir()
+    summaries_path = self._create_tempdir()
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
         '--sample_count=10', '--summary_path=' + summaries_path,
@@ -115,8 +120,8 @@ class FuzzCoverageTest(test_base.TestCase):
           msg=f'Expected zero value in timing field {field}')
 
   def test_width_coverage_wide(self):
-    crasher_path = self.create_tempdir().full_path
-    summaries_path = self.create_tempdir().full_path
+    crasher_path = self._create_tempdir()
+    summaries_path = self._create_tempdir()
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
         '--sample_count=100', '--summary_path=' + summaries_path,
@@ -136,8 +141,8 @@ class FuzzCoverageTest(test_base.TestCase):
     # This is a probabilistic test which verifies that all expected op codes are
     # covered. To ensure coverage with near certain probability this test runs
     # for a long time.
-    crasher_path = self.create_tempdir().full_path
-    summaries_path = self.create_tempdir().full_path
+    crasher_path = self._create_tempdir()
+    summaries_path = self._create_tempdir()
 
     # Test coverage of all ops.
     expect_seen = [

@@ -52,6 +52,11 @@ class RunFuzzTest(parameterized.TestCase):
     super(RunFuzzTest, self).setUp()
     self._crasher_dir = _get_crasher_dir()
 
+  def _create_tempdir(self) -> str:
+    # Don't cleanup temporary directory if test fails.
+    return self.create_tempdir(
+        cleanup=test_base.TempFileCleanup.SUCCESS).full_path
+
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
     return ast_generator.AstGeneratorOptions(
         emit_gate=False, max_width_bits_types=128 if _WIDE.value else 64)
@@ -75,7 +80,7 @@ class RunFuzzTest(parameterized.TestCase):
           ast_generator.ValueGenerator(seed * _SAMPLE_COUNT + i),
           self._get_ast_options(),
           self._get_sample_options(),
-          run_dir=self.create_tempdir().full_path,
+          run_dir=self._create_tempdir(),
           crasher_dir=self._crasher_dir)
 
 

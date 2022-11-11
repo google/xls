@@ -42,7 +42,8 @@ def _get_crasher_dir() -> Optional[str]:
   if 'TEST_UNDECLARED_OUTPUTS_DIR' in os.environ:
     crasher_dir = os.path.join(os.environ['TEST_UNDECLARED_OUTPUTS_DIR'],
                                'crashers')
-    os.mkdir(crasher_dir)
+    if not os.path.exists(crasher_dir):
+      os.mkdir(crasher_dir)
     return crasher_dir
   return None
 
@@ -52,6 +53,11 @@ class RunFuzzTest(parameterized.TestCase):
   def setUp(self):
     super(RunFuzzTest, self).setUp()
     self._crasher_dir = _get_crasher_dir()
+
+  def _create_tempdir(self) -> str:
+    # Don't cleanup temporary directory if test fails.
+    return self.create_tempdir(
+        cleanup=test_base.TempFileCleanup.SUCCESS).full_path
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
     return ast_generator.AstGeneratorOptions(
@@ -72,7 +78,7 @@ class RunFuzzTest(parameterized.TestCase):
         ast_generator.ValueGenerator(seed),
         self._get_ast_options(),
         self._get_sample_options(),
-        run_dir=self.create_tempdir().full_path,
+        run_dir=self._create_tempdir(),
         crasher_dir=self._crasher_dir)
 
   def test_repeatable_within_process(self):
@@ -91,13 +97,13 @@ class RunFuzzTest(parameterized.TestCase):
         rng,
         self._get_ast_options(),
         self._get_sample_options(),
-        run_dir=self.create_tempdir().full_path,
+        run_dir=self._create_tempdir(),
         crasher_dir=self._crasher_dir)
     sample1 = run_fuzz.generate_sample_and_run(
         rng,
         self._get_ast_options(),
         self._get_sample_options(),
-        run_dir=self.create_tempdir().full_path,
+        run_dir=self._create_tempdir(),
         crasher_dir=self._crasher_dir)
     self.assertNotEqual(sample0, sample1)
 
