@@ -89,20 +89,20 @@ xls_dslx_verilog(
         "delay_model": "unit",
     },
     dslx_top = "main",
-    verilog_file = "add_one_pipeline_rtl.v",
+    verilog_file = "add_one_pipeline_rtl.sv",
 )
 
 # Test a single file when many are generated.
 check_sha256sum_test(
     name = "add_one_pipeline_rtl_v_sha256sum_test",
-    src = ":add_one_pipeline_rtl.v",
+    src = ":add_one_pipeline_rtl.sv",
     sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
 )
 
 # Build a frozen file generated with a build rule.
 check_sha256sum_frozen(
     name = "add_one_pipeline_rtl_v_sha256sum_frozen",
-    src = ":add_one_pipeline_rtl.v",
+    src = ":add_one_pipeline_rtl.sv",
     frozen_file = ":add_one_pipeline_rtl.frozen.v",
     sha256sum = "5a9a4ff3f5254915afb92d7a30447db53a524b649d6a4c1290b539a651ee3434",
 )
@@ -117,8 +117,8 @@ check_sha256sum_test(
 sh_test(
     name = "add_one_pipeline_rtl_has_clk_test",
     srcs = ["has_clk.sh"],
-    args = ["$(rootpath :add_one_pipeline_rtl.v)"],
-    data = [":add_one_pipeline_rtl.v"],
+    args = ["$(rootpath :add_one_pipeline_rtl.sv)"],
+    data = [":add_one_pipeline_rtl.sv"],
 )
 
 xls_dslx_verilog(
@@ -128,14 +128,14 @@ xls_dslx_verilog(
         "generator": "combinational",
     },
     dslx_top = "main",
-    verilog_file = "add_one_combinational_rtl.v",
+    verilog_file = "add_one_combinational_rtl.sv",
 )
 
 sh_test(
     name = "add_one_combinational_rtl_has_clk_test",
     srcs = ["not_has_clk.sh"],
-    args = ["$(rootpath :add_one_combinational_rtl.v)"],
-    data = [":add_one_combinational_rtl.v"],
+    args = ["$(rootpath :add_one_combinational_rtl.sv)"],
+    data = [":add_one_combinational_rtl.sv"],
 )
 
 sh_test(
@@ -248,7 +248,7 @@ xls_dslx_verilog(
     },
     dslx_top = "main",
     library = ":add_one_dslx",
-    verilog_file = "add_one_dslx_verilog.v",
+    verilog_file = "add_one_dslx_verilog.sv",
 )
 
 ################################################################################
@@ -322,7 +322,7 @@ xls_ir_verilog(
     codegen_args = {
         "pipeline_stages": "1",
     },
-    verilog_file = "chaining_example_verilog.v",
+    verilog_file = "chaining_example_verilog.sv",
 )
 
 xls_eval_ir_test(
@@ -520,7 +520,7 @@ xls_dslx_verilog(
     dslx_top = "main",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
-    verilog_file = "simple_example_5_one_stage.v",
+    verilog_file = "simple_example_5_one_stage.sv",
     deps = [":simple_example_4_dslx"],
 )
 
@@ -612,7 +612,7 @@ xls_ir_verilog_native_rule(
     codegen_args = {
         "pipeline_stages": "1",
     },
-    verilog_file = "chaining_example_verilog_macro.v",
+    verilog_file = "chaining_example_verilog_macro.sv",
 )
 
 # The target is the native rule form of the 'simple_example_5_entry_five' target.
@@ -631,7 +631,7 @@ xls_dslx_verilog_native_rule(
         "pipeline_stages": "1",
     },
     dslx_top = "main",
-    verilog_file = "simple_example_5_one_stage_macro.v",
+    verilog_file = "simple_example_5_one_stage_macro.sv",
     deps = [":simple_example_4_dslx"],
 )
 
@@ -670,7 +670,7 @@ xls_ir_verilog(
     },
     module_sig_file = "xls_ir_verilog.sig.textproto",
     schedule_file = "xls_ir_verilog.schedule.textproto",
-    verilog_file = "xls_ir_verilog.v",
+    verilog_file = "xls_ir_verilog.sv",
 )
 
 xls_dslx_ir_native_rule(
@@ -702,7 +702,7 @@ xls_ir_verilog_native_rule(
     },
     module_sig_file = "xls_ir_verilog_native_rule.sig.textproto",
     schedule_file = "xls_ir_verilog_native_rule.schedule.textproto",
-    verilog_file = "xls_ir_verilog_native_rule.v",
+    verilog_file = "xls_ir_verilog_native_rule.sv",
 )
 
 xls_dslx_verilog_native_rule(
@@ -716,7 +716,7 @@ xls_dslx_verilog_native_rule(
     module_sig_file = "xls_dslx_verilog_native_rule.sig.textproto",
     opt_ir_file = "xls_dslx_verilog_native_rule.opt.ir",
     schedule_file = "xls_dslx_verilog_native_rule.schedule.textproto",
-    verilog_file = "xls_dslx_verilog_native_rule.v",
+    verilog_file = "xls_dslx_verilog_native_rule.sv",
 )
 
 xls_ir_jit_wrapper_macro(

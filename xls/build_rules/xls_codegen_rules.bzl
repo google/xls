@@ -40,6 +40,7 @@ load(
 
 _DEFAULT_CODEGEN_ARGS = {
     "delay_model": "unit",
+    "use_system_verilog": "True",
 }
 
 _SYSTEM_VERILOG_FILE_EXTENSION = "sv"
@@ -148,6 +149,10 @@ def get_xls_ir_verilog_generated_files(args, arguments):
 def validate_verilog_filename(verilog_filename, use_system_verilog):
     """Validate verilog filename.
 
+    Args:
+      verilog_filename: The verilog filename to validate.
+      use_system_verilog: Whether to validate the file name as system verilog or not.
+
     Produces a failure if the verilog filename does not have a basename or a
     valid extension.
     """
@@ -233,9 +238,10 @@ def xls_ir_verilog_impl(ctx, src):
 
     # output filenames
     verilog_filename = ctx.attr.verilog_file.name
-    use_system_verilog = ("use_system_verilog" in codegen_args and
-                          codegen_args["use_system_verilog"].lower() == "true")
-    validate_verilog_filename(verilog_filename, use_system_verilog)
+
+    # TODO(vmirian): 11-11-2022 Reinstate after cleanup.
+    # use_system_verilog = codegen_args["use_system_verilog"].lower() == "true"
+    # validate_verilog_filename(verilog_filename, use_system_verilog)
     verilog_basename = split_filename(verilog_filename)[0]
 
     verilog_line_map_filename = get_output_filename_value(

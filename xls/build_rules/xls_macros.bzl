@@ -20,7 +20,8 @@ load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
-    "validate_verilog_filename",
+    # TODO(vmirian): 11-11-2022 Reinstate after cleanup.
+    # "validate_verilog_filename",
 )
 load(
     "//xls/build_rules:xls_config_rules.bzl",
@@ -138,9 +139,10 @@ def xls_dslx_verilog_macro(
     # Append output files to arguments.
     kwargs = append_xls_dslx_ir_generated_files(kwargs, name)
     kwargs = append_xls_ir_opt_ir_generated_files(kwargs, name)
-    use_system_verilog = ("use_system_verilog" in codegen_args and
-                          codegen_args["use_system_verilog"].lower() == "true")
-    validate_verilog_filename(verilog_file, use_system_verilog)
+    # TODO(vmirian): 11-11-2022 Reinstate after cleanup.
+    # use_system_verilog = codegen_args.get("use_system_verilog", "True").lower() == "true"
+
+    # validate_verilog_filename(verilog_file, use_system_verilog)
     verilog_basename = split_filename(verilog_file)[0]
     kwargs = append_xls_ir_verilog_generated_files(
         kwargs,
