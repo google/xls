@@ -2663,14 +2663,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
                        DeduceCtx* ctx) -> absl::StatusOr<Function*> {
     Expr* callee = node->callee();
     Function* fn;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
+    if (auto* colon_ref = dynamic_cast<ColonRef*>(callee);
+        colon_ref != nullptr) {
       XLS_ASSIGN_OR_RETURN(fn, ResolveColonRefToFn(colon_ref, ctx));
-    } else {
-      auto* name_ref = dynamic_cast<NameRef*>(callee);
-      XLS_RET_CHECK(name_ref != nullptr);
+    } else if (auto* name_ref = dynamic_cast<NameRef*>(callee);
+               name_ref != nullptr) {
       const std::string& callee_name = name_ref->identifier();
       XLS_ASSIGN_OR_RETURN(
           fn, ctx->module()->GetMemberOrError<Function>(callee_name));
+    } else {
+      return TypeInferenceErrorStatus(
+          node->span(), nullptr,
+          absl::StrCat("An invocation callee must be either a name reference "
+                       "or a colon reference; instead got: ",
+                       AstNodeKindToString(callee->kind())));
     }
     return fn;
   };

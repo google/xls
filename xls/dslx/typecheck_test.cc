@@ -1537,5 +1537,26 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
       PositionalErrorColor::kWarningColor));
 }
 
+TEST(TypecheckTest, CatchesBadInvocationCallee) {
+  constexpr std::string_view kImported = R"(
+pub fn some_function() -> u32 { u32:0 }
+)";
+  constexpr std::string_view kProgram = R"(
+import imported
+
+fn main() -> u32 {
+  imported.some_function()
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  EXPECT_THAT(
+      ParseAndTypecheck(kProgram, "fake_main_path.x", "main", &import_data),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("An invocation callee must be either a name reference "
+                         "or a colon reference")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
