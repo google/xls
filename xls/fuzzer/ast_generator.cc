@@ -538,7 +538,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBitsInRange(env, 1, 64));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
-  Bits divisor = value_gen_.GenerateBits(bit_count);
+  Bits divisor = value_gen_->GenerateBits(bit_count);
   Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
   return TypedExpr{
       module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
@@ -991,7 +991,7 @@ TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   }
   int64_t bit_count = GetTypeBitCount(type);
 
-  Bits value = value_gen_.GenerateBits(bit_count);
+  Bits value = value_gen_->GenerateBits(bit_count);
   return TypedExpr{MakeNumberFromBits(value, type), type};
 }
 
@@ -1569,7 +1569,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   while (true) {
     absl::StatusOr<TypedExpr> generated;
 
-    int choice = GetOpDistribution(options_.generate_proc)(value_gen_.rng());
+    int choice = GetOpDistribution(options_.generate_proc)(value_gen_->rng());
     switch (static_cast<OpChoice>(choice)) {
       case kArray:
         generated = GenerateArray(env);
@@ -1954,7 +1954,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::string(name),
                                              /*definer=*/nullptr);
 
-  XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_.GenerateDslxConstant(
+  XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_->GenerateDslxConstant(
                                                  module_.get(), return_type));
   Block* b = module_->Make<Block>(fake_span_, init_constant);
   Function* f = module_->Make<Function>(
@@ -2023,7 +2023,7 @@ absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
 
 AstGenerator::AstGenerator(AstGeneratorOptions options,
                            ValueGenerator* value_gen)
-    : value_gen_(*XLS_DIE_IF_NULL(value_gen)),
+    : value_gen_(XLS_DIE_IF_NULL(value_gen)),
       options_(options),
       fake_pos_("<fake>", 0, 0),
       fake_span_(fake_pos_, fake_pos_) {}

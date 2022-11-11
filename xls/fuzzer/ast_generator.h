@@ -86,23 +86,24 @@ class AstGenerator {
   // optimization for storing special types like tokens.
   using Env = absl::btree_map<std::string, TypedExpr>;
 
+  // The value generator must be alive for the lifetime of the object.
   AstGenerator(AstGeneratorOptions options, ValueGenerator* value_gen);
 
   // Generates the entity with name "name" in a module named "module_name".
   absl::StatusOr<std::unique_ptr<Module>> Generate(std::string top_entity_name,
                                                    std::string module_name);
 
-  bool RandomBool() { return value_gen_.RandomBool(); }
+  bool RandomBool() { return value_gen_->RandomBool(); }
 
   // Returns a random float uniformly distributed over [0, 1).
-  float RandomFloat() { return value_gen_.RandomFloat(); }
+  float RandomFloat() { return value_gen_->RandomFloat(); }
 
   // Returns a random integer over the range [0, limit).
-  int64_t RandRange(int64_t limit) { return value_gen_.RandRange(0, limit); }
+  int64_t RandRange(int64_t limit) { return value_gen_->RandRange(0, limit); }
 
   // Returns a random integer over the range [start, limit).
   int64_t RandRange(int64_t start, int64_t limit) {
-    return value_gen_.RandRange(start, limit);
+    return value_gen_->RandRange(start, limit);
   }
 
   // Returns a random integer with the given expected value from a distribution
@@ -113,7 +114,7 @@ class AstGenerator {
   // https://en.wikipedia.org/wiki/Poisson_distribution
   int64_t RandomIntWithExpectedValue(float expected_value,
                                      int64_t lower_limit = 0) {
-    return value_gen_.RandomIntWithExpectedValue(expected_value, lower_limit);
+    return value_gen_->RandomIntWithExpectedValue(expected_value, lower_limit);
   }
 
  private:
@@ -489,7 +490,7 @@ class AstGenerator {
     // Make non-top level functions smaller.
     double alpha = (call_depth > 0) ? 1.0 : 7.0;
     std::gamma_distribution<float> g(alpha, 5.0);
-    return g(value_gen_.rng()) >= expr_size;
+    return g(value_gen_->rng()) >= expr_size;
   }
 
   // Returns the (flattened) bit count of the given type.
@@ -550,7 +551,7 @@ class AstGenerator {
     return absl::OkStatus();
   }
 
-  ValueGenerator value_gen_;
+  ValueGenerator* value_gen_;
 
   const AstGeneratorOptions options_;
 
