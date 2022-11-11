@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/codegen_options/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-8.5.8">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-8.5.9">
     
     
       
@@ -22,7 +22,7 @@
       <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.815d1a91.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.08040f6c.min.css">
         
       
       
@@ -54,7 +54,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
   
     
     
@@ -1412,15 +1412,15 @@ string. These format strings use placeholders to fill in relevant information.</
   is generated in each case.</p>
 <p>-   <code>flop</code>: Adds a pipeline stage at the beginning or end of the block to
       hold inputs or outputs. This is essentially a single-element FIFO.</p>
-<div class="highlight"><pre><span></span><code>  ![Flop Outputs](./images/flop_outputs.svg)
+<div class="highlight"><pre><span></span><code>  ![Flop Outputs](./flop_outputs.svg)
 </code></pre></div>
 <p>-   <code>skid</code>: Adds a skid buffer at the inputs or outputs of the block. The
       skid buffer can hold 2 entries.</p>
-<div class="highlight"><pre><span></span><code>  ![Skid Buffer](./images/skid_buffer.svg)
+<div class="highlight"><pre><span></span><code>  ![Skid Buffer](./skid_buffer.svg)
 </code></pre></div>
 <p>-   <code>zerolatency</code>: Adds a zero-latency buffer at the beginning or end of the
       block. This is essentially a single-element FIFO with bypass.</p>
-<div class="highlight"><pre><span></span><code>  ![Zero Latency Buffer](./images/zero_latency_buffer.svg)
+<div class="highlight"><pre><span></span><code>  ![Zero Latency Buffer](./zero_latency_buffer.svg)
 </code></pre></div>
 </li>
 </ul>
