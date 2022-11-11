@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/codegen_options/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-8.5.9">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-8.5.10">
     
     
       
@@ -19,7 +19,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.472b142f.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.08040f6c.min.css">
@@ -54,7 +54,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="None" data-md-color-accent="None">
   
     
     
@@ -1412,18 +1412,17 @@ string. These format strings use placeholders to fill in relevant information.</
   is generated in each case.</p>
 <p>-   <code>flop</code>: Adds a pipeline stage at the beginning or end of the block to
       hold inputs or outputs. This is essentially a single-element FIFO.</p>
-<div class="highlight"><pre><span></span><code>  ![Flop Outputs](./flop_outputs.svg)
-</code></pre></div>
-<p>-   <code>skid</code>: Adds a skid buffer at the inputs or outputs of the block. The
-      skid buffer can hold 2 entries.</p>
-<div class="highlight"><pre><span></span><code>  ![Skid Buffer](./skid_buffer.svg)
-</code></pre></div>
-<p>-   <code>zerolatency</code>: Adds a zero-latency buffer at the beginning or end of the
-      block. This is essentially a single-element FIFO with bypass.</p>
-<div class="highlight"><pre><span></span><code>  ![Zero Latency Buffer](./zero_latency_buffer.svg)
-</code></pre></div>
 </li>
 </ul>
+<p><img alt="Flop Outputs" src="../flop_outputs.svg" /></p>
+<div class="highlight"><pre><span></span><code>-   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
+    skid buffer can hold 2 entries.
+</code></pre></div>
+<p><img alt="Skid Buffer" src="../skid_buffer.svg" /></p>
+<div class="highlight"><pre><span></span><code>-   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
+    block. This is essentially a single-element FIFO with bypass.
+</code></pre></div>
+<p><img alt="Zero Latency Buffer" src="../zero_latency_buffer.svg" /></p>
 <ul>
 <li><code>--flop_single_value_channels</code> control if single-value channels should be
     flopped.</li>
