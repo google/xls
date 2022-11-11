@@ -1190,6 +1190,23 @@ fn main(x: u32) -> u32 {
                        HasSubstr("A fail label must be unique")));
 }
 
+TEST_F(ParserTest, CatchesBadInvocationCallee) {
+  constexpr std::string_view kProgram = R"(
+import foo
+
+fn main() -> u32 {
+  foo.some_function()
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("An invocation callee must be either "
+                                 "a colon reference or a name reference")));
+}
+
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {

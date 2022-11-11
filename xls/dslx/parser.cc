@@ -1555,6 +1555,15 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
       }
     }
   }
+
+  if (callee->kind() != AstNodeKind::kColonRef &&
+      callee->kind() != AstNodeKind::kNameRef) {
+    return ParseErrorStatus(
+        span,
+        absl::StrCat("An invocation callee must be either a colon reference or "
+                     "a name reference; got: ",
+                     AstNodeKindToString(callee->kind())));
+  }
   return module_->Make<Invocation>(span, callee, std::move(args),
                                    std::move(parametrics));
 }
