@@ -111,10 +111,10 @@ def run_sample(smp: sample.Sample,
                    sample.args_batch_to_text(smp.args_batch))
     args.append('--args_file=args.txt')
   ir_channel_names_filename = None
-  if smp.ir_channel_names:
+  if smp.ir_channel_names is not None:
     ir_channel_names_filename = 'ir_channel_names.txt'
     _write_to_file(run_dir, ir_channel_names_filename,
-                   sample.parse_ir_channel_names(smp.ir_channel_names))
+                   sample.ir_channel_names_to_text(smp.ir_channel_names))
     args.append('--ir_channel_names_file=ir_channel_names.txt')
   args.append(run_dir)
   _write_to_file(

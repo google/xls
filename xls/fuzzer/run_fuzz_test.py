@@ -28,9 +28,12 @@ from xls.fuzzer.python import cpp_sample as sample
 
 _CALLS_PER_SAMPLE = 8
 _SAMPLE_COUNT = 200
+_PROC_TICKS = 100
 
 _WIDE = flags.DEFINE_boolean(
     'wide', default=False, help='Run with wide bits types.')
+_GENERATE_PROC = flags.DEFINE_boolean(
+    'generate_proc', default=False, help='Generate a proc sample.')
 
 
 def _get_crasher_dir() -> Optional[str]:
@@ -61,15 +64,18 @@ class RunFuzzTest(parameterized.TestCase):
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
     return ast_generator.AstGeneratorOptions(
-        max_width_bits_types=128 if _WIDE.value else 64)
+        generate_proc=_GENERATE_PROC.value,
+        max_width_bits_types=128 if _WIDE.value else 64,
+    )
 
   def _get_sample_options(self) -> sample.SampleOptions:
     return sample.SampleOptions(
         input_is_dslx=True,
         ir_converter_args=['--top=main'],
-        calls_per_sample=_CALLS_PER_SAMPLE,
+        calls_per_sample=0 if _GENERATE_PROC.value else _CALLS_PER_SAMPLE,
         convert_to_ir=True,
         optimize_ir=True,
+        proc_ticks=_PROC_TICKS if _GENERATE_PROC.value else 0,
         codegen=False,
         simulate=False)
 
