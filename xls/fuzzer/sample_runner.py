@@ -708,6 +708,7 @@ class SampleRunner:
       args.extend(options.ir_converter_args)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
+    logging.vlog(3, 'Unoptimized IR:\n%s', ir_text)
     return self._write_file('sample.ir', ir_text)
 
   def _dslx_to_ir_proc(self, dslx_filename: str,
@@ -719,6 +720,7 @@ class SampleRunner:
       args.extend(options.ir_converter_args)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
+    logging.vlog(3, 'Unoptimized IR:\n%s', ir_text)
     return self._write_file('sample.ir', ir_text)
 
   def _optimize_ir(self, ir_filename: str,
@@ -726,6 +728,7 @@ class SampleRunner:
     """Optimizes the IR file and returns the resulting filename."""
     opt_ir_text = self._run_command('Optimizing IR',
                                     (IR_OPT_MAIN_PATH, ir_filename), options)
+    logging.vlog(3, 'Optimized IR:\n%s', opt_ir_text)
     return self._write_file('sample.opt.ir', opt_ir_text)
 
   def _codegen(self, ir_filename: str, codegen_args: Sequence[str],
@@ -738,6 +741,7 @@ class SampleRunner:
     args.extend(codegen_args)
     args.append(ir_filename)
     verilog_text = self._run_command('Generating Verilog', args, options)
+    logging.vlog(3, 'Verilog:\n%s', verilog_text)
     return self._write_file(
         'sample.sv' if options.use_system_verilog else 'sample.v', verilog_text)
 
