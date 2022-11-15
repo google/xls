@@ -294,7 +294,7 @@ absl::Status LiteralChainToStateMachine(Proc* proc,
                              SourceInfo(), state_machine_param, one, Op::kAdd));
     XLS_ASSIGN_OR_RETURN(Node * machine_too_large,
                          proc->MakeNode<CompareOp>(
-                             SourceInfo(), state_machine_param, max, Op::kUGe));
+                             SourceInfo(), state_machine_param, max, Op::kUGt));
     XLS_ASSIGN_OR_RETURN(
         Node * sel,
         proc->MakeNode<Select>(

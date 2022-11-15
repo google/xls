@@ -210,9 +210,7 @@ TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   TokenlessProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(100, 32)));
   BValue lit = pb.Literal(Value(UBits(200, 32)));
-
-  // Ensure x is observable
-  pb.Send(out, x);
+  BValue send = pb.Send(out, x);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({lit}));
 
@@ -220,6 +218,12 @@ TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateParam(0)->GetType()->GetFlatBitCount(), 1);
+
+  EXPECT_THAT(
+      send.node(),
+      m::Send(m::Param("tkn"), m::Select(m::Param("state_machine_x"),
+                                         /*cases=*/{m::Literal(100)},
+                                         /*default_value=*/m::Literal(200))));
 }
 
 }  // namespace
