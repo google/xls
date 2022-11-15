@@ -15,6 +15,7 @@
 #include "xls/fuzzer/ast_generator.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <set>
 #include <variant>
@@ -331,8 +332,24 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
     }
   }
 
+  // The recv_non_blocking has an implicit bool in its return type, resulting in
+  // one bit. Therefore, its maximum width must be one less than the maximum
+  // width defined in the AST generator options.
+  std::optional<int64_t> max_width_bits_types;
+  std::optional<int64_t> max_width_aggregate_types;
+  if (chan_op_type == ChannelOpType::kRecvNonBlocking) {
+    // The recv_non_blocking returns an aggregate type that may contain a bits
+    // type. If the max_width_bits_types > max_width_aggregate_types, it would
+    // fail the aggregate width bounds check. Therefore, the bits type is
+    // bounded within aggregate types maximum width.
+    max_width_bits_types = std::min(options_.max_width_bits_types,
+                                    options_.max_width_aggregate_types) -
+                           1;
+    max_width_aggregate_types = options_.max_width_aggregate_types - 1;
+  }
   // Generate an arbitrary type for the channel.
-  TypeAnnotation* channel_type = GenerateType();
+  TypeAnnotation* channel_type =
+      GenerateType(0, max_width_bits_types, max_width_aggregate_types);
 
   // If needed, choose a payload from the environment.
   std::optional<TypedExpr> payload;
@@ -972,9 +989,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
   return TypedExpr{result, return_type};
 }
 
-BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
-  int64_t integral = RandRange(
-      std::min(kConcreteBuiltinTypeLimit, options_.max_width_bits_types + 1));
+BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
+    std::optional<int64_t> max_width_bits_types) {
+  int64_t max_width = options_.max_width_bits_types;
+  if (max_width_bits_types.has_value()) {
+    max_width = max_width_bits_types.value();
+  }
+  int64_t integral =
+      RandRange(std::min(kConcreteBuiltinTypeLimit, max_width + 1));
   auto type = static_cast<BuiltinType>(integral);
   return module_->Make<BuiltinTypeAnnotation>(
       fake_span_, type,
@@ -1147,14 +1169,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
   return TypedExpr{invocation, return_type};
 }
 
-TypeAnnotation* AstGenerator::GenerateBitsType() {
-  if (options_.max_width_bits_types <= 64 || RandRange(1, 10) != 1) {
-    return GeneratePrimitiveType();
+TypeAnnotation* AstGenerator::GenerateBitsType(
+    std::optional<int64_t> max_width_bits_types) {
+  int64_t max_width = options_.max_width_bits_types;
+  if (max_width_bits_types.has_value()) {
+    max_width = max_width_bits_types.value();
+  }
+  if (max_width <= 64 || RandRange(1, 10) != 1) {
+    return GeneratePrimitiveType(max_width_bits_types);
   }
   // Generate a type wider than 64-bits. With smallish probability choose a
   // *really* wide type if the max_width_bits_types supports it, otherwise
   // choose a width up to 128 bits.
-  int64_t max_width = options_.max_width_bits_types;
   if (max_width > 128 && RandRange(1, 10) > 1) {
     max_width = 128;
   }
@@ -1162,8 +1188,14 @@ TypeAnnotation* AstGenerator::GenerateBitsType() {
   return MakeTypeAnnotation(sign, 64 + RandRange(1, max_width - 64));
 }
 
-TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
+TypeAnnotation* AstGenerator::GenerateType(
+    int64_t nesting, std::optional<int64_t> max_width_bits_types,
+    std::optional<int64_t> max_width_aggregate_types) {
   float r = RandomFloat();
+  int64_t max_width = options_.max_width_aggregate_types;
+  if (max_width_aggregate_types.has_value()) {
+    max_width = max_width_aggregate_types.value();
+  }
   if (r < 0.1 * std::pow(2.0, -nesting)) {
     // Generate tuple type. Use a mean value of 3 elements so the tuple isn't
     // too big.
@@ -1172,7 +1204,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
     for (int64_t i = 0; i < RandomIntWithExpectedValue(3, 0); ++i) {
       TypeAnnotation* element_type = GenerateType(nesting + 1);
       int64_t element_width = GetTypeBitCount(element_type);
-      if (total_width + element_width > options_.max_width_aggregate_types) {
+      if (total_width + element_width > max_width) {
         break;
       }
       element_types.push_back(element_type);
@@ -1185,13 +1217,12 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
     TypeAnnotation* element_type = GenerateType(nesting + 1);
     int64_t element_width = GetTypeBitCount(element_type);
     int64_t element_count = RandomIntWithExpectedValue(10, /*lower_limit=*/1);
-    if (element_count * element_width > options_.max_width_aggregate_types) {
-      element_count = std::max<int64_t>(
-          1, options_.max_width_aggregate_types / element_width);
+    if (element_count * element_width > max_width) {
+      element_count = std::max<int64_t>(1, max_width / element_width);
     }
     return MakeArrayType(element_type, element_count);
   }
-  return GenerateBitsType();
+  return GenerateBitsType(max_width_bits_types);
 }
 
 std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(

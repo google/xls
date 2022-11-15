@@ -15,6 +15,7 @@
 #ifndef XLS_FUZZER_CPP_AST_GENERATOR_H_
 #define XLS_FUZZER_CPP_AST_GENERATOR_H_
 
+#include <optional>
 #include <random>
 
 #include "absl/container/btree_map.h"
@@ -352,15 +353,29 @@ class AstGenerator {
   // Generates a primitive type token for use in building a type.
   absl::StatusOr<Token*> GenerateTypePrimitive();
 
-  // Generates a random-width Bits type.
-  TypeAnnotation* GenerateBitsType();
+  // Generates a random-width Bits type. When set, the max_width_bits_types
+  // overwrites the value of the max_width_bits_types parameter from the
+  // options.
+  TypeAnnotation* GenerateBitsType(
+      std::optional<int64_t> max_width_bits_types = std::nullopt);
 
   // Generates a random type (bits, array, or tuple). Nesting is the amount of
   // nesting within the currently generated type (e.g., element type of a
-  // tuple). Used to limit the depth of compound types.
-  TypeAnnotation* GenerateType(int64_t nesting = 0);
+  // tuple). Used to limit the depth of compound types. When set, the
+  // max_width_bits_types overwrites the value of the max_width_bits_types
+  // parameter from the options. When set, the max_width_aggregate_types
+  // overwrites the value of the max_width_aggregate_types parameter from the
+  // options.
+  TypeAnnotation* GenerateType(
+      int64_t nesting = 0,
+      std::optional<int64_t> max_width_bits_types = std::nullopt,
+      std::optional<int64_t> max_width_aggregate_types = std::nullopt);
 
-  BuiltinTypeAnnotation* GeneratePrimitiveType();
+  // Generates a primitive builtin type. When set, the max_width_bits_types
+  // overwrites the value of the max_width_bits_types parameter from the
+  // options.
+  BuiltinTypeAnnotation* GeneratePrimitiveType(
+      std::optional<int64_t> max_width_bits_types = std::nullopt);
 
   // Generates a number AST node with its associated type.
   TypedExpr GenerateNumber(
