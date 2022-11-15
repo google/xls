@@ -343,8 +343,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
     // fail the aggregate width bounds check. Therefore, the bits type is
     // bounded within aggregate types maximum width.
     max_width_bits_types = std::min(options_.max_width_bits_types,
-                                    options_.max_width_aggregate_types) -
-                           1;
+                                    options_.max_width_aggregate_types - 1);
     max_width_aggregate_types = options_.max_width_aggregate_types - 1;
   }
   // Generate an arbitrary type for the channel.
@@ -1953,8 +1952,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
   std::vector<Param*> params = {token_param};
 
   TypeAnnotation* state_param_type = nullptr;
-  // 30% of the time: generate an empty state type described by an empty tuple.
-  if (RandomFloat() <= 0.30) {
+  if (options_.emit_stateless_proc) {
     state_param_type = MakeTupleType({});
   }
   params.insert(params.end(), GenerateParam(state_param_type));

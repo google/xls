@@ -25,6 +25,7 @@
 namespace xls::dslx {
 namespace {
 
+using ::testing::ContainsRegex;
 using ::testing::MatchesRegex;
 
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
@@ -92,12 +93,16 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
   }
 }
 
-// Simply tests that we generate a bunch of valid procs using seed 0 (that
-// parse and typecheck).
-TEST(AstGeneratorTest, GeneratesValidProcs) {
+// Simply tests that we generate a bunch of valid procs with an empty state type
+// using seed 0 (that parse and typecheck).
+TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
   ValueGenerator value_gen(std::mt19937{0});
   AstGeneratorOptions options;
   options.generate_proc = true;
+  options.emit_stateless_proc = true;
+  // Regex matcher for the next function signature.
+  constexpr const char* kWantPattern =
+      R"(next\(x[0-9]+: token, x[0-9]+: \(\)\))";
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, &value_gen);
     XLS_LOG(INFO) << "Generating sample: " << i;
@@ -108,6 +113,32 @@ TEST(AstGeneratorTest, GeneratesValidProcs) {
     std::string text = module->ToString();
     //  Parses/typechecks as well, which is primarily what we're testing here.
     XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
+    EXPECT_THAT(text, ContainsRegex(kWantPattern));
+  }
+}
+
+// Simply tests that we generate a bunch of valid procs with a random state type
+// using seed 0 (that parse and typecheck).
+TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
+  ValueGenerator value_gen(std::mt19937{0});
+  AstGeneratorOptions options;
+  options.generate_proc = true;
+  // Regex matcher for the next function signature.
+  // Although [[:word:]] encapsulates [0-9a-zA-Z_], which would simplify the
+  // following regex statement. The following regex statement is more readable.
+  constexpr const char* kWantPattern =
+      R"(next\(x[0-9]+: token, x[0-9]+: []0-9a-zA-Z_, ()[]+\))";
+  for (int64_t i = 0; i < 32; ++i) {
+    AstGenerator g(options, &value_gen);
+    XLS_LOG(INFO) << "Generating sample: " << i;
+    std::string module_name = absl::StrFormat("sample_%d", i);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                             g.Generate("main", module_name));
+
+    std::string text = module->ToString();
+    //  Parses/typechecks as well, which is primarily what we're testing here.
+    XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
+    EXPECT_THAT(text, ContainsRegex(kWantPattern));
   }
 }
 

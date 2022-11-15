@@ -68,6 +68,12 @@ struct AstGeneratorOptions {
 
   // Whether to generate a proc.
   bool generate_proc = false;
+
+  // Whether to emit a stateless proc. When true, the state type of the proc is
+  // an empty tuple. Otherwise, a random state type is generated (which may also
+  // include an empty tuple). Its value is only meaningful when generate_proc is
+  // `true`.
+  bool emit_stateless_proc = false;
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.

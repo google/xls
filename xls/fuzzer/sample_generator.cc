@@ -54,6 +54,7 @@ using dslx::TypecheckedModule;
 //   use_system_verilog: Whether to use SystemVerilog.
 //   rng: Random number generator state.
 static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
+                                                    bool contains_registers,
                                                     ValueGenerator* value_gen) {
   std::vector<std::string> args;
   if (use_system_verilog) {
@@ -61,12 +62,15 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
   } else {
     args.push_back("--nouse_system_verilog");
   }
-  if (value_gen->RandomDouble() < 0.2) {
+  if (value_gen->RandomDouble() < 0.2 && !contains_registers) {
     args.push_back("--generator=combinational");
   } else {
     args.push_back("--generator=pipeline");
     args.push_back(
         absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
+  }
+  if (contains_registers) {
+    args.push_back("--reset=rst");
   }
   return args;
 }
@@ -225,8 +229,11 @@ absl::StatusOr<Sample> GenerateSample(
   if (sample_options_copy.codegen()) {
     // Generate codegen args if codegen is given but no codegen args are
     // specified.
-    sample_options_copy.set_codegen_args(GenerateCodegenArgs(
-        sample_options_copy.use_system_verilog(), value_gen));
+    sample_options_copy.set_codegen_args(
+        GenerateCodegenArgs(sample_options_copy.use_system_verilog(),
+                            generator_options.generate_proc &&
+                                !generator_options.emit_stateless_proc,
+                            value_gen));
   }
   XLS_ASSIGN_OR_RETURN(std::string dslx_text,
                        Generate(generator_options, value_gen));

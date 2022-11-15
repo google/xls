@@ -29,9 +29,9 @@ def load_external_repositories():
 
     http_archive(
         name = "com_google_googletest",
-        urls = ["https://github.com/google/googletest/archive/47f819c3ca54fb602f432904443e00a0a1fe2f42.zip"],  # 2021-08-10
-        strip_prefix = "googletest-47f819c3ca54fb602f432904443e00a0a1fe2f42",
-        sha256 = "db93dd8a793e54a3a429197ecdd94813d280019e2adfa9241c7bc9204842bedc",
+        urls = ["https://github.com/google/googletest/archive/0e6aac2571eb1753b8855d8d1f592df64d1a4828.zip"],  # 2022-11-14
+        strip_prefix = "googletest-0e6aac2571eb1753b8855d8d1f592df64d1a4828",
+        sha256 = "77bfecb8d930cbd97e24e7570a3dee9b09bad483aab47c96b7b7efb7d54332ff",
     )
 
     # 2022-1-31
