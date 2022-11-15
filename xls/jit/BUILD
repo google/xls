@@ -16,6 +16,14 @@
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
+# cc_proto_library is used in this file
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
+    "xls_ir_cc_library",
+)
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -26,6 +34,8 @@ cc_binary(
     srcs = ["aot_compiler.cc"],
     deps = [
         ":function_jit",
+        ":llvm_type_converter",
+        ":orc_jit",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -43,9 +53,12 @@ cc_test(
     name = "aot_compiler_test",
     srcs = ["aot_compiler_test.cc"],
     deps = [
+        ":compound_type_cc",
+        ":null_function_cc",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
+        "//xls/ir:ir_parser",
         "//xls/ir:value",
         "//xls/modules/fp:fp32_add_2_cc",
         "//xls/modules/fp:fp32_fma_cc",
@@ -58,11 +71,12 @@ cc_library(
     srcs = ["aot_runtime.cc"],
     hdrs = ["aot_runtime.h"],
     deps = [
-        ":jit_runtime",
-        ":orc_jit",
-        "@com_google_absl//absl/strings",
+        ":type_layout",
+        ":type_layout_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:type",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -383,7 +397,11 @@ cc_library(
     srcs = ["type_layout.cc"],
     hdrs = ["type_layout.h"],
     deps = [
+        ":type_layout_cc_proto",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
@@ -436,4 +454,50 @@ build_test(
         ":jit_channel_queue_benchmark",
         ":value_to_native_layout_benchmark",
     ],
+)
+
+proto_library(
+    name = "type_layout_proto",
+    srcs = ["type_layout.proto"],
+)
+
+cc_proto_library(
+    name = "type_layout_cc_proto",
+    deps = [":type_layout_proto"],
+)
+
+xls_dslx_library(
+    name = "null_function_dslx",
+    srcs = ["null_function.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "null_function",
+    dslx_top = "null_function",
+    library = ":null_function_dslx",
+)
+
+xls_ir_cc_library(
+    name = "null_function_cc",
+    src = ":null_function.ir",
+    namespaces = "xls,foo,bar",
+    top = "null_function",
+)
+
+xls_dslx_library(
+    name = "compound_type_dslx",
+    srcs = ["compound_type.x"],
+)
+
+xls_dslx_opt_ir(
+    name = "compound_type",
+    dslx_top = "fun_test_function",
+    library = ":compound_type_dslx",
+)
+
+xls_ir_cc_library(
+    name = "compound_type_cc",
+    src = ":compound_type.ir",
+    namespaces = "xls",
+    top = "fun_test_function",
 )

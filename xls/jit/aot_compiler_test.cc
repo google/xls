@@ -16,7 +16,10 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
+#include "xls/jit/compound_type_cc.h"
+#include "xls/jit/null_function_cc.h"
 #include "xls/modules/fp/fp32_add_2_cc.h"
 #include "xls/modules/fp/fp32_fma_cc.h"
 
@@ -36,7 +39,7 @@ TEST(AotCompileTest, BasicUsage) {
   Value f32_one = F32Value(false, 0x7f, 0);
   Value f32_two = F32Value(false, 0x80, 0);
   Value f32_three = F32Value(false, 0x80, 0x400000);
-  XLS_ASSERT_OK_AND_ASSIGN(Value result, fp32_add_2(f32_one, f32_two));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::fp::fp32_add_2(f32_one, f32_two));
   EXPECT_EQ(result, f32_three);
 }
 
@@ -46,9 +49,37 @@ TEST(AotCompileTest, AnotherBasicUsage) {
   Value f32_two = F32Value(false, 0x80, 0);
   Value f32_three = F32Value(false, 0x80, 0x400000);
   Value f32_five = F32Value(false, 0x81, 0x200000);
-  XLS_ASSERT_OK_AND_ASSIGN(Value result, fp32_fma(f32_one, f32_two, f32_three));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result,
+                           xls::fp::fp32_fma(f32_one, f32_two, f32_three));
   EXPECT_EQ(result, f32_five);
 }
+
+TEST(AotCompileTest, NullFunction) {
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::foo::bar::null_function());
+  EXPECT_EQ(result, Value::Tuple({}));
+}
+
+TEST(AotCompileTest, CompoundType) {
+  Value a = Parser::ParseTypedValue("bits[32]:42").value();
+  Value b = Parser::ParseTypedValue("()").value();
+  Value c = Parser::ParseTypedValue(
+                "(bits[1]:1, bits[223]:0xdeadbeef_a1b2c3d4_01234567, "
+                "[(bits[3]:2, [(bits[32]:123, bits[2]:1)]), "
+                " (bits[3]:0, [(bits[32]:333, bits[2]:0)])])")
+                .value();
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::fun_test_function(a, b, c));
+  EXPECT_EQ(result, Value::Tuple({b, Value(UBits(43, 32)), c}));
+}
+
+#ifndef NDEBUG
+// In non-opt mode, argument values are type-checked using DCHECK.
+TEST(AotCompileTest, InvalidTypes) {
+  Value a = Value::Tuple({});
+  EXPECT_DEATH((void)xls::fp::fp32_add_2(a, a),
+               testing::HasSubstr(
+                   "Value `()` is not of type `(bits[1], bits[8], bits[23])`"));
+}
+#endif
 
 }  // namespace
 }  // namespace xls

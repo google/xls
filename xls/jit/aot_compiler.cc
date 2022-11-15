@@ -22,8 +22,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
-#include "absl/strings/substitute.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -32,6 +32,8 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/function_jit.h"
+#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
 ABSL_FLAG(std::string, top, "",
@@ -56,6 +58,32 @@ ABSL_FLAG(
     "required.");
 
 namespace xls {
+namespace {
+
+// Returns the text serialization of the TypeLayouts for the arguments of
+// `f`. Returned string is a text proto of type TypeLayoutsProto.
+std::string ArgLayoutsSerialization(Function* f,
+                                    LlvmTypeConverter& type_converter) {
+  TypeLayoutsProto layouts_proto;
+  for (Param* param : f->params()) {
+    *layouts_proto.add_layouts() =
+        type_converter.CreateTypeLayout(param->GetType()).ToProto();
+  }
+  std::string text;
+  XLS_CHECK(google::protobuf::TextFormat::PrintToString(layouts_proto, &text));
+  return text;
+}
+
+// Returns the text serialization of the TypeLayout for the return value of
+// `f`. Returned string is a text proto of type TypeLayoutProto.
+std::string ResultLayoutSerialization(Function* f,
+                                      LlvmTypeConverter& type_converter) {
+  TypeLayoutProto layout_proto =
+      type_converter.CreateTypeLayout(f->return_value()->GetType()).ToProto();
+  std::string text;
+  XLS_CHECK(google::protobuf::TextFormat::PrintToString(layout_proto, &text));
+  return text;
+}
 
 // Produces a simple header file containing a call with the same name as the
 // target function (with the package name prefix removed).
@@ -65,6 +93,7 @@ absl::StatusOr<std::string> GenerateHeader(
       R"(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "absl/status/statusor.h"
 #include "xls/ir/value.h"
+
 {{open_ns}}
 absl::StatusOr<xls::Value> {{wrapper_fn_name}}({{wrapper_params}});
 {{close_ns}})";
@@ -116,65 +145,63 @@ absl::StatusOr<std::string> GenerateWrapperSource(
 #include <vector>
 
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
-#include "xls/ir/nodes.h"
-#include "xls/ir/type.h"
+#include "xls/jit/type_layout.h"
 #include "xls/jit/aot_runtime.h"
-#include "xls/jit/jit_runtime.h"
 
 extern "C" {
 void {{extern_fn}}(const uint8_t* const* inputs,
                    uint8_t* const* outputs,
                    uint8_t* temp_buffer,
                    ::xls::InterpreterEvents* events,
-                   ::xls::JitRuntime* runtime,
+                   void* unused,
                    int64_t continuation_point);
 }
 {{open_ns}}
-constexpr std::string_view kFnTypeProto = R"({{type_textproto}})";
 
-// We have to put "once" flags in different namespaces so their definitions
-// don't collide.
-namespace {{private_ns}} {
-absl::once_flag once;
-std::unique_ptr<xls::aot_compile::GlobalData> global_data;
+namespace {
 
-void OnceInit() {
-  global_data = xls::aot_compile::InitGlobalData(kFnTypeProto);
+const char* kArgLayouts = R"|({{arg_layouts_proto}})|";
+const char* kResultLayout = R"|({{result_layout_proto}})|";
+
+const xls::aot_compile::FunctionTypeLayout& GetFunctionTypeLayout() {
+  static std::unique_ptr<xls::aot_compile::FunctionTypeLayout> function_layout =
+    xls::aot_compile::FunctionTypeLayout::Create(kArgLayouts, kResultLayout).value();
+  return *function_layout;
 }
-}  //  namespace {{private_ns}}
+
+}  //  namespace
 
 absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
-  absl::call_once({{private_ns}}::once, {{private_ns}}::OnceInit);
-
 {{arg_buffer_decls}}
   uint8_t* arg_buffers[] = {{arg_buffer_collector}};
-  uint8_t result_buffer[{{result_size}}] = { 0 };
-  XLS_RETURN_IF_ERROR(
-          {{private_ns}}::global_data->jit_runtime->PackArgs(
-          {{{param_names}}},
-          {{private_ns}}::global_data->param_types,
-          absl::MakeSpan(arg_buffers)));
+  uint8_t result_buffer[{{result_size}}];
+  GetFunctionTypeLayout().ArgValuesToNativeLayout(
+    {{{param_names}}}, absl::MakeSpan(arg_buffers, {{arg_count}}));
 
   uint8_t* output_buffers[1] = {result_buffer};
   std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
   ::xls::InterpreterEvents events;
   {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
-                &events, {{private_ns}}::global_data->jit_runtime.get(),
-                /*continuation_point=*/0);
+                &events, /*unused=*/nullptr, /*continuation_point=*/0);
 
-  ::xls::Value result = {{private_ns}}::global_data->jit_runtime->UnpackBuffer(
-      result_buffer, {{private_ns}}::global_data->fn_type->return_type());
-  return result;
+  return GetFunctionTypeLayout().NativeLayoutResultToValue(result_buffer);
 }
 
 {{close_ns}}
 )~";
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
+                       orc_jit->CreateDataLayout());
+  LlvmTypeConverter type_converter(orc_jit->GetContext(), data_layout);
 
   absl::flat_hash_map<std::string, std::string> substitution_map;
   substitution_map["{{header_path}}"] = header_path;
   substitution_map["{{extern_fn}}"] = object_code.function_name;
+  substitution_map["{{arg_layouts_proto}}"] =
+      ArgLayoutsSerialization(f, type_converter);
+  substitution_map["{{result_layout_proto}}"] =
+      ResultLayoutSerialization(f, type_converter);
   substitution_map["{{temp_buffer_size}}"] =
       absl::StrCat(object_code.temp_buffer_size);
 
@@ -210,12 +237,11 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   substitution_map["{{arg_buffer_collector}}"] =
       absl::StrFormat("{%s}", absl::StrJoin(arg_buffer_names, ", "));
   substitution_map["{{result_size}}"] = absl::StrCat(return_type_bytes);
+  substitution_map["{{arg_count}}"] = absl::StrCat(params.size());
 
   std::string type_textproto;
   google::protobuf::TextFormat::PrintToString(f->GetType()->ToProto(), &type_textproto);
   substitution_map["{{type_textproto}}"] = type_textproto;
-
-  substitution_map["{{private_ns}}"] = absl::StrCat(f->name(), "__once_ns_");
 
   std::string package_prefix = absl::StrCat("__", f->package()->name(), "__");
   substitution_map["{{wrapper_fn_name}}"] =
@@ -258,6 +284,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
   return absl::OkStatus();
 }
 
+}  // namespace
 }  // namespace xls
 
 int main(int argc, char** argv) {

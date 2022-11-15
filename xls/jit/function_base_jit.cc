@@ -49,16 +49,6 @@ llvm::Value* LoadPointerFromPointerArray(int64_t index,
   return builder->CreateLoad(llvm::PointerType::get(context, 0), gep);
 }
 
-// Loads a value of type `data_type` from a location indicated by the pointer at
-// the `index`-th slot in the array pointed to by `pointer_array`.
-llvm::Value* LoadFromPointerArray(int64_t index, llvm::Type* data_type,
-                                  llvm::Value* pointer_array,
-                                  llvm::IRBuilder<>* builder) {
-  llvm::Value* data_ptr =
-      LoadPointerFromPointerArray(index, pointer_array, builder);
-  return builder->CreateLoad(data_type, data_ptr);
-}
-
 // Marks the given buffer of the given size (in bytes) as "unpoisoned" for MSAN
 // - in other words, prevent false positives from being thrown when running
 // under MSAN (since it can't yet follow values into LLVM space (it might be

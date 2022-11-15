@@ -79,6 +79,12 @@ TEST_F(TypeLayoutTest, EmptyTuple) {
   std::vector<uint8_t> buffer;
   EXPECT_EQ(layout.NativeLayoutToValue(buffer.data()), Value::Tuple({}));
   layout.ValueToNativeLayout(Value::Tuple({}), buffer.data());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeLayout copy, TypeLayout::FromProto(layout.ToProto(), package.get()));
+  EXPECT_TRUE(copy.type() == layout.type());
+  EXPECT_EQ(copy.size(), layout.size());
+  EXPECT_TRUE(copy.elements().empty());
 }
 
 TEST_F(TypeLayoutTest, Bits1) {
@@ -271,6 +277,17 @@ TEST_F(TypeLayoutTest, SimpleArray) {
         buffer.data());
     EXPECT_THAT(buffer, ElementsAre(0x03, 0x00, 0x0af, 0x00, 0xda, 0x01));
   }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeLayout copy, TypeLayout::FromProto(layout.ToProto(), package.get()));
+  EXPECT_TRUE(copy.type() == layout.type());
+  EXPECT_EQ(copy.size(), layout.size());
+  EXPECT_THAT(
+      copy.elements(),
+      ElementsAre(
+          ElementLayout{.offset = 0, .data_size = 2, .padded_size = 2},
+          ElementLayout{.offset = 2, .data_size = 2, .padded_size = 2},
+          ElementLayout{.offset = 4, .data_size = 2, .padded_size = 2}));
 }
 
 TEST_F(TypeLayoutTest, JitTypes) {

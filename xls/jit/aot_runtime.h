@@ -21,32 +21,56 @@
 #include <memory>
 #include <vector>
 
-#include "absl/strings/string_view.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
-#include "xls/jit/jit_runtime.h"
+#include "xls/jit/type_layout.h"
+#include "xls/jit/type_layout.pb.h"
 
 namespace xls::aot_compile {
 
-// GlobalData holds information needed at AOT-compiled function invocation time
-// for converting between XLS and LLVM argument types and executing the function
-// itself. Rather than derive these statically-determinable values on every
-// invocation, we one-time initialize and cache them.
-struct GlobalData {
-  std::unique_ptr<JitRuntime> jit_runtime;
-  // The IR package that will own fn_type below.
-  std::unique_ptr<::xls::Package> package;
-  // The type of the [AOT-compiled] function being managed by this GlobalData.
-  ::xls::FunctionType* fn_type;
-  // Pointers to the types above (needed to pack the arguments into a buffer).
-  std::vector<::xls::Type*> param_types;
-  // The return type of the function.
-  ::xls::Type* return_type;
-};
+// Data structure for converting the arguments and return value of an XLS
+// function between xls::Values the native data layout used by the JIT. Each
+// instance is constructed for a particular xls::Function.
+class FunctionTypeLayout {
+ public:
+  // Creates and returns a FunctionTypeLayout based on the TypeLayout
+  // serializations. `serialized_arg_layouts` is a text serialization of a
+  // TypeLayoutsProto, and `serialized_result_layout` is a text serialization of
+  // a TypeLayoutProto.
+  static absl::StatusOr<std::unique_ptr<FunctionTypeLayout>> Create(
+      std::string_view serialized_arg_layouts,
+      std::string_view serialized_result_layout);
 
-// Performs [what should be] one-time initialization of a GlobalData function,
-// given the specified text-format FunctionType protobuf.
-std::unique_ptr<GlobalData> InitGlobalData(std::string_view fn_type_textproto);
+  // Converts the given argument values and writes them into `arg_buffers` in
+  // the native data layout used by the JIT.
+  void ArgValuesToNativeLayout(absl::Span<const Value> args,
+                               absl::Span<uint8_t* const> arg_buffers) const {
+    for (int64_t i = 0; i < args.size(); ++i) {
+      arg_layouts_[i].ValueToNativeLayout(args[i], arg_buffers[i]);
+    }
+  }
+
+  // Converts the return value in `buffer` in native data layout to an
+  // xls::Value.
+  Value NativeLayoutResultToValue(const uint8_t* buffer) const {
+    return result_layout_.NativeLayoutToValue(buffer);
+  }
+
+ private:
+  FunctionTypeLayout(std::unique_ptr<Package> package,
+                     std::vector<TypeLayout> arg_layouts,
+                     TypeLayout result_layout)
+      : package_(std::move(package)),
+        arg_layouts_(std::move(arg_layouts)),
+        result_layout_(std::move(result_layout)) {}
+
+  // Dummy package used for owning Types required by the TypeLayout data
+  // structures.
+  std::unique_ptr<Package> package_;
+  std::vector<TypeLayout> arg_layouts_;
+  TypeLayout result_layout_;
+};
 
 }  // namespace xls::aot_compile
 

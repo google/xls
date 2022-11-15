@@ -18,9 +18,12 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/type_layout.pb.h"
 
 namespace xls {
 
@@ -39,6 +42,20 @@ struct ElementLayout {
   // The number of bytes that the data is padded out to with zeros. All bytes
   // beyond `data_size` up to `padded_size` must be zero.
   int64_t padded_size;
+
+  std::string ToString() const {
+    return absl::StrFormat(
+        "ElementLayout{.offset=%d, .data_size=%d, .padded_size=%d}", offset,
+        data_size, padded_size);
+  }
+
+  bool operator==(const ElementLayout& other) const {
+    return offset == other.offset && data_size == other.data_size &&
+           padded_size == other.padded_size;
+  }
+  bool operator!=(const ElementLayout& other) const {
+    return !(*this == other);
+  }
 };
 
 // Abstraction describing the native data layout used by the JIT of a specific
@@ -72,6 +89,11 @@ class TypeLayout {
     XLS_CHECK_EQ(elements.size(), type->leaf_count());
   }
 
+  // Converts TypeLayout objects to/from TypeLayoutProtos.
+  static absl::StatusOr<TypeLayout> FromProto(const TypeLayoutProto& proto,
+                                              Package* package);
+  TypeLayoutProto ToProto() const;
+
   // Writes `value` out to `buffer` in the native layout of the type. `buffer`
   // must have room for at least `size()` bytes.
   void ValueToNativeLayout(const Value& value, uint8_t* buffer) const;
@@ -97,6 +119,9 @@ class TypeLayout {
   int64_t size_;
   std::vector<ElementLayout> elements_;
 };
+
+std::ostream& operator<<(std::ostream& os, ElementLayout layout);
+std::ostream& operator<<(std::ostream& os, const TypeLayout& layout);
 
 }  // namespace xls
 

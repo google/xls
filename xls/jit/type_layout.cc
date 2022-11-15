@@ -14,6 +14,7 @@
 
 #include "xls/jit/type_layout.h"
 
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -125,6 +126,11 @@ Value TypeLayout::NativeLayoutToValueInternal(Type* element_type,
 }
 
 Value TypeLayout::NativeLayoutToValue(const uint8_t* buffer) const {
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+  // The buffer likely was written by the JIT so it may appear uninitialized to
+  // sanitizers.
+  __msan_unpoison(buffer, size());
+#endif  // ABSL_HAVE_MEMORY_SANITIZER
   int64_t leaf_index = 0;
   return NativeLayoutToValueInternal(type_, buffer, &leaf_index);
 }
@@ -136,13 +142,47 @@ std::string TypeLayout::ToString() const {
   lines.push_back(absl::StrFormat("  size = %d", size()));
   lines.push_back("  elements = {");
   for (const ElementLayout& el : elements_) {
-    lines.push_back(absl::StrFormat(
-        "    ElementLayout{.offset=%d, .data_size=%d, .padded_size=%d}",
-        el.offset, el.data_size, el.padded_size));
+    lines.push_back(absl::StrFormat("    %s", el.ToString()));
   }
   lines.push_back("  }");
   lines.push_back("}");
   return absl::StrJoin(lines, "\n");
+}
+
+/* static */ absl::StatusOr<TypeLayout> TypeLayout::FromProto(
+    const TypeLayoutProto& proto, Package* package) {
+  XLS_ASSIGN_OR_RETURN(Type * type, Parser::ParseType(proto.type(), package));
+  std::vector<ElementLayout> elements;
+  for (const ElementLayoutProto& element_proto : proto.elements()) {
+    elements.push_back(
+        ElementLayout{.offset = element_proto.offset(),
+                      .data_size = element_proto.data_size(),
+                      .padded_size = element_proto.padded_size()});
+  }
+  return TypeLayout(type, proto.size(), elements);
+}
+
+TypeLayoutProto TypeLayout::ToProto() const {
+  TypeLayoutProto proto;
+  proto.set_type(type()->ToString());
+  proto.set_size(size());
+  for (const ElementLayout& element : elements_) {
+    ElementLayoutProto* element_proto = proto.add_elements();
+    element_proto->set_offset(element.offset);
+    element_proto->set_data_size(element.data_size);
+    element_proto->set_padded_size(element.padded_size);
+  }
+  return proto;
+}
+
+std::ostream& operator<<(std::ostream& os, ElementLayout layout) {
+  os << layout.ToString();
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const TypeLayout& layout) {
+  os << layout.ToString();
+  return os;
 }
 
 }  // namespace xls

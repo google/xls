@@ -255,18 +255,11 @@ def xls_ir_cc_library_macro(
         ],
         # The XLS AOT compiler does not currently support cross-compilation.
         deps = [
-            "@com_google_protobuf//:protobuf",
             "@com_google_absl//absl/status:statusor",
             "@com_google_absl//absl/types:span",
-            "@llvm-project//llvm:Core",
-            "@llvm-project//llvm:OrcJIT",
-            "@llvm-project//llvm:Support",
-            "//xls/common/status:status_macros",
-            "//xls/ir",
             "//xls/ir:events",
-            "//xls/ir:type",
             "//xls/ir:value",
             "//xls/jit:aot_runtime",
-            "//xls/jit:jit_runtime",
+            "//xls/jit:type_layout",
         ],
     )

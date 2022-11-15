@@ -14,28 +14,40 @@
 #include "xls/jit/aot_runtime.h"
 
 #include "google/protobuf/text_format.h"
-#include "xls/jit/orc_jit.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls::aot_compile {
 
-std::unique_ptr<GlobalData> InitGlobalData(
-    std::string_view fn_type_textproto) {
-  auto package = std::make_unique<Package>("dummy");
-  auto jit_runtime =
-      std::make_unique<JitRuntime>(OrcJit::CreateDataLayout().value());
-  ::xls::FunctionTypeProto fn_type_proto;
-  google::protobuf::TextFormat::ParseFromString(std::string(fn_type_textproto),
-                                      &fn_type_proto);
-  FunctionType* fn_type =
-      package->GetFunctionTypeFromProto(fn_type_proto).value();
-  std::vector<::xls::Type*> param_types(fn_type->parameters().begin(),
-                                        fn_type->parameters().end());
-  return std::make_unique<GlobalData>(
-      GlobalData{.jit_runtime = std::move(jit_runtime),
-                 .package = std::move(package),
-                 .fn_type = fn_type,
-                 .param_types = std::move(param_types),
-                 .return_type = fn_type->return_type()});
+/* static */ absl::StatusOr<std::unique_ptr<FunctionTypeLayout>>
+FunctionTypeLayout::Create(std::string_view serialized_arg_layouts,
+                           std::string_view serialized_result_layout) {
+  auto dummy_package = std::make_unique<Package>("__aot_compiler");
+
+  TypeLayoutsProto arg_layouts_proto;
+  if (!google::protobuf::TextFormat::ParseFromString(std::string(serialized_arg_layouts),
+                                           &arg_layouts_proto)) {
+    return absl::InvalidArgumentError(
+        "Unable to parse TypeLayoutsProto for arguments");
+  }
+  std::vector<TypeLayout> arg_layouts;
+  for (const TypeLayoutProto& layout_proto : arg_layouts_proto.layouts()) {
+    XLS_ASSIGN_OR_RETURN(
+        TypeLayout arg_layout,
+        TypeLayout::FromProto(layout_proto, dummy_package.get()));
+    arg_layouts.push_back(std::move(arg_layout));
+  }
+  TypeLayoutProto result_layout_proto;
+  if (!google::protobuf::TextFormat::ParseFromString(
+          std::string(serialized_result_layout), &result_layout_proto)) {
+    return absl::InvalidArgumentError(
+        "Unable to parse TypeLayoutProto for result");
+  }
+  XLS_ASSIGN_OR_RETURN(
+      TypeLayout result_layout,
+      TypeLayout::FromProto(result_layout_proto, dummy_package.get()));
+  return absl::WrapUnique(new FunctionTypeLayout(std::move(dummy_package),
+                                                 std::move(arg_layouts),
+                                                 std::move(result_layout)));
 }
 
 }  // namespace xls::aot_compile

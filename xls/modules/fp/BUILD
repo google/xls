@@ -50,6 +50,7 @@ xls_dslx_library(
 xls_ir_cc_library(
     name = "fp32_add_2_cc",
     src = ":fp32_add_2.opt.ir",
+    namespaces = "xls,fp",
     top = "fp32_add_2",
 )
 
@@ -117,6 +118,7 @@ xls_dslx_test(
 xls_ir_cc_library(
     name = "fp32_fma_cc",
     src = ":fp32_fma.opt.ir",
+    namespaces = "xls,fp",
     top = "fp32_fma_cc",
 )
 
