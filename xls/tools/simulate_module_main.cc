@@ -215,10 +215,6 @@ int main(int argc, char** argv) {
     XLS_QCHECK(absl::GetFlag(FLAGS_output_channel_counts).empty())
         << "'--output_channel_counts' can only be specified with "
            "'--channel_values_file'.";
-  } else {
-    XLS_QCHECK(!absl::GetFlag(FLAGS_output_channel_counts).empty())
-        << "'--output_channel_counts' must be specified with "
-           "'--channel_values_file'.";
   }
 
   xls::InputType input;

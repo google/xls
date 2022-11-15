@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for xls.tools.simulate_module_main."""
-
 import subprocess
+import textwrap
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -38,7 +37,7 @@ chan sample__operand_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_co
 chan sample__operand_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan sample__result(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
-top proc __sample__main_0_next(__token: token, init={}) {
+top proc add(__token: token, init={}) {
   receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
   receive.7: (token, bits[32]) = receive(__token, channel_id=1, id=7)
   tok_operand_0_val: token = tuple_index(receive.4, index=0, id=5, pos=[(0,14,9)])
@@ -50,6 +49,23 @@ top proc __sample__main_0_next(__token: token, init={}) {
   tok_send: token = send(tok_recv, result_val, channel_id=2, id=12)
   after_all.14: token = after_all(__token, tok_operand_0_val, tok_operand_1_val, tok_recv, tok_send, id=14)
   next (after_all.14)
+}
+'''
+
+PROC_WITH_NO_OUTPUT_CHANNEL = '''package sample
+
+file_number 0 "fake_file.x"
+
+chan in0(bits[12], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan in1(bits[42], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+
+top proc no_output_channels(__token: token, init={}) {
+  recv0: (token, bits[12]) = receive(__token, channel_id=0, id=4)
+  recv0_token: token = tuple_index(recv0, index=0, id=11, pos=[(0,15,22)])
+  recv1: (token, bits[42], bits[1]) = receive(recv0_token, channel_id=1, blocking=false, id=36)
+  recv1_token: token = tuple_index(recv1, index=0, id=37)
+  after_all_token: token = after_all(__token, recv0_token, recv1_token, id=45)
+  next (after_all_token)
 }
 '''
 
@@ -115,15 +131,17 @@ class SimulateModuleMainTest(test_base.TestCase):
         '--alsologtostderr',
         ir_file.full_path,
     ])
-    channel_values_file = self.create_tempfile(content="""sample__operand_1 : {
-  bits[32]:0xf00
-  bits[32]:2
-}
-sample__operand_0 : {
-  bits[32]:1
-  bits[32]:40
-}
-    """)
+    channel_values_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          sample__operand_1 : {
+            bits[32]:0xf00
+            bits[32]:2
+          }
+          sample__operand_0 : {
+            bits[32]:1
+            bits[32]:40
+          }
+    """))
     result = subprocess.check_output([
         SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
         '--file_type=verilog', '--alsologtostderr', '--v=1',
@@ -134,6 +152,39 @@ sample__operand_0 : {
     self.assertMultiLineEqual(
         'sample__result : {\n  bits[32]:0xf01\n  bits[32]:0x2a\n}\n',
         result.decode('utf-8'))
+
+  def test_proc_with_no_output_channels(self):
+    ir_file = self.create_tempfile(content=PROC_WITH_NO_OUTPUT_CHANNEL)
+    verilog_file = self.create_tempfile()
+    signature_file = self.create_tempfile()
+    subprocess.check_call([
+        CODEGEN_MAIN_PATH,
+        '--generator=combinational',
+        '--output_verilog_path=' + verilog_file.full_path,
+        '--output_signature_path=' + signature_file.full_path,
+        '--alsologtostderr',
+        ir_file.full_path,
+    ])
+    channel_values_file = self.create_tempfile(
+        content=textwrap.dedent("""
+          in0 : {
+            bits[12]:41
+            bits[12]:1
+          }
+          in1 : {
+            bits[42]:1
+            bits[42]:41
+          }
+    """))
+    result = subprocess.check_output([
+        SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
+        '--file_type=verilog', '--alsologtostderr', '--v=1',
+        '--signature_file=' + signature_file.full_path,
+        '--channel_values_file=' + channel_values_file.full_path,
+        verilog_file.full_path
+    ])
+    # Empty result since there are no output channels.
+    self.assertMultiLineEqual('\n', result.decode('utf-8'))
 
 if __name__ == '__main__':
   test_base.main()
