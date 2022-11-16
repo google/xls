@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -67,7 +69,8 @@ absl::StatusOr<std::vector<InterpValue>> RunFunctionBatched(
 
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<InterpValue>>>
 RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
-        const std::vector<std::vector<InterpValue>>& channel_values) {
+        const std::vector<std::vector<InterpValue>>& channel_values,
+        int64_t proc_ticks) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
   std::vector<ProcInstance> proc_instances;
@@ -111,7 +114,7 @@ RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
       config_args, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
-  for (int i = 0; i < channel_values.size(); i++) {
+  for (int i = 0; i < proc_ticks; i++) {
     XLS_RETURN_IF_ERROR(proc_instances[0].Run());
   }
 
@@ -162,7 +165,7 @@ PYBIND11_MODULE(interpreter, m) {
       "run_proc",
       [](std::string_view text, std::string_view top_name,
          const std::vector<std::vector<InterpValue>> args_batch,
-         std::string_view dslx_stdlib_path)
+         int64_t proc_ticks, std::string_view dslx_stdlib_path)
           -> absl::StatusOr<
               absl::flat_hash_map<std::string, std::vector<InterpValue>>> {
         ImportData import_data(
@@ -179,10 +182,10 @@ PYBIND11_MODULE(interpreter, m) {
 
         XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
         dslx::Proc* proc = std::get<dslx::Proc*>(*member);
-        return RunProc(proc, import_data, tm, args_batch);
+        return RunProc(proc, import_data, tm, args_batch, proc_ticks);
       },
       py::arg("text"), py::arg("top_name"), py::arg("args_batch"),
-      py::arg("dslx_stdlib_path"));
+      py::arg("proc_ticks"), py::arg("dslx_stdlib_path"));
 }
 
 }  // namespace xls::dslx

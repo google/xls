@@ -110,7 +110,7 @@ class SampleError(XlsError):
   """
 
   def __init__(self, msg: str, is_timeout: bool = False):
-    super(SampleError, self).__init__(msg)
+    super().__init__(msg)
     # Whether the sample resulted in a timeout.
     self.is_timeout = is_timeout
 
@@ -365,11 +365,11 @@ class SampleRunner:
     results: Dict[str, Dict[str, Sequence[Value]]] = {}
 
     if options.input_is_dslx:
-      if args_batch:
+      if args_batch is not None:
         logging.vlog(1, 'Interpreting DSLX file.')
         with Timer() as t:
           results['interpreted DSLX'] = self._interpret_dslx_proc(
-              input_text, 'main', args_batch)
+              input_text, 'main', args_batch, tick_count)
         logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                      t.elapsed_ns / 1e9)
         self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -542,16 +542,16 @@ class SampleRunner:
               f'Results for {reference} has {len(results[reference])} values,'
               f' {name} has {len(values)}')
 
-        for i in range(len(values)):
+        for i, value in enumerate(values):
           ref_result = results[reference][i]
-          if not values_equal(ref_result, values[i]):
+          if not values_equal(ref_result, value):
             # Bin all of the sources by whether they match the reference or
             # 'values'. This helps identify which of the two is likely
             # correct.
             reference_matches = sorted(
                 n for n, v in results.items() if values_equal(v[i], ref_result))
             values_matches = sorted(
-                n for n, v in results.items() if values_equal(v[i], values[i]))
+                n for n, v in results.items() if values_equal(v[i], value))
             args = '(args unknown)'
             if args_batch:
               args = '; '.join(a.to_ir_str() for a in args_batch[i])
@@ -560,7 +560,7 @@ class SampleRunner:
                               f'\n{", ".join(reference_matches)} ='
                               f'\n   {ref_result.to_ir_str()}'
                               f'\n{", ".join(values_matches)} ='
-                              f'\n   {values[i].to_ir_str()}')
+                              f'\n   {value.to_ir_str()}')
 
   def _compare_results_proc(self, results: Dict[str, Dict[str,
                                                           Sequence[Value]]]):
@@ -611,14 +611,13 @@ class SampleRunner:
               f'{len(channel_values_ref)} entries. However, in {name}, '
               f'channel \'{channel_name_ref}\' has {len(channel_values)} '
               'entries.')
-        for i in range(len(channel_values)):
-          value_ref = channel_values_ref[i]
-          value = channel_values[i]
+        for index, (value, value_ref) in enumerate(
+            zip(channel_values, channel_values_ref)):
           if not values_equal(value_ref, value):
             raise SampleError(
-                f'In {reference}, at position {i} channel \'{channel_name_ref}\' '
-                f'has value {value_ref}. However, in {name}, the value is '
-                f'{value}.')
+                f'In {reference}, at position {index} channel '
+                f'\'{channel_name_ref}\' has value {value_ref}. However, in '
+                f'{name}, the value is {value}.')
 
   def _interpret_dslx_function(self, text: str, top_name: str,
                                args_batch: ArgsBatch) -> Tuple[Value, ...]:
@@ -632,11 +631,12 @@ class SampleRunner:
     return tuple(dslx_results)
 
   def _interpret_dslx_proc(self, text: str, top_name: str,
-                           args_batch: ArgsBatch) -> Dict[str, Sequence[Value]]:
+                           args_batch: ArgsBatch,
+                           tick_count: int) -> Dict[str, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     dslx_results = interpreter.run_proc(
-        text, top_name, args_batch,
+        text, top_name, args_batch, tick_count,
         runtime_build_actions.get_default_dslx_stdlib_path())
 
     ir_channel_values: Dict[str, Sequence[IRValue]] = {}
