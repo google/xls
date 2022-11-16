@@ -726,12 +726,8 @@ class SampleRunner:
   def _optimize_ir(self, ir_filename: str,
                    options: sample.SampleOptions) -> str:
     """Optimizes the IR file and returns the resulting filename."""
-    # TODO(vmirian): Remove skip_passes.
-    # Ref: https://github.com/google/xls/issues/783.
-    opt_ir_text = self._run_command(
-        'Optimizing IR',
-        (IR_OPT_MAIN_PATH, ir_filename, '--skip_passes=mutual_exclusion'),
-        options)
+    opt_ir_text = self._run_command('Optimizing IR',
+                                    (IR_OPT_MAIN_PATH, ir_filename), options)
     logging.vlog(3, 'Optimized IR:\n%s', opt_ir_text)
     return self._write_file('sample.opt.ir', opt_ir_text)
 

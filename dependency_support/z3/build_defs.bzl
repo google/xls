@@ -41,6 +41,7 @@ PARAMS_HDRS = [
     "src/ast/rewriter/fpa_rewriter_params.hpp",
     "src/ast/rewriter/poly_rewriter_params.hpp",
     "src/ast/rewriter/rewriter_params.hpp",
+    "src/ast/rewriter/seq_rewriter_params.hpp",
     "src/math/polynomial/algebraic_params.hpp",
     "src/math/realclosure/rcf_params.hpp",
     "src/model/model_params.hpp",
@@ -60,7 +61,6 @@ PARAMS_HDRS = [
     "src/tactic/smtlogics/qfufbv_tactic_params.hpp",
     "src/tactic/sls/sls_params.hpp",
     "src/tactic/tactic_params.hpp",
-    "src/util/lp/lp_params.hpp",
 ]
 
 DB_HDRS = [
