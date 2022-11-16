@@ -154,6 +154,28 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
     self.assertIn('sample.sv', sample1_contents)
 
+  def test_codegen_and_simulate_with_proc(self):
+    crasher_path = self.create_tempdir().full_path
+    samples_path = self.create_tempdir().full_path
+
+    subprocess.check_call([
+        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path, '--sample_count=2',
+        '--generate_proc', '--proc_ticks=3', '--worker_count=1', '--codegen',
+        '--simulate', '--nouse_system_verilog'
+    ])
+    # Validate sample 1 directory.
+    sample1_contents = os.listdir(os.path.join(samples_path, 'worker0-sample0'))
+    self.assertIn('sample.x', sample1_contents)
+    self.assertIn('sample.x.results', sample1_contents)
+    self.assertIn('args.txt', sample1_contents)
+    self.assertIn('sample.ir', sample1_contents)
+    self.assertIn('sample.ir.results', sample1_contents)
+    self.assertIn('sample.opt.ir', sample1_contents)
+    self.assertIn('sample.opt.ir.results', sample1_contents)
+    # Directory should have verilog and simulation results.
+    self.assertIn('sample.v', sample1_contents)
+    self.assertIn('sample.v.results', sample1_contents)
 
 if __name__ == '__main__':
   test_base.main()
