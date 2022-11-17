@@ -249,9 +249,9 @@ absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64_t other) {
   return MakeSel(test, rhs, arg.expr);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Context* ctx) {
   BinopKind op = RandomSetChoice<BinopKind>(GetBinopComparisonKinds());
-  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   Binop* binop = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr);
@@ -308,7 +308,7 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 
 }  // namespace
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // Lambda that chooses a boolean value for a predicate.
   auto choose_predicate = [this](const TypedExpr& e) -> bool {
     TypeAnnotation* t = e.type;
@@ -323,7 +323,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
   // If needed, generate a predicate.
   std::optional<TypedExpr> predicate;
   if (chan_op_info.requires_predicate) {
-    predicate = ChooseEnvValueOptional(env, /*take=*/choose_predicate);
+    predicate = ChooseEnvValueOptional(&ctx->env, /*take=*/choose_predicate);
     if (!predicate.has_value()) {
       // If there's no natural environment value to use as the predicate,
       // generate a boolean.
@@ -356,7 +356,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
     // TODO(vmirian): 8-22-2002 Payloads of the type may not be present in the
     // env. Create payload of the type enabling more ops requiring a payload
     // (e.g. send and send_if).
-    XLS_ASSIGN_OR_RETURN(payload, ChooseEnvValue(env, channel_type));
+    XLS_ASSIGN_OR_RETURN(payload, ChooseEnvValue(&ctx->env, channel_type));
   }
 
   // Create the channel.
@@ -372,7 +372,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
                                               param->name_def());
 
   // Choose a random token for the channel op.
-  XLS_ASSIGN_OR_RETURN(TypedExpr token, ChooseEnvValue(env, MakeTokenType()));
+  XLS_ASSIGN_OR_RETURN(TypedExpr token,
+                       ChooseEnvValue(&ctx->env, MakeTokenType()));
   auto* token_name_ref = dynamic_cast<NameRef*>(token.expr);
   XLS_CHECK(token_name_ref != nullptr);
 
@@ -404,12 +405,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
   XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
   // Lambda that chooses a token TypedExpr.
   auto token_predicate = [](const TypedExpr& e) -> bool {
     return IsToken(e.type);
   };
-  std::vector<TypedExpr> tokens = GatherAllValues(env, token_predicate);
+  std::vector<TypedExpr> tokens = GatherAllValues(&ctx->env, token_predicate);
   int64_t token_count = RandRange(1, tokens.size() + 1);
   std::vector<Expr*> tokens_to_join(token_count);
   for (int64_t i = 0; i < token_count; ++i) {
@@ -420,9 +421,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Env* env) {
                    MakeTokenType()};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, lhs.type));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    MakeTypeAnnotation(false, 1)};
@@ -540,18 +541,20 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueNotContainingToken(
   return ChooseEnvValue(env, take);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueTupleWithoutToken(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, lhs.type));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs,
+                       ChooseEnvValueTupleWithoutToken(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    MakeTypeAnnotation(false, 1)};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   // TODO(tedhong): 2022-10-21 When https://github.com/google/xls/issues/746
   // is resolved, remove bitcount constraint.
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBitsInRange(env, 1, 64));
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs,
+                       ChooseEnvValueBitsInRange(&ctx->env, 1, 64));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = value_gen_->GenerateBits(bit_count);
@@ -561,10 +564,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
       lhs.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
   BinopKind op = RandomSetChoice<BinopKind>(GetBinopShifts());
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueUBits(&ctx->env));
   if (RandomFloat() < 0.8) {
     // Clamp the shift rhs to be in range most of the time.
     int64_t bit_count = GetTypeBitCount(rhs.type);
@@ -582,8 +585,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
 }
 
 absl::StatusOr<TypedExpr>
-AstGenerator::GeneratePartialProductDeterministicGroup(Env* env) {
-  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   bool is_signed = RandomBool();
@@ -631,24 +634,25 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Env* env) {
   return TypedExpr{block, lhs_cast.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
-  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
   BinopKind op = RandomSetChoice(bin_ops);
   if (op == BinopKind::kDiv) {
-    return GenerateSynthesizableDiv(env);
+    return GenerateSynthesizableDiv(ctx);
   }
   if (GetBinopShifts().contains(op)) {
-    return GenerateShift(env);
+    return GenerateShift(ctx);
   }
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    lhs.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Env* env) {
-  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env, /*bit_count=*/1));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto pair,
+                       ChooseEnvValueBitsPair(&ctx->env, /*bit_count=*/1));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
 
@@ -765,7 +769,8 @@ Range* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
   return module_->Make<Range>(fake_span_, zero, arg);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
+    Context* ctx) {
   // We need to choose a selector with a certain number of bits, then form an
   // array from that many values in the environment.
   constexpr int64_t kMaxBitCount = 8;
@@ -776,7 +781,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
   };
 
   std::optional<TypedExpr> lhs =
-      ChooseEnvValueOptional(env, /*take=*/choose_value);
+      ChooseEnvValueOptional(&ctx->env, /*take=*/choose_value);
   if (!lhs.has_value()) {
     // If there's no natural environment value to use as the LHS, make up a
     // number and number of bits.
@@ -784,11 +789,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
     lhs = GenerateNumber(BitsAndSignedness{bits, false});
   }
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
   std::vector<Expr*> cases = {rhs.expr};
   int64_t total_operands = GetTypeBitCount(lhs->type);
   for (int64_t i = 0; i < total_operands - 1; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env, rhs.type));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(&ctx->env, rhs.type));
     cases.push_back(e.expr);
   }
 
@@ -804,17 +809,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
-    Env* env) {
+    Context* ctx) {
   XLS_ASSIGN_OR_RETURN(
       TypedExpr lhs,
-      ChooseEnvValueBits(
-          env, /*bit_count=*/RandomIntWithExpectedValue(5, /*lower_limit=*/1)));
+      ChooseEnvValueBits(&ctx->env, /*bit_count=*/RandomIntWithExpectedValue(
+                             5, /*lower_limit=*/1)));
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
   std::vector<Expr*> cases = {rhs.expr};
   int64_t total_operands = GetTypeBitCount(lhs.type);
   for (int64_t i = 0; i < total_operands - 1; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env, rhs.type));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(&ctx->env, rhs.type));
     cases.push_back(e.expr);
   }
 
@@ -829,8 +834,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
   return TypedExpr{invocation, rhs.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
   auto* lhs_array_type = dynamic_cast<ArrayTypeAnnotation*>(lhs.type);
   XLS_RET_CHECK(lhs_array_type != nullptr);
 
@@ -842,7 +847,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
     return false;
   };
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, array_compatible));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs,
+                       ChooseEnvValue(&ctx->env, array_compatible));
 
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(GetTypeBitCount(lhs.type) +
                                            GetTypeBitCount(rhs.type)));
@@ -859,12 +865,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
   return TypedExpr{result, result_type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   // Choose an arbitrary non-token value from the environment, then gather all
   // elements from the environment of that type.
-  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueNotContainingToken(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr value,
+                       ChooseEnvValueNotContainingToken(&ctx->env));
   std::vector<TypedExpr> values = GatherAllValues(
-      env, [&](const TypedExpr& t) { return t.type == value.type; });
+      &ctx->env, [&](const TypedExpr& t) { return t.type == value.type; });
   XLS_RET_CHECK(!values.empty());
   if (RandomBool()) {
     // Half the time extend the set of values by duplicating members. Walk
@@ -910,10 +917,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
       result_type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
   ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
-  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(&ctx->env));
   int64_t array_size = GetArraySize(array_type);
   // An out-of-bounds array index raises an error in the DSLX interpreter so
   // clamp the index so it is always in-bounds.
@@ -927,12 +934,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Env* env) {
                    array_type->element_type()};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
   ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
-  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr index, ChooseEnvValueUBits(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr element,
-                       ChooseEnvValue(env, array_type->element_type()));
+                       ChooseEnvValue(&ctx->env, array_type->element_type()));
   int64_t array_size = GetArraySize(array_type);
   // An out-of-bounds array update raises an error in the DSLX interpreter so
   // clamp the index so it is always in-bounds.
@@ -949,28 +956,28 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Env* env) {
       array.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Env* env) {
-  XLS_RET_CHECK(env != nullptr);
-  XLS_ASSIGN_OR_RETURN(TypedExpr p, GenerateCompare(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Context* ctx) {
+  XLS_RET_CHECK(ctx != nullptr);
+  XLS_ASSIGN_OR_RETURN(TypedExpr p, GenerateCompare(ctx));
+  XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueBits(&ctx->env));
   return TypedExpr{
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("gate!"),
                                 std::vector<Expr*>{p.expr, value.expr}),
       value.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
-  XLS_RET_CHECK(env != nullptr);
-  if (EnvContainsArray(*env) && RandomBool()) {
-    return GenerateArrayConcat(env);
+absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
+  XLS_RET_CHECK(ctx != nullptr);
+  if (EnvContainsArray(ctx->env) && RandomBool()) {
+    return GenerateArrayConcat(ctx);
   }
 
   // Pick the number of operands of the concat. We need at least one value.
-  int64_t count = GenerateNaryOperandCount(env, /*lower_limit=*/1);
+  int64_t count = GenerateNaryOperandCount(ctx, /*lower_limit=*/1);
   std::vector<TypedExpr> operands;
   int64_t total_width = 0;
   for (int64_t i = 0; i < count; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(env));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(&ctx->env));
     operands.push_back(e);
     total_width += GetTypeBitCount(e.type);
   }
@@ -1016,12 +1023,12 @@ TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   return TypedExpr{MakeNumberFromBits(value, type), type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
-  int64_t retval_count = GenerateNaryOperandCount(env, 0);
+absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
+  int64_t retval_count = GenerateNaryOperandCount(ctx, 0);
 
   std::vector<TypedExpr> env_params;
   std::vector<TypedExpr> env_non_params;
-  for (auto& item : *env) {
+  for (auto& item : ctx->env) {
     if (auto* name_ref = dynamic_cast<NameRef*>(item.second.expr);
         name_ref != nullptr && name_ref->DefinerIs<Param>()) {
       env_params.push_back(item.second);
@@ -1068,7 +1075,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
 // The return value for a proc's next function must be of the state type if a
 // state is present.
 absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
-    Env* env) {
+    Context* ctx) {
   if (proc_properties_.state_types.empty()) {
     // Return an empty tuple.
     return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>()),
@@ -1076,10 +1083,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
   }
   // A state is present, therefore the return value for a proc's next function
   // must be of the state type.
-  return ChooseEnvValue(env, proc_properties_.state_types[0]);
+  return ChooseEnvValue(&ctx->env, proc_properties_.state_types[0]);
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   // Right now just generates the 'identity' for loop.
   // TODO(meheff): Generate more interesting loop bodies.
   TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
@@ -1091,7 +1098,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   NameDefTree* x_ndt = module_->Make<NameDefTree>(fake_span_, x_def);
   auto* name_def_tree = module_->Make<NameDefTree>(
       fake_span_, std::vector<NameDefTree*>{i_ndt, x_ndt});
-  XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotArray(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotArray(&ctx->env));
   NameRef* body = MakeNameRef(x_def);
 
   // Randomly decide to use or not-use the type annotation on the loop.
@@ -1105,11 +1112,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   return TypedExpr{for_, e.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
-  XLS_CHECK(env != nullptr);
-  bool do_index = RandomBool() && EnvContainsTuple(*env);
+absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
+  XLS_CHECK(ctx != nullptr);
+  bool do_index = RandomBool() && EnvContainsTuple(ctx->env);
   if (do_index) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueTuple(env, /*min_size=*/1));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e,
+                         ChooseEnvValueTuple(&ctx->env, /*min_size=*/1));
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
     int64_t i = RandRange(tuple_type->size());
     Number* index_expr = MakeNumber(i);
@@ -1119,9 +1127,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
 
   std::vector<TypedExpr> members;
   int64_t total_bit_count = 0;
-  int64_t element_count = GenerateNaryOperandCount(env, 0);
+  int64_t element_count = GenerateNaryOperandCount(ctx, 0);
   for (int64_t i = 0; i < element_count; ++i) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueNotContainingToken(env));
+    XLS_ASSIGN_OR_RETURN(TypedExpr e,
+                         ChooseEnvValueNotContainingToken(&ctx->env));
     members.push_back(e);
     total_bit_count += GetTypeBitCount(e.type);
   }
@@ -1134,7 +1143,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
-                                                    Env* env) {
+                                                    Context* ctx) {
   std::string map_fn_name = GenSym();
 
   // GenerateFunction(), in turn, can call GenerateMap(), so we need some way of
@@ -1146,7 +1155,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
 
   // Choose a random array from the environment and create a single-argument
   // function which takes an element of that array.
-  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
   ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
   XLS_ASSIGN_OR_RETURN(Function * map_fn,
                        GenerateFunction(map_fn_name, call_depth + 1,
@@ -1287,8 +1296,8 @@ AstGenerator::ChooseEnvValueBitsPair(Env* env,
   return std::pair{lhs, rhs};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(&ctx->env));
   UnopKind op = RandomChoice<UnopKind>({UnopKind::kInvert, UnopKind::kNegate});
   return TypedExpr{module_->Make<Unop>(fake_span_, op, arg.expr), arg.type};
 }
@@ -1316,8 +1325,8 @@ static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
   return {*start, *limit - *start};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(&ctx->env));
   int64_t bit_count = GetTypeBitCount(arg.type);
   // Slice LHS must be UBits.
   if (!IsUBits(arg.type)) {
@@ -1366,7 +1375,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
       break;
     }
     case SliceType::kDynamicSlice: {
-      XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(env));
+      XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
       rhs = module_->Make<WidthSlice>(fake_span_, start.expr,
                                       MakeTypeAnnotation(false, width));
       break;
@@ -1377,8 +1386,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   return TypedExpr{expr, type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
   std::string_view op = RandomChoice<std::string_view>(
       {"and_reduce", "or_reduce", "xor_reduce"});
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
@@ -1388,9 +1397,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Env* env) {
                    type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
   // Get a random bits-typed element from the environment.
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
 
   // Casts to arrays result in O(N) IR nodes for N-element arrays, so limit the
   // number of elements in the array to avoid explosion in the number of IR
@@ -1414,10 +1423,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Env* env) {
   return TypedExpr{expr, outer_array_type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(env));
-  XLS_ASSIGN_OR_RETURN(TypedExpr update_value, ChooseEnvValueUBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr update_value, ChooseEnvValueUBits(&ctx->env));
 
   auto* invocation = module_->Make<Invocation>(
       fake_span_, MakeBuiltinNameRef("bit_slice_update"),
@@ -1425,19 +1434,20 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Env* env) {
   return TypedExpr{invocation, arg.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Env* env) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
   // JIT/codegen for array_slice don't currently support zero-sized types
   auto is_not_zst = [this](ArrayTypeAnnotation* array_type) -> bool {
     return this->GetTypeBitCount(array_type) != 0;
   };
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueArray(env, is_not_zst));
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg,
+                       ChooseEnvValueArray(&ctx->env, is_not_zst));
 
   auto arg_type = dynamic_cast<ArrayTypeAnnotation*>(arg.type);
   XLS_CHECK_NE(arg_type, nullptr)
       << "Postcondition of ChooseEnvValueArray violated";
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
 
   int64_t slice_width;
 
@@ -1564,7 +1574,7 @@ int OpProbability(OpChoice op) {
 }
 
 std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
-  static std::discrete_distribution<int> dist = [generate_proc]() {
+  auto dist = [&](bool generate_proc) {
     static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
     std::vector<int> tmp;
     tmp.reserve(int{kEndSentinel});
@@ -1578,117 +1588,117 @@ std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
       tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
     }
     return std::discrete_distribution<int>(tmp.begin(), tmp.end());
-  }();
-  return dist;
+  };
+  static std::discrete_distribution<int> func_dist = dist(false);
+  static std::discrete_distribution<int> proc_dist = dist(true);
+  if (generate_proc) {
+    return proc_dist;
+  }
+  return func_dist;
 }
 
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
                                                      int64_t call_depth,
-                                                     Env* env) {
+                                                     Context* ctx) {
   if (!ShouldNest(expr_size, call_depth)) {
     // Should not nest any more, select return values.
-    if (options_.generate_proc) {
-      return GenerateProcNextFunctionRetval(env);
+    if (ctx->is_generating_proc) {
+      return GenerateProcNextFunctionRetval(ctx);
     }
-    return GenerateRetval(env);
+    return GenerateRetval(ctx);
   }
 
   TypedExpr rhs;
   while (true) {
     absl::StatusOr<TypedExpr> generated;
 
-    int choice = GetOpDistribution(options_.generate_proc)(value_gen_->rng());
+    int choice = GetOpDistribution(ctx->is_generating_proc)(value_gen_->rng());
     switch (static_cast<OpChoice>(choice)) {
       case kArray:
-        generated = GenerateArray(env);
+        generated = GenerateArray(ctx);
         break;
       case kArrayIndex:
-        generated = GenerateArrayIndex(env);
+        generated = GenerateArrayIndex(ctx);
         break;
       case kArrayUpdate:
-        generated = GenerateArrayUpdate(env);
+        generated = GenerateArrayUpdate(ctx);
         break;
       case kArraySlice:
-        generated = GenerateArraySlice(env);
+        generated = GenerateArraySlice(ctx);
         break;
       case kCountedFor:
-        generated = GenerateCountedFor(env);
+        generated = GenerateCountedFor(ctx);
         break;
       case kTupleOrIndex:
-        generated = GenerateTupleOrIndex(env);
+        generated = GenerateTupleOrIndex(ctx);
         break;
       case kConcat:
-        generated = GenerateConcat(env);
+        generated = GenerateConcat(ctx);
         break;
       case kBinop:
-        generated = GenerateBinop(env);
+        generated = GenerateBinop(ctx);
         break;
       case kCompareOp:
-        generated = GenerateCompare(env);
+        generated = GenerateCompare(ctx);
         break;
       case kCompareArrayOp:
-        generated = GenerateCompareArray(env);
+        generated = GenerateCompareArray(ctx);
         break;
       case kCompareTupleOp:
-        generated = GenerateCompareTuple(env);
+        generated = GenerateCompareTuple(ctx);
         break;
       case kShiftOp:
-        generated = GenerateShift(env);
+        generated = GenerateShift(ctx);
         break;
       case kLogical:
-        generated = GenerateLogicalOp(env);
+        generated = GenerateLogicalOp(ctx);
         break;
       case kGate:
         if (!options_.emit_gate) {
           continue;
         }
-        generated = GenerateGate(env);
+        generated = GenerateGate(ctx);
         break;
       case kChannelOp:
-        generated = GenerateChannelOp(env);
+        generated = GenerateChannelOp(ctx);
         break;
       case kJoinOp:
-        generated = GenerateJoinOp(env);
+        generated = GenerateJoinOp(ctx);
         break;
       case kMap:
-        // TODO(vmirian): 8-22-2022 For initial support of procs, only support a
-        // single level calling stack.
-        if (options_.generate_proc) {
-          continue;
-        }
-        generated = GenerateMap(call_depth, env);
+        generated = GenerateMap(call_depth, ctx);
         break;
       case kUnop:
-        generated = GenerateUnop(env);
+        generated = GenerateUnop(ctx);
         break;
       case kUnopBuiltin:
-        generated = GenerateUnopBuiltin(env);
+        generated = GenerateUnopBuiltin(ctx);
         break;
       case kOneHotSelectBuiltin:
-        generated = GenerateOneHotSelectBuiltin(env);
+        generated = GenerateOneHotSelectBuiltin(ctx);
         break;
       case kPartialProduct:
-        generated = GeneratePartialProductDeterministicGroup(env);
+        generated = GeneratePartialProductDeterministicGroup(ctx);
         break;
       case kPrioritySelectBuiltin:
-        generated = GeneratePrioritySelectBuiltin(env);
+        generated = GeneratePrioritySelectBuiltin(ctx);
         break;
       case kNumber:
         generated = GenerateNumber();
         break;
       case kBitwiseReduction:
-        generated = GenerateBitwiseReduction(env);
+        generated = GenerateBitwiseReduction(ctx);
         break;
       case kBitSlice:
-        generated = GenerateBitSlice(env);
+        generated = GenerateBitSlice(ctx);
         break;
       case kCastToBitsArray:
-        generated = GenerateCastBitsToArray(env);
+        generated = GenerateCastBitsToArray(ctx);
         break;
       case kBitSliceUpdate:
-        generated = GenerateBitSliceUpdate(env);
+        generated = GenerateBitSliceUpdate(ctx);
         break;
       case kEndSentinel:
         XLS_LOG(FATAL) << "Should not have selected end sentinel";
@@ -1726,7 +1736,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   // picking up the expression ASTs directly (which would cause duplication).
   auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
   auto* name_ref = MakeNameRef(name_def);
-  (*env)[identifier] = TypedExpr{name_ref, rhs.type};
+  ctx->env[identifier] = TypedExpr{name_ref, rhs.type};
 
   // Unpack result tuples from channel operations and place them in environment
   // to be easily accessible creating more interesting behavior.
@@ -1742,7 +1752,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         auto* member_name_def = module_->Make<NameDef>(
             fake_span_, member_identifier, /*definer=*/nullptr);
         auto* member_name_ref = MakeNameRef(member_name_def);
-        (*env)[member_identifier] =
+        ctx->env[member_identifier] =
             TypedExpr{member_name_ref, tuple_type->members()[index]};
         // Insert in reverse order so the identifier are consecutive when
         // displayed on the output.
@@ -1757,7 +1767,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr body,
-                       GenerateExpr(expr_size + 1, call_depth, env));
+                       GenerateExpr(expr_size + 1, call_depth, ctx));
 
   auto* let = body.expr;
   for (const auto& channel_tuple : channel_tuples) {
@@ -1775,8 +1785,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   return TypedExpr{let, body.type};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
+absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
   enum UnopBuiltin {
     kClz,
     kCtz,
@@ -1831,20 +1841,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
-    int64_t call_depth, absl::Span<Param* const> params, Env* env) {
+    int64_t call_depth, absl::Span<Param* const> params, Context* ctx) {
   // We need to be able to draw references from the environment, so we never
   // want it to be empty.
-  XLS_RET_CHECK(!env->empty());
-  return GenerateExpr(/*expr_size=*/0, call_depth, env);
+  XLS_RET_CHECK(!ctx->env.empty());
+  return GenerateExpr(/*expr_size=*/0, call_depth, ctx);
 }
 
-// TODO(vmirian): 8-22-2022 Track caller of this function for different control
-// paths (e.g. Function or Proc). Perhaps, use stack implementation for state
-// transitions.
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     std::string name, int64_t call_depth,
     std::optional<absl::Span<TypeAnnotation* const>> param_types) {
-  Env env;
+  Context context{.is_generating_proc = false};
 
   std::vector<ParametricBinding*> parametric_bindings;
   std::vector<Param*> params;
@@ -1878,16 +1885,16 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
   }
 
   for (Param* param : params) {
-    env[param->identifier()] =
+    context.env[param->identifier()] =
         TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
   for (ParametricBinding* pb : parametric_bindings) {
-    env[pb->identifier()] =
+    context.env[pb->identifier()] =
         TypedExpr{MakeNameRef(pb->name_def()), pb->type_annotation()};
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr retval,
-                       GenerateBody(call_depth, params, &env));
+                       GenerateBody(call_depth, params, &context));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Block* block = module_->Make<Block>(fake_span_, retval.expr);
@@ -1898,6 +1905,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
       /*return_type=*/retval.type, block, Function::Tag::kNormal,
       /*is_public=*/false);
   name_def->set_definer(f);
+
   return f;
 }
 
@@ -1944,7 +1952,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
-    Env* env, std::string name) {
+    std::string name) {
+  Context context{.is_generating_proc = true};
+
   // A token is required as the first parameter of the next function.
   NameDef* token_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
                                                    /*definer=*/nullptr);
@@ -1959,11 +1969,11 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
   proc_properties_.state_types.push_back(params.back()->type_annotation());
 
   for (Param* param : params) {
-    (*env)[param->identifier()] =
+    context.env[param->identifier()] =
         TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, params, env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, params, &context));
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
@@ -1975,6 +1985,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
       /*return_type=*/retval.type, block, Function::Tag::kProcNext,
       /*is_public=*/false);
   name_def->set_definer(f);
+
   return f;
 }
 
@@ -1997,10 +2008,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
 }
 
 absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
-  Env env;
-
   XLS_ASSIGN_OR_RETURN(Function * next_function,
-                       GenerateProcNextFunction(&env, "next"));
+                       GenerateProcNextFunction("next"));
 
   XLS_ASSIGN_OR_RETURN(
       Function * config_function,

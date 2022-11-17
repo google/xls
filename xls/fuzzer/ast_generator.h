@@ -17,6 +17,7 @@
 
 #include <optional>
 #include <random>
+#include <stack>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
@@ -85,14 +86,6 @@ struct AstGeneratorOptions {
 // Where if is the main entry point inside of the returned module.
 class AstGenerator {
  public:
-  // Note: we use a btree for a stable iteration order; i.e. so we can stably
-  // select a random value from the environment across something like different
-  // hash function seed states. That is, ideally different process invocation
-  // would all produce identical generated functions for the same seed.
-  // TODO(vmirian) : Consider making this a class with context metadata and
-  // optimization for storing special types like tokens.
-  using Env = absl::btree_map<std::string, TypedExpr>;
-
   // The value generator must be alive for the lifetime of the object.
   AstGenerator(AstGeneratorOptions options, ValueGenerator* value_gen);
 
@@ -127,6 +120,18 @@ class AstGenerator {
  private:
   friend class AstGeneratorTest_GeneratesParametricBindings_Test;
   friend class AstGeneratorTest_BitsTypeGetMetadata_Test;
+
+  // Note: we use a btree for a stable iteration order; i.e. so we can stably
+  // select a random value from the environment across something like different
+  // hash function seed states. That is, ideally different process invocation
+  // would all produce identical generated functions for the same seed.
+  using Env = absl::btree_map<std::string, TypedExpr>;
+
+  // The context contains information for an instance in the call stack.
+  struct Context {
+    Env env;
+    bool is_generating_proc;
+  };
 
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
@@ -179,8 +184,7 @@ class AstGenerator {
       std::string name, absl::Span<Param* const> proc_params);
 
   // Generate the proc's next function with the given name.
-  absl::StatusOr<Function*> GenerateProcNextFunction(Env* env,
-                                                     std::string name);
+  absl::StatusOr<Function*> GenerateProcNextFunction(std::string name);
 
   // Generate a function to return a constant with the given TypeAnnotation to
   // serve as a Proc's [required] init function.
@@ -277,33 +281,33 @@ class AstGenerator {
   // function-calling operation) for the function being generated.
   absl::StatusOr<TypedExpr> GenerateBody(int64_t call_depth,
                                          absl::Span<Param* const> params,
-                                         Env* env);
+                                         Context* ctx);
 
-  absl::StatusOr<TypedExpr> GenerateUnop(Env* env);
+  absl::StatusOr<TypedExpr> GenerateUnop(Context* ctx);
 
   absl::StatusOr<Expr*> GenerateUmin(TypedExpr arg, int64_t other);
 
   // Generates a bit slice AST node.
-  absl::StatusOr<TypedExpr> GenerateBitSlice(Env* env);
+  absl::StatusOr<TypedExpr> GenerateBitSlice(Context* ctx);
 
   // Generates one of the bitwise reductions as an Inovation node.
-  absl::StatusOr<TypedExpr> GenerateBitwiseReduction(Env* env);
+  absl::StatusOr<TypedExpr> GenerateBitwiseReduction(Context* ctx);
 
   // Generates a cast from bits to array type.
-  absl::StatusOr<TypedExpr> GenerateCastBitsToArray(Env* env);
+  absl::StatusOr<TypedExpr> GenerateCastBitsToArray(Context* ctx);
 
   // Generates a bit_slice_update builtin call.
-  absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Env* env);
+  absl::StatusOr<TypedExpr> GenerateBitSliceUpdate(Context* ctx);
 
   // Generates a slice builtin call.
-  absl::StatusOr<TypedExpr> GenerateArraySlice(Env* env);
+  absl::StatusOr<TypedExpr> GenerateArraySlice(Context* ctx);
 
   // Generate an operand count for a nary (variadic) instruction. lower_limit is
   // the inclusive lower limit of the distribution.
-  int64_t GenerateNaryOperandCount(Env* env, int64_t lower_limit = 0) {
-    XLS_CHECK(!env->empty());
+  int64_t GenerateNaryOperandCount(Context* ctx, int64_t lower_limit = 0) {
+    XLS_CHECK(!ctx->env.empty());
     int64_t result = std::min(RandomIntWithExpectedValue(4, lower_limit),
-                              static_cast<int64_t>(env->size()));
+                              static_cast<int64_t>(ctx->env.size()));
     XLS_CHECK_GE(result, lower_limit);
     return result;
   }
@@ -314,47 +318,47 @@ class AstGenerator {
   // call stack (via map or other function-calling operation) for the function
   // being generated.
   absl::StatusOr<TypedExpr> GenerateExpr(int64_t expr_size, int64_t call_depth,
-                                         Env* env);
+                                         Context* ctx);
 
   // Generates an invocation of the one_hot_sel builtin.
-  absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Env* env);
+  absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Context* ctx);
   // Generates an invocation of the priority_sel builtin.
-  absl::StatusOr<TypedExpr> GeneratePrioritySelectBuiltin(Env* env);
+  absl::StatusOr<TypedExpr> GeneratePrioritySelectBuiltin(Context* ctx);
 
-  // Returns a binary concatenation of two arrays from env.
+  // Returns a binary concatenation of two arrays from ctx.
   //
-  // The two arrays to concatenate in env will have the same *element* type.
+  // The two arrays to concatenate in ctx will have the same *element* type.
   //
-  // Precondition: there must be an array value present in env or an error
+  // Precondition: there must be an array value present in ctx or an error
   // status will be returned.
-  absl::StatusOr<TypedExpr> GenerateArrayConcat(Env* env);
+  absl::StatusOr<TypedExpr> GenerateArrayConcat(Context* ctx);
 
-  // Generates an array operation using values in "env".
-  absl::StatusOr<TypedExpr> GenerateArray(Env* env);
+  // Generates an array operation using values in "ctx".
+  absl::StatusOr<TypedExpr> GenerateArray(Context* ctx);
 
-  // Returns an array index operation using values in "env".
-  absl::StatusOr<TypedExpr> GenerateArrayIndex(Env* env);
+  // Returns an array index operation using values in "ctx".
+  absl::StatusOr<TypedExpr> GenerateArrayIndex(Context* ctx);
 
-  // Returns an array update operation using values in "env".
-  absl::StatusOr<TypedExpr> GenerateArrayUpdate(Env* env);
+  // Returns an array update operation using values in "ctx".
+  absl::StatusOr<TypedExpr> GenerateArrayUpdate(Context* ctx);
 
-  // Return a `gate!()` invocation using values in "env".
-  absl::StatusOr<TypedExpr> GenerateGate(Env* env);
+  // Return a `gate!()` invocation using values in "ctx".
+  absl::StatusOr<TypedExpr> GenerateGate(Context* ctx);
 
-  // Returns a (potentially vacuous) concatenate operation of values in "env".
-  absl::StatusOr<TypedExpr> GenerateConcat(Env* env);
+  // Returns a (potentially vacuous) concatenate operation of values in "ctx".
+  absl::StatusOr<TypedExpr> GenerateConcat(Context* ctx);
 
   // Generates a return-value positioned expression.
-  absl::StatusOr<TypedExpr> GenerateRetval(Env* env);
+  absl::StatusOr<TypedExpr> GenerateRetval(Context* ctx);
 
   // Generates a return-value positioned expression for a proc next function.
-  absl::StatusOr<TypedExpr> GenerateProcNextFunctionRetval(Env* env);
+  absl::StatusOr<TypedExpr> GenerateProcNextFunctionRetval(Context* ctx);
 
   // Generates a counted for loop.
-  absl::StatusOr<TypedExpr> GenerateCountedFor(Env* env);
+  absl::StatusOr<TypedExpr> GenerateCountedFor(Context* ctx);
 
   // Generates either a tupling operation or an index-a-tuple operation.
-  absl::StatusOr<TypedExpr> GenerateTupleOrIndex(Env* env);
+  absl::StatusOr<TypedExpr> GenerateTupleOrIndex(Context* ctx);
 
   // Generates a primitive type token for use in building a type.
   absl::StatusOr<Token*> GenerateTypePrimitive();
@@ -388,10 +392,10 @@ class AstGenerator {
       std::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
-  absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Env* env);
+  absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Context* ctx);
 
   // Generates a call to a unary builtin function.
-  absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Env* env);
+  absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Context* ctx);
 
   // Generates a parameter of a random type (if type is null) or the given type
   // (if type is non-null).
@@ -411,35 +415,36 @@ class AstGenerator {
 
   // Generates a binary operation AST node in which operands and results type
   // are all the same (excluding shifts), such as: add, and, mul, etc.
-  absl::StatusOr<TypedExpr> GenerateBinop(Env* env);
+  absl::StatusOr<TypedExpr> GenerateBinop(Context* ctx);
 
   // Generates a comparison operation AST node.
-  absl::StatusOr<TypedExpr> GenerateCompare(Env* env);
+  absl::StatusOr<TypedExpr> GenerateCompare(Context* ctx);
 
   // Generates a channel operation AST node. The operations include recv,
   // recv_nonblocking, recv_if, send, send_if.
-  absl::StatusOr<TypedExpr> GenerateChannelOp(Env* env);
+  absl::StatusOr<TypedExpr> GenerateChannelOp(Context* ctx);
 
   // Generates an Eq or Neq comparison on arrays.
-  absl::StatusOr<TypedExpr> GenerateCompareArray(Env* env);
+  absl::StatusOr<TypedExpr> GenerateCompareArray(Context* ctx);
 
   // Generates an Eq or Neq comparison on tuples.
-  absl::StatusOr<TypedExpr> GenerateCompareTuple(Env* env);
+  absl::StatusOr<TypedExpr> GenerateCompareTuple(Context* ctx);
 
   // Generates a join operation AST node.
-  absl::StatusOr<TypedExpr> GenerateJoinOp(Env* env);
+  absl::StatusOr<TypedExpr> GenerateJoinOp(Context* ctx);
 
   // Generates an operation AST node supported by the proc's next function.
-  absl::StatusOr<TypedExpr> GenerateProcNextFunctionOp(Env* env);
+  absl::StatusOr<TypedExpr> GenerateProcNextFunctionOp(Context* ctx);
 
   // Generates a shift operation AST node.
-  absl::StatusOr<TypedExpr> GenerateShift(Env* env);
+  absl::StatusOr<TypedExpr> GenerateShift(Context* ctx);
 
-  absl::StatusOr<TypedExpr> GenerateSynthesizableDiv(Env* env);
+  absl::StatusOr<TypedExpr> GenerateSynthesizableDiv(Context* ctx);
 
   // Generates a group of operations containing PartialProduct ops. The output
   // of the group will be deterministic (e.g. a smulp followed by an add).
-  absl::StatusOr<TypedExpr> GeneratePartialProductDeterministicGroup(Env* env);
+  absl::StatusOr<TypedExpr> GeneratePartialProductDeterministicGroup(
+      Context* ctx);
 
   // Creates and returns a type ref for the given type.
   //
@@ -458,7 +463,7 @@ class AstGenerator {
   }
 
   // Generates a logical binary operation (e.g. and, xor, or).
-  absl::StatusOr<TypedExpr> GenerateLogicalOp(Env* env);
+  absl::StatusOr<TypedExpr> GenerateLogicalOp(Context* ctx);
 
   Expr* MakeSel(Expr* test, Expr* lhs, Expr* rhs) {
     return module_->Make<Ternary>(fake_span_, test, lhs, rhs);
