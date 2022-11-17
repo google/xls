@@ -150,6 +150,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleReverse(UnOp* reverse) override;
+  absl::Status HandleSDiv(BinOp* div) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
   absl::Status HandleSGe(CompareOp* sge) override;
@@ -164,6 +165,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleSub(BinOp* sub) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override;
+  absl::Status HandleUDiv(BinOp* div) override;
   absl::Status HandleUGe(CompareOp* ge) override;
   absl::Status HandleUGt(CompareOp* gt) override;
   absl::Status HandleULe(CompareOp* le) override;

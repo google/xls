@@ -68,6 +68,51 @@ class Z3OpTranslator {
   Z3_ast Extract(Z3_ast arg, int64_t bitno) {
     return Z3_mk_extract(z3_ctx_, bitno, bitno, arg);
   }
+  Z3_ast UDiv(Z3_ast lhs, Z3_ast rhs) {
+    // Z3's bvudiv matches XLS's udiv semantics on divide by zero. This does not
+    // seem to be consistently documented, but
+    // https://cs.nyu.edu/pipermail/smt-lib/2017/001206.html (and other places)
+    // say that bvudiv with rhs=0 is defined as yielding all-ones.
+    return Z3_mk_bvudiv(z3_ctx_, lhs, rhs);
+  }
+  Z3_ast SDiv(Z3_ast lhs, Z3_ast rhs) {
+    // Z3's bvsdiv seems to differ from XLS's sdiv semantics on divide by zero.
+    // Like bvudiv, behavior on divide by zero seems to not be specified, but I
+    // haven't found much other discussion about sdiv. The behavior implemented
+    // on 11/2022 in mk_sdiv seems to be to defer to udiv behavior in the case
+    // that lhs is non-negative. When lhs is negative, it negates lhs and
+    // returns a negated udiv. If I'm not missing any sign extension, it seems
+    // like that would mean x/0=-1 when x>=0 and 1 when x<0, which differs from
+    // XLS's specification of MAX_INT when x>=0 and MIN_INT otherwise.
+    //
+    // Here, we implement a one-hot-select to distinguish between the
+    // case where bvsdiv computes the desired result (rhs!=0) and the two cases
+    // where it does not (lhs>=0, rhs=0) and (lhs<0, rhs=0).
+    auto rhs_is_zero = EqZero(rhs);
+    auto lhs_is_negative = Msb(lhs);
+    auto quotient = Z3_mk_bvsdiv(z3_ctx_, lhs, rhs);
+    int64_t quotient_bits = GetBvBitCount(quotient);
+    auto min_signed_int =
+        (quotient_bits > 1)
+            ? ConcatN({Fill(true, 1), Fill(false, quotient_bits - 1)})
+            : Fill(true, 1);
+    auto max_signed_int =
+        (quotient_bits > 1)
+            ? ConcatN({Fill(false, 1), Fill(true, quotient_bits - 1)})
+            : Fill(false, 1);
+
+    auto rhs_not_zero_case =
+        And(SignExt(Not(rhs_is_zero), quotient_bits), quotient);
+    auto rhs_zero_and_lhs_negative_case =
+        And(SignExt(And(rhs_is_zero, lhs_is_negative), quotient_bits),
+            min_signed_int);
+    auto rhs_zero_and_lhs_non_negative_case =
+        And(SignExt(And(rhs_is_zero, Not(lhs_is_negative)), quotient_bits),
+            max_signed_int);
+
+    return Or(Or(rhs_not_zero_case, rhs_zero_and_lhs_negative_case),
+              rhs_zero_and_lhs_non_negative_case);
+  }
 
   int64_t GetBvBitCount(Z3_ast arg) {
     Z3_sort sort = Z3_get_sort(z3_ctx_, arg);
@@ -359,6 +404,13 @@ absl::Status IrTranslator::HandleULt(CompareOp* lt) {
   return HandleBinary(lt, f);
 }
 
+absl::Status IrTranslator::HandleUDiv(BinOp* div) {
+  auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
+    return Z3OpTranslator(ctx_).UDiv(lhs, rhs);
+  };
+  return HandleBinary(div, f);
+}
+
 absl::Status IrTranslator::HandleUGe(CompareOp* uge) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
@@ -412,6 +464,13 @@ absl::Status IrTranslator::HandleSLt(CompareOp* slt) {
     return Z3OpTranslator(ctx).SLt(lhs, rhs);
   };
   return HandleBinary(slt, f);
+}
+
+absl::Status IrTranslator::HandleSDiv(BinOp* div) {
+  auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
+    return Z3OpTranslator(ctx_).SDiv(lhs, rhs);
+  };
+  return HandleBinary(div, f);
 }
 
 absl::Status IrTranslator::HandleSGe(CompareOp* sge) {
