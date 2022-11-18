@@ -523,6 +523,19 @@ verilog_library(
     srcs = [":delay.sv"],
 )
 
+xls_dslx_library(
+    name = "quickcheck_dslx",
+    srcs = ["quickcheck.x"],
+)
+
+xls_dslx_test(
+    name = "quickcheck_test",
+    dslx_test_args = {
+        "compare": "jit",
+    },
+    library = ":quickcheck_dslx",
+)
+
 # TODO(cdleary): 2022-05-09 Get this target working as well, requires
 # addressing the dependence on openmp runtime.
 # place_and_route(
