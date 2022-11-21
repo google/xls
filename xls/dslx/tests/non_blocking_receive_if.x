@@ -59,7 +59,7 @@ proc Tester {
         let (tok, result) = recv(tok, result_in);
         let _ = assert_eq(result, (u32:0, false));
 
-        // Next, tell the proc to NOT recieve without data present.
+        // Next, tell the proc to NOT receive without data present.
         let tok = send(tok, do_recv_out, false);
         let (tok, result) = recv(tok, result_in);
         let _ = assert_eq(result, (u32:0, false));
