@@ -343,7 +343,6 @@ cc_library(
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:function_builder",
         "//xls/ir:node_util",
         "//xls/ir:type",
         "//xls/ir:value_helpers",

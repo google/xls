@@ -19,6 +19,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/codegen_pass.h"
@@ -26,14 +27,12 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/channel.h"
-#include "xls/ir/function_builder.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/ir/verifier.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "re2/re2.h"
@@ -1895,7 +1894,7 @@ class CloneNodesIntoBlockHandler {
         if (stage == schedule.length() - 1) {
           return false;
         }
-        if (as_func && (n == as_func->return_value())) {
+        if ((as_func != nullptr) && (n == as_func->return_value())) {
           return true;
         }
         for (Node* user : n->users()) {
@@ -2018,7 +2017,7 @@ class CloneNodesIntoBlockHandler {
 
     XLS_ASSIGN_OR_RETURN(
         Node * literal_1,
-        block_->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
+        block_->MakeNode<xls::Literal>(node->loc(), Value(UBits(1, 1))));
 
     if (channel->kind() == ChannelKind::kSingleValue) {
       if (receive->is_blocking()) {
@@ -2062,11 +2061,34 @@ class CloneNodesIntoBlockHandler {
               node->loc(), std::vector<Node*>(
                                {node_map_.at(node->operand(0)), input_port})));
     } else {
+      XLS_ASSIGN_OR_RETURN(Node * zero_value,
+                           block_->MakeNode<xls::Literal>(
+                               node->loc(), ZeroOfType(input_port->GetType())));
+      // Ensure that the output of the receive is zero when the data is not
+      // valid or the predicate is false.
+      Node* selector = input_valid_port;
+      if (receive->predicate().has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            NaryOp * and_pred,
+            block_->MakeNode<NaryOp>(
+                node->loc(),
+                std::vector<Node*>({node_map_.at(receive->predicate().value()),
+                                    input_valid_port}),
+                Op::kAnd));
+        selector = and_pred;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          Select * select,
+          block_->MakeNodeWithName<Select>(
+              /*loc=*/node->loc(), /*selector=*/selector,
+              /*cases=*/std::vector<Node*>({zero_value, input_port}),
+              /*default_value=*/std::nullopt,
+              /*name=*/absl::StrCat(channel->name(), "_select")));
       XLS_ASSIGN_OR_RETURN(
           next_node,
           block_->MakeNode<Tuple>(
               node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
-                                               input_port, input_valid_port})));
+                                               select, selector})));
     }
 
     // To the rest of the logic, a non-blocking receive is always valid.

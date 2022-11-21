@@ -416,19 +416,23 @@ in a single transaction.
 
 Receives a data value from a specified channel. The type of the data value is
 determined by the channel. An optional predicate value conditionally enables the
-receive operation.
+receive operation. An optional `blocking` attribute determines whether the
+receive operation is blocking. A blocking receive waits (or blocks) until valid
+data is present at the channel. Compared to a blocking receive, a non-blocking
+receive has an additional entry in its return tuple of type `bits[1]` denoting
+whether the data read is valid.
 
 ```
-result = receive(tkn, predicate=<pred>, channel_id=<ch>)
+result = receive(tkn, predicate=<pred>, blocking=<bool>, channel_id=<ch>)
 ```
 
 **Types**
 
 Value    | Type
--------- | ------------
+-------- | ---------------------------------------------------------------
 `tkn`    | `token`
 `pred`   | `bits[1]`
-`result` | `(token, T)`
+`result` | `(token, T)` if `blocking` == `true` else `(token, T, bits[1])`
 
 **Keyword arguments**
 
@@ -437,7 +441,8 @@ Value    | Type
 | Keyword      | Type      | Required | Default | Description              |
 | ------------ | --------- | -------- | ------- | ------------------------ |
 | `predicate`  | `bits[1]` | no       |         | A value is received iff `predicate` is true |
-| `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from |
+| `blocking`   | `bool`    | no       | `true`  | Whether the receive is blocking             |
+| `channel_id` | `int64_t` | yes      |         | The ID of the channel to receive data from  |
 
 <!-- mdformat on -->
 
