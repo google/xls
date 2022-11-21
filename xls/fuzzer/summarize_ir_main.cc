@@ -36,12 +36,12 @@ The summary file will be created if it does not exist. Otherwise the summary
 file is appended to.
 )";
 
-ABSL_FLAG(std::string, unoptimized_ir, "", "Unoptimized IR file to summarize.");
 ABSL_FLAG(std::string, optimized_ir, "", "Optimized IR file to summarize.");
+ABSL_FLAG(std::string, summary_file, "", "Summary file to append to.");
 ABSL_FLAG(
     std::string, timing, "",
     "A serialized fuzzer::SampleTimingProto to write into the summary file.");
-ABSL_FLAG(std::string, summary_file, "", "Summary file to append to.");
+ABSL_FLAG(std::string, unoptimized_ir, "", "Unoptimized IR file to summarize.");
 
 namespace xls {
 namespace {
@@ -49,9 +49,11 @@ namespace {
 std::string TypeToString(Type* type) {
   if (type->IsBits()) {
     return "bits";
-  } else if (type->IsArray()) {
+  }
+  if (type->IsArray()) {
     return "array";
-  } else if (type->IsTuple()) {
+  }
+  if (type->IsTuple()) {
     return "tuple";
   }
   return "other";
@@ -59,8 +61,8 @@ std::string TypeToString(Type* type) {
 
 void SummarizePackage(Package* package,
                       google::protobuf::RepeatedPtrField<fuzzer::NodeProto>* nodes) {
-  for (const auto& function : package->functions()) {
-    for (Node* node : function->nodes()) {
+  for (const FunctionBase* fb : package->GetFunctionBases()) {
+    for (Node* node : fb->nodes()) {
       fuzzer::NodeProto* node_proto = nodes->Add();
       node_proto->set_op(OpToString(node->op()));
       node_proto->set_type(TypeToString(node->GetType()));

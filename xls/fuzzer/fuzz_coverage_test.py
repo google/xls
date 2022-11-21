@@ -137,7 +137,7 @@ class FuzzCoverageTest(test_base.TestCase):
     self.assertLessEqual(summary.max_aggregate_type_width, 1024)
     self.assertGreater(summary.max_aggregate_type_width, 512)
 
-  def test_op_coverage(self):
+  def test_op_coverage_function(self):
     # This is a probabilistic test which verifies that all expected op codes are
     # covered. To ensure coverage with near certain probability this test runs
     # for a long time.
@@ -231,6 +231,128 @@ class FuzzCoverageTest(test_base.TestCase):
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
         '--sample_count=5000', '--summary_path=' + summaries_path,
         '--calls_per_sample=1', '--worker_count=4'
+    ])
+
+    summary = self._read_summaries(summaries_path)
+
+    # Test that we generate interesting parameters.
+    self.assertGreater(summary.get_op_count('param'), 0)
+    self.assertGreater(summary.get_op_count('param', type_str='tuple'), 0)
+    self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
+
+    for op in expect_seen:
+      logging.vlog(1, 'seen op %s: %d', ir_op.op_to_string(op),
+                   summary.get_op_count(ir_op.op_to_string(op)))
+    for op in expect_not_seen:
+      logging.vlog(1, 'not seen op %s: %d', ir_op.op_to_string(op),
+                   summary.get_op_count(ir_op.op_to_string(op)))
+
+    for op in expect_seen:
+      self.assertGreater(
+          summary.get_op_count(ir_op.op_to_string(op)),
+          0,
+          msg=f'Expected fuzzer to generate op "{ir_op.op_to_string(op)}"')
+
+    for op in expect_not_seen:
+      self.assertEqual(
+          summary.get_op_count(ir_op.op_to_string(op)),
+          0,
+          msg=f'Expected fuzzer to not generate op "{ir_op.op_to_string(op)}"')
+
+  def test_op_coverage_proc(self):
+    # This is a probabilistic test which verifies that all expected op codes are
+    # covered. To ensure coverage with near certain probability this test runs
+    # for a long time.
+    crasher_path = self._create_tempdir()
+    summaries_path = self._create_tempdir()
+
+    # Test coverage of all ops.
+    expect_seen = [
+        ir_op.Op.ADD,
+        ir_op.Op.AFTER_ALL,
+        ir_op.Op.AND,
+        ir_op.Op.AND_REDUCE,
+        ir_op.Op.ARRAY,
+        ir_op.Op.ARRAY_CONCAT,
+        ir_op.Op.ARRAY_INDEX,
+        ir_op.Op.ARRAY_SLICE,
+        ir_op.Op.ARRAY_UPDATE,
+        ir_op.Op.BIT_SLICE,
+        ir_op.Op.BIT_SLICE_UPDATE,
+        ir_op.Op.CONCAT,
+        ir_op.Op.COUNTED_FOR,
+        ir_op.Op.DYNAMIC_BIT_SLICE,
+        ir_op.Op.ENCODE,
+        ir_op.Op.EQ,
+        ir_op.Op.GATE,
+        ir_op.Op.LITERAL,
+        ir_op.Op.MAP,
+        ir_op.Op.NE,
+        ir_op.Op.NEG,
+        ir_op.Op.NOT,
+        ir_op.Op.ONE_HOT,
+        ir_op.Op.ONE_HOT_SEL,
+        ir_op.Op.OR,
+        ir_op.Op.OR_REDUCE,
+        ir_op.Op.PARAM,
+        ir_op.Op.PRIORITY_SEL,
+        ir_op.Op.RECEIVE,
+        ir_op.Op.REVERSE,
+        ir_op.Op.SEND,
+        ir_op.Op.SDIV,
+        ir_op.Op.SEL,
+        ir_op.Op.SGE,
+        ir_op.Op.SGT,
+        ir_op.Op.SHLL,
+        ir_op.Op.SHRA,
+        ir_op.Op.SHRL,
+        ir_op.Op.SIGN_EXT,
+        ir_op.Op.SLE,
+        ir_op.Op.SLT,
+        ir_op.Op.SMUL,
+        ir_op.Op.SMULP,
+        ir_op.Op.SUB,
+        ir_op.Op.TUPLE,
+        ir_op.Op.TUPLE_INDEX,
+        ir_op.Op.UDIV,
+        ir_op.Op.UGE,
+        ir_op.Op.UGT,
+        ir_op.Op.ULE,
+        ir_op.Op.ULT,
+        ir_op.Op.UMUL,
+        ir_op.Op.UMULP,
+        ir_op.Op.XOR,
+        ir_op.Op.XOR_REDUCE,
+        ir_op.Op.ZERO_EXT,
+    ]
+    expect_not_seen = [
+        ir_op.Op.ASSERT,
+        ir_op.Op.COVER,
+        ir_op.Op.DECODE,
+        ir_op.Op.DYNAMIC_COUNTED_FOR,
+        ir_op.Op.IDENTITY,
+        ir_op.Op.INPUT_PORT,
+        ir_op.Op.INSTANTIATION_INPUT,
+        ir_op.Op.INSTANTIATION_OUTPUT,
+        ir_op.Op.INVOKE,
+        ir_op.Op.NAND,
+        ir_op.Op.NOR,
+        ir_op.Op.OUTPUT_PORT,
+        ir_op.Op.REGISTER_READ,
+        ir_op.Op.REGISTER_WRITE,
+        ir_op.Op.SMOD,
+        ir_op.Op.TRACE,
+        ir_op.Op.UMOD,
+    ]
+    # The set of expected to be seen and expected to be not seen should cover
+    # all ops.
+    self.assertEqual(
+        len(expect_seen) + len(expect_not_seen), len(ir_op.all_ops()))
+
+    subprocess.check_call([
+        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
+        '--sample_count=5000', '--summary_path=' + summaries_path,
+        '--proc_ticks=1', '--generate_proc', '--worker_count=4'
     ])
 
     summary = self._read_summaries(summaries_path)
