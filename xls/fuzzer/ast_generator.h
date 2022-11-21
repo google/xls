@@ -129,6 +129,8 @@ class AstGenerator {
 
   // The context contains information for an instance in the call stack.
   struct Context {
+    // TODO(https://github.com/google/xls/issues/789).
+    // TODO(https://github.com/google/xls/issues/790).
     Env env;
     bool is_generating_proc;
   };
@@ -304,13 +306,8 @@ class AstGenerator {
 
   // Generate an operand count for a nary (variadic) instruction. lower_limit is
   // the inclusive lower limit of the distribution.
-  int64_t GenerateNaryOperandCount(Context* ctx, int64_t lower_limit = 0) {
-    XLS_CHECK(!ctx->env.empty());
-    int64_t result = std::min(RandomIntWithExpectedValue(4, lower_limit),
-                              static_cast<int64_t>(ctx->env.size()));
-    XLS_CHECK_GE(result, lower_limit);
-    return result;
-  }
+  absl::StatusOr<int64_t> GenerateNaryOperandCount(Context* ctx,
+                                                   int64_t lower_limit = 0);
 
   // Generates an expression AST node and returns it. expr_size is a measure of
   // the size of the expression generated so far (used to probabilistically
@@ -393,6 +390,9 @@ class AstGenerator {
 
   // Generates an invocation of the map builtin.
   absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Context* ctx);
+
+  // Generates an invocation of a function.
+  absl::StatusOr<TypedExpr> GenerateInvoke(int64_t call_depth, Context* ctx);
 
   // Generates a call to a unary builtin function.
   absl::StatusOr<TypedExpr> GenerateUnopBuiltin(Context* ctx);

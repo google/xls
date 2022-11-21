@@ -973,7 +973,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
   }
 
   // Pick the number of operands of the concat. We need at least one value.
-  int64_t count = GenerateNaryOperandCount(ctx, /*lower_limit=*/1);
+  XLS_ASSIGN_OR_RETURN(int64_t count,
+                       GenerateNaryOperandCount(ctx, /*lower_limit=*/1));
   std::vector<TypedExpr> operands;
   int64_t total_width = 0;
   for (int64_t i = 0; i < count; ++i) {
@@ -1024,7 +1025,7 @@ TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
-  int64_t retval_count = GenerateNaryOperandCount(ctx, 0);
+  XLS_ASSIGN_OR_RETURN(int64_t retval_count, GenerateNaryOperandCount(ctx, 0));
 
   std::vector<TypedExpr> env_params;
   std::vector<TypedExpr> env_non_params;
@@ -1127,7 +1128,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
 
   std::vector<TypedExpr> members;
   int64_t total_bit_count = 0;
-  int64_t element_count = GenerateNaryOperandCount(ctx, 0);
+  XLS_ASSIGN_OR_RETURN(int64_t element_count, GenerateNaryOperandCount(ctx, 0));
   for (int64_t i = 0; i < element_count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e,
                          ChooseEnvValueNotContainingToken(&ctx->env));
@@ -1144,14 +1145,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
                                                     Context* ctx) {
-  std::string map_fn_name = GenSym();
-
   // GenerateFunction(), in turn, can call GenerateMap(), so we need some way of
   // bounding the recursion. To limit explosion, return an recoverable error
   // with exponentially increasing probability depending on the call depth.
   if (RandomFloat() > pow(10.0, -call_depth)) {
     return RecoverableError("Call depth too deep.");
   }
+
+  std::string map_fn_name = GenSym();
 
   // Choose a random array from the environment and create a single-argument
   // function which takes an element of that array.
@@ -1175,6 +1176,36 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("map"),
                                 std::vector<Expr*>{array.expr, fn_ref});
   return TypedExpr{invocation, return_type};
+}
+
+// TODO(vmirian): 11-16-2022 Add support to override the default parametric
+// values.
+absl::StatusOr<TypedExpr> AstGenerator::GenerateInvoke(int64_t call_depth,
+                                                       Context* ctx) {
+  // GenerateFunction(), in turn, can call GenerateInvoke(), so we need some way
+  // of bounding the recursion. To limit explosion, return an recoverable error
+  // with exponentially increasing probability depending on the call depth.
+  if (RandomFloat() > pow(10.0, -call_depth)) {
+    return RecoverableError("Call depth too deep.");
+  }
+
+  std::string fn_name = GenSym();
+
+  XLS_ASSIGN_OR_RETURN(Function * fn,
+                       GenerateFunction(fn_name, call_depth + 1));
+
+  std::vector<Expr*> args;
+  for (const Param* param : fn->params()) {
+    XLS_ASSIGN_OR_RETURN(TypedExpr candidate,
+                         ChooseEnvValue(&ctx->env, param->type_annotation()));
+    args.push_back(candidate.expr);
+  }
+
+  NameRef* fn_ref = MakeNameRef(MakeNameDef(fn_name));
+  auto* invocation = module_->Make<Invocation>(fake_span_, fn_ref, args);
+  functions_.push_back(fn);
+
+  return TypedExpr{invocation, fn->return_type()};
 }
 
 TypeAnnotation* AstGenerator::GenerateBitsType(
@@ -1475,6 +1506,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
   return TypedExpr{invocation, width_type};
 }
 
+absl::StatusOr<int64_t> AstGenerator::GenerateNaryOperandCount(
+    Context* ctx, int64_t lower_limit) {
+  int64_t result = std::min(RandomIntWithExpectedValue(4, lower_limit),
+                            static_cast<int64_t>(ctx->env.size()));
+  if (result < lower_limit) {
+    return RecoverableError("lower limit not satisfied.");
+  }
+  return result;
+}
+
 namespace {
 
 enum OpChoice {
@@ -1494,6 +1535,7 @@ enum OpChoice {
   kConcat,
   kCountedFor,
   kGate,
+  kInvoke,
   kJoinOp,
   kLogical,
   kMap,
@@ -1544,6 +1586,8 @@ int OpProbability(OpChoice op) {
     case kCountedFor:
       return 1;
     case kGate:
+      return 1;
+    case kInvoke:
       return 1;
     case kJoinOp:
       return 5;
@@ -1669,6 +1713,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kMap:
         generated = GenerateMap(call_depth, ctx);
+        break;
+      case kInvoke:
+        generated = GenerateInvoke(call_depth, ctx);
         break;
       case kUnop:
         generated = GenerateUnop(ctx);
@@ -1842,9 +1889,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
     int64_t call_depth, absl::Span<Param* const> params, Context* ctx) {
-  // We need to be able to draw references from the environment, so we never
-  // want it to be empty.
-  XLS_RET_CHECK(!ctx->env.empty());
+  // To produce 'interesting' behavior (samples that contain computation/work),
+  // the environment of the initial call depth should not be empty, so we can
+  // draw references from the environment. The environment can be empty for
+  // subsequent call depths.
+  XLS_RET_CHECK(call_depth > 0 || call_depth == 0 && !ctx->env.empty());
   return GenerateExpr(/*expr_size=*/0, call_depth, ctx);
 }
 
