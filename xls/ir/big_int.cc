@@ -24,7 +24,7 @@ BigInt::BigInt() { BN_init(&bn_); }
 
 BigInt::BigInt(const BigInt& other) {
   BN_init(&bn_);
-  BN_copy(&bn_, &other.bn_);
+  XLS_CHECK(BN_copy(&bn_, &other.bn_));
 }
 
 BigInt::BigInt(BigInt&& other) {
@@ -40,7 +40,7 @@ BigInt& BigInt::operator=(const BigInt& other) {
 }
 
 BigInt& BigInt::operator=(BigInt&& other) {
-  BN_copy(&bn_, &other.bn_);
+  XLS_CHECK(BN_copy(&bn_, &other.bn_));
   return *this;
 }
 
@@ -54,7 +54,7 @@ BigInt BigInt::MakeUnsigned(const Bits& bits) {
   std::vector<uint8_t> byte_vector = bits.ToBytes();
   // ToBytes returns in little-endian. BN expects big-endian.
   std::reverse(byte_vector.begin(), byte_vector.end());
-  BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_);
+  XLS_CHECK(BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_));
   return value;
 }
 
@@ -80,8 +80,8 @@ BigInt BigInt::MakeSigned(const Bits& bits) {
     byte_vector[0] &= Mask(bits_in_msb);
   }
 
-  BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_);
-  BN_add_word(&value.bn_, 1);
+  XLS_CHECK(BN_bin2bn(byte_vector.data(), byte_vector.size(), &value.bn_));
+  XLS_CHECK(BN_add_word(&value.bn_, 1));
   BN_set_negative(&value.bn_, 1);
   return value;
 }
@@ -96,7 +96,7 @@ BigInt BigInt::Zero() {
 /* static */
 BigInt BigInt::One() {
   BigInt value;
-  BN_one(&value.bn_);
+  XLS_CHECK(BN_one(&value.bn_));
   return value;
 }
 
@@ -111,7 +111,7 @@ Bits BigInt::ToSignedBits() const {
   BigInt decremented_if_negative = *this;
   BN_set_negative(&decremented_if_negative.bn_, 0);
   if (is_negative) {
-    BN_sub_word(&decremented_if_negative.bn_, 1);
+    XLS_CHECK(BN_sub_word(&decremented_if_negative.bn_, 1));
   }
 
   std::vector<uint8_t> byte_vector;
@@ -193,7 +193,7 @@ int64_t BigInt::SignedBitCount() const {
     // same as the minimum number of bits for the unsigned representation of
     // the magnitude. Otherwise, it requires one extra bit.
     BigInt magnitude = Negate(*this);
-    BN_sub_word(&magnitude.bn_, 1);
+    XLS_CHECK(BN_sub_word(&magnitude.bn_, 1));
     return BN_num_bits(&magnitude.bn_) + 1;
   }
 
@@ -211,13 +211,13 @@ int64_t BigInt::UnsignedBitCount() const {
 
 /* static */ BigInt BigInt::Add(const BigInt& lhs, const BigInt& rhs) {
   BigInt value;
-  BN_add(&value.bn_, &lhs.bn_, &rhs.bn_);
+  XLS_CHECK(BN_add(&value.bn_, &lhs.bn_, &rhs.bn_));
   return value;
 }
 
 /* static */ BigInt BigInt::Sub(const BigInt& lhs, const BigInt& rhs) {
   BigInt value;
-  BN_sub(&value.bn_, &lhs.bn_, &rhs.bn_);
+  XLS_CHECK(BN_sub(&value.bn_, &lhs.bn_, &rhs.bn_));
   return value;
 }
 
@@ -226,7 +226,8 @@ int64_t BigInt::UnsignedBitCount() const {
   // Note: The documentation about BN_CTX in bn.h indicates that it's possible
   // to pass null to public methods that take a BN_CTX*, but that's not true.
   BN_CTX* ctx = BN_CTX_new();
-  BN_mul(&value.bn_, &lhs.bn_, &rhs.bn_, ctx);
+  XLS_CHECK(ctx);
+  XLS_CHECK(BN_mul(&value.bn_, &lhs.bn_, &rhs.bn_, ctx));
   BN_CTX_free(ctx);
   return value;
 }
@@ -236,7 +237,8 @@ int64_t BigInt::UnsignedBitCount() const {
   // Note: The documentation about BN_CTX in bn.h indicates that it's possible
   // to pass null to public methods that take a BN_CTX*, but that's not true.
   BN_CTX* ctx = BN_CTX_new();
-  BN_div(&value.bn_, /*rem=*/nullptr, &lhs.bn_, &rhs.bn_, ctx);
+  XLS_CHECK(ctx);
+  XLS_CHECK(BN_div(&value.bn_, /*rem=*/nullptr, &lhs.bn_, &rhs.bn_, ctx));
   BN_CTX_free(ctx);
   return value;
 }
@@ -246,7 +248,9 @@ int64_t BigInt::UnsignedBitCount() const {
   // Note: The documentation about BN_CTX in bn.h indicates that it's possible
   // to pass null to public methods that take a BN_CTX*, but that's not true.
   BN_CTX* ctx = BN_CTX_new();
-  BN_div(/*quotient=*/nullptr, /*rem=*/&value.bn_, &lhs.bn_, &rhs.bn_, ctx);
+  XLS_CHECK(ctx);
+  XLS_CHECK(BN_div(/*quotient=*/nullptr, /*rem=*/&value.bn_, &lhs.bn_, &rhs.bn_,
+                   ctx));
   BN_CTX_free(ctx);
   return value;
 }
