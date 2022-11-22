@@ -2405,13 +2405,7 @@ TEST_F(TranslatorTest, AnonStruct) {
          s.y = a*10;
          return s.x+s.y;
        })";
-  // Not implemented, expect graceful failure
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("DeclStmt other than Var")));
+  Run({{"a", 3}}, 3 + 3 * 10, content);
 }
 
 TEST_F(TranslatorTest, Inheritance) {
@@ -3850,6 +3844,17 @@ TEST_F(TranslatorTest, ClassMemberInit) {
   Run({{"a", 100}}, 110, content);
 }
 
+TEST_F(TranslatorTest, CXXRecordDecl) {
+  const std::string content = R"(
+  int my_package(int a) {
+   struct foo {
+     int bar;
+   } foo_struct[4];
+   foo_struct[1].bar = a;
+   return foo_struct[1].bar;
+  })";
+  Run({{"a", 100}}, 100, content);
+}
 }  // namespace
 
 }  // namespace xlscc

@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <ostream>
 #include <regex>  // NOLINT
 #include <sstream>
 #include <string>
@@ -29,6 +30,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
@@ -416,7 +418,8 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
     mangler_.reset(decl.getDecl()->getASTContext().createMangleContext());
   }
   mangler_->mangleCXXName(decl, os);
-  return res;
+  // mangleCXXName can generate "$" which is invalid in function names
+  return absl::StrReplaceAll(res, {{"$", "S"}});
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
@@ -3826,17 +3829,20 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       if (clang::isa<clang::TypedefDecl>(decl)) break;
       if (clang::isa<clang::StaticAssertDecl>(decl)) break;
       if (clang::isa<clang::EnumDecl>(decl)) break;
-
-      auto vard = clang::dyn_cast<const clang::VarDecl>(decl);
-      if (vard == nullptr) {
-        return absl::UnimplementedError(ErrorMessage(
-            loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
-      }
-      if (vard->isStaticLocal() || vard->isStaticDataMember()) {
-        XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, loc));
+      if (auto recd = clang::dyn_cast<const clang::RecordDecl>(decl)) {
+        XLS_RETURN_IF_ERROR(ScanStruct(recd));
       } else {
-        XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
-        XLS_RETURN_IF_ERROR(DeclareVariable(vard, translated, loc));
+        auto vard = clang::dyn_cast<const clang::VarDecl>(decl);
+        if (vard == nullptr) {
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
+        }
+        if (vard->isStaticLocal() || vard->isStaticDataMember()) {
+          XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, loc));
+        } else {
+          XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
+          XLS_RETURN_IF_ERROR(DeclareVariable(vard, translated, loc));
+        }
       }
     }
   } else if (const auto* pasm =
