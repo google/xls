@@ -114,5 +114,5 @@ features include pointers, function pointers, and virtual methods.
 
 For developers, it is possible to check if a specific feature is supported by
 checking
-[translator_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_test.cc)
+[translator_logic_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_logic_test.cc)
 for unit tests.

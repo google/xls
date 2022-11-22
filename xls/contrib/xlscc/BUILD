@@ -199,8 +199,8 @@ cc_test(
 )
 
 cc_test(
-    name = "translator_test",
-    srcs = ["translator_test.cc"],
+    name = "translator_logic_test",
+    srcs = ["translator_logic_test.cc"],
     shard_count = 32,
     deps = [
         ":hls_block_cc_proto",

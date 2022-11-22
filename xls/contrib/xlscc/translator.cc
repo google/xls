@@ -1100,8 +1100,11 @@ absl::StatusOr<CValue> Translator::TranslateEnumConstantDecl(
     const clang::EnumConstantDecl* decl, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
-  auto val = xls::Value(
-      xls::UBits(decl->getInitVal().getExtValue(), ctype->GetBitWidth()));
+  auto int_type = std::dynamic_pointer_cast<CIntType>(ctype);
+  int64_t ext_val = decl->getInitVal().getExtValue();
+  int width = ctype->GetBitWidth();
+  auto val = int_type->is_signed() ? xls::Value(xls::SBits(ext_val, width))
+                                   : xls::Value(xls::UBits(ext_val, width));
   xls::BValue init_val = context().fb->Literal(val, loc);
   return CValue(init_val, ctype, /*disable_type_check=*/false);
 }
@@ -1179,13 +1182,8 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
   CValue value;
 
   if (enum_decl != nullptr) {
-    const llvm::APSInt& aps = enum_decl->getInitVal();
-
-    std::shared_ptr<CType> type(std::make_shared<CIntType>(64, true));
-    xls::BValue bval =
-        context().fb->Literal(xls::UBits(aps.getExtValue(), 64), global_loc);
-
-    value = CValue(bval, type);
+    XLS_ASSIGN_OR_RETURN(value,
+                         TranslateEnumConstantDecl(enum_decl, global_loc));
   } else {
     XLS_CHECK(var_decl->hasGlobalStorage());
 
@@ -4304,8 +4302,11 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
         return absl::UnimplementedError(
             absl::StrFormat("Unsupported BuiltIn type %i", builtin->getKind()));
     }
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Enum) {
-    return shared_ptr<CType>(new CIntType(64, true));
+  } else if (auto enum_type = clang::dyn_cast<const clang::EnumType>(type)) {
+    clang::EnumDecl* decl = enum_type->getDecl();
+    int64_t width = decl->getNumPositiveBits() + decl->getNumNegativeBits();
+    bool is_signed = decl->getNumNegativeBits() > 0;
+    return shared_ptr<CType>(new CIntType(width, is_signed));
   } else if (type->getTypeClass() ==
              clang::Type::TypeClass::TemplateSpecialization) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
