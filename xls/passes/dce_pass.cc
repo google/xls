@@ -28,7 +28,7 @@ absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   auto is_deletable = [](Node* n) {
     return !n->function_base()->HasImplicitUse(n) &&
-           !OpIsSideEffecting(n->op());
+           (!OpIsSideEffecting(n->op()) || n->Is<Gate>());
   };
 
   std::deque<Node*> worklist;
