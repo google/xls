@@ -39,6 +39,7 @@ nav:
     - Fuzzer: 'fuzzer.md'
     - Interpreter: 'dslx_bytecode_interpreter.md'
   - Code Generation:
+    - Codegen Options: 'codegen_options.md'
     - VAST: 'vast.md'
   - Tools:
     - Build System: 'build_system.md'
