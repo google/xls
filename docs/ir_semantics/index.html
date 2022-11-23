@@ -1359,6 +1359,20 @@
   
   
     <li class="md-nav__item">
+      <a href="../codegen_options/" class="md-nav__link">
+        Codegen Options
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../vast/" class="md-nav__link">
         VAST
       </a>
@@ -2955,8 +2969,12 @@ in a single transaction.</p>
 <h4 id="receive"><strong><code>receive</code></strong></h4>
 <p>Receives a data value from a specified channel. The type of the data value is
 determined by the channel. An optional predicate value conditionally enables the
-receive operation.</p>
-<div class="highlight"><pre><span></span><code>result = receive(tkn, predicate=&lt;pred&gt;, channel_id=&lt;ch&gt;)
+receive operation. An optional <code>blocking</code> attribute determines whether the
+receive operation is blocking. A blocking receive waits (or blocks) until valid
+data is present at the channel. Compared to a blocking receive, a non-blocking
+receive has an additional entry in its return tuple of type <code>bits[1]</code> denoting
+whether the data read is valid.</p>
+<div class="highlight"><pre><span></span><code>result = receive(tkn, predicate=&lt;pred&gt;, blocking=&lt;bool&gt;, channel_id=&lt;ch&gt;)
 </code></pre></div>
 <p><strong>Types</strong></p>
 <table>
@@ -2977,7 +2995,7 @@ receive operation.</p>
 </tr>
 <tr>
 <td><code>result</code></td>
-<td><code>(token, T)</code></td>
+<td><code>(token, T)</code> if <code>blocking</code> == <code>true</code> else <code>(token, T, bits[1])</code></td>
 </tr>
 </tbody>
 </table>
@@ -3001,6 +3019,13 @@ receive operation.</p>
 <td>no</td>
 <td></td>
 <td>A value is received iff <code>predicate</code> is true</td>
+</tr>
+<tr>
+<td><code>blocking</code></td>
+<td><code>bool</code></td>
+<td>no</td>
+<td><code>true</code></td>
+<td>Whether the receive is blocking</td>
 </tr>
 <tr>
 <td><code>channel_id</code></td>
