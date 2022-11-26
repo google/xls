@@ -95,12 +95,6 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
   NodeIterator r = ReverseTopoSort(f);
   std::vector<Node*> reverse_toposort(r.begin(), r.end());
 
-  // Map from node to index in a reverse topo sort.
-  absl::flat_hash_map<Node*, NodeIndex> node_index;
-  for (NodeIndex i = 0; i < reverse_toposort.size(); ++i) {
-    node_index[reverse_toposort[i]] = i;
-  }
-
   // Construct the postdominators for each node. Postdominators are gathered as
   // a sorted vector containing the node indices (in a reverse toposort) of the
   // post dominator nodes.
