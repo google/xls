@@ -231,6 +231,7 @@ def xls_ir_verilog_impl(ctx, src):
         "umulp_format",
         "ram_configurations",
         "gate_recvs",
+        "array_index_bounds_checking",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)

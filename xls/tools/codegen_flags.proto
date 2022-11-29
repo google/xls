@@ -65,4 +65,5 @@ message CodegenFlagsProto {
   optional string streaming_channel_ready_suffix = 30;
   repeated string ram_configurations = 31;
   optional bool gate_recvs = 32;
+  optional bool array_index_bounds_checking = 33;
 }

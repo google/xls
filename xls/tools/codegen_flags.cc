@@ -123,6 +123,9 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
 ABSL_FLAG(bool, gate_recvs, true,
           "If true, emit logic to gate the data value to zero for a receive "
           "operation in Verilog. Otherwise, the data value is not gated.");
+ABSL_FLAG(bool, array_index_bounds_checking, true,
+          "If true, emit bounds checking on array-index operations in Verilog. "
+          "Otherwise, the bounds checking is not evaluated.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -211,6 +214,7 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
 
   // Optimizations
   POPULATE_FLAG(gate_recvs);
+  POPULATE_FLAG(array_index_bounds_checking);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
   return p;

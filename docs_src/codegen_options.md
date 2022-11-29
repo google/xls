@@ -283,3 +283,11 @@ response-receive are scheduled to match the RAM's latency.
     However, the latter does utilize more resource/area. Setting this value to
     false may reduce the resource/area utilization, but may also result in
     mismatches between IR-level evaluation and Verilog simulation.
+
+-   `--array_index_bounds_checking`: With this option set, an out of bounds
+    array access returns the maximal index element in the array. If this option
+    is not set, the result relies on the semantics of out-of-bounds array access
+    in Verilog which is not well-defined. Setting this option to `true` may
+    result in more resource/area. Setting this value to `false` may reduce the
+    resource/area utilization, but may also result in mismatches between
+    IR-level evaluation and Verilog simulation.
