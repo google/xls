@@ -49,7 +49,8 @@ CodegenOptions::CodegenOptions(const CodegenOptions& options)
       streaming_channel_data_suffix_(options.streaming_channel_data_suffix_),
       streaming_channel_ready_suffix_(options.streaming_channel_ready_suffix_),
       streaming_channel_valid_suffix_(options.streaming_channel_valid_suffix_),
-      array_index_bounds_checking_(options.array_index_bounds_checking_) {
+      array_index_bounds_checking_(options.array_index_bounds_checking_),
+      gate_recvs_(options.gate_recvs_) {
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -79,6 +80,7 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   streaming_channel_ready_suffix_ = options.streaming_channel_ready_suffix_;
   streaming_channel_valid_suffix_ = options.streaming_channel_valid_suffix_;
   array_index_bounds_checking_ = options.array_index_bounds_checking_;
+  gate_recvs_ = options.gate_recvs_;
   for (auto& [op, op_override] : options.op_overrides_) {
     op_overrides_.insert_or_assign(op, op_override->Clone());
   }
@@ -237,6 +239,11 @@ CodegenOptions& CodegenOptions::streaming_channel_ready_suffix(
 
 CodegenOptions& CodegenOptions::array_index_bounds_checking(bool value) {
   array_index_bounds_checking_ = value;
+  return *this;
+}
+
+CodegenOptions& CodegenOptions::gate_recvs(bool value) {
+  gate_recvs_ = value;
   return *this;
 }
 

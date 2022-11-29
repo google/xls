@@ -809,7 +809,7 @@ proc my_proc(tkn: token, st: (), init={()}) {
                                               m::Literal(1), m::Literal(1))));
 }
 
-TEST_F(BlockConversionTest, OnlyFIFOInProc) {
+TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsTrue) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only,
 flow_control=ready_valid, metadata="""module_port { flopped: false
@@ -832,6 +832,43 @@ proc my_proc(tkn: token, st: (), init={()}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block,
                            ProcToCombinationalBlock(proc, codegen_options()));
+
+  // A select node is inferred by the `receive.13` node.
+  EXPECT_THAT(
+      FindNode("out", block),
+      m::OutputPort("out", m::Select(m::Literal(1),
+                                     {m::Literal(0), m::InputPort("in")})));
+  EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
+  EXPECT_THAT(FindNode("in_vld", block), m::InputPort("in_vld"));
+  EXPECT_THAT(FindNode("in_rdy", block),
+              m::OutputPort("in_rdy", m::And(m::Literal(1), m::Literal(1))));
+}
+
+TEST_F(BlockConversionTest, OnlyFIFOInProcGateRecvsFalse) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=streaming, ops=receive_only,
+flow_control=ready_valid, metadata="""module_port { flopped: false
+port_order: 0 }""") chan out(bits[32], id=1, kind=single_value,
+ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
+
+proc my_proc(tkn: token, st: (), init={()}) {
+  literal.21: bits[1] = literal(value=1, id=21, pos=[(1,8,3)])
+  receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
+  send.20: token = send(tuple_index.14, tuple_index.15,
+                        channel_id=1, id=20, pos=[(1,5,1)])
+  next (send.20, st)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+  CodegenOptions options = codegen_options();
+  options.gate_recvs(false);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, options));
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
@@ -867,6 +904,90 @@ proc my_proc(tkn: token, st: (), init={()}) {
   EXPECT_THAT(FindNode("out_rdy", block), m::InputPort("out_rdy"));
 }
 
+// Ensure that the output of the receive is zero when the predicate is false.
+TEST_F(BlockConversionTest, ReceiveIfIsZeroWhenPredicateIsFalse) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_pred,
+      package.CreateSingleValueChannel("pred", ChannelOps::kReceiveOnly,
+                                       package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue ch_pred_value = pb.Receive(ch_pred);
+  BValue a = pb.ReceiveIf(ch_in, ch_pred_value);
+  pb.Send(ch_out, a);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
+
+  // Assert the predicate to false. Note out contains the value of 0 although
+  // the value of in is 42.
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 0}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 0), Pair("out_vld", 1),
+                                        Pair("out", 0))));
+
+  // Assert the predicate to true. Note out contains the value of in (42).
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 1}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 1), Pair("out_vld", 1),
+                                        Pair("out", 42))));
+}
+
+// Ensure that the output of the receive is passthrough when the predicate is
+// false.
+TEST_F(BlockConversionTest, ReceiveIfIsPassthroughWhenPredicateIsFalse) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_pred,
+      package.CreateSingleValueChannel("pred", ChannelOps::kReceiveOnly,
+                                       package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue ch_pred_value = pb.Receive(ch_pred);
+  BValue a = pb.ReceiveIf(ch_in, ch_pred_value);
+  pb.Send(ch_out, a);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  CodegenOptions options = codegen_options();
+  options.gate_recvs(false);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, options));
+
+  // Assert the predicate to false. Note out contains the value of in (42).
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 0}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 0), Pair("out_vld", 1),
+                                        Pair("out", 42))));
+
+  // Assert the predicate to true. Note out contains the value of in (42).
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 1}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 1), Pair("out_vld", 1),
+                                        Pair("out", 42))));
+}
+
 // Ensure that the output of the receive is zero when the data is not valid.
 TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenDataInvalid) {
   Package package(TestName());
@@ -894,6 +1015,45 @@ TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenDataInvalid) {
                   block, {{"in", 42}, {"in_vld", 0}, {"out_rdy", 1}}),
               IsOkAndHolds(UnorderedElementsAre(
                   Pair("in_rdy", 1), Pair("out_vld", 1), Pair("out", 0))));
+
+  // `in`'s valid signal is asserted. Note `out` contains the value of `in`
+  // which is 42.
+  EXPECT_THAT(InterpretCombinationalBlock(
+                  block, {{"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+              IsOkAndHolds(UnorderedElementsAre(
+                  Pair("in_rdy", 1), Pair("out_vld", 1), Pair("out", 42))));
+}
+
+// Ensure that the output of the receive is passthrough when the data is not
+// valid.
+TEST_F(BlockConversionTest, NonblockingReceiveIsPassthroughWhenDataInvalid) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue in = pb.ReceiveNonBlocking(ch_in, pb.GetTokenParam());
+  BValue in_tkn = pb.TupleIndex(in, 0);
+  BValue in_data = pb.TupleIndex(in, 1);
+  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+
+  CodegenOptions options = codegen_options();
+  options.gate_recvs(false);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, options));
+
+  // `in`'s valid signal is deasserted. Note `out` contains the value of `in`
+  // which is 42.
+  EXPECT_THAT(InterpretCombinationalBlock(
+                  block, {{"in", 42}, {"in_vld", 0}, {"out_rdy", 1}}),
+              IsOkAndHolds(UnorderedElementsAre(
+                  Pair("in_rdy", 1), Pair("out_vld", 1), Pair("out", 42))));
 
   // `in`'s valid signal is asserted. Note `out` contains the value of `in`
   // which is 42.
@@ -939,6 +1099,54 @@ TEST_F(BlockConversionTest, NonblockingReceiveIsZeroWhenPredicateIsFalse) {
           block, {{"pred", 0}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
       IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 0), Pair("out_vld", 1),
                                         Pair("out", 0))));
+
+  // Assert the predicate to true. Note `out` contains the value of `in` (42).
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 1}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 1), Pair("out_vld", 1),
+                                        Pair("out", 42))));
+}
+
+// Ensure that the output of the receive is passthrough when the predicate is
+// false.
+TEST_F(BlockConversionTest,
+       NonblockingReceiveIsPassthroughWhenPredicateIsFalse) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_pred,
+      package.CreateSingleValueChannel("pred", ChannelOps::kReceiveOnly,
+                                       package.GetBitsType(1)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue ch_pred_response = pb.Receive(ch_pred, pb.GetTokenParam());
+  BValue ch_pred_tkn = pb.TupleIndex(ch_pred_response, 0);
+  BValue ch_pred_value = pb.TupleIndex(ch_pred_response, 1);
+  BValue in_response =
+      pb.ReceiveIfNonBlocking(ch_in, ch_pred_tkn, ch_pred_value);
+  BValue in_tkn = pb.TupleIndex(in_response, 0);
+  BValue in_data = pb.TupleIndex(in_response, 1);
+  BValue tok_fin = pb.Send(ch_out, in_tkn, in_data);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+
+  CodegenOptions options = codegen_options();
+  options.gate_recvs(false);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, options));
+
+  // Assert the predicate to false. Note out contains the value of in (42).
+  EXPECT_THAT(
+      InterpretCombinationalBlock(
+          block, {{"pred", 0}, {"in", 42}, {"in_vld", 1}, {"out_rdy", 1}}),
+      IsOkAndHolds(UnorderedElementsAre(Pair("in_rdy", 0), Pair("out_vld", 1),
+                                        Pair("out", 42))));
 
   // Assert the predicate to true. Note `out` contains the value of `in` (42).
   EXPECT_THAT(

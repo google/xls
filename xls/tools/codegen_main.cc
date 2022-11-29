@@ -143,6 +143,8 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   }
   options.ram_configurations(ram_configurations);
 
+  options.gate_recvs(p.gate_recvs());
+
   return options;
 }
 

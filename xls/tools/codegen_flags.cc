@@ -120,6 +120,9 @@ ABSL_FLAG(std::vector<std::string>, ram_configurations, {},
           "conjunction with a scheduling constraint to ensure that the receive "
           "on the response channel comes a cycle after the send on the request "
           "channel.");
+ABSL_FLAG(bool, gate_recvs, true,
+          "If true, emit logic to gate the data value to zero for a receive "
+          "operation in Verilog. Otherwise, the data value is not gated.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -205,6 +208,9 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
   POPULATE_FLAG(streaming_channel_valid_suffix);
   POPULATE_FLAG(streaming_channel_ready_suffix);
   POPULATE_REPEATED_FLAG(ram_configurations);
+
+  // Optimizations
+  POPULATE_FLAG(gate_recvs);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
   return p;

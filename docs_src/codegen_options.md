@@ -272,3 +272,14 @@ needed.
 When using `--ram_configurations`, you should generally add a scheduling
 constraint via `--io_constraints` to ensure the request-send and
 response-receive are scheduled to match the RAM's latency.
+
+# Optimization
+
+-   `--gate_recvs` emits logic to gate the data value of a receive operation in
+    Verilog. In the XLS IR, the receive operation has the semantics that the
+    data value is zero when the predicate is `false`. Moreover, for a
+    non-blocking receive, the data value is zero when the data is invalid. When
+    set to true, the data is gated and has the previously described semantics.
+    However, the latter does utilize more resource/area. Setting this value to
+    false may reduce the resource/area utilization, but may also result in
+    mismatches between IR-level evaluation and Verilog simulation.

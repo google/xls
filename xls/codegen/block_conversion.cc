@@ -2055,40 +2055,62 @@ class CloneNodesIntoBlockHandler {
     // If blocking return a tuple of (token, data), and if non-blocking
     // return a tuple of (token, data, valid).
     if (receive->is_blocking()) {
+      Node* data = input_port;
+      if (receive->predicate().has_value() && options_.gate_recvs()) {
+        XLS_ASSIGN_OR_RETURN(
+            Node * zero_value,
+            block_->MakeNode<xls::Literal>(node->loc(),
+                                           ZeroOfType(input_port->GetType())));
+        XLS_ASSIGN_OR_RETURN(
+            Select * select,
+            block_->MakeNodeWithName<Select>(
+                /*loc=*/node->loc(),
+                /*selector=*/node_map_.at(receive->predicate().value()),
+                /*cases=*/std::vector<Node*>({zero_value, input_port}),
+                /*default_value=*/std::nullopt,
+                /*name=*/absl::StrCat(channel->name(), "_select")));
+        data = select;
+      }
       XLS_ASSIGN_OR_RETURN(
           next_node,
           block_->MakeNode<Tuple>(
-              node->loc(), std::vector<Node*>(
-                               {node_map_.at(node->operand(0)), input_port})));
+              node->loc(),
+              std::vector<Node*>({node_map_.at(node->operand(0)), data})));
     } else {
       XLS_ASSIGN_OR_RETURN(Node * zero_value,
                            block_->MakeNode<xls::Literal>(
                                node->loc(), ZeroOfType(input_port->GetType())));
       // Ensure that the output of the receive is zero when the data is not
       // valid or the predicate is false.
-      Node* selector = input_valid_port;
-      if (receive->predicate().has_value()) {
+      Node* valid = input_valid_port;
+      Node* data = input_port;
+      if (options_.gate_recvs()) {
+        if (receive->predicate().has_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              NaryOp * and_pred,
+              block_->MakeNode<NaryOp>(
+                  /*loc=*/node->loc(),
+                  /*args=*/
+                  std::vector<Node*>(
+                      {node_map_.at(receive->predicate().value()),
+                       input_valid_port}),
+                  /*op=*/Op::kAnd));
+          valid = and_pred;
+        }
         XLS_ASSIGN_OR_RETURN(
-            NaryOp * and_pred,
-            block_->MakeNode<NaryOp>(
-                node->loc(),
-                std::vector<Node*>({node_map_.at(receive->predicate().value()),
-                                    input_valid_port}),
-                Op::kAnd));
-        selector = and_pred;
+            Select * select,
+            block_->MakeNodeWithName<Select>(
+                /*loc=*/node->loc(), /*selector=*/valid,
+                /*cases=*/std::vector<Node*>({zero_value, input_port}),
+                /*default_value=*/std::nullopt,
+                /*name=*/absl::StrCat(channel->name(), "_select")));
+        data = select;
       }
-      XLS_ASSIGN_OR_RETURN(
-          Select * select,
-          block_->MakeNodeWithName<Select>(
-              /*loc=*/node->loc(), /*selector=*/selector,
-              /*cases=*/std::vector<Node*>({zero_value, input_port}),
-              /*default_value=*/std::nullopt,
-              /*name=*/absl::StrCat(channel->name(), "_select")));
       XLS_ASSIGN_OR_RETURN(
           next_node,
           block_->MakeNode<Tuple>(
-              node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
-                                               select, selector})));
+              node->loc(), std::vector<Node*>(
+                               {node_map_.at(node->operand(0)), data, valid})));
     }
 
     // To the rest of the logic, a non-blocking receive is always valid.

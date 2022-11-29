@@ -209,6 +209,17 @@ class CodegenOptions {
     return array_index_bounds_checking_;
   }
 
+  // Emit logic to gate the data value of a receive operation in Verilog. In the
+  // XLS IR, the receive operation has the semantics that the data value is zero
+  // when the predicate is `false`. Moreover, for a non-blocking receive, the
+  // data value is zero when the data is invalid. When set to true, the data is
+  // gated and has the previously described semantics. However, the latter does
+  // utilize more resource/area. Setting this value to false may reduce the
+  // resource/area utilization, but may also result in mismatches between
+  // IR-level evaluation and Verilog simulation.
+  CodegenOptions& gate_recvs(bool value);
+  bool gate_recvs() const { return gate_recvs_; }
+
   // List of channels to rewrite for RAMs.
   CodegenOptions& ram_configurations(
       absl::Span<const std::unique_ptr<RamConfiguration>> ram_configurations);
@@ -238,6 +249,7 @@ class CodegenOptions {
   std::string streaming_channel_ready_suffix_ = "_rdy";
   std::string streaming_channel_valid_suffix_ = "_vld";
   bool array_index_bounds_checking_ = true;
+  bool gate_recvs_ = true;
   std::vector<std::unique_ptr<RamConfiguration>> ram_configurations_;
 };
 
