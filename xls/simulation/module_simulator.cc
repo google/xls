@@ -56,7 +56,7 @@ absl::flat_hash_map<std::string, std::optional<Bits>> InitValuesToX(
 }
 
 // Converts a list of IR Value to a list of IR Bits.
-std::vector<Bits> ValueListToBitsList(const absl::Span<const Value>& values) {
+std::vector<Bits> ValueListToBitsList(absl::Span<const Value> values) {
   std::vector<Bits> bits_list;
   for (const Value& value : values) {
     bits_list.push_back(FlattenValueToBits(value));
@@ -65,12 +65,24 @@ std::vector<Bits> ValueListToBitsList(const absl::Span<const Value>& values) {
 }
 
 // Converts a list of IR Bits to a list of IR Values.
-std::vector<Value> BitsListToValueList(const absl::Span<const Bits>& bits) {
+std::vector<Value> BitsListToValueList(absl::Span<const Bits> bits) {
   std::vector<Value> values_list;
   for (const Bits& bits : bits) {
     values_list.push_back(Value(bits));
   }
   return values_list;
+}
+
+// Returns `true`, if the map is empty or all counts are zero. Otherwise,
+// returns `false`.
+bool IsEmptyOrAreAllCountsZero(
+    const absl::flat_hash_map<std::string, int64_t>& channel_counts) {
+  for (const auto& [_, count] : channel_counts) {
+    if (count != 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace
@@ -333,8 +345,16 @@ ModuleSimulator::RunInputSeriesProc(
   }
   XLS_VLOG(2) << "Verilog:\n" << verilog_text_;
 
-  if (channel_inputs.empty()) {
-    return absl::flat_hash_map<std::string, std::vector<Bits>>();
+  absl::flat_hash_map<std::string, std::vector<Bits>> channel_outputs;
+
+  // When there are no output channels or no expected value from the output
+  // channels, the simulation simply terminates and there is no data collected.
+  // For this special case, we exit early for performance.
+  if (IsEmptyOrAreAllCountsZero(output_channel_counts)) {
+    for (const auto& [name, _] : output_channel_counts) {
+      channel_outputs[name] = std::vector<Bits>();
+    }
+    return channel_outputs;
   }
 
   for (const auto& [channel_name, channel_values] : channel_inputs) {
@@ -443,7 +463,6 @@ ModuleSimulator::RunInputSeriesProc(
 
   XLS_RETURN_IF_ERROR(tb.Run());
 
-  absl::flat_hash_map<std::string, std::vector<Bits>> channel_outputs;
   for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
     channel_outputs[channel_proto.name()] = std::vector<Bits>();
   }
@@ -475,8 +494,20 @@ ModuleSimulator::RunInputSeriesProc(
     const absl::flat_hash_map<std::string, std::vector<Value>>& channel_inputs,
     const absl::flat_hash_map<std::string, int64_t>& output_channel_counts)
     const {
-  if (channel_inputs.empty()) {
-    return absl::flat_hash_map<std::string, std::vector<Value>>();
+  absl::flat_hash_map<std::string, std::vector<Value>> channel_outputs;
+
+  // When there are no output channels or no expected value from the output
+  // channels, the simulation simply terminates and there is no data collected.
+  // For this special case, we exit early for performance. Moreover, although
+  // this special case is handled in the overload with with xls::Bits, by
+  // handling the case in this function, the translation between xls::Value and
+  // xls::Bits for the input/output channel values are not performed, increasing
+  // the performance further.
+  if (IsEmptyOrAreAllCountsZero(output_channel_counts)) {
+    for (const auto& [name, _] : output_channel_counts) {
+      channel_outputs[name] = std::vector<Value>();
+    }
+    return channel_outputs;
   }
 
   using MapT = absl::flat_hash_map<std::string, std::vector<Bits>>;
@@ -489,7 +520,6 @@ ModuleSimulator::RunInputSeriesProc(
       MapT channel_outputs_bits,
       RunInputSeriesProc(channel_inputs_bits, output_channel_counts));
 
-  absl::flat_hash_map<std::string, std::vector<Value>> channel_outputs;
   for (const auto& [channel_name, channel_values] : channel_outputs_bits) {
     channel_outputs[channel_name] = BitsListToValueList(channel_values);
   }
