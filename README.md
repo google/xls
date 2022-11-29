@@ -229,6 +229,7 @@ project, see our
 *   [Dan Killebrew](https://github.com/dkillebrew-g)
 *   [Derek Lockhart](https://github.com/dmlockhart)
 *   [Eric Astor](https://github.com/ericastor)
+*   [Ethan Mahintorabi](https://github.com/QuantamHD)
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Georges Rotival](https://github.com/grotival)
 *   [Hans Montero](https://github.com/hmontero1205)
