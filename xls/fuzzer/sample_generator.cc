@@ -14,12 +14,14 @@
 
 #include "xls/fuzzer/sample_generator.h"
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <variant>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
@@ -36,13 +38,58 @@ namespace xls {
 
 using dslx::AstGenerator;
 using dslx::AstGeneratorOptions;
+using dslx::AstNode;
+using dslx::AstNodeVisitorWithDefault;
 using dslx::ConcreteType;
 using dslx::FunctionType;
 using dslx::ImportData;
 using dslx::InterpValue;
 using dslx::Module;
 using dslx::ModuleMember;
+using dslx::ParseModule;
 using dslx::TypecheckedModule;
+
+class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
+ public:
+  HasNonBlockingRecvVisitor() : has_nb_recv_(false) {}
+
+  bool GetHasNbRecv() const { return has_nb_recv_; }
+
+  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) {
+    has_nb_recv_ = true;
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRecvIfNonBlocking(const dslx::RecvIfNonBlocking* n) {
+    has_nb_recv_ = true;
+    return absl::OkStatus();
+  }
+
+ private:
+  bool has_nb_recv_;
+};
+
+static absl::StatusOr<bool> HasNonBlockingRecv(std::string dslx_text) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                       ParseModule(dslx_text, "sample.x", "sample"));
+  XLS_RET_CHECK(module != nullptr);
+
+  HasNonBlockingRecvVisitor visitor;
+  // Using std::deque to leverage the `insert` operator.
+  std::deque<AstNode*> bfs_queue;
+  bfs_queue.push_back(module.get());
+  while (!bfs_queue.empty()) {
+    AstNode* node = bfs_queue.front();
+    bfs_queue.pop_front();
+    XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+    if (visitor.GetHasNbRecv()) {
+      return true;
+    }
+    std::vector<AstNode*> children = node->GetChildren(false);
+    bfs_queue.insert(bfs_queue.end(), children.begin(), children.end());
+  }
+  return visitor.GetHasNbRecv();
+}
 
 // Returns randomly generated arguments for running codegen.
 //
@@ -52,9 +99,13 @@ using dslx::TypecheckedModule;
 //
 // Args:
 //   use_system_verilog: Whether to use SystemVerilog.
+//   has_registers: Whether the circuit has registers.
+//   has_nb_recv: Whether the IR semantics of the circuit has a non-blocking
+//     receive operation.
 //   rng: Random number generator state.
 static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
-                                                    bool contains_registers,
+                                                    bool has_registers,
+                                                    bool has_nb_recv,
                                                     ValueGenerator* value_gen) {
   std::vector<std::string> args;
   if (use_system_verilog) {
@@ -62,15 +113,20 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
   } else {
     args.push_back("--nouse_system_verilog");
   }
-  if (value_gen->RandomDouble() < 0.2 && !contains_registers) {
+  if (value_gen->RandomDouble() < 0.2 && !has_registers) {
     args.push_back("--generator=combinational");
   } else {
     args.push_back("--generator=pipeline");
     args.push_back(
         absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
   }
-  if (contains_registers) {
+  if (has_registers) {
     args.push_back("--reset=rst");
+  }
+  // TODO(https://github.com/google/xls/issues/791).
+  if (has_nb_recv) {
+    args.push_back("--flop_inputs=true");
+    args.push_back("--flop_inputs_kind=zerolatency");
   }
   return args;
 }
@@ -218,6 +274,11 @@ absl::StatusOr<Sample> GenerateSample(
         << "proc ticks must not be set or have a zero value when generating a "
            "function sample.";
   }
+
+  XLS_ASSIGN_OR_RETURN(std::string dslx_text,
+                       Generate(generator_options, value_gen));
+
+  XLS_ASSIGN_OR_RETURN(bool has_nb_recv, HasNonBlockingRecv(dslx_text));
   // Generate the sample options which is how to *run* the generated
   // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
   SampleOptions sample_options_copy = sample_options;
@@ -233,10 +294,8 @@ absl::StatusOr<Sample> GenerateSample(
         GenerateCodegenArgs(sample_options_copy.use_system_verilog(),
                             generator_options.generate_proc &&
                                 !generator_options.emit_stateless_proc,
-                            value_gen));
+                            has_nb_recv, value_gen));
   }
-  XLS_ASSIGN_OR_RETURN(std::string dslx_text,
-                       Generate(generator_options, value_gen));
 
   // Parse and type check the DSLX input to retrieve the top entity. The top
   // member must be a proc or a function.
