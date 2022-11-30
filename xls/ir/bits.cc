@@ -21,6 +21,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 
 namespace xls {
 

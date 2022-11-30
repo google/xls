@@ -213,3 +213,11 @@ def load_external_repositories():
         sha256 = "e0e6a0f2a5e8971198e5d382507bfe8e4be504797d75bb7aec44b5ea368fa100",
         strip_prefix = "benchmark-1.7.0",
     )
+
+    http_archive(
+        name = "rapidcheck",
+        strip_prefix = "rapidcheck-ce2b602bbe89e9264fb8725cc3f04049951f29cb",
+        urls = ["https://github.com/emil-e/rapidcheck/archive/ce2b602bbe89e9264fb8725cc3f04049951f29cb.zip"],
+        build_file = "@//dependency_support/rapidcheck:bundled.BUILD.bazel",
+        sha256 = "50af34562dfaa6dd183708f4c8ef6cfb7a7ea49d926cfd2c14c2fbd9844b06c8",
+    )

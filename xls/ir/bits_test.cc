@@ -18,6 +18,8 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "rapidcheck/gtest.h"
+#include "rapidcheck.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/number_parser.h"
@@ -667,6 +669,101 @@ TEST(BitsTest, ToBitVectorAndBack) {
   EXPECT_EQ(Bits(UBits(1, 1).ToBitVector()), UBits(1, 1));
   EXPECT_EQ(Bits(UBits(0b11001, 5).ToBitVector()), UBits(0b11001, 5));
   EXPECT_EQ(Bits(UBits(0b11001, 1234).ToBitVector()), UBits(0b11001, 1234));
+}
+
+static std::string BytesToHexString(absl::Span<const uint8_t> bytes) {
+  return "0x" + absl::StrJoin(bytes, "", [](std::string* out, uint8_t b) {
+           absl::StrAppendFormat(out, "%02x", b);
+         });
+}
+
+RC_GTEST_PROP(BitsRapidcheck, RoundTripByte, (uint8_t byte)) {
+  std::vector<uint8_t> orig = {byte};
+  int64_t bit_count = *rc::gen::inRange(8 * 0 + 1, 8 * 1 + 1).as("bit_count");
+  const Bits b = Bits::FromBytes(orig, bit_count);
+  std::vector<uint8_t> exported = b.ToBytes();
+
+  RC_ASSERT(exported.size() == 1);
+  RC_ASSERT(exported.at(0) == (byte & Mask(bit_count)));
+}
+
+RC_GTEST_PROP(BitsRapidcheck, RoundTripTwoBytes, (uint8_t b0, uint8_t b1)) {
+  std::vector<uint8_t> orig = {b0, b1};
+  int64_t bit_count = *rc::gen::inRange(8 * 1 + 1, 8 * 2 + 1).as("bit_count");
+  const Bits b = Bits::FromBytes(orig, bit_count);
+  std::vector<uint8_t> exported = b.ToBytes();
+
+  XLS_VLOG(1) << absl::StreamFormat("b0: 0x%02x b1: 0x%02x", b0, b1);
+  XLS_VLOG(1) << "exported: " << BytesToHexString(exported);
+
+  // Note: the way we import/export bytes to words, b1 becomes the most
+  // significant byte in the word, so it is the byte that gets masked.
+  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
+  RC_ASSERT(exported.size() == 2);
+  RC_ASSERT(exported.at(0) == b0);
+  RC_ASSERT(exported.at(1) == (b1 & mask));
+}
+
+RC_GTEST_PROP(BitsRapidcheck, RoundTripThreeBytes,
+              (uint8_t b0, uint8_t b1, uint8_t b2)) {
+  std::vector<uint8_t> orig = {b0, b1, b2};
+  int64_t bit_count = *rc::gen::inRange(8 * 2 + 1, 8 * 3 + 1).as("bit_count");
+  const Bits b = Bits::FromBytes(orig, bit_count);
+  std::vector<uint8_t> exported = b.ToBytes();
+
+  // Note: the way we import/export bytes to words, b2 becomes the most
+  // significant byte in the word, so it is the byte that gets masked.
+  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
+  RC_ASSERT(exported.size() == 3);
+  RC_ASSERT(exported.at(0) == b0);
+  RC_ASSERT(exported.at(1) == b1);
+  RC_ASSERT(exported.at(2) == (b2 & mask));
+}
+
+RC_GTEST_PROP(BitsRapidcheck, RoundTripNBytes,
+              (const std::vector<uint8_t>& orig)) {
+  if (orig.empty()) {
+    return;
+  }
+  int64_t orig_size = orig.size();
+  int64_t bit_count =
+      *rc::gen::inRange(8 * (orig_size - 1) + 1, 8 * orig_size + 1)
+           .as("bit_count");
+  const Bits b = Bits::FromBytes(orig, bit_count);
+  std::vector<uint8_t> exported = b.ToBytes();
+
+  RC_ASSERT(exported.size() == orig.size());
+
+  // Note: the way we import/export bytes to words, the last byte always becomes
+  // the most significant byte in the last word, so it is the byte that gets
+  // masked.
+  uint8_t mask = Mask(bit_count % 8 == 0 ? 8 : bit_count % 8);
+  for (size_t i = 0; i < orig.size() - 1; ++i) {
+    RC_ASSERT(exported.at(i) == orig.at(i));
+  }
+  RC_ASSERT(exported.back() == (orig.back() & mask));
+}
+
+// Populates a bitmap, converts that to bits, exports it back out, and checks it
+// is the same as the original.
+RC_GTEST_PROP(BitsRapidcheck, RoundTripFromBitmapToBitmap,
+              (const std::vector<bool>& orig)) {
+  // Construct the input bitmap from our bool vector.
+  InlineBitmap bitmap(orig.size());
+  for (size_t i = 0; i < orig.size(); ++i) {
+    bitmap.Set(i, orig.at(i));
+  }
+
+  // Make a bits object from that input bitmap.
+  const Bits b = Bits::FromBitmap(bitmap);
+
+  // Now export it to a bit vector and check it has the same contents as our
+  // original bool vector.
+  absl::InlinedVector<bool, 1> bit_vector = b.ToBitVector();
+  RC_ASSERT(bit_vector.size() == orig.size());
+  for (size_t i = 0; i < orig.size(); ++i) {
+    RC_ASSERT(orig.at(i) == bit_vector.at(i));
+  }
 }
 
 }  // namespace

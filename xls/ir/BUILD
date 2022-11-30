@@ -170,9 +170,7 @@ cc_test(
 cc_test(
     name = "bits_test",
     size = "small",
-    srcs = [
-        "bits_test.cc",
-    ],
+    srcs = ["bits_test.cc"],
     deps = [
         ":bits",
         ":number_parser",
@@ -182,6 +180,7 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
+        "@rapidcheck",
     ],
 )
 

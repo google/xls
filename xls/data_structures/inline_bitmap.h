@@ -24,6 +24,7 @@
 #include "xls/common/endian.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
+#include "xls/common/test_macros.h"
 
 namespace xls {
 
@@ -44,11 +45,23 @@ class InlineBitmap {
 
   // Constructs a bitmap of width `bit_count` using the bytes (in little-endian
   // layout). Bytes be of size at least `ceil(bit_count / 8)`.
+  //
+  // Implementation note: this byte mapping scheme works because, when we memcpy
+  // bytes into the array of uint64_t words, any "trailing bytes" end up in the
+  // "low byte" positions of the last word, and then our mask applies to that
+  // last word. E.g. for 65 bits:
+  //
+  //     /--- word 0 least signifiant byte
+  //     v
+  //    {b0, b1, b2, b3, ..., b7, b8}
+  //     ^----- word 0 data ---^  ^- word 1 data (partial)
+  //                              ^
+  //                               \- 0b0000_0001 == last word mask value 0x1
   static InlineBitmap FromBytes(int64_t bit_count,
                                 absl::Span<const uint8_t> bytes) {
     InlineBitmap result(bit_count, false);
     int64_t byte_count = CeilOfRatio(bit_count, int64_t{8});
-    XLS_CHECK_GE(bytes.size(), byte_count);
+    XLS_CHECK_EQ(bytes.size(), byte_count) << "bit_count: " << bit_count;
     std::memcpy(result.data_.data(), bytes.data(), byte_count);
     result.MaskLastWord();
     return result;
@@ -231,6 +244,8 @@ class InlineBitmap {
   }
 
  private:
+  XLS_FRIEND_TEST(InlineBitmapTest, MaskForWord);
+
   static constexpr int64_t kWordBits = 64;
   static constexpr int64_t kWordBytes = 8;
   int64_t word_count() const { return data_.size(); }
@@ -240,7 +255,8 @@ class InlineBitmap {
       return;
     }
     int64_t last_wordno = word_count() - 1;
-    data_[last_wordno] &= MaskForWord(last_wordno);
+    uint64_t mask = MaskForWord(last_wordno);
+    data_[last_wordno] &= mask;
   }
 
   // Creates a mask for the valid bits in word "wordno".

@@ -414,4 +414,42 @@ TEST(InlineBitmapTest, Union) {
 }
 
 }  // namespace
+
+// Note: tests below this point are friended, so cannot live in the anonymous
+// namespace.
+
+TEST(InlineBitmapTest, MaskForWord) {
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/8).MaskForWord(0), 0xff);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/16).MaskForWord(0), 0xffff);
+  constexpr uint64_t kUint64Max = std::numeric_limits<uint64_t>::max();
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/63).MaskForWord(0), kUint64Max >> 1);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/64).MaskForWord(0), kUint64Max);
+
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/65).MaskForWord(0), kUint64Max);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/65).MaskForWord(1), 0x1);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/66).MaskForWord(1), 0x3);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/127).MaskForWord(1), kUint64Max >> 1);
+  EXPECT_EQ(InlineBitmap(/*bit_count=*/128).MaskForWord(1), kUint64Max);
+
+  // Check that putting a "1" in the least significant bit of b8 shows up, given
+  // the mask that is created.
+  {
+    auto b = InlineBitmap::FromBytes(
+        65, {0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8 | 1});
+    EXPECT_EQ(b.MaskForWord(1), 0x1);
+    EXPECT_EQ(b.GetWord(0), 0xb7'b6'b5'b4'b3'b2'b1'b0);
+    EXPECT_EQ(b.GetWord(1), 0x1);
+  }
+
+  // Check a single sub-word set of bytes just for fun.
+  //
+  // Observe that b0 becomes the least significant byte because we copy it into
+  // a little endian word.
+  {
+    auto b = InlineBitmap::FromBytes(9, {0xff, 0xcd});
+    EXPECT_EQ(b.MaskForWord(0), 0x01ff);
+    EXPECT_EQ(b.GetWord(0), 0x01'ff);
+  }
+}
+
 }  // namespace xls

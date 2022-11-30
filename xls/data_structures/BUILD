@@ -159,6 +159,7 @@ cc_library(
         "//xls/common:bits_util",
         "//xls/common:endian",
         "//xls/common:math_util",
+        "//xls/common:test_macros",
         "//xls/common/logging",
     ],
 )
