@@ -99,11 +99,13 @@ static absl::StatusOr<bool> HasNonBlockingRecv(std::string dslx_text) {
 //
 // Args:
 //   use_system_verilog: Whether to use SystemVerilog.
+//   has_proc: Whether the IR semantics of the circuit has a proc.
 //   has_registers: Whether the circuit has registers.
 //   has_nb_recv: Whether the IR semantics of the circuit has a non-blocking
 //     receive operation.
 //   rng: Random number generator state.
 static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
+                                                    bool has_proc,
                                                     bool has_registers,
                                                     bool has_nb_recv,
                                                     ValueGenerator* value_gen) {
@@ -113,15 +115,35 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
   } else {
     args.push_back("--nouse_system_verilog");
   }
-  if (value_gen->RandomDouble() < 0.2 && !has_registers) {
-    args.push_back("--generator=combinational");
-  } else {
+  bool is_pipeline = value_gen->RandomDouble() < 0.8 || has_registers;
+  if (is_pipeline) {
     args.push_back("--generator=pipeline");
     args.push_back(
         absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
+  } else {
+    args.push_back("--generator=combinational");
   }
-  if (has_registers) {
+  if (has_registers || is_pipeline) {
     args.push_back("--reset=rst");
+    // The simulation functions with an active low reset.
+    args.push_back("--reset_active_low=false");
+    // TODO(https://github.com/google/xls/issues/795) Test the
+    // 'reset_asynchronous' flag in codegen in the fuzzer.
+    if (value_gen->RandomBool()) {
+      args.push_back("--reset_asynchronous=true");
+    } else {
+      args.push_back("--reset_asynchronous=false");
+    }
+  }
+  if (is_pipeline && has_proc) {
+    // For a pipelined proc, the data path may contain register driving control
+    // (e.g. channel read). These registers need to have a defined value after
+    // reset. As a result, the data path must be reset.
+    args.push_back("--reset_data_path=true");
+  } else {
+    // A combinational circuit and circuit derived from a function do not
+    // support resetting the data path.
+    args.push_back("--reset_data_path=false");
   }
   // TODO(https://github.com/google/xls/issues/791).
   if (has_nb_recv) {
@@ -292,6 +314,7 @@ absl::StatusOr<Sample> GenerateSample(
     // specified.
     sample_options_copy.set_codegen_args(
         GenerateCodegenArgs(sample_options_copy.use_system_verilog(),
+                            generator_options.generate_proc,
                             generator_options.generate_proc &&
                                 !generator_options.emit_stateless_proc,
                             has_nb_recv, value_gen));
