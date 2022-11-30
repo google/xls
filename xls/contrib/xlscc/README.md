@@ -20,7 +20,7 @@ Some features that will never be supported are:
 
 Variable width integer support is provided by synth_only/xls_int.h
 
-To see if specific features are supported, check translator_test.cc for
+To see if specific features are supported, check translator_logic_test.cc for
 unit tests.
 
 
