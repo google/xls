@@ -88,7 +88,7 @@ Some names can be set at codegen via the following flags:
     default.
 -   `--reset_asynchronous` sets if the reset is synchronous or asynchronous
     (synchronous by default).
--   `--reset_data_path` sets if the datapath should also be reset. False by
+-   `--reset_data_path` sets if the datapath should also be reset. True by
     default.
 
 # Codegen Mapping

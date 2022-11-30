@@ -86,6 +86,7 @@ xls_dslx_verilog(
     srcs = ["add_one.x"],
     codegen_args = {
         "pipeline_stages": "2",
+        "reset_data_path": "false",
         "delay_model": "unit",
     },
     dslx_top = "main",
@@ -516,6 +517,7 @@ xls_dslx_verilog(
     srcs = ["simple_example_five.x"],
     codegen_args = {
         "pipeline_stages": "1",
+        "reset_data_path": "false",
     },
     dslx_top = "main",
     # Output the Optimized IR file to reference.

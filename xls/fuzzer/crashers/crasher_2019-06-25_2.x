@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "simulate": false, "simulator": null}
 // args: bits[30]:0x2e99f5a0; bits[15]:0x8d9; bits[32]:0x58490179; bits[17]:0x1228d
 fn main(x17: u30, x18: u15, x19: u32, x20: u17) -> (u6, u6, u6, u6, u6, u6, u30, u6, u6, u6, u32, u6) {
     let x21: u6 = (u6:0x2);

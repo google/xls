@@ -450,7 +450,8 @@ class SampleRunnerTest(test_base.TestCase):
                 input_is_dslx=True,
                 ir_converter_args=['--top=main'],
                 codegen=True,
-                codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
+                codegen_args=('--generator=pipeline', '--pipeline_stages=2',
+                              '--reset_data_path=false'),
                 use_system_verilog=True,
                 simulate=True), [[
                     interp_value_from_ir_string('bits[8]:42'),
@@ -554,7 +555,7 @@ class SampleRunnerTest(test_base.TestCase):
             sample.SampleOptions(
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2',
-                              '--reset=rst'),
+                              '--reset=rst', '--reset_data_path=false'),
                 ir_converter_args=['--top=main'],
                 simulate=True,
                 top_type=sample.TopType.proc,

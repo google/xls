@@ -400,6 +400,7 @@ xls_dslx_verilog(
     codegen_args = {
         "delay_model": "unit",
         "clock_period_ps": "5000",
+        "reset_data_path": "false",
         "module_name": "find_index",
         "use_system_verilog": "false",
     },

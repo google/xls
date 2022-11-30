@@ -87,7 +87,7 @@ ABSL_FLAG(bool, reset_active_low, false,
           "Whether the reset signal is active low.");
 ABSL_FLAG(bool, reset_asynchronous, false,
           "Whether the reset signal is asynchronous.");
-ABSL_FLAG(bool, reset_data_path, false, "Whether to also reset the datapath.");
+ABSL_FLAG(bool, reset_data_path, true, "Whether to also reset the datapath.");
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
 ABSL_FLAG(bool, separate_lines, false,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "simulate": false, "simulator": null}
 // args: bits[1]:0x1; bits[19]:0x767d0; bits[29]:0xa8679fb
 // args: bits[1]:0x0; bits[19]:0x32f56; bits[29]:0x6c44113
 // args: bits[1]:0x1; bits[19]:0x800; bits[29]:0xa8615a0

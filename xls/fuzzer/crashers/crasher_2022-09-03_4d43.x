@@ -16,7 +16,7 @@
 // Command '['xls/tools/simulate_module_main', '--signature_file=module_sig.textproto', '--args_file=args.txt', '--verilog_simulator=iverilog', 'sample.v', '--logtostderr']' returned non-zero exit status 1.
 // Issue: https://github.com/google/xls/issues/706
 //
-// options: {"codegen": true, "codegen_args": ["--nouse_system_verilog", "--generator=pipeline", "--pipeline_stages=3"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": true, "simulator": "iverilog", "timeout_seconds": 600, "use_jit": true, "use_system_verilog": false}
+// options: {"codegen": true, "codegen_args": ["--nouse_system_verilog", "--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": true, "simulator": "iverilog", "timeout_seconds": 600, "use_jit": true, "use_system_verilog": false}
 // args: bits[58]:0x1ff_ffff_ffff_ffff; bits[61]:0x1a77_adb9_d6ff_aeb8; (bits[1]:0x1); bits[10]:0x269
 // args: bits[58]:0x2aa_aaaa_aaaa_aaaa; bits[61]:0x1555_5555_5555_5555; (bits[1]:0x1); bits[10]:0x2aa
 // args: bits[58]:0x377_0b6f_35f9_2ecf; bits[61]:0x2000; (bits[1]:0x0); bits[10]:0x155

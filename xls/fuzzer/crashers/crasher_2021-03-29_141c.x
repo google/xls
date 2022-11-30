@@ -21,7 +21,7 @@
 //    (bits[24]:0xaa_aaab, bits[24]:0x1, bits[2]:0x0, bits[25]:0x1)
 // Issue: https://github.com/google/xls/issues/367, https://bugs.llvm.org/show_bug.cgi?id=49778
 //
-// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=5"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
+// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=5", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
 // args: bits[24]:0x55_5555; bits[43]:0x768_98be_6049; bits[52]:0x5_5155_d100_0800
 // args: bits[24]:0x41_3426; bits[43]:0x1_0000; bits[52]:0xa_aaaa_aaaa_aaaa
 // args: bits[24]:0x4f_705e; bits[43]:0x55_237d_2704; bits[52]:0xf_ffff_ffff_ffff

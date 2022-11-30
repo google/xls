@@ -16,7 +16,7 @@
 // Command '['xls/tools/opt_main', 'sample.ir', '--logtostderr']' died with <Signals.SIGABRT: 6>.
 // Issue: https://github.com/google/xls/issues/758
 //
-// options: {"calls_per_sample": 128, "codegen": true, "codegen_args": ["--nouse_system_verilog", "--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_ticks": null, "simulate": true, "simulator": "iverilog", "timeout_seconds": 600, "top_type": 0, "use_jit": true, "use_system_verilog": false}
+// options: {"calls_per_sample": 128, "codegen": true, "codegen_args": ["--nouse_system_verilog", "--generator=pipeline", "--pipeline_stages=2", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_ticks": null, "simulate": true, "simulator": "iverilog", "timeout_seconds": 600, "top_type": 0, "use_jit": true, "use_system_verilog": false}
 // args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x4
 // args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2d
 // args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3a

@@ -14,7 +14,7 @@
 
 // Issue: https://github.com/google/xls/issues/222
 //
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=9"], "simulate": false, "simulator": null, "use_system_verilog": true}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=9", "--reset_data_path=false"], "simulate": false, "simulator": null, "use_system_verilog": true}
 // args: bits[1]:0x1
 // args: bits[1]:0x0
 // args: bits[1]:0x1
