@@ -564,11 +564,31 @@ cc_test(
     ],
 )
 
-# By default (no flags) the integration test generates only 10 samples which
+# By default (no flags) the integration test generates only 10 function samples which
 # serves as a smoke test for the health of the test itself.
 py_test(
     name = "fuzz_integration_test",
     srcs = ["fuzz_integration_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":cli_helpers",
+        ":run_fuzz",
+        ":sample_runner",
+        "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+# Integration test generates 10 proc samples.
+py_test(
+    name = "fuzz_integration_proc_test",
+    srcs = ["fuzz_integration_test.py"],
+    args = ["--generate_proc=true"],
+    main = "fuzz_integration_test.py",
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [

@@ -40,8 +40,14 @@ _SAMPLE_COUNT = flags.DEFINE_integer('sample_count', 10,
 _DURATION = flags.DEFINE_string(
     'duration', None, 'Duration to run the fuzzer for. '
     'Examples: 60s, 30m, 5h')
-_CALLS_PER_SAMPLE = flags.DEFINE_integer('calls_per_sample', 128,
-                                         'Arguments to generate per sample')
+_CALLS_PER_SAMPLE = flags.DEFINE_integer(
+    'calls_per_sample', 128,
+    'Arguments to generate per sample. The value is valid when '
+    '`--generate_proc` is `false`.')
+_PROC_TICKS = flags.DEFINE_integer(
+    'proc_ticks', 128,
+    'The number of ticks to execute when generating a proc. The value is valid '
+    'when `--generate_proc` is `true`.')
 _SIMULATE = flags.DEFINE_boolean('simulate', False, 'Run Verilog simulation.')
 _SIMULATOR = flags.DEFINE_string(
     'simulator', None, 'Verilog simulator to use. For example: "iverilog".')
@@ -62,6 +68,8 @@ _SAMPLE_TIMEOUT = flags.DEFINE_string(
     'sample_timeout', None,
     'Maximum time to run each sample before timing out. '
     'Examples: 10s, 2m, 1h')
+_GENERATE_PROC = flags.DEFINE_boolean(
+    'generate_proc', default=False, help='Generate a proc sample.')
 
 # The maximum number of failures before the test aborts.
 MAX_FAILURES = 10
@@ -96,9 +104,10 @@ class FuzzIntegrationTest(absltest.TestCase):
 
     rng = ast_generator.ValueGenerator(seed)
     generator_options = ast_generator.AstGeneratorOptions(
+        emit_gate=not _SIMULATE.value,
+        generate_proc=_GENERATE_PROC.value,
         max_width_bits_types=_MAX_WIDTH_BITS_TYPES.value,
-        max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,
-        emit_gate=not _SIMULATE.value)
+        max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value)
 
     if _SAMPLE_TIMEOUT.value is None:
       timeout_seconds = None
@@ -110,7 +119,8 @@ class FuzzIntegrationTest(absltest.TestCase):
         input_is_dslx=True,
         ir_converter_args=['--top=main'],
         convert_to_ir=True,
-        calls_per_sample=_CALLS_PER_SAMPLE.value,
+        calls_per_sample=0 if _GENERATE_PROC.value else _CALLS_PER_SAMPLE.value,
+        proc_ticks=_PROC_TICKS.value if _GENERATE_PROC.value else 0,
         use_jit=True,
         codegen=_SIMULATE.value,
         simulate=_SIMULATE.value,
