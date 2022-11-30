@@ -240,10 +240,8 @@ def xls_ir_verilog_impl(ctx, src):
 
     # output filenames
     verilog_filename = ctx.attr.verilog_file.name
-
-    # TODO(vmirian): 11-11-2022 Reinstate after cleanup.
-    # use_system_verilog = codegen_args["use_system_verilog"].lower() == "true"
-    # validate_verilog_filename(verilog_filename, use_system_verilog)
+    use_system_verilog = codegen_args["use_system_verilog"].lower() == "true"
+    validate_verilog_filename(verilog_filename, use_system_verilog)
     verilog_basename = split_filename(verilog_filename)[0]
 
     verilog_line_map_filename = get_output_filename_value(
