@@ -65,7 +65,7 @@ xls_cc_verilog_native_rule(
         "module_name": "PacketSelector",
         "top": "PacketSelector_proc",
     },
-    verilog_file = "packet_selector_verilog.v",
+    verilog_file = "packet_selector_verilog.sv",
 )
 
 xls_cc_verilog(
@@ -77,7 +77,7 @@ xls_cc_verilog(
         "module_name": "PacketSelector",
         "top": "PacketSelector_proc",
     },
-    verilog_file = "packet_selector_verilog_macro.v",
+    verilog_file = "packet_selector_verilog_macro.sv",
 )
 
 xls_benchmark_verilog(
@@ -107,5 +107,5 @@ xls_cc_verilog_native_rule(
     ir_file = "xls_cc_verilog.ir",
     module_sig_file = "xls_cc_verilog.sig.textproto",
     opt_ir_file = "xls_cc_verilog.opt.ir",
-    verilog_file = "xls_cc_verilog.v",
+    verilog_file = "xls_cc_verilog.sv",
 )

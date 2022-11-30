@@ -90,7 +90,7 @@ xls_ir_verilog(
         "module_name": "mux3_comb",
         "top": "Mux3_proc",
     },
-    verilog_file = "mux3_comb_v.v",
+    verilog_file = "mux3_comb_v.sv",
 )
 
 xls_ir_verilog(
@@ -109,7 +109,7 @@ xls_ir_verilog(
         "flop_outputs": "false",
         "top": "Mux3_proc",
     },
-    verilog_file = "mux3_stages_5_v.v",
+    verilog_file = "mux3_stages_5_v.sv",
 )
 
 xls_ir_verilog(
@@ -128,7 +128,7 @@ xls_ir_verilog(
         "flop_outputs": "false",
         "top": "Mux1To2_proc",
     },
-    verilog_file = "mux1to2_stages_5_v.v",
+    verilog_file = "mux1to2_stages_5_v.sv",
 )
 
 cc_test(
@@ -151,8 +151,8 @@ cc_test(
     name = "mux3_v_test",
     srcs = ["mux3_v_test.cc"],
     data = [
-        ":mux3_comb_v.v",
-        ":mux3_stages_5_v.v",
+        ":mux3_comb_v.sv",
+        ":mux3_stages_5_v.sv",
     ],
     deps = [
         "//xls/common:xls_gunit_main",
