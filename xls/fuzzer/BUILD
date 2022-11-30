@@ -149,6 +149,26 @@ py_test(
 )
 
 py_test(
+    name = "run_fuzz_proc_codegen_test",
+    srcs = ["run_fuzz_codegen_test.py"],
+    args = ["--generate_proc=true"],
+    main = "run_fuzz_codegen_test.py",
+    python_version = "PY3",
+    shard_count = 50,
+    srcs_version = "PY3",
+    # Based on run_fuzz_function_codegen_test, times out in fastbuild TAP 2020-10-20.
+    tags = ["optonly"],
+    deps = [
+        ":run_fuzz",
+        "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/testing:parameterized",
+    ],
+)
+
+py_test(
     name = "run_fuzz_function_wide_codegen_test",
     srcs = ["run_fuzz_codegen_test.py"],
     args = ["--wide=true"],
@@ -156,7 +176,7 @@ py_test(
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
-    # Based on run_fuzz_codegen_test, times out in fastbuild TAP 2020-10-20.
+    # Based on run_fuzz_function_codegen_test, times out in fastbuild TAP 2020-10-20.
     tags = ["optonly"],
     deps = [
         ":run_fuzz",
