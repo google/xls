@@ -16,6 +16,7 @@ nav:
       - Intro to parameterics: 'tutorials/intro_to_parametrics.md'
       - For expressions: 'tutorials/crc32.md'
       - Enumerate and match: 'tutorials/prefix_scan.md'
+      - Intro to Procs: 'tutorials/intro_to_procs.md'
     - XLS[cc]:
       - Overview: 'tutorials/xlscc_overview.md'
       - Channels: 'tutorials/xlscc_channels.md'
@@ -51,6 +52,8 @@ nav:
     - Contributing: 'contributing.md'
     - Style Guide: 'xls_style.md'
     - Adding a new IR operation: 'adding_ir_operation.md'
+    - Ideas and Projects: 'ideas_and_projects.md'
+    - FPGA characterization (experimental): 'fpga_characterization.md'
   - NoC:
     - Overview: 'xls_noc_readme.md'
     - Topologies:

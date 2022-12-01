@@ -14,6 +14,10 @@
 
 # Targets for documentation files.
 
+# pytype tests are present in this file
+
+load("@xls_pip_deps//:requirements.bzl", "requirement")
+
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
@@ -27,4 +31,30 @@ exports_files(
 filegroup(
     name = "dslx_reference",
     srcs = ["dslx_reference.md"],
+)
+
+filegroup(
+    name = "all_markdown",
+    srcs = glob(["**/*.md"]),
+    data = [
+        "//docs_src/tutorials:all_files",
+    ],
+)
+
+py_test(
+    name = "check_nav",
+    srcs = ["check_nav.py"],
+    data = [
+        ":all_markdown",
+        "//:mkdocs.yml",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        requirement("pyyaml"),
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+    ],
 )

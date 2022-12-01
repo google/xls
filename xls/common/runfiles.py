@@ -1,4 +1,3 @@
-#
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Library for accessing runfiles."""
 
 import os
+from typing import Iterable
 
 from rules_python.python.runfiles import runfiles
 
@@ -33,3 +34,7 @@ def get_path(relpath: str) -> str:
 def get_contents_as_text(relpath: str) -> str:
   with open(get_path(relpath), 'r', encoding='utf-8') as f:
     return f.read()
+
+
+def walk_resources(relpath: str) -> Iterable[str]:
+  return os.walk(get_path(relpath))
