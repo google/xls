@@ -1535,7 +1535,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     if (member == nullptr) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unimplemented assignment to lvalue member kind %s",
-                       member->getDeclKindName()));
+                       member_expr->getMemberDecl()->getDeclKindName()));
     }
 
     if (member->getType()->isLValueReferenceType()) {
@@ -2214,11 +2214,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   //  since BValues are immutable, and pointers are unsupported.
   bool add_this_return = false;
 
-  // This variable is set to true for specific calls, such as assignment
-  //  operators, which are considered "sequencing safe", ie unsequenced
-  //  assignment error checking isn't needed for them.
-  bool sequencing_safe = false;
-
   // Evaluate if "this" argument is necessary (eg for method calls)
   if (auto member_call =
           clang::dyn_cast<const clang::CXXMemberCallExpr>(call)) {
@@ -2230,9 +2225,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
     add_this_return = !thisQual->getPointeeType().isConstQualified();
   } else if (auto op_call =
                  clang::dyn_cast<const clang::CXXOperatorCallExpr>(call)) {
-    if (op_call->isAssignmentOp()) {
-      sequencing_safe = true;
-    }
     if (const clang::CXXMethodDecl* cxx_method =
             clang::dyn_cast<const clang::CXXMethodDecl>(
                 op_call->getDirectCallee())) {
@@ -2797,8 +2789,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (auto paren_expr = clang::dyn_cast<clang::ParenExpr>(lval->leaf())) {
       if (auto unary_expr =
               clang::dyn_cast<clang::UnaryOperator>(paren_expr->getSubExpr())) {
-        if (auto this_expr =
-                clang::dyn_cast<clang::CXXThisExpr>(unary_expr->getSubExpr())) {
+        if (clang::dyn_cast<clang::CXXThisExpr>(unary_expr->getSubExpr()) !=
+            nullptr) {
           is_this_expr = true;
         }
       }
@@ -3664,7 +3656,6 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
                                                const clang::NamedDecl* namedecl,
                                                const xls::SourceInfo& loc) {
   bool use_on_reset = false;
-  bool any_side_effects = false;
   ConstValue init;
   CValue translated_without_side_effects;
 
@@ -3679,7 +3670,6 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
 
     if (context().any_side_effects_requested) {
       use_on_reset = true;
-      any_side_effects = true;
     } else {
       // Check for const-evaluatability
       absl::StatusOr<ConstValue> translate_result = TranslateBValToConstVal(

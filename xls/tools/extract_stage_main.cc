@@ -63,12 +63,10 @@ absl::Status RealMain(const std::string& ir_path,
   std::vector<FunctionBase*> funcs = package->GetFunctionBases();
 
   if (stage == -1) {
-    bool assigned_top = false;
     for (int i = 0; i < schedule.length(); ++i) {
       XLS_ASSIGN_OR_RETURN(Function * stage,
                            ExtractStage(function, schedule, i));
       XLS_RETURN_IF_ERROR(package->SetTop(stage));
-      assigned_top = true;
     }
   } else {
     XLS_ASSIGN_OR_RETURN(Function * stage,

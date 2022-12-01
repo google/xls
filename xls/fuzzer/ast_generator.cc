@@ -1893,7 +1893,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
   // the environment of the initial call depth should not be empty, so we can
   // draw references from the environment. The environment can be empty for
   // subsequent call depths.
-  XLS_RET_CHECK(call_depth > 0 || call_depth == 0 && !ctx->env.empty());
+  XLS_RET_CHECK(call_depth > 0 || (call_depth == 0 && !ctx->env.empty()));
   return GenerateExpr(/*expr_size=*/0, call_depth, ctx);
 }
 

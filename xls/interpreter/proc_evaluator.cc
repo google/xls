@@ -14,6 +14,8 @@
 
 #include "xls/interpreter/proc_evaluator.h"
 
+#include "xls/common/logging/logging.h"
+
 namespace xls {
 
 bool TickResult::operator==(const TickResult& other) const {
@@ -42,6 +44,7 @@ std::string ToString(TickExecutionState state) {
     case TickExecutionState::kSentOnChannel:
       return "kSentOnChannel";
   }
+  XLS_CHECK(false) << "Internal Error";
 }
 
 std::ostream& operator<<(std::ostream& os, TickExecutionState state) {

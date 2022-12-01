@@ -205,6 +205,7 @@ cc_library(
     hdrs = ["proc_evaluator.h"],
     deps = [
         "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:events",

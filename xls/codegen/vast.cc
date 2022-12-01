@@ -411,7 +411,7 @@ std::string XSentinel::Emit(LineInfo* line_info) const {
 }
 
 static void FourValueFormatter(std::string* out, FourValueBit value) {
-  char value_as_char;
+  char value_as_char = '\0';
   switch (value) {
     case FourValueBit::kZero:
       value_as_char = '0';
@@ -426,6 +426,7 @@ static void FourValueFormatter(std::string* out, FourValueBit value) {
       value_as_char = '?';
       break;
   }
+  XLS_CHECK_NE(value_as_char, '\0') << "Internal Error";
   out->push_back(value_as_char);
 }
 
