@@ -16,7 +16,6 @@
 #include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
-#include "xls/dslx/ast.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
@@ -286,6 +285,7 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
   if (auto* array_type = dynamic_cast<dslx::ArrayTypeAnnotation*>(type);
       array_type != nullptr) {
     dslx::TypeAnnotation* element_type = array_type->element_type();
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, GetArraySize(array_type->dim()));
     // Handle the array-type-is-actually-a-bits-type case.
     if (auto* builtin_type_annot =
             dynamic_cast<dslx::BuiltinTypeAnnotation*>(element_type);
@@ -294,18 +294,12 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
       if (builtin_type == dslx::BuiltinType::kBits ||
           builtin_type == dslx::BuiltinType::kUN ||
           builtin_type == dslx::BuiltinType::kSN) {
-        XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                             dslx::GetBuiltinTypeBitCount(builtin_type));
-        XLS_ASSIGN_OR_RETURN(bool signedness,
-                             dslx::GetBuiltinTypeSignedness(builtin_type));
-        XLS_ASSIGN_OR_RETURN(dslx::InterpValue num_value,
-                             GenerateBitValue(bit_count, signedness));
+        Bits num_value = GenerateBits(array_size);
         return module->Make<Number>(fake_span, num_value.ToString(),
                                     dslx::NumberKind::kOther, type);
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(int64_t array_size, GetArraySize(array_type->dim()));
     std::vector<Expr*> members;
     members.reserve(array_size);
     for (int i = 0; i < array_size; i++) {

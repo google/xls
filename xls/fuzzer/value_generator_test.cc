@@ -13,10 +13,13 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ast.h"
 
 namespace xls {
 namespace {
@@ -24,6 +27,8 @@ namespace {
 constexpr int kIterations = 1024;
 
 using status_testing::IsOkAndHolds;
+using ::testing::HasSubstr;
+using ::testing::MatchesRegex;
 
 TEST(AstGeneratorTest, RandomBool) {
   const int64_t kSampleCount = 10000;
@@ -262,6 +267,80 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
   EXPECT_THAT(arguments[0].GetLength(), IsOkAndHolds(24));
   EXPECT_TRUE(arguments[0].GetValuesOrDie()[0].IsSBits());
   EXPECT_THAT(arguments[0].GetValuesOrDie()[0].GetBitCount(), IsOkAndHolds(4));
+}
+
+TEST(SampleGeneratorTest, GenerateDslxConstantBits) {
+  dslx::Module module("test");
+  ValueGenerator value_gen(std::mt19937{});
+  dslx::BuiltinTypeAnnotation* type = module.Make<dslx::BuiltinTypeAnnotation>(
+      dslx::FakeSpan(), dslx::BuiltinType::kU32,
+      module.GetOrCreateBuiltinNameDef("u32"));
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
+                           value_gen.GenerateDslxConstant(&module, type));
+  ASSERT_NE(expr, nullptr);
+  EXPECT_THAT(expr->ToString(), HasSubstr("u32:"));
+}
+
+TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
+  dslx::Module module("test");
+  ValueGenerator value_gen(std::mt19937{});
+  dslx::BuiltinTypeAnnotation* dim_type =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kU32,
+          module.GetOrCreateBuiltinNameDef("u32"));
+  dslx::Number* dim = module.Make<dslx::Number>(
+      dslx::FakeSpan(), "32", dslx::NumberKind::kOther, dim_type);
+  dslx::BuiltinTypeAnnotation* element_type =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kSN,
+          module.GetOrCreateBuiltinNameDef("sN"));
+  dslx::ArrayTypeAnnotation* type = module.Make<dslx::ArrayTypeAnnotation>(
+      dslx::FakeSpan(), element_type, dim);
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
+                           value_gen.GenerateDslxConstant(&module, type));
+  ASSERT_NE(expr, nullptr);
+  EXPECT_THAT(expr->ToString(), HasSubstr("sN[u32:32]:"));
+}
+
+TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
+  dslx::Module module("test");
+  ValueGenerator value_gen(std::mt19937{});
+  dslx::BuiltinTypeAnnotation* dim_type =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kU32,
+          module.GetOrCreateBuiltinNameDef("u32"));
+  dslx::Number* dim = module.Make<dslx::Number>(
+      dslx::FakeSpan(), "65", dslx::NumberKind::kOther, dim_type);
+  dslx::BuiltinTypeAnnotation* element_type =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kSN,
+          module.GetOrCreateBuiltinNameDef("sN"));
+  dslx::ArrayTypeAnnotation* type = module.Make<dslx::ArrayTypeAnnotation>(
+      dslx::FakeSpan(), element_type, dim);
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
+                           value_gen.GenerateDslxConstant(&module, type));
+  ASSERT_NE(expr, nullptr);
+  EXPECT_THAT(expr->ToString(), HasSubstr("sN[u32:65]:"));
+}
+
+TEST(SampleGeneratorTest, GenerateDslxConstantTuple) {
+  dslx::Module module("test");
+  ValueGenerator value_gen(std::mt19937{});
+  dslx::BuiltinTypeAnnotation* element0 =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kU32,
+          module.GetOrCreateBuiltinNameDef("u32"));
+  dslx::BuiltinTypeAnnotation* element1 =
+      module.Make<dslx::BuiltinTypeAnnotation>(
+          dslx::FakeSpan(), dslx::BuiltinType::kS32,
+          module.GetOrCreateBuiltinNameDef("s32"));
+  dslx::TupleTypeAnnotation* type = module.Make<dslx::TupleTypeAnnotation>(
+      dslx::FakeSpan(), std::vector<dslx::TypeAnnotation*>{element0, element1});
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
+                           value_gen.GenerateDslxConstant(&module, type));
+  ASSERT_NE(expr, nullptr);
+  constexpr const char* kWantPattern = R"(\(u32:[0-9]+, s32:[0-9]+\))";
+  EXPECT_THAT(expr->ToString(), MatchesRegex(kWantPattern));
 }
 
 }  // namespace

@@ -631,6 +631,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "//xls/dslx:ast",
         "//xls/dslx:concrete_type",
         "@com_google_googletest//:gtest",
     ],
