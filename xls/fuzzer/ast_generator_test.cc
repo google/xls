@@ -76,6 +76,22 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
   EXPECT_EQ(is_signed, true);
 }
 
+TEST(AstGeneratorTest, GeneratesParametricBindings) {
+  ValueGenerator value_gen(std::mt19937{0});
+  AstGenerator g(AstGeneratorOptions(), &value_gen);
+  g.module_ = std::make_unique<Module>("my_mod");
+  std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
+  EXPECT_EQ(pbs.size(), 2);
+  // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
+  // googletest cannot currently seem to use \d in regexp patterns, which is
+  // quite surprising.
+  constexpr const char* kWantPattern =
+      R"(x[0-9]+: u[0-9]+ = u[0-9]+:0x[0-9a-f_]+)";
+  EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
+  EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
+}
+
+namespace {
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidFunctions) {
@@ -142,21 +158,6 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
   }
 }
 
-TEST(AstGeneratorTest, GeneratesParametricBindings) {
-  ValueGenerator value_gen(std::mt19937{0});
-  AstGenerator g(AstGeneratorOptions(), &value_gen);
-  g.module_ = std::make_unique<Module>("my_mod");
-  std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
-  EXPECT_EQ(pbs.size(), 2);
-  // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
-  // googletest cannot currently seem to use \d in regexp patterns, which is
-  // quite surprising.
-  constexpr const char* kWantPattern =
-      R"(x[0-9]+: u[0-9]+ = u[0-9]+:0x[0-9a-f_]+)";
-  EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
-  EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
-}
-
 // Helper function that is used in a TEST_P so we can shard the work.
 static void TestRepeatable(uint64_t seed) {
   AstGeneratorOptions options;
@@ -188,5 +189,7 @@ TEST_P(AstGeneratorRepeatableTest, GenerationRepeatableAtSeed) {
 INSTANTIATE_TEST_SUITE_P(AstGeneratorRepeatableTestInstance,
                          AstGeneratorRepeatableTest,
                          testing::Range(uint64_t{0}, uint64_t{1024}));
+
+}  // namespace
 
 }  // namespace xls::dslx

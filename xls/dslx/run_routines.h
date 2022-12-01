@@ -18,6 +18,7 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
+#include "xls/common/test_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_converter.h"
@@ -63,9 +64,9 @@ class RunComparator {
       std::string ir_name, xls::Function* ir_function);
 
  private:
-  friend class RunRoutinesTest_TestInvokedFunctionDoesJit_Test;
-  friend class RunRoutinesTest_QuickcheckInvokedFunctionDoesJit_Test;
-  friend class RunRoutinesTest_NoSeedStillQuickChecks_Test;
+  XLS_FRIEND_TEST(RunRoutinesTest, TestInvokedFunctionDoesJit);
+  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit);
+  XLS_FRIEND_TEST(RunRoutinesTest, NoSeedStillQuickChecks);
 
   absl::flat_hash_map<std::string, std::unique_ptr<FunctionJit>> jit_cache_;
   CompareMode mode_;

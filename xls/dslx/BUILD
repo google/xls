@@ -1113,6 +1113,7 @@ cc_library(
         ":parse_and_typecheck",
         ":symbolic_bindings",
         ":typecheck",
+        "//xls/common:test_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir",

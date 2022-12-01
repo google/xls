@@ -24,6 +24,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
 #include "absl/strings/match.h"
+#include "xls/common/test_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/scanner.h"
 #include "xls/fuzzer/value_generator.h"
@@ -118,8 +119,8 @@ class AstGenerator {
   }
 
  private:
-  friend class AstGeneratorTest_GeneratesParametricBindings_Test;
-  friend class AstGeneratorTest_BitsTypeGetMetadata_Test;
+  XLS_FRIEND_TEST(AstGeneratorTest, GeneratesParametricBindings);
+  XLS_FRIEND_TEST(AstGeneratorTest, BitsTypeGetMetadata);
 
   // Note: we use a btree for a stable iteration order; i.e. so we can stably
   // select a random value from the environment across something like different
