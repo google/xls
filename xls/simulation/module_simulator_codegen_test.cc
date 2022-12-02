@@ -497,6 +497,71 @@ TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
   EXPECT_EQ(output, Value::UBitsArray({1, 2, 3}, 8).value());
 }
 
+TEST_P(ModuleSimulatorCodegenTest, FunctionEmptyTuple) {
+  Package package(TestName());
+  FunctionBuilder fb(TestName(), &package);
+  BValue x = fb.Param("x", package.GetTupleType({}));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(x));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      GenerateCombinationalModule(func, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  Value input = Value::Tuple({});
+  XLS_ASSERT_OK_AND_ASSIGN(Value output, simulator.RunFunction({input}));
+  EXPECT_EQ(output, input);
+
+  // Check that error raised if incorrect type is passed in.
+  ASSERT_THAT(
+      simulator.RunFunction({Value::Tuple({Value::Tuple({})})}).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Input value 'x' is wrong type. Expected '()', got '(())'")));
+}
+
+TEST_P(ModuleSimulatorCodegenTest, ProcEmptyTuple) {
+  Package package(TestName());
+  Type* empty_tuple_type = package.GetTupleType({});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in, package.CreateStreamingChannel(
+                        "input", ChannelOps::kReceiveOnly, empty_tuple_type));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, package.CreateStreamingChannel(
+                         "output", ChannelOps::kSendOnly, empty_tuple_type));
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  BValue x = pb.Receive(in);
+  pb.Send(out, x);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      GenerateCombinationalModule(proc, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+
+  absl::flat_hash_map<std::string, std::vector<Value>> input_values;
+  input_values["input"] = {Value::Tuple({}), Value::Tuple({})};
+  absl::flat_hash_map<std::string, std::vector<Value>> result_values;
+  result_values["output"] = {Value::Tuple({}), Value::Tuple({})};
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts = {
+      {"output", 2}};
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts),
+              IsOkAndHolds(result_values));
+
+  // Check that error raised if incorrect type is passed in.
+  input_values["input"] = {Value::Tuple({Value::Tuple({})}),
+                           Value::Tuple({Value::Tuple({})})};
+  ASSERT_THAT(
+      simulator.RunInputSeriesProc(input_values, output_channel_counts)
+          .status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Input value 'input' is wrong type. Expected '()', got '(())'")));
+}
+
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorCodegenTestInstantiation,
                          ModuleSimulatorCodegenTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

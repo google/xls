@@ -65,10 +65,12 @@ std::vector<Bits> ValueListToBitsList(absl::Span<const Value> values) {
 }
 
 // Converts a list of IR Bits to a list of IR Values.
-std::vector<Value> BitsListToValueList(absl::Span<const Bits> bits) {
+absl::StatusOr<std::vector<Value>> BitsListToValueList(
+    absl::Span<const Bits> bits, const TypeProto& type) {
   std::vector<Value> values_list;
   for (const Bits& bits : bits) {
-    values_list.push_back(Value(bits));
+    XLS_ASSIGN_OR_RETURN(Value value, UnflattenBitsToValue(bits, type));
+    values_list.push_back(value);
   }
   return values_list;
 }
@@ -338,7 +340,14 @@ ModuleSimulator::RunInputSeriesProc(
   if (XLS_VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
     for (const auto& [channel_name, channel_values] : channel_inputs) {
-      channel_inputs_values[channel_name] = BitsListToValueList(channel_values);
+      XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
+                           signature_.GetInputChannelProtoByName(channel_name));
+      XLS_ASSIGN_OR_RETURN(
+          PortProto data_port,
+          signature_.GetInputPortProtoByName(channel_proto.data_port_name()));
+      XLS_ASSIGN_OR_RETURN(
+          channel_inputs_values[channel_name],
+          BitsListToValueList(channel_values, data_port.type()));
     }
     XLS_VLOG(1) << "Input channel values:\n";
     XLS_VLOG(1) << ChannelValuesToString(channel_inputs_values);
@@ -359,7 +368,7 @@ ModuleSimulator::RunInputSeriesProc(
 
   for (const auto& [channel_name, channel_values] : channel_inputs) {
     XLS_RETURN_IF_ERROR(
-        signature_.ValidateChannelInputs({channel_name, channel_values}));
+        signature_.ValidateChannelBitsInputs(channel_name, channel_values));
   }
 
   // Ensure all output channels have an expected read count.
@@ -481,7 +490,15 @@ ModuleSimulator::RunInputSeriesProc(
   if (XLS_VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> result_channel_values;
     for (const auto& [channel_name, channel_values] : channel_outputs) {
-      result_channel_values[channel_name] = BitsListToValueList(channel_values);
+      XLS_ASSIGN_OR_RETURN(
+          ChannelProto channel_proto,
+          signature_.GetOutputChannelProtoByName(channel_name));
+      XLS_ASSIGN_OR_RETURN(
+          PortProto data_port,
+          signature_.GetOutputPortProtoByName(channel_proto.data_port_name()));
+      XLS_ASSIGN_OR_RETURN(
+          result_channel_values[channel_name],
+          BitsListToValueList(channel_values, data_port.type()));
     }
     XLS_VLOG(1) << "Result channel values:\n";
     XLS_VLOG(1) << ChannelValuesToString(result_channel_values);
@@ -513,6 +530,8 @@ ModuleSimulator::RunInputSeriesProc(
   using MapT = absl::flat_hash_map<std::string, std::vector<Bits>>;
   MapT channel_inputs_bits;
   for (const auto& [channel_name, channel_values] : channel_inputs) {
+    XLS_RETURN_IF_ERROR(
+        signature_.ValidateChannelValueInputs(channel_name, channel_values));
     channel_inputs_bits[channel_name] = ValueListToBitsList(channel_values);
   }
 
@@ -520,8 +539,15 @@ ModuleSimulator::RunInputSeriesProc(
       MapT channel_outputs_bits,
       RunInputSeriesProc(channel_inputs_bits, output_channel_counts));
 
-  for (const auto& [channel_name, channel_values] : channel_outputs_bits) {
-    channel_outputs[channel_name] = BitsListToValueList(channel_values);
+  for (const auto& [channel_name, channel_bits] : channel_outputs_bits) {
+    XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
+                         signature_.GetOutputChannelProtoByName(channel_name));
+    XLS_ASSIGN_OR_RETURN(
+        PortProto data_port,
+        signature_.GetOutputPortProtoByName(channel_proto.data_port_name()));
+    XLS_ASSIGN_OR_RETURN(std::vector<Value> values,
+                         BitsListToValueList(channel_bits, data_port.type()));
+    channel_outputs[channel_proto.name()] = values;
   }
   return channel_outputs;
 }

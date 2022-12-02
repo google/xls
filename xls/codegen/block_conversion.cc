@@ -2795,9 +2795,9 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
                       })));
   }
 
-  std::string module_name = std::string{options.module_name().has_value()
-                                            ? options.module_name().value()
-                                            : proc->name()};
+  std::string module_name = SanitizeIdentifier(std::string{
+      options.module_name().has_value() ? options.module_name().value()
+                                        : proc->name()});
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(module_name, proc->package()));
 

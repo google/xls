@@ -410,13 +410,10 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
 
   // Makes a name-port map from the port list.
   auto port_map_builder = [&](const std::vector<PortProto>& ports)
-      -> absl::StatusOr<absl::flat_hash_map<
-          std::string, std::vector<PortProto>::const_iterator>> {
-    absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
-        name_port_map;
-    for (std::vector<PortProto>::const_iterator iter = ports.cbegin();
-         iter != ports.cend(); ++iter) {
-      name_port_map[iter->name()] = iter;
+      -> absl::StatusOr<absl::flat_hash_map<std::string, int64_t>> {
+    absl::flat_hash_map<std::string, int64_t> name_port_map;
+    for (int64_t i = 0; i < ports.size(); ++i) {
+      name_port_map[ports[i].name()] = i;
     }
     return name_port_map;
   };
@@ -448,19 +445,16 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   // TODO (vmirian) : 10-28-2022 There may be an efficient way to implement
   // the following by using channel ops.
   auto channel_map_builder = [&](const std::vector<ChannelProto>& channels)
-      -> absl::StatusOr<absl::flat_hash_map<
-          std::string, std::vector<ChannelProto>::const_iterator>> {
-    absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
-        name_channel_map;
-    for (std::vector<ChannelProto>::const_iterator iter = channels.cbegin();
-         iter != channels.cend(); ++iter) {
-      std::string_view channel_name = iter->name();
+      -> absl::StatusOr<absl::flat_hash_map<std::string, int64_t>> {
+    absl::flat_hash_map<std::string, int64_t> name_channel_map;
+    for (std::int64_t i = 0; i < channels.size(); ++i) {
+      std::string_view channel_name = channels[i].name();
       if (name_channel_map.contains(channel_name)) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "Channel name '%s' found more than once in signature proto.",
             channel_name));
       }
-      name_channel_map[channel_name] = iter;
+      name_channel_map[channel_name] = i;
     }
     return name_channel_map;
   };
@@ -595,15 +589,15 @@ absl::Status ModuleSignature::ValidateInputs(
   return absl::OkStatus();
 }
 
-absl::Status ModuleSignature::ValidateChannelInputs(
-    const std::pair<std::string, std::vector<Bits>>& channel_values) const {
-  if (!input_channel_map_.contains(channel_values.first)) {
-    return absl::FailedPreconditionError(absl::StrFormat(
-        "Channel '%s' is not an input channel.", channel_values.first));
+absl::Status ModuleSignature::ValidateChannelBitsInputs(
+    std::string_view channel_name, absl::Span<const Bits> values) const {
+  if (!input_channel_map_.contains(channel_name)) {
+    return absl::FailedPreconditionError(
+        absl::StrFormat("Channel '%s' is not an input channel.", channel_name));
   }
-  const ChannelProto& channel = *input_channel_map_.at(channel_values.first);
-  PortProto port = *input_port_map_.at(channel.data_port_name());
-  absl::Span<const Bits> values = channel_values.second;
+  const ChannelProto& channel =
+      input_channels_[input_channel_map_.at(channel_name)];
+  PortProto port = data_inputs_[input_port_map_.at(channel.data_port_name())];
   for (const Bits& value : values) {
     if (port.width() != value.bit_count()) {
       return absl::InvalidArgumentError(
@@ -614,16 +608,16 @@ absl::Status ModuleSignature::ValidateChannelInputs(
   return absl::OkStatus();
 }
 
-absl::Status ModuleSignature::ValidateChannelInputs(
-    const std::pair<std::string, std::vector<Value>>& channel_values) const {
-  if (!input_channel_map_.contains(channel_values.first)) {
-    return absl::FailedPreconditionError(absl::StrFormat(
-        "Channel '%s' is not an input channel.", channel_values.first));
+absl::Status ModuleSignature::ValidateChannelValueInputs(
+    std::string_view channel_name, absl::Span<const Value> values) const {
+  if (!input_channel_map_.contains(channel_name)) {
+    return absl::FailedPreconditionError(
+        absl::StrFormat("Channel '%s' is not an input channel.", channel_name));
   }
-  const ChannelProto& channel = *input_channel_map_.at(channel_values.first);
+  const ChannelProto& channel =
+      input_channels_[input_channel_map_.at(channel_name)];
   TypeProto expected_type_proto =
-      input_port_map_.at(channel.data_port_name())->type();
-  absl::Span<const Value> values = channel_values.second;
+      data_inputs_[input_port_map_.at(channel.data_port_name())].type();
   for (const Value& value : values) {
     XLS_ASSIGN_OR_RETURN(TypeProto value_type_proto, value.TypeAsProto());
     XLS_ASSIGN_OR_RETURN(bool types_equal, TypeProtosEqual(expected_type_proto,
@@ -657,7 +651,7 @@ absl::StatusOr<PortProto> ModuleSignature::GetInputPortProtoByName(
     return absl::NotFoundError(
         absl::StrFormat("Port '%s' is not an input port.", name));
   }
-  return *input_port_map_.at(name);
+  return data_inputs_[input_port_map_.at(name)];
 }
 
 absl::StatusOr<PortProto> ModuleSignature::GetOutputPortProtoByName(
@@ -666,7 +660,7 @@ absl::StatusOr<PortProto> ModuleSignature::GetOutputPortProtoByName(
     return absl::NotFoundError(
         absl::StrFormat("Port '%s' is not an output port.", name));
   }
-  return *output_port_map_.at(name);
+  return data_outputs_[output_port_map_.at(name)];
 }
 
 absl::StatusOr<ChannelProto> ModuleSignature::GetInputChannelProtoByName(
@@ -675,7 +669,7 @@ absl::StatusOr<ChannelProto> ModuleSignature::GetInputChannelProtoByName(
     return absl::NotFoundError(
         absl::StrFormat("Channel '%s' is not an input channel.", name));
   }
-  return *input_channel_map_.at(name);
+  return input_channels_[input_channel_map_.at(name)];
 }
 
 absl::StatusOr<ChannelProto> ModuleSignature::GetOutputChannelProtoByName(
@@ -684,7 +678,7 @@ absl::StatusOr<ChannelProto> ModuleSignature::GetOutputChannelProtoByName(
     return absl::NotFoundError(
         absl::StrFormat("Channel '%s' is not an output channel.", name));
   }
-  return *output_channel_map_.at(name);
+  return output_channels_[output_channel_map_.at(name)];
 }
 
 absl::StatusOr<std::string> ModuleSignature::GetChannelNameWith(

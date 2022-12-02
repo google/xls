@@ -166,10 +166,10 @@ class ModuleSignature {
       const absl::flat_hash_map<std::string, Bits>& input_bits) const;
   absl::Status ValidateInputs(
       const absl::flat_hash_map<std::string, Value>& input_values) const;
-  absl::Status ValidateChannelInputs(
-      const std::pair<std::string, std::vector<Bits>>& channel_values) const;
-  absl::Status ValidateChannelInputs(
-      const std::pair<std::string, std::vector<Value>>& channel_values) const;
+  absl::Status ValidateChannelBitsInputs(std::string_view channel_name,
+                                         absl::Span<const Bits> values) const;
+  absl::Status ValidateChannelValueInputs(std::string_view channel_name,
+                                          absl::Span<const Value> values) const;
 
   // Converts the ordered set of Value arguments to the module of the signature
   // into an argument name-value map.
@@ -218,21 +218,13 @@ class ModuleSignature {
   // Map from port name to channel name.
   absl::flat_hash_map<std::string, std::string> port_name_to_channel_name;
 
-  // For below, const iterators (e.g. std::vector<PortProto>::const_iterator)
-  // were used since there are no modifiers for the ModuleSignature, thus the
-  // corresponding vectors will not change.
-  // TODO(vmirian) : 10-28-2022 Support I/O channels and I/O ports.
-  //
-  // Map from input/output port name to a port proto reference.
-  absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
-      input_port_map_;
-  absl::flat_hash_map<std::string, std::vector<PortProto>::const_iterator>
-      output_port_map_;
-  // Map from channel name to a channel proto reference.
-  absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
-      input_channel_map_;
-  absl::flat_hash_map<std::string, std::vector<ChannelProto>::const_iterator>
-      output_channel_map_;
+  // TODO(vmirian): 10-28-2022 Support I/O channels and I/O ports.
+  // Map from input/output port name to index in the input/output port vector.
+  absl::flat_hash_map<std::string, int64_t> input_port_map_;
+  absl::flat_hash_map<std::string, int64_t> output_port_map_;
+  // Map from channel name to index in the channel input/output vector.
+  absl::flat_hash_map<std::string, int64_t> input_channel_map_;
+  absl::flat_hash_map<std::string, int64_t> output_channel_map_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the
