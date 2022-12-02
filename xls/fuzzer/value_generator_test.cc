@@ -339,7 +339,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(dslx::Expr * expr,
                            value_gen.GenerateDslxConstant(&module, type));
   ASSERT_NE(expr, nullptr);
-  constexpr const char* kWantPattern = R"(\(u32:[0-9]+, s32:[0-9]+\))";
+  constexpr const char* kWantPattern = R"(\(u32:[0-9]+, s32:[-0-9]+\))";
   EXPECT_THAT(expr->ToString(), MatchesRegex(kWantPattern));
 }
 
