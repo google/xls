@@ -118,8 +118,17 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
   bool is_pipeline = value_gen->RandomDouble() < 0.8 || has_registers;
   if (is_pipeline) {
     args.push_back("--generator=pipeline");
-    args.push_back(
-        absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
+    // Set the pipeline stage to one when fuzzing a proc with a non-blocking
+    // receive to ensures proper validation of the verilog output with other
+    // stages in the proc.
+    // TODO(https://github.com/google/xls/issues/798) To enhance the coverage,
+    // support pipeline stages greater than one.
+    if (has_nb_recv) {
+      args.push_back("--pipeline_stages=1");
+    } else {
+      args.push_back(
+          absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
+    }
   } else {
     args.push_back("--generator=combinational");
   }
