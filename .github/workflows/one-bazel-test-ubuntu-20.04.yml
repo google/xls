@@ -50,7 +50,10 @@ jobs:
     name: Bazel Cache Cleanup
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v3
       - name: Cleanup older Bazel Caches

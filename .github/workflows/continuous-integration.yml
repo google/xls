@@ -45,6 +45,16 @@ jobs:
       - name: Bazel Test All (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/... -//xls/contrib/xlscc/...
+  cleanup:
+    name: Bazel Cache Cleanup
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v3
       - name: Cleanup older Bazel Caches
         # Per https://github.com/actions/cache/blob/main/tips-and-workarounds.md#force-deletion-of-caches-overriding-default-cache-eviction-policy
         run: |
@@ -66,7 +76,7 @@ jobs:
           echo "Deleting caches..."
           for key in ${older_caches_for_20_04[@]}; do
               echo "  ... deleting $key for $REPO and $BRANCH"
-              #gh actions-cache delete $key -R $REPO -B $BRANCH --confirm
+              gh actions-cache delete $key -R $REPO -B $BRANCH --confirm
           done
 
           echo "Done"
