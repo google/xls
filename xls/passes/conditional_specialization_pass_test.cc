@@ -33,7 +33,7 @@ using status_testing::IsOkAndHolds;
 
 class ConditionalSpecializationPassTest : public IrTestBase {
  protected:
-  absl::StatusOr<bool> Run(Function* f, bool use_bdd = true) {
+  absl::StatusOr<bool> Run(FunctionBase* f, bool use_bdd = true) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
@@ -175,6 +175,57 @@ TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelects) {
   EXPECT_THAT(f->return_value(), m::Select(m::Param("pred"),
                                            /*cases=*/
                                            {m::Param("a"), m::Param("c")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest,
+       Consecutive2WaySelectsWithImplicitUse) {
+  //
+  //    a
+  //    |  c
+  //    | /
+  //   sel1 ----+ p
+  //    |       |
+  //   neg      |
+  //    |       |
+  //    |  d    |
+  //    | /     |
+  //   sel0 ----+
+  //    |
+  //
+  // Where neg and sel0 are next-state elements of a proc. This should prevent
+  // any transformations.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u1 = p->GetBitsType(1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a,
+      p->CreateStreamingChannel("a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b,
+      p->CreateStreamingChannel("b", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_c,
+      p->CreateStreamingChannel("c", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_pred,
+      p->CreateStreamingChannel("pred", ChannelOps::kReceiveOnly, u1));
+
+  TokenlessProcBuilder pb(TestName(), "tkn", p.get());
+  BValue a = pb.Receive(ch_a);
+  BValue b = pb.Receive(ch_b);
+  BValue c = pb.Receive(ch_c);
+  BValue pred = pb.Receive(ch_pred);
+
+  pb.StateElement("st0", Value(UBits(0, 32)));
+  pb.StateElement("st1", Value(UBits(0, 32)));
+
+  BValue sel1 = pb.Select(pred, {a, b});
+  BValue neg = pb.Negate(sel1);
+  BValue sel0 = pb.Select(pred, {neg, c});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({sel0, neg}));
+
+  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
 }
 
 TEST_F(ConditionalSpecializationPassTest, Consecutive2WaySelectsCase2) {

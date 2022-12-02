@@ -443,7 +443,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:op",
-        "//xls/ir:type",
     ],
 )
 
@@ -1019,13 +1018,11 @@ cc_library(
         ":bdd_function",
         ":bdd_query_engine",
         ":passes",
-        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
         "//xls/ir:bits_ops",
-        "//xls/ir:node_util",
     ],
 )
 

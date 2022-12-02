@@ -14,12 +14,10 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
-#include "absl/algorithm/container.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/ir/node_util.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 
@@ -283,14 +281,20 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     }
 
     // Compute the intersection of the condition sets of the users of this node.
-    bool first_user = true;
-    for (Node* user : node->users()) {
-      if (first_user) {
-        set = condition_map.GetEdgeConditionSet(node, user);
-      } else {
-        set.Intersect(condition_map.GetEdgeConditionSet(node, user));
+    //
+    // If this node has an implicit use then we can't propagate any conditions
+    // from the users because this value is unconditionally live and therefore
+    // its computed value should not be changed.
+    if (!f->HasImplicitUse(node)) {
+      bool first_user = true;
+      for (Node* user : node->users()) {
+        if (first_user) {
+          set = condition_map.GetEdgeConditionSet(node, user);
+        } else {
+          set.Intersect(condition_map.GetEdgeConditionSet(node, user));
+        }
+        first_user = false;
       }
-      first_user = false;
     }
 
     // If the only user of this node is a single select arm then add a condition

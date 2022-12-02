@@ -17,10 +17,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/dfs_visitor.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
-#include "xls/ir/type.h"
 
 namespace xls {
 
