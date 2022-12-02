@@ -211,7 +211,8 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
     // identifier since Bits conversion to decimal only supports that.
     //
     // Starting from 1 is to ensure that we don't get a 0-bit value.
-    int64_t bit_count = RandRange(1, 65);
+    int64_t bit_count =
+        RandRange(1, std::min(int64_t{65}, options_.max_width_bits_types + 1));
     TypedExpr number = GenerateNumber(BitsAndSignedness{bit_count, false});
     ParametricBinding* pb =
         module_->Make<ParametricBinding>(name_def, number.type, number.expr);
@@ -553,8 +554,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   // TODO(tedhong): 2022-10-21 When https://github.com/google/xls/issues/746
   // is resolved, remove bitcount constraint.
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs,
-                       ChooseEnvValueBitsInRange(&ctx->env, 1, 64));
+  XLS_ASSIGN_OR_RETURN(
+      TypedExpr lhs,
+      ChooseEnvValueBitsInRange(
+          &ctx->env, 1, std::min(int64_t{64}, options_.max_width_bits_types)));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = value_gen_->GenerateBits(bit_count);
@@ -1253,7 +1256,8 @@ TypeAnnotation* AstGenerator::GenerateType(
   }
   if (r < 0.2 * std::pow(2.0, -nesting)) {
     // Generate array type.
-    TypeAnnotation* element_type = GenerateType(nesting + 1);
+    TypeAnnotation* element_type =
+        GenerateType(nesting + 1, max_width_bits_types, max_width);
     int64_t element_width = GetTypeBitCount(element_type);
     int64_t element_count = RandomIntWithExpectedValue(10, /*lower_limit=*/1);
     if (element_count * element_width > max_width) {
