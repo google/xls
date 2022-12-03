@@ -63,21 +63,21 @@ def load_external_repositories():
         shallow_since = "1663197646 +0000",
     )
 
-    # Commit on 2021-12-03, current as of 2022-05-31
+    # Commit on 2022-11-02, current as of 2022-12-01
     http_archive(
         name = "pybind11_bazel",
-        strip_prefix = "pybind11_bazel-72cbbf1fbc830e487e3012862b7b720001b70672",
-        urls = ["https://github.com/pybind/pybind11_bazel/archive/72cbbf1fbc830e487e3012862b7b720001b70672.tar.gz"],
-        sha256 = "516c1b3a10d87740d2b7de6f121f8e19dde2c372ecbfe59aef44cd1872c10395",
-        patches = ["@com_google_xls//dependency_support/pybind11_bazel:sysconfig_fix.patch"],
+        strip_prefix = "pybind11_bazel-faf56fb3df11287f26dbc66fdedf60a2fc2c6631",
+        urls = ["https://github.com/pybind/pybind11_bazel/archive/faf56fb3df11287f26dbc66fdedf60a2fc2c6631.tar.gz"],
+        sha256 = "a2b107b06ffe1049696e132d39987d80e24d73b131d87f1af581c2cb271232f8",
     )
 
+    # Updated 2022-11-29
     http_archive(
         name = "pybind11",
         build_file = "@pybind11_bazel//:pybind11.BUILD",
-        strip_prefix = "pybind11-30eb39ed79d1e2eeff15219ac00773034300a5e6",
-        urls = ["https://github.com/pybind/pybind11/archive/30eb39ed79d1e2eeff15219ac00773034300a5e6.tar.gz"],
-        sha256 = "2e748579ea1903d55b8abe9d314fd5c3cf9f4e5734c525444e4d2aed146efc9e",
+        strip_prefix = "pybind11-8720cf94d69a3fce302c2e2f7abed464a9e485c6",
+        urls = ["https://github.com/pybind/pybind11/archive/8720cf94d69a3fce302c2e2f7abed464a9e485c6.tar.gz"],
+        sha256 = "d004efbb63bdbc79f3227b69134e51af67f4747e88c783835040df16d7a2d02c",
     )
 
     http_archive(
@@ -220,4 +220,13 @@ def load_external_repositories():
         urls = ["https://github.com/emil-e/rapidcheck/archive/ce2b602bbe89e9264fb8725cc3f04049951f29cb.zip"],
         build_file = "@//dependency_support/rapidcheck:bundled.BUILD.bazel",
         sha256 = "50af34562dfaa6dd183708f4c8ef6cfb7a7ea49d926cfd2c14c2fbd9844b06c8",
+    )
+
+    # Updated 2022-11-29
+    http_archive(
+        name = "pybind11_abseil",
+        sha256 = "fe1911341b26cb8f46efe2799fd611fa448e10804d1ab9e4e5c16a0c54e87931",
+        strip_prefix = "pybind11_abseil-6776a52004a92528789155b202508750049f584c",
+        urls = ["https://github.com/pybind/pybind11_abseil/archive/6776a52004a92528789155b202508750049f584c.zip"],
+        patches = ["@com_google_xls//dependency_support/pybind11_abseil:status_module.patch"],
     )

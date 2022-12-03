@@ -16,8 +16,9 @@
 
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "pybind11_abseil/statusor_caster.h"
+#include "xls/common/status/import_status_module.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/bits_ops.h"
 
 namespace py = pybind11;

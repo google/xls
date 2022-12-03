@@ -29,10 +29,11 @@ xls_pybind_extension(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/codegen:vast",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )

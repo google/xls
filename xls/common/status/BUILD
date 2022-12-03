@@ -137,10 +137,10 @@ cc_test(
 )
 
 cc_library(
-    name = "statusor_pybind_caster",
+    name = "import_status_module",
     hdrs = [
-        "statusor_pybind_caster.h",
-        "statusor_pybind_caster.inc",
+        "import_status_module.h",
+        "import_status_module.inc",
     ],
     copts = [
         "-fexceptions",
@@ -150,6 +150,9 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@pybind11",
+        "@pybind11_abseil//pybind11_abseil:import_status_module",
+        "@pybind11_abseil//pybind11_abseil:status.so",
+        "@pybind11_abseil//pybind11_abseil:status_casters",
     ],
 )
 

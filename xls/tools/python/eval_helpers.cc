@@ -20,8 +20,9 @@
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-#include "xls/common/python/absl_casters.h"
-#include "xls/common/status/statusor_pybind_caster.h"
+#include "pybind11_abseil/absl_casters.h"
+#include "pybind11_abseil/statusor_caster.h"
+#include "xls/common/status/import_status_module.h"
 
 namespace xls {
 

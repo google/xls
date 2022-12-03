@@ -1,0 +1,11 @@
+--- pybind11_abseil/import_status_module.h
++++ pybind11_abseil/import_status_module.h
+@@ -9,7 +9,7 @@
+ // passing "-DPYBIND11_ABSEIL_STATUS_MODULE_PATH=..." on the commandline.
+ #ifndef PYBIND11_ABSEIL_STATUS_MODULE_PATH
+ #define PYBIND11_ABSEIL_STATUS_MODULE_PATH \
+-  pybind11_abseil.status
++  pybind11_abseil.pybind11_abseil.status
+ #endif
+ 
+ namespace pybind11 {

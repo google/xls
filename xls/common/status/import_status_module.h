@@ -20,6 +20,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/common/status/statusor_pybind_caster.inc"
+#include "xls/common/status/import_status_module.inc"
 
 #endif  // XLS_COMMON_STATUS_STATUSOR_PYBIND_CASTER_H_

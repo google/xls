@@ -26,10 +26,11 @@ xls_pybind_extension(
     name = "bits",
     srcs = ["bits.cc"],
     deps = [
+        "//xls/common/status:import_status_module",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
@@ -100,10 +101,11 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir",
         "//xls/ir:function_builder",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
@@ -118,10 +120,11 @@ xls_pybind_extension(
     deps = [
         ":wrapper_types",
         "@com_google_absl//absl/status:statusor",
-        "//xls/common/python:absl_casters",
+        "//xls/common/status:import_status_module",
         "//xls/common/status:status_macros",
-        "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:ir_parser",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
@@ -170,9 +173,10 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
@@ -208,7 +212,6 @@ xls_pybind_extension(
     srcs = ["type.cc"],
     deps = [
         ":wrapper_types",
-        "//xls/common/status:statusor_pybind_caster",
         "//xls/ir",  # build_cleaner: keep
         "//xls/ir:type",
         "@com_google_protobuf//:protobuf",
@@ -258,9 +261,10 @@ xls_pybind_extension(
         ":bits",  # build_cleaner: keep
     ],
     deps = [
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir:value",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
@@ -273,8 +277,9 @@ xls_pybind_extension(
     ],
     deps = [
         ":wrapper_types",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir",
+        "@pybind11_abseil//pybind11_abseil:status_caster",
     ],
 )
 

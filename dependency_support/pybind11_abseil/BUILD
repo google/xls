@@ -12,24 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
-
-package(
-    default_visibility = [
-        "//xls:xls_internal",
-    ],
-    licenses = ["notice"],  # Apache 2.0
-)
-
-xls_pybind_extension(
-    name = "eval_helpers",
-    srcs = [
-        "eval_helpers.cc",
-    ],
-    deps = [
-        "//xls/common/status:import_status_module",
-        "//xls/tools:eval_helpers",
-        "@pybind11_abseil//pybind11_abseil:absl_casters",
-        "@pybind11_abseil//pybind11_abseil:statusor_caster",
-    ],
-)
+# Required to make this a package.

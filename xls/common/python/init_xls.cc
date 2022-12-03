@@ -20,7 +20,7 @@
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
 #include "pybind11/pybind11.h"
-#include "xls/common/python/absl_casters.h"
+#include "pybind11_abseil/absl_casters.h"
 
 namespace py = pybind11;
 

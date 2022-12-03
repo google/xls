@@ -20,15 +20,12 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor_pybind_caster.h"
 
 namespace py = pybind11;
 
 namespace xls::dslx {
 
 PYBIND11_MODULE(ast, m) {
-  ImportStatusModule();
-
   py::enum_<BinopKind>(m, "BinopKind")
 #define VALUE(A, B, ...) .value(B, BinopKind::A)
       XLS_DSLX_BINOP_KIND_EACH(VALUE)

@@ -26,9 +26,10 @@ xls_pybind_extension(
         "//xls/ir/python:package",  # build_cleaner: keep
     ],
     deps = [
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir/python:wrapper_types",
         "//xls/passes:standard_pipeline",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 

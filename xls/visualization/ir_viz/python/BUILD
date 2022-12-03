@@ -26,13 +26,14 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/visualization/ir_viz:ir_to_json",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 

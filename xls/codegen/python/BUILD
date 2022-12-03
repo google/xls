@@ -40,12 +40,13 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir/python:wrapper_types",
         "//xls/scheduling:pipeline_schedule",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 

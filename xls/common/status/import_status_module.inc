@@ -12,26 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/verifier.h"
-
-#include "pybind11/pybind11.h"
-#include "pybind11_abseil/status_caster.h"
-#include "xls/common/status/import_status_module.h"
-#include "xls/ir/python/wrapper_types.h"
-
-namespace py = pybind11;
+#include "absl/status/statusor.h"
+#include "pybind11_abseil/import_status_module.h"
 
 namespace xls {
 
-PYBIND11_MODULE(verifier, m) {
-  ImportStatusModule();
-  py::module::import("xls.ir.python.function");
-  py::module::import("xls.ir.python.package");
-
-  m.def("verify_function", PyWrap(&VerifyFunction), py::arg("function"),
-        py::arg("codegen") = false);
-  m.def("verify_package", PyWrap(&VerifyPackage), py::arg("package"),
-        py::arg("codegen") = false);
+inline void ImportStatusModule() {
+  // Copied from ImportStatusModule from pybind11_abseil. This is a work around
+  // for the missing symbol error: _ZN8pybind116google18ImportStatusModuleEb
+  // TODO(meheff): 2022/12/01 Remove this library when
+  // pybind11::google::ImportStatusModule can be called directly.
+  if (!PyGILState_Check()) {
+    pybind11::pybind11_fail("ImportStatusModule() PyGILState_Check() failure.");
+  }
+  pybind11::module_::import(
+      PYBIND11_TOSTRING(PYBIND11_ABSEIL_STATUS_MODULE_PATH));
 }
 
 }  // namespace xls

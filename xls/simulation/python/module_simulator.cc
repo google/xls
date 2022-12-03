@@ -17,9 +17,10 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "pybind11/pybind11.h"
-#include "xls/common/python/absl_casters.h"
+#include "pybind11_abseil/absl_casters.h"
+#include "pybind11_abseil/statusor_caster.h"
 #include "xls/codegen/vast.h"
-#include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/common/status/import_status_module.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/verilog_simulators.h"
 

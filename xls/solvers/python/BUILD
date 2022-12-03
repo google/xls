@@ -112,8 +112,7 @@ xls_pybind_extension(
     srcs = ["z3_lec.cc"],
     deps = [
         "//xls/common/file:filesystem",
-        "//xls/common/python:absl_casters",
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/netlist",
@@ -123,6 +122,8 @@ xls_pybind_extension(
         "//xls/solvers:z3_lec",
         "@com_google_absl//absl/status:statusor",
         "@com_google_protobuf//:protobuf",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 

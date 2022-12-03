@@ -15,7 +15,8 @@
 #include "xls/passes/standard_pipeline.h"
 
 #include "pybind11/pybind11.h"
-#include "xls/common/status/statusor_pybind_caster.h"
+#include "pybind11_abseil/statusor_caster.h"
+#include "xls/common/status/import_status_module.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;

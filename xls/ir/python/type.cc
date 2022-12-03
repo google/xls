@@ -16,7 +16,6 @@
 
 #include "google/protobuf/text_format.h"
 #include "pybind11/pybind11.h"
-#include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -24,8 +23,6 @@ namespace py = pybind11;
 namespace xls {
 
 PYBIND11_MODULE(type, m) {
-  ImportStatusModule();
-
   auto type = py::class_<TypeHolder>(m, "Type");
   type.def("__str__", PyWrap(&Type::ToString));
 

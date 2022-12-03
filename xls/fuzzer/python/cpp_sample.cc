@@ -18,9 +18,10 @@
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "pybind11_abseil/statusor_caster.h"
+#include "xls/common/status/import_status_module.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/fuzzer/sample.h"
 
@@ -29,6 +30,8 @@ namespace py = pybind11;
 namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_sample, m) {
+  ImportStatusModule();
+
   py::enum_<TopType>(m, "TopType")
       .value("function", TopType::kFunction)
       .value("proc", TopType::kProc);

@@ -26,9 +26,10 @@ xls_pybind_extension(
     name = "runtime_build_actions",
     srcs = ["runtime_build_actions.cc"],
     deps = [
-        "//xls/common/status:statusor_pybind_caster",
+        "//xls/common/status:import_status_module",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/public:runtime_build_actions",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 

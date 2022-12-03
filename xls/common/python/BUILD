@@ -19,21 +19,6 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-cc_library(
-    name = "absl_casters",
-    hdrs = ["absl_casters.h"],
-    copts = ["-fexceptions"],
-    features = ["-use_header_modules"],
-    deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
-        "@pybind11",
-    ],
-)
-
 xls_pybind_extension(
     name = "init_xls",
     srcs = ["init_xls.cc"],
@@ -44,6 +29,6 @@ xls_pybind_extension(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "//xls/common:init_xls",
-        "//xls/common/python:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
     ],
 )
