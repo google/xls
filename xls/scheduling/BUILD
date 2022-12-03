@@ -153,6 +153,7 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
+        "//xls/ir:op",
     ],
 )
 

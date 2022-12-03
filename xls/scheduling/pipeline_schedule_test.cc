@@ -34,7 +34,6 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 using xls::status_testing::StatusIs;
@@ -696,6 +695,46 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+// Proc next state does not depend on param. Force schedule of a param node in a
+// later stage than the next state node. The schedule can be forced by having
+// two receive nodes where the second receive node depends on the first node,
+// and the first receive node produces the next state node and the param is used
+// by the second receive node.
+TEST_F(PipelineScheduleTest, ProcParamAndNextStateAreInSameCycle) {
+  Package p("p");
+  Type* u1 = p.GetBitsType(1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0,
+      p.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1,
+      p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  BValue state = pb.StateElement("state", Value(UBits(1, 1)));
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
+  BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
+  BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
+  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  // The statement explicitly shows the use of the state node after the next
+  // state node.
+  BValue use_state = pb.And(nb_rcv_data, state);
+  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
+  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
+  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(after_all_final, {nb_rcv_valid}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(3)));
+  EXPECT_EQ(schedule.length(), 3);
+  EXPECT_EQ(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
 }
 
 TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {

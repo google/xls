@@ -30,6 +30,7 @@
 #include "xls/data_structures/binary_search.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/op.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -470,7 +471,14 @@ absl::Status PipelineSchedule::Verify() const {
       XLS_RET_CHECK_LE(cycle(operand), cycle(node));
     }
   }
-
+  if (function_base()->IsProc()) {
+    Proc* proc = function_base()->AsProcOrDie();
+    for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+      Node* param = proc->GetStateParam(index);
+      Node* next_state = proc->GetNextStateElement(index);
+      XLS_RET_CHECK_EQ(cycle(param), cycle(next_state));
+    }
+  }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.
   return absl::OkStatus();
 }

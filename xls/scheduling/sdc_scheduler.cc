@@ -378,6 +378,15 @@ absl::Status ConstraintBuilder::AddBackedgeConstraints() {
     }
   }
 
+  // Note that the Strongly Connected Components (SCC) algorithm represents a
+  // graph as a sparse adjacency matrix. If a node has no edges, then the node
+  // will not be in the graph. As a result, the following ensures that the next
+  // state is always in the same cycle as its corresponding param, which is
+  // currently required by codegen.
+  for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
+    graph[i].insert(i);
+  }
+
   // A strongly connected component in the state dependence graph is a set of
   // state params / next state nodes that must be scheduled in the same cycle.
   std::vector<absl::btree_set<StateIndex>> sccs =
