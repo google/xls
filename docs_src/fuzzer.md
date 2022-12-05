@@ -124,7 +124,7 @@ bazel test //xls/fuzzer:regression_tests
 To reproduce from that single-file reproducer there is a command line tool:
 
 ```
-bazel run //xls/fuzzer/run_crasher -- \
+bazel run //xls/fuzzer:run_crasher -- \
   crasher_2019-06-26_3354.x
 ```
 
