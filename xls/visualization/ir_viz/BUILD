@@ -16,8 +16,8 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary and test
 load("@io_bazel_rules_closure//closure:defs.bzl", "closure_js_binary", "closure_js_library")
-load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//xls/examples:list_filegroup_files.bzl", "list_filegroup_files")
 # js_binary used in this file
 # cc_proto_library is used in this file
 

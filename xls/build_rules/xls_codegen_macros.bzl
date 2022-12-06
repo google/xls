@@ -16,6 +16,7 @@
 This module contains codegen-related build macros for XLS.
 """
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -38,7 +39,7 @@ load(
     "string_type_check",
 )
 
-def xls_ir_verilog_macro(
+def _xls_ir_verilog_macro(
         name,
         src,
         verilog_file,
@@ -51,6 +52,8 @@ def xls_ir_verilog_macro(
     The macro instantiates a build rule that generate a Verilog file from an IR
     file and the 'enable_generated_file_wrapper' function. The generated files
     are listed in the outs attribute of the rule.
+
+    This macro is used by the 'xls_ir_verilog_build_and_test' macro.
 
     Example:
 
@@ -113,4 +116,60 @@ def xls_ir_verilog_macro(
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
         **kwargs
+    )
+
+def xls_ir_verilog_build_and_test(
+        name,
+        src,
+        verilog_file,
+        codegen_args = {},
+        enable_generated_file = True,
+        enable_presubmit_generated_file = False,
+        **kwargs):
+    """A macro that instantiates a build rule generating a Verilog file from an IR file and tests the build.
+
+    The macro instantiates a build rule that generate a Verilog file from an IR file, and a
+    'build_test' testing that the build rule generating a Verilog file. If the build is not
+    successful, an error is produced when executing a test command on the target.
+
+    Example:
+
+        ```
+        xls_ir_verilog(
+            name = "a_verilog",
+            src = "a.ir",
+            codegen_args = {
+                "pipeline_stages": "1",
+                ...
+            },
+        )
+        ```
+
+    Args:
+      name: The name of the rule.
+      src: The IR source file. A single source file must be provided. The file
+        must have a '.ir' extension.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
+      verilog_file: The filename of Verilog file generated. The filename must
+        have a '.v' or '.sv', extension.
+      enable_generated_file: See 'enable_generated_file' from
+        'enable_generated_file_wrapper' function.
+      enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
+        from 'enable_generated_file_wrapper' function.
+      **kwargs: Keyword arguments. Named arguments.
+    """
+    _xls_ir_verilog_macro(
+        name = name,
+        src = src,
+        verilog_file = verilog_file,
+        codegen_args = codegen_args,
+        enable_generated_file = enable_generated_file,
+        enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
+    )
+    build_test(
+        name = "__" + name,
+        targets = [":" + name],
     )

@@ -21,7 +21,7 @@ exposed to the user. This module is created for convenience.
 
 load(
     "//xls/build_rules:xls_codegen_macros.bzl",
-    _xls_ir_verilog_macro = "xls_ir_verilog_macro",
+    _xls_ir_verilog_build_and_test = "xls_ir_verilog_build_and_test",
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
@@ -53,7 +53,7 @@ load(
     "//xls/build_rules:xls_macros.bzl",
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
-    _xls_dslx_verilog_macro = "xls_dslx_verilog_macro",
+    _xls_dslx_verilog_build_and_test = "xls_dslx_verilog_build_and_test",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -90,8 +90,8 @@ xls_dslx_ir = _xls_dslx_ir_macro
 
 # TODO (vmirian) 1-10-2022 Do not expose xls_ir_opt_ir to user.
 xls_ir_opt_ir = _xls_ir_opt_ir_macro
-xls_ir_verilog = _xls_ir_verilog_macro
+xls_ir_verilog = _xls_ir_verilog_build_and_test
 xls_benchmark_verilog = _xls_benchmark_verilog
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
-xls_dslx_verilog = _xls_dslx_verilog_macro
+xls_dslx_verilog = _xls_dslx_verilog_build_and_test
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library

@@ -15,14 +15,13 @@
 # Build rules for the IR JIT - converts XLS IR into native host code.
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-
-# cc_proto_library is used in this file
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_ir_cc_library",
 )
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],

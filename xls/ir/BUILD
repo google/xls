@@ -16,11 +16,11 @@
 # Description Language.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
-# cc_proto_library is used in this file
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # pytype library only
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],

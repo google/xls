@@ -16,6 +16,7 @@
 This module contains build macros for XLS.
 """
 
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
@@ -50,7 +51,7 @@ load(
     "string_type_check",
 )
 
-def xls_dslx_verilog_macro(
+def _xls_dslx_verilog_macro(
         name,
         dslx_top,
         verilog_file,
@@ -65,9 +66,8 @@ def xls_dslx_verilog_macro(
         **kwargs):
     """A macro that instantiates a build rule generating a Verilog file from a DSLX source file.
 
-    The macro instantiates a build rule that generates an Verilog file from
-    a DSLX source file. The build rule executes the core functionality of
-    following macros:
+    The macro instantiates a build rule that generates a Verilog file from a DSLX source file. The
+    build rule executes the core functionality of following macros:
 
     1. xls_dslx_ir (converts a DSLX file to an IR),
     1. xls_ir_opt_ir (optimizes the IR), and,
@@ -75,6 +75,8 @@ def xls_dslx_verilog_macro(
 
     The macro also instantiates the 'enable_generated_file_wrapper'
     function. The generated files are listed in the outs attribute of the rule.
+
+    This macro is used by the 'xls_dslx_verilog_build_and_test' macro.
 
     Examples:
 
@@ -168,6 +170,96 @@ def xls_dslx_verilog_macro(
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
         **kwargs
+    )
+
+def xls_dslx_verilog_build_and_test(
+        name,
+        dslx_top,
+        verilog_file,
+        srcs = None,
+        deps = None,
+        library = None,
+        ir_conv_args = {},
+        opt_ir_args = {},
+        codegen_args = {},
+        enable_generated_file = True,
+        enable_presubmit_generated_file = False,
+        **kwargs):
+    """A macro that instantiates a build rule generating a Verilog file from a DSLX source file and tests the build.
+
+    The macro instantiates a build rule that generates a Verilog file from a DSLX source file. The
+    build rule executes the core functionality of following macros:
+
+    1. xls_dslx_ir (converts a DSLX file to an IR),
+    1. xls_ir_opt_ir (optimizes the IR), and,
+    1. xls_ir_verilog (generated a Verilog file).
+
+    The macro also instantiates a 'build_test' testing that the build rule generating a Verilog
+    file. If the build is not successful, an error is produced when executing a test command on the
+    target.
+
+    Examples:
+
+    1. A simple example.
+
+        ```
+        # Assume a xls_dslx_library target bc_dslx is present.
+        xls_dslx_verilog(
+            name = "d_verilog",
+            srcs = ["d.x"],
+            deps = [":bc_dslx"],
+            codegen_args = {
+                "pipeline_stages": "1",
+            },
+            dslx_top = "d",
+        )
+        ```
+
+    Args:
+      name: The name of the rule.
+      srcs: Top level source files for the conversion. Files must have a '.x'
+        extension. There must be single source file.
+      deps: Dependency targets for the files in the 'srcs' argument.
+      library: A DSLX library target where the direct (non-transitive)
+        files of the target are tested. This argument is mutually
+        exclusive with the 'srcs' and 'deps' arguments.
+      verilog_file: The filename of Verilog file generated. The filename must
+        have a '.v' extension.
+      dslx_top: The top entity to perform the IR conversion.
+      ir_conv_args: Arguments of the IR conversion tool. For details on the
+        arguments, refer to the ir_converter_main application at
+        //xls/dslx/ir_converter_main.cc. Note: the 'top'
+        argument is not assigned using this attribute.
+      opt_ir_args: Arguments of the IR optimizer tool. For details on the
+        arguments, refer to the opt_main application at
+        //xls/tools/opt_main.cc. Note: the 'top'
+        argument is not assigned using this attribute.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
+      enable_generated_file: See 'enable_generated_file' from
+        'enable_generated_file_wrapper' function.
+      enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
+        from 'enable_generated_file_wrapper' function.
+      **kwargs: Keyword arguments. Named arguments.
+    """
+    _xls_dslx_verilog_macro(
+        name = name,
+        dslx_top = dslx_top,
+        verilog_file = verilog_file,
+        srcs = srcs,
+        deps = deps,
+        library = library,
+        ir_conv_args = ir_conv_args,
+        opt_ir_args = opt_ir_args,
+        codegen_args = codegen_args,
+        enable_generated_file = enable_generated_file,
+        enable_presubmit_generated_file = enable_presubmit_generated_file,
+        **kwargs
+    )
+    build_test(
+        name = "__" + name,
+        targets = [":" + name],
     )
 
 def xls_dslx_opt_ir_macro(

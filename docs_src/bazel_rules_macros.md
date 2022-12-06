@@ -694,18 +694,18 @@ xls_dslx_verilog(<a href="#xls_dslx_verilog-name">name</a>, <a href="#xls_dslx_v
                  <a href="#xls_dslx_verilog-codegen_args">codegen_args</a>, <a href="#xls_dslx_verilog-enable_generated_file">enable_generated_file</a>, <a href="#xls_dslx_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_dslx_verilog-kwargs">kwargs</a>)
 </pre>
 
-A macro that instantiates a build rule generating a Verilog file from a DSLX source file.
+A macro that instantiates a build rule generating a Verilog file from a DSLX source file and tests the build.
 
-The macro instantiates a build rule that generates an Verilog file from
-a DSLX source file. The build rule executes the core functionality of
-following macros:
+The macro instantiates a build rule that generates a Verilog file from a DSLX source file. The
+build rule executes the core functionality of following macros:
 
 1. xls_dslx_ir (converts a DSLX file to an IR),
 1. xls_ir_opt_ir (optimizes the IR), and,
 1. xls_ir_verilog (generated a Verilog file).
 
-The macro also instantiates the 'enable_generated_file_wrapper'
-function. The generated files are listed in the outs attribute of the rule.
+The macro also instantiates a 'build_test' testing that the build rule generating a Verilog
+file. If the build is not successful, an error is produced when executing a test command on the
+target.
 
 Examples:
 
@@ -846,11 +846,11 @@ xls_ir_verilog(<a href="#xls_ir_verilog-name">name</a>, <a href="#xls_ir_verilog
                <a href="#xls_ir_verilog-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_ir_verilog-kwargs">kwargs</a>)
 </pre>
 
-A macro that instantiates a build rule generating a Verilog file from an IR file.
+A macro that instantiates a build rule generating a Verilog file from an IR file and tests the build.
 
-The macro instantiates a build rule that generate a Verilog file from an IR
-file and the 'enable_generated_file_wrapper' function. The generated files
-are listed in the outs attribute of the rule.
+The macro instantiates a build rule that generate a Verilog file from an IR file, and a
+'build_test' testing that the build rule generating a Verilog file. If the build is not
+successful, an error is produced when executing a test command on the target.
 
 Example:
 

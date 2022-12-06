@@ -18,9 +18,9 @@
 # Email xls-team@ or seanhaskell@ if a dependency is desired.
 
 # pytype binary only
-# cc_proto_library is used in this file
-load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],
