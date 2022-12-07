@@ -26,7 +26,9 @@ from xls.common import check_simulator
 from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
+from xls.dslx.python import create_import_data
 from xls.dslx.python import interpreter
+from xls.dslx.python import parse_and_typecheck
 from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
@@ -623,9 +625,18 @@ class SampleRunner:
                                args_batch: ArgsBatch) -> Tuple[Value, ...]:
     """Interprets a DSLX module with a function as the top returns the result Values.
     """
+    import_data = create_import_data.create_import_data(
+        runtime_build_actions.get_default_dslx_stdlib_path(), []
+    )
+    tm = parse_and_typecheck.parse_and_typecheck(
+        text, 'sample.x', 'sample', import_data
+    )
+    converted_args_batch = interpreter.convert_function_kwargs(
+        top_name, import_data, tm, args_batch
+    )
     dslx_results = interpreter.run_function_batched(
-        text, top_name, args_batch,
-        runtime_build_actions.get_default_dslx_stdlib_path())
+        top_name, import_data, tm, converted_args_batch
+    )
     self._write_file('sample.x.results',
                      '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)
@@ -635,9 +646,18 @@ class SampleRunner:
                            tick_count: int) -> Dict[str, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
+    import_data = create_import_data.create_import_data(
+        runtime_build_actions.get_default_dslx_stdlib_path(), []
+    )
+    tm = parse_and_typecheck.parse_and_typecheck(
+        text, 'sample.x', 'sample', import_data
+    )
+    converted_channel_values = interpreter.convert_channel_values(
+        top_name, import_data, tm, args_batch
+    )
     dslx_results = interpreter.run_proc(
-        text, top_name, args_batch, tick_count,
-        runtime_build_actions.get_default_dslx_stdlib_path())
+        top_name, import_data, tm, converted_channel_values, tick_count
+    )
 
     ir_channel_values: Dict[str, Sequence[IRValue]] = {}
     for key, values in dslx_results.items():

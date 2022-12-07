@@ -72,6 +72,27 @@ xls_pybind_extension(
 )
 
 xls_pybind_extension(
+    name = "create_import_data",
+    srcs = ["create_import_data.cc"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "//xls/dslx:create_import_data",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+    ],
+)
+
+xls_pybind_extension(
+    name = "parse_and_typecheck",
+    srcs = ["parse_and_typecheck.cc"],
+    deps = [
+        "@com_google_absl//absl/base",
+        "//xls/dslx:parse_and_typecheck",
+        "@pybind11_abseil//pybind11_abseil:absl_casters",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
+    ],
+)
+
+xls_pybind_extension(
     name = "interpreter",
     srcs = ["interpreter.cc"],
     py_deps = [

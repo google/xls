@@ -148,7 +148,9 @@ class InterpValue {
   }
   static absl::StatusOr<InterpValue> MakeArray(
       std::vector<InterpValue> elements);
-  static InterpValue MakeBool(bool value) { return MakeUBits(1, value); }
+  static InterpValue MakeBool(bool value) {
+    return MakeUBits(1, value ? 1 : 0);
+  }
 
   static absl::StatusOr<InterpValue> MakeBits(InterpValueTag tag, Bits bits) {
     if (tag != InterpValueTag::kUBits && tag != InterpValueTag::kSBits) {
