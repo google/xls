@@ -54,7 +54,7 @@ control the scheduler.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.
 -   `--io_constraints=...` adds constraints to the scheduler. The flag takes a
-    comma-separated list of constraints of the form `food:send:bar:recv:3:5`
+    comma-separated list of constraints of the form `foo:send:bar:recv:3:5`
     which means that sends on channel `foo` must occur between 3 and 5 cycles
     (inclusive) before receives on channel `bar`. Note that for a constraint
     like `foo:send:foo:send:3:5`, no constraint will be applied between a node
@@ -62,6 +62,9 @@ control the scheduler.
     must be in cycles that differ by between 3 and 5. If the special
     minimum/maximum value `none` is used, then the minimum latency will be the
     lowest representable `int64_t`, and likewise for maximum latency.
+    For an example of the use of this, see
+    [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x)
+    and the associated BUILD rule.
 
 # Naming
 

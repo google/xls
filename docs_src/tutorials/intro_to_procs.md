@@ -231,3 +231,47 @@ proc Tester {
 
 The [FP32 fmac module](https://github.com/google/xls/tree/main/xls/modules/fp/fp32_fmac.x)
 has a more complete proc test that may be used for reference.
+
+# Scheduling constraints
+
+If you want to interface with something in the outside world that is latency
+sensitive (for example, an SRAM -- though we have separate infrastructure for
+making SRAMs work that builds on top of this feature), you can create external
+channels representing the interface you want to use, e.g.:
+
+```dslx-snippet
+proc main {
+  req: chan<u32> out;
+  resp: chan<u32> in;
+
+  init { u32: 0 }
+
+  config(req: chan<u32> out, resp: chan<u32> in) {
+    (req, resp)
+  }
+
+  next(tok: token, state: u32) {
+    let request = state * state;
+    let tok = send(tok, req, request);
+    let (tok, response) = recv(tok, resp);
+    state + u32:1
+  }
+}
+```
+
+where the fact that `req` and `resp` are parameters of `config`, and `main` is
+the top proc during IR conversion, is what makes them "external".
+
+Then when you codegen this, you can pass in
+`--io_constraints=foo__req:send:foo__resp:recv:2:2` where `foo__req` is the
+mangled name of the channel, which you can see by examining the generated IR
+prior to codegen. That constraint means "a send on any channel named `req` must
+occur exactly two cycles before a receive on any channel named `resp`"; the `2`
+is specified twice because it is possible to give a range of allowed cycle
+differences.
+
+For more details on `--io_constraints`, check out
+[the docs](https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options).
+For a complete example, see
+`//xls/examples:constraint_sv` and associated build targets; the
+target you'd build to get the mangled channel names is `:constraint_ir`.

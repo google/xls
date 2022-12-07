@@ -537,6 +537,47 @@ xls_dslx_test(
     library = ":quickcheck_dslx",
 )
 
+xls_dslx_library(
+    name = "constraint_dslx",
+    srcs = ["constraint.x"],
+)
+
+xls_dslx_ir(
+    name = "constraint_ir",
+    dslx_top = "main",
+    ir_file = "constraint.ir",
+    library = ":constraint_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "constraint_opt_ir",
+    src = "constraint.ir",
+)
+
+xls_ir_verilog(
+    name = "constraint_sv",
+    src = ":constraint_opt_ir.opt.ir",
+    codegen_args = {
+        "module_name": "constraint_top",
+        "generator": "pipeline",
+        "delay_model": "unit",
+        # Set a constraint between req and resp that they must be 2 cycles apart
+        # See https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options
+        # for more information about this option.
+        "io_constraints": "constraint__req:send:constraint__resp:recv:2:2",
+        "pipeline_stages": "4",
+        "clock_period_ps": "2",
+        "reset": "rst",
+        "use_system_verilog": "true",
+    },
+    verilog_file = "constraint.sv",
+)
+
+verilog_library(
+    name = "constraint",
+    srcs = [":constraint.sv"],
+)
+
 # TODO(cdleary): 2022-05-09 Get this target working as well, requires
 # addressing the dependence on openmp runtime.
 # place_and_route(
