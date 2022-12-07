@@ -3817,6 +3817,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       if (clang::isa<clang::TypedefDecl>(decl)) break;
       if (clang::isa<clang::StaticAssertDecl>(decl)) break;
       if (clang::isa<clang::EnumDecl>(decl)) break;
+      if (clang::isa<clang::TypeAliasDecl>(decl)) break;
       if (auto recd = clang::dyn_cast<const clang::RecordDecl>(decl)) {
         XLS_RETURN_IF_ERROR(ScanStruct(recd));
       } else {

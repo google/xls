@@ -3988,6 +3988,23 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedNegative) {
   ASSERT_EQ(expected_sign, actual_sign);
 }
 
+TEST_F(TranslatorLogicTest, TypeAlias) {
+  const std::string content = R"(
+    template<class T>
+    struct Bar {
+      T val;
+    };
+    bool my_package(long long a) {
+      using Foo = Bar<int>;
+      Foo v;
+      v.val = a;
+      return v.val < 1;
+    })";
+
+  Run({{"a", -1}}, static_cast<int64_t>(true), content);
+  Run({{"a", 2}}, static_cast<int64_t>(false), content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
