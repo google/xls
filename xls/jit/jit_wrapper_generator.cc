@@ -427,7 +427,7 @@ std::string GenerateWrapperSource(const Function& function,
       R"-(// Automatically-generated file! DO NOT EDIT!
 #include "{{header_path}}"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/ir_parser.h"
+#include "xls/public/ir_parser.h"
 
 namespace {{wrapper_namespace}} {
 
@@ -435,7 +435,7 @@ constexpr const char ir_text[] = R"({{ir_text}}
 )";
 
 absl::StatusOr<std::unique_ptr<{{class_name}}>> {{class_name}}::Create() {
-  XLS_ASSIGN_OR_RETURN(auto package, xls::Parser::ParsePackage(ir_text));
+  XLS_ASSIGN_OR_RETURN(auto package, xls::ParsePackage(ir_text, /*filename=*/std::nullopt));
   XLS_ASSIGN_OR_RETURN(xls::Function* function,
                        package->GetFunction("{{function_name}}"));
   XLS_ASSIGN_OR_RETURN(auto jit, xls::FunctionJit::Create(function));

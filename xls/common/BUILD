@@ -117,6 +117,7 @@ cc_library(
     name = "math_util",
     srcs = ["math_util.cc"],
     hdrs = ["math_util.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/types:span",
@@ -173,6 +174,7 @@ cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
+    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":strerror",
         "@com_google_absl//absl/container:fixed_array",

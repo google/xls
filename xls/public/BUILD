@@ -86,6 +86,7 @@ cc_library(
     hdrs = ["value.h"],
     deps = [
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:value",
         "//xls/ir:value_view",
     ],
@@ -107,5 +108,26 @@ py_binary(
     deps = [
         "@com_google_absl_py//absl:app",
         "//xls/common:runfiles",
+    ],
+)
+
+cc_library(
+    name = "ir",
+    srcs = ["ir.cc"],
+    hdrs = ["ir.h"],
+    deps = [
+        "//xls/ir",
+        "//xls/ir:events",
+    ],
+)
+
+cc_library(
+    name = "ir_parser",
+    srcs = ["ir_parser.cc"],
+    hdrs = ["ir_parser.h"],
+    deps = [
+        ":ir",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir:ir_parser",
     ],
 )

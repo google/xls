@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Public API header that exposes the XLS `Bits`, `Value`, and value view APIs
-// with external visibility.
-//
-// Though function_builder.h also exposes `Value`s (for use in building literals
-// for XLS functions), this is a lighter weight dependency for those consumers
-// that don't need function building facilities.
+#include "xls/public/ir.h"
 
-#ifndef XLS_PUBLIC_VALUE_H_
-#define XLS_PUBLIC_VALUE_H_
+#include "xls/ir/function.h"
 
-#include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
-#include "xls/ir/value.h"
-#include "xls/ir/value_view.h"
+namespace xls {
 
-#endif  // XLS_PUBLIC_VALUE_H_
+const Package& GetPackage(const Function& f) { return *f.package(); }
+
+}  // namespace xls
