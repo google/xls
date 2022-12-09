@@ -213,14 +213,6 @@ class DeduceCtx {
   // Object used for collecting warnings flagged in the type checking process.
   WarningCollector* warnings_;
 
-  // Set to true if this context is deducing inside a For AST node. It is
-  // necessary to disable constexpr evaluation during that time, as a given
-  // NameDef will have multiple values associated with it, and so constexpr
-  // evaluation will give incorrect results.
-  // TODO(https://github.com/google/xls/issues/585) eliminate the need for this
-  // member.
-  bool inside_for_ = false;
-
   // True if we're in a context where we could process an unannotated number,
   // such as when deducing an array index.
   bool in_typeless_number_ctx_ = false;
