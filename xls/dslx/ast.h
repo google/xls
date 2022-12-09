@@ -271,7 +271,7 @@ class AstNode;
 class AstNode {
  public:
   explicit AstNode(Module* owner) : owner_(owner) {}
-  virtual ~AstNode() = default;
+  virtual ~AstNode();
 
   virtual AstNodeKind kind() const = 0;
 
@@ -356,6 +356,8 @@ class TypeAnnotation : public AstNode {
   TypeAnnotation(Module* owner, Span span)
       : AstNode(owner), span_(std::move(span)) {}
 
+  ~TypeAnnotation() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kTypeAnnotation; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
@@ -392,6 +394,8 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   BuiltinTypeAnnotation(Module* owner, Span span, BuiltinType builtin_type,
                         BuiltinNameDef* builtin_name_def);
 
+  ~BuiltinTypeAnnotation() override;
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBuiltinTypeAnnotation(this);
   }
@@ -424,6 +428,8 @@ class TupleTypeAnnotation : public TypeAnnotation {
  public:
   TupleTypeAnnotation(Module* owner, Span span,
                       std::vector<TypeAnnotation*> members);
+
+  ~TupleTypeAnnotation() override;
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTupleTypeAnnotation(this);
@@ -460,6 +466,8 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   TypeRefTypeAnnotation(Module* owner, Span span, TypeRef* type_ref,
                         std::vector<Expr*> parametrics);
 
+  ~TypeRefTypeAnnotation() override;
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTypeRefTypeAnnotation(this);
   }
@@ -486,6 +494,8 @@ class ArrayTypeAnnotation : public TypeAnnotation {
  public:
   ArrayTypeAnnotation(Module* owner, Span span, TypeAnnotation* element_type,
                       Expr* dim);
+
+  ~ArrayTypeAnnotation() override;
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleArrayTypeAnnotation(this);
@@ -517,6 +527,8 @@ class BuiltinNameDef : public AstNode {
   BuiltinNameDef(Module* owner, std::string identifier)
       : AstNode(owner), identifier_(std::move(identifier)) {}
 
+  ~BuiltinNameDef() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kBuiltinNameDef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -545,6 +557,8 @@ class WildcardPattern : public AstNode {
   WildcardPattern(Module* owner, Span span)
       : AstNode(owner), span_(std::move(span)) {}
 
+  ~WildcardPattern() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kWildcardPattern; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -571,6 +585,8 @@ class WildcardPattern : public AstNode {
 class NameDef : public AstNode {
  public:
   NameDef(Module* owner, Span span, std::string identifier, AstNode* definer);
+
+  ~NameDef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kNameDef; }
 
@@ -634,7 +650,8 @@ class ExprVisitorWithDefault : public ExprVisitor {
 class Expr : public AstNode {
  public:
   Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
-  virtual ~Expr() = default;
+
+  ~Expr() override;
 
   const Span& span() const { return span_; }
   void set_span(const Span& span) { span_ = span; }
@@ -659,6 +676,8 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
                         TypeAnnotation* payload,
                         std::optional<std::vector<Expr*>> dims);
+
+  ~ChannelTypeAnnotation() override;
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleChannelTypeAnnotation(this);
@@ -705,6 +724,9 @@ class Block : public Expr {
  public:
   Block(Module* owner, Span span, Expr* body)
       : Expr(owner, std::move(span)), body_(body) {}
+
+  ~Block() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kBlock; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBlock(this);
@@ -731,6 +753,8 @@ class NameRef : public Expr {
       : Expr(owner, std::move(span)),
         name_def_(name_def),
         identifier_(std::move(identifier)) {}
+
+  ~NameRef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kNameRef; }
 
@@ -786,6 +810,8 @@ class Number : public Expr {
  public:
   Number(Module* owner, Span span, std::string text, NumberKind kind,
          TypeAnnotation* type);
+
+  ~Number() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kNumber; }
 
@@ -843,6 +869,8 @@ class String : public Expr {
   String(Module* owner, Span span, std::string_view text)
       : Expr(owner, span), text_(text) {}
 
+  ~String() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kString; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -876,6 +904,8 @@ class TypeDef : public AstNode {
  public:
   TypeDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           bool is_public);
+
+  ~TypeDef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTypeDef; }
 
@@ -912,6 +942,8 @@ class Array : public Expr {
  public:
   Array(Module* owner, Span span, std::vector<Expr*> members,
         bool has_ellipsis);
+
+  ~Array() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kArray; }
 
@@ -953,6 +985,8 @@ class ConstantArray : public Array {
   ConstantArray(Module* owner, Span span, std::vector<Expr*> members,
                 bool has_ellipsis);
 
+  ~ConstantArray() override;
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleConstantArray(this);
   }
@@ -973,6 +1007,8 @@ class TypeRef : public AstNode {
  public:
   TypeRef(Module* owner, Span span, std::string text,
           TypeDefinition type_definition);
+
+  ~TypeRef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTypeRef; }
 
@@ -1004,6 +1040,8 @@ class Import : public AstNode {
  public:
   Import(Module* owner, Span span, std::vector<std::string> subject,
          NameDef* name_def, std::optional<std::string> alias);
+
+  ~Import() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kImport; }
 
@@ -1049,6 +1087,8 @@ class ColonRef : public Expr {
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr);
 
+  ~ColonRef() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kColonRef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1088,6 +1128,8 @@ absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e);
 class Param : public AstNode {
  public:
   Param(Module* owner, NameDef* name_def, TypeAnnotation* type);
+
+  ~Param() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kParam; }
 
@@ -1132,6 +1174,8 @@ class Unop : public Expr {
       : Expr(owner, std::move(span)),
         unop_kind_(unop_kind),
         operand_(operand) {}
+
+  ~Unop() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kUnop; }
 
@@ -1217,6 +1261,8 @@ class Binop : public Expr {
  public:
   Binop(Module* owner, Span span, BinopKind kind, Expr* lhs, Expr* rhs);
 
+  ~Binop() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kBinop; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1253,6 +1299,8 @@ class Ternary : public Expr {
  public:
   Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
           Expr* alternate);
+
+  ~Ternary() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTernary; }
 
@@ -1298,6 +1346,8 @@ class ParametricBinding : public AstNode {
  public:
   ParametricBinding(Module* owner, NameDef* name_def,
                     TypeAnnotation* type_annotation, Expr* expr);
+
+  ~ParametricBinding() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kParametricBinding; }
 
@@ -1351,6 +1401,7 @@ class Function : public AstNode {
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
            Tag tag, bool is_public);
+  ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
   std::optional<Span> GetSpan() const override { return span_; }
   Span span() const { return span_; }
@@ -1410,6 +1461,9 @@ class Proc : public AstNode {
        const std::vector<ParametricBinding*>& parametric_bindings,
        const std::vector<Param*>& members, Function* config, Function* next,
        Function* init, bool is_public);
+
+  ~Proc() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kProc; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1468,6 +1522,8 @@ class MatchArm : public AstNode {
   MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
            Expr* expr);
 
+  ~MatchArm() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kMatchArm; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1503,6 +1559,8 @@ class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms);
 
+  ~Match() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kMatch; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1532,6 +1590,8 @@ class Attr : public Expr {
  public:
   Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
       : Expr(owner, std::move(span)), lhs_(lhs), attr_(attr) {}
+
+  ~Attr() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kAttr; }
 
@@ -1567,6 +1627,8 @@ class Instantiation : public Expr {
   Instantiation(Module* owner, Span span, Expr* callee,
                 const std::vector<Expr*>& explicit_parametrics);
 
+  ~Instantiation();
+
   AstNodeKind kind() const override { return AstNodeKind::kInstantiation; }
 
   Expr* callee() const { return callee_; }
@@ -1594,6 +1656,8 @@ class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
              std::vector<Expr*> explicit_parametrics = std::vector<Expr*>({}));
+
+  ~Invocation() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kInvocation; }
 
@@ -1630,6 +1694,8 @@ class Spawn : public Instantiation {
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
         Invocation* next, std::vector<Expr*> explicit_parametrics, Expr* body);
 
+  ~Spawn() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kSpawn; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1660,6 +1726,8 @@ class FormatMacro : public Expr {
  public:
   FormatMacro(Module* owner, Span span, std::string macro,
               std::vector<FormatStep> format, std::vector<Expr*> args);
+
+  ~FormatMacro() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kFormatMacro; }
 
@@ -1695,6 +1763,8 @@ class Slice : public AstNode {
  public:
   Slice(Module* owner, Span span, Expr* start, Expr* limit)
       : AstNode(owner), span_(std::move(span)), start_(start), limit_(limit) {}
+
+  ~Slice() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kSlice; }
 
@@ -1739,6 +1809,8 @@ class EnumDef : public AstNode {
  public:
   EnumDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
           std::vector<EnumMember> values, bool is_public);
+
+  ~EnumDef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kEnumDef; }
 
@@ -1813,6 +1885,8 @@ class StructDef : public AstNode {
             std::vector<std::pair<NameDef*, TypeAnnotation*>> members,
             bool is_public);
 
+  ~StructDef() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kStructDef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1876,6 +1950,8 @@ class StructInstance : public Expr {
   StructInstance(Module* owner, Span span, StructRef struct_ref,
                  std::vector<std::pair<std::string, Expr*>> members);
 
+  ~StructInstance() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kStructInstance; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1924,6 +2000,8 @@ class SplatStructInstance : public Expr {
                       std::vector<std::pair<std::string, Expr*>> members,
                       Expr* splatted);
 
+  ~SplatStructInstance() override;
+
   AstNodeKind kind() const override {
     return AstNodeKind::kSplatStructInstance;
   }
@@ -1967,6 +2045,8 @@ class WidthSlice : public AstNode {
   WidthSlice(Module* owner, Span span, Expr* start, TypeAnnotation* width)
       : AstNode(owner), span_(std::move(span)), start_(start), width_(width) {}
 
+  ~WidthSlice() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kWidthSlice; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2007,6 +2087,8 @@ class Index : public Expr {
   Index(Module* owner, Span span, Expr* lhs, IndexRhs rhs)
       : Expr(owner, std::move(span)), lhs_(lhs), rhs_(rhs) {}
 
+  ~Index() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kIndex; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2040,6 +2122,7 @@ class Index : public Expr {
 class Range : public Expr {
  public:
   Range(Module* owner, Span span, Expr* start, Expr* end);
+  ~Range() override;
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
   std::string_view GetNodeTypeName() const override { return "Range"; }
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2066,6 +2149,8 @@ class Range : public Expr {
 class Recv : public Expr {
  public:
   Recv(Module* owner, Span span, NameRef* token, Expr* channel);
+
+  ~Recv() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kRecv; }
 
@@ -2096,6 +2181,8 @@ class Recv : public Expr {
 class RecvNonBlocking : public Expr {
  public:
   RecvNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel);
+
+  ~RecvNonBlocking() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kRecvNonBlocking; }
 
@@ -2130,6 +2217,8 @@ class RecvIf : public Expr {
  public:
   RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition);
+
+  ~RecvIf() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kRecvIf; }
 
@@ -2166,6 +2255,8 @@ class RecvIfNonBlocking : public Expr {
  public:
   RecvIfNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel,
                     Expr* condition);
+
+  ~RecvIfNonBlocking() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kRecvIfNonBlocking; }
 
@@ -2204,6 +2295,8 @@ class Send : public Expr {
  public:
   Send(Module* owner, Span span, NameRef* token, Expr* channel, Expr* payload);
 
+  ~Send() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kSend; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2236,6 +2329,8 @@ class SendIf : public Expr {
  public:
   SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition, Expr* payload);
+
+  ~SendIf() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kSendIf; }
 
@@ -2272,6 +2367,7 @@ class SendIf : public Expr {
 class Join : public Expr {
  public:
   Join(Module* owner, Span span, const std::vector<Expr*>& tokens);
+  ~Join() override;
   AstNodeKind kind() const override { return AstNodeKind::kJoin; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleJoin(this);
@@ -2301,6 +2397,8 @@ class TestFunction : public AstNode {
  public:
   explicit TestFunction(Module* owner, Function* fn)
       : AstNode(owner), name_def_(fn->name_def()), body_(fn->body()), fn_(fn) {}
+
+  ~TestFunction() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kTestFunction; }
 
@@ -2341,6 +2439,8 @@ class TestFunction : public AstNode {
 class TestProc : public AstNode {
  public:
   TestProc(Module* owner, Proc* proc) : AstNode(owner), proc_(proc) {}
+  ~TestProc() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kTestProc; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTestProc(this);
@@ -2367,6 +2467,8 @@ class QuickCheck : public AstNode {
 
   QuickCheck(Module* owner, Span span, Function* f,
              std::optional<int64_t> test_count = absl::nullopt);
+
+  ~QuickCheck() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kQuickCheck; }
 
@@ -2399,6 +2501,7 @@ class QuickCheck : public AstNode {
 class TupleIndex : public Expr {
  public:
   TupleIndex(Module* owner, Span span, Expr* lhs, Number* index);
+  ~TupleIndex() override;
   AstNodeKind kind() const override { return AstNodeKind::kTupleIndex; }
   absl::Status Accept(AstNodeVisitor* v) const override;
   absl::Status AcceptExpr(ExprVisitor* v) const override;
@@ -2419,6 +2522,8 @@ class XlsTuple : public Expr {
  public:
   XlsTuple(Module* owner, Span span, std::vector<Expr*> members)
       : Expr(owner, std::move(span)), members_(members) {}
+
+  ~XlsTuple() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kXlsTuple; }
 
@@ -2449,6 +2554,8 @@ class For : public Expr {
  public:
   For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
       Expr* iterable, Block* body, Expr* init);
+
+  ~For() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kFor; }
 
@@ -2493,6 +2600,7 @@ class UnrollFor : public Expr {
  public:
   UnrollFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* types,
             Expr* iterable, Block* body, Expr* init);
+  ~UnrollFor() override;
   AstNodeKind kind() const override { return AstNodeKind::kUnrollFor; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleUnrollFor(this);
@@ -2532,6 +2640,8 @@ class Cast : public Expr {
         expr_(expr),
         type_annotation_(type_annotation) {}
 
+  ~Cast() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kCast; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2570,6 +2680,8 @@ class ConstantDef : public AstNode {
  public:
   ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
               bool is_public);
+
+  ~ConstantDef() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kConstantDef; }
 
@@ -2631,6 +2743,8 @@ class NameDefTree : public AstNode {
 
   NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}
+
+  ~NameDefTree() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kNameDefTree; }
 
@@ -2711,6 +2825,8 @@ class Let : public Expr {
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
       TypeAnnotation* type, Expr* rhs, Expr* body, bool is_const);
 
+  ~Let() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kLet; }
 
   absl::Status AcceptExpr(ExprVisitor* v) const override {
@@ -2759,6 +2875,8 @@ class ConstRef : public NameRef {
  public:
   using NameRef::NameRef;
 
+  ~ConstRef() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kConstRef; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -2804,6 +2922,8 @@ class ChannelDecl : public Expr {
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
               std::optional<std::vector<Expr*>> dims)
       : Expr(owner, span), type_(type), dims_(dims) {}
+
+  ~ChannelDecl() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kChannelDecl; }
 
@@ -2851,9 +2971,7 @@ class Module : public AstNode {
     XLS_VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
   }
 
-  ~Module() {
-    XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
-  }
+  ~Module() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kModule; }
 

@@ -142,6 +142,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
 
+AstNode::~AstNode() {}
+
 void AstNode::SetParentage() {
   for (AstNode* kiddo : GetChildren(/*want_types=*/true)) {
     kiddo->set_parent(this);
@@ -421,6 +423,8 @@ NameDef::NameDef(Module* owner, Span span, std::string identifier,
       identifier_(std::move(identifier)),
       definer_(definer) {}
 
+NameDef::~NameDef() {}
+
 // -- class Ternary
 
 Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
@@ -429,6 +433,8 @@ Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
       test_(test),
       consequent_(consequent),
       alternate_(alternate) {}
+
+Ternary::~Ternary() {}
 
 std::string Ternary::ToString() const {
   std::string inline_str =
@@ -446,6 +452,10 @@ std::string Ternary::ToString() const {
                          alternate_->ToString());
 }
 
+// -- class Attr
+
+Attr::~Attr() {}
+
 // -- class ParametricBinding
 
 ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,
@@ -458,6 +468,8 @@ ParametricBinding::ParametricBinding(Module* owner, NameDef* name_def,
   XLS_CHECK_EQ(name_def_->owner(), owner);
   XLS_CHECK_EQ(type_annotation_->owner(), owner);
 }
+
+ParametricBinding::~ParametricBinding() {}
 
 std::string ParametricBinding::ToString() const {
   std::string suffix;
@@ -540,6 +552,8 @@ UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
       body_(body),
       init_(init) {}
 
+UnrollFor::~UnrollFor() {}
+
 std::string UnrollFor::ToString() const {
   std::string type_str;
   if (types_ != nullptr) {
@@ -565,6 +579,8 @@ ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
       name_def_(name_def),
       value_(value),
       is_public_(is_public) {}
+
+ConstantDef::~ConstantDef() {}
 
 std::string ConstantDef::ToString() const {
   std::string privacy;
@@ -594,12 +610,20 @@ ConstantArray::ConstantArray(Module* owner, Span span,
   }
 }
 
+ConstantArray::~ConstantArray() {}
+
+// -- class TypeRef
+
 TypeRef::TypeRef(Module* owner, Span span, std::string text,
                  TypeDefinition type_definition)
     : AstNode(owner),
       span_(std::move(span)),
       text_(std::move(text)),
       type_definition_(type_definition) {}
+
+TypeRef::~TypeRef() {}
+
+// -- class Import
 
 Import::Import(Module* owner, Span span, std::vector<std::string> subject,
                NameDef* name_def, std::optional<std::string> alias)
@@ -611,6 +635,8 @@ Import::Import(Module* owner, Span span, std::vector<std::string> subject,
   XLS_CHECK(!subject_.empty());
   XLS_CHECK(name_def != nullptr);
 }
+
+Import::~Import() {}
 
 std::string Import::ToString() const {
   if (alias_.has_value()) {
@@ -624,6 +650,8 @@ std::string Import::ToString() const {
 
 ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr)
     : Expr(owner, std::move(span)), subject_(subject), attr_(std::move(attr)) {}
+
+ColonRef::~ColonRef() {}
 
 std::optional<Import*> ColonRef::ResolveImportSubject() const {
   if (!std::holds_alternative<NameRef*>(subject_)) {
@@ -651,7 +679,12 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
       type_annotation_(type_annotation),
       span_(name_def_->span().start(), type_annotation_->span().limit()) {}
 
+Param::~Param() {}
+
 // -- class ChannelDecl
+
+ChannelDecl::~ChannelDecl() {}
+
 std::string ChannelDecl::ToString() const {
   std::vector<std::string> dims;
   if (dims_.has_value()) {
@@ -665,6 +698,10 @@ std::string ChannelDecl::ToString() const {
 }
 
 // -- class Module
+
+Module::~Module() {
+  XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
+}
 
 std::optional<Function*> Module::GetFunction(std::string_view target_name) {
   for (ModuleMember& member : top_) {
@@ -922,12 +959,20 @@ absl::StatusOr<IndexRhs> AstNodeToIndexRhs(AstNode* node) {
                                     node->ToString());
 }
 
+TypeAnnotation::~TypeAnnotation() {}
+
+// -- class TypeRefTypeAnnotation
+
 TypeRefTypeAnnotation::TypeRefTypeAnnotation(Module* owner, Span span,
                                              TypeRef* type_ref,
                                              std::vector<Expr*> parametrics)
     : TypeAnnotation(owner, std::move(span)),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)) {}
+
+TypeRefTypeAnnotation::~TypeRefTypeAnnotation() {}
+
+// -- class ArrayTypeAnnotation
 
 ArrayTypeAnnotation::ArrayTypeAnnotation(Module* owner, Span span,
                                          TypeAnnotation* element_type,
@@ -936,6 +981,8 @@ ArrayTypeAnnotation::ArrayTypeAnnotation(Module* owner, Span span,
       element_type_(element_type),
       dim_(dim) {}
 
+ArrayTypeAnnotation::~ArrayTypeAnnotation() {}
+
 std::vector<AstNode*> ArrayTypeAnnotation::GetChildren(bool want_types) const {
   return {element_type_, dim_};
 }
@@ -943,6 +990,12 @@ std::vector<AstNode*> ArrayTypeAnnotation::GetChildren(bool want_types) const {
 std::string ArrayTypeAnnotation::ToString() const {
   return absl::StrFormat("%s[%s]", element_type_->ToString(), dim_->ToString());
 }
+
+// -- class BuiltinNameDef
+
+BuiltinNameDef::~BuiltinNameDef() {}
+
+// -- class SplatStructInstance
 
 bool IsConstant(AstNode* node) {
   if (IsOneOf<ConstantArray, Number, ConstRef, ColonRef>(node)) {
@@ -1009,6 +1062,8 @@ std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
 
 // -- class Match
 
+Match::~Match() {}
+
 std::vector<AstNode*> Match::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {matched_};
   for (MatchArm* arm : arms_) {
@@ -1028,6 +1083,8 @@ std::string Match::ToString() const {
 
 // -- class Index
 
+Index::~Index() {}
+
 std::string Index::ToString() const {
   return absl::StrFormat("(%s)[%s]", lhs_->ToString(),
                          ToAstNode(rhs_)->ToString());
@@ -1035,11 +1092,15 @@ std::string Index::ToString() const {
 
 // -- class WidthSlice
 
+WidthSlice::~WidthSlice() {}
+
 std::string WidthSlice::ToString() const {
   return absl::StrFormat("%s+:%s", start_->ToString(), width_->ToString());
 }
 
 // -- class Slice
+
+Slice::~Slice() {}
 
 std::vector<AstNode*> Slice::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
@@ -1076,6 +1137,8 @@ EnumDef::EnumDef(Module* owner, Span span, NameDef* name_def,
       type_annotation_(type_annotation),
       values_(std::move(values)),
       is_public_(is_public) {}
+
+EnumDef::~EnumDef() {}
 
 bool EnumDef::HasValue(std::string_view name) const {
   for (const auto& item : values_) {
@@ -1127,6 +1190,8 @@ Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
       callee_(callee),
       explicit_parametrics_(explicit_parametrics) {}
 
+Instantiation::~Instantiation() {}
+
 std::string Instantiation::FormatParametrics() const {
   if (explicit_parametrics_.empty()) {
     return "";
@@ -1148,6 +1213,8 @@ Invocation::Invocation(Module* owner, Span span, Expr* callee,
     : Instantiation(owner, std::move(span), callee, explicit_parametrics),
       args_(std::move(args)) {}
 
+Invocation::~Invocation() {}
+
 std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {callee()};
   for (Expr* arg : args_) {
@@ -1163,6 +1230,7 @@ std::string Invocation::FormatArgs() const {
 }
 
 // -- class Spawn
+
 Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
              Invocation* next, std::vector<Expr*> explicit_parametrics,
              Expr* body)
@@ -1170,6 +1238,8 @@ Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
       config_(config),
       next_(next),
       body_(body) {}
+
+Spawn::~Spawn() {}
 
 std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
   return {config_, next_, body_};
@@ -1199,6 +1269,8 @@ FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
       macro_(macro),
       format_(format),
       args_(std::move(args)) {}
+
+FormatMacro::~FormatMacro() {}
 
 std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
@@ -1242,6 +1314,8 @@ StructDef::StructDef(Module* owner, Span span, NameDef* name_def,
       parametric_bindings_(std::move(parametric_bindings)),
       members_(std::move(members)),
       public_(is_public) {}
+
+StructDef::~StructDef() {}
 
 std::vector<AstNode*> StructDef::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_};
@@ -1302,6 +1376,8 @@ StructInstance::StructInstance(
       struct_ref_(struct_ref),
       members_(std::move(members)) {}
 
+StructInstance::~StructInstance() {}
+
 std::vector<std::pair<std::string, Expr*>> StructInstance::GetOrderedMembers(
     const StructDef* struct_def) const {
   std::vector<std::pair<std::string, Expr*>> result;
@@ -1331,6 +1407,8 @@ SplatStructInstance::SplatStructInstance(
       members_(std::move(members)),
       splatted_(splatted) {}
 
+SplatStructInstance::~SplatStructInstance() {}
+
 std::vector<AstNode*> TypeRefTypeAnnotation::GetChildren(
     bool want_types) const {
   std::vector<AstNode*> results = {type_ref_};
@@ -1352,6 +1430,14 @@ std::string TypeRefTypeAnnotation::ToString() const {
   }
   return absl::StrCat(type_ref_->ToString(), parametric_str);
 }
+
+// -- class Unop
+
+Unop::~Unop() {}
+
+// -- class Binop
+
+Binop::~Binop() {}
 
 absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
 #define HANDLE(__enum, __unused, __operator) \
@@ -1390,6 +1476,9 @@ std::string UnopKindToString(UnopKind k) {
 }
 
 // -- class Block
+
+Block::~Block() {}
+
 std::string Block::ToString() const {
   return absl::StrFormat("{\n%s\n}",
                          Indent(body_->ToString(), kDefaultIndentSpaces));
@@ -1407,6 +1496,8 @@ For::For(Module* owner, Span span, NameDefTree* names,
       body_(body),
       init_(init) {}
 
+For::~For() {}
+
 std::vector<AstNode*> For::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {names_};
   if (want_types && type_annotation_ != nullptr) {
@@ -1417,6 +1508,8 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
   results.push_back(init_);
   return results;
 }
+
+// -- class Function
 
 Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
@@ -1431,6 +1524,8 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
       body_(body),
       tag_(tag),
       is_public_(is_public) {}
+
+Function::~Function() {}
 
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
@@ -1497,6 +1592,10 @@ std::vector<std::string> Function::GetFreeParametricKeys() const {
   return results;
 }
 
+// -- class TestFunction
+
+TestFunction::~TestFunction() {}
+
 // -- class Proc
 
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
@@ -1515,6 +1614,8 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       init_(init),
       members_(members),
       is_public_(is_public) {}
+
+Proc::~Proc() {}
 
 std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def()};
@@ -1592,6 +1693,8 @@ MatchArm::MatchArm(Module* owner, Span span, std::vector<NameDefTree*> patterns,
   XLS_CHECK(!patterns_.empty());
 }
 
+MatchArm::~MatchArm() {}
+
 Span MatchArm::GetPatternSpan() const {
   return Span(patterns_[0]->span().start(), patterns_.back()->span().limit());
 }
@@ -1600,9 +1703,20 @@ Match::Match(Module* owner, Span span, Expr* matched,
              std::vector<MatchArm*> arms)
     : Expr(owner, std::move(span)), matched_(matched), arms_(std::move(arms)) {}
 
+// -- class NameRef
+
+NameRef::~NameRef() {}
+
+// -- class ConstRef
+
+ConstRef::~ConstRef() {}
+
 // -- class Range
+
 Range::Range(Module* owner, Span span, Expr* start, Expr* end)
     : Expr(owner, std::move(span)), start_(start), end_(end) {}
+
+Range::~Range() {}
 
 std::string Range::ToString() const {
   return absl::StrFormat("%s..%s", start_->ToString(), end_->ToString());
@@ -1613,6 +1727,8 @@ std::string Range::ToString() const {
 Recv::Recv(Module* owner, Span span, NameRef* token, Expr* channel)
     : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
 
+Recv::~Recv() {}
+
 std::string Recv::ToString() const {
   return absl::StrFormat("recv(%s, %s)", token_->identifier(),
                          channel_->ToString());
@@ -1622,6 +1738,8 @@ std::string Recv::ToString() const {
 RecvNonBlocking::RecvNonBlocking(Module* owner, Span span, NameRef* token,
                                  Expr* channel)
     : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
+
+RecvNonBlocking::~RecvNonBlocking() {}
 
 std::string RecvNonBlocking::ToString() const {
   return absl::StrFormat("recv_non_blocking(%s, %s)", token_->identifier(),
@@ -1637,6 +1755,8 @@ RecvIf::RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
       channel_(channel),
       condition_(condition) {}
 
+RecvIf::~RecvIf() {}
+
 std::string RecvIf::ToString() const {
   return absl::StrFormat("recv_if(%s, %s, %s)", token_->identifier(),
                          channel_->ToString(), condition_->ToString());
@@ -1650,6 +1770,8 @@ RecvIfNonBlocking::RecvIfNonBlocking(Module* owner, Span span, NameRef* token,
       token_(token),
       channel_(channel),
       condition_(condition) {}
+
+RecvIfNonBlocking::~RecvIfNonBlocking() {}
 
 std::string RecvIfNonBlocking::ToString() const {
   return absl::StrFormat("recv_if_non_blocking(%s, %s, %s)",
@@ -1666,6 +1788,8 @@ Send::Send(Module* owner, Span span, NameRef* token, Expr* channel,
       channel_(channel),
       payload_(payload) {}
 
+Send::~Send() {}
+
 std::string Send::ToString() const {
   return absl::StrFormat("send(%s, %s, %s)", token_->identifier(),
                          channel_->ToString(), payload_->ToString());
@@ -1681,6 +1805,8 @@ SendIf::SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
       condition_(condition),
       payload_(payload) {}
 
+SendIf::~SendIf() {}
+
 std::string SendIf::ToString() const {
   return absl::StrFormat("send_if(%s, %s, %s, %s)", token_->identifier(),
                          channel_->ToString(), condition_->ToString(),
@@ -1691,6 +1817,8 @@ std::string SendIf::ToString() const {
 
 Join::Join(Module* owner, Span span, const std::vector<Expr*>& tokens)
     : Expr(owner, span), tokens_(tokens) {}
+
+Join::~Join() {}
 
 std::string Join::ToString() const {
   std::string tokens_str =
@@ -1709,7 +1837,13 @@ std::vector<AstNode*> Join::GetChildren(bool want_types) const {
   return nodes;
 }
 
+// -- class Cast
+
+Cast::~Cast() {}
+
 // -- class TestProc
+
+TestProc::~TestProc() {}
 
 std::string TestProc::ToString() const {
   return absl::StrFormat("#[test_proc]\n%s", proc_->ToString());
@@ -1724,6 +1858,8 @@ BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
       builtin_type_(builtin_type),
       builtin_name_def_(builtin_name_def) {}
 
+BuiltinTypeAnnotation::~BuiltinTypeAnnotation() {}
+
 std::vector<AstNode*> BuiltinTypeAnnotation::GetChildren(
     bool want_types) const {
   return std::vector<AstNode*>{};
@@ -1737,6 +1873,8 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
   return GetBuiltinTypeSignedness(builtin_type_).value();
 }
 
+// -- class ChannelTypeAnnotation
+
 ChannelTypeAnnotation::ChannelTypeAnnotation(
     Module* owner, Span span, Direction direction, TypeAnnotation* payload,
     std::optional<std::vector<Expr*>> dims)
@@ -1744,6 +1882,8 @@ ChannelTypeAnnotation::ChannelTypeAnnotation(
       direction_(direction),
       payload_(payload),
       dims_(dims) {}
+
+ChannelTypeAnnotation::~ChannelTypeAnnotation() {}
 
 std::string ChannelTypeAnnotation::ToString() const {
   std::vector<std::string> dims;
@@ -1761,6 +1901,8 @@ TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,
                                          std::vector<TypeAnnotation*> members)
     : TypeAnnotation(owner, std::move(span)), members_(std::move(members)) {}
 
+TupleTypeAnnotation::~TupleTypeAnnotation() {}
+
 std::string TupleTypeAnnotation::ToString() const {
   std::string guts =
       absl::StrJoin(members_, ", ", [](std::string* out, TypeAnnotation* t) {
@@ -1769,11 +1911,17 @@ std::string TupleTypeAnnotation::ToString() const {
   return absl::StrFormat("(%s%s)", guts, members_.size() == 1 ? "," : "");
 }
 
+// -- class WildcardPattern
+
+WildcardPattern::~WildcardPattern() {}
+
 // -- class QuickCheck
 
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
                        std::optional<int64_t> test_count)
     : AstNode(owner), span_(span), f_(f), test_count_(std::move(test_count)) {}
+
+QuickCheck::~QuickCheck() {}
 
 std::string QuickCheck::ToString() const {
   std::string test_count_str;
@@ -1782,6 +1930,10 @@ std::string QuickCheck::ToString() const {
   }
   return absl::StrFormat("#[quickcheck%s]\n%s", test_count_str, f_->ToString());
 }
+
+// -- class TupleIndex
+
+TupleIndex::~TupleIndex() {}
 
 TupleIndex::TupleIndex(Module* owner, Span span, Expr* lhs, Number* index)
     : Expr(owner, std::move(span)), lhs_(lhs), index_(index) {}
@@ -1801,6 +1953,10 @@ std::string TupleIndex::ToString() const {
 std::vector<AstNode*> TupleIndex::GetChildren(bool want_types) const {
   return {lhs_, index_};
 }
+
+// -- class XlsTuple
+
+XlsTuple::~XlsTuple() {}
 
 std::string XlsTuple::ToString() const {
   std::string result = "(";
@@ -1829,6 +1985,8 @@ std::string StructRefToText(const StructRef& struct_ref) {
 }
 
 // -- class NameDefTree
+
+NameDefTree::~NameDefTree() {}
 
 std::vector<AstNode*> NameDefTree::GetChildren(bool want_types) const {
   if (std::holds_alternative<Leaf>(tree_)) {
@@ -1899,6 +2057,8 @@ Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
       body_(body),
       is_const_(is_const) {}
 
+Let::~Let() {}
+
 std::vector<AstNode*> Let::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_tree_};
   if (type_annotation_ != nullptr && want_types) {
@@ -1919,6 +2079,14 @@ std::string Let::ToString() const {
       rhs_->ToString(), body_str);
 }
 
+// -- class Expr
+
+Expr::~Expr() {}
+
+// -- class String
+
+String::~String() {}
+
 // -- class Number
 
 Number::Number(Module* owner, Span span, std::string text,
@@ -1927,6 +2095,8 @@ Number::Number(Module* owner, Span span, std::string text,
       text_(std::move(text)),
       number_kind_(number_kind),
       type_annotation_(type_annotation) {}
+
+Number::~Number() {}
 
 std::vector<AstNode*> Number::GetChildren(bool want_types) const {
   if (type_annotation_ == nullptr) {
@@ -1983,6 +2153,12 @@ TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,
       name_def_(name_def),
       type_annotation_(type),
       is_public_(is_public) {}
+
+TypeDef::~TypeDef() {}
+
+// -- class Array
+
+Array::~Array() {}
 
 std::string Array::ToString() const {
   std::string type_prefix;
