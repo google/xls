@@ -55,7 +55,7 @@ class DecoratingDelayEstimator : public DelayEstimator {
 
   ~DecoratingDelayEstimator() override = default;
 
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const;
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override;
 
  private:
   const DelayEstimator& decorated_;

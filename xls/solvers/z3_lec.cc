@@ -18,13 +18,10 @@
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/strip.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/node_util.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -48,9 +45,9 @@ bool CheckingSingleStage(std::optional<PipelineSchedule> schedule,
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
-  auto lec = absl::WrapUnique<Lec>(
-      new Lec(params.ir_package, params.ir_function, params.netlist,
-              params.netlist_module_name, absl::nullopt, 0));
+  auto lec = absl::WrapUnique<Lec>(new Lec(params.ir_function, params.netlist,
+                                           params.netlist_module_name,
+                                           absl::nullopt, 0));
   XLS_RETURN_IF_ERROR(lec->Init());
   return lec;
 }
@@ -59,18 +56,17 @@ absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
 // the more-explicit invocation style here.
 absl::StatusOr<std::unique_ptr<Lec>> Lec::CreateForStage(
     const LecParams& params, const PipelineSchedule& schedule, int stage) {
-  auto lec = absl::WrapUnique<Lec>(
-      new Lec(params.ir_package, params.ir_function, params.netlist,
-              params.netlist_module_name, schedule, stage));
+  auto lec = absl::WrapUnique<Lec>(new Lec(params.ir_function, params.netlist,
+                                           params.netlist_module_name, schedule,
+                                           stage));
   XLS_RETURN_IF_ERROR(lec->Init());
   return lec;
 }
 
-Lec::Lec(Package* ir_package, Function* ir_function, Netlist* netlist,
+Lec::Lec(Function* ir_function, Netlist* netlist,
          const std::string& netlist_module_name,
          std::optional<PipelineSchedule> schedule, int stage)
-    : ir_package_(ir_package),
-      ir_function_(ir_function),
+    : ir_function_(ir_function),
       netlist_(netlist),
       netlist_module_name_(netlist_module_name),
       schedule_(schedule),

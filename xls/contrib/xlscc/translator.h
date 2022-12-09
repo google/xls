@@ -216,7 +216,7 @@ class CStructType : public CType {
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
   // Returns true if the #pragma hls_notuple or hls_synthetic_int directive was
   // given for the struct
@@ -286,7 +286,7 @@ class CInstantiableTypeAlias : public CType {
                                 xlscc_metadata::Value* output) const override;
   explicit operator std::string() const override;
   int GetBitWidth() const override;
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
  private:
   const clang::NamedDecl* base_;
@@ -305,7 +305,7 @@ class CArrayType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
   int GetSize() const;
   std::shared_ptr<CType> GetElementType() const;
@@ -328,7 +328,7 @@ class CPointerType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
   std::shared_ptr<CType> GetPointeeType() const;
 
@@ -349,7 +349,7 @@ class CReferenceType : public CType {
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
   std::shared_ptr<CType> GetPointeeType() const;
 
@@ -377,7 +377,7 @@ class CChannelType : public CType {
   std::shared_ptr<CType> GetItemType() const;
   OpType GetOpType() const;
 
-  absl::StatusOr<bool> ContainsLValues(Translator& translator) const;
+  absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
  private:
   std::shared_ptr<CType> item_type_;

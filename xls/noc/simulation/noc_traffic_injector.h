@@ -110,9 +110,6 @@ class NocTrafficInjector {
   // Cycle that the simulator has simulated up to.
   int64_t cycle_ = -1;
 
-  // Cycle that we've generated flits for.
-  int64_t cycle_of_latest_flit_ = -1;
-
   // Below vectors are all sized identically to a size equal
   // to that of the number of source network interfaces.
 

@@ -85,8 +85,8 @@ class Lec {
   Z3_context ctx() { return ir_translator_->ctx(); }
 
  private:
-  Lec(Package* ir_package, Function* ir_function,
-      netlist::rtl::Netlist* netlist, const std::string& netlist_module_name,
+  Lec(Function* ir_function, netlist::rtl::Netlist* netlist,
+      const std::string& netlist_module_name,
       std::optional<PipelineSchedule> schedule, int stage);
   absl::Status Init();
   absl::Status CreateIrTranslator();
@@ -137,7 +137,6 @@ class Lec {
   void MarkDontCareBits(const std::vector<Z3_ast>& nl_bits,
                         std::string& nl_string);
 
-  Package* ir_package_;
   Function* ir_function_;
   std::unique_ptr<IrTranslator> ir_translator_;
 

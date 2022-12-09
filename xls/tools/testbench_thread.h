@@ -146,6 +146,8 @@ class TestbenchThreadBase {
         compare_results_(compare_results),
         log_errors_(log_errors) {}
 
+  virtual ~TestbenchThreadBase() = default;
+
   // Starts the thread. Silently returns if it's already running.
   // If the tax of calling index_to_input_ every iter is too high, we can
   // specialize this for simple cases, like uint64_t -> uint64_t.

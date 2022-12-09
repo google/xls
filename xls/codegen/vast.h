@@ -1260,18 +1260,14 @@ class InlineVerilogStatement : public Statement {
 // defined in a InlineVerilogStatement.
 class InlineVerilogRef : public IndexableExpression {
  public:
-  InlineVerilogRef(std::string_view name,
-                   InlineVerilogStatement* raw_statement, VerilogFile* file,
-                   const SourceInfo& loc)
-      : IndexableExpression(file, loc),
-        name_(name),
-        raw_statement_(raw_statement) {}
+  InlineVerilogRef(std::string_view name, InlineVerilogStatement* raw_statement,
+                   VerilogFile* file, const SourceInfo& loc)
+      : IndexableExpression(file, loc), name_(name) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
-  InlineVerilogStatement* raw_statement_;
 };
 
 // Represents call of a system task such as $display.

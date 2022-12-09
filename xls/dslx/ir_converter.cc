@@ -1083,7 +1083,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
       XLS_VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`",
                                         level, index, x->ToString());
       levels.resize(level);
-      levels.push_back(Def(x, [this, &levels, x, level, index](SourceInfo loc) {
+      levels.push_back(Def(x, [this, &levels, x, index](SourceInfo loc) {
         if (!loc.Empty()) {
           loc = ToSourceInfo(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
                                           : x->GetSpan());
