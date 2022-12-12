@@ -1341,8 +1341,7 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
     XLS_VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
-                   "defaulting to variable: %s"
-                << node->ToString();
+                   "defaulting to variable: " << node->ToString();
     return absl::OkStatus();
   }
   return absl::UnimplementedError(
