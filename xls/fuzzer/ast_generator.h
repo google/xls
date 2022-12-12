@@ -28,6 +28,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/scanner.h"
 #include "xls/fuzzer/value_generator.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
@@ -386,7 +387,7 @@ class AstGenerator {
       std::optional<int64_t> max_width_bits_types = std::nullopt);
 
   // Generates a number AST node with its associated type.
-  TypedExpr GenerateNumber(
+  TypedExpr GenerateNumberWithType(
       std::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
@@ -473,12 +474,28 @@ class AstGenerator {
     return module_->Make<Binop>(fake_span_, BinopKind::kGe, lhs, rhs);
   }
 
-  // Creates a number AsT node with value 'value' of type 'type'.
-  Number* MakeNumber(int64_t value, TypeAnnotation* type = nullptr);
-  Number* MakeNumberFromBits(const Bits& value, TypeAnnotation* type);
-  Number* MakeBool(bool value) {
-    return MakeNumber(value ? 1 : 0, MakeTypeAnnotation(false, 1));
+  // Creates a number AST node with value 'value' represented in a decimal
+  // format.
+  Number* MakeNumber(int64_t value);
+
+  // Creates a number AST node with value 'value' of type 'type' represented in
+  // the format specified.
+  Number* MakeNumberFromBits(const Bits& value, TypeAnnotation* type,
+                             FormatPreference format_preference);
+
+  // Creates a number AST node with value 'value' of boolean type represented in
+  // the format specified.
+  Number* MakeBool(
+      bool value, FormatPreference format_preference = FormatPreference::kHex) {
+    return MakeNumberFromBits(UBits(value ? 1 : 0, 1),
+                              MakeTypeAnnotation(false, 1), format_preference);
   }
+
+  // Creates a number AST node with value 'value' of type 'type' represented in
+  // a randomly choosen format between binary, decimal and hex. Note that these
+  // function expect a builtin type or a one-dimensional array of builtin types.
+  Number* GenerateNumber(int64_t value, TypeAnnotation* type);
+  Number* GenerateNumberFromBits(const Bits& value, TypeAnnotation* type);
 
   // Creates an array type with the given size and element type.
   ArrayTypeAnnotation* MakeArrayType(TypeAnnotation* element_type,

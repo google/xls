@@ -494,6 +494,7 @@ cc_library(
         "//xls/dslx:ast",
         "//xls/dslx:scanner",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_map",

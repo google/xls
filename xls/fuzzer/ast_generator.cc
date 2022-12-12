@@ -205,7 +205,7 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
                                /*definer=*/nullptr);
     // TODO(google/xls#460): Currently we only support non-negative values as
     // parametrics -- when that restriction is lifted we should be able to do
-    // arbitrary GenerateNumber() calls.
+    // arbitrary GenerateNumberWithType() calls.
     //
     // TODO(google/xls#461): We only support 64-bit values being mangled into
     // identifier since Bits conversion to decimal only supports that.
@@ -213,7 +213,8 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
     // Starting from 1 is to ensure that we don't get a 0-bit value.
     int64_t bit_count =
         RandRange(1, std::min(int64_t{65}, options_.max_width_bits_types + 1));
-    TypedExpr number = GenerateNumber(BitsAndSignedness{bit_count, false});
+    TypedExpr number =
+        GenerateNumberWithType(BitsAndSignedness{bit_count, false});
     ParametricBinding* pb =
         module_->Make<ParametricBinding>(name_def, number.type, number.expr);
     name_def->set_definer(pb);
@@ -245,7 +246,7 @@ TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
 }
 
 absl::StatusOr<Expr*> AstGenerator::GenerateUmin(TypedExpr arg, int64_t other) {
-  Number* rhs = MakeNumber(other, arg.type);
+  Number* rhs = GenerateNumber(other, arg.type);
   Expr* test = MakeGe(arg.expr, rhs);
   return MakeSel(test, rhs, arg.expr);
 }
@@ -561,7 +562,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = value_gen_->GenerateBits(bit_count);
-  Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
+  Number* divisor_node = GenerateNumberFromBits(divisor, lhs.type);
   return TypedExpr{
       module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
       lhs.type};
@@ -666,21 +667,61 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
                    lhs.type};
 }
 
-Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
+Number* AstGenerator::MakeNumber(int64_t value) {
+  return module_->Make<Number>(fake_span_, absl::StrFormat("%d", value),
+                               NumberKind::kOther, nullptr);
+}
+
+Number* AstGenerator::MakeNumberFromBits(const Bits& value,
+                                         TypeAnnotation* type,
+                                         FormatPreference format_preference) {
+  return module_->Make<Number>(fake_span_, value.ToString(format_preference),
+                               NumberKind::kOther, type);
+}
+
+Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
+  XLS_CHECK_NE(type, nullptr);
   if (IsBuiltinBool(type)) {
     XLS_CHECK(value == 0 || value == 1) << value;
     return module_->Make<Number>(fake_span_, value == 1 ? "true" : "false",
                                  NumberKind::kBool, type);
   }
-  return module_->Make<Number>(fake_span_, absl::StrFormat("%d", value),
-                               NumberKind::kOther, type);
+  int64_t bit_count = 0;
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    bit_count = builtin_type->GetBitCount();
+  } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
+    auto* builtin_type =
+        dynamic_cast<BuiltinTypeAnnotation*>(array_type->element_type());
+    XLS_CHECK_NE(builtin_type, nullptr);
+    bit_count = GetArraySize(array_type);
+  }
+  XLS_CHECK_NE(bit_count, 0);
+  Bits value_bits;
+  if (BitsTypeIsSigned(type).value()) {
+    value_bits = SBits(value, bit_count);
+  } else {
+    value_bits = UBits(value, bit_count);
+  }
+
+  return GenerateNumberFromBits(value_bits, type);
 }
 
-Number* AstGenerator::MakeNumberFromBits(const Bits& value,
-                                         TypeAnnotation* type) {
-  return module_->Make<Number>(fake_span_,
-                               value.ToString(FormatPreference::kHex),
-                               NumberKind::kOther, type);
+Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
+                                             TypeAnnotation* type) {
+  float choice = RandomFloat();
+  // Generate a hexadecimal representation of the literal 90% of the time.
+  if (choice < 0.9) {
+    return MakeNumberFromBits(value, type, FormatPreference::kHex);
+  }
+  // Generate a decimal representation of the literal 5% of the time.
+  if (choice < 0.95) {
+    if (BitsTypeIsSigned(type).value()) {
+      return MakeNumberFromBits(value, type, FormatPreference::kSignedDecimal);
+    }
+    return MakeNumberFromBits(value, type, FormatPreference::kUnsignedDecimal);
+  }
+  // Generate a binary representation of the literal 5% of the time.
+  return MakeNumberFromBits(value, type, FormatPreference::kBinary);
 }
 
 int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
@@ -711,8 +752,7 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-/* static */ int64_t AstGenerator::GetArraySize(
-    const ArrayTypeAnnotation* type) {
+int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
   Expr* dim = type->dim();
   if (auto* number = dynamic_cast<Number*>(dim)) {
     return number->GetAsUint64().value();
@@ -745,7 +785,7 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
     NameDef* name_def =
         module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
     constant_def = module_->Make<ConstantDef>(fake_span_, name_def,
-                                              MakeNumber(value, size_type),
+                                              GenerateNumber(value, size_type),
                                               /*is_public=*/false);
     name_def->set_definer(constant_def);
     constants_[identifier] = constant_def;
@@ -789,7 +829,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
     // If there's no natural environment value to use as the LHS, make up a
     // number and number of bits.
     int64_t bits = RandRange(1, kMaxBitCount);
-    lhs = GenerateNumber(BitsAndSignedness{bits, false});
+    lhs = GenerateNumberWithType(BitsAndSignedness{bits, false});
   }
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
@@ -1013,7 +1053,8 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
       module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
 }
 
-TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
+TypedExpr AstGenerator::GenerateNumberWithType(
+    std::optional<BitsAndSignedness> bas) {
   TypeAnnotation* type;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
@@ -1024,7 +1065,7 @@ TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   int64_t bit_count = GetTypeBitCount(type);
 
   Bits value = value_gen_->GenerateBits(bit_count);
-  return TypedExpr{MakeNumberFromBits(value, type), type};
+  return TypedExpr{GenerateNumberFromBits(value, type), type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
@@ -1094,8 +1135,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   // Right now just generates the 'identity' for loop.
   // TODO(meheff): Generate more interesting loop bodies.
   TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
-  Number* zero = MakeNumber(0, ivar_type);
-  Number* trips = MakeNumber(RandRange(8) + 1, ivar_type);
+  Number* zero = GenerateNumber(0, ivar_type);
+  Number* trips = GenerateNumber(RandRange(8) + 1, ivar_type);
   Expr* iterable = MakeRange(zero, trips);
   NameDef* x_def = MakeNameDef("x");
   NameDefTree* i_ndt = module_->Make<NameDefTree>(fake_span_, MakeNameDef("i"));
@@ -1496,7 +1537,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
       slice_width * GetTypeBitCount(arg_type->element_type())));
 
   std::vector<Expr*> width_array_elements = {module_->Make<Index>(
-      fake_span_, arg.expr, MakeNumber(0, MakeTypeAnnotation(false, 32)))};
+      fake_span_, arg.expr, GenerateNumber(0, MakeTypeAnnotation(false, 32)))};
   Array* width_expr = module_->Make<Array>(fake_span_, width_array_elements,
                                            /*has_ellipsis=*/true);
   TypeAnnotation* width_type = module_->Make<ArrayTypeAnnotation>(
@@ -1737,7 +1778,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         generated = GeneratePrioritySelectBuiltin(ctx);
         break;
       case kNumber:
-        generated = GenerateNumber();
+        generated = GenerateNumberWithType();
         break;
       case kBitwiseReduction:
         generated = GenerateBitwiseReduction(ctx);
