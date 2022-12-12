@@ -116,6 +116,12 @@ dslx_lang_test(name = "parametric_dot_product")
 
 dslx_lang_test(name = "string_conversion")
 
+dslx_lang_test(name = "array_concat_str")
+
+dslx_lang_test(name = "array_slice_str")
+
+dslx_lang_test(name = "array_update_str")
+
 dslx_lang_test(
     name = "import_constexpr",
     dslx_deps = [":constexpr_dslx"],
@@ -201,6 +207,8 @@ dslx_lang_test(
 )
 
 dslx_lang_test(name = "array_slice")
+
+dslx_lang_test(name = "array_update")
 
 # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast node.
 xls_dslx_test(
