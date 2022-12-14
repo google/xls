@@ -308,13 +308,13 @@ enum class SimplificationResult {
 };
 
 // Return a random subset of the given input.
-std::vector<Node*> PickRandomSubset(absl::Span<Node* const> input,
-                                    std::mt19937* rng) {
-  std::vector<Node*> result;
+template <typename T>
+std::vector<T> PickRandomSubset(absl::Span<const T> input, std::mt19937* rng) {
+  std::vector<T> result;
   // About half the time drop about 1 element, and otherwise drop about half of
   // the elements.
   bool drop_half = Random0To1(rng) < 0.5;
-  for (Node* element : input) {
+  for (const T& element : input) {
     float p = Random0To1(rng);
     float threshold = drop_half ? 0.5 : (1.0 / input.size());
     if (p > threshold) {
@@ -368,6 +368,31 @@ std::vector<Node*> ImplicitlyUsed(FunctionBase* fb) {
     return result;
   }
   XLS_LOG(FATAL) << "ImplicitlyUsed only supports functions and procs";
+}
+
+// Removes a random subset of elements from a compound typed value. That is,
+// remove (potentially nested) tuple/array elements.
+Value ReduceValue(const Value& value, std::mt19937* rng) {
+  if (value.IsTuple() || value.IsArray()) {
+    // Pick a random subset of the elements to keep.
+    std::vector<Value> elements =
+        PickRandomSubset<Value>(value.elements(), rng);
+    if (value.IsTuple() || (value.IsArray() && elements.size() == 1)) {
+      // Tuples and single element arrays can have their subelements
+      // reduced. Multi-element arrays can't have subelements reduced because
+      // all elements must be the same type.
+      for (int64_t i = 0; i < elements.size(); ++i) {
+        elements[i] = ReduceValue(elements[i], rng);
+      }
+    }
+    if (value.IsTuple()) {
+      return Value::Tuple(elements);
+    }
+    if (!elements.empty()) {
+      return Value::ArrayOrDie(elements);
+    }
+  }
+  return value;
 }
 
 absl::StatusOr<SimplificationResult> SimplifyReturnValue(
@@ -431,6 +456,20 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
                              f->MakeNode<Concat>(orig->loc(), new_operands));
       }
 
+      return ReplaceImplicitUse(orig, new_return_value);
+    }
+  }
+
+  // If the return value is a tuple or array typed literal, try to remove some
+  // of the elements.
+  if (f->IsFunction() && orig->Is<Literal>() &&
+      (orig->GetType()->IsTuple() || orig->GetType()->IsArray())) {
+    const Value& orig_value = orig->As<Literal>()->value();
+    Value reduced_value = ReduceValue(orig_value, rng);
+    if (reduced_value != orig_value) {
+      *which_transform = "return literal tuple/array size reduction";
+      XLS_ASSIGN_OR_RETURN(Node * new_return_value,
+                           f->MakeNode<Literal>(orig->loc(), reduced_value));
       return ReplaceImplicitUse(orig, new_return_value);
     }
   }

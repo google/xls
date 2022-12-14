@@ -351,5 +351,25 @@ top fn foo(x: bits[32], y: bits[1]) -> bits[32] {
     ])
     self.assertNotIn('gate_node', minimized_ir.decode('utf-8'))
 
+  def test_remove_literal_subelements(self):
+    input_ir = """package foo
+
+top fn foo() -> (bits[1], (bits[42]), bits[32]) {
+  ret result: (bits[1], (bits[42]), bits[32]) = literal(value=(0, (0), 0))
+}
+"""
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    # The test script checks to see if `bits[42]` is in the IR.
+    self._write_sh_script(test_sh_file.full_path, ['/bin/grep bits.42 $1'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        ir_file.full_path,
+    ])
+    # All tuple elements but bits[42] should be removed.
+    self.assertIn(': ((bits[42])) = literal', minimized_ir.decode('utf-8'))
+
+
 if __name__ == '__main__':
   absltest.main()
