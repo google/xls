@@ -74,6 +74,26 @@ TEST(CppAst, GetNumberAsInt64) {
                        HasSubstr("Could not convert 0b to a number")));
 }
 
+TEST(CppAst, CharacterNumberToStringTest) {
+  struct Example {
+    std::string text;
+    std::string expected;
+  } kCases[] = {
+      {R"(4)", R"('4')"},  {R"(2)", R"('2')"},  {R"(X)", R"('X')"},
+      {R"(l)", R"('l')"},  {R"(S)", R"('S')"},  {R"(")", R"('"')"},
+      {R"(')", R"('\'')"}, {R"(\)", R"('\\')"},
+  };
+  Module m("test");
+  auto make_char_num = [&m](std::string text) {
+    const Span fake_span;
+    return m.Make<Number>(fake_span, text, NumberKind::kCharacter,
+                          /*type=*/nullptr);
+  };
+  for (const Example& example : kCases) {
+    EXPECT_THAT(make_char_num(example.text)->ToString(), example.expected);
+  }
+}
+
 TEST(AstTest, GetBuiltinTypeSignedness) {
   XLS_ASSERT_OK_AND_ASSIGN(bool is_signed,
                            GetBuiltinTypeSignedness(BuiltinType::kBool));

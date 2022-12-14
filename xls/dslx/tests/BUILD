@@ -114,6 +114,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "parametric_dot_product")
 
+dslx_lang_test(name = "character_conversion")
+
 dslx_lang_test(name = "string_conversion")
 
 dslx_lang_test(name = "array_concat_str")

@@ -123,7 +123,7 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
 // This is too simple to need to return absl::Status. Just never call it
 // with a non-hex character.
 int HexCharToInt(char hex_char) {
-  if (std::isdigit(hex_char)) {
+  if (std::isdigit(hex_char) != 0) {
     return hex_char - '0';
   }
   if ('a' <= hex_char && hex_char <= 'f') {
@@ -135,39 +135,43 @@ int HexCharToInt(char hex_char) {
   XLS_LOG(FATAL) << "Non-hex character received: " << hex_char;
 }
 
-// Returns a string with the next "character" in the string. A string is
-// returned instead of a "char", since multi-byte Unicode characters are valid
-// constituents of a string.
-absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
+// Returns the next character literal.
+absl::StatusOr<char> Scanner::ScanCharLiteral() {
   char current = PopChar();
   if (current != '\\' || AtCharEof()) {
-    return std::string(1, current);
+    return current;
   }
-
   // All codes given in hex for consistency.
   char next = PeekChar();
   if (next == 'n') {
     DropChar();
-    return std::string(1, '\x0a');  // Newline.
-  } else if (next == 'r') {
+    return '\x0a';  // Newline.
+  }
+  if (next == 'r') {
     DropChar();
-    return std::string(1, '\x0d');  // Carriage return.
-  } else if (next == 't') {
+    return '\x0d';  // Carriage return.
+  }
+  if (next == 't') {
     DropChar();
-    return std::string(1, '\x09');  // Tab.
-  } else if (next == '\\') {
+    return '\x09';  // Tab.
+  }
+  if (next == '\\') {
     DropChar();
-    return std::string(1, '\x5c');  // Backslash.
-  } else if (next == '0') {
+    return '\x5c';  // Backslash.
+  }
+  if (next == '0') {
     DropChar();
-    return std::string(1, '\x00');  // Null.
-  } else if (next == '\'') {
+    return '\x00';  // Null.
+  }
+  if (next == '\'') {
     DropChar();
-    return std::string(1, '\x27');  // Single quote/apostraphe.
-  } else if (next == '"') {
+    return '\x27';  // Single quote/apostraphe.
+  }
+  if (next == '"') {
     DropChar();
-    return std::string(1, '\x22');
-  } else if (next == 'x') {
+    return '\x22';  // Double quote/apostraphe.
+  }
+  if (next == 'x') {
     // Hex character code. Now read [exactly] two more digits.
     DropChar();
     uint8_t code = 0;
@@ -181,10 +185,19 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
       DropChar();
     }
 
-    std::string result(1, code & 255);
-    return result;
-  } else if (next == 'u') {
+    return code & 255;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unrecognized escape sequence: \\", std::string(1, next)));
+}
+
+// Returns a string with the next "character" in the string. A string is
+// returned instead of a "char", since multi-byte Unicode characters are valid
+// constituents of a string.
+absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
+  if (PeekChar() == '\\' && PeekChar2OrNull() == 'u') {
     // Unicode character code.
+    DropChar();
     DropChar();
     if (PeekChar() != '{') {
       return absl::InvalidArgumentError(
@@ -198,7 +211,7 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
     for (int i = 0; i < 3; i++) {
       uint8_t byte = 0;
       for (int j = 0; j < 2; j++) {
-        next = PeekChar();
+        char next = PeekChar();
         if (absl::ascii_isxdigit(next)) {
           byte = byte << 4 | HexCharToInt(next);
           DropChar();
@@ -209,7 +222,7 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
               "Only hex digits are allowed within a Unicode character code.");
         }
       }
-      if (byte & 0xF0) {
+      if ((byte & 0xF0) != 0) {
         code = code << 8 | byte;
       } else {
         code = code << 4 | byte;
@@ -231,10 +244,9 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
       code >>= 8;
     }
     return result;
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Unrecognized escape sequence: \\", std::string(1, next)));
   }
+  XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
+  return std::string(1, c);
 }
 
 absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
@@ -269,8 +281,8 @@ absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
                                                        const Pos& start_pos) {
   // The leading character is `startc` so we scan out trailing identifiers.
   auto is_trailing_identifier_char = [](char c) {
-    return std::isalpha(c) || std::isdigit(c) || c == '_' || c == '!' ||
-           c == '\'';
+    return std::isalpha(c) != 0 || std::isdigit(c) != 0 || c == '_' ||
+           c == '!' || c == '\'';
   };
   std::string s = ScanWhile(startc, is_trailing_identifier_char);
   Span span(start_pos, GetPos());
@@ -421,7 +433,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
     return ScanError(Span(GetPos(), GetPos()),
                      "Expected character after single quote, saw end of file.");
   }
-  char c = PopChar();
+  XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
   if (AtCharEof() || !TryDropChar('\'')) {
     std::string msg = absl::StrFormat(
         "Expected closing single quote for character literal; got %s",

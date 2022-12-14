@@ -88,6 +88,7 @@ def dslx_lang_test(
         language-level target. Only used when convert_to_ir is true.
       benchmark_ir: Whether to enable the IR benchmarking tool to run on the
         converted IR. Only used when convert_to_ir is true.
+      warnings_as_errors: Whether warnings are errors within the DSLX library definition.
 
     As a byproduct this makes a "{name}_dslx" library target that other
     dslx_interp_tests can reference via the dslx_deps attribute.

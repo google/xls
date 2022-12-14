@@ -16,6 +16,7 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
@@ -2106,10 +2107,18 @@ std::vector<AstNode*> Number::GetChildren(bool want_types) const {
 }
 
 std::string Number::ToString() const {
-  if (type_annotation_ != nullptr) {
-    return absl::StrFormat("%s:%s", type_annotation_->ToString(), text_);
+  std::string formatted_text = text_;
+  if (number_kind_ == NumberKind::kCharacter) {
+    if (text_[0] == '\'' || text_[0] == '\\') {
+      formatted_text = absl::StrCat(R"(\)", formatted_text);
+    }
+    formatted_text = absl::StrCat("'", formatted_text, "'");
   }
-  return text_;
+  if (type_annotation_ != nullptr) {
+    return absl::StrFormat("%s:%s", type_annotation_->ToString(),
+                           formatted_text);
+  }
+  return formatted_text;
 }
 
 std::string Number::ToStringNoType() const { return text_; }
