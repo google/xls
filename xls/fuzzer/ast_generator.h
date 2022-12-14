@@ -390,6 +390,9 @@ class AstGenerator {
   TypedExpr GenerateNumberWithType(
       std::optional<BitsAndSignedness> bas = absl::nullopt);
 
+  // Generates String AST node with a string literal of 'char_count'.
+  String* GenerateString(int64_t char_count);
+
   // Generates an invocation of the map builtin.
   absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Context* ctx);
 
@@ -492,8 +495,9 @@ class AstGenerator {
   }
 
   // Creates a number AST node with value 'value' of type 'type' represented in
-  // a randomly choosen format between binary, decimal and hex. Note that these
-  // function expect a builtin type or a one-dimensional array of builtin types.
+  // a randomly choosen format between binary, decimal, hex and, when possible,
+  // a "character" number. Note that these function expect a builtin type or a
+  // one-dimensional array of builtin types.
   Number* GenerateNumber(int64_t value, TypeAnnotation* type);
   Number* GenerateNumberFromBits(const Bits& value, TypeAnnotation* type);
 

@@ -15,6 +15,7 @@
 #include "xls/fuzzer/ast_generator.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <set>
@@ -22,11 +23,13 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
+#include "xls/fuzzer/value_generator.h"
 
 namespace xls::dslx {
 
@@ -708,19 +711,27 @@ Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
 
 Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
                                              TypeAnnotation* type) {
+  // 50% of the time, when the type is unsigned and its bit width is eight,
+  // generate a "character" Number.
+  if (!BitsTypeIsSigned(type).value() && value.bit_count() == 8 &&
+      std::isprint(value.ToBytes()[0]) != 0 && RandomBool()) {
+    return module_->Make<Number>(fake_span_, std::string(1, value.ToBytes()[0]),
+                                 NumberKind::kCharacter, type);
+  }
   float choice = RandomFloat();
-  // Generate a hexadecimal representation of the literal 90% of the time.
+  // Now, generate a hexadecimal representation of the literal 90% of the time.
+
   if (choice < 0.9) {
     return MakeNumberFromBits(value, type, FormatPreference::kHex);
   }
-  // Generate a decimal representation of the literal 5% of the time.
+  // Now, generate a decimal representation of the literal 5% of the time.
   if (choice < 0.95) {
     if (BitsTypeIsSigned(type).value()) {
       return MakeNumberFromBits(value, type, FormatPreference::kSignedDecimal);
     }
     return MakeNumberFromBits(value, type, FormatPreference::kUnsignedDecimal);
   }
-  // Generate a binary representation of the literal 5% of the time.
+  // Now, generate a binary representation of the literal 5% of the time.
   return MakeNumberFromBits(value, type, FormatPreference::kBinary);
 }
 
@@ -908,7 +919,25 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
   return TypedExpr{result, result_type};
 }
 
+String* AstGenerator::GenerateString(int64_t char_count) {
+  std::string string_literal(char_count, '\0');
+  for (int64_t index = 0; index < char_count; ++index) {
+    // Codes 32 to 126 are the printable characters. There are 95 printable
+    // characters in total. Ref: https://en.wikipedia.org/wiki/ASCII.
+    int64_t printable_character = RandRange(95) + 32;
+    string_literal[index] = static_cast<uint8_t>(printable_character);
+  }
+  return module_->Make<String>(fake_span_, string_literal);
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
+  // 5% of the time generate string literals as arrays.
+  int64_t byte_count = options_.max_width_aggregate_types / 8;
+  if (byte_count > 0 && RandomFloat() < 0.5) {
+    int64_t length = RandRange(byte_count) + 1;
+    return TypedExpr{GenerateString(length),
+                     MakeArrayType(MakeTypeAnnotation(false, 8), length)};
+  }
   // Choose an arbitrary non-token value from the environment, then gather all
   // elements from the environment of that type.
   XLS_ASSIGN_OR_RETURN(TypedExpr value,

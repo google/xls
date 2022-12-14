@@ -881,9 +881,11 @@ class String : public Expr {
   }
   std::string_view GetNodeTypeName() const override { return "String"; }
   std::string ToString() const override {
-    // We need to re-insert the quote-escaping slash.
-    return absl::StrFormat("\"%s\"",
-                           absl::StrReplaceAll(text_, {{"\"", "\\\""}}));
+    // We need to re-insert the escape slash for: the blackslahes and the double
+    // quotes.
+    return absl::StrFormat(
+        R"("%s")",
+        absl::StrReplaceAll(text_, {{R"(\)", R"(\\)"}, {R"(")", R"(\")"}}));
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
