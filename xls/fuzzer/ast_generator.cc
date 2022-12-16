@@ -727,8 +727,13 @@ Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
     return MakeNumberFromBits(value, type, FormatPreference::kHex);
   }
   // Now, generate a decimal representation of the literal 5% of the time.
-  if (choice < 0.95) {
-    if (BitsTypeIsSigned(type).value()) {
+  // As stated in google/xls#461, decimal values can only be emitted if they fit
+  // in an int64_t/uint64_t.
+  bool is_signed = BitsTypeIsSigned(type).value();
+  bool can_emit_decimal = (is_signed && value.FitsInInt64()) ||
+                          (!is_signed && value.FitsInUint64());
+  if (choice < 0.95 && can_emit_decimal) {
+    if (is_signed) {
       return MakeNumberFromBits(value, type, FormatPreference::kSignedDecimal);
     }
     return MakeNumberFromBits(value, type, FormatPreference::kUnsignedDecimal);
