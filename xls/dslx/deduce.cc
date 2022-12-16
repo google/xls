@@ -102,7 +102,9 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
 
 // If the width is known for "type", checks that "number" fits in that type.
 absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
-  if (number.text()[0] == '-' && !type.is_signed()) {
+  // Characters have a `u8` type. They can support the dash (negation symbol).
+  if (number.number_kind() != NumberKind::kCharacter &&
+      number.text()[0] == '-' && !type.is_signed()) {
     return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Number %s invalid: "
