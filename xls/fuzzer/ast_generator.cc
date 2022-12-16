@@ -684,11 +684,6 @@ Number* AstGenerator::MakeNumberFromBits(const Bits& value,
 
 Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
   XLS_CHECK_NE(type, nullptr);
-  if (IsBuiltinBool(type)) {
-    XLS_CHECK(value == 0 || value == 1) << value;
-    return module_->Make<Number>(fake_span_, value == 1 ? "true" : "false",
-                                 NumberKind::kBool, type);
-  }
   int64_t bit_count = 0;
   if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
     bit_count = builtin_type->GetBitCount();
@@ -711,6 +706,13 @@ Number* AstGenerator::GenerateNumber(int64_t value, TypeAnnotation* type) {
 
 Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
                                              TypeAnnotation* type) {
+  // 50% of the time, when the type is unsigned and it has a single bit,
+  // generate the string representation equivalent to the boolean value.
+  if (!BitsTypeIsSigned(type).value() && value.bit_count() == 1 &&
+      RandomBool()) {
+    return module_->Make<Number>(fake_span_, value.Get(0) ? "true" : "false",
+                                 NumberKind::kBool, type);
+  }
   // 50% of the time, when the type is unsigned and its bit width is eight,
   // generate a "character" Number.
   if (!BitsTypeIsSigned(type).value() && value.bit_count() == 8 &&
