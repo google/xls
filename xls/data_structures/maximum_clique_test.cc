@@ -54,10 +54,11 @@ absl::btree_set<V> CliqueFromMap(const Graph& neighborhood) {
   Graph symmetric_neighborhood = Symmetrize(neighborhood);
   absl::btree_set<V> nodes = VerticesOf(neighborhood);
 
-  return MaximumClique<V>(nodes,
-                          [&](const V& node) -> absl::btree_set<V> {
-                            return symmetric_neighborhood.at(node);
-                          })
+  return MaximumClique<V, std::less<V>>(
+             nodes,
+             [&](const V& node) -> absl::btree_set<V> {
+               return symmetric_neighborhood.at(node);
+             })
       .value();
 }
 

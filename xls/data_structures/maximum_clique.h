@@ -30,10 +30,10 @@ namespace xls {
 // Compute the maximum clique in the given graph. This supports graphs of up to
 // around 100 nodes. More cleverness will be needed if we want to support bigger
 // graphs than that.
-template <typename V>
-absl::StatusOr<absl::btree_set<V>> MaximumClique(
-    const absl::btree_set<V>& vertices,
-    std::function<absl::btree_set<V>(const V&)> neighborhood) {
+template <typename V, typename Compare = std::less<V>>
+absl::StatusOr<absl::btree_set<V, Compare>> MaximumClique(
+    const absl::btree_set<V, Compare>& vertices,
+    std::function<absl::btree_set<V, Compare>(const V&)> neighborhood) {
   namespace or_tools = ::operations_research;
 
   std::unique_ptr<or_tools::MPSolver> solver(
@@ -44,7 +44,7 @@ absl::StatusOr<absl::btree_set<V>> MaximumClique(
 
   const double infinity = solver->infinity();
 
-  absl::btree_map<V, or_tools::MPVariable*> variables;
+  absl::btree_map<V, or_tools::MPVariable*, Compare> variables;
   {
     int64_t i = 0;
     for (const V& vertex : vertices) {
@@ -77,7 +77,7 @@ absl::StatusOr<absl::btree_set<V>> MaximumClique(
     return absl::InternalError("Could not find the maximum clique");
   }
 
-  absl::btree_set<V> result;
+  absl::btree_set<V, Compare> result;
   for (const V& vertex : vertices) {
     // This should really be == 1.0 but comparing floats for equality is dodgy.
     double value = variables.at(vertex)->solution_value();
