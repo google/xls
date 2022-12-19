@@ -51,6 +51,9 @@ class PipelineSchedule {
   // Returns whether the given node is contained in this schedule.
   bool IsScheduled(Node* node) const { return cycle_map_.contains(node); }
 
+  // Remove a node from the schedule.
+  void RemoveNode(Node* node);
+
   // Returns the cycle in which the node is placed. Dies if node has not
   // been placed in this schedule.
   int64_t cycle(const Node* node) const { return cycle_map_.at(node); }

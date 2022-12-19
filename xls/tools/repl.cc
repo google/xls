@@ -67,6 +67,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 const char kUsage[] = R"(
 Allows interactively exploring the functionality of XLS.

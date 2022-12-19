@@ -190,6 +190,8 @@ class ConstraintBuilder {
   absl::Status AddTimingConstraints();
   absl::Status AddSchedulingConstraint(const SchedulingConstraint& constraint);
   absl::Status AddIOConstraint(const IOConstraint& constraint);
+  absl::Status AddNodeInCycleConstraint(
+      const NodeInCycleConstraint& constraint);
   absl::Status AddRFSLConstraint(
       const RecvsFirstSendsLastConstraint& constraint);
 
@@ -435,6 +437,10 @@ absl::Status ConstraintBuilder::AddSchedulingConstraint(
   if (std::holds_alternative<IOConstraint>(constraint)) {
     return AddIOConstraint(std::get<IOConstraint>(constraint));
   }
+  if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
+    return AddNodeInCycleConstraint(
+        std::get<NodeInCycleConstraint>(constraint));
+  }
   if (std::holds_alternative<RecvsFirstSendsLastConstraint>(constraint)) {
     return AddRFSLConstraint(
         std::get<RecvsFirstSendsLastConstraint>(constraint));
@@ -483,6 +489,20 @@ absl::Status ConstraintBuilder::AddIOConstraint(
                                      constraint.MaximumLatency());
     }
   }
+
+  return absl::OkStatus();
+}
+
+absl::Status ConstraintBuilder::AddNodeInCycleConstraint(
+    const NodeInCycleConstraint& constraint) {
+  Node* node = constraint.GetNode();
+  int64_t cycle = constraint.GetCycle();
+  or_tools::MPConstraint* row_constraint = solver_->MakeRowConstraint(
+      cycle, cycle, absl::StrFormat("nic_%s", node->GetName()));
+  row_constraint->SetCoefficient(cycle_var_.at(node), 1);
+
+  XLS_VLOG(2) << "Setting node-in-cycle constraint: "
+              << absl::StrFormat("cycle[%s] = %d", node->GetName(), cycle);
 
   return absl::OkStatus();
 }

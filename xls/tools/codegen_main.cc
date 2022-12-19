@@ -33,7 +33,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/standard_pipeline.h"
-#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_pass_pipeline.h"
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/scheduling_options_flags.h"
 
@@ -152,11 +152,19 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
-  absl::StatusOr<PipelineSchedule> schedule_status =
-      PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
-
-  if (!schedule_status.ok()) {
-    if (absl::IsResourceExhausted(schedule_status.status())) {
+  Package* p = main->package();
+  SchedulingPassOptions sched_options;
+  sched_options.scheduling_options = scheduling_options;
+  sched_options.delay_estimator = delay_estimator;
+  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
+      CreateSchedulingPassPipeline();
+  SchedulingPassResults results;
+  SchedulingUnit<> scheduling_unit = {p, /*schedule=*/absl::nullopt};
+  absl::Status scheduling_status =
+      scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
+          .status();
+  if (!scheduling_status.ok()) {
+    if (absl::IsResourceExhausted(scheduling_status)) {
       // Resource exhausted error indicates that the schedule was
       // infeasible. Emit a meaningful error in this case.
       if (scheduling_options.pipeline_stages().has_value() &&
@@ -168,10 +176,13 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
             scheduling_options.pipeline_stages().value(),
             scheduling_options.clock_period_ps().value());
       }
+    } else {
+      return scheduling_status;
     }
   }
+  XLS_RET_CHECK(scheduling_unit.schedule.has_value());
 
-  return schedule_status;
+  return scheduling_unit.schedule.value();
 }
 
 absl::Status RealMain(std::string_view ir_path) {
@@ -185,18 +196,20 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
+
+  if (!codegen_flags_proto.top().empty()) {
+    XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
+  }
+  XLS_RET_CHECK(p->GetTop().has_value())
+      << "Package " << p->name() << " needs a top function/proc.";
+  FunctionBase* main = p->GetTop().value();
+
   verilog::ModuleGeneratorResult result;
 
   XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
   XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
                        CodegenOptionsFromProto(codegen_flags_proto));
-
-  std::optional<std::string_view> maybe_top_str;
-  if (!codegen_flags_proto.top().empty()) {
-    maybe_top_str = codegen_flags_proto.top();
-  }
-  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
     XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||

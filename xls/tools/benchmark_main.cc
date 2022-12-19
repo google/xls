@@ -39,6 +39,7 @@
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_pass_pipeline.h"
 
 const char kUsage[] = R"(
 Prints numerous metrics and other information about an XLS IR file including:
@@ -270,15 +271,16 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     std::optional<int64_t> clock_period_ps,
     std::optional<int64_t> pipeline_stages,
     std::optional<int64_t> clock_margin_percent) {
-  SchedulingOptions options;
+  SchedulingPassOptions options;
+  options.delay_estimator = &delay_estimator;
   if (clock_period_ps.has_value()) {
-    options.clock_period_ps(*clock_period_ps);
+    options.scheduling_options.clock_period_ps(*clock_period_ps);
   }
   if (pipeline_stages.has_value()) {
-    options.pipeline_stages(*pipeline_stages);
+    options.scheduling_options.pipeline_stages(*pipeline_stages);
   }
   if (clock_margin_percent.has_value()) {
-    options.clock_margin_percent(*clock_margin_percent);
+    options.scheduling_options.clock_margin_percent(*clock_margin_percent);
   }
 
   std::optional<FunctionBase*> top = package->GetTop();
@@ -286,15 +288,20 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
   }
+
+  std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
+      CreateSchedulingPassPipeline();
+  SchedulingPassResults results;
+  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/absl::nullopt};
+
   absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(top.value(), delay_estimator, options));
+  XLS_RETURN_IF_ERROR(
+      scheduling_pipeline->Run(&scheduling_unit, options, &results).status());
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
-  return std::move(schedule);
+  return std::move(*scheduling_unit.schedule);
 }
 
 absl::Status PrintCodegenInfo(FunctionBase* f,

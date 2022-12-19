@@ -83,6 +83,22 @@ class IOConstraint {
   int64_t maximum_latency_;
 };
 
+// Force the given node into the given cycle. This is used for incremental
+// scheduling in the scheduling pass pipeline, and is not currently exposed to
+// users through codegen_main.
+class NodeInCycleConstraint {
+ public:
+  NodeInCycleConstraint(Node* node, int64_t cycle)
+      : node_(node), cycle_(cycle) {}
+
+  Node* GetNode() const { return node_; }
+  int64_t GetCycle() const { return cycle_; }
+
+ private:
+  Node* node_;
+  int64_t cycle_;
+};
+
 // When this is present, receives will be scheduled in the first cycle and sends
 // will be scheduled in the last cycle.
 class RecvsFirstSendsLastConstraint {
@@ -90,8 +106,8 @@ class RecvsFirstSendsLastConstraint {
   RecvsFirstSendsLastConstraint() {}
 };
 
-using SchedulingConstraint =
-    std::variant<IOConstraint, RecvsFirstSendsLastConstraint>;
+using SchedulingConstraint = std::variant<IOConstraint, NodeInCycleConstraint,
+                                          RecvsFirstSendsLastConstraint>;
 
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. See
