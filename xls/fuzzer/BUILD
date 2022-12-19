@@ -258,25 +258,19 @@ generate_crasher_regression_tests(
     name = "regression_tests",
     srcs = glob(["crashers/*"]),
     failing = [
-        "crashers/crasher_2021-02-28_ce06.x",
-        "crashers/crasher_2022-05-31_3ad6.x",
         "crashers/crasher_2022-10-19_a3a3.x",
         "crashers/crasher_2022-10-19_5531.x",
-        "crashers/crasher_2022-10-24_40eb.x",
-        "crashers/crasher_2022-10-25_133f.x",
+        "crashers/crasher_2022-12-17_35b3.x",
     ],
     prefix = package_name(),
     tags = {
+        # Tests which timeout unless run in opt mode.
         "crashers/crasher_2021-03-27_2259.x": [
             "optonly",
         ],
+
+        # Tests which use iverilog and iverilog does not work with sanitizers.
         "crashers/crasher_2022-09-03_4d43.x": [
-            "optonly",
-        ],
-        "crashers/crasher_2022-10-19_a3a3.x": [
-            "optonly",
-        ],
-        "crashers/crasher_2022-10-19_5531.x": [
             "optonly",
         ],
         "crashers/crasher_2022-10-24_40eb.x": [
