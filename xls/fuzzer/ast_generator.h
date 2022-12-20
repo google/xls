@@ -113,7 +113,7 @@ class AstGenerator {
   // [lower_limit, inf). Useful for picking a number around some value with
   // decreasing likelihood of picking something far away from the expected
   // value.  The underlying distribution is a Poisson distribution. See:
-  // https://en.wikipedia.org/wiki/Poisson_distribution
+  // https://en.wikipedia.org/wiki/Poisson_distribution.
   int64_t RandomIntWithExpectedValue(float expected_value,
                                      int64_t lower_limit = 0) {
     return value_gen_->RandomIntWithExpectedValue(expected_value, lower_limit);
@@ -137,22 +137,23 @@ class AstGenerator {
     bool is_generating_proc;
   };
 
-  static bool IsBits(TypeAnnotation* t);
-  static bool IsUBits(TypeAnnotation* t);
-  static bool IsArray(TypeAnnotation* t);
-  static bool IsTuple(TypeAnnotation* t);
-  static bool IsToken(TypeAnnotation* t);
-  static bool IsChannel(TypeAnnotation* t);
-  static bool IsNil(TypeAnnotation* t);
-  static bool IsBuiltinBool(TypeAnnotation* type) {
-    if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+  static bool IsTypeRef(const TypeAnnotation* t);
+  static bool IsBits(const TypeAnnotation* t);
+  static bool IsUBits(const TypeAnnotation* t);
+  static bool IsArray(const TypeAnnotation* t);
+  static bool IsTuple(const TypeAnnotation* t);
+  static bool IsToken(const TypeAnnotation* t);
+  static bool IsChannel(const TypeAnnotation* t);
+  static bool IsNil(const TypeAnnotation* t);
+  static bool IsBuiltinBool(const TypeAnnotation* type) {
+    if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
       return !builtin_type->GetSignedness() && builtin_type->GetBitCount() == 1;
     }
     return false;
   }
   // Helper that returns the signedness of type when converted to a builtin bits
   // type. Returns an error status if the type is not a builtin bits type.
-  static absl::StatusOr<bool> BitsTypeIsSigned(TypeAnnotation* type);
+  static absl::StatusOr<bool> BitsTypeIsSigned(const TypeAnnotation* type);
 
   // Helper that returns the bit count of type when converted to a builtin bits
   // type. Returns an error status if the type is not a builtin bits type.
@@ -165,7 +166,8 @@ class AstGenerator {
   static bool EnvContainsTuple(const Env& e);
   static bool EnvContainsToken(const Env& e);
   static bool EnvContainsChannel(const Env& e);
-  static absl::StatusOr<bool> ContainsToken(TypeAnnotation* type);
+  static absl::StatusOr<bool> ContainsToken(const TypeAnnotation* type);
+  static bool ContainsTypeRef(const TypeAnnotation* type);
 
   // Generates a function with name "name".
   absl::Status GenerateFunctionInModule(std::string name);
@@ -435,6 +437,18 @@ class AstGenerator {
   // Generates an Eq or Neq comparison on tuples.
   absl::StatusOr<TypedExpr> GenerateCompareTuple(Context* ctx);
 
+  // Generates a value with type 'type'. The value is represented as an
+  // xls::dslx::Expr.
+  absl::StatusOr<Expr*> GenerateValue(Context* ctx, const TypeAnnotation* type);
+
+  // Generate a MatchArmPattern with type 'type'. The pattern is represented as
+  // an xls::dslx::NameDefTree.
+  absl::StatusOr<NameDefTree*> GenerateMatchArmPattern(
+      Context* ctx, const TypeAnnotation* type);
+
+  // Generate a Match expression.
+  absl::StatusOr<TypedExpr> GenerateMatch(Context* ctx);
+
   // Generates a join operation AST node.
   absl::StatusOr<TypedExpr> GenerateJoinOp(Context* ctx);
 
@@ -542,7 +556,7 @@ class AstGenerator {
   }
 
   // Returns the (flattened) bit count of the given type.
-  int64_t GetTypeBitCount(TypeAnnotation* type);
+  int64_t GetTypeBitCount(const TypeAnnotation* type);
 
   // Returns the (constant) size of an array type.
   //

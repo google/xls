@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
@@ -44,11 +45,11 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return std::make_pair(std::move(exprs), std::move(types));
 }
 
-/* static */ bool AstGenerator::IsUBits(TypeAnnotation* t) {
-  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
+/* static */ bool AstGenerator::IsUBits(const TypeAnnotation* t) {
+  if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(t)) {
     return builtin->GetBitCount() != 0 && !builtin->GetSignedness();
   }
-  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
+  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
     if (auto* builtin =
             dynamic_cast<BuiltinTypeAnnotation*>(array->element_type())) {
       switch (builtin->builtin_type()) {
@@ -61,7 +62,7 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
       }
     }
   }
-  if (auto* def = dynamic_cast<TypeDef*>(t)) {
+  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
     return IsUBits(def->type_annotation());
   }
   return false;
@@ -69,8 +70,9 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 
 // Returns whether the element type of the given array type annotation is a
 // "bits" style type; i.e. uN, sN, or bits.
-static bool ElemIsBitVectorType(ArrayTypeAnnotation* ata) {
-  if (auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(ata->element_type());
+static bool ElemIsBitVectorType(const ArrayTypeAnnotation* ata) {
+  if (auto* elem =
+          dynamic_cast<const BuiltinTypeAnnotation*>(ata->element_type());
       elem != nullptr && (elem->builtin_type() == BuiltinType::kUN ||
                           elem->builtin_type() == BuiltinType::kSN ||
                           elem->builtin_type() == BuiltinType::kBits)) {
@@ -80,11 +82,11 @@ static bool ElemIsBitVectorType(ArrayTypeAnnotation* ata) {
 }
 
 /* static */ absl::StatusOr<bool> AstGenerator::BitsTypeIsSigned(
-    TypeAnnotation* type) {
-  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    const TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
     return builtin_type->GetSignedness();
   }
-  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
+  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(type);
       array != nullptr && ElemIsBitVectorType(array)) {
     auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(array->element_type());
     // This is guaranteed by ElemIsBitVectorType() call above.
@@ -113,41 +115,45 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
       "Type annotation %s is not a builtin bits type", type->ToString()));
 }
 
-/* static */ bool AstGenerator::IsBits(TypeAnnotation* t) {
-  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
+/* static */ bool AstGenerator::IsTypeRef(const TypeAnnotation* t) {
+  return dynamic_cast<const TypeRefTypeAnnotation*>(t) != nullptr;
+}
+
+/* static */ bool AstGenerator::IsBits(const TypeAnnotation* t) {
+  if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(t)) {
     return builtin->GetBitCount() != 0;
   }
-  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
+  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
     return ElemIsBitVectorType(array);
   }
-  if (auto* def = dynamic_cast<TypeDef*>(t)) {
+  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
     return IsBits(def->type_annotation());
   }
   return false;
 }
 
-/* static */ bool AstGenerator::IsArray(TypeAnnotation* t) {
-  if (dynamic_cast<ArrayTypeAnnotation*>(t) != nullptr) {
+/* static */ bool AstGenerator::IsArray(const TypeAnnotation* t) {
+  if (dynamic_cast<const ArrayTypeAnnotation*>(t) != nullptr) {
     return !IsBits(t);
   }
   return false;
 }
 
-/* static */ bool AstGenerator::IsTuple(TypeAnnotation* t) {
-  return dynamic_cast<TupleTypeAnnotation*>(t) != nullptr;
+/* static */ bool AstGenerator::IsTuple(const TypeAnnotation* t) {
+  return dynamic_cast<const TupleTypeAnnotation*>(t) != nullptr;
 }
 
-/* static */ bool AstGenerator::IsToken(TypeAnnotation* t) {
-  auto* token = dynamic_cast<BuiltinTypeAnnotation*>(t);
+/* static */ bool AstGenerator::IsToken(const TypeAnnotation* t) {
+  auto* token = dynamic_cast<const BuiltinTypeAnnotation*>(t);
   return token != nullptr && token->builtin_type() == BuiltinType::kToken;
 }
 
-/* static */ bool AstGenerator::IsChannel(TypeAnnotation* t) {
-  return dynamic_cast<ChannelTypeAnnotation*>(t) != nullptr;
+/* static */ bool AstGenerator::IsChannel(const TypeAnnotation* t) {
+  return dynamic_cast<const ChannelTypeAnnotation*>(t) != nullptr;
 }
 
-/* static */ bool AstGenerator::IsNil(TypeAnnotation* t) {
-  if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(t);
+/* static */ bool AstGenerator::IsNil(const TypeAnnotation* t) {
+  if (auto* tuple = dynamic_cast<const TupleTypeAnnotation*>(t);
       tuple != nullptr && tuple->empty()) {
     return true;
   }
@@ -512,10 +518,32 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 };
 
 /* static */ absl::StatusOr<bool> AstGenerator::ContainsToken(
-    TypeAnnotation* type) {
+    const TypeAnnotation* type) {
   FindTokenTypeVisitor token_visitor;
   XLS_RETURN_IF_ERROR(type->Accept(&token_visitor));
   return token_visitor.GetTokenFound();
+}
+
+/* static */ bool AstGenerator::ContainsTypeRef(const TypeAnnotation* type) {
+  if (IsTypeRef(type)) {
+    return true;
+  }
+  if (auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type)) {
+    for (TypeAnnotation* member_type : tuple_type->members()) {
+      if (ContainsTypeRef(member_type)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type)) {
+    return ContainsTypeRef(array_type->element_type());
+  }
+  if (auto channel_type = dynamic_cast<const ChannelTypeAnnotation*>(type)) {
+    return ContainsTypeRef(channel_type->payload());
+  }
+  XLS_CHECK_NE(dynamic_cast<const BuiltinTypeAnnotation*>(type), nullptr);
+  return false;
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValueTupleWithoutToken(
@@ -553,6 +581,117 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    MakeTypeAnnotation(false, 1)};
+}
+
+// TODO(vmirian) 12-15-2022 Generate non-number expressions.
+absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
+                                                  const TypeAnnotation* type) {
+  if (IsTuple(type)) {
+    auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    std::vector<Expr*> tuple_values(tuple_type->size(), nullptr);
+    for (int64_t index = 0; index < tuple_type->size(); ++index) {
+      XLS_ASSIGN_OR_RETURN(tuple_values[index],
+                           GenerateValue(ctx, tuple_type->members()[index]));
+    }
+    return module_->Make<XlsTuple>(fake_span_, tuple_values);
+  }
+  if (IsArray(type)) {
+    auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+    int64_t array_size = GetArraySize(array_type);
+    std::vector<Expr*> array_values(array_size, nullptr);
+    for (int64_t index = 0; index < array_size; ++index) {
+      XLS_ASSIGN_OR_RETURN(array_values[index],
+                           GenerateValue(ctx, array_type->element_type()));
+    }
+    return module_->Make<Array>(fake_span_, array_values,
+                                /*has_ellipsis=*/false);
+  }
+  if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
+    TypeRef* type_ref = type_ref_type->type_ref();
+    const TypeDefinition& type_def = type_ref->type_definition();
+    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
+    TypeDef* def = std::get<TypeDef*>(type_def);
+    return GenerateValue(ctx, def->type_annotation());
+  }
+  XLS_CHECK(IsBits(type));
+  TypedExpr type_expr = GenerateNumberWithType(
+      BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
+  return type_expr.expr;
+}
+
+// TODO(vmirian) 12-15-2022 Add wildcard support.
+absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
+    Context* ctx, const TypeAnnotation* type) {
+  if (IsTuple(type)) {
+    auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    std::vector<NameDefTree*> tuple_values(tuple_type->size(), nullptr);
+    for (int64_t index = 0; index < tuple_type->size(); ++index) {
+      XLS_ASSIGN_OR_RETURN(
+          tuple_values[index],
+          GenerateMatchArmPattern(ctx, tuple_type->members()[index]));
+    }
+    return module_->Make<NameDefTree>(fake_span_, tuple_values);
+  }
+  if (IsArray(type)) {
+    // For the array type, only name references are supported in the match arm.
+    // Reference: https://github.com/google/xls/issues/810.
+    auto array_matches = [&type](const TypedExpr& e) -> bool {
+      return !ContainsTypeRef(e.type) && e.type->ToString() == type->ToString();
+    };
+    std::vector<TypedExpr> array_candidates =
+        GatherAllValues(&ctx->env, array_matches);
+    if (array_candidates.empty()) {
+      WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
+      return module_->Make<NameDefTree>(fake_span_, wc);
+    }
+    TypedExpr array = array_candidates[RandRange(array_candidates.size())];
+    NameRef* name_ref = dynamic_cast<NameRef*>(array.expr);
+    return module_->Make<NameDefTree>(fake_span_, name_ref);
+  }
+  if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
+    TypeRef* type_ref = type_ref_type->type_ref();
+    const TypeDefinition& type_def = type_ref->type_definition();
+    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
+    TypeDef* def = std::get<TypeDef*>(type_def);
+    return GenerateMatchArmPattern(ctx, def->type_annotation());
+  }
+  XLS_CHECK(IsBits(type));
+  TypedExpr type_expr = GenerateNumberWithType(
+      BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
+  Number* number = dynamic_cast<Number*>(type_expr.expr);
+  XLS_CHECK_NE(number, nullptr);
+  return module_->Make<NameDefTree>(fake_span_, number);
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr match,
+                       ChooseEnvValueNotContainingToken(&ctx->env));
+  TypeAnnotation* match_return_type = GenerateType();
+  // TODO(vmirian): Generate more than a single non-wildcard pattern arm. Check
+  // for duplicate arms.
+  int64_t max_arm_count = RandRange(2);
+  std::vector<MatchArm*> match_arms;
+  for (int64_t i = 0; i < max_arm_count; ++i) {
+    // TODO(vmirian): Generate multi-pattern arm statements.
+    XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
+                         GenerateMatchArmPattern(ctx, match.type));
+    // Early exit when a wildcard pattern is created.
+    if (pattern->is_leaf() &&
+        std::holds_alternative<WildcardPattern*>(pattern->leaf())) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Expr * ret, GenerateValue(ctx, match_return_type));
+    match_arms.push_back(module_->Make<MatchArm>(
+        fake_span_, std::vector<NameDefTree*>{pattern}, ret));
+  }
+  // Add wildcard pattern as last match arm.
+  XLS_ASSIGN_OR_RETURN(Expr * wc_return, GenerateValue(ctx, match_return_type));
+  WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
+  NameDefTree* wc_pattern = module_->Make<NameDefTree>(fake_span_, wc);
+  match_arms.push_back(module_->Make<MatchArm>(
+      fake_span_, std::vector<NameDefTree*>{wc_pattern}, wc_return));
+  return TypedExpr{module_->Make<Match>(fake_span_, match.expr, match_arms),
+                   match_return_type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
@@ -742,7 +881,7 @@ Number* AstGenerator::GenerateNumberFromBits(const Bits& value,
   return MakeNumberFromBits(value, type, FormatPreference::kBinary);
 }
 
-int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
+int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
   std::string type_str = type->ToString();
   if (type_str == "uN" || type_str == "sN" || type_str == "bits") {
     // These types are not valid alone, but as the element type of an array
@@ -750,20 +889,20 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
     return 1;
   }
 
-  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+  if (auto* builtin = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {
     return builtin->GetBitCount();
   }
-  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type)) {
+  if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(type)) {
     return GetArraySize(array) * GetTypeBitCount(array->element_type());
   }
-  if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(type)) {
+  if (auto* tuple = dynamic_cast<const TupleTypeAnnotation*>(type)) {
     int64_t total = 0;
     for (TypeAnnotation* type : tuple->members()) {
       total += GetTypeBitCount(type);
     }
     return total;
   }
-  if (auto* def = dynamic_cast<TypeDef*>(type)) {
+  if (auto* def = dynamic_cast<const TypeDef*>(type)) {
     return GetTypeBitCount(def->type_annotation());
   }
 
@@ -1613,6 +1752,7 @@ enum OpChoice {
   kCompareOp,
   kCompareArrayOp,
   kCompareTupleOp,
+  kMatchOp,
   kConcat,
   kCountedFor,
   kGate,
@@ -1661,6 +1801,8 @@ int OpProbability(OpChoice op) {
     case kCompareArrayOp:
       return 2;
     case kCompareTupleOp:
+      return 2;
+    case kMatchOp:
       return 2;
     case kConcat:
       return 5;
@@ -1773,6 +1915,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kCompareTupleOp:
         generated = GenerateCompareTuple(ctx);
+        break;
+      case kMatchOp:
+        generated = GenerateMatch(ctx);
         break;
       case kShiftOp:
         generated = GenerateShift(ctx);

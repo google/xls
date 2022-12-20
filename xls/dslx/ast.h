@@ -1556,7 +1556,7 @@ class MatchArm : public AstNode {
 // A match expression has zero or more *arms*.
 // Each *arm* has a set of *patterns* that can cause a match, and a "right hand
 // side" *expression* to yield the value of if any of the patterns match
-// (prioritzed in sequential order from first arm to last arm).
+// (prioritized in sequential order from first arm to last arm).
 class Match : public Expr {
  public:
   Match(Module* owner, Span span, Expr* matched, std::vector<MatchArm*> arms);
