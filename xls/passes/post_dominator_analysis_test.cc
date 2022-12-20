@@ -220,5 +220,30 @@ TEST_F(PostDominatorAnalysisTest, DisconnectedNode) {
               ElementsAre(x.node(), z.node()));
 }
 
+TEST_F(PostDominatorAnalysisTest, MultipleOutputs) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 1)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 1)));
+  BValue z = pb.And(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {x, z}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<PostDominatorAnalysis> analysis,
+                           PostDominatorAnalysis::Run(proc));
+
+  EXPECT_THAT(analysis->GetPostDominatorsOfNode(x.node()),
+              ElementsAre(x.node()));
+  EXPECT_THAT(analysis->GetPostDominatorsOfNode(y.node()),
+              ElementsAre(y.node(), z.node()));
+  EXPECT_THAT(analysis->GetPostDominatorsOfNode(z.node()),
+              ElementsAre(z.node()));
+
+  EXPECT_THAT(analysis->GetNodesPostDominatedByNode(x.node()),
+              ElementsAre(x.node()));
+  EXPECT_THAT(analysis->GetNodesPostDominatedByNode(y.node()),
+              ElementsAre(y.node()));
+  EXPECT_THAT(analysis->GetNodesPostDominatedByNode(z.node()),
+              ElementsAre(y.node(), z.node()));
+}
+
 }  // namespace
 }  // namespace xls
