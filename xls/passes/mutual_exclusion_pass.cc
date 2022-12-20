@@ -49,169 +49,6 @@ bool FunctionIsOneBit(Node* node) {
          node->GetType()->AsBitsOrDie()->bit_count() == 1;
 }
 
-// This stores a mapping from nodes in a FunctionBase to 1-bit nodes that are
-// the "predicate" of that node. The idea is that it should always be sound to
-// replace a node `N` that has predicate `P` with `gate(P, N)` (where `gate` is
-// extended from its usual semantics to also gate the effect of side-effectful
-// operations).
-//
-// It also contains a relation on the set of predicate nodes that describes
-// whether any given pair of predicates is known to be mutually exclusive; i.e.:
-// for a pair `(A, B)` whether `A NAND B` is known to be valid. If `A NAND B` is
-// known not to be valid, that information is tracked too.
-class Predicates {
- public:
-  // Set the predicate of the given node to the given predicate node.
-  void SetPredicate(Node* node, Node* pred) {
-    if (predicated_by_.contains(node)) {
-      Node* replaced_predicate = predicated_by_.at(node);
-      predicate_of_[replaced_predicate].erase(node);
-      if (predicate_of_[replaced_predicate].empty()) {
-        predicate_of_.erase(replaced_predicate);
-      }
-    }
-    predicated_by_[node] = pred;
-    predicate_of_[pred].insert(node);
-  }
-
-  // Get the predicate of the given node.
-  std::optional<Node*> GetPredicate(Node* node) const {
-    return predicated_by_.contains(node)
-               ? std::make_optional(predicated_by_.at(node))
-               : std::nullopt;
-  }
-
-  // Get all nodes predicated by a given predicate node.
-  absl::flat_hash_set<Node*> GetNodesPredicatedBy(Node* node) const {
-    return predicate_of_.contains(node) ? predicate_of_.at(node)
-                                        : absl::flat_hash_set<Node*>();
-  }
-
-  // Assert that the two given predicates are mutually exclusive.
-  absl::Status MarkMutuallyExclusive(Node* pred_a, Node* pred_b) {
-    XLS_RET_CHECK_NE(pred_a, pred_b);
-    XLS_RET_CHECK(FunctionIsOneBit(pred_a));
-    XLS_RET_CHECK(FunctionIsOneBit(pred_b));
-    mutual_exclusion_[pred_a][pred_b] = true;
-    mutual_exclusion_[pred_b][pred_a] = true;
-    return absl::OkStatus();
-  }
-
-  // Assert that the two given predicates are not mutually exclusive.
-  absl::Status MarkNotMutuallyExclusive(Node* pred_a, Node* pred_b) {
-    XLS_RET_CHECK_NE(pred_a, pred_b);
-    XLS_RET_CHECK(FunctionIsOneBit(pred_a));
-    XLS_RET_CHECK(FunctionIsOneBit(pred_b));
-    mutual_exclusion_[pred_a][pred_b] = false;
-    mutual_exclusion_[pred_b][pred_a] = false;
-    return absl::OkStatus();
-  }
-
-  // Query whether the two given predicates are known to be mutually exclusive
-  // (`true`), known to not be mutually exclusive (`false`), or nothing is known
-  // about them (`std::nullopt`).
-  //
-  // For all `P` and `Q`,
-  // `QueryMutuallyExclusive(P, Q) == QueryMutuallyExclusive(Q, P)`.
-  std::optional<bool> QueryMutuallyExclusive(Node* pred_a, Node* pred_b) const {
-    if (!mutual_exclusion_.contains(pred_a)) {
-      return std::nullopt;
-    }
-    if (!mutual_exclusion_.at(pred_a).contains(pred_b)) {
-      return std::nullopt;
-    }
-    return mutual_exclusion_.at(pred_a).at(pred_b);
-  }
-
-  // Returns all neighbors of the given predicate in the mutual exclusion graph.
-  // The return value of `MutualExclusionNeighbors(P)` should be all `Q` such
-  // that `QueryMutuallyExclusive(P, Q).has_value()`.
-  absl::flat_hash_map<Node*, bool> MutualExclusionNeighbors(Node* pred) const {
-    return mutual_exclusion_.contains(pred)
-               ? mutual_exclusion_.at(pred)
-               : absl::flat_hash_map<Node*, bool>();
-  }
-
-  // Update the metadata contained within the `Predicates` to respect the
-  // replacement of a node by another node.
-  void ReplaceNode(Node* original, Node* replacement) {
-    if (predicated_by_.contains(original)) {
-      Node* predicate = predicated_by_.at(original);
-      predicated_by_.erase(original);
-      predicated_by_[replacement] = predicate;
-      predicate_of_.at(predicate).erase(original);
-      predicate_of_.at(predicate).insert(replacement);
-    }
-    if (predicate_of_.contains(original)) {
-      for (Node* node : predicate_of_.at(original)) {
-        predicate_of_[replacement].insert(node);
-      }
-      predicate_of_.erase(original);
-    }
-    if (mutual_exclusion_.contains(original)) {
-      absl::flat_hash_map<Node*, bool> neighbors =
-          mutual_exclusion_.at(original);
-      mutual_exclusion_.erase(original);
-      mutual_exclusion_[replacement] = neighbors;
-      for (const auto& [neighbor, boolean] : neighbors) {
-        mutual_exclusion_.at(neighbor).erase(original);
-        mutual_exclusion_.at(neighbor)[replacement] = boolean;
-      }
-    }
-  }
-
- private:
-  absl::flat_hash_map<Node*, Node*> predicated_by_;
-  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> predicate_of_;
-
-  // The `bool` represents knowledge about the mutual exclusion of two nodes;
-  // if it is true then the two nodes are mutually exclusive, if it is false
-  // then they are known to not be mutually exclusive.
-  //
-  // Invariant: if mutual_exclusion_.at(a).contains(b) then
-  // mutual_exclusion.at(b).contains(a), i.e.: this is a symmetric relation;
-  // this fact is used to make garbage collection efficient.
-  //
-  // Invariant: all nodes must have Bits type and bitwidth 1
-  absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, bool>>
-      mutual_exclusion_;
-};
-
-// Add a predicate to a node. If the node does not already have a predicate,
-// this will simply set the predicate of the node to the given predicate and
-// then return the given predicate. Otherwise, this will replace the predicate
-// of the node with AND of the given predicate and the existing predicate,
-// returning this new predicate.
-absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred) {
-  XLS_CHECK_EQ(node->function_base(), pred->function_base());
-  FunctionBase* f = node->function_base();
-
-  std::optional<Node*> existing_predicate_maybe = p->GetPredicate(node);
-
-  if (existing_predicate_maybe.has_value()) {
-    Node* existing_predicate = existing_predicate_maybe.value();
-    XLS_ASSIGN_OR_RETURN(
-        Node * pred_and_existing,
-        f->MakeNode<NaryOp>(SourceInfo(),
-                            std::vector<Node*>({existing_predicate, pred}),
-                            Op::kAnd));
-    p->SetPredicate(node, pred_and_existing);
-
-    for (const auto [neighbor, boolean] :
-         p->MutualExclusionNeighbors(existing_predicate)) {
-      if (boolean) {
-        XLS_RETURN_IF_ERROR(
-            p->MarkMutuallyExclusive(pred_and_existing, neighbor));
-      }
-    }
-
-    return pred_and_existing;
-  }
-
-  p->SetPredicate(node, pred);
-  return pred;
-}
-
 absl::Status AddSendReceivePredicates(Predicates* p, FunctionBase* f) {
   for (Node* node : f->nodes()) {
     if (node->Is<Send>()) {
@@ -268,119 +105,6 @@ std::vector<std::pair<Node*, int64_t>> PredicateNodes(Predicates* p,
 bool IsHeavyOp(Op op) {
   return op == Op::kUMul || op == Op::kSMul || op == Op::kSend ||
          op == Op::kReceive;
-}
-
-absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
-  if (f->IsBlock()) {
-    return absl::OkStatus();
-  }
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<solvers::z3::IrTranslator> translator,
-                       solvers::z3::IrTranslator::CreateAndTranslate(f, true));
-
-  Z3_context ctx = translator->ctx();
-
-  solvers::z3::ScopedErrorHandler seh(ctx);
-
-  std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
-
-  Z3_global_param_set("rlimit", "500000");
-
-  // Determine for each predicate whether it is always false using Z3.
-  // Dead nodes are mutually exclusive with all other nodes, so this can reduce
-  // the runtime  by doing only a linear amount of Z3 calls to remove
-  // quadratically many Z3 calls.
-  for (const auto& [node, index] : predicate_nodes) {
-    Z3_ast translated = translator->GetTranslation(node);
-    if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
-        Z3_L_FALSE) {
-      XLS_VLOG(3) << "Proved that " << node << " is always false";
-      // A constant false node is mutually exclusive with all other nodes.
-      for (const auto& [other, other_index] : predicate_nodes) {
-        if (index != other_index) {
-          XLS_RETURN_IF_ERROR(p->MarkMutuallyExclusive(node, other));
-        }
-      }
-    }
-  }
-
-  for (const auto& [node, index] : predicate_nodes) {
-    XLS_VLOG(3) << "Predicate: " << node;
-  }
-
-  Z3_global_param_set("rlimit", "500000");
-
-  int64_t known_false = 0;
-  int64_t known_true = 0;
-  int64_t unknown = 0;
-
-  absl::flat_hash_map<Node*, absl::flat_hash_set<Op>> ops_for_pred;
-  for (const auto& [node, index] : predicate_nodes) {
-    for (Node* predicated_by : p->GetNodesPredicatedBy(node)) {
-      ops_for_pred[node].insert(predicated_by->op());
-    }
-  }
-
-  {
-    std::vector<Node*> irrelevant;
-    for (const auto& [pred, ops] : ops_for_pred) {
-      if (!std::any_of(ops.begin(), ops.end(), IsHeavyOp)) {
-        irrelevant.push_back(pred);
-      }
-    }
-    for (Node* pred : irrelevant) {
-      ops_for_pred.erase(pred);
-    }
-  }
-
-  for (const auto& [node_a, index_a] : predicate_nodes) {
-    for (const auto& [node_b, index_b] : predicate_nodes) {
-      // This prevents checking `a NAND b` and then later checking `b NAND a`.
-      if (index_a >= index_b) {
-        continue;
-      }
-
-      // Skip this pair if we already know whether they are mutually exclusive.
-      if (p->QueryMutuallyExclusive(node_a, node_b).has_value()) {
-        continue;
-      }
-
-      if (!ops_for_pred.contains(node_a) || !ops_for_pred.contains(node_b) ||
-          !HasIntersection(ops_for_pred.at(node_a), ops_for_pred.at(node_b))) {
-        continue;
-      }
-
-      Z3_ast z3_a = translator->GetTranslation(node_a);
-      Z3_ast z3_b = translator->GetTranslation(node_b);
-
-      // We try to find out if `a ∧ b` is satisfiable, which is true iff
-      // `a NAND b` is not valid.
-      Z3_ast a_and_b =
-          solvers::z3::BitVectorToBoolean(ctx, Z3_mk_bvand(ctx, z3_a, z3_b));
-
-      Z3_lbool satisfiable = RunSolver(ctx, a_and_b);
-
-      if (satisfiable == Z3_L_FALSE) {
-        known_true += 1;
-        XLS_RETURN_IF_ERROR(p->MarkMutuallyExclusive(node_a, node_b));
-      } else if (satisfiable == Z3_L_TRUE) {
-        known_false += 1;
-        XLS_RETURN_IF_ERROR(p->MarkNotMutuallyExclusive(node_a, node_b));
-      } else {
-        unknown += 1;
-        XLS_VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
-                    << node_a->GetName() << " and " << node_b->GetName();
-      }
-    }
-  }
-
-  XLS_VLOG(3) << "known_false = " << known_false;
-  XLS_VLOG(3) << "known_true  = " << known_true;
-  XLS_VLOG(3) << "unknown     = " << unknown;
-
-  XLS_RETURN_IF_ERROR(seh.status());
-
-  return absl::OkStatus();
 }
 
 // A map from side-effecting nodes (and AfterAll) to the set of side-effecting
@@ -778,6 +502,235 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
 }
 
 }  // namespace
+
+void Predicates::SetPredicate(Node* node, Node* pred) {
+  if (predicated_by_.contains(node)) {
+    Node* replaced_predicate = predicated_by_.at(node);
+    predicate_of_[replaced_predicate].erase(node);
+    if (predicate_of_[replaced_predicate].empty()) {
+      predicate_of_.erase(replaced_predicate);
+    }
+  }
+  predicated_by_[node] = pred;
+  predicate_of_[pred].insert(node);
+}
+
+std::optional<Node*> Predicates::GetPredicate(Node* node) const {
+  return predicated_by_.contains(node)
+             ? std::make_optional(predicated_by_.at(node))
+             : std::nullopt;
+}
+
+absl::flat_hash_set<Node*> Predicates::GetNodesPredicatedBy(Node* node) const {
+  return predicate_of_.contains(node) ? predicate_of_.at(node)
+                                      : absl::flat_hash_set<Node*>();
+}
+
+absl::Status Predicates::MarkMutuallyExclusive(Node* pred_a, Node* pred_b) {
+  XLS_RET_CHECK_NE(pred_a, pred_b);
+  XLS_RET_CHECK(FunctionIsOneBit(pred_a));
+  XLS_RET_CHECK(FunctionIsOneBit(pred_b));
+  mutual_exclusion_[pred_a][pred_b] = true;
+  mutual_exclusion_[pred_b][pred_a] = true;
+  return absl::OkStatus();
+}
+
+absl::Status Predicates::MarkNotMutuallyExclusive(Node* pred_a, Node* pred_b) {
+  XLS_RET_CHECK_NE(pred_a, pred_b);
+  XLS_RET_CHECK(FunctionIsOneBit(pred_a));
+  XLS_RET_CHECK(FunctionIsOneBit(pred_b));
+  mutual_exclusion_[pred_a][pred_b] = false;
+  mutual_exclusion_[pred_b][pred_a] = false;
+  return absl::OkStatus();
+}
+
+std::optional<bool> Predicates::QueryMutuallyExclusive(Node* pred_a,
+                                                       Node* pred_b) const {
+  if (!mutual_exclusion_.contains(pred_a)) {
+    return std::nullopt;
+  }
+  if (!mutual_exclusion_.at(pred_a).contains(pred_b)) {
+    return std::nullopt;
+  }
+  return mutual_exclusion_.at(pred_a).at(pred_b);
+}
+
+absl::flat_hash_map<Node*, bool> Predicates::MutualExclusionNeighbors(
+    Node* pred) const {
+  return mutual_exclusion_.contains(pred) ? mutual_exclusion_.at(pred)
+                                          : absl::flat_hash_map<Node*, bool>();
+}
+
+void Predicates::ReplaceNode(Node* original, Node* replacement) {
+  if (original == replacement) {
+    return;
+  }
+  if (predicated_by_.contains(original)) {
+    Node* predicate = predicated_by_.at(original);
+    predicated_by_.erase(original);
+    predicated_by_[replacement] = predicate;
+    predicate_of_.at(predicate).erase(original);
+    predicate_of_.at(predicate).insert(replacement);
+  }
+  if (predicate_of_.contains(original)) {
+    for (Node* node : predicate_of_.at(original)) {
+      predicate_of_[replacement].insert(node);
+    }
+    predicate_of_.erase(original);
+  }
+  if (mutual_exclusion_.contains(original)) {
+    absl::flat_hash_map<Node*, bool> neighbors = mutual_exclusion_.at(original);
+    mutual_exclusion_.erase(original);
+    mutual_exclusion_[replacement] = neighbors;
+    for (const auto& [neighbor, boolean] : neighbors) {
+      mutual_exclusion_.at(neighbor).erase(original);
+      mutual_exclusion_.at(neighbor)[replacement] = boolean;
+    }
+  }
+}
+
+absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred) {
+  XLS_CHECK_EQ(node->function_base(), pred->function_base());
+  FunctionBase* f = node->function_base();
+
+  std::optional<Node*> existing_predicate_maybe = p->GetPredicate(node);
+
+  if (existing_predicate_maybe.has_value()) {
+    Node* existing_predicate = existing_predicate_maybe.value();
+    XLS_ASSIGN_OR_RETURN(
+        Node * pred_and_existing,
+        f->MakeNode<NaryOp>(SourceInfo(),
+                            std::vector<Node*>({existing_predicate, pred}),
+                            Op::kAnd));
+    p->SetPredicate(node, pred_and_existing);
+
+    for (const auto [neighbor, boolean] :
+         p->MutualExclusionNeighbors(existing_predicate)) {
+      if (boolean) {
+        XLS_RETURN_IF_ERROR(
+            p->MarkMutuallyExclusive(pred_and_existing, neighbor));
+      }
+    }
+
+    return pred_and_existing;
+  }
+
+  p->SetPredicate(node, pred);
+  return pred;
+}
+
+absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
+  if (f->IsBlock()) {
+    return absl::OkStatus();
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<solvers::z3::IrTranslator> translator,
+                       solvers::z3::IrTranslator::CreateAndTranslate(f, true));
+
+  Z3_context ctx = translator->ctx();
+
+  solvers::z3::ScopedErrorHandler seh(ctx);
+
+  std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
+
+  Z3_global_param_set("rlimit", "500000");
+
+  // Determine for each predicate whether it is always false using Z3.
+  // Dead nodes are mutually exclusive with all other nodes, so this can reduce
+  // the runtime  by doing only a linear amount of Z3 calls to remove
+  // quadratically many Z3 calls.
+  for (const auto& [node, index] : predicate_nodes) {
+    Z3_ast translated = translator->GetTranslation(node);
+    if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
+        Z3_L_FALSE) {
+      XLS_VLOG(3) << "Proved that " << node << " is always false";
+      // A constant false node is mutually exclusive with all other nodes.
+      for (const auto& [other, other_index] : predicate_nodes) {
+        if (index != other_index) {
+          XLS_RETURN_IF_ERROR(p->MarkMutuallyExclusive(node, other));
+        }
+      }
+    }
+  }
+
+  for (const auto& [node, index] : predicate_nodes) {
+    XLS_VLOG(3) << "Predicate: " << node;
+  }
+
+  Z3_global_param_set("rlimit", "500000");
+
+  int64_t known_false = 0;
+  int64_t known_true = 0;
+  int64_t unknown = 0;
+
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Op>> ops_for_pred;
+  for (const auto& [node, index] : predicate_nodes) {
+    for (Node* predicated_by : p->GetNodesPredicatedBy(node)) {
+      ops_for_pred[node].insert(predicated_by->op());
+    }
+  }
+
+  {
+    std::vector<Node*> irrelevant;
+    for (const auto& [pred, ops] : ops_for_pred) {
+      if (!std::any_of(ops.begin(), ops.end(), IsHeavyOp)) {
+        irrelevant.push_back(pred);
+      }
+    }
+    for (Node* pred : irrelevant) {
+      ops_for_pred.erase(pred);
+    }
+  }
+
+  for (const auto& [node_a, index_a] : predicate_nodes) {
+    for (const auto& [node_b, index_b] : predicate_nodes) {
+      // This prevents checking `a NAND b` and then later checking `b NAND a`.
+      if (index_a >= index_b) {
+        continue;
+      }
+
+      // Skip this pair if we already know whether they are mutually exclusive.
+      if (p->QueryMutuallyExclusive(node_a, node_b).has_value()) {
+        continue;
+      }
+
+      if (!ops_for_pred.contains(node_a) || !ops_for_pred.contains(node_b) ||
+          !HasIntersection(ops_for_pred.at(node_a), ops_for_pred.at(node_b))) {
+        continue;
+      }
+
+      Z3_ast z3_a = translator->GetTranslation(node_a);
+      Z3_ast z3_b = translator->GetTranslation(node_b);
+
+      // We try to find out if `a ∧ b` is satisfiable, which is true iff
+      // `a NAND b` is not valid.
+      Z3_ast a_and_b =
+          solvers::z3::BitVectorToBoolean(ctx, Z3_mk_bvand(ctx, z3_a, z3_b));
+
+      Z3_lbool satisfiable = RunSolver(ctx, a_and_b);
+
+      if (satisfiable == Z3_L_FALSE) {
+        known_true += 1;
+        XLS_RETURN_IF_ERROR(p->MarkMutuallyExclusive(node_a, node_b));
+      } else if (satisfiable == Z3_L_TRUE) {
+        known_false += 1;
+        XLS_RETURN_IF_ERROR(p->MarkNotMutuallyExclusive(node_a, node_b));
+      } else {
+        unknown += 1;
+        XLS_VLOG(3) << "Z3 ran out of time checking mutual exclusion of "
+                    << node_a->GetName() << " and " << node_b->GetName();
+      }
+    }
+  }
+
+  XLS_VLOG(3) << "known_false = " << known_false;
+  XLS_VLOG(3) << "known_true  = " << known_true;
+  XLS_VLOG(3) << "unknown     = " << unknown;
+
+  XLS_RETURN_IF_ERROR(seh.status());
+
+  return absl::OkStatus();
+}
 
 absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
