@@ -261,6 +261,9 @@ generate_crasher_regression_tests(
         "crashers/crasher_2022-10-19_a3a3.x",
         "crashers/crasher_2022-10-19_5531.x",
         "crashers/crasher_2022-12-17_35b3.x",
+        # TODO(meheff): 2022/12/20 Test 3ad6 is fixed by updating LLVM. Remove this
+        # when LLVM is updated.
+        "crashers/crasher_2022-05-31_3ad6.x",
     ],
     prefix = package_name(),
     tags = {
