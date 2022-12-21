@@ -250,7 +250,7 @@ void PipelineSchedule::RemoveNode(Node* node) {
       << "Tried to remove a node from a schedule that it doesn't contain";
   int64_t old_cycle = cycle_map_.at(node);
   std::vector<Node*>& ref = cycle_to_nodes_.at(old_cycle);
-  std::remove(ref.begin(), ref.end(), node);
+  ref.erase(std::remove(ref.begin(), ref.end(), node), std::end(ref));
   cycle_map_.erase(node);
 }
 
