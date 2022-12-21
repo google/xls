@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -667,10 +668,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr match,
                        ChooseEnvValueNotContainingToken(&ctx->env));
   TypeAnnotation* match_return_type = GenerateType();
-  // TODO(vmirian): Generate more than a single non-wildcard pattern arm. Check
-  // for duplicate arms.
-  int64_t max_arm_count = RandRange(2);
+  int64_t max_arm_count = RandRange(4);
   std::vector<MatchArm*> match_arms;
+  // `match` will flag an error if a syntactically identical pattern is typed
+  // twice. Using the `std::string` equivalent of the pattern for comparing
+  // syntactically identical patterns. Ref:
+  // https://google.github.io/xls/dslx_reference/#redundant-patterns.
+  absl::flat_hash_set<std::string> match_arms_patterns;
   for (int64_t i = 0; i < max_arm_count; ++i) {
     // TODO(vmirian): Generate multi-pattern arm statements.
     XLS_ASSIGN_OR_RETURN(NameDefTree * pattern,
@@ -680,6 +684,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
         std::holds_alternative<WildcardPattern*>(pattern->leaf())) {
       break;
     }
+    std::string pattern_str = pattern->ToString();
+    if (match_arms_patterns.contains(pattern_str)) {
+      continue;
+    }
+    match_arms_patterns.insert(pattern_str);
     XLS_ASSIGN_OR_RETURN(Expr * ret, GenerateValue(ctx, match_return_type));
     match_arms.push_back(module_->Make<MatchArm>(
         fake_span_, std::vector<NameDefTree*>{pattern}, ret));
