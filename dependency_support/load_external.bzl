@@ -17,14 +17,14 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
-load("//dependency_support/llvm_bazel:workspace.bzl", repo_llvm_bazel = "repo")
+load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
 
 def load_external_repositories():
     """Loads external repositories with third-party code."""
 
     repo_boost()
-    repo_llvm_bazel()
+    repo_llvm()
     repo_rules_hdl()
 
     http_archive(
@@ -34,12 +34,12 @@ def load_external_repositories():
         sha256 = "77bfecb8d930cbd97e24e7570a3dee9b09bad483aab47c96b7b7efb7d54332ff",
     )
 
-    # 2022-1-31
+    # LTS 20220623.1
     http_archive(
         name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/940c06c25d2953f44310b68eb8aab6114dba11fb.zip"],
-        strip_prefix = "abseil-cpp-940c06c25d2953f44310b68eb8aab6114dba11fb",
-        sha256 = "0e800799aa64d0b4d354f3ff317bbd5fbf42f3a522ab0456bb749fc8d3b67415",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20220623.1.zip"],
+        strip_prefix = "abseil-cpp-20220623.1",
+        sha256 = "54707f411cb62a26a776dad5fd60829098c181700edcd022ea5c2ca49e9b7ef1",
     )
 
     # Protobuf depends on Skylib
@@ -48,10 +48,10 @@ def load_external_repositories():
     http_archive(
         name = "bazel_skylib",
         urls = [
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
+            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.3.0/bazel-skylib-1.3.0.tar.gz",
         ],
-        sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
+        sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
     )
 
     git_repository(
@@ -165,14 +165,13 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
-    # Released on 2022-05-20, current as of 2022-05-31.
+    # Released on 2022-12-8, current as of 2022-12-20.
     # https://github.com/grpc/grpc/releases/tag/v1.46.3
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.46.3.tar.gz"],
-        sha256 = "d6cbf22cb5007af71b61c6be316a79397469c58c82a942552a62e708bce60964",
-        strip_prefix = "grpc-1.46.3",
-        # repo_mapping = {"@com_github_google_re2": "@com_googlesource_code_re2"},
+        urls = ["https://github.com/grpc/grpc/archive/v1.49.2.tar.gz"],
+        sha256 = "cdeb805385fba23242bf87073e68d590c446751e09089f26e5e0b3f655b0f089",
+        strip_prefix = "grpc-1.49.2",
         # Note: repo mapping doesn't seem to work for gRPC because it
         # explicitly binds the re2 name to the com_googlesource_code_re2 repo.
         # Instead we patch it.

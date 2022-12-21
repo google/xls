@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Initializes llvm-bazel project for building llvm."""
+"""Initializes LLVM."""
 
-load("@llvm-bazel//utils/bazel:configure.bzl", "llvm_configure", "llvm_disable_optional_support_deps")
+load("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure", "llvm_disable_optional_support_deps")
 
 def initialize():
     # This macro creates a new repo containing the LLVM source code downloaded
-    # as llvm-project-raw and the BUILD files from llvm-bazel (contained in the
-    # directory llvm-project-overlay). This new repo is constructed as symlinks
-    # into these two directories.
+    # as llvm-raw.
     llvm_configure(
         # Name of resulting repo (e.g., "@llvm-project")
         name = "llvm-project",

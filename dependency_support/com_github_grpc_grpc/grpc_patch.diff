@@ -2,7 +2,7 @@ diff --git bazel/grpc_deps.bzl bazel/grpc_deps.bzl
 index ef9b2bea94..0be413d48f 100644
 --- bazel/grpc_deps.bzl
 +++ bazel/grpc_deps.bzl
-@@ -122,7 +122,7 @@ def grpc_deps():
+@@ -107,7 +107,7 @@ def grpc_deps():
  
      native.bind(
          name = "re2",

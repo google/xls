@@ -22,16 +22,16 @@ def repo():
     # Required to support rules_hdl, 0.7.0 release is current as of 2022-05-09.
     http_archive(
         name = "rules_pkg",
-        sha256 = "8a298e832762eda1830597d64fe7db58178aa84cd5926d76d5b744d6558941c2",
+        sha256 = "eea0f59c28a9241156a47d7a8e32db9122f3d50b505fae0f33de6ce4d9b61834",
         urls = [
-            "https://github.com/bazelbuild/rules_pkg/releases/download/0.7.0/rules_pkg-0.7.0.tar.gz",
-            "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.7.0/rules_pkg-0.7.0.tar.gz",
+            "https://github.com/bazelbuild/rules_pkg/releases/download/0.8.0/rules_pkg-0.8.0.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.8.0/rules_pkg-0.8.0.tar.gz",
         ],
     )
 
-    # Commit on 2022-10-08, current as of 2022-10-10
-    git_hash = "ebaf7482c035208f485f463c62fd3c2f969a9b5c"
-    git_sha256 = "3743f1ed6739abaaa68e1e907adffb13c285fd70390d950c3989729439d952c5"
+    # Commit on 2022-12-16, current as of 2022-12-20
+    git_hash = "c6ba9ffadf9b25be83f8300650f4447386b07fea"
+    git_sha256 = "8d7c271505f571fc4707c2a8cbe2f9ab40df2c6ad74ed3965f4a0397ead82940"
 
     maybe(
         http_archive,
