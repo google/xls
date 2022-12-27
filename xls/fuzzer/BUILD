@@ -264,6 +264,9 @@ generate_crasher_regression_tests(
         # TODO(meheff): 2022/12/20 Test 3ad6 is fixed by updating LLVM. Remove this
         # when LLVM is updated.
         "crashers/crasher_2022-05-31_3ad6.x",
+        # TODO(vmirian): 2022/12/20 Test 5ca5 is an LLVM bug. The issue may be resolved by updating
+        # LLVM.
+        "crashers/crasher_2022-12-19_5ca5.x",
     ],
     prefix = package_name(),
     tags = {
