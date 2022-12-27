@@ -267,10 +267,14 @@ Unoptimized and optimized LLVM IR are dumped by the JIT with vlog level of 2 or
 higher, and the assembly is dumped at level 3 or higher. For example:
 
 ```
-  eval_ir_main -v=3 --logtostderr sample.opt.ir
+  eval_ir_main -v=3 --logtostderr --random_inputs=1 sample.opt.ir
 ```
 
 Extract the unoptimized LLVM IR to file to enable working with it in isolation.
+Copy the text from `Optimized module IR:` to `Generated ASM:` into `sample.ll`.
+Execute the following command to remove the logging prefix text.
+```
+  sed -i 's/^.*\] //g' sample.ll```
 
 ##### Building LLVM tools
 
@@ -299,11 +303,10 @@ To print the IR before and after each pass:
 ##### Instcombine
 
 Instcombine is an LLVM optimization pass which is a common source of bugs in
-code generated from XLS because XLS uses unusual bit widths which exercise
-little used paths in this optimization. To run instcombine alone:
+code generated from XLS. To run instcombine alone:
 
 ```
- opt /tmp/bad.ll -S --instcombine
+ opt /tmp/bad.ll -S -passes=instcombine
 ```
 
 Instcombine is a large monolithic pass and it can be difficult to isolate the
