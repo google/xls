@@ -17,7 +17,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls::dslx {
@@ -205,30 +207,20 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
           "must be followed by a character code, such as \"{...}\".");
     }
     DropChar();
-
     // At most 6 hex digits allowed.
-    uint32_t code = 0;
-    for (int i = 0; i < 3; i++) {
-      uint8_t byte = 0;
-      for (int j = 0; j < 2; j++) {
-        char next = PeekChar();
-        if (absl::ascii_isxdigit(next)) {
-          byte = byte << 4 | HexCharToInt(next);
-          DropChar();
-        } else if (next == '}') {
-          break;
-        } else {
-          return absl::InvalidArgumentError(
-              "Only hex digits are allowed within a Unicode character code.");
-        }
-      }
-      if ((byte & 0xF0) != 0) {
-        code = code << 8 | byte;
+    std::string unicode;
+    for (int i = 0; i < 6; i++) {
+      char next = PeekChar();
+      if (absl::ascii_isxdigit(next)) {
+        absl::StrAppend(&unicode, std::string(1, next));
+        DropChar();
+      } else if (next == '}') {
+        break;
       } else {
-        code = code << 4 | byte;
+        return absl::InvalidArgumentError(
+            "Only hex digits are allowed within a Unicode character code.");
       }
     }
-
     if (PeekChar() != '}') {
       return absl::InvalidArgumentError(
           "Unicode character code escape sequence must terminate "
@@ -236,14 +228,28 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
     }
     DropChar();
 
-    // Now convert the up-to-six digit number to string.
-    std::string result;
-    for (int i = 0; i < 3; i++) {
-      int c = code & 255;
-      result.push_back(static_cast<uint8_t>(c));
-      code >>= 8;
+    if (unicode.empty()) {
+      return absl::InvalidArgumentError(
+          "Unicode escape must contain at least one character.");
     }
-    return result;
+
+    // Add padding and unicode escape characters to conform with
+    // absl::CUnescape.
+    if (unicode.size() < 4) {
+      unicode.insert(0, 4 - unicode.size(), '0');
+      unicode.insert(0, R"(\u)");
+    } else if (unicode.size() < 8) {
+      unicode.insert(0, 8 - unicode.size(), '0');
+      unicode.insert(0, R"(\U)");
+    }
+
+    std::string utf8;
+    if (!absl::CUnescape(unicode, &utf8)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid unicode sequence: '%s'.",
+                          absl::StrCat(R"(\u{)", unicode, "}")));
+    }
+    return utf8;
   }
   XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
   return std::string(1, c);

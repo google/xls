@@ -274,6 +274,26 @@ sN[256]
 Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.
 
+#### Character Constants
+
+Characters are a special case of bits types: they are implicitly-type as u8.
+Characters can be used just as traditional bits:
+
+```dslx
+fn add_to_null(input: u8) -> u8 {
+  let null:u8 = '\0';
+  input + null
+}
+
+#[test]
+fn test_main() {
+  assert_eq('a', add_to_null('a'))
+}
+```
+
+DSLX character constants support the
+[full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html) with the exception of unicode.
+
 ### Enum Types
 
 DSLX supports enumerations as a way of defining a group of related, scoped,
@@ -664,9 +684,22 @@ fn test_main() {
 
 DSLX string constants support the
 [full Rust set of escape sequences](https://doc.rust-lang.org/reference/tokens.html) -
-for multi-byte sequences, i.e., Unicode escapes, the resulting byte sequence
-will be in printed order. In other words, the sequence `\u{89ab}` will result in
-an array with the (binary) values `1000 1001 1010 1011` in sequence.
+note that unicode escapes get encoded to their UTF-8 byte sequence. In other
+words, the sequence `\u{10CB2F}` will result in an array with hexadecimal values
+`F4 8C AC AF`.
+
+Moreover, string can be composed of [characters](#character-constants).
+
+```dslx
+fn string_composed_characters() -> u8[10] {
+  ['X', 'L', 'S', ' ', 'r', 'o', 'c', 'k', 's', '!']
+}
+
+#[test]
+fn test_main() {
+  assert_eq("XLS rocks!", string_composed_characters())
+}
+```
 
 ### Type Aliases
 
@@ -1079,7 +1112,7 @@ fn test_signed_literal_initialization() {
 
 What is happening here is that, 128 is being used as a bit pattern rather than
 as the number 128 to initialize the literal. It is only when the bit pattern
-cannot fit in the width of the iteral that an error is triggered.
+cannot fit in the width of the literal that an error is triggered.
 
 **Note that behaviour is different from Rust, where it will trigger an error,
 and the fact that DSLX considers this valid may change in the
