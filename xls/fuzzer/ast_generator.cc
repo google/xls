@@ -620,11 +620,15 @@ absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
   return type_expr.expr;
 }
 
-// TODO(vmirian) 12-15-2022 Add wildcard support.
 absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     Context* ctx, const TypeAnnotation* type) {
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    // Twenty percent of the time, generate a wildcardpattern.
+    if (RandomFloat() < 0.20) {
+      WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
+      return module_->Make<NameDefTree>(fake_span_, wc);
+    }
     std::vector<NameDefTree*> tuple_values(tuple_type->size(), nullptr);
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
       XLS_ASSIGN_OR_RETURN(
@@ -641,7 +645,8 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     };
     std::vector<TypedExpr> array_candidates =
         GatherAllValues(&ctx->env, array_matches);
-    if (array_candidates.empty()) {
+    // Twenty percent of the time, generate a wildcardpattern.
+    if (array_candidates.empty() || RandomFloat() < 0.20) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
     }
@@ -657,6 +662,11 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     return GenerateMatchArmPattern(ctx, def->type_annotation());
   }
   XLS_CHECK(IsBits(type));
+  // Five percent of the time, generate a wildcardpattern.
+  if (RandomFloat() < 0.05) {
+    WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
+    return module_->Make<NameDefTree>(fake_span_, wc);
+  }
   TypedExpr type_expr = GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   Number* number = dynamic_cast<Number*>(type_expr.expr);
