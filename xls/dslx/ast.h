@@ -1908,7 +1908,7 @@ class StructDef : public AstNode {
   const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
-  const std::vector<std::pair<NameDef*, TypeAnnotation*>> members() const {
+  const std::vector<std::pair<NameDef*, TypeAnnotation*>>& members() const {
     return members_;
   }
   bool is_public() const { return public_; }

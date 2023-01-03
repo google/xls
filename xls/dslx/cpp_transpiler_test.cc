@@ -21,6 +21,10 @@
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
+
+using testing::HasSubstr;
+using xls::status_testing::StatusIs;
+
 namespace {
 
 // Verifies that the transpiler can convert a basic enum into C++.
@@ -187,9 +191,9 @@ struct MyStruct {
 #include "xls/public/value.h"
 
 struct MyStruct {
-  static absl::StatusOr<MyStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const MyStruct& data);
 
@@ -216,37 +220,41 @@ struct MyStruct {
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 
-absl::StatusOr<MyStruct> MyStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 4) {
+absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 4) {
     return absl::InvalidArgumentError(
         "MyStruct::FromValue input must be a 4-tuple.");
   }
 
   MyStruct result;
-  result.x = elements[0].bits().ToUint64().value();
-  result.y = elements[1].bits().ToUint64().value();
-  result.z = elements[2].bits().ToUint64().value();
-  result.w = elements[3].bits().ToInt64().value();
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
+  result.z = value.element(2).bits().ToUint64().value();
+  result.w = value.element(3).bits().ToInt64().value();
   return result;
 }
 
-xls::Value MyStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  xls::Value x_value(xls::UBits(x, /*bit_count=*/32));
-  elements.push_back(x_value);
-  xls::Value y_value(xls::UBits(y, /*bit_count=*/15));
-  elements.push_back(y_value);
-  xls::Value z_value(xls::UBits(z, /*bit_count=*/8));
-  elements.push_back(z_value);
-  xls::Value w_value(xls::SBits(w, /*bit_count=*/63));
-  elements.push_back(w_value);
-  return xls::Value::Tuple(elements);
+::xls::Value MyStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(4);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/15));
+  members.push_back(y_value);
+  ::xls::Value z_value;
+  z_value = ::xls::Value(::xls::UBits(z, /*bit_count=*/8));
+  members.push_back(z_value);
+  ::xls::Value w_value;
+  w_value = ::xls::Value(::xls::SBits(w, /*bit_count=*/63));
+  members.push_back(w_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  x: " << elements[0].ToString() << "\n";
   os << "  y: " << elements[1].ToString() << "\n";
@@ -286,9 +294,9 @@ struct MyStruct {
 #include "xls/public/value.h"
 
 struct MyStruct {
-  static absl::StatusOr<MyStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<MyStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const MyStruct& data);
 
@@ -309,55 +317,64 @@ struct MyStruct {
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 
-absl::StatusOr<MyStruct> MyStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 3) {
+absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 3) {
     return absl::InvalidArgumentError(
         "MyStruct::FromValue input must be a 3-tuple.");
   }
 
   MyStruct result;
-  for (int i = 0; i < 32; i++) {
-    result.x[i] = elements[0].element(i).bits().ToUint64().value();
+  for (int idx_1 = 0; idx_1 < 32; idx_1++) {
+    result.x[idx_1] = value.element(0).element(idx_1).bits().ToUint64().value();
   }
-  for (int i = 0; i < 8; i++) {
-    result.y[i] = elements[1].element(i).bits().ToInt64().value();
+  for (int idx_1 = 0; idx_1 < 8; idx_1++) {
+    result.y[idx_1] = value.element(1).element(idx_1).bits().ToInt64().value();
   }
-  for (int i = 0; i < 7; i++) {
-    result.z[i] = elements[2].element(i).bits().ToUint64().value();
+  for (int idx_1 = 0; idx_1 < 7; idx_1++) {
+    result.z[idx_1] = value.element(2).element(idx_1).bits().ToUint64().value();
   }
   return result;
 }
 
-xls::Value MyStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  std::vector<xls::Value> x_elements;
-  for (int i = 0; i < ABSL_ARRAYSIZE(x); i++) {
-    xls::Value x_element(xls::UBits(x[i], /*bit_count=*/32));
+::xls::Value MyStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(3);
+  ::xls::Value x_value;
+  std::vector<::xls::Value> x_elements;
+  x_elements.reserve(ABSL_ARRAYSIZE(x));
+  for (int idx_1 = 0; idx_1 < ABSL_ARRAYSIZE(x); idx_1++) {
+    ::xls::Value x_element;
+    x_element = ::xls::Value(::xls::UBits(x[idx_1], /*bit_count=*/32));
     x_elements.push_back(x_element);
   }
-  xls::Value x_value = xls::Value::ArrayOrDie(x_elements);
-  elements.push_back(x_value);
-  std::vector<xls::Value> y_elements;
-  for (int i = 0; i < ABSL_ARRAYSIZE(y); i++) {
-    xls::Value y_element(xls::SBits(y[i], /*bit_count=*/7));
+  x_value = ::xls::Value::ArrayOrDie(x_elements);
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  std::vector<::xls::Value> y_elements;
+  y_elements.reserve(ABSL_ARRAYSIZE(y));
+  for (int idx_1 = 0; idx_1 < ABSL_ARRAYSIZE(y); idx_1++) {
+    ::xls::Value y_element;
+    y_element = ::xls::Value(::xls::SBits(y[idx_1], /*bit_count=*/7));
     y_elements.push_back(y_element);
   }
-  xls::Value y_value = xls::Value::ArrayOrDie(y_elements);
-  elements.push_back(y_value);
-  std::vector<xls::Value> z_elements;
-  for (int i = 0; i < ABSL_ARRAYSIZE(z); i++) {
-    xls::Value z_element(xls::UBits(z[i], /*bit_count=*/8));
+  y_value = ::xls::Value::ArrayOrDie(y_elements);
+  members.push_back(y_value);
+  ::xls::Value z_value;
+  std::vector<::xls::Value> z_elements;
+  z_elements.reserve(ABSL_ARRAYSIZE(z));
+  for (int idx_1 = 0; idx_1 < ABSL_ARRAYSIZE(z); idx_1++) {
+    ::xls::Value z_element;
+    z_element = ::xls::Value(::xls::UBits(z[idx_1], /*bit_count=*/8));
     z_elements.push_back(z_element);
   }
-  xls::Value z_value = xls::Value::ArrayOrDie(z_elements);
-  elements.push_back(z_value);
-  return xls::Value::Tuple(elements);
+  z_value = ::xls::Value::ArrayOrDie(z_elements);
+  members.push_back(z_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  x: " << elements[0].ToString() << "\n";
   os << "  y: " << elements[1].ToString() << "\n";
@@ -401,9 +418,9 @@ struct OuterStruct {
 #include "xls/public/value.h"
 
 struct InnerStruct {
-  static absl::StatusOr<InnerStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<InnerStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const InnerStruct& data);
 
@@ -415,9 +432,9 @@ struct InnerStruct {
 };
 
 struct OuterStruct {
-  static absl::StatusOr<OuterStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<OuterStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const OuterStruct& data);
 
@@ -439,31 +456,33 @@ struct OuterStruct {
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 
-absl::StatusOr<InnerStruct> InnerStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 2) {
+absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
     return absl::InvalidArgumentError(
         "InnerStruct::FromValue input must be a 2-tuple.");
   }
 
   InnerStruct result;
-  result.x = elements[0].bits().ToUint64().value();
-  result.y = elements[1].bits().ToUint64().value();
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
   return result;
 }
 
-xls::Value InnerStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  xls::Value x_value(xls::UBits(x, /*bit_count=*/32));
-  elements.push_back(x_value);
-  xls::Value y_value(xls::UBits(y, /*bit_count=*/16));
-  elements.push_back(y_value);
-  return xls::Value::Tuple(elements);
+::xls::Value InnerStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/16));
+  members.push_back(y_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  x: " << elements[0].ToString() << "\n";
   os << "  y: " << elements[1].ToString() << "\n";
@@ -471,42 +490,45 @@ std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
   return os;
 }
 
-absl::StatusOr<OuterStruct> OuterStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 3) {
+absl::StatusOr<OuterStruct> OuterStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 3) {
     return absl::InvalidArgumentError(
         "OuterStruct::FromValue input must be a 3-tuple.");
   }
 
   OuterStruct result;
-  result.x = elements[0].bits().ToUint64().value();
-  auto a_or = InnerStruct::FromValue(elements[1]);
-  if (!a_or.ok()) {
-    return a_or.status();
+  result.x = value.element(0).bits().ToUint64().value();
+  auto result_a_or = InnerStruct::FromValue(value.element(1));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
   }
-  result.a = a_or.value();
-
-  auto b_or = InnerStruct::FromValue(elements[2]);
-  if (!b_or.ok()) {
-    return b_or.status();
+  result.a = result_a_or.value();
+  auto result_b_or = InnerStruct::FromValue(value.element(2));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
   }
-  result.b = b_or.value();
-
+  result.b = result_b_or.value();
   return result;
 }
 
-xls::Value OuterStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  xls::Value x_value(xls::UBits(x, /*bit_count=*/32));
-  elements.push_back(x_value);
-  elements.push_back(a.ToValue());
-  elements.push_back(b.ToValue());
-  return xls::Value::Tuple(elements);
+::xls::Value OuterStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(3);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  x: " << elements[0].ToString() << "\n";
   os << "  a: " << elements[1].ToString() << "\n";
@@ -561,9 +583,9 @@ struct OuterStruct {
 #include "xls/public/value.h"
 
 struct InnerStruct {
-  static absl::StatusOr<InnerStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<InnerStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const InnerStruct& data);
 
@@ -575,9 +597,9 @@ struct InnerStruct {
 };
 
 struct MiddleStruct {
-  static absl::StatusOr<MiddleStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<MiddleStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const MiddleStruct& data);
 
@@ -588,9 +610,9 @@ struct MiddleStruct {
 };
 
 struct OtherMiddleStruct {
-  static absl::StatusOr<OtherMiddleStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<OtherMiddleStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const OtherMiddleStruct& data);
 
@@ -601,9 +623,9 @@ struct OtherMiddleStruct {
 };
 
 struct OuterStruct {
-  static absl::StatusOr<OuterStruct> FromValue(const xls::Value& value);
+  static absl::StatusOr<OuterStruct> FromValue(const ::xls::Value& value);
 
-  xls::Value ToValue() const;
+  ::xls::Value ToValue() const;
 
   friend std::ostream& operator<<(std::ostream& os, const OuterStruct& data);
 
@@ -627,31 +649,33 @@ struct OuterStruct {
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 
-absl::StatusOr<InnerStruct> InnerStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 2) {
+absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
     return absl::InvalidArgumentError(
         "InnerStruct::FromValue input must be a 2-tuple.");
   }
 
   InnerStruct result;
-  result.x = elements[0].bits().ToUint64().value();
-  result.y = elements[1].bits().ToUint64().value();
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
   return result;
 }
 
-xls::Value InnerStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  xls::Value x_value(xls::UBits(x, /*bit_count=*/32));
-  elements.push_back(x_value);
-  xls::Value y_value(xls::UBits(y, /*bit_count=*/16));
-  elements.push_back(y_value);
-  return xls::Value::Tuple(elements);
+::xls::Value InnerStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/16));
+  members.push_back(y_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  x: " << elements[0].ToString() << "\n";
   os << "  y: " << elements[1].ToString() << "\n";
@@ -659,35 +683,37 @@ std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
   return os;
 }
 
-absl::StatusOr<MiddleStruct> MiddleStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 2) {
+absl::StatusOr<MiddleStruct> MiddleStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
     return absl::InvalidArgumentError(
         "MiddleStruct::FromValue input must be a 2-tuple.");
   }
 
   MiddleStruct result;
-  result.z = elements[0].bits().ToUint64().value();
-  auto a_or = InnerStruct::FromValue(elements[1]);
-  if (!a_or.ok()) {
-    return a_or.status();
+  result.z = value.element(0).bits().ToUint64().value();
+  auto result_a_or = InnerStruct::FromValue(value.element(1));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
   }
-  result.a = a_or.value();
-
+  result.a = result_a_or.value();
   return result;
 }
 
-xls::Value MiddleStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  xls::Value z_value(xls::UBits(z, /*bit_count=*/48));
-  elements.push_back(z_value);
-  elements.push_back(a.ToValue());
-  return xls::Value::Tuple(elements);
+::xls::Value MiddleStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value z_value;
+  z_value = ::xls::Value(::xls::UBits(z, /*bit_count=*/48));
+  members.push_back(z_value);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const MiddleStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  z: " << elements[0].ToString() << "\n";
   os << "  a: " << elements[1].ToString() << "\n";
@@ -695,35 +721,37 @@ std::ostream& operator<<(std::ostream& os, const MiddleStruct& data) {
   return os;
 }
 
-absl::StatusOr<OtherMiddleStruct> OtherMiddleStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 2) {
+absl::StatusOr<OtherMiddleStruct> OtherMiddleStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
     return absl::InvalidArgumentError(
         "OtherMiddleStruct::FromValue input must be a 2-tuple.");
   }
 
   OtherMiddleStruct result;
-  auto b_or = InnerStruct::FromValue(elements[0]);
-  if (!b_or.ok()) {
-    return b_or.status();
+  auto result_b_or = InnerStruct::FromValue(value.element(0));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
   }
-  result.b = b_or.value();
-
-  result.w = elements[1].bits().ToUint64().value();
+  result.b = result_b_or.value();
+  result.w = value.element(1).bits().ToUint64().value();
   return result;
 }
 
-xls::Value OtherMiddleStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  elements.push_back(b.ToValue());
-  xls::Value w_value(xls::UBits(w, /*bit_count=*/64));
-  elements.push_back(w_value);
-  return xls::Value::Tuple(elements);
+::xls::Value OtherMiddleStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  ::xls::Value w_value;
+  w_value = ::xls::Value(::xls::UBits(w, /*bit_count=*/64));
+  members.push_back(w_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const OtherMiddleStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  b: " << elements[0].ToString() << "\n";
   os << "  w: " << elements[1].ToString() << "\n";
@@ -731,49 +759,53 @@ std::ostream& operator<<(std::ostream& os, const OtherMiddleStruct& data) {
   return os;
 }
 
-absl::StatusOr<OuterStruct> OuterStruct::FromValue(const xls::Value& value) {
-  absl::Span<const xls::Value> elements = value.elements();
-  if (elements.size() != 4) {
+absl::StatusOr<OuterStruct> OuterStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 4) {
     return absl::InvalidArgumentError(
         "OuterStruct::FromValue input must be a 4-tuple.");
   }
 
   OuterStruct result;
-  auto a_or = InnerStruct::FromValue(elements[0]);
-  if (!a_or.ok()) {
-    return a_or.status();
+  auto result_a_or = InnerStruct::FromValue(value.element(0));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
   }
-  result.a = a_or.value();
-
-  auto b_or = MiddleStruct::FromValue(elements[1]);
-  if (!b_or.ok()) {
-    return b_or.status();
+  result.a = result_a_or.value();
+  auto result_b_or = MiddleStruct::FromValue(value.element(1));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
   }
-  result.b = b_or.value();
-
-  auto c_or = OtherMiddleStruct::FromValue(elements[2]);
-  if (!c_or.ok()) {
-    return c_or.status();
+  result.b = result_b_or.value();
+  auto result_c_or = OtherMiddleStruct::FromValue(value.element(2));
+  if (!result_c_or.ok()) {
+    return result_c_or.status();
   }
-  result.c = c_or.value();
-
-  result.v = elements[3].bits().ToUint64().value();
+  result.c = result_c_or.value();
+  result.v = value.element(3).bits().ToUint64().value();
   return result;
 }
 
-xls::Value OuterStruct::ToValue() const {
-  std::vector<xls::Value> elements;
-  elements.push_back(a.ToValue());
-  elements.push_back(b.ToValue());
-  elements.push_back(c.ToValue());
-  xls::Value v_value(xls::UBits(v, /*bit_count=*/8));
-  elements.push_back(v_value);
-  return xls::Value::Tuple(elements);
+::xls::Value OuterStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(4);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  ::xls::Value c_value;
+  c_value = c.ToValue();
+  members.push_back(c_value);
+  ::xls::Value v_value;
+  v_value = ::xls::Value(::xls::UBits(v, /*bit_count=*/8));
+  members.push_back(v_value);
+  return ::xls::Value::Tuple(members);
 }
 
 std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
-  xls::Value value = data.ToValue();
-  absl::Span<const xls::Value> elements = value.elements();
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
   os << "(\n";
   os << "  a: " << elements[0].ToString() << "\n";
   os << "  b: " << elements[1].ToString() << "\n";
@@ -834,6 +866,168 @@ constexpr int64_t kMyEnumNumElements = 4;
       auto result,
       TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
   ASSERT_EQ(result.header, kExpected);
+}
+
+TEST(CppTranspilerTest, UnhandledTupleType) {
+  constexpr std::string_view kModule = R"(
+struct Foo {
+    a: (u32, u32),
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  EXPECT_THAT(TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Unknown/unsupported")));
+}
+
+TEST(CppTranspilerTest, ArrayOfTyperefs) {
+  constexpr std::string_view kModule = R"(
+struct Foo {
+    a: u32,
+    b: u64,
+}
+
+struct Bar {
+    c: Foo[2],
+}
+)";
+
+  const std::string kExpectedHeader =
+      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+#ifndef TMP_FAKE_PATH_H_
+#define TMP_FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+struct Foo {
+  static absl::StatusOr<Foo> FromValue(const ::xls::Value& value);
+
+  ::xls::Value ToValue() const;
+
+  friend std::ostream& operator<<(std::ostream& os, const Foo& data);
+
+  uint32_t a;
+  uint64_t b;
+
+  static constexpr int64_t kAWidth = 32;
+  static constexpr int64_t kBWidth = 64;
+};
+
+struct Bar {
+  static absl::StatusOr<Bar> FromValue(const ::xls::Value& value);
+
+  ::xls::Value ToValue() const;
+
+  friend std::ostream& operator<<(std::ostream& os, const Bar& data);
+
+  Foo c[2];
+};
+
+#endif  // TMP_FAKE_PATH_H_
+)";
+
+  constexpr std::string_view kExpectedSource =
+      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+#include <vector>
+
+#include "/tmp/fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+absl::StatusOr<Foo> Foo::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "Foo::FromValue input must be a 2-tuple.");
+  }
+
+  Foo result;
+  result.a = value.element(0).bits().ToUint64().value();
+  result.b = value.element(1).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value Foo::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value a_value;
+  a_value = ::xls::Value(::xls::UBits(a, /*bit_count=*/32));
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = ::xls::Value(::xls::UBits(b, /*bit_count=*/64));
+  members.push_back(b_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const Foo& data) {
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  os << "(\n";
+  os << "  a: " << elements[0].ToString() << "\n";
+  os << "  b: " << elements[1].ToString() << "\n";
+  os << ")\n";
+  return os;
+}
+
+absl::StatusOr<Bar> Bar::FromValue(const ::xls::Value& value) {
+  if (value.size() != 1) {
+    return absl::InvalidArgumentError(
+        "Bar::FromValue input must be a 1-tuple.");
+  }
+
+  Bar result;
+  for (int idx_1 = 0; idx_1 < 2; idx_1++) {
+    auto result_c_idx_1__or = Foo::FromValue(value.element(0).element(idx_1));
+    if (!result_c_idx_1__or.ok()) {
+      return result_c_idx_1__or.status();
+    }
+    result.c[idx_1] = result_c_idx_1__or.value();
+  }
+  return result;
+}
+
+::xls::Value Bar::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(1);
+  ::xls::Value c_value;
+  std::vector<::xls::Value> c_elements;
+  c_elements.reserve(ABSL_ARRAYSIZE(c));
+  for (int idx_1 = 0; idx_1 < ABSL_ARRAYSIZE(c); idx_1++) {
+    ::xls::Value c_element;
+    c_element = c[idx_1].ToValue();
+    c_elements.push_back(c_element);
+  }
+  c_value = ::xls::Value::ArrayOrDie(c_elements);
+  members.push_back(c_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const Bar& data) {
+  ::xls::Value value = data.ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  os << "(\n";
+  os << "  c: " << elements[0].ToString() << "\n";
+  os << ")\n";
+  return os;
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+  ASSERT_EQ(result.header, kExpectedHeader);
+  ASSERT_EQ(result.body, kExpectedSource);
 }
 
 }  // namespace
