@@ -55,12 +55,14 @@ DelayEstimatorManager::GetDefaultDelayEstimator() const {
   }
   int highest_precedence = 0;
   DelayEstimator* highest = nullptr;
-  for (auto& item : estimators_) {
-    DelayEstimatorPrecedence precedence = item.second.first;
+  for (const std::string& name : estimator_names_) {
+    const std::pair<DelayEstimatorPrecedence, std::unique_ptr<DelayEstimator>>&
+        pair = estimators_.at(name);
+    DelayEstimatorPrecedence precedence = pair.first;
     int precedence_value = static_cast<int>(precedence);
     if (precedence_value > highest_precedence) {
       highest_precedence = precedence_value;
-      highest = item.second.second.get();
+      highest = pair.second.get();
     }
   }
   return highest;
