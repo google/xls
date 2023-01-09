@@ -25,8 +25,8 @@ import std
 
 import xls.examples.ram
 
-type RamReq = ram::RamReq;
-type RamResp = ram::RamResp;
+type RamReq = ram::SinglePortRamReq;
+type RamResp = ram::SinglePortRamResp;
 
 fn double(x: u32) -> u32 { x * u32:2 }
 fn addr_width(size: u32) -> u32 { std::clog2(size) }
@@ -73,7 +73,7 @@ proc Delay0or1<DATA_WIDTH:u32, DELAY_IS_ONE:bool, INIT_DATA:u32> {
     }
 }
 
-// only works on DELAY even, the wrapper handles the odd case
+// Only works on DELAY even, the wrapper handles the case with odd-DELAY values.
 proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32=u32:0,
                    ADDR_WIDTH:u32=addr_width(half_floor(DELAY)),
                    DOUBLE_DATA_WIDTH:u32=double(DATA_WIDTH),
