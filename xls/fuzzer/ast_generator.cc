@@ -1110,7 +1110,7 @@ String* AstGenerator::GenerateString(int64_t char_count) {
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   // 5% of the time generate string literals as arrays.
   int64_t byte_count = options_.max_width_aggregate_types / 8;
-  if (byte_count > 0 && RandomFloat() < 0.5) {
+  if (byte_count > 0 && RandomFloat() < 0.05) {
     int64_t length = RandRange(byte_count) + 1;
     return TypedExpr{GenerateString(length),
                      MakeArrayType(MakeTypeAnnotation(false, 8), length)};
