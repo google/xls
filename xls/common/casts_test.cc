@@ -68,7 +68,7 @@ TEST(TemplateFunctionTest, down_cast_pointer) {
   // Tests a bad downcast. We have to disguise the badness just enough
   // that the compiler doesn't warn about it at compile time.
   Base* base2 = NewBase(false);
-#ifdef GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST
   EXPECT_DEBUG_DEATH(down_cast<Derived*>(base2), "dynamic_cast<To>");
 #endif  // GTEST_HAS_DEATH_TEST
   delete base2;
@@ -98,7 +98,7 @@ TEST(TemplateFunctionTest, down_cast_reference) {
   // Tests a bad downcast. We have to disguise the badness just enough
   // that the compiler doesn't warn about it at compile time.
   Base& base2 = *NewBase(false);
-#ifdef GTEST_HAS_DEATH_TEST
+#if GTEST_HAS_DEATH_TEST
   EXPECT_DEBUG_DEATH(down_cast<Derived&>(base2), "dynamic_cast<.*To.*>");
 #endif  // GTEST_HAS_DEATH_TEST
   delete &base2;
