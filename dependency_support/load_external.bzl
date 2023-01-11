@@ -132,6 +132,10 @@ def load_external_repositories():
         sha256 = "6962facdcdea287c5eeb1583debe33ee23043144d0e5308344e6a8ee4503bcff",
         strip_prefix = "z3-z3-4.8.8",
         build_file = "@com_google_xls//dependency_support/z3:bundled.BUILD.bazel",
+        # Fix Undefined Behavior (UB) of overflow in mpz::bitwise_not by cherry picking
+        # https://github.com/Z3Prover/z3/commit/a96f5a9b425b6f5ba7e8ce1c1a75db6683c4bdc9 and
+        # https://github.com/Z3Prover/z3/commit/9ebacd87e2ee8a79adfe128021fbfd444db7857a.
+        patches = ["@com_google_xls//dependency_support/z3:mpz_cpp.patch"],
     )
 
     http_archive(
