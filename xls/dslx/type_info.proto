@@ -15,7 +15,7 @@
 // Constructs that allow type information from the DSL to be serialized as an
 // artifact.
 
-syntax = "proto2";
+syntax = "proto3";
 
 package xls.dslx;
 

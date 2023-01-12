@@ -90,6 +90,12 @@ in the XLS project, with the relevant Google style guides
     could _actually_ be appropriate become odd outliers, so our guidance is that
     IR elements should uniformly be passed as non-const pointers.
 
+## Protocol buffers
+
+*   Prefer to use
+    [proto3](https://developers.google.com/protocol-buffers/docs/proto3#simple)
+    specifications in all new protocol buffer files.
+
 ## FAQ
 
 ### How heavyweight is `StatusOr`?

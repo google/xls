@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Note: must be proto2 so we can fail validation of the `required` field in the
+// associated test.
 syntax = "proto2";
 
 package xls;

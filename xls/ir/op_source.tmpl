@@ -12,8 +12,12 @@ Op FromOpProto(OpProto op_proto) {
 {% for op in spec.OPS -%}
     case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
 {% endfor -%}
+    // Note: since this is a proto enum there are sentinel values defined in
+    // addition to the "real" ones above, which is why the enumeration above is
+    // not exhaustive.
+    default:
+      XLS_LOG(FATAL) << "Invalid OpProto: " << static_cast<int64_t>(op_proto);
   }
-  XLS_LOG(FATAL) << "Invalid OpProto: " << static_cast<int64_t>(op_proto);
 }
 
 OpProto ToOpProto(Op op) {

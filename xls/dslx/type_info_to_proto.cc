@@ -617,11 +617,14 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kBlock;
     case AST_NODE_KIND_UNROLL_FOR:
       return AstNodeKind::kUnrollFor;
+    // Note: since this is a proto enum there are sentinel values defined in
+    // addition to the "real" above, which is why the enumeration of cases is
+    // not exhaustive.
     case AST_NODE_KIND_INVALID:
-      break;
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unknown AstNodeKindProto: ", p));
   }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unknown AstNodeKindProto: ", p));
 }
 
 }  // namespace

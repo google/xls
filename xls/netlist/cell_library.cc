@@ -29,8 +29,6 @@ namespace netlist {
 
 absl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
   switch (proto) {
-    case INVALID:
-      break;
     case FLOP:
       return CellKind::kFlop;
     case INVERTER:
@@ -47,9 +45,14 @@ absl::StatusOr<CellKind> CellKindFromProto(CellKindProto proto) {
       return CellKind::kXor;
     case OTHER:
       return CellKind::kOther;
+    // Note: since this is a proto enum there are sentinel values defined in
+    // addition to the "real" above, which is why the enumeration of cases is
+    // not exhaustive.
+    case INVALID:
+    default:
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid proto value for conversion to CellKind: %d", proto));
   }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "Invalid proto value for conversion to CellKind: %d", proto));
 }
 
 absl::StatusOr<StateTableSignal> StateTableSignalFromProto(
@@ -79,6 +82,9 @@ absl::StatusOr<StateTableSignal> StateTableSignalFromProto(
       return StateTableSignal::kNoChange;
     case STATE_TABLE_SIGNAL_X:
       return StateTableSignal::kX;
+    // Note: since this is a proto enum there are sentinel values defined in
+    // addition to the "real" ones above, which is why the enumeration above is
+    // not exhaustive.
     default:
       return absl::InvalidArgumentError(absl::StrFormat(
           "Invalid proto value for conversion to StateTableSignal: %d", proto));
