@@ -1280,3 +1280,16 @@ py_test(
         "//xls/common:test_base",
     ],
 )
+
+py_binary(
+    name = "run_timing_characterization",
+    srcs = ["run_timing_characterization.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+    	"//xls/synthesis:timing_characterization_client",	
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+    ],
+)

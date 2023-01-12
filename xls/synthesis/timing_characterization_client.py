@@ -75,44 +75,128 @@ MISCELLANEOUS = ('kArray kArrayIndex kArrayUpdate kBitSlice kDynamicBitSlice '
 
 
 def get_bit_widths():
-  return [1] + list(range(2, FLAGS.max_width + 1, 2))
+    return [1] + list(range(2, FLAGS.max_width + 1, 2))
 
 
 def save_checkpoint(model: delay_model_pb2.DelayModel, checkpoint_path: str):
-  if checkpoint_path:
-    with gfile.open(checkpoint_path, 'w') as f:
-      f.write(text_format.MessageToString(model))
+    if checkpoint_path:
+        with gfile.open(checkpoint_path, 'w') as f:
+            f.write(text_format.MessageToString(model))
 
 
 def _synth(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
            verilog_text: str,
            top_module_name: str) -> synthesis_pb2.CompileResponse:
-  """Bisects the space of frequencies and sends requests to the server."""
-  high = FLAGS.max_freq_mhz
-  low = FLAGS.min_freq_mhz
-  epsilon = 10
+    """Bisects the space of frequencies and sends requests to the server."""
+    high = FLAGS.max_freq_mhz
+    low = FLAGS.min_freq_mhz
+    epsilon = 10
 
-  best_result = synthesis_pb2.CompileResponse()
-  while high - low > epsilon:
-    current = (high + low) / 2
-    request = synthesis_pb2.CompileRequest()
-    request.target_frequency_hz = int(current * 10e6)
-    request.module_text = verilog_text
-    request.top_module_name = top_module_name
-    logging.vlog(3, '--- Request')
-    logging.vlog(3, request)
-    response = stub.Compile(request)
-    if response.slack_ps >= 0:
-      logging.info('PASS at %dMHz (slack %d).', current, response.slack_ps)
-      low = current
-      if current > best_result.max_frequency_hz:
-        best_result = response
-    else:
-      logging.info('FAIL at %dMHz (slack %d).', current, response.slack_ps)
-      high = current
+    best_result = synthesis_pb2.CompileResponse()
+    while high - low > epsilon:
+        current = (high + low) / 2
+        request = synthesis_pb2.CompileRequest()
+        request.target_frequency_hz = int(current * 10e6)
+        request.module_text = verilog_text
+        request.top_module_name = top_module_name
+        logging.vlog(3, '--- Request')
+        logging.vlog(3, request)
+        response = stub.Compile(request)
+        if response.slack_ps >= 0:
+            logging.info('PASS at %dMHz (slack %d).',
+                         current, response.slack_ps)
+            low = current
+            if current > best_result.max_frequency_hz:
+                best_result = response
+        else:
+            logging.info('FAIL at %dMHz (slack %d).',
+                         current, response.slack_ps)
+            high = current
 
-  best_result.max_frequency_hz = int(current * 10e6)
-  return best_result
+    best_result.max_frequency_hz = int(current * 10e6)
+    return best_result
+
+
+def _synth_hz(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
+              verilog_text: str,
+              top_module_name: str) -> synthesis_pb2.CompileResponse:
+    """Bisects the space of frequencies and sends requests to the server."""
+    high_hz = FLAGS.max_freq_mhz * 1e6
+    low_hz = FLAGS.min_freq_mhz * 1e6
+    epsilon_hz = 5 * 1e6
+
+    best_result = synthesis_pb2.CompileResponse()
+    while high_hz - low_hz > epsilon_hz:
+        current_hz = (high_hz + low_hz) / 2
+        request = synthesis_pb2.CompileRequest()
+        request.target_frequency_hz = int(current_hz)
+        request.module_text = verilog_text
+        request.top_module_name = top_module_name
+        logging.vlog(3, '--- Debug')
+        logging.vlog(3, high_hz)
+        logging.vlog(3, low_hz)
+        logging.vlog(3, epsilon_hz)
+        logging.vlog(3, current_hz)
+        logging.vlog(3, '--- Request')
+        logging.vlog(3, request)
+        response = stub.Compile(request)
+        logging.vlog(3, '--- response')
+        logging.vlog(3, response.slack_ps)
+        logging.vlog(3, response.max_frequency_hz)
+
+        if response.slack_ps >= 0:
+            logging.info('PASS at %.2fMHz (slack %dps).',
+                         current_hz / 1e6, response.slack_ps)
+            low_hz = current_hz
+            if current_hz > best_result.max_frequency_hz:
+                best_result = response
+        else:
+            logging.info('FAIL at %.2fMHz (slack %dps).',
+                         current_hz / 1e6, response.slack_ps)
+            high_hz = current_hz
+    best_result.max_frequency_hz = int(current_hz)
+    return best_result
+
+
+def _synth_ps(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
+              verilog_text: str,
+              top_module_name: str) -> synthesis_pb2.CompileResponse:
+    """Bisects the space of frequencies and sends requests to the server."""
+    high_hz = FLAGS.max_freq_mhz * 1e6
+    low_hz = FLAGS.min_freq_mhz * 1e6
+    epsilon_hz = 5 * 1e6
+
+    best_result = synthesis_pb2.CompileResponse()
+    while high_hz - low_hz > epsilon_hz:
+        current_hz = (high_hz + low_hz) / 2
+        request = synthesis_pb2.CompileRequest()
+        request.target_frequency_hz = int(current_hz)
+        request.module_text = verilog_text
+        request.top_module_name = top_module_name
+        logging.vlog(3, '--- Debug')
+        logging.vlog(3, high_hz)
+        logging.vlog(3, low_hz)
+        logging.vlog(3, epsilon_hz)
+        logging.vlog(3, current_hz)
+        logging.vlog(3, '--- Request')
+        logging.vlog(3, request)
+        response = stub.Compile(request)
+        logging.vlog(3, '--- response')
+        logging.vlog(3, response.slack_ps)
+        logging.vlog(3, response.max_frequency_hz)
+
+        if response.slack_ps >= 0:
+            logging.info('PASS at %.1fps (slack %dps).',
+                         1e12 / current_hz, response.slack_ps)
+            low_hz = current_hz
+            if current_hz > best_result.max_frequency_hz:
+                best_result = response
+        else:
+            logging.info('FAIL at %.1fps (slack %dps).',
+                         1e12 / current_hz, response.slack_ps)
+            high_hz = current_hz
+    best_result.max_frequency_hz = int(current_hz)
+    return best_result
 
 
 def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
@@ -120,202 +204,212 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
                    data_points: Dict[str, Set[str]], ir_text: str, op: str,
                    result_bit_count: int,
                    operand_bit_counts: Sequence[int]) -> None:
-  """Synthesizes the given IR text and returns a data point."""
-  if op not in data_points:
-    data_points[op] = set()
+    """Synthesizes the given IR text and returns a data point."""
+    if op not in data_points:
+        data_points[op] = set()
 
-  bit_count_strs = []
-  for bit_count in operand_bit_counts:
-    operand = delay_model_pb2.Operation.Operand(
-        bit_count=bit_count, element_count=0)
-    bit_count_strs.append(str(operand))
-  key = ', '.join([str(result_bit_count)] + bit_count_strs)
-  if key in data_points[op]:
-    return
-  data_points[op].add(key)
+    bit_count_strs = []
+    for bit_count in operand_bit_counts:
+        operand = delay_model_pb2.Operation.Operand(
+            bit_count=bit_count, element_count=0)
+        bit_count_strs.append(str(operand))
+    key = ', '.join([str(result_bit_count)] + bit_count_strs)
+    if key in data_points[op]:
+        return
+    data_points[op].add(key)
 
-  logging.info('Running %s with %d / %s', op, result_bit_count,
-               ', '.join([str(x) for x in operand_bit_counts]))
-  module_name = 'top'
-  mod_generator_result = op_module_generator.generate_verilog_module(
-      module_name, ir_text)
-  verilog_text = mod_generator_result.verilog_text
-  result = _synth(stub, verilog_text, module_name)
-  logging.info('Result: %s', result)
-  ps = 1e12 / result.max_frequency_hz
-  result = delay_model_pb2.DataPoint()
-  result.operation.op = op
-  result.operation.bit_count = result_bit_count
-  for bit_count in operand_bit_counts:
-    operand = result.operation.operands.add()
-    operand.bit_count = bit_count
-  result.delay = int(ps)
+    logging.info('Running %s with %d / %s', op, result_bit_count,
+                 ', '.join([str(x) for x in operand_bit_counts]))
+    module_name = 'top'
+    mod_generator_result = op_module_generator.generate_verilog_module(
+        module_name, ir_text)
 
-  # Checkpoint after every run.
-  model.data_points.append(result)
-  save_checkpoint(model, FLAGS.checkpoint_path)
+    op_comment = "// op: " + op + " \n"
+    verilog_text = op_comment + mod_generator_result.verilog_text
+
+    result = _synth_ps(stub, verilog_text, module_name)
+    logging.vlog(3, 'Result: %s', result)
+
+    if result.max_frequency_hz > 0:
+        ps = 1e12 / result.max_frequency_hz
+    else:
+        ps = 0
+
+    result = delay_model_pb2.DataPoint()
+    result.operation.op = op
+    result.operation.bit_count = result_bit_count
+    for bit_count in operand_bit_counts:
+        operand = result.operation.operands.add()
+        operand.bit_count = bit_count
+    result.delay = int(ps)
+
+    # Checkpoint after every run.
+    model.data_points.append(result)
+    save_checkpoint(model, FLAGS.checkpoint_path)
 
 
 def _run_unary_bitwise(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize unary bitwise ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize unary bitwise ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  for bit_count in get_bit_widths():
-    op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type,))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    for bit_count in get_bit_widths():
+        op_type = f'bits[{bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(
+            op, op_type, (op_type,))
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_variadic_bitwise(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize variadic bitwise ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize variadic bitwise ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  # Compute samples
-  widths = get_bit_widths()
-  arity = list(range(2, 8))
-  combs = itertools.product(widths, arity)
-  for bit_count, arity in combs:
-    op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type,) * arity)
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    # Compute samples
+    widths = get_bit_widths()
+    arity = list(range(2, 8))
+    combs = itertools.product(widths, arity)
+    for bit_count, arity in combs:
+        op_type = f'bits[{bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(op, op_type,
+                                                          (op_type,) * arity)
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_arithmetic_unary(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize unary ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize unary ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  for bit_count in get_bit_widths():
-    op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type,))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    for bit_count in get_bit_widths():
+        op_type = f'bits[{bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(
+            op, op_type, (op_type,))
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_arithmetic_binary(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize arithmetic ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize arithmetic ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  for bit_count in get_bit_widths():
-    op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    for bit_count in get_bit_widths():
+        op_type = f'bits[{bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(op, op_type,
+                                                          (op_type, op_type))
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_comparison(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize comparison ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize comparison ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  for bit_count in get_bit_widths():
-    op_type = f'bits[{bit_count}]'
-    ret_type = 'bits[1]'
-    ir_text = op_module_generator.generate_ir_package(op, ret_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    for bit_count in get_bit_widths():
+        op_type = f'bits[{bit_count}]'
+        ret_type = 'bits[1]'
+        ir_text = op_module_generator.generate_ir_package(op, ret_type,
+                                                          (op_type, op_type))
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_shift(op: str, model: delay_model_pb2.DelayModel,
                data_points: Dict[str, Set[str]],
                stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize shift ops."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expr = add_op_model.estimator.regression.expressions.add()
-  expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expr.factor.operand_number = 0
+    """Characterize shift ops."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expr = add_op_model.estimator.regression.expressions.add()
+    expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  # Compute samples
-  for bit_count in get_bit_widths():
-    op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    # Compute samples
+    for bit_count in get_bit_widths():
+        op_type = f'bits[{bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(op, op_type,
+                                                          (op_type, op_type))
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_extension(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Characterize extension ops (sign- and zero-)."""
-  # Add op_model to protobuf message
-  add_op_model = model.op_models.add(op=op)
-  expression = add_op_model.estimator.regression.expressions.add()
-  expression.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
-  expression.factor.operand_number = 0
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Characterize extension ops (sign- and zero-)."""
+    # Add op_model to protobuf message
+    add_op_model = model.op_models.add(op=op)
+    expression = add_op_model.estimator.regression.expressions.add()
+    expression.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
+    expression.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+    op = ENUM2NAME_MAP[op]
 
-  # Compute samples
-  widths = get_bit_widths()
-  combs = filter(lambda b: b[1] > b[0], itertools.product(widths, widths))
-  for bit_count, new_bit_count in combs:
-    op_type = f'bits[{bit_count}]'
-    ret_type = f'bits[{new_bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(
-        op, ret_type, (op_type,), attributes=[('new_bit_count', new_bit_count)])
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    # Compute samples
+    widths = get_bit_widths()
+    combs = filter(lambda b: b[1] > b[0], itertools.product(widths, widths))
+    for bit_count, new_bit_count in combs:
+        op_type = f'bits[{bit_count}]'
+        ret_type = f'bits[{new_bit_count}]'
+        ir_text = op_module_generator.generate_ir_package(
+            op, ret_type, (op_type,), attributes=[('new_bit_count', new_bit_count)])
+        _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
+                       (bit_count,))
 
 
 def _run_miscellaneous(
-    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                  Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  del op, model, data_points, stub
-  pass
+        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
+                                                                      Set[str]],
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    del op, model, data_points, stub
+    pass
 
 
 OPS_RUNNERS = [(UNARY_BITWISE, _run_unary_bitwise),
@@ -329,29 +423,29 @@ OPS_RUNNERS = [(UNARY_BITWISE, _run_unary_bitwise),
 def init_data(
     checkpoint_path: str
 ) -> Tuple[Dict[str, Set[str]], delay_model_pb2.DelayModel]:
-  """Return new state, loading data from a checkpoint, if available."""
-  data_points = {}
-  model = delay_model_pb2.DelayModel()
-  if checkpoint_path:
-    filesystem.parse_text_proto_file(checkpoint_path, model)
-    for data_point in model.data_points:
-      op = data_point.operation
-      if op.op not in data_points:
-        data_points[op.op] = set()
-      types_str = ', '.join([str(op.bit_count)] +
-                            [str(x.bit_count) for x in op.operands])
-      data_points[op.op].add(types_str)
-  return data_points, model
+    """Return new state, loading data from a checkpoint, if available."""
+    data_points = {}
+    model = delay_model_pb2.DelayModel()
+    if checkpoint_path:
+        filesystem.parse_text_proto_file(checkpoint_path, model)
+        for data_point in model.data_points:
+            op = data_point.operation
+            if op.op not in data_points:
+                data_points[op.op] = set()
+            types_str = ', '.join([str(op.bit_count)] +
+                                  [str(x.bit_count) for x in op.operands])
+            data_points[op.op].add(types_str)
+    return data_points, model
 
 
 def run_characterization(
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
-  """Run characterization with the given synthesis service."""
-  data_points, model = init_data(FLAGS.checkpoint_path)
-  for ops, runner in OPS_RUNNERS:
-    for op in ops:
-      runner(op, model, data_points, stub)
+        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    """Run characterization with the given synthesis service."""
+    data_points, model = init_data(FLAGS.checkpoint_path)
+    for ops, runner in OPS_RUNNERS:
+        for op in ops:
+            runner(op, model, data_points, stub)
 
-  print('# proto-file: xls/delay_model/delay_model.proto')
-  print('# proto-message: xls.delay_model.DelayModel')
-  print(model)
+    print('# proto-file: xls/delay_model/delay_model.proto')
+    print('# proto-message: xls.delay_model.DelayModel')
+    print(model)
