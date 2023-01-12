@@ -127,13 +127,15 @@ class ParametricInstantiator {
                          const absl::flat_hash_map<std::string, InterpValue>*
                              explicit_constraints);
 
-  ParametricInstantiator(ParametricInstantiator&& other) = default;
-
+  // Non-movable as the destructor performs meaningful work -- the class
+  // lifetime is used as a scope for parametric type information (used in
+  // finding the concrete signature).
+  ParametricInstantiator(ParametricInstantiator&& other) = delete;
   ParametricInstantiator(const ParametricInstantiator& other) = delete;
   ParametricInstantiator& operator=(const ParametricInstantiator& other) =
       delete;
 
-  virtual ~ParametricInstantiator() = default;
+  virtual ~ParametricInstantiator();
 
   virtual absl::StatusOr<TypeAndBindings> Instantiate() = 0;
 
@@ -180,6 +182,7 @@ class ParametricInstantiator {
   // map.
   template <typename T>
   absl::Status SymbolicBindDims(const T& param_type, const T& arg_type);
+
   absl::Status SymbolicBindBits(const ConcreteType& param_type,
                                 const ConcreteType& arg_type);
   absl::Status SymbolicBindTuple(const TupleType& param_type,
@@ -215,14 +218,15 @@ class ParametricInstantiator {
   // "default" expression and must be provided by the user).
   absl::flat_hash_map<std::string, Expr*> constraints_;
 
-  absl::flat_hash_map<std::string, InterpValue> bit_widths_;
+  absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
+      parametric_binding_types_;
   absl::flat_hash_map<std::string, InterpValue> symbolic_bindings_;
 };
 
 // Instantiates a parametric function invocation.
 class FunctionInstantiator : public ParametricInstantiator {
  public:
-  static absl::StatusOr<FunctionInstantiator> Make(
+  static absl::StatusOr<std::unique_ptr<FunctionInstantiator>> Make(
       Span span, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
       std::optional<absl::Span<const ParametricConstraint>>
@@ -256,7 +260,7 @@ class FunctionInstantiator : public ParametricInstantiator {
 // Instantiates a parametric struct.
 class StructInstantiator : public ParametricInstantiator {
  public:
-  static absl::StatusOr<StructInstantiator> Make(
+  static absl::StatusOr<std::unique_ptr<StructInstantiator>> Make(
       Span span, const StructType& struct_type,
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
