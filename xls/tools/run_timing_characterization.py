@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Runs the timing_characterization with OpenROAD flow-scripts tooling and libraies."""
+"""Runs the timing_characterization with OpenROAD flow-scripts tooling and libraries."""
 # Assume that https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts are build
 # ALSO assume that OpenROAD has pre-process libraries
 import subprocess
@@ -34,9 +34,9 @@ class WorkerConfig:
     debug: bool
     target: str
     yosys_bin: str
-    synthesis_libraies: str
+    synthesis_libraries: str
     sta_bin: str
-    sta_libraies: str
+    sta_libraries: str
     port: int
     server_extra_args: str
     client_extra_args: str
@@ -77,8 +77,8 @@ def _do_config_kAsap7(config: WorkerConfig):
     # Clearly there are better data structures to use...
     asap7_path = f'{config.openroad_path}/flow/platforms/asap7/lib'
     # OpenROAD merge cells into one lib for yosys - lets use that
-    config.synthesis_libraies = f'{config.openroad_path}/flow/objects/asap7/ibex/base/lib/merged.lib'
-    config.sta_libraies = f'\
+    config.synthesis_libraries = f'{config.openroad_path}/flow/objects/asap7/ibex/base/lib/merged.lib'
+    config.sta_libraries = f'\
     {asap7_path}/asap7sc7p5t_AO_RVT_FF_nldm_211120.lib.gz \
     {asap7_path}/asap7sc7p5t_INVBUF_RVT_FF_nldm_220122.lib.gz \
     {asap7_path}/asap7sc7p5t_OA_RVT_FF_nldm_211120.lib.gz \
@@ -89,15 +89,15 @@ def _do_config_kAsap7(config: WorkerConfig):
 
 def _do_config_kNangate45(config: WorkerConfig):
     nangate45_path = f'{config.openroad_path}/flow/platforms/nangate45/lib'
-    config.synthesis_libraies = f'{nangate45_path}/NangateOpenCellLibrary_typical.lib'
-    config.sta_libraies = f'{nangate45_path}/NangateOpenCellLibrary_typical.lib'
+    config.synthesis_libraries = f'{nangate45_path}/NangateOpenCellLibrary_typical.lib'
+    config.sta_libraries = f'{nangate45_path}/NangateOpenCellLibrary_typical.lib'
     config.client_args = '--max_width=8 --min_freq_mhz=1000 --max_freq_mhz=11000'
 
 
 def _do_config_kSky130(config: WorkerConfig):
     sky130_path = f'{config.openroad_path}/flow/platforms/sky130hd/lib'
-    config.synthesis_libraies = f'{sky130_path}/sky130_fd_sc_hd__tt_025C_1v80.lib'
-    config.sta_libraies = f'{sky130_path}/sky130_fd_sc_hd__tt_025C_1v80.lib'
+    config.synthesis_libraries = f'{sky130_path}/sky130_fd_sc_hd__tt_025C_1v80.lib'
+    config.sta_libraries = f'{sky130_path}/sky130_fd_sc_hd__tt_025C_1v80.lib'
     config.client_args = '--max_width=8 --min_freq_mhz=1000 --max_freq_mhz=11000'
 
 
@@ -110,9 +110,9 @@ def _do_worker_task(config: WorkerConfig):
 
     server = f'{config.bazel_path}/xls/synthesis/yosys/yosys_sta_server_main \
     --yosys_path={config.yosys_bin} \
-    --synthesis_libraies="{config.synthesis_libraies}" \
+    --synthesis_libraries="{config.synthesis_libraries}" \
     --sta_path={config.sta_bin} \
-    --sta_libraies="{config.sta_libraies}" \
+    --sta_libraries="{config.sta_libraries}" \
     --port={config.rpc_port} \
     {config.server_extra_args}'
 

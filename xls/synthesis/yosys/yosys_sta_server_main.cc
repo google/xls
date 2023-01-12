@@ -49,12 +49,12 @@ ABSL_FLAG(int32_t, port, 10000, "Port to listen on.");
 ABSL_FLAG(std::string, yosys_path, "", "The path to the yosys binary.");
 ABSL_FLAG(std::string, sta_path, "", "The path to the sta binary.");
 
-ABSL_FLAG(std::string, synthesis_libraies, "",
+ABSL_FLAG(std::string, synthesis_libraries, "",
           "The technology library file to target for synthesis; *.lib");
 
 ABSL_FLAG(
-    std::string, sta_libraies, "",
-    "The technology library/libraies file to target for STA; *.lib * lib.gz");
+    std::string, sta_libraries, "",
+    "The technology library/libraries file to target for STA; *.lib * lib.gz");
 
 ABSL_FLAG(bool, save_temps, false, "Do not delete temporary files.");
 
@@ -71,12 +71,12 @@ class YosysStaServiceImpl : public SynthesisService::Service {
  public:
   explicit YosysStaServiceImpl(std::string_view yosys_path,
                                std::string_view sta_path,
-                               std::string_view synthesis_libraies,
-                               std::string_view sta_libraies)
+                               std::string_view synthesis_libraries,
+                               std::string_view sta_libraries)
       : yosys_path_(yosys_path),
         sta_path_(sta_path),
-        synthesis_libraies_(synthesis_libraies),
-        sta_libraies_(sta_libraies) {}
+        synthesis_libraries_(synthesis_libraries),
+        sta_libraries_(sta_libraries) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,
                          const CompileRequest* request,
@@ -142,17 +142,17 @@ class YosysStaServiceImpl : public SynthesisService::Service {
         absl::StrFormat("read_verilog %s ;", verilog_path.string());
     const std::string read_synthesis_libraries = absl::StrFormat(
         "read_liberty -lib -ignore_miss_dir -setattr blackbox %s ;",
-        synthesis_libraies_);
+        synthesis_libraries_);
 
     const std::string perform_generic_synthesis =
         absl::StrFormat("synth -top %s ;", request->top_module_name());
     ;
     const std::string perform_ff_mapping =
-        absl::StrFormat("dfflibmap -liberty %s; opt ;", synthesis_libraies_);
+        absl::StrFormat("dfflibmap -liberty %s; opt ;", synthesis_libraries_);
     const std::string perform_abc_mapping = absl::StrFormat(
         "abc -D %s -liberty %s -script "
         "+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s -showtmp ;",
-        delay_target, synthesis_libraies_, delay_target, delay_target);
+        delay_target, synthesis_libraries_, delay_target, delay_target);
     const std::string perform_cleanup =
         absl::StrFormat("setundef -zero ; splitnets ;");
     const std::string perform_optimizations =
@@ -195,7 +195,7 @@ class YosysStaServiceImpl : public SynthesisService::Service {
     std::string delay_target = absl::StrCat(clock_period_ps);
 
     const std::string setup_libraries =
-        absl::StrFormat("set LIB_FILES { %s }", sta_libraies_);
+        absl::StrFormat("set LIB_FILES { %s }", sta_libraries_);
     const std::string read_libraries = absl::StrFormat(
         "foreach libFile $LIB_FILES { read_liberty $libFile }");
     const std::string read_verilog_netlist =
@@ -350,8 +350,8 @@ set_output_delay [expr $clk_period * $clk_io_pct] -clock op_clk [all_outputs] ; 
  private:
   std::string yosys_path_;
   std::string sta_path_;
-  std::string synthesis_libraies_;
-  std::string sta_libraies_;
+  std::string synthesis_libraries_;
+  std::string sta_libraries_;
 };
 
 void RealMain() {
@@ -364,15 +364,15 @@ void RealMain() {
   std::string sta_path = absl::GetFlag(FLAGS_sta_path);
   XLS_QCHECK_OK(FileExists(sta_path));
 
-  std::string synthesis_libraies = absl::GetFlag(FLAGS_synthesis_libraies);
-  XLS_QCHECK(!synthesis_libraies.empty())
-      << "-synthesis_libraies must be provided";
+  std::string synthesis_libraries = absl::GetFlag(FLAGS_synthesis_libraries);
+  XLS_QCHECK(!synthesis_libraries.empty())
+      << "-synthesis_libraries must be provided";
 
-  std::string sta_libraies = absl::GetFlag(FLAGS_sta_libraies);
-  XLS_QCHECK(!sta_libraies.empty()) << "-sta_libraies must be provided";
+  std::string sta_libraries = absl::GetFlag(FLAGS_sta_libraries);
+  XLS_QCHECK(!sta_libraries.empty()) << "-sta_libraries must be provided";
 
-  YosysStaServiceImpl service(yosys_path, sta_path, synthesis_libraies,
-                              sta_libraies);
+  YosysStaServiceImpl service(yosys_path, sta_path, synthesis_libraries,
+                              sta_libraries);
 
   ::grpc::ServerBuilder builder;
   std::shared_ptr<::grpc::ServerCredentials> creds = GetServerCredentials();
@@ -381,8 +381,8 @@ void RealMain() {
   std::unique_ptr<::grpc::Server> server(builder.BuildAndStart());
 
   XLS_LOG(INFO) << "Serving on port: " << port;
-  XLS_LOG(INFO) << "synthesis_libraies: " << synthesis_libraies;
-  XLS_LOG(INFO) << "sta_libraies: " << sta_libraies;
+  XLS_LOG(INFO) << "synthesis_libraries: " << synthesis_libraries;
+  XLS_LOG(INFO) << "sta_libraries: " << sta_libraries;
 
   server->Wait();
 }
