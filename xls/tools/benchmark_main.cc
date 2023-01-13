@@ -375,16 +375,15 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
     std::string stage_str = absl::StrFormat(
         "  [Stage %2d] flops: %4d (%4d dups, %4d constant)\n", i,
         flops_per_stage[i], duplicates_per_stage[i], constants_per_stage[i]);
+
+    // Horizontally offset the information about the logic in the stage from
+    // the information about stage registers to make it easier to scan the
+    // information vertically without register and logic info intermixing.
+    std::cout << std::string(stage_str.size(), ' ');
+    std::cout << absl::StreamFormat("nodes: %4d, delay: %4dps\n",
+                                    schedule.nodes_in_cycle(i).size(),
+                                    delay_per_stage[i]);
     std::cout << stage_str;
-    if (i != schedule.length()) {
-      // Horizontally offset the information about the logic in the stage from
-      // the information about stage registers to make it easier to scan the
-      // information vertically without register and logic info intermixing.
-      std::cout << std::string(stage_str.size(), ' ');
-      std::cout << absl::StreamFormat("nodes: %4d, delay: %4dps\n",
-                                      schedule.nodes_in_cycle(i + 1).size(),
-                                      delay_per_stage[i + 1]);
-    }
   }
   std::cout << absl::StreamFormat(
       "Total pipeline flops: %d (%d dups, %4d constant)\n", total_flops,
