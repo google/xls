@@ -140,18 +140,17 @@ class ParametricInstantiator {
   virtual absl::StatusOr<TypeAndBindings> Instantiate() = 0;
 
  protected:
-  // Binds param_type via arg_type, updating 'symbolic_bindings_'.
+  // Binds param_type via arg_type, updating 'parametric_env_'.
   absl::StatusOr<std::unique_ptr<ConcreteType>> InstantiateOneArg(
       int64_t i, const ConcreteType& param_type, const ConcreteType& arg_type);
 
   // Verifies all constraints and then resolves possibly-parametric type
-  // 'annotated' via 'symbolic_bindings_'.
+  // 'annotated' via 'parametric_env_'.
   absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
       const ConcreteType& annotated);
 
-  const absl::flat_hash_map<std::string, InterpValue>& symbolic_bindings()
-      const {
-    return symbolic_bindings_;
+  const absl::flat_hash_map<std::string, InterpValue>& parametric_env() const {
+    return parametric_env_;
   }
 
   absl::Span<const InstantiateArg> args() const { return args_; }
@@ -178,7 +177,7 @@ class ParametricInstantiator {
   // param_type according to arg_type.
   //
   // e.g. for SymbolicBindBits, if the formal argument is `x: uN[N]` and the
-  // actual argument is a u32, we'll bind `N=32` in the `symbolic_bindings_`
+  // actual argument is a u32, we'll bind `N=32` in the `parametric_env_`
   // map.
   template <typename T>
   absl::Status SymbolicBindDims(const T& param_type, const T& arg_type);
@@ -220,7 +219,7 @@ class ParametricInstantiator {
 
   absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
       parametric_binding_types_;
-  absl::flat_hash_map<std::string, InterpValue> symbolic_bindings_;
+  absl::flat_hash_map<std::string, InterpValue> parametric_env_;
 };
 
 // Instantiates a parametric function invocation.

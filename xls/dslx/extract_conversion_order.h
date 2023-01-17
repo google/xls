@@ -17,7 +17,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -76,7 +76,7 @@ class Callee {
   // converted to IR.
   static absl::StatusOr<Callee> Make(Function* f, const Invocation* invocation,
                                      Module* m, TypeInfo* type_info,
-                                     SymbolicBindings sym_bindings,
+                                     ParametricEnv parametric_env,
                                      std::optional<ProcId> proc_id);
 
   bool IsFunction() const;
@@ -84,21 +84,21 @@ class Callee {
   const Invocation* invocation() const { return invocation_; }
   Module* m() const { return m_; }
   TypeInfo* type_info() const { return type_info_; }
-  const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
+  const ParametricEnv& parametric_env() const { return parametric_env_; }
   // If nullopt is returned, that means that this isn't a proc function.
   const std::optional<ProcId>& proc_id() const { return proc_id_; }
   std::string ToString() const;
 
  private:
   Callee(Function* f, const Invocation* invocation, Module* m,
-         TypeInfo* type_info, SymbolicBindings sym_bindings,
+         TypeInfo* type_info, ParametricEnv parametric_env,
          std::optional<ProcId> proc_id);
 
   Function* f_;
   const Invocation* invocation_;
   Module* m_;
   TypeInfo* type_info_;
-  SymbolicBindings sym_bindings_;
+  ParametricEnv parametric_env_;
   std::optional<ProcId> proc_id_;
 };
 
@@ -114,29 +114,27 @@ class Callee {
 //   type_info: Node to type mapping for use in converting this
 //     function instance.
 //   callees: Function names that 'f' calls.
-//   symbolic_bindings: Parametric bindings for this function instance.
+//   parametric_env: Parametric bindings for this function instance.
 //   callees: Functions that this instance calls.
 class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, const Invocation* invocation, Module* module,
-      TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+      TypeInfo* type_info, ParametricEnv parametric_env,
       std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top);
 
-  // Integrity-checks that the symbolic_bindings provided are sufficient to
+  // Integrity-checks that the parametric_env provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
   // if they are not sufficient.
-  static absl::Status ValidateParametrics(
-      Function* f, const SymbolicBindings& symbolic_bindings);
+  static absl::Status ValidateParametrics(Function* f,
+                                          const ParametricEnv& parametric_env);
 
   Function* f() const { return f_; }
   const Invocation* invocation() const { return invocation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
-  const SymbolicBindings& symbolic_bindings() const {
-    return symbolic_bindings_;
-  }
+  const ParametricEnv& parametric_env() const { return parametric_env_; }
   const std::vector<Callee>& callees() const { return callees_; }
   std::optional<ProcId> proc_id() const { return proc_id_; }
   bool HasProcId() const { return proc_id_.has_value(); }
@@ -146,14 +144,14 @@ class ConversionRecord {
 
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
-                   TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+                   TypeInfo* type_info, ParametricEnv parametric_env,
                    std::vector<Callee> callees, std::optional<ProcId> proc_id,
                    bool is_top)
       : f_(f),
         invocation_(invocation),
         module_(module),
         type_info_(type_info),
-        symbolic_bindings_(std::move(symbolic_bindings)),
+        parametric_env_(std::move(parametric_env)),
         callees_(std::move(callees)),
         proc_id_(proc_id),
         is_top_(is_top) {}
@@ -162,7 +160,7 @@ class ConversionRecord {
   const Invocation* invocation_;
   Module* module_;
   TypeInfo* type_info_;
-  SymbolicBindings symbolic_bindings_;
+  ParametricEnv parametric_env_;
   std::vector<Callee> callees_;
   std::optional<ProcId> proc_id_;
   bool is_top_;

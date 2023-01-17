@@ -21,9 +21,9 @@
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
-#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/typecheck.h"
 
@@ -83,7 +83,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, attr));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             SymbolicBindings(), attr, type));
+                                             ParametricEnv(), attr, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(attr));
   EXPECT_EQ(value.GetBitValueInt64().value(), 14);
 }
@@ -103,7 +103,7 @@ const kFoo = u32:7;
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, number));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             SymbolicBindings(), number, type));
+                                             ParametricEnv(), number, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(number));
   EXPECT_EQ(value.GetBitValueInt64().value(), 7);
 }
@@ -128,7 +128,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, cast));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             SymbolicBindings(), cast, type));
+                                             ParametricEnv(), cast, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(cast));
   EXPECT_EQ(value.GetBitValueInt64().value(), 13);
 }
@@ -149,8 +149,8 @@ fn main() -> u32 {
   Ternary* ternary = down_cast<Ternary*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, ternary));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &test_data.import_data, type_info, SymbolicBindings(), ternary, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             ParametricEnv(), ternary, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(ternary));
   EXPECT_EQ(value.GetBitValueInt64().value(), 500);
 }
@@ -179,8 +179,8 @@ fn Foo() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             SymbolicBindings(),
-                                             struct_instance, type));
+                                             ParametricEnv(), struct_instance,
+                                             type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            type_info->GetConstExpr(struct_instance));
   InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
@@ -215,8 +215,8 @@ fn main() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             SymbolicBindings(),
-                                             struct_instance, type));
+                                             ParametricEnv(), struct_instance,
+                                             type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            type_info->GetConstExpr(struct_instance));
   InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
@@ -249,8 +249,8 @@ fn main() -> u32 {
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), colon_ref, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), colon_ref, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(colon_ref));
   EXPECT_EQ(value.GetBitValueInt64().value(), 100);
@@ -283,8 +283,8 @@ fn main() -> imported::MyEnum {
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), colon_ref, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), colon_ref, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(colon_ref));
   EXPECT_EQ(value.GetBitValueInt64().value(), 3);
@@ -310,7 +310,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
-                                             SymbolicBindings(), index, type));
+                                             ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(index));
   EXPECT_EQ(value.GetBitValueInt64().value(), 300);
@@ -336,7 +336,7 @@ fn main() -> u16 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
-                                             SymbolicBindings(), index, type));
+                                             ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(index));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0xadbe);
@@ -362,7 +362,7 @@ fn main() -> u16 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
-                                             SymbolicBindings(), index, type));
+                                             ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(index));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0xadbe);
@@ -390,8 +390,8 @@ fn main() -> (u32, u32, u32) {
 
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_tuple));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_tuple, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_tuple, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_tuple));
   EXPECT_EQ(value, InterpValue::MakeTuple(elements));
@@ -419,7 +419,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, match));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
-                                             SymbolicBindings(), match, type));
+                                             ParametricEnv(), match, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(match));
   EXPECT_EQ(value.GetBitValueUint64().value(), 2);
@@ -444,8 +444,8 @@ fn main() -> u32 {
   For* xls_for = down_cast<For*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_for, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0x1c);
@@ -471,8 +471,8 @@ fn main() -> u32 {
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_for, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0x5f794);
@@ -497,8 +497,8 @@ fn main() -> u32 {
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_for, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0xbf0b);
@@ -528,8 +528,8 @@ fn main() -> u32 {
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_for, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueUint64().value(), 0xbf23);
@@ -553,7 +553,7 @@ fn main() -> s32 {
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, unop));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
-                                             SymbolicBindings(), unop, type));
+                                             ParametricEnv(), unop, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, tm.type_info->GetConstExpr(unop));
   EXPECT_EQ(value.GetBitValueInt64().value(), -1337);
 }
@@ -581,8 +581,8 @@ fn main() -> u32 {
   For* xls_for = down_cast<For*>(let->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             ParametricEnv(), xls_for, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueInt64().value(), 6);
@@ -603,7 +603,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
-      &import_data, tm.type_info, SymbolicBindings(), f->body(), nullptr));
+      &import_data, tm.type_info, ParametricEnv(), f->body(), nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(f->body()));
   EXPECT_EQ(value.GetBitValueInt64().value(), 32);

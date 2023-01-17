@@ -66,7 +66,7 @@ using SignatureFn = std::function<absl::StatusOr<TypeAndBindings>(
 // The returned function is then invoked (conceptually) as:
 //
 //     fsignature = get_fsignature(builtin_name)
-//     fn_type, symbolic_bindings = fsignature(arg_types, builtin_name,
+//     fn_type, parametric_env = fsignature(arg_types, builtin_name,
 //                                             invocation_span)
 //
 // Where the second line provides the argument types presented to the builtin.

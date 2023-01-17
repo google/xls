@@ -55,11 +55,11 @@ fn main() -> u32 { f(u2:0) }
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "f");
-  EXPECT_EQ(order[0].symbolic_bindings(),
-            SymbolicBindings(absl::flat_hash_map<std::string, InterpValue>{
+  EXPECT_EQ(order[0].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[1].f()->identifier(), "main");
-  EXPECT_EQ(order[1].symbolic_bindings(), SymbolicBindings());
+  EXPECT_EQ(order[1].parametric_env(), ParametricEnv());
 }
 
 TEST(ExtractConversionOrderTest, TransitiveParametric) {
@@ -76,15 +76,15 @@ fn main() -> u32 { f(u2:0) }
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(3, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
-  order[0].symbolic_bindings(),
-      SymbolicBindings(absl::flat_hash_map<std::string, InterpValue>{
+  order[0].parametric_env(),
+      ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
           {"M", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}});
   EXPECT_EQ(order[1].f()->identifier(), "f");
-  EXPECT_EQ(order[1].symbolic_bindings(),
-            SymbolicBindings(absl::flat_hash_map<std::string, InterpValue>{
+  EXPECT_EQ(order[1].parametric_env(),
+            ParametricEnv(absl::flat_hash_map<std::string, InterpValue>{
                 {"N", InterpValue::MakeUBits(/*bit_count=*/32, /*value=*/2)}}));
   EXPECT_EQ(order[2].f()->identifier(), "main");
-  EXPECT_EQ(order[2].symbolic_bindings(), SymbolicBindings());
+  EXPECT_EQ(order[2].parametric_env(), ParametricEnv());
 }
 
 TEST(ExtractConversionOrderTest, BuiltinIsElided) {
@@ -99,7 +99,7 @@ fn main() -> u32 { fail!("failure", u32:0) }
                            GetOrder(tm.module, tm.type_info));
   ASSERT_EQ(1, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "main");
-  EXPECT_EQ(order[0].symbolic_bindings(), SymbolicBindings());
+  EXPECT_EQ(order[0].parametric_env(), ParametricEnv());
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionWithFunctions) {

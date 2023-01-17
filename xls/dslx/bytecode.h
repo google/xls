@@ -25,8 +25,8 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/pos.h"
-#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/format_strings.h"
 
@@ -182,7 +182,7 @@ class Bytecode {
     const Invocation* invocation;
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.
-    std::optional<SymbolicBindings> bindings;
+    std::optional<ParametricEnv> bindings;
   };
 
   // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
@@ -245,7 +245,7 @@ class Bytecode {
 
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.
-    std::optional<SymbolicBindings> caller_bindings;
+    std::optional<ParametricEnv> caller_bindings;
   };
 
   using TraceData = std::vector<FormatStep>;

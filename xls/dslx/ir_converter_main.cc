@@ -122,7 +122,7 @@ static absl::Status AddPathToPackage(
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
         module.get(), entry.value(), /*import_data=*/&import_data,
-        /*symbolic_bindings=*/nullptr, convert_options, package));
+        /*parametric_env=*/nullptr, convert_options, package));
   } else {
     XLS_RETURN_IF_ERROR(
         ConvertModuleIntoPackage(module.get(), &import_data, convert_options,

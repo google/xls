@@ -16,7 +16,7 @@
 #define XLS_DSLX_MANGLE_H_
 
 #include "xls/dslx/ast.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -41,7 +41,7 @@ absl::StatusOr<std::string> MangleDslxName(
     std::string_view module_name, std::string_view function_name,
     CallingConvention convention,
     const absl::btree_set<std::string>& free_keys = {},
-    const SymbolicBindings* symbolic_bindings = nullptr);
+    const ParametricEnv* parametric_env = nullptr);
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_MANGLE_H_

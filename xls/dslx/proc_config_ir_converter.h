@@ -50,8 +50,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
  public:
   ProcConfigIrConverter(Package* package, Function* f, TypeInfo* type_info,
                         ImportData* import_data, ProcConversionData* proc_data,
-                        const SymbolicBindings& bindings,
-                        const ProcId& proc_id);
+                        const ParametricEnv& bindings, const ProcId& proc_id);
 
   absl::Status HandleBlock(const Block* node) override;
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
@@ -79,7 +78,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   ProcConversionData* proc_data_;
   absl::flat_hash_map<std::vector<Proc*>, int> instances_;
 
-  const SymbolicBindings& bindings_;
+  const ParametricEnv& bindings_;
   ProcId proc_id_;
 
   absl::flat_hash_map<const AstNode*, ProcConfigValue> node_to_ir_;

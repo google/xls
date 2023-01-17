@@ -22,7 +22,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_converter.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/jit/function_jit.h"
@@ -51,7 +51,7 @@ class RunComparator {
   absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
                              const Function* f,
                              absl::Span<InterpValue const> args,
-                             const SymbolicBindings* symbolic_bindings,
+                             const ParametricEnv* parametric_env,
                              const InterpValue& got);
 
   // Returns the cached or newly-compiled jit function for ir_name.  ir_name has

@@ -17,7 +17,7 @@
 #include "absl/status/status.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -30,15 +30,14 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   // updates `type_info` accordingly. Returns success as long as no error
   // occurred during evaluation, even if `expr` is non-constexpr.
   static absl::Status Evaluate(ImportData* import_data, TypeInfo* type_info,
-                               const SymbolicBindings& bindings,
-                               const Expr* expr,
+                               const ParametricEnv& bindings, const Expr* expr,
                                const ConcreteType* concrete_type = nullptr);
 
   // Performs the same action as `Evaluate`, but returns the resulting constexpr
   // value. Returns an error status if `expr` is non-constexpr.
   static absl::StatusOr<InterpValue> EvaluateToValue(
       ImportData* import_data, TypeInfo* type_info,
-      const SymbolicBindings& bindings, const Expr* expr,
+      const ParametricEnv& bindings, const Expr* expr,
       const ConcreteType* concrete_type = nullptr);
 
   // A concrete type is only necessary when:
@@ -112,8 +111,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
  private:
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
-                     SymbolicBindings bindings,
-                     const ConcreteType* concrete_type)
+                     ParametricEnv bindings, const ConcreteType* concrete_type)
       : import_data_(import_data),
         type_info_(type_info),
         bindings_(bindings),
@@ -132,7 +130,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
   ImportData* import_data_;
   TypeInfo* type_info_;
-  SymbolicBindings bindings_;
+  ParametricEnv bindings_;
   const ConcreteType* concrete_type_;
 };
 
@@ -153,7 +151,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 // AIUI, they're the only reason this is needed.
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
-    const SymbolicBindings& symbolic_bindings,
+    const ParametricEnv& parametric_env,
     absl::flat_hash_set<const NameDef*> bypass_env = {});
 
 }  // namespace xls::dslx

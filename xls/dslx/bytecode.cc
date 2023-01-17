@@ -488,8 +488,7 @@ absl::StatusOr<Bytecode::InvocationData> Bytecode::invocation_data() const {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!std::holds_alternative<InvocationData>(data_.value())) {
-    return absl::InvalidArgumentError(
-        "Bytecode data is not a SymbolicBindings.");
+    return absl::InvalidArgumentError("Bytecode data is not a ParametricEnv.");
   }
 
   return std::get<InvocationData>(data_.value());

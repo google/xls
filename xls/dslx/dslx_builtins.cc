@@ -509,7 +509,7 @@ static void PopulateSignatureToLambdaMap(
     return TypeAndBindings{
         std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
                                        std::move(return_type)),
-        tab.symbolic_bindings};
+        tab.parametric_env};
   };
   map["(u8[N], u1) -> ()"] =
       [](const SignatureData& data,

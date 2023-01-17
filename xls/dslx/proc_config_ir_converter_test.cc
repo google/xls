@@ -60,7 +60,7 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  SymbolicBindings bindings;
+  ParametricEnv bindings;
   ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -115,7 +115,7 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  SymbolicBindings bindings;
+  ParametricEnv bindings;
   ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
 
   XLS_ASSERT_OK_AND_ASSIGN(

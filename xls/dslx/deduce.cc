@@ -42,7 +42,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
                        BytecodeEmitter::EmitExpression(
                            ctx->import_data(), ctx->type_info(), expr, env,
-                           ctx->fn_stack().back().symbolic_bindings()));
+                           ctx->fn_stack().back().parametric_env()));
 
   return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
                                         /*args=*/{});
@@ -144,9 +144,9 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
   return absl::OkStatus();
 }
 
-SymbolicBindings GetCurrentSymbolicBindings(DeduceCtx* ctx) {
-  return ctx->fn_stack().empty() ? SymbolicBindings()
-                                 : ctx->fn_stack().back().symbolic_bindings();
+ParametricEnv GetCurrentParametricEnv(DeduceCtx* ctx) {
+  return ctx->fn_stack().empty() ? ParametricEnv()
+                                 : ctx->fn_stack().back().parametric_env();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
@@ -194,7 +194,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   std::optional<FnCtx> fn_ctx;
   if (peek_entry.f() != nullptr) {
     fn_ctx.emplace(FnCtx{peek_entry.module()->name(), peek_entry.name(),
-                         peek_entry.symbolic_bindings()});
+                         peek_entry.parametric_env()});
   }
 
   ctx->type_info()->SetItem(node, *result);
@@ -203,7 +203,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
       ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentSymbolicBindings(ctx),
+                                          GetCurrentParametricEnv(ctx),
                                           node->value(), result.get()));
   ctx->type_info()->NoteConstExpr(node, constexpr_value);
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
@@ -234,7 +234,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   XLS_ASSIGN_OR_RETURN(
       InterpValue index_value,
       ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentSymbolicBindings(ctx),
+                                          GetCurrentParametricEnv(ctx),
                                           node->index(), index_type.get()));
   XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueUint64());
   if (index >= tuple_type->size()) {
@@ -273,7 +273,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
                                                            DeduceCtx* ctx) {
   std::unique_ptr<ConcreteType> concrete_type;
-  SymbolicBindings bindings = GetCurrentSymbolicBindings(ctx);
+  ParametricEnv bindings = GetCurrentParametricEnv(ctx);
   if (node->type_annotation() == nullptr) {
     switch (node->number_kind()) {
       case NumberKind::kBool: {
@@ -622,7 +622,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
       XLS_RETURN_IF_ERROR(ValidateNumber(*number, *type));
       ctx->type_info()->SetItem(number, *type);
       XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+          ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
           number, type.get()));
     } else {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
@@ -637,8 +637,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(),
-            GetCurrentSymbolicBindings(ctx), member.value, nullptr));
+            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
+            member.value, nullptr));
     members.push_back(value);
   }
 
@@ -725,7 +725,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
 
   std::optional<InterpValue> maybe_constexpr_value;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
       node->rhs(), rhs.get()));
   if (ctx->type_info()->IsKnownConstExpr(node->rhs())) {
     XLS_ASSIGN_OR_RETURN(maybe_constexpr_value,
@@ -942,7 +942,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     // Need to constexpr evaluate here - while we have the concrete type - or
     // else we'd infer the wrong array size.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
         node, array_type));
     return annotated;
   }
@@ -1257,7 +1257,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
     ctx->type_info()->SetItem(start, *resolved_start_type);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
         start_number, resolved_start_type.get()));
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
@@ -1377,7 +1377,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
       env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), node,
-                            ctx->fn_stack().back().symbolic_bindings()));
+                            ctx->fn_stack().back().parametric_env()));
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = std::get<Slice*>(node->rhs());
@@ -1416,8 +1416,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
       std::optional<int64_t> limit,
       TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
 
-  const SymbolicBindings& fn_symbolic_bindings =
-      ctx->fn_stack().back().symbolic_bindings();
+  const ParametricEnv& fn_parametric_env =
+      ctx->fn_stack().back().parametric_env();
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim lhs_bit_count_ctd,
                        lhs_type->GetTotalBitCount());
   int64_t bit_count;
@@ -1426,7 +1426,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     auto& owned_parametric =
         std::get<ConcreteTypeDim::OwnedParametric>(lhs_bit_count_ctd.value());
     ParametricExpression::Evaluated evaluated =
-        owned_parametric->Evaluate(ToParametricEnv(fn_symbolic_bindings));
+        owned_parametric->Evaluate(ToParametricEnv(fn_parametric_env));
     InterpValue v = std::get<InterpValue>(evaluated);
     bit_count = v.IsSigned() ? v.GetBitValueInt64().value()
                              : v.GetBitValueUint64().value();
@@ -1435,7 +1435,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   }
   XLS_ASSIGN_OR_RETURN(StartAndWidth saw,
                        ResolveBitSliceIndices(bit_count, start, limit));
-  ctx->type_info()->AddSliceStartAndWidth(slice, fn_symbolic_bindings, saw);
+  ctx->type_info()->AddSliceStartAndWidth(slice, fn_parametric_env, saw);
 
   // Make sure the start and end types match and that the limit fits.
   std::unique_ptr<ConcreteType> start_type;
@@ -1931,7 +1931,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
       dynamic_cast<const ConstRef*>(dim_expr) == nullptr) {
     std::unique_ptr<ParametricSymbol> sym;
     absl::flat_hash_map<std::string, InterpValue> bindings =
-        ctx->fn_stack().back().symbolic_bindings().ToMap();
+        ctx->fn_stack().back().parametric_env().ToMap();
     if (bindings.contains(name_ref->identifier())) {
       InterpValue dim_value = bindings.at(name_ref->identifier());
       XLS_RET_CHECK(dim_value.IsBits());
@@ -1962,7 +1962,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
 
   XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
       dim_expr, dim_type.get()));
   if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
@@ -1975,7 +1975,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
   absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
       env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), dim_expr,
-                            ctx->fn_stack().back().symbolic_bindings()));
+                            ctx->fn_stack().back().parametric_env()));
   absl::StatusOr<InterpValue> value_or = InterpretExpr(ctx, dim_expr, env);
   if (!value_or.ok()) {
     return TypeInferenceErrorStatus(
@@ -2313,12 +2313,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   XLS_ASSIGN_OR_RETURN(
       InterpValue start_value,
       ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentSymbolicBindings(ctx),
+                                          GetCurrentParametricEnv(ctx),
                                           node->start(), start_type.get()));
   XLS_ASSIGN_OR_RETURN(
       InterpValue end_value,
       ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentSymbolicBindings(ctx),
+                                          GetCurrentParametricEnv(ctx),
                                           node->end(), end_type.get()));
 
   InterpValue array_size = InterpValue::MakeUnit();
@@ -2494,10 +2494,10 @@ absl::StatusOr<TypeAndBindings> DeduceInstantiation(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                                                           DeduceCtx* ctx) {
-  const SymbolicBindings& caller_symbolic_bindings =
-      ctx->fn_stack().back().symbolic_bindings();
+  const ParametricEnv& caller_parametric_env =
+      ctx->fn_stack().back().parametric_env();
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString()
-              << " caller symbolic bindings: " << caller_symbolic_bindings;
+              << " caller symbolic bindings: " << caller_parametric_env;
 
   auto resolve_proc = [](const Instantiation* node,
                          DeduceCtx* ctx) -> absl::StatusOr<Proc*> {
@@ -2551,11 +2551,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   XLS_RET_CHECK_EQ(node->config()->args().size(),
                    proc->config()->params().size());
   for (int i = 0; i < node->config()->args().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             ctx->import_data(), ctx->type_info(),
-                             GetCurrentSymbolicBindings(ctx),
-                             node->config()->args()[i], nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(
+            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
+            node->config()->args()[i], nullptr));
     constexpr_env.insert({proc->config()->params()[i], value});
   }
 
@@ -2564,7 +2564,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // it and the ConstexprEvaluator, so we have to do it eagerly here.
   // Un-wind that, if possible.
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
+      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
       down_cast<Invocation*>(node->next()->args()[0]),
       /*concrete_type=*/nullptr));
 
@@ -2574,7 +2574,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * config_ti,
                        ctx->type_info()->GetInvocationTypeInfoOrError(
-                           node->config(), tab.symbolic_bindings));
+                           node->config(), tab.parametric_env));
 
   // Now we need to get the [constexpr] Proc member values so we can set them
   // when typechecking the `next` function. Those values are the elements in the
@@ -2600,7 +2600,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   for (int i = 0; i < tuple->members().size(); i++) {
     XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
                                                 ctx->import_data(), config_ti,
-                                                GetCurrentSymbolicBindings(ctx),
+                                                GetCurrentParametricEnv(ctx),
                                                 tuple->members()[i], nullptr));
     constexpr_env.insert({proc->members()[i], value});
   }
@@ -2626,16 +2626,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
                                                    /*constexpr_env=*/{}));
-  const SymbolicBindings& caller_bindings =
-      ctx->fn_stack().back().symbolic_bindings();
+  const ParametricEnv& caller_bindings =
+      ctx->fn_stack().back().parametric_env();
   ctx->type_info()->AddInvocationCallBindings(node, caller_bindings,
-                                                 tab.symbolic_bindings);
+                                              tab.parametric_env);
 
   std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
-      element_invocation, tab.symbolic_bindings);
+      element_invocation, tab.parametric_env);
   if (dti.has_value()) {
-    ctx->type_info()->SetInvocationTypeInfo(node, tab.symbolic_bindings,
-                                               dti.value());
+    ctx->type_info()->SetInvocationTypeInfo(node, tab.parametric_env,
+                                            dti.value());
   }
 
   ArrayType* arg0_array_type = dynamic_cast<ArrayType*>(arg0_type.get());
@@ -2883,14 +2883,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
                                                       DeduceCtx* ctx) {
   XLS_RET_CHECK(!ctx->fn_stack().empty());
   const FnStackEntry& entry = ctx->fn_stack().back();
-  const SymbolicBindings& fn_symbolic_bindings = entry.symbolic_bindings();
+  const ParametricEnv& fn_parametric_env = entry.parametric_env();
 
-  return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
+  return type.MapSize([&fn_parametric_env](ConcreteTypeDim dim)
                           -> absl::StatusOr<ConcreteTypeDim> {
     if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
       const auto& parametric =
           std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      ParametricExpression::Env env = ToParametricEnv(fn_symbolic_bindings);
+      ParametricExpression::Env env = ToParametricEnv(fn_parametric_env);
       return ConcreteTypeDim(parametric->Evaluate(env));
     }
     return dim;

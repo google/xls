@@ -34,7 +34,7 @@ namespace xls::dslx {
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
-    const std::optional<SymbolicBindings>& caller_bindings)
+    const std::optional<ParametricEnv>& caller_bindings)
     : import_data_(import_data),
       type_info_(type_info),
       caller_bindings_(caller_bindings) {}
@@ -52,7 +52,7 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function* f,
-                      const std::optional<SymbolicBindings>& caller_bindings) {
+                      const std::optional<ParametricEnv>& caller_bindings) {
   return EmitProcNext(import_data, type_info, f, caller_bindings,
                       /*proc_members=*/{});
 }
@@ -60,7 +60,7 @@ BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitProcNext(
     ImportData* import_data, const TypeInfo* type_info, const Function* f,
-    const std::optional<SymbolicBindings>& caller_bindings,
+    const std::optional<ParametricEnv>& caller_bindings,
     const std::vector<NameDef*>& proc_members) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
   for (const NameDef* name_def : proc_members) {
@@ -192,7 +192,7 @@ class NameDefCollector : public AstNodeVisitor {
 BytecodeEmitter::EmitExpression(
     ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
     const absl::flat_hash_map<std::string, InterpValue>& env,
-    const std::optional<SymbolicBindings>& caller_bindings) {
+    const std::optional<ParametricEnv>& caller_bindings) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
 
   NameDefCollector collector;
@@ -794,11 +794,11 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
   XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
 
-  std::optional<const SymbolicBindings*> maybe_callee_bindings =
+  std::optional<const ParametricEnv*> maybe_callee_bindings =
       type_info_->GetInvocationCalleeBindings(
           node, caller_bindings_.has_value() ? caller_bindings_.value()
-                                             : SymbolicBindings());
-  std::optional<SymbolicBindings> final_bindings = absl::nullopt;
+                                             : ParametricEnv());
+  std::optional<ParametricEnv> final_bindings = absl::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }
@@ -922,7 +922,7 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
     return type_info_->GetConstExpr(cd->value());
   }
 
-  // The value is either a local name or a symbolic binding.
+  // The value is either a local name or a parametric name.
   if (namedef_to_slot_.contains(name_def)) {
     return Bytecode::SlotIndex(namedef_to_slot_.at(name_def));
   }
@@ -1094,12 +1094,12 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
 
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
-  std::optional<const SymbolicBindings*> maybe_callee_bindings =
+  std::optional<const ParametricEnv*> maybe_callee_bindings =
       type_info_->GetInvocationCalleeBindings(node->config(),
-                                                 caller_bindings_.has_value()
-                                                     ? caller_bindings_.value()
-                                                     : SymbolicBindings());
-  std::optional<SymbolicBindings> final_bindings = absl::nullopt;
+                                              caller_bindings_.has_value()
+                                                  ? caller_bindings_.value()
+                                                  : ParametricEnv());
+  std::optional<ParametricEnv> final_bindings = absl::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }

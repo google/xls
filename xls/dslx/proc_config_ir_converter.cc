@@ -21,7 +21,7 @@
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/ir_conversion_utils.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 namespace {
@@ -38,7 +38,7 @@ ProcConfigIrConverter::ProcConfigIrConverter(Package* package, Function* f,
                                              TypeInfo* type_info,
                                              ImportData* import_data,
                                              ProcConversionData* proc_data,
-                                             const SymbolicBindings& bindings,
+                                             const ParametricEnv& bindings,
                                              const ProcId& proc_id)
     : package_(package),
       f_(f),

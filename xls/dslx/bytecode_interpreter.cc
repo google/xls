@@ -30,7 +30,7 @@ namespace xls::dslx {
 
 Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
              const TypeInfo* type_info,
-             const std::optional<SymbolicBindings>& bindings,
+             const std::optional<ParametricEnv>& bindings,
              std::vector<InterpValue> initial_args,
              std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
@@ -123,8 +123,8 @@ absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
       if (fn_return.has_value()) {
         bool fn_returns_value = *fn_return.value() != *ConcreteType::MakeUnit();
         if (post_fn_eval_hook != nullptr && fn_returns_value) {
-          SymbolicBindings holder;
-          const SymbolicBindings* bindings = &holder;
+          ParametricEnv holder;
+          const ParametricEnv* bindings = &holder;
           if (frame->bindings().has_value()) {
             bindings = &frame->bindings().value();
           }
@@ -387,7 +387,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     Function* f, const Invocation* invocation,
-    const std::optional<SymbolicBindings>& caller_bindings) {
+    const std::optional<ParametricEnv>& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* type_info = frame.type_info();
 
@@ -1762,18 +1762,18 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
-    const std::optional<SymbolicBindings>& caller_bindings,
+    const std::optional<ParametricEnv>& caller_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,
     const std::vector<InterpValue>& config_args,
     std::vector<ProcInstance>* proc_instances) {
   const TypeInfo* parent_ti = type_info;
   auto get_parametric_type_info =
       [type_info](const Spawn* spawn, const Invocation* invoc,
-                  const std::optional<SymbolicBindings>& caller_bindings)
+                  const std::optional<ParametricEnv>& caller_bindings)
       -> absl::StatusOr<TypeInfo*> {
     std::optional<TypeInfo*> maybe_type_info = type_info->GetInvocationTypeInfo(
         invoc, caller_bindings.has_value() ? caller_bindings.value()
-                                           : SymbolicBindings());
+                                           : ParametricEnv());
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(
           absl::StrCat("Could not find type info for invocation ",

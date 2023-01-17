@@ -21,7 +21,7 @@ namespace xls::dslx {
 
 std::string InvocationData::ToString() const {
   return absl::StrCat("[",
-                      absl::StrJoin(symbolic_bindings_map, ", ",
+                      absl::StrJoin(parametric_env_map, ", ",
                                     [](std::string* out, const auto& item) {
                                       absl::StrAppendFormat(
                                           out, "%s: %s", item.first.ToString(),
@@ -147,8 +147,8 @@ absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
 }
 
 void TypeInfo::AddInvocationCallBindings(const Invocation* call,
-                                            SymbolicBindings caller,
-                                            SymbolicBindings callee) {
+                                         ParametricEnv caller,
+                                         ParametricEnv callee) {
   XLS_CHECK_EQ(call->owner(), module_);
   TypeInfo* top = GetRoot();
   XLS_VLOG(3) << "Type info " << top
@@ -158,7 +158,7 @@ void TypeInfo::AddInvocationCallBindings(const Invocation* call,
               << " callee: " << callee.ToString();
   auto it = top->invocations_.find(call);
   if (it == top->invocations_.end()) {
-    absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbind_map;
+    absl::flat_hash_map<ParametricEnv, ParametricEnv> symbind_map;
     symbind_map.emplace(std::move(caller), std::move(callee));
     top->invocations_[call] =
         InvocationData{call, std::move(symbind_map)};
@@ -166,7 +166,7 @@ void TypeInfo::AddInvocationCallBindings(const Invocation* call,
   }
   XLS_VLOG(3) << "Adding to existing invocation data.";
   InvocationData& data = it->second;
-  data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
+  data.parametric_env_map.emplace(std::move(caller), std::move(callee));
 }
 
 std::optional<bool> TypeInfo::GetRequiresImplicitToken(
@@ -196,7 +196,7 @@ void TypeInfo::NoteRequiresImplicitToken(const Function* f, bool is_required) {
 }
 
 std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
-    const Invocation* invocation, const SymbolicBindings& caller) const {
+    const Invocation* invocation, const ParametricEnv& caller) const {
   XLS_CHECK_EQ(invocation->owner(), module_)
       << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
@@ -218,7 +218,7 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
 }
 
 absl::StatusOr<TypeInfo*> TypeInfo::GetInvocationTypeInfoOrError(
-    const Invocation* invocation, const SymbolicBindings& caller) const {
+    const Invocation* invocation, const ParametricEnv& caller) const {
   auto maybe_ti = GetInvocationTypeInfo(invocation, caller);
   if (maybe_ti.has_value()) {
     return *maybe_ti;
@@ -230,7 +230,7 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetInvocationTypeInfoOrError(
 }
 
 void TypeInfo::SetInvocationTypeInfo(const Invocation* invocation,
-                                     SymbolicBindings caller,
+                                     ParametricEnv caller,
                                      TypeInfo* type_info) {
   XLS_CHECK_EQ(invocation->owner(), module_);
   TypeInfo* top = GetRoot();
@@ -257,9 +257,8 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
   return top_level_proc_type_info_.at(p);
 }
 
-std::optional<const SymbolicBindings*>
-TypeInfo::GetInvocationCalleeBindings(const Invocation* invocation,
-                                      const SymbolicBindings& caller) const {
+std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
+    const Invocation* invocation, const ParametricEnv& caller) const {
   XLS_CHECK_EQ(invocation->owner(), module_)
       << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
@@ -274,37 +273,37 @@ TypeInfo::GetInvocationCalleeBindings(const Invocation* invocation,
     return absl::nullopt;
   }
   const InvocationData& data = it->second;
-  auto it2 = data.symbolic_bindings_map.find(caller);
-  if (it2 == data.symbolic_bindings_map.end()) {
+  auto it2 = data.parametric_env_map.find(caller);
+  if (it2 == data.parametric_env_map.end()) {
     XLS_VLOG(3)
         << "Could not find caller symbolic bindings in instantiation data: "
         << caller.ToString() << " " << invocation->ToString() << " @ "
         << invocation->span();
     return absl::nullopt;
   }
-  const SymbolicBindings* result = &it2->second;
+  const ParametricEnv* result = &it2->second;
   XLS_VLOG(3) << "Resolved instantiation symbolic bindings for "
               << invocation->ToString() << ": " << result->ToString();
   return result;
 }
 
 void TypeInfo::AddSliceStartAndWidth(Slice* node,
-                                     const SymbolicBindings& symbolic_bindings,
+                                     const ParametricEnv& parametric_env,
                                      StartAndWidth start_width) {
   XLS_CHECK_EQ(node->owner(), module_);
   TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
     top->slices_[node] =
-        SliceData{node, {{symbolic_bindings, std::move(start_width)}}};
+        SliceData{node, {{parametric_env, std::move(start_width)}}};
   } else {
-    top->slices_[node].bindings_to_start_width.emplace(symbolic_bindings,
+    top->slices_[node].bindings_to_start_width.emplace(parametric_env,
                                                        std::move(start_width));
   }
 }
 
 std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
-    Slice* node, const SymbolicBindings& symbolic_bindings) const {
+    Slice* node, const ParametricEnv& parametric_env) const {
   XLS_CHECK_EQ(node->owner(), module_);
   const TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
@@ -312,7 +311,7 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     return absl::nullopt;
   }
   const SliceData& data = it->second;
-  auto it2 = data.bindings_to_start_width.find(symbolic_bindings);
+  auto it2 = data.bindings_to_start_width.find(parametric_env);
   if (it2 == data.bindings_to_start_width.end()) {
     return absl::nullopt;
   }

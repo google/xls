@@ -19,7 +19,7 @@
 
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -42,7 +42,7 @@ struct StartAndWidth {
 // start/width values determined at type inferencing time.
 struct SliceData {
   Slice* node;
-  absl::flat_hash_map<SymbolicBindings, StartAndWidth> bindings_to_start_width;
+  absl::flat_hash_map<ParametricEnv, StartAndWidth> bindings_to_start_width;
 };
 
 // Parametric instantiation information related to an invocation AST node.
@@ -51,10 +51,10 @@ struct InvocationData {
   const Invocation* node;
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
-  absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbolic_bindings_map;
+  absl::flat_hash_map<ParametricEnv, ParametricEnv> parametric_env_map;
   // Type information that is specialized for a particular parametric
   // instantiation of an invocation.
-  absl::flat_hash_map<SymbolicBindings, TypeInfo*> instantiations;
+  absl::flat_hash_map<ParametricEnv, TypeInfo*> instantiations;
 
   std::string ToString() const;
 };
@@ -100,13 +100,12 @@ class TypeInfo {
   TypeInfo* parent() const { return parent_; }
 
   // Notes start/width for a slice operation found during type inference.
-  void AddSliceStartAndWidth(Slice* node,
-                             const SymbolicBindings& symbolic_bindings,
+  void AddSliceStartAndWidth(Slice* node, const ParametricEnv& parametric_env,
                              StartAndWidth start_width);
 
   // Retrieves the start/width pair for a given slice, see comment on SliceData.
   std::optional<StartAndWidth> GetSliceStartAndWidth(
-      Slice* node, const SymbolicBindings& symbolic_bindings) const;
+      Slice* node, const ParametricEnv& parametric_env) const;
 
   // Notes caller/callee relation of symbolic bindings at an invocation.
   //
@@ -118,9 +117,8 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInvocationCallBindings(const Invocation* call,
-                                    SymbolicBindings caller,
-                                    SymbolicBindings callee);
+  void AddInvocationCallBindings(const Invocation* call, ParametricEnv caller,
+                                 ParametricEnv callee);
 
   // Adds derived type info for a parametric invocation.
   //
@@ -137,16 +135,16 @@ class TypeInfo {
   //
   // Note that the type_info may be nullptr in special cases, like when mapping
   // a callee which is not parametric.
-  void SetInvocationTypeInfo(const Invocation* invocation,
-                             SymbolicBindings caller, TypeInfo* type_info);
+  void SetInvocationTypeInfo(const Invocation* invocation, ParametricEnv caller,
+                             TypeInfo* type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
   std::optional<TypeInfo*> GetInvocationTypeInfo(
-      const Invocation* invocation, const SymbolicBindings& caller) const;
+      const Invocation* invocation, const ParametricEnv& caller) const;
   absl::StatusOr<TypeInfo*> GetInvocationTypeInfoOrError(
-      const Invocation* invocation, const SymbolicBindings& caller) const;
+      const Invocation* invocation, const ParametricEnv& caller) const;
 
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
   // not via an instantiation). Can only be called on the module root TypeInfo.
@@ -208,8 +206,8 @@ class TypeInfo {
   // with M=32.
   //
   // When calling a non-parametric callee, the record will be absent.
-  std::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
-      const Invocation* invocation, const SymbolicBindings& caller) const;
+  std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
+      const Invocation* invocation, const ParametricEnv& caller) const;
 
   Module* module() const { return module_; }
 

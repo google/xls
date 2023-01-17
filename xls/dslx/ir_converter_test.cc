@@ -57,7 +57,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
                         /*module_name=*/"test_module", &import_data));
   return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
                             &import_data,
-                            /*symbolic_bindings=*/nullptr, options);
+                            /*parametric_env=*/nullptr, options);
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(

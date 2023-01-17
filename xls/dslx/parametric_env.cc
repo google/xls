@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 
 namespace xls::dslx {
 
-bool SymbolicBindings::operator==(const SymbolicBindings& other) const {
+bool ParametricEnv::operator==(const ParametricEnv& other) const {
   if (bindings_.size() != other.bindings_.size()) {
     return false;
   }
@@ -30,37 +30,37 @@ bool SymbolicBindings::operator==(const SymbolicBindings& other) const {
   }
   return true;
 }
-bool SymbolicBindings::operator!=(const SymbolicBindings& other) const {
+bool ParametricEnv::operator!=(const ParametricEnv& other) const {
   return !(*this == other);
 }
 
-std::string SymbolicBindings::ToString() const {
+std::string ParametricEnv::ToString() const {
   return absl::StrFormat(
       "{%s}", absl::StrJoin(bindings_, ", ",
-                            [](std::string* out, const SymbolicBinding& sb) {
+                            [](std::string* out, const ParametricEnvItem& sb) {
                               absl::StrAppendFormat(out, "%s: %s",
                                                     sb.identifier,
                                                     sb.value.ToString());
                             }));
 }
 
-absl::flat_hash_map<std::string, InterpValue> SymbolicBindings::ToMap() const {
+absl::flat_hash_map<std::string, InterpValue> ParametricEnv::ToMap() const {
   absl::flat_hash_map<std::string, InterpValue> map;
-  for (const SymbolicBinding& binding : bindings_) {
+  for (const ParametricEnvItem& binding : bindings_) {
     map.insert({binding.identifier, binding.value});
   }
   return map;
 }
 
-absl::btree_set<std::string> SymbolicBindings::GetKeySet() const {
+absl::btree_set<std::string> ParametricEnv::GetKeySet() const {
   absl::btree_set<std::string> set;
-  for (const SymbolicBinding& binding : bindings_) {
+  for (const ParametricEnvItem& binding : bindings_) {
     set.insert(binding.identifier);
   }
   return set;
 }
 
-void SymbolicBindings::Sort() {
+void ParametricEnv::Sort() {
   // We'll use the convention that bits types < tuple types < array types.
   // Returns true if lhs < rhs.
   std::sort(

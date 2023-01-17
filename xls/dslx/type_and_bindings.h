@@ -16,13 +16,13 @@
 #define XLS_DSLX_TYPE_AND_BINDINGS_H_
 
 #include "xls/dslx/concrete_type.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 
 struct TypeAndBindings {
   std::unique_ptr<ConcreteType> type;
-  SymbolicBindings symbolic_bindings;
+  ParametricEnv parametric_env;
 };
 
 }  // namespace xls::dslx

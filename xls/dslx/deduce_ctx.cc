@@ -24,7 +24,7 @@ namespace xls::dslx {
 
 std::string FnStackEntry::ToReprString() const {
   return absl::StrFormat("FnStackEntry{\"%s\", %s}", name_,
-                         symbolic_bindings_.ToString());
+                         parametric_env_.ToString());
 }
 
 DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
@@ -44,10 +44,9 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
 
 // Helper that converts the symbolic bindings to a parametric expression
 // environment (for parametric evaluation).
-ParametricExpression::Env ToParametricEnv(
-    const SymbolicBindings& symbolic_bindings) {
+ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env) {
   ParametricExpression::Env env;
-  for (const SymbolicBinding& binding : symbolic_bindings.bindings()) {
+  for (const ParametricEnvItem& binding : parametric_env.bindings()) {
     env[binding.identifier] = binding.value;
   }
   return env;

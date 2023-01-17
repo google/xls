@@ -30,7 +30,7 @@ TEST(IrConversionUtilsTest, ResolveDimSmoke) {
   constexpr int64_t kDimValue = 64;
   ConcreteTypeDim dim(InterpValue::MakeUBits(/*bit_count=*/64, kDimValue));
   absl::flat_hash_map<std::string, InterpValue> items;
-  SymbolicBindings bindings(items);
+  ParametricEnv bindings(items);
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
   EXPECT_EQ(resolved_value, kDimValue);
@@ -45,7 +45,7 @@ TEST(IrConversionUtilsTest, ResolveSymbolicDim) {
   absl::flat_hash_map<std::string, InterpValue> items;
   items.insert(
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
-  SymbolicBindings bindings(items);
+  ParametricEnv bindings(items);
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value, resolved.GetAsInt64());
   EXPECT_EQ(resolved_value, kDimValue);
@@ -60,7 +60,7 @@ TEST(IrConversionUtilsTest, ResolveSymbolicDimToInt) {
   absl::flat_hash_map<std::string, InterpValue> items;
   items.insert(
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kDimValue)});
-  SymbolicBindings bindings(items);
+  ParametricEnv bindings(items);
   XLS_ASSERT_OK_AND_ASSIGN(int64_t resolved_value,
                            ResolveDimToInt(dim, bindings));
   EXPECT_EQ(resolved_value, kDimValue);
@@ -76,7 +76,7 @@ TEST(IrConversionUtilsTest, TypeToIr) {
   auto symbol = std::make_unique<ParametricSymbol>(kSymbolName, Span::Fake());
   items.insert(
       {kSymbolName, InterpValue::MakeUBits(/*bit_count=*/64, kArraySize)});
-  SymbolicBindings bindings(items);
+  ParametricEnv bindings(items);
 
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.push_back(BitsType::MakeU32());

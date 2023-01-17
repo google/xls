@@ -30,12 +30,12 @@ namespace xls::dslx {
 struct FnCtx {
   std::string module_name;
   std::string fn_name;
-  SymbolicBindings sym_bindings;
+  ParametricEnv parametric_env;
 
   std::string ToString() const {
     return absl::StrFormat(
-        "FnCtx{module_name=\"%s\", fn_name=\"%s\", sym_bindings=%s}",
-        module_name, fn_name, sym_bindings.ToString());
+        "FnCtx{module_name=\"%s\", fn_name=\"%s\", parametric_env=%s}",
+        module_name, fn_name, parametric_env.ToString());
   }
 };
 

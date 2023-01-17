@@ -37,9 +37,9 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/python/errors.h"
-#include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;

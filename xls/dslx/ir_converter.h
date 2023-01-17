@@ -21,7 +21,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
@@ -81,7 +81,7 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 //   module: Module we're converting a function within.
 //   entry_function_name: Entry function used as the root for conversion.
 //   import_data: The import data for typechecking, etc.
-//   symbolic_bindings: Parametric bindings to use during conversion, if this
+//   parametric_env: Parametric bindings to use during conversion, if this
 //     function is parametric.
 //
 // Returns an error status that indicates whether the conversion was successful.
@@ -91,17 +91,19 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 // Implementation note: creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    ImportData* import_data, const ParametricEnv* parametric_env,
     const ConvertOptions& options);
 
 // As above, but the package is provided explicitly.
 //
 // Package must outlive this function call -- functions from "module" are placed
 // inside of it, it may not be nullptr.
-absl::Status ConvertOneFunctionIntoPackage(
-    Module* module, std::string_view entry_function_name,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options, Package* package);
+absl::Status ConvertOneFunctionIntoPackage(Module* module,
+                                           std::string_view entry_function_name,
+                                           ImportData* import_data,
+                                           const ParametricEnv* parametric_env,
+                                           const ConvertOptions& options,
+                                           Package* package);
 
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);

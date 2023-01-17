@@ -19,7 +19,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -39,8 +39,7 @@ class Frame {
   // post_fn_eval_hook.
   // For other cases, the BytecodeCache will own BytecodeFunction storage.
   Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
-        const TypeInfo* type_info,
-        const std::optional<SymbolicBindings>& bindings,
+        const TypeInfo* type_info, const std::optional<ParametricEnv>& bindings,
         std::vector<InterpValue> initial_args,
         std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
 
@@ -50,7 +49,7 @@ class Frame {
   std::vector<InterpValue>& slots() { return slots_; }
   BytecodeFunction* bf() const { return bf_; }
   const TypeInfo* type_info() const { return type_info_; }
-  const std::optional<SymbolicBindings>& bindings() const { return bindings_; }
+  const std::optional<ParametricEnv>& bindings() const { return bindings_; }
   const std::vector<InterpValue>& initial_args() { return initial_args_; }
 
   void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
@@ -60,7 +59,7 @@ class Frame {
   std::vector<InterpValue> slots_;
   BytecodeFunction* bf_;
   const TypeInfo* type_info_;
-  std::optional<SymbolicBindings> bindings_;
+  std::optional<ParametricEnv> bindings_;
   std::vector<InterpValue> initial_args_;
 
   std::unique_ptr<BytecodeFunction> bf_holder_;
@@ -77,7 +76,7 @@ class BytecodeInterpreter {
   // mode.
   using PostFnEvalHook = std::function<absl::Status(
       const Function* f, absl::Span<const InterpValue> args,
-      const SymbolicBindings*, const InterpValue& got)>;
+      const ParametricEnv*, const InterpValue& got)>;
   virtual ~BytecodeInterpreter() {}
 
   // Takes ownership of `args`.
@@ -170,7 +169,7 @@ class BytecodeInterpreter {
           const InterpValue& lhs, const InterpValue& rhs)>& op);
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
       Function* function, const Invocation* invocation,
-      const std::optional<SymbolicBindings>& caller_bindings);
+      const std::optional<ParametricEnv>& caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
 
@@ -248,7 +247,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // obligatory Token; they're added to the arg list internally.
   static absl::Status EvalSpawn(ImportData* import_data,
                                 const TypeInfo* type_info,
-                                const std::optional<SymbolicBindings>& bindings,
+                                const std::optional<ParametricEnv>& bindings,
                                 std::optional<const Spawn*> maybe_spawn,
                                 Proc* proc,
                                 const std::vector<InterpValue>& config_args,

@@ -23,8 +23,8 @@
 namespace xls::dslx {
 namespace internal {
 
-absl::StatusOr<InterpValue> InterpretExpr(
-    DeduceCtx* ctx, Expr* expr, const SymbolicBindings& symbolic_bindings) {
+absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
+                                          const ParametricEnv& parametric_env) {
   // If we're interpreting something in another module, switch to its root type
   // info, otherwise truck on with the current DeduceCtx.
   std::unique_ptr<DeduceCtx> new_ctx_holder;
@@ -38,7 +38,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
       env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), expr,
-                            symbolic_bindings));
+                            parametric_env));
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
@@ -64,7 +64,7 @@ ParametricInstantiator::ParametricInstantiator(
   ctx_->AddDerivedTypeInfo();
 
   if (explicit_constraints != nullptr) {
-    symbolic_bindings_ = *explicit_constraints;
+    parametric_env_ = *explicit_constraints;
 
     // Explicit constraints are conceptually evaluated before other parametric
     // expressions.
@@ -130,7 +130,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
         const auto& parametric_expr =
             std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
         ParametricExpression::Evaluated evaluated = parametric_expr->Evaluate(
-            ToParametricEnv(SymbolicBindings(symbolic_bindings_)));
+            ToParametricEnv(ParametricEnv(parametric_env_)));
         return ConcreteTypeDim(std::move(evaluated));
       }));
   XLS_VLOG(5) << "Resolved " << annotated.ToString() << " to "
@@ -148,10 +148,9 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
       continue;
     }
     const FnStackEntry& entry = ctx_->fn_stack().back();
-    FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
-                 entry.symbolic_bindings()};
+    FnCtx fn_ctx{ctx_->module()->name(), entry.name(), entry.parametric_env()};
     absl::StatusOr<InterpValue> result =
-        InterpretExpr(ctx_, expr, SymbolicBindings(symbolic_bindings_));
+        InterpretExpr(ctx_, expr, ParametricEnv(parametric_env_));
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
@@ -169,8 +168,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
       continue;
     }
 
-    if (auto it = symbolic_bindings_.find(name);
-        it != symbolic_bindings_.end()) {
+    if (auto it = parametric_env_.find(name); it != parametric_env_.end()) {
       InterpValue seen = it->second;
       if (result.value() != seen) {
         XLS_ASSIGN_OR_RETURN(auto lhs_type,
@@ -186,7 +184,7 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
                                   std::move(message));
       }
     } else {
-      symbolic_bindings_.insert({name, result.value()});
+      parametric_env_.insert({name, result.value()});
     }
   }
   return absl::OkStatus();
@@ -218,20 +216,20 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
                        ConcreteTypeDim::GetAs64Bits(arg_type.size().value()));
 
   const std::string& pdim_name = symbol->identifier();
-  if (!symbolic_bindings_.contains(pdim_name)) {
+  if (!parametric_env_.contains(pdim_name)) {
     XLS_RET_CHECK(parametric_binding_types_.contains(pdim_name))
         << "Cannot bind " << pdim_name << " : it has no associated type.";
     XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim;
     const ConcreteType& type = *parametric_binding_types_.at(pdim_name);
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count, type.GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
-    symbolic_bindings_.emplace(
+    parametric_env_.emplace(
         pdim_name,
         InterpValue::MakeUBits(/*bit_count=*/width, /*value=*/arg_dim));
     return absl::OkStatus();
   }
 
-  const InterpValue& seen = symbolic_bindings_.at(pdim_name);
+  const InterpValue& seen = parametric_env_.at(pdim_name);
   int64_t seen_value = seen.GetBitValueInt64().value();
   if (seen_value == arg_dim) {
     return absl::OkStatus();  // No contradiction.
@@ -408,8 +406,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved, Resolve(orig));
   XLS_VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
               << resolved->ToString();
-  return TypeAndBindings{std::move(resolved),
-                         SymbolicBindings(symbolic_bindings())};
+  return TypeAndBindings{std::move(resolved), ParametricEnv(parametric_env())};
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<StructInstantiator>>
@@ -439,8 +436,7 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        Resolve(*struct_type_));
-  return TypeAndBindings{std::move(resolved),
-                         SymbolicBindings(symbolic_bindings())};
+  return TypeAndBindings{std::move(resolved), ParametricEnv(parametric_env())};
 }
 
 }  // namespace internal

@@ -243,9 +243,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 }  // namespace
 
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
-    ImportData* import_data, TypeInfo* type_info,
-    const SymbolicBindings& bindings, const Expr* expr,
-    const ConcreteType* concrete_type) {
+    ImportData* import_data, TypeInfo* type_info, const ParametricEnv& bindings,
+    const Expr* expr, const ConcreteType* concrete_type) {
   if (type_info->IsKnownConstExpr(expr) ||
       type_info->IsKnownNonConstExpr(expr)) {
     return absl::OkStatus();
@@ -255,9 +254,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 }
 
 /* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
-    ImportData* import_data, TypeInfo* type_info,
-    const SymbolicBindings& bindings, const Expr* expr,
-    const ConcreteType* concrete_type) {
+    ImportData* import_data, TypeInfo* type_info, const ParametricEnv& bindings,
+    const Expr* expr, const ConcreteType* concrete_type) {
   XLS_RETURN_IF_ERROR(Evaluate(import_data, type_info, bindings, expr));
   if (type_info->IsKnownConstExpr(expr)) {
     return type_info->GetConstExpr(expr);
@@ -762,7 +760,7 @@ absl::Status ConstexprEvaluator::InterpretExpr(
 
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
-    const SymbolicBindings& symbolic_bindings,
+    const ParametricEnv& parametric_env,
     absl::flat_hash_set<const NameDef*> bypass_env) {
   XLS_CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
@@ -773,7 +771,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   absl::flat_hash_map<std::string, InterpValue> env;
   absl::flat_hash_map<std::string, InterpValue> values;
 
-  for (auto [id, value] : symbolic_bindings.ToMap()) {
+  for (auto [id, value] : parametric_env.ToMap()) {
     env.insert({id, value});
   }
 
@@ -797,7 +795,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     }
 
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        import_data, type_info, symbolic_bindings, target_ref, nullptr));
+        import_data, type_info, parametric_env, target_ref, nullptr));
     absl::StatusOr<InterpValue> const_expr =
         type_info->GetConstExpr(target_ref);
     if (const_expr.ok()) {

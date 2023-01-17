@@ -36,8 +36,8 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/proc_config_ir_converter.h"
-#include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -121,11 +121,11 @@ class FunctionConverter {
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
   absl::Status HandleFunction(Function* node, TypeInfo* type_info,
-                              const SymbolicBindings* symbolic_bindings);
+                              const ParametricEnv* parametric_env);
 
   absl::Status HandleProcNextFunction(
       Function* pf, const Invocation* invocation, TypeInfo* type_info,
-      ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+      ImportData* import_data, const ParametricEnv* parametric_env,
       const ProcId& proc_id, ProcConversionData* proc_data);
 
   // Notes a constant-definition dependency for the function (so it can
@@ -225,12 +225,12 @@ class FunctionConverter {
 
   // -- Accessors
 
-  void SetSymbolicBindings(const SymbolicBindings* value) {
-    symbolic_binding_map_ = value->ToMap();
+  void SetParametricEnv(const ParametricEnv* value) {
+    parametric_env_map_ = value->ToMap();
   }
-  void set_symbolic_binding_map(
+  void set_parametric_env_map(
       absl::flat_hash_map<std::string, InterpValue> map) {
-    symbolic_binding_map_ = std::move(map);
+    parametric_env_map_ = std::move(map);
   }
 
   // Gets the current counter of counted_for loops we've observed and bumps it.
@@ -238,38 +238,36 @@ class FunctionConverter {
   // XLS counted_for "bodies".
   int64_t GetAndBumpCountedForCount() { return counted_for_count_++; }
 
-  // TODO(leary): 2020-12-22 Clean all this up to expose a minimal surface area
-  // once everything is ported over to C++.
-  std::optional<InterpValue> get_symbolic_binding(
+  std::optional<InterpValue> GetParametricBinding(
       std::string_view identifier) const {
-    auto it = symbolic_binding_map_.find(identifier);
-    if (it == symbolic_binding_map_.end()) {
+    auto it = parametric_env_map_.find(identifier);
+    if (it == parametric_env_map_.end()) {
       return absl::nullopt;
     }
     return it->second;
   }
 
-  // Note: this object holds a map, but we can return a SymbolicBindings object
+  // Note: this object holds a map, but we can return a ParametricEnv object
   // on demand.
-  SymbolicBindings GetSymbolicBindings() const {
-    return SymbolicBindings(symbolic_binding_map_);
+  ParametricEnv GetParametricEnv() const {
+    return ParametricEnv(parametric_env_map_);
   }
 
-  // Returns the symbolic bindings to be used in the callee for this invocation.
+  // Returns the parametric env to be used in the callee for this invocation.
   //
   // We must provide the current evaluation context (module_name, function_name,
-  // caller_symbolic_bindings) in order to retrieve the correct symbolic
+  // caller_parametric_env) in order to retrieve the correct parametric
   // bindings to use in the callee invocation.
   //
   // Args:
   //  invocation: Invocation that the bindings are being retrieved for.
   //
   // Returns:
-  //  The symbolic bindings for the given instantiation (function call or proc
+  //  The parametric bindings for the given instantiation (function call or proc
   //  spawn).
-  std::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
+  std::optional<const ParametricEnv*> GetInvocationCalleeBindings(
       const Invocation* invocation) const {
-    SymbolicBindings key = GetSymbolicBindings();
+    ParametricEnv key = GetParametricEnv();
     return import_data_->GetRootTypeInfo(invocation->owner())
         .value()
         ->GetInvocationCalleeBindings(invocation, key);
@@ -334,9 +332,9 @@ class FunctionConverter {
                                        const ConcreteType& matched_type);
 
   // Makes the specified builtin available to the package.
-  absl::StatusOr<BValue> DefMapWithBuiltin(
-      const Invocation* parent_node, NameRef* node, AstNode* arg,
-      const SymbolicBindings& symbolic_bindings);
+  absl::StatusOr<BValue> DefMapWithBuiltin(const Invocation* parent_node,
+                                           NameRef* node, AstNode* arg,
+                                           const ParametricEnv& parametric_env);
 
   // Evaluates a constexpr AST Invocation via the DSLX interpreter.
   //
@@ -493,9 +491,9 @@ class FunctionConverter {
   // activation boolean -- the data for this is kept here if necessary.
   std::optional<ImplicitTokenData> implicit_token_data_;
 
-  // Mapping of symbolic bindings active in this translation (e.g. what integral
-  // values parametrics are taking on).
-  absl::flat_hash_map<std::string, InterpValue> symbolic_binding_map_;
+  // Mapping of parametric bindings active in this translation (e.g. what
+  // integral values parametrics are taking on).
+  absl::flat_hash_map<std::string, InterpValue> parametric_env_map_;
 
   // File number for use in source positions.
   Fileno fileno_;
@@ -1283,7 +1281,7 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   // Easy case first: using the `..` range operator.
   InterpValue start_value(InterpValue::MakeToken());
   InterpValue limit_value(InterpValue::MakeToken());
-  SymbolicBindings bindings(symbolic_binding_map_);
+  ParametricEnv bindings(parametric_env_map_);
 
   const auto* range_op = dynamic_cast<const Range*>(iterable);
   if (range_op != nullptr) {
@@ -1366,7 +1364,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
                                    options_, proc_data_, /*is_top=*/false);
-  body_converter.set_symbolic_binding_map(symbolic_binding_map_);
+  body_converter.set_parametric_env_map(parametric_env_map_);
 
   // The body conversion uses the same types that we use in the caller.
   body_converter.current_type_info_ = current_type_info_;
@@ -1440,7 +1438,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
                          ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
                          TypeToIr(package_data_.package, *carry_type,
-                                  SymbolicBindings(symbolic_binding_map_)));
+                                  ParametricEnv(parametric_env_map_)));
     BValue carry;
     if (implicit_token_data_.has_value()) {
       carry = body_converter.AddTokenWrappedParam(carry_ir_type);
@@ -1502,7 +1500,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
       relevant_name_defs.push_back(name_def);
       XLS_ASSIGN_OR_RETURN(xls::Type * name_def_type,
                            TypeToIr(package_data_.package, **type,
-                                    SymbolicBindings(symbolic_binding_map_)));
+                                    ParametricEnv(parametric_env_map_)));
       body_converter.SetNodeToIr(name_def,
                                  body_converter.function_builder_->Param(
                                      name_def->identifier(), name_def_type));
@@ -1630,13 +1628,13 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 
 absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
     const Invocation* parent_node, NameRef* node, AstNode* arg,
-    const SymbolicBindings& symbolic_bindings) {
+    const ParametricEnv& parametric_env) {
   // Builtins always use the "typical" calling convention (are never "implicit
   // token").
   XLS_ASSIGN_OR_RETURN(const std::string mangled_name,
                        MangleDslxName(module_->name(), node->identifier(),
                                       CallingConvention::kTypical,
-                                      /*free_keys=*/{}, &symbolic_bindings));
+                                      /*free_keys=*/{}, &parametric_env));
   XLS_ASSIGN_OR_RETURN(BValue arg_value, Use(arg));
   XLS_VLOG(5) << "Mapping with builtin; arg: "
               << arg_value.GetType()->ToString();
@@ -1670,7 +1668,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Expr* fn_node = node->args()[1];
   XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
-  std::optional<const SymbolicBindings*> node_sym_bindings =
+  std::optional<const ParametricEnv*> node_parametric_env =
       GetInvocationCalleeBindings(node);
 
   std::string map_fn_name;
@@ -1680,7 +1678,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
     if (IsNameParametricBuiltin(map_fn_name)) {
       XLS_VLOG(5) << "Map of parametric builtin: " << map_fn_name;
       return DefMapWithBuiltin(node, name_ref, node->args()[0],
-                               *node_sym_bindings.value());
+                               *node_parametric_env.value());
     }
     lookup_module = module_;
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
@@ -1702,7 +1700,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(lookup_module->name(), mapped_fn->identifier(), convention,
-                     free_set, node_sym_bindings.value()));
+                     free_set, node_parametric_env.value()));
   XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
               << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
@@ -1743,8 +1741,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
     } else {
       auto* slice = std::get<Slice*>(rhs);
       std::optional<StartAndWidth> saw =
-          current_type_info_->GetSliceStartAndWidth(slice,
-                                                    GetSymbolicBindings());
+          current_type_info_->GetSliceStartAndWidth(slice, GetParametricEnv());
       XLS_RET_CHECK(saw.has_value());
       Def(node, [&](const SourceInfo& loc) {
         return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);
@@ -2261,7 +2258,7 @@ static absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
       std::string mangled_name,
       MangleDslxName(dslx_function->owner()->name(),
                      dslx_function->identifier(), CallingConvention::kTypical,
-                     /*free_keys=*/{}, /*symbolic_bindings=*/nullptr));
+                     /*free_keys=*/{}, /*parametric_env=*/nullptr));
   FunctionBuilder fb(mangled_name, implicit_token_f->package());
   // Entry is a top entity.
   if (is_top) {
@@ -2355,14 +2352,13 @@ static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
 }
 
 absl::Status FunctionConverter::HandleFunction(
-    Function* node, TypeInfo* type_info,
-    const SymbolicBindings* symbolic_bindings) {
+    Function* node, TypeInfo* type_info, const ParametricEnv* parametric_env) {
   XLS_RET_CHECK(type_info != nullptr);
 
   XLS_VLOG(5) << "HandleFunction: " << node->ToString();
 
-  if (symbolic_bindings != nullptr) {
-    SetSymbolicBindings(symbolic_bindings);
+  if (parametric_env != nullptr) {
+    SetParametricEnv(parametric_env);
   }
 
   ScopedTypeInfoSwap stis(this, type_info);
@@ -2375,7 +2371,7 @@ absl::Status FunctionConverter::HandleFunction(
       MangleDslxName(module_->name(), node->identifier(),
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
-                     node->GetFreeParametricKeySet(), symbolic_bindings));
+                     node->GetFreeParametricKeySet(), parametric_env));
   auto builder = std::make_unique<FunctionBuilder>(mangled_name, package());
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
@@ -2401,7 +2397,7 @@ absl::Status FunctionConverter::HandleFunction(
                 << parametric_binding->ToString();
 
     std::optional<InterpValue> sb_value =
-        get_symbolic_binding(parametric_binding->identifier());
+        GetParametricBinding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
                          ResolveType(parametric_binding->type_annotation()));
@@ -2461,13 +2457,13 @@ absl::Status FunctionConverter::HandleFunction(
 
 absl::Status FunctionConverter::HandleProcNextFunction(
     Function* f, const Invocation* invocation, TypeInfo* type_info,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    ImportData* import_data, const ParametricEnv* parametric_env,
     const ProcId& proc_id, ProcConversionData* proc_data) {
   XLS_RET_CHECK(type_info != nullptr);
   XLS_VLOG(5) << "HandleProcNextFunction: " << f->ToString();
 
-  if (symbolic_bindings != nullptr) {
-    SetSymbolicBindings(symbolic_bindings);
+  if (parametric_env != nullptr) {
+    SetParametricEnv(parametric_env);
   }
 
   ScopedTypeInfoSwap stis(this, type_info);
@@ -2476,7 +2472,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
       std::string mangled_name,
       MangleDslxName(module_->name(), proc_id.ToString(),
                      CallingConvention::kProcNext, f->GetFreeParametricKeySet(),
-                     symbolic_bindings));
+                     parametric_env));
   std::string token_name = "__token";
   std::string state_name = "__state";
   // If this function is parametric, then the constant args will be defined in
@@ -2526,7 +2522,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
                 << parametric_binding->ToString();
 
     std::optional<InterpValue> sb_value =
-        get_symbolic_binding(parametric_binding->identifier());
+        GetParametricBinding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
                          ResolveType(parametric_binding->type_annotation()));
@@ -2713,7 +2709,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   }
   Function* f = maybe_f.value();
 
-  // We have to mangle the symbolic bindings into the name to get the fully
+  // We have to mangle the parametric bindings into the name to get the fully
   // resolved symbol.
   absl::btree_set<std::string> free_keys = f->GetFreeParametricKeySet();
   const CallingConvention convention = GetCallingConvention(f);
@@ -2721,16 +2717,16 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     return MangleDslxName(m->name(), f->identifier(), convention, free_keys);
   }
 
-  std::optional<const SymbolicBindings*> resolved_symbolic_bindings =
+  std::optional<const ParametricEnv*> resolved_parametric_env =
       GetInvocationCalleeBindings(node);
-  XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
-  XLS_VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s symbolic bindings %s",
-                                    node->ToString(), node->GetNodeTypeName(),
-                                    node->span().ToString(),
-                                    (*resolved_symbolic_bindings)->ToString());
-  XLS_RET_CHECK(!(*resolved_symbolic_bindings)->empty());
+  XLS_RET_CHECK(resolved_parametric_env.has_value());
+  XLS_VLOG(5) << absl::StreamFormat(
+      "Node `%s` (%s) @ %s parametric bindings %s", node->ToString(),
+      node->GetNodeTypeName(), node->span().ToString(),
+      (*resolved_parametric_env)->ToString());
+  XLS_RET_CHECK(!(*resolved_parametric_env)->empty());
   return MangleDslxName(m->name(), f->identifier(), convention, free_keys,
-                        resolved_symbolic_bindings.value());
+                        resolved_parametric_env.value());
 }
 
 absl::Status FunctionConverter::HandleBinop(const Binop* node) {
@@ -3239,7 +3235,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   }
 
   return t.value()->MapSize([this](ConcreteTypeDim dim) {
-    return ResolveDim(dim, SymbolicBindings(symbolic_binding_map_));
+    return ResolveDim(dim, ParametricEnv(parametric_env_map_));
   });
 }
 
@@ -3276,7 +3272,7 @@ absl::StatusOr<xls::Type*> FunctionConverter::ResolveTypeToIr(AstNode* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
                        ResolveType(node));
   return TypeToIr(package_data_.package, *concrete_type,
-                  SymbolicBindings(symbolic_binding_map_));
+                  ParametricEnv(parametric_env_map_));
 }
 
 absl::Status ConvertOneFunctionInternal(PackageData& package_data,
@@ -3287,7 +3283,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   // Validate the requested conversion looks sound in terms of provided
   // parametrics.
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(
-      record.f(), record.symbolic_bindings()));
+      record.f(), record.parametric_env()));
 
   FunctionConverter converter(package_data, record.module(), import_data,
                               options, proc_data, record.IsTop());
@@ -3302,7 +3298,7 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
     ProcConfigIrConverter converter(
         package_data.package, f, record.type_info(), import_data, proc_data,
-        record.symbolic_bindings(), record.proc_id().value());
+        record.parametric_env(), record.proc_id().value());
     XLS_RETURN_IF_ERROR(f->Accept(&converter));
     XLS_RETURN_IF_ERROR(converter.Finalize());
     return absl::OkStatus();
@@ -3316,23 +3312,23 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
           record.type_info()->GetItemOrError(p->init()->body()));
 
       // If there's no value in the map, then this should be a top-level proc.
-      // Verify that there are no symbolic bindings.
-      XLS_RET_CHECK(record.symbolic_bindings().empty());
-      XLS_ASSIGN_OR_RETURN(InterpValue iv, ConstexprEvaluator::EvaluateToValue(
-                                               import_data, record.type_info(),
-                                               record.symbolic_bindings(),
-                                               p->init()->body(), foo));
+      // Verify that there are no parametric bindings.
+      XLS_RET_CHECK(record.parametric_env().empty());
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue iv, ConstexprEvaluator::EvaluateToValue(
+                              import_data, record.type_info(),
+                              record.parametric_env(), p->init()->body(), foo));
       XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }
 
     return converter.HandleProcNextFunction(
         f, record.invocation(), record.type_info(), import_data,
-        &record.symbolic_bindings(), record.proc_id().value(), proc_data);
+        &record.parametric_env(), record.proc_id().value(), proc_data);
   }
 
   return converter.HandleFunction(f, record.type_info(),
-                                  &record.symbolic_bindings());
+                                  &record.parametric_env());
 }
 
 // Creates the recv- and send-only channels needed for the top-level proc - it
@@ -3348,8 +3344,8 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
       auto maybe_type = type_info->GetItem(channel_type->payload());
       XLS_RET_CHECK(maybe_type.has_value());
       ConcreteType* ct = maybe_type.value();
-      XLS_ASSIGN_OR_RETURN(Type * ir_type, TypeToIr(package_data.package, *ct,
-                                                    SymbolicBindings()));
+      XLS_ASSIGN_OR_RETURN(
+          Type * ir_type, TypeToIr(package_data.package, *ct, ParametricEnv()));
       ChannelOps op = channel_type->direction() == ChannelTypeAnnotation::kIn
                           ? ChannelOps::kReceiveOnly
                           : ChannelOps::kSendOnly;
@@ -3492,7 +3488,7 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     Module* module, BlockT* block, ImportData* import_data,
-    const SymbolicBindings* symbolic_bindings, const ConvertOptions& options,
+    const ParametricEnv* parametric_env, const ConvertOptions& options,
     Package* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
@@ -3504,22 +3500,22 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
   return absl::OkStatus();
 }
 
-absl::Status ConvertOneFunctionIntoPackage(
-    Module* module, std::string_view entry_function_name,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options, Package* package) {
+absl::Status ConvertOneFunctionIntoPackage(Module* module,
+                                           std::string_view entry_function_name,
+                                           ImportData* import_data,
+                                           const ParametricEnv* parametric_env,
+                                           const ConvertOptions& options,
+                                           Package* package) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
-    return ConvertOneFunctionIntoPackageInternal(module, fn_or.value(),
-                                                 import_data, symbolic_bindings,
-                                                 options, package);
+    return ConvertOneFunctionIntoPackageInternal(
+        module, fn_or.value(), import_data, parametric_env, options, package);
   }
 
   auto proc_or = module->GetMemberOrError<Proc>(entry_function_name);
   if (proc_or.ok()) {
-    return ConvertOneFunctionIntoPackageInternal(module, proc_or.value(),
-                                                 import_data, symbolic_bindings,
-                                                 options, package);
+    return ConvertOneFunctionIntoPackageInternal(
+        module, proc_or.value(), import_data, parametric_env, options, package);
   }
 
   return absl::InvalidArgumentError(
@@ -3530,12 +3526,12 @@ absl::Status ConvertOneFunctionIntoPackage(
 
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, std::string_view entry_function_name,
-    ImportData* import_data, const SymbolicBindings* symbolic_bindings,
+    ImportData* import_data, const ParametricEnv* parametric_env,
     const ConvertOptions& options) {
   Package package(module->name());
-  XLS_RETURN_IF_ERROR(
-      ConvertOneFunctionIntoPackage(module, entry_function_name, import_data,
-                                    symbolic_bindings, options, &package));
+  XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(module, entry_function_name,
+                                                    import_data, parametric_env,
+                                                    options, &package));
   return package.DumpIr();
 }
 

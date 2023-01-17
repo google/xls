@@ -98,10 +98,12 @@ absl::StatusOr<FunctionJit*> RunComparator::GetOrCompileJitFunction(
   return result;
 }
 
-absl::Status RunComparator::RunComparison(
-    Package* ir_package, bool requires_implicit_token, const dslx::Function* f,
-    absl::Span<InterpValue const> args,
-    const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
+absl::Status RunComparator::RunComparison(Package* ir_package,
+                                          bool requires_implicit_token,
+                                          const dslx::Function* f,
+                                          absl::Span<InterpValue const> args,
+                                          const ParametricEnv* parametric_env,
+                                          const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
 
   XLS_ASSIGN_OR_RETURN(
@@ -109,7 +111,7 @@ absl::Status RunComparator::RunComparison(
       MangleDslxName(f->owner()->name(), f->identifier(),
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
-                     f->GetFreeParametricKeySet(), symbolic_bindings));
+                     f->GetFreeParametricKeySet(), parametric_env));
 
   auto get_result = ir_package->GetFunction(ir_name);
 
@@ -388,16 +390,16 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     post_fn_eval_hook = [&ir_package, &import_data, &options](
                             const Function* f,
                             absl::Span<const InterpValue> args,
-                            const SymbolicBindings* symbolic_bindings,
+                            const ParametricEnv* parametric_env,
                             const InterpValue& got) -> absl::Status {
       std::optional<bool> requires_implicit_token =
           import_data.GetRootTypeInfoForNode(f)
               .value()
               ->GetRequiresImplicitToken(f);
       XLS_RET_CHECK(requires_implicit_token.has_value());
-      return options.run_comparator->RunComparison(
-          ir_package.get(), *requires_implicit_token, f, args,
-          symbolic_bindings, got);
+      return options.run_comparator->RunComparison(ir_package.get(),
+                                                   *requires_implicit_token, f,
+                                                   args, parametric_env, got);
     };
   }
 

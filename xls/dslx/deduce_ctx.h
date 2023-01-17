@@ -32,15 +32,15 @@ class FnStackEntry {
  public:
   // Creates an entry for type inference of function 'f' with the given symbolic
   // bindings.
-  static FnStackEntry Make(Function* f, SymbolicBindings symbolic_bindings) {
+  static FnStackEntry Make(Function* f, ParametricEnv parametric_env) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(symbolic_bindings), absl::nullopt);
+                        std::move(parametric_env), absl::nullopt);
   }
 
-  static FnStackEntry Make(Function* f, SymbolicBindings symbolic_bindings,
+  static FnStackEntry Make(Function* f, ParametricEnv parametric_env,
                            const Invocation* invocation) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(symbolic_bindings), invocation);
+                        std::move(parametric_env), invocation);
   }
 
   // Creates an entry for type inference of the top level of module 'module'.
@@ -52,21 +52,19 @@ class FnStackEntry {
   const std::string& name() const { return name_; }
   Function* f() const { return f_; }
   const Module* module() const { return module_; }
-  const SymbolicBindings& symbolic_bindings() const {
-    return symbolic_bindings_;
-  }
+  const ParametricEnv& parametric_env() const { return parametric_env_; }
   std::optional<const Invocation*> invocation() { return invocation_; }
 
   bool operator!=(std::nullptr_t) const { return f_ != nullptr; }
 
  private:
   FnStackEntry(Function* f, std::string name, Module* module,
-               SymbolicBindings symbolic_bindings,
+               ParametricEnv parametric_env,
                std::optional<const Invocation*> invocation)
       : f_(f),
         name_(name),
         module_(module),
-        symbolic_bindings_(symbolic_bindings),
+        parametric_env_(parametric_env),
         invocation_(invocation) {}
 
   // Constructor overload for a module-level inference entry.
@@ -76,7 +74,7 @@ class FnStackEntry {
   Function* f_;
   std::string name_;
   const Module* module_;
-  SymbolicBindings symbolic_bindings_;
+  ParametricEnv parametric_env_;
   std::optional<const Invocation*> invocation_;
 };
 
@@ -226,8 +224,7 @@ class DeduceCtx {
 
 // Helper that converts the symbolic bindings to a parametric expression
 // environment (for parametric evaluation).
-ParametricExpression::Env ToParametricEnv(
-    const SymbolicBindings& symbolic_bindings);
+ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env);
 
 }  // namespace xls::dslx
 

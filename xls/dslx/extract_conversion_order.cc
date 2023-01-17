@@ -23,7 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 
 namespace xls::dslx {
 
@@ -51,21 +51,21 @@ static std::string ConversionRecordsToString(
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
     Function* f, const Invocation* invocation, Module* module,
-    TypeInfo* type_info, SymbolicBindings sym_bindings,
+    TypeInfo* type_info, ParametricEnv parametric_env,
     std::optional<ProcId> proc_id) {
-  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, sym_bindings));
-  return Callee(f, invocation, module, type_info, std::move(sym_bindings),
+  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
+  return Callee(f, invocation, module, type_info, std::move(parametric_env),
                 proc_id);
 }
 
 Callee::Callee(Function* f, const Invocation* invocation, Module* m,
-               TypeInfo* type_info, SymbolicBindings sym_bindings,
+               TypeInfo* type_info, ParametricEnv parametric_env,
                std::optional<ProcId> proc_id)
     : f_(f),
       invocation_(invocation),
       m_(m),
       type_info_(type_info),
-      sym_bindings_(std::move(sym_bindings)),
+      parametric_env_(std::move(parametric_env)),
       proc_id_(proc_id) {
   XLS_CHECK_EQ(type_info->module(), m)
       << "type_info module: " << type_info->module()->name()
@@ -81,15 +81,15 @@ std::string Callee::ToString() const {
       "Callee{m=%s, f=%s, i=%s, pid=%s, bindings=%s}", m_->name(),
       f_->identifier(),
       invocation_ == nullptr ? "<top level>" : invocation_->ToString(), proc_id,
-      sym_bindings_.ToString());
+      parametric_env_.ToString());
 }
 
 // -- class ConversionRecord
 
 /* static */ absl::Status ConversionRecord::ValidateParametrics(
-    Function* f, const SymbolicBindings& symbolic_bindings) {
+    Function* f, const ParametricEnv& parametric_env) {
   absl::btree_set<std::string> symbolic_binding_keys =
-      symbolic_bindings.GetKeySet();
+      parametric_env.GetKeySet();
 
   auto set_to_string = [](const absl::btree_set<std::string>& s) {
     return absl::StrCat("{", absl::StrJoin(s, ", "), "}");
@@ -117,13 +117,12 @@ std::string Callee::ToString() const {
 
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
     Function* f, const Invocation* invocation, Module* module,
-    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+    TypeInfo* type_info, ParametricEnv parametric_env,
     std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top) {
-  XLS_RETURN_IF_ERROR(
-      ConversionRecord::ValidateParametrics(f, symbolic_bindings));
+  XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
 
   return ConversionRecord(f, invocation, module, type_info,
-                          std::move(symbolic_bindings), std::move(callees),
+                          std::move(parametric_env), std::move(callees),
                           proc_id, is_top);
 }
 
@@ -133,10 +132,10 @@ std::string ConversionRecord::ToString() const {
     proc_id = proc_id_.value().ToString();
   }
   return absl::StrFormat(
-      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, symbolic_bindings=%s, "
+      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, parametric_env=%s, "
       "callees=%s}",
       module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
-      symbolic_bindings_.ToString(), CalleesToString(callees_));
+      parametric_env_.ToString(), CalleesToString(callees_));
 }
 
 // TODO(vmirian) 2022-02-11 Consider collapsing this visitor
@@ -268,7 +267,7 @@ bool operator==(const CalleeCollectorVisitor::CalleeInfo& lhs,
 class InvocationVisitor : public ExprVisitor {
  public:
   InvocationVisitor(Module* module, TypeInfo* type_info,
-                    const SymbolicBindings& bindings,
+                    const ParametricEnv& bindings,
                     std::optional<ProcId> proc_id)
       : module_(module),
         type_info_(type_info),
@@ -385,7 +384,7 @@ class InvocationVisitor : public ExprVisitor {
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
-    std::optional<const SymbolicBindings*> callee_bindings =
+    std::optional<const ParametricEnv*> callee_bindings =
         type_info_->GetInvocationCalleeBindings(node, bindings_);
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
@@ -408,7 +407,7 @@ class InvocationVisitor : public ExprVisitor {
         auto callee,
         Callee::Make(callee_info->callee, node, callee_info->module,
                      callee_info->type_info,
-                     callee_bindings ? **callee_bindings : SymbolicBindings(),
+                     callee_bindings ? **callee_bindings : ParametricEnv(),
                      proc_id));
     callees_.push_back(std::move(callee));
     return absl::OkStatus();
@@ -584,7 +583,7 @@ class InvocationVisitor : public ExprVisitor {
 
   Module* module_;
   TypeInfo* type_info_;
-  const SymbolicBindings& bindings_;
+  const ParametricEnv& bindings_;
   std::optional<ProcId> proc_id_;
   absl::flat_hash_map<std::vector<Proc*>, int> proc_instances_;
 
@@ -663,8 +662,8 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
 //   Callee functions invoked by "node", and the parametric bindings used in
 //   each of those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
-    Expr* node, Module* m, TypeInfo* type_info,
-    const SymbolicBindings& bindings, std::optional<ProcId> proc_id) {
+    Expr* node, Module* m, TypeInfo* type_info, const ParametricEnv& bindings,
+    std::optional<ProcId> proc_id) {
   XLS_VLOG(5) << "Getting callees of " << node->ToString();
   XLS_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, proc_id);
@@ -673,7 +672,7 @@ static absl::StatusOr<std::vector<Callee>> GetCallees(
 }
 
 static bool IsReady(std::variant<Function*, TestFunction*> f, Module* m,
-                    const SymbolicBindings& bindings,
+                    const ParametricEnv& bindings,
                     const std::vector<ConversionRecord>* ready) {
   // Test functions are always the root and non-parametric, so they're always
   // ready.
@@ -682,8 +681,8 @@ static bool IsReady(std::variant<Function*, TestFunction*> f, Module* m,
   }
 
   auto matches_fn = [&](const ConversionRecord& cr, Function* f) {
-    return cr.f() == f && cr.module() == m &&
-           cr.symbolic_bindings() == bindings && !cr.proc_id().has_value();
+    return cr.f() == f && cr.module() == m && cr.parametric_env() == bindings &&
+           !cr.proc_id().has_value();
   };
 
   for (const ConversionRecord& cr : *ready) {
@@ -698,7 +697,7 @@ static bool IsReady(std::variant<Function*, TestFunction*> f, Module* m,
 static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
                                const Invocation* invocation, Module* m,
                                TypeInfo* type_info,
-                               const SymbolicBindings& bindings,
+                               const ParametricEnv& bindings,
                                std::vector<ConversionRecord>* ready,
                                std::optional<ProcId> proc_id,
                                bool is_top = false);
@@ -709,7 +708,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   std::vector<Callee> non_ready;
   {
     for (const Callee& callee : orig_callees) {
-      if (!IsReady(callee.f(), callee.m(), callee.sym_bindings(), ready)) {
+      if (!IsReady(callee.f(), callee.m(), callee.parametric_env(), ready)) {
         non_ready.push_back(callee);
       }
     }
@@ -719,7 +718,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
   // before us, since we depend upon them.
   for (const Callee& callee : non_ready) {
     XLS_RETURN_IF_ERROR(AddToReady(callee.f(), callee.invocation(), callee.m(),
-                                   callee.type_info(), callee.sym_bindings(),
+                                   callee.type_info(), callee.parametric_env(),
                                    ready, callee.proc_id()));
   }
 
@@ -730,7 +729,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
                                const Invocation* invocation, Module* m,
                                TypeInfo* type_info,
-                               const SymbolicBindings& bindings,
+                               const ParametricEnv& bindings,
                                std::vector<ConversionRecord>* ready,
                                const std::optional<ProcId> proc_id,
                                bool is_top) {
@@ -782,11 +781,11 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
   // IR.
   XLS_RETURN_IF_ERROR(AddToReady(p->next(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
-                                 SymbolicBindings(), &ready, ProcId{{p}, 0},
+                                 ParametricEnv(), &ready, ProcId{{p}, 0},
                                  is_top));
   XLS_RETURN_IF_ERROR(AddToReady(p->config(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
-                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
+                                 ParametricEnv(), &ready, ProcId{{p}, 0}));
 
   // Constants and "member" vars are assigned and defined in Procs' "config'"
   // functions, so we need to execute those before their "next" functions.
@@ -825,8 +824,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
       XLS_RET_CHECK(!function->IsParametric()) << function->ToString();
 
       XLS_RETURN_IF_ERROR(AddToReady(function, /*invocation=*/nullptr, module,
-                                     type_info, SymbolicBindings(), &ready,
-                                     {}));
+                                     type_info, ParametricEnv(), &ready, {}));
     } else if (std::holds_alternative<Function*>(member)) {
       // Proc creation is driven by Spawn instantiations - the required constant
       // args are only specified there, so we can't convert Procs as encountered
@@ -837,13 +835,12 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
       }
 
       XLS_RETURN_IF_ERROR(AddToReady(f, /*invocation=*/nullptr, module,
-                                     type_info, SymbolicBindings(), &ready,
-                                     {}));
+                                     type_info, ParametricEnv(), &ready, {}));
     } else if (std::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = std::get<ConstantDef*>(member);
       XLS_ASSIGN_OR_RETURN(const std::vector<Callee> callees,
                            GetCallees(constant_def->value(), module, type_info,
-                                      SymbolicBindings(), {}));
+                                      ParametricEnv(), {}));
       XLS_RETURN_IF_ERROR(ProcessCallees(callees, &ready));
     }
   }
@@ -865,8 +862,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   if (traverse_tests) {
     for (TestFunction* test : module->GetFunctionTests()) {
       XLS_RETURN_IF_ERROR(AddToReady(test, /*invocation=*/nullptr, module,
-                                     type_info, SymbolicBindings(), &ready,
-                                     {}));
+                                     type_info, ParametricEnv(), &ready, {}));
     }
     for (TestProc* test : module->GetProcTests()) {
       XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
@@ -899,7 +895,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
     }
     XLS_RETURN_IF_ERROR(AddToReady(f,
                                    /*invocation=*/nullptr, f->owner(),
-                                   type_info, SymbolicBindings(), &ready, {},
+                                   type_info, ParametricEnv(), &ready, {},
                                    /*is_top=*/true));
     RemoveFunctionDuplicates(&ready);
     return ready;

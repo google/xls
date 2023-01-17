@@ -18,7 +18,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
-                                           const SymbolicBindings& bindings) {
+                                           const ParametricEnv& bindings) {
   while (
       std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
     ParametricExpression& original =
@@ -31,7 +31,7 @@ absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
 }
 
 absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
-                                        const SymbolicBindings& bindings) {
+                                        const ParametricEnv& bindings) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
   if (std::holds_alternative<InterpValue>(resolved.value())) {
     return std::get<InterpValue>(resolved.value()).GetBitValueInt64();
@@ -43,7 +43,7 @@ absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
 
 absl::StatusOr<xls::Type*> TypeToIr(Package* package,
                                     const ConcreteType& concrete_type,
-                                    const SymbolicBindings& bindings) {
+                                    const ParametricEnv& bindings) {
   XLS_VLOG(5) << "Converting concrete type to IR: " << concrete_type;
   if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(

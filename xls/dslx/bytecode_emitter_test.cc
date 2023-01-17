@@ -21,8 +21,8 @@
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
 namespace {
@@ -59,7 +59,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
       Function * f, tm.module->GetMemberOrError<Function>("one_plus_one"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
@@ -706,7 +706,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
                            tm.module->GetTest("imported_enum_ref"));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), SymbolicBindings()));
+                                                 tf->fn(), ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -742,7 +742,7 @@ fn imported_enum_ref() -> u3 {
                            tm.module->GetTest("imported_enum_ref"));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), SymbolicBindings()));
+                                                 tf->fn(), ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -976,7 +976,7 @@ fn has_params(x: u32, y: u64) -> u48 {
                            tm.module->GetMemberOrError<Function>("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
@@ -1195,7 +1195,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), SymbolicBindings()));
+                                                 tf->fn(), ParametricEnv()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 10);
@@ -1229,7 +1229,7 @@ proc Foo {
                            tm.type_info->GetTopLevelProcTypeInfo(p));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, ti, p->config(), SymbolicBindings()));
+      BytecodeEmitter::Emit(&import_data, ti, p->config(), ParametricEnv()));
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
@@ -1295,12 +1295,12 @@ proc Parent {
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * parent_ti,
                            tm.type_info->GetTopLevelProcTypeInfo(parent));
   TypeInfo* child_ti =
-      parent_ti->GetInvocationTypeInfo(spawn->config(), SymbolicBindings())
+      parent_ti->GetInvocationTypeInfo(spawn->config(), ParametricEnv())
           .value();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, child_ti, child->config(),
-                            SymbolicBindings()));
+                            ParametricEnv()));
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 8);
   const std::vector<std::string> kConfigExpected = {
@@ -1316,11 +1316,11 @@ proc Parent {
   for (const Param* member : child->members()) {
     members.push_back(member->name_def());
   }
-  child_ti = parent_ti->GetInvocationTypeInfo(spawn->next(), SymbolicBindings())
-                 .value();
+  child_ti =
+      parent_ti->GetInvocationTypeInfo(spawn->next(), ParametricEnv()).value();
   XLS_ASSERT_OK_AND_ASSIGN(
       bf, BytecodeEmitter::EmitProcNext(&import_data, child_ti, child->next(),
-                                        SymbolicBindings(), members));
+                                        ParametricEnv(), members));
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
   ASSERT_EQ(next_bytecodes.size(), 16);
   const std::vector<std::string> kNextExpected = {

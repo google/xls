@@ -23,7 +23,7 @@
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/parametric_env.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -48,7 +48,7 @@ class ScopedFnStackEntry {
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->AddFnStackEntry(FnStackEntry::Make(fn, SymbolicBindings()));
+    ctx->AddFnStackEntry(FnStackEntry::Make(fn, ParametricEnv()));
   }
 
   // Called when we close out a scope. We can't use this object as a scope
@@ -187,7 +187,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
 
     XLS_ASSIGN_OR_RETURN(
         auto env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), arg,
-                                   ctx->fn_stack().back().symbolic_bindings()));
+                                   ctx->fn_stack().back().parametric_env()));
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -212,15 +212,15 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   FunctionType* fn_type = dynamic_cast<FunctionType*>(tab.type.get());
   XLS_RET_CHECK(fn_type != nullptr) << tab.type->ToString();
 
-  const SymbolicBindings& fn_symbolic_bindings =
-      ctx->fn_stack().back().symbolic_bindings();
+  const ParametricEnv& fn_parametric_env =
+      ctx->fn_stack().back().parametric_env();
   XLS_VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
               << ctx->type_info() << "; node: `" << invocation->ToString()
-              << "`; caller: " << fn_symbolic_bindings
-              << "; callee: " << tab.symbolic_bindings;
-  ctx->type_info()->AddInvocationCallBindings(
-      invocation, /*caller=*/fn_symbolic_bindings,
-      /*callee=*/tab.symbolic_bindings);
+              << "`; caller: " << fn_parametric_env
+              << "; callee: " << tab.parametric_env;
+  ctx->type_info()->AddInvocationCallBindings(invocation,
+                                              /*caller=*/fn_parametric_env,
+                                              /*callee=*/tab.parametric_env);
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   // We don't want to store a type on a BuiltinNameDef.
   if (std::holds_alternative<const NameDef*>(callee_nameref->name_def())) {
@@ -238,7 +238,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
 
 absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
     DeduceCtx* ctx, const Invocation* invocation,
-    const SymbolicBindings& caller_bindings) {
+    const ParametricEnv& caller_bindings) {
   ColonRef* colon_ref = dynamic_cast<ColonRef*>(invocation->callee());
   ColonRef::Subject subject = colon_ref->subject();
   XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
@@ -497,7 +497,7 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
     // referencing fn_stack::back is safe.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
         parent_ctx->import_data(), parent_ctx->type_info(),
-        parent_ctx->fn_stack().back().symbolic_bindings(), value,
+        parent_ctx->fn_stack().back().parametric_env(), value,
         value_type.get()));
     if (parent_ctx->type_info()->IsKnownConstExpr(value)) {
       explicit_bindings.insert(
@@ -527,17 +527,17 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
 
   // Map resolved parametrics from the caller's context onto the corresponding
   // symbols in the callee's.
-  SymbolicBindings caller_symbolic_bindings =
-      parent_ctx->fn_stack().back().symbolic_bindings();
-  absl::flat_hash_map<std::string, InterpValue> caller_symbolic_bindings_map =
-      caller_symbolic_bindings.ToMap();
+  ParametricEnv caller_parametric_env =
+      parent_ctx->fn_stack().back().parametric_env();
+  absl::flat_hash_map<std::string, InterpValue> caller_parametric_env_map =
+      caller_parametric_env.ToMap();
   for (const ParametricConstraint& constraint : parametric_constraints) {
     if (auto* name_ref = dynamic_cast<NameRef*>(constraint.expr());
         name_ref != nullptr &&
-        caller_symbolic_bindings_map.contains(name_ref->identifier())) {
+        caller_parametric_env_map.contains(name_ref->identifier())) {
       explicit_bindings.insert(
           {constraint.identifier(),
-           caller_symbolic_bindings_map.at(name_ref->identifier())});
+           caller_parametric_env_map.at(name_ref->identifier())});
     }
   }
   return InstantiateFunction(invocation->span(), fn_type, instantiate_args, ctx,
@@ -624,11 +624,11 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     Function* init = p->init();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                          ctx->Deduce(init->body()));
-    // No need for SymbolicBindings; top-level procs can't be parameterized.
+    // No need for ParametricEnv; top-level procs can't be parameterized.
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(
                              ctx->import_data(), ctx->type_info(),
-                             SymbolicBindings(), init->body()));
+                             ParametricEnv(), init->body()));
     ctx->type_info()->NoteConstExpr(init->body(), init_value);
   }
 
@@ -685,10 +685,9 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   }
 
   // Make a copy; the fn stack can get re-allocated, etc.
-  SymbolicBindings caller_symbolic_bindings =
-      ctx->fn_stack().back().symbolic_bindings();
-  absl::flat_hash_map<std::string, InterpValue> caller_symbolic_bindings_map =
-      caller_symbolic_bindings.ToMap();
+  ParametricEnv caller_parametric_env = ctx->fn_stack().back().parametric_env();
+  absl::flat_hash_map<std::string, InterpValue> caller_parametric_env_map =
+      caller_parametric_env.ToMap();
 
   // We need to deduce a callee relative to its parent module. We still need to
   // record data in the original module/ctx, so we hold on to the parent.
@@ -697,7 +696,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   if (dynamic_cast<ColonRef*>(invocation->callee()) != nullptr) {
     XLS_ASSIGN_OR_RETURN(
         imported_ctx_holder,
-        GetImportedDeduceCtx(ctx, invocation, caller_symbolic_bindings));
+        GetImportedDeduceCtx(ctx, invocation, caller_parametric_env));
     ctx = imported_ctx_holder.get();
   }
 
@@ -722,7 +721,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   std::vector<FnStackEntry> fn_stack = parent_ctx->fn_stack();
   while (!fn_stack.empty()) {
     if (fn_stack.back().f() == callee_fn &&
-        fn_stack.back().symbolic_bindings() == tab.symbolic_bindings) {
+        fn_stack.back().parametric_env() == tab.parametric_env) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
           absl::StrFormat("Recursion detected while typechecking; name: '%s'",
@@ -738,7 +737,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // here, then if we instantiated the same proc 2x from some parent proc, we'd
   // end up with only a single set of constexpr values for proc members.
   parent_ctx->type_info()->AddInvocationCallBindings(
-      invocation, caller_symbolic_bindings, tab.symbolic_bindings);
+      invocation, caller_parametric_env, tab.parametric_env);
 
   FunctionType instantiated_ft{std::move(arg_types), tab.type->CloneToUnique()};
   parent_ctx->type_info()->SetItem(invocation->callee(), instantiated_ft);
@@ -748,7 +747,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // need a new stack entry w/the new symbolic bindings.
   TypeInfo* original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(
-      FnStackEntry::Make(callee_fn, tab.symbolic_bindings, invocation));
+      FnStackEntry::Make(callee_fn, tab.parametric_env, invocation));
   ctx->AddDerivedTypeInfo();
 
   if (callee_fn->proc().has_value()) {
@@ -768,7 +767,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   }
 
   // Add the new SBs to the constexpr set.
-  const auto& bindings_map = tab.symbolic_bindings.ToMap();
+  const auto& bindings_map = tab.parametric_env.ToMap();
   for (ParametricBinding* parametric : callee_fn->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
@@ -811,7 +810,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
                         callee_fn->identifier()));
   }
 
-  original_ti->SetInvocationTypeInfo(invocation, tab.symbolic_bindings,
+  original_ti->SetInvocationTypeInfo(invocation, tab.parametric_env,
                                      ctx->type_info());
 
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
