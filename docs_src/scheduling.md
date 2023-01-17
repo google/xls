@@ -26,7 +26,7 @@ Pipeline scheduling occurs in two phases:
     operation whose value which is used in a later stage.
 
 The schedule process is controlled via several options defined
-[here](https://github.com/google/xls/tree/main/xls/scheduling/tools/pipeline_schedule.h).
+[here](https://github.com/google/xls/tree/main/xls/scheduling/pipeline_schedule.h).
 These options are typically passed in as flags to the
 [`codegen_main` binary](https://github.com/google/xls/tree/main/xls/tools/codegen_main.cc)
 but maybe set programmatically. Each is optional though at least one of **clock
@@ -44,7 +44,7 @@ Clock margin percent
     be specified with **clock period**. This option is equivalent to specifying
     a reduced value for **clock period**.
 
-Clock period relaxation percent:
+Clock period relaxation percent
 :   This is the percentage that the computed minimum clock period, as determined
     by the number of pipeline stages, is increased (relaxed) prior to
     scheduling. May not be specified with **clock period**.
