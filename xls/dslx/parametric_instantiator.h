@@ -15,6 +15,18 @@
 #ifndef XLS_DSLX_CPP_PARAMETRIC_INSTANTIATOR_H_
 #define XLS_DSLX_CPP_PARAMETRIC_INSTANTIATOR_H_
 
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/errors.h"

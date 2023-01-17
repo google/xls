@@ -15,6 +15,11 @@
 #ifndef XLS_DSLX_DEDUCE_H_
 #define XLS_DSLX_DEDUCE_H_
 
+#include <memory>
+#include <vector>
+
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"

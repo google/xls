@@ -17,6 +17,17 @@
 #ifndef XLS_DSLX_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_INFO_H_
 
+#include <stdint.h>
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/parametric_env.h"

@@ -15,10 +15,15 @@
 #ifndef XLS_DSLX_INTERP_BINDINGS_H_
 #define XLS_DSLX_INTERP_BINDINGS_H_
 
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/interp_value.h"

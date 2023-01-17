@@ -13,9 +13,18 @@
 // limitations under the License.
 #include "xls/dslx/bytecode_emitter.h"
 
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <variant>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"

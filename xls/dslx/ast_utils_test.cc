@@ -13,8 +13,13 @@
 // limitations under the License.
 #include "xls/dslx/ast_utils.h"
 
-#include "gmock/gmock.h"
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"

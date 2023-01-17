@@ -13,8 +13,17 @@
 // limitations under the License.
 #include "xls/dslx/interp_value_helpers.h"
 
-#include "gmock/gmock.h"
+#include <stdint.h>
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"

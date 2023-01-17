@@ -15,8 +15,13 @@
 #ifndef XLS_DSLX_ERROR_PRINTER_H_
 #define XLS_DSLX_ERROR_PRINTER_H_
 
-#include <ostream>
+#include <stdint.h>
 
+#include <functional>
+#include <ostream>
+#include <string>
+
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"

@@ -14,13 +14,25 @@
 
 #include "xls/dslx/concrete_type.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 

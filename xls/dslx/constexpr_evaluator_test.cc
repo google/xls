@@ -13,8 +13,18 @@
 // limitations under the License.
 #include "xls/dslx/constexpr_evaluator.h"
 
-#include "gmock/gmock.h"
+#include <stdint.h>
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"

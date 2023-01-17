@@ -14,6 +14,18 @@
 
 #include "xls/dslx/mangle.h"
 
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/ret_check.h"
 

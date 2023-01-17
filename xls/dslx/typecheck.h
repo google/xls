@@ -15,10 +15,14 @@
 #ifndef XLS_DSLX_TYPECHECK_H_
 #define XLS_DSLX_TYPECHECK_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <optional>
+#include <variant>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/deduce_ctx.h"
 

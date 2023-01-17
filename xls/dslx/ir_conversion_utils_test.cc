@@ -14,9 +14,14 @@
 #include "xls/dslx/ir_conversion_utils.h"
 
 #include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"

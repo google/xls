@@ -13,6 +13,17 @@
 // limitations under the License.
 #include "xls/dslx/ir_conversion_utils.h"
 
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/dslx/deduce_ctx.h"
 
 namespace xls::dslx {

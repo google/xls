@@ -14,6 +14,12 @@
 
 #include "xls/dslx/builtins_metadata.h"
 
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+
 namespace xls::dslx {
 
 const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {

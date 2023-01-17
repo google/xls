@@ -14,9 +14,17 @@
 #ifndef XLS_DSLX_BYTECODE_EMITTER_H_
 #define XLS_DSLX_BYTECODE_EMITTER_H_
 
-#include <memory>
+#include <stdint.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"

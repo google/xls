@@ -14,8 +14,13 @@
 
 #include "xls/dslx/extract_conversion_order.h"
 
-#include "gmock/gmock.h"
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"

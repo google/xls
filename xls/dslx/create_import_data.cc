@@ -13,8 +13,12 @@
 // limitations under the License.
 #include "xls/dslx/create_import_data.h"
 
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
 
+#include "absl/memory/memory.h"
+#include "absl/types/span.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 
 namespace xls::dslx {

@@ -14,7 +14,10 @@
 
 #include "xls/dslx/create_import_data.h"
 
-#include "absl/base/casts.h"
+#include <filesystem>  // NOLINT
+#include <string>
+
+#include "absl/types/span.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"

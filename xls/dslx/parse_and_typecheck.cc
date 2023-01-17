@@ -14,6 +14,13 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"

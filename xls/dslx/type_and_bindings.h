@@ -15,6 +15,8 @@
 #ifndef XLS_DSLX_TYPE_AND_BINDINGS_H_
 #define XLS_DSLX_TYPE_AND_BINDINGS_H_
 
+#include <memory>
+
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/parametric_env.h"
 

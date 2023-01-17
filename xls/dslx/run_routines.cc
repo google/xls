@@ -14,8 +14,30 @@
 
 #include "xls/dslx/run_routines.h"
 
-#include <random>
+#include <stdint.h>
+#include <time.h>
+#include <unistd.h>
 
+#include <filesystem>  // NOLINT
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <random>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/meta/type_traits.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/dslx/bindings.h"
 #include "xls/dslx/bytecode_cache.h"
 #include "xls/dslx/bytecode_emitter.h"

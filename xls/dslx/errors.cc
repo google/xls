@@ -13,6 +13,12 @@
 // limitations under the License.
 #include "xls/dslx/errors.h"
 
+#include <string>
+#include <string_view>
+
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+
 namespace xls::dslx {
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,

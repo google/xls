@@ -15,14 +15,31 @@
 #ifndef XLS_DSLX_AST_H_
 #define XLS_DSLX_AST_H_
 
+#include <stdint.h>
+
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <typeinfo>
+#include <utility>
+#include <vector>
+
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_set.h"
+#include "absl/meta/type_traits.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
@@ -126,6 +143,7 @@ class Expr;
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
 XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
+
 #undef FORWARD_DECL
 
 // Helper type (abstract base) for double dispatch on AST nodes.

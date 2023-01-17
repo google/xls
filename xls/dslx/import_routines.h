@@ -15,9 +15,11 @@
 #ifndef XLS_DSLX_IMPORT_ROUTINES_H_
 #define XLS_DSLX_IMPORT_ROUTINES_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
+#include <functional>
 #include <string>
 
+#include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"

@@ -14,8 +14,9 @@
 #ifndef XLS_DSLX_CPP_TRANSPILER_H_
 #define XLS_DSLX_CPP_TRANSPILER_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/statusor.h"

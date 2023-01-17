@@ -15,8 +15,17 @@
 #ifndef XLS_DSLX_PYTHON_ERRORS_H_
 #define XLS_DSLX_PYTHON_ERRORS_H_
 
+#include <exception>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
+#include "absl/strings/strip.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/string_to_int.h"
 #include "xls/dslx/bindings.h"

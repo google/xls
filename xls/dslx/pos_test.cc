@@ -14,8 +14,10 @@
 
 #include "xls/dslx/pos.h"
 
-#include "gmock/gmock.h"
+#include <string>
+
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {

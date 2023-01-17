@@ -18,7 +18,9 @@
 // issues between InterpData and BytecodeEmitter, we need an interstitial
 // library here.
 
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
 
 #include "absl/types/span.h"
 #include "xls/dslx/bytecode.h"

@@ -13,9 +13,20 @@
 // limitations under the License.
 #include "xls/dslx/bytecode_interpreter.h"
 
+#include <stdint.h>
+
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"

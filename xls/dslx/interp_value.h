@@ -15,8 +15,22 @@
 #ifndef XLS_DSLX_INTERP_VALUE_H_
 #define XLS_DSLX_INTERP_VALUE_H_
 
-#include <deque>
+#include <stdint.h>
 
+#include <deque>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/dslx/ast.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"

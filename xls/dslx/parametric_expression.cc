@@ -14,6 +14,12 @@
 
 #include "xls/dslx/parametric_expression.h"
 
+#include <memory>
+#include <utility>
+#include <variant>
+
+#include "absl/status/statusor.h"
+
 namespace xls::dslx {
 
 /* static */ ParametricExpression::Evaluated ParametricExpression::ToEvaluated(

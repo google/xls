@@ -14,7 +14,18 @@
 #ifndef XLS_DSLX_BYTECODE_INTERPRETER_H_
 #define XLS_DSLX_BYTECODE_INTERPRETER_H_
 
+#include <stdint.h>
+
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"

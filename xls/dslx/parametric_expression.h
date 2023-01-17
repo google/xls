@@ -20,9 +20,13 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
+#include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/optional.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
 

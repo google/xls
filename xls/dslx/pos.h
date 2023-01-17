@@ -16,7 +16,11 @@
 #define XLS_DSLX_POS_H_
 
 #include <cstdint>
+#include <optional>
+#include <ostream>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

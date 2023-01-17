@@ -14,8 +14,15 @@
 
 #include "xls/dslx/error_printer.h"
 
+#include <filesystem>  // NOLINT
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"

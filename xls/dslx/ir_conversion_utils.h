@@ -17,6 +17,8 @@
 // Utilities involved in DSLX-to-IR type conversion that aren't strictly part of
 // tree traversal (which is the main concern of ir_converter.h/cc.
 
+#include <stdint.h>
+
 #include "absl/status/statusor.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/parametric_env.h"

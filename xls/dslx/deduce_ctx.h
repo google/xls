@@ -15,8 +15,18 @@
 #ifndef XLS_DSLX_DEDUCE_CTX_H_
 #define XLS_DSLX_DEDUCE_CTX_H_
 
-#include <filesystem>
+#include <cstddef>
+#include <filesystem>  // NOLINT
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/concrete_type.h"

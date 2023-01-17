@@ -15,6 +15,9 @@
 #ifndef XLS_DSLX_TYPE_INFO_TO_PROTO_H_
 #define XLS_DSLX_TYPE_INFO_TO_PROTO_H_
 
+#include <string>
+
+#include "absl/status/statusor.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/type_info.pb.h"

@@ -14,8 +14,13 @@
 
 #include "xls/dslx/parametric_expression.h"
 
-#include "gmock/gmock.h"
+#include <memory>
+#include <string>
+#include <utility>
+#include <variant>
+
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 
 namespace xls::dslx {
 namespace {

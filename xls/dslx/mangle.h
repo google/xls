@@ -15,6 +15,11 @@
 #ifndef XLS_DSLX_MANGLE_H_
 #define XLS_DSLX_MANGLE_H_
 
+#include <string>
+#include <string_view>
+
+#include "absl/container/btree_set.h"
+#include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/parametric_env.h"
 

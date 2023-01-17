@@ -14,7 +14,14 @@
 
 #include "xls/dslx/pos.h"
 
+#include <stdint.h>
+
+#include <string>
+#include <string_view>
+
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {

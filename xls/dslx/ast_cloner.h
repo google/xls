@@ -14,6 +14,9 @@
 #ifndef XLS_DSLX_AST_CLONER_H_
 #define XLS_DSLX_AST_CLONER_H_
 
+#include <memory>
+
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 

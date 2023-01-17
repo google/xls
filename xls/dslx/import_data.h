@@ -15,9 +15,20 @@
 #ifndef XLS_DSLX_IMPORT_DATA_H_
 #define XLS_DSLX_IMPORT_DATA_H_
 
-#include <filesystem>
-#include <memory>
+#include <stdint.h>
 
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode_cache_interface.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"

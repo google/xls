@@ -14,7 +14,15 @@
 
 #include "xls/dslx/token_utils.h"
 
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <string_view>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/match.h"
+#include "absl/strings/numbers.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/scanner_keywords.inc"
 

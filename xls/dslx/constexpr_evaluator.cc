@@ -13,10 +13,22 @@
 // limitations under the License.
 #include "xls/dslx/constexpr_evaluator.h"
 
-#include <variant>
+#include <stdint.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"

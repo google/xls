@@ -14,7 +14,12 @@
 #ifndef XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_
 #define XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_
 
+#include <string>
+#include <variant>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/import_data.h"

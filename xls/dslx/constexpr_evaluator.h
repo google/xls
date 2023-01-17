@@ -14,7 +14,12 @@
 #ifndef XLS_DSLX_CONSTEXPR_EVALUATOR_H_
 #define XLS_DSLX_CONSTEXPR_EVALUATOR_H_
 
+#include <string>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parametric_env.h"

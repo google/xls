@@ -14,10 +14,19 @@
 
 #include "xls/dslx/command_line_utils.h"
 
+#include <stdio.h>
 #include <unistd.h>
 
+#include <functional>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/bindings.h"

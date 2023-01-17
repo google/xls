@@ -13,9 +13,22 @@
 // limitations under the License.
 #include "xls/dslx/interp_value_helpers.h"
 
+#include <stdint.h>
+
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"

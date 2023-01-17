@@ -15,7 +15,17 @@
 #ifndef XLS_DSLX_CPP_EXTRACT_CONVERSION_ORDER_H_
 #define XLS_DSLX_CPP_EXTRACT_CONVERSION_ORDER_H_
 
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_join.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/parametric_env.h"
 #include "xls/dslx/type_info.h"

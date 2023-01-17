@@ -15,7 +15,22 @@
 #ifndef XLS_DSLX_PARSER_H_
 #define XLS_DSLX_PARSER_H_
 
+#include <cstddef>
+#include <functional>
+#include <initializer_list>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bindings.h"
 #include "xls/dslx/token_parser.h"

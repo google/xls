@@ -14,6 +14,15 @@
 #ifndef XLS_DSLX_AST_UTILS_H_
 #define XLS_DSLX_AST_UTILS_H_
 
+#include <stdint.h>
+
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <variant>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"

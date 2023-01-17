@@ -14,8 +14,8 @@
 
 #include "xls/dslx/type_info.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {

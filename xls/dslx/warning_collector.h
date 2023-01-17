@@ -16,6 +16,7 @@
 #define XLS_DSLX_WARNING_COLLECTOR_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "xls/dslx/pos.h"

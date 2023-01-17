@@ -14,6 +14,15 @@
 
 #include "xls/dslx/token_parser.h"
 
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/scanner.h"
 

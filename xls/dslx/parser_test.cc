@@ -14,8 +14,19 @@
 
 #include "xls/dslx/parser.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <variant>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {

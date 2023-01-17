@@ -13,6 +13,13 @@
 // limitations under the License.
 #include "xls/dslx/bytecode_cache.h"
 
+#include <memory>
+#include <optional>
+#include <tuple>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "xls/dslx/bytecode_emitter.h"
 
 namespace xls::dslx {

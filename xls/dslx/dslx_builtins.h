@@ -17,15 +17,21 @@
 #ifndef XLS_DSLX_DSLX_BUILTINS_H_
 #define XLS_DSLX_DSLX_BUILTINS_H_
 
+#include <stdint.h>
+
 #include <functional>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/type_and_bindings.h"
 

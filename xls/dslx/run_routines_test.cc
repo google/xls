@@ -14,8 +14,19 @@
 
 #include "xls/dslx/run_routines.h"
 
+#include <stdint.h>
+
+#include <filesystem>  // NOLINT
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/meta/type_traits.h"
+#include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/ir_parser.h"

@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_COMMAND_LINE_UTILS_H_
 #define XLS_DSLX_COMMAND_LINE_UTILS_H_
 
+#include <functional>
 #include <string>
 
 #include "absl/status/status.h"

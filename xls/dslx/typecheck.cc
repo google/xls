@@ -14,6 +14,21 @@
 
 #include "xls/dslx/typecheck.h"
 
+#include <stdint.h>
+
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"

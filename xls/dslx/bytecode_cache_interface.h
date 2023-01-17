@@ -14,6 +14,8 @@
 #ifndef XLS_DSLX_BYTECODE_CACHE_INTERFACE_H_
 #define XLS_DSLX_BYTECODE_CACHE_INTERFACE_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"

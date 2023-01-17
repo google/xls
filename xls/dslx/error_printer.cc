@@ -14,9 +14,23 @@
 
 #include "xls/dslx/error_printer.h"
 
+#include <stdint.h>
+#include <stdio.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <functional>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/status/ret_check.h"
 

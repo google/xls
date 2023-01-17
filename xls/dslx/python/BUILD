@@ -27,6 +27,8 @@ cc_library(
     copts = ["-fexceptions"],
     features = ["-use_header_modules"],
     deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:string_to_int",
         "//xls/dslx:bindings",
@@ -59,7 +61,9 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/common/status:import_status_module",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
@@ -76,6 +80,7 @@ xls_pybind_extension(
     srcs = ["create_import_data.cc"],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/types:span",
         "//xls/dslx:create_import_data",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
     ],
@@ -86,6 +91,7 @@ xls_pybind_extension(
     srcs = ["parse_and_typecheck.cc"],
     deps = [
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
         "//xls/dslx:parse_and_typecheck",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
@@ -105,6 +111,7 @@ xls_pybind_extension(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/status:import_status_module",
         "//xls/common/status:status_macros",

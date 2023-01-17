@@ -13,9 +13,18 @@
 // limitations under the License.
 #include "xls/dslx/proc_config_ir_converter.h"
 
+#include <stdint.h>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"

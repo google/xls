@@ -14,10 +14,11 @@
 
 #include "xls/dslx/deduce_ctx.h"
 
-#include "absl/strings/match.h"
-#include "absl/strings/str_split.h"
-#include "absl/strings/strip.h"
-#include "absl/types/variant.h"
+#include <string>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/string_to_int.h"
 
 namespace xls::dslx {

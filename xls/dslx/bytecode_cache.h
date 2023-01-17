@@ -15,8 +15,11 @@
 #define XLS_DSLX_BYTECODE_CACHE_H_
 
 #include <memory>
+#include <optional>
+#include <tuple>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/bytecode_cache_interface.h"

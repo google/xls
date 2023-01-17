@@ -14,6 +14,24 @@
 
 #include "xls/dslx/type_info_to_proto.h"
 
+#include <stdint.h>
+
+#include <algorithm>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::dslx {

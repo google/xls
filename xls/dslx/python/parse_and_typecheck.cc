@@ -14,7 +14,9 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
-#include "absl/base/casts.h"
+#include <string_view>
+
+#include "absl/status/statusor.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
