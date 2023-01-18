@@ -20,6 +20,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+filegroup(
+    name = "release_files",
+    srcs = glob(["*.bzl"]) + [":default_xls_toolchain"],
+)
+
 exports_files(
     [
         "xls_codegen_macros.bzl",
@@ -36,7 +41,7 @@ exports_files(
         "xls_rules.bzl",
         "xls_rules_build_defs.bzl",
         "xls_toolchains.bzl",
-        "xls_utilties.bzl",
+        "xls_utilities.bzl",
     ],
     visibility = ["//visibility:private"],
 )
