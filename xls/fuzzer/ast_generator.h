@@ -205,11 +205,20 @@ class AstGenerator {
   std::optional<TypedExpr> ChooseEnvValueOptional(
       Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
 
+  // As above, but takes a type to compare for equality.
+  std::optional<TypedExpr> ChooseEnvValueOptional(Env* env,
+                                                  const TypeAnnotation* type) {
+    return ChooseEnvValueOptional(env, [type](const TypedExpr& e) {
+      return e.type->ToString() == type->ToString();
+    });
+  }
+
   absl::StatusOr<TypedExpr> ChooseEnvValue(
       Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
 
   // As above, but takes a type to compare for equality.
-  absl::StatusOr<TypedExpr> ChooseEnvValue(Env* env, TypeAnnotation* type) {
+  absl::StatusOr<TypedExpr> ChooseEnvValue(Env* env,
+                                           const TypeAnnotation* type) {
     return ChooseEnvValue(env, [type](const TypedExpr& e) {
       return e.type->ToString() == type->ToString();
     });
@@ -218,6 +227,13 @@ class AstGenerator {
   // Return all values from the environment which satisty the given predicate.
   std::vector<TypedExpr> GatherAllValues(
       Env* env, std::function<bool(const TypedExpr&)> take);
+
+  // As above, but takes a type to compare for equality.
+  std::vector<TypedExpr> GatherAllValues(Env* env, const TypeAnnotation* type) {
+    return GatherAllValues(env, [type](const TypedExpr& e) {
+      return e.type->ToString() == type->ToString();
+    });
+  }
 
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
@@ -437,9 +453,9 @@ class AstGenerator {
   // Generates an Eq or Neq comparison on tuples.
   absl::StatusOr<TypedExpr> GenerateCompareTuple(Context* ctx);
 
-  // Generates a value with type 'type'. The value is represented as an
-  // xls::dslx::Expr.
-  absl::StatusOr<Expr*> GenerateValue(Context* ctx, const TypeAnnotation* type);
+  // Generates an expression with type 'type'.
+  absl::StatusOr<Expr*> GenerateExprOfType(Context* ctx,
+                                           const TypeAnnotation* type);
 
   // Generate a MatchArmPattern with type 'type'. The pattern is represented as
   // an xls::dslx::NameDefTree.

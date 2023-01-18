@@ -584,25 +584,35 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
                    MakeTypeAnnotation(false, 1)};
 }
 
-// TODO(vmirian) 12-15-2022 Generate non-number expressions.
-absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
-                                                  const TypeAnnotation* type) {
+absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
+    Context* ctx, const TypeAnnotation* type) {
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, tuple_type);
+    // Twenty percent of the time, generate a reference if one exists.
+    if (!candidates.empty() && RandomFloat() < 0.20) {
+      return candidates[RandRange(candidates.size())].expr;
+    }
     std::vector<Expr*> tuple_values(tuple_type->size(), nullptr);
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
-      XLS_ASSIGN_OR_RETURN(tuple_values[index],
-                           GenerateValue(ctx, tuple_type->members()[index]));
+      XLS_ASSIGN_OR_RETURN(
+          tuple_values[index],
+          GenerateExprOfType(ctx, tuple_type->members()[index]));
     }
     return module_->Make<XlsTuple>(fake_span_, tuple_values);
   }
   if (IsArray(type)) {
     auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+    std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, array_type);
+    // Twenty percent of the time, generate a reference if one exists.
+    if (!candidates.empty() && RandomFloat() < 0.20) {
+      return candidates[RandRange(candidates.size())].expr;
+    }
     int64_t array_size = GetArraySize(array_type);
     std::vector<Expr*> array_values(array_size, nullptr);
     for (int64_t index = 0; index < array_size; ++index) {
       XLS_ASSIGN_OR_RETURN(array_values[index],
-                           GenerateValue(ctx, array_type->element_type()));
+                           GenerateExprOfType(ctx, array_type->element_type()));
     }
     return module_->Make<Array>(fake_span_, array_values,
                                 /*has_ellipsis=*/false);
@@ -612,9 +622,14 @@ absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
     const TypeDefinition& type_def = type_ref->type_definition();
     XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
     TypeDef* def = std::get<TypeDef*>(type_def);
-    return GenerateValue(ctx, def->type_annotation());
+    return GenerateExprOfType(ctx, def->type_annotation());
   }
   XLS_CHECK(IsBits(type));
+  std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
+  // Twenty percent of the time, generate a reference if one exists.
+  if (!candidates.empty() && RandomFloat() < 0.20) {
+    return candidates[RandRange(candidates.size())].expr;
+  }
   TypedExpr type_expr = GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   return type_expr.expr;
@@ -711,12 +726,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
     if (match_arm_patterns.empty()) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Expr * ret, GenerateValue(ctx, match_return_type));
+    XLS_ASSIGN_OR_RETURN(Expr * ret,
+                         GenerateExprOfType(ctx, match_return_type));
     match_arms.push_back(
         module_->Make<MatchArm>(fake_span_, match_arm_patterns, ret));
   }
   // Add wildcard pattern as last match arm.
-  XLS_ASSIGN_OR_RETURN(Expr * wc_return, GenerateValue(ctx, match_return_type));
+  XLS_ASSIGN_OR_RETURN(Expr * wc_return,
+                       GenerateExprOfType(ctx, match_return_type));
   WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
   NameDefTree* wc_pattern = module_->Make<NameDefTree>(fake_span_, wc);
   match_arms.push_back(module_->Make<MatchArm>(
