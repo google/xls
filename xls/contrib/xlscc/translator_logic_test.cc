@@ -558,6 +558,17 @@ TEST_F(TranslatorLogicTest, UnsequencedAssign) {
                                     testing::HasSubstr("parse")));
 }
 
+TEST_F(TranslatorLogicTest, TestXlsccCheck) {
+  const std::string content = R"(
+      int my_package(int a) {
+        return a+a;
+      })";
+
+  EXPECT_DEATH({auto ret = ScanFile(content, {}, false, false,
+    xls::SourceLocation(xls::Fileno(0), xls::Lineno(1), xls::Colno(1)), true);},
+                  testing::HasSubstr("0,1,1"));
+}
+
 #if UNSEQUENCED_TESTS
 
 TEST_F(TranslatorLogicTest, UnsequencedRefParam) {

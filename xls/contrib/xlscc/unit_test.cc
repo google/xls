@@ -25,9 +25,11 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value_helpers.h"
 
 using testing::Optional;
@@ -129,10 +131,23 @@ void XlsccTestBase::RunWithStatics(
   }
 }
 
+template <typename... Args>
+std::string ErrorMessage(const xls::SourceInfo& loc,
+                           const absl::FormatSpec<Args...>& format,
+                           const Args&... args) {
+    std::string result = absl::StrFormat(format, args...);
+    for (const xls::SourceLocation& location : loc.locations) {
+      absl::StrAppend(&result, "\n", location.ToString());
+    }
+    return result;
+}
+
 absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
                                      std::vector<std::string_view> clang_argv,
                                      bool io_test_mode,
-                                     bool error_on_init_interval) {
+                                     bool error_on_init_interval,
+                                     xls::SourceLocation loc,
+                                     bool fail_xlscc_check) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(ScanTempFileWithContent(temp, clang_argv, parser.get()));
   // When loop unrolling is failing, it tends to run slowly.
@@ -144,16 +159,23 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
+  if (fail_xlscc_check) {
+    auto source_info = xls::SourceInfo(loc);
+    XLSCC_CHECK(false, source_info);
+  }
   return absl::OkStatus();
 }
 
 absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
                                      std::vector<std::string_view> clang_argv,
                                      bool io_test_mode,
-                                     bool error_on_init_interval) {
+                                     bool error_on_init_interval,
+                                     xls::SourceLocation loc,
+                                     bool fail_xlscc_check) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval);
+  return ScanFile(temp, clang_argv, io_test_mode,
+      error_on_init_interval, loc, fail_xlscc_check);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
