@@ -893,8 +893,6 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
 
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
                          CreateZeroValueFromType(*payload_type));
-
-    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     stack_.push_back(
         InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
   }

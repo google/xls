@@ -874,6 +874,12 @@ xls_ir_opt_ir(
     top = "__non_blocking_receive_if__Main_0_next",
 )
 
+dslx_lang_test(
+    name = "non_blocking_receive_if_2",
+    convert_to_ir = False,
+    dslx_entry = "Tester",
+)
+
 exports_files([
     "mod_const_enum_importer.x",
     "mod_simple_const_enum.x",
