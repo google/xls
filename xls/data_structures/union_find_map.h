@@ -154,8 +154,8 @@ class UnionFindMap {
       if (p == x) {
         return x;
       }
-      nodes_.at(p).parent = pp;
-      x = p;
+      nodes_.at(x).parent = pp;
+      x = pp;
     }
   }
 
