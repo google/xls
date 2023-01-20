@@ -798,7 +798,7 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 
   std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
 
-  Z3_global_param_set("rlimit", "500000");
+  Z3_global_param_set("rlimit", "5000");
 
   // Determine for each predicate whether it is always false using Z3.
   // Dead nodes are mutually exclusive with all other nodes, so this can reduce
@@ -822,7 +822,7 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
     XLS_VLOG(3) << "Predicate: " << node;
   }
 
-  Z3_global_param_set("rlimit", "500000");
+  Z3_global_param_set("rlimit", "5000");
 
   int64_t known_false = 0;
   int64_t known_true = 0;
