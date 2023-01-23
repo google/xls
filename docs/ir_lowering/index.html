@@ -8,20 +8,20 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/xls_noc_readme/">
+        <link rel="canonical" href="https://google.github.io/xls/ir_lowering/">
       
       
-        <link rel="prev" href="../fpga_characterization/">
+        <link rel="prev" href="../codegen_options/">
       
       
-        <link rel="next" href="../xls_noc_topologies/">
+        <link rel="next" href="../vast/">
       
       <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.6">
     
     
       
-        <title>Overview - XLS: Accelerated HW Synthesis</title>
+        <title>IR Lowering - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -69,7 +69,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-noc-project" class="md-skip">
+        <a href="#xls-ir-lowering" class="md-skip">
           Skip to content
         </a>
       
@@ -102,7 +102,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              IR Lowering
             
           </span>
         </div>
@@ -802,18 +802,20 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_5" type="checkbox" id="__nav_5" checked>
       
       
       
-        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="false">
+        <label class="md-nav__link" for="__nav_5" tabindex="0" aria-expanded="true">
           Code Generation
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -843,11 +845,86 @@
               
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../ir_lowering/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          IR Lowering
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         IR Lowering
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#flattening" class="md-nav__link">
+    Flattening
+  </a>
+  
+    <nav class="md-nav" aria-label="Flattening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arrays" class="md-nav__link">
+    Arrays
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuples" class="md-nav__link">
+    Tuples
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#structs" class="md-nav__link">
+    Structs
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unrepresented-ops" class="md-nav__link">
+    Unrepresented Ops
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1089,20 +1166,18 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_8" type="checkbox" id="__nav_8" checked>
+      <input class="md-nav__toggle md-toggle " data-md-toggle="__nav_8" type="checkbox" id="__nav_8" >
       
       
       
-        <label class="md-nav__link" for="__nav_8" tabindex="0" aria-expanded="true">
+        <label class="md-nav__link" for="__nav_8" tabindex="0" aria-expanded="false">
           NoC
           <span class="md-nav__icon md-icon"></span>
         </label>
@@ -1118,21 +1193,11 @@
               
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
-      
     </li>
   
 
@@ -1296,6 +1361,55 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#flattening" class="md-nav__link">
+    Flattening
+  </a>
+  
+    <nav class="md-nav" aria-label="Flattening">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#arrays" class="md-nav__link">
+    Arrays
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuples" class="md-nav__link">
+    Tuples
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#structs" class="md-nav__link">
+    Structs
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unrepresented-ops" class="md-nav__link">
+    Unrepresented Ops
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1313,13 +1427,59 @@
 
 
 
-<h1 id="xls-noc-project">XLS-NoC Project</h1>
-<p>The XLS-NoC subproject is a project that leverages XLS's facilities for
-optimizing parameterized hardware designs in the realm of NoC generation.</p>
-<p>A declarative specification drives the NoC generation process for optimization
-(e.g. of performance/area tradeoffs), traffic simulations and software-level
-functional verification, and the creation of (System)Verilog RTL artifacts such
-as routers and network-interfacing adapter components.</p>
+<h1 id="xls-ir-lowering">XLS: IR Lowering</h1>
+<div class="toc">
+<ul>
+<li><a href="#xls-ir-lowering">XLS: IR Lowering</a><ul>
+<li><a href="#flattening">Flattening</a><ul>
+<li><a href="#arrays">Arrays</a></li>
+<li><a href="#tuples">Tuples</a></li>
+<li><a href="#structs">Structs</a></li>
+</ul>
+</li>
+<li><a href="#unrepresented-ops">Unrepresented Ops</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<p>As part of codegen, IR constructs are lowered to Verilog/SystemVerilog
+constructs. In some cases, this lowering is simple and direct, but some IR
+constructs don't map directly to Verilog constructs.</p>
+<h2 id="flattening">Flattening</h2>
+<p>Some XLS types are flattened into simpler types when IR gets lowered to RTL.
+This flattening is performed
+<a href="https://github.com/google/xls/tree/main/xls/codegen/flattening.cc">here</a> (also see
+<a href="https://github.com/google/xls/tree/main/xls/codegen/flattening.h">the more-commented header file</a>).
+The following summarizes how types are flattened.</p>
+<h3 id="arrays">Arrays</h3>
+<p>Arrays are flattened such that the last element occupies the most significant
+bits. Elements are concatenated via the SystemVerilog concatenation operation.
+This matches the flattening of SystemVerilog packed arrays (e.g. <code>logic [N:0]
+foo</code>) to unpacked arrays declared like <code>logic bar[N:0]</code>. For example, a
+4-element array of 4-bit UInts would be flattened as</p>
+<div class="highlight"><pre><span></span><code>[0x3, 0x4, 0x5, 0x6] =&gt; 0x6543
+</code></pre></div>
+<h3 id="tuples">Tuples</h3>
+<p>Tuples are flattened by concatenating each leaf element of the tuple. If an
+element of a tuple is an array, this is equivalent to first flattening the array
+and treating the flattened array as a leaf element. Concatenation is performed
+via the SystemVerilog concatenation operation. The zero-th tuple element will
+end up occupying the most significant bits in the flattened output. For example,
+a 4-tuple of 4-bit UInts would be flattened as</p>
+<div class="highlight"><pre><span></span><code>(0x3, 0x4, 0x5, 0x6) =&gt; 0x3456
+</code></pre></div>
+<p>and a 2-tuple of length 2 arrays of 4-bit UInts would be flattened as</p>
+<div class="highlight"><pre><span></span><code>([0x3, 0x4], [0x5, 0x6]) =&gt; 0x4365
+</code></pre></div>
+<h3 id="structs">Structs</h3>
+<p>DSLX structs are lowered to tuples in the IR, so there's no separate handling of
+structs.</p>
+<h2 id="unrepresented-ops">Unrepresented Ops</h2>
+<p>Tokens are not represented in RTL.</p>
+<p>Entities with zero width are unrepresented in RTL. Where a zero-width value is
+used, a zero-valued literal can be substituted.</p>
+<p>Asserts and covers are only represented when producing SystemVerilog, and are
+unrepresented when producing Verilog.</p>
 
 
 
