@@ -41,6 +41,7 @@ nav:
     - Interpreter: 'dslx_bytecode_interpreter.md'
   - Code Generation:
     - Codegen Options: 'codegen_options.md'
+    - IR Lowering: 'ir_lowering.md'
     - VAST: 'vast.md'
   - Tools:
     - Build System: 'build_system.md'

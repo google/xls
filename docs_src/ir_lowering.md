@@ -16,8 +16,15 @@ The following summarizes how types are flattened.
 
 ### Arrays
 
-Arrays are flattened such that the zero-th element occupies the most significant
+Arrays are flattened such that the last element occupies the most significant
 bits. Elements are concatenated via the SystemVerilog concatenation operation.
+This matches the flattening of SystemVerilog packed arrays (e.g. `logic [N:0]
+foo`) to unpacked arrays declared like `logic bar[N:0]`. For example, a
+4-element array of 4-bit UInts would be flattened as
+
+```
+[0x3, 0x4, 0x5, 0x6] => 0x6543
+```
 
 ### Tuples
 
@@ -25,11 +32,22 @@ Tuples are flattened by concatenating each leaf element of the tuple. If an
 element of a tuple is an array, this is equivalent to first flattening the array
 and treating the flattened array as a leaf element. Concatenation is performed
 via the SystemVerilog concatenation operation. The zero-th tuple element will
-end up occupy the most significant bits in the flattened output.
+end up occupying the most significant bits in the flattened output. For example,
+a 4-tuple of 4-bit UInts would be flattened as
+
+```
+(0x3, 0x4, 0x5, 0x6) => 0x3456
+```
+
+and a 2-tuple of length 2 arrays of 4-bit UInts would be flattened as
+
+```
+([0x3, 0x4], [0x5, 0x6]) => 0x4365
+```
 
 ### Structs
 
-DSXL structs are lowered to tuples in the IR, so there's no separate handling of
+DSLX structs are lowered to tuples in the IR, so there's no separate handling of
 structs.
 
 ## Unrepresented Ops
