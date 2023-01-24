@@ -89,7 +89,10 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
   placeholders["width"] = absl::StrCat(node->GetType()->GetFlatBitCount());
 
   for (const auto& itr : placeholder_aliases_) {
-    placeholders[itr.first] = placeholders[itr.second];
+    // Use `temp` because `placeholders[itr.first]` can cause a rehash that
+    // invalidates the reference returned by `placeholders[itr.second]`.
+    std::string temp = placeholders[itr.second];
+    placeholders[itr.first] = std::move(temp);
   }
 
   XLS_ASSIGN_OR_RETURN(
