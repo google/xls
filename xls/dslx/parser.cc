@@ -351,9 +351,18 @@ absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(Expr * consequent, ParseExpression(bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
     XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-    XLS_ASSIGN_OR_RETURN(Expr * alternate, ParseExpression(bindings));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+
+    Expr* alternate = nullptr;
+
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->IsKeyword(Keyword::kIf)) {  // Ternary expression.
+      XLS_ASSIGN_OR_RETURN(alternate, ParseExpression(bindings));
+    } else {
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+      XLS_ASSIGN_OR_RETURN(alternate, ParseExpression(bindings));
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+    }
+
     return module_->Make<Ternary>(Span(if_->span().start(), GetPos()), test,
                                   consequent, alternate);
   }

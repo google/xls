@@ -945,6 +945,32 @@ TEST_F(ParserTest, Ternary) {
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
+TEST_F(ParserTest, TernaryChain) {
+  RoundTripExpr(
+      "if true { u32:42 } else if false { u32:33 } else { u32:24 }", {},
+      "if true { u32:42 } else { if false { u32:33 } else { u32:24 } }");
+
+  RoundTripExpr(
+      R"(if really_long_identifier_so_that_this_is_too_many_chars {
+  u32:42
+} else if another_really_long_identifier_so_that_this_is_too_many_chars {
+  u32: 22
+} else {
+  u32:24
+})",
+      {"really_long_identifier_so_that_this_is_too_many_chars",
+       "another_really_long_identifier_so_that_this_is_too_many_chars"},
+      R"(if really_long_identifier_so_that_this_is_too_many_chars {
+  u32:42
+} else {
+  if another_really_long_identifier_so_that_this_is_too_many_chars {
+  u32:22
+} else {
+  u32:24
+}
+})");
+}
+
 TEST_F(ParserTest, TernaryWithComparisonTest) {
   RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"},
                 "if (a) <= (b) { u32:42 } else { u32:24 }");

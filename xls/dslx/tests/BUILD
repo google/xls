@@ -139,6 +139,8 @@ dslx_lang_test(name = "match_const")
 
 dslx_lang_test(name = "match_multi")
 
+dslx_lang_test(name = "elseif_sample")
+
 xls_dslx_library(
     name = "number_of_imported_type_import_dslx",
     srcs = ["number_of_imported_type_import.x"],
