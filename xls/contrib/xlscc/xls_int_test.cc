@@ -620,6 +620,19 @@ TEST_F(XlsIntTest, DefaultArrayInit) {
   RunIntTest({{"a", 100}}, 101, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, ToUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    unsigned int my_package(long long a) {
+      XlsInt<32, false> ax = a;
+      return ax.to_uint();
+    })";
+  RunIntTest({{"a", -1}}, 0xFFFFFFFF, content,
+    xabsl::SourceLocation::current());
+  RunIntTest({{"a", 500}}, 500, content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, SaturateUnsigned) {
   const std::string content = R"(
     #include "xls_fixed.h"

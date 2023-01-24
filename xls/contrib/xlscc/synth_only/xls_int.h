@@ -524,6 +524,10 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return reti;
   }
 
+  inline unsigned int to_uint() const {
+    return (unsigned int) to_int();
+  }
+
   static const int width = Width;
   static const int i_width = Width;
   static const bool sign = Signed;
