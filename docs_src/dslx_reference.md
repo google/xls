@@ -1327,13 +1327,10 @@ However, `let` expressions are lexically scoped. In above example, the value `3`
 is bound to `a` only during the combined let expression sequence. There is no
 other type of scoping in DSLX.
 
-### Ternary If Expression
+### If Expression
 
-Note: ternary expression syntax is expected to change to mimic Rust's, see
-[#318](https://github.com/google/xls/issues/318).
-
-DSLX offers a ternary `if` expression, which is very similar to the Rust ternary
-`if` expression. Blueprint:
+DSLX offers an `if` expression, which is very similar to the Rust `if`
+expression. Blueprint:
 
 ```
 if condition { consequent } else { alternate }
@@ -1348,6 +1345,21 @@ condition ? consequent : alternate
 Note: both the `if` and `else` are *required* to be present, as with the `?:`
 operator, unlike a C++ `if` statement. This is because it is an *expression*
 that *produces* a result value, not a *statement* that causes a mutating effect.
+
+Furthermore, you can have multiple branches via `else if`:
+
+```
+if condition0 { consequent0 } else if condition1 { consequent1 } else { alternate }
+```
+
+which corresponds to the C/C++:
+
+```
+condition0 ? consequent0 : (contition1 ? consequent1 : alternate)
+```
+
+Note: a `match` expression can often be a better choice than having a long
+`if/else if/.../else` chain.
 
 For example, in the FP adder module (modules/fp32_add_2.x), there is code like
 the following:
