@@ -1137,8 +1137,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ternary-if-expression" class="md-nav__link">
-    Ternary If Expression
+  <a href="#if-expression" class="md-nav__link">
+    If Expression
   </a>
   
 </li>
@@ -2330,8 +2330,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ternary-if-expression" class="md-nav__link">
-    Ternary If Expression
+  <a href="#if-expression" class="md-nav__link">
+    If Expression
   </a>
   
 </li>
@@ -3634,11 +3634,9 @@ Python, where the same result would be achieved with code similar to this:</p>
 <p>However, <code>let</code> expressions are lexically scoped. In above example, the value <code>3</code>
 is bound to <code>a</code> only during the combined let expression sequence. There is no
 other type of scoping in DSLX.</p>
-<h3 id="ternary-if-expression">Ternary If Expression</h3>
-<p>Note: ternary expression syntax is expected to change to mimic Rust's, see
-<a href="https://github.com/google/xls/issues/318">#318</a>.</p>
-<p>DSLX offers a ternary <code>if</code> expression, which is very similar to the Rust ternary
-<code>if</code> expression. Blueprint:</p>
+<h3 id="if-expression">If Expression</h3>
+<p>DSLX offers an <code>if</code> expression, which is very similar to the Rust <code>if</code>
+expression. Blueprint:</p>
 <div class="highlight"><pre><span></span><code>if condition { consequent } else { alternate }
 </code></pre></div>
 <p>This corresponds to the C/C++ ternary <code>?:</code> operator:</p>
@@ -3647,6 +3645,14 @@ other type of scoping in DSLX.</p>
 <p>Note: both the <code>if</code> and <code>else</code> are <em>required</em> to be present, as with the <code>?:</code>
 operator, unlike a C++ <code>if</code> statement. This is because it is an <em>expression</em>
 that <em>produces</em> a result value, not a <em>statement</em> that causes a mutating effect.</p>
+<p>Furthermore, you can have multiple branches via <code>else if</code>:</p>
+<div class="highlight"><pre><span></span><code>if condition0 { consequent0 } else if condition1 { consequent1 } else { alternate }
+</code></pre></div>
+<p>which corresponds to the C/C++:</p>
+<div class="highlight"><pre><span></span><code>condition0 ? consequent0 : (contition1 ? consequent1 : alternate)
+</code></pre></div>
+<p>Note: a <code>match</code> expression can often be a better choice than having a long
+<code>if/else if/.../else</code> chain.</p>
 <p>For example, in the FP adder module (modules/fp32_add_2.x), there is code like
 the following:</p>
 <div class="highlight"><pre><span></span><code>[...]
