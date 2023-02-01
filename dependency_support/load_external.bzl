@@ -233,3 +233,12 @@ def load_external_repositories():
         urls = ["https://github.com/pybind/pybind11_abseil/archive/6776a52004a92528789155b202508750049f584c.zip"],
         patches = ["@com_google_xls//dependency_support/pybind11_abseil:status_module.patch"],
     )
+
+    # Updated 2023-2-1
+    http_archive(
+        name = "rules_license",
+        urls = [
+            "https://github.com/bazelbuild/rules_license/releases/download/0.0.4/rules_license-0.0.4.tar.gz",
+        ],
+        sha256 = "6157e1e68378532d0241ecd15d3c45f6e5cfd98fc10846045509fb2a7cc9e381",
+    )
