@@ -172,7 +172,7 @@ class Interval {
 
   // Generate a random proper interval with the given seed and bit count.
   // This is useful for tests.
-  static Interval Random(uint32_t seed, int64_t bit_count);
+  static Interval Random(uint64_t seed, int64_t bit_count);
 
   // Lexicographic ordering of intervals.
   friend bool operator<(const Interval& lhs, const Interval& rhs) {

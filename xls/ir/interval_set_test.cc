@@ -118,8 +118,8 @@ TEST(IntervalTest, Combine) {
 
 TEST(IntervalTest, Intersect) {
   // Manually tested with 1,000 random seeds;
-  int32_t seed = 815303902;
-  for (int32_t i = 0; i < 30; ++i) {
+  int64_t seed = 815303902;
+  for (int64_t i = 0; i < 30; ++i) {
     IntervalSet lhs = IntervalSet::Random(seed, 12, 5);
     IntervalSet rhs = IntervalSet::Random(seed + 1, 12, 5);
     seed = seed + 2;

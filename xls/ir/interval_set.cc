@@ -349,9 +349,9 @@ std::string IntervalSet::ToString() const {
   return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
 }
 
-IntervalSet IntervalSet::Random(uint32_t seed, int64_t bit_count,
+IntervalSet IntervalSet::Random(uint64_t seed, int64_t bit_count,
                                 int64_t max_intervals) {
-  std::mt19937 gen(seed);
+  std::mt19937_64 gen(seed);
   std::uniform_int_distribution<int64_t> distrib(0, max_intervals);
   int64_t num_intervals = distrib(gen);
   IntervalSet result(bit_count);

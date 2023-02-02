@@ -128,10 +128,10 @@ TEST(AbstractEvaluatorTest, UMul) {
 // Performs random UMul and SMul implementations as constructed by the
 // TestAbstractEvaluator and compares them to the bits_ops reference
 // implementation (up to 16 bit values on either side).
-void DoMulRandoms(int seed, int64_t iterations) {
+void DoMulRandoms(int64_t seed, int64_t iterations) {
   TestAbstractEvaluator eval;
 
-  std::mt19937 rng(seed);
+  std::mt19937_64 rng(seed);
 
   std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
 
@@ -211,10 +211,10 @@ TEST(AbstractEvaluatorTest, SDiv) {
 // Performs random UDiv, SDiv, UMod, and SMod implementations as constructed by
 // the TestAbstractEvaluator and compares them to the bits_ops reference
 // implementation (up to 16 bit values on either side).
-void DoDivRandoms(int seed, int64_t iterations) {
+void DoDivRandoms(int64_t seed, int64_t iterations) {
   TestAbstractEvaluator eval;
 
-  std::mt19937 rng(seed);
+  std::mt19937_64 rng(seed);
 
   std::uniform_int_distribution<int64_t> bit_count_dist(1, 16);
 

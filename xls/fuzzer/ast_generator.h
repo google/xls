@@ -81,7 +81,7 @@ struct AstGeneratorOptions {
 
 // Type that generates a random module for use in fuzz testing; i.e.
 //
-//    std::mt19937 rng;
+//    std::mt19937_64 rng;
 //    AstGenerator g(AstGeneratorOptions(), &rng);
 //    auto [f, module] = g.GenerateFunctionInModule().value();
 //

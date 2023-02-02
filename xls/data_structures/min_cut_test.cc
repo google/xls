@@ -194,7 +194,7 @@ Graph MakeLargeGraph(bool acyclic, NodeId* source, NodeId* sink,
   for (NodeId node : layers[0]) {
     graph.AddEdge(*source, node, std::numeric_limits<int64_t>::max());
   }
-  std::mt19937 gen;
+  std::mt19937_64 gen;
   std::uniform_int_distribution<int64_t> to_node_id_dis(0, nodes_in_layer - 1);
   std::uniform_int_distribution<int64_t> to_weight_dis(0, 10);
   std::uniform_int_distribution<int64_t> fanout_dis(0, kMaxFanOut);

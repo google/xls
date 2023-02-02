@@ -32,7 +32,7 @@ using ::testing::MatchesRegex;
 
 TEST(AstGeneratorTest, RandomBool) {
   const int64_t kSampleCount = 10000;
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
   std::vector<int64_t> bool_values(2);
 
   for (int64_t i = 0; i < kSampleCount; ++i) {
@@ -45,7 +45,7 @@ TEST(AstGeneratorTest, RandomBool) {
 
 TEST(AstGeneratorTest, RandomFloat) {
   const int64_t kSampleCount = 10000;
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
 
   float min = 1.0f;
   float max = 0.0f;
@@ -61,7 +61,7 @@ TEST(AstGeneratorTest, RandomFloat) {
 
 TEST(AstGeneratorTest, RandRangeStartAtZero) {
   const int64_t kSampleCount = 10000;
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
 
   absl::flat_hash_map<int64_t, int64_t> histogram;
   for (int64_t i = 0; i < kSampleCount; ++i) {
@@ -77,7 +77,7 @@ TEST(AstGeneratorTest, RandRangeStartAtZero) {
 
 TEST(AstGeneratorTest, RandRangeStartAtNonzero) {
   const int64_t kSampleCount = 10000;
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
 
   absl::flat_hash_map<int64_t, int64_t> histogram;
   for (int64_t i = 0; i < kSampleCount; ++i) {
@@ -93,8 +93,7 @@ TEST(AstGeneratorTest, RandRangeStartAtNonzero) {
 
 TEST(AstGeneratorTest, RandomIntWithExpectedValue) {
   const int64_t kSampleCount = 10000;
-  std::mt19937 rng(42);
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
 
   int64_t sum = 0;
   absl::flat_hash_map<int64_t, int64_t> histogram;
@@ -114,7 +113,7 @@ TEST(AstGeneratorTest, RandomIntWithExpectedValue) {
 
 TEST(AstGeneratorTest, RandomIntWithExpectedValueWithLowerLimit) {
   const int64_t kSampleCount = 10000;
-  ValueGenerator value_gen(std::mt19937{42});
+  ValueGenerator value_gen(std::mt19937_64{42});
 
   int64_t sum = 0;
   absl::flat_hash_map<int64_t, int64_t> histogram;
@@ -133,7 +132,7 @@ TEST(AstGeneratorTest, RandomIntWithExpectedValueWithLowerLimit) {
 }
 
 TEST(ValueGeneratorTest, RngRandRangeBiasedTowardsZero) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   constexpr int64_t kLimit = 3;
   std::vector<int64_t> histo(kLimit, 0);
   for (int64_t i = 0; i < kIterations; ++i) {
@@ -151,7 +150,7 @@ TEST(ValueGeneratorTest, RngRandRangeBiasedTowardsZero) {
 }
 
 TEST(SampleGeneratorTest, RngRandRange) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   constexpr int64_t kLimit = 3;
   std::vector<int64_t> histo(kLimit, 0);
   for (int64_t i = 0; i < kIterations; ++i) {
@@ -166,7 +165,7 @@ TEST(SampleGeneratorTest, RngRandRange) {
 }
 
 TEST(SampleGeneratorTest, RngRandomDouble) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   for (int64_t i = 0; i < kIterations; ++i) {
     double d = value_gen.RandomDouble();
     EXPECT_GE(d, 0.0);
@@ -175,7 +174,7 @@ TEST(SampleGeneratorTest, RngRandomDouble) {
 }
 
 TEST(SampleGeneratorTest, GenerateEmptyValues) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<dslx::InterpValue> values,
@@ -184,7 +183,7 @@ TEST(SampleGeneratorTest, GenerateEmptyValues) {
 }
 
 TEST(SampleGeneratorTest, GenerateSingleBitsArgument) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(std::make_unique<dslx::BitsType>(
       /*signed=*/false,
@@ -202,7 +201,7 @@ TEST(SampleGeneratorTest, GenerateSingleBitsArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateMixedBitsArguments) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(std::make_unique<dslx::BitsType>(
       /*signed=*/false,
@@ -224,7 +223,7 @@ TEST(SampleGeneratorTest, GenerateMixedBitsArguments) {
 }
 
 TEST(SampleGeneratorTest, GenerateTupleArgument) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   std::vector<std::unique_ptr<dslx::ConcreteType>> tuple_members;
   tuple_members.push_back(
@@ -248,7 +247,7 @@ TEST(SampleGeneratorTest, GenerateTupleArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateArrayArgument) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(std::make_unique<dslx::ArrayType>(
       std::make_unique<dslx::BitsType>(
@@ -271,7 +270,7 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
 
 TEST(SampleGeneratorTest, GenerateDslxConstantBits) {
   dslx::Module module("test");
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* type = module.Make<dslx::BuiltinTypeAnnotation>(
       dslx::FakeSpan(), dslx::BuiltinType::kU32,
       module.GetOrCreateBuiltinNameDef("u32"));
@@ -283,7 +282,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantBits) {
 
 TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
   dslx::Module module("test");
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,
@@ -304,7 +303,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
 
 TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
   dslx::Module module("test");
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,
@@ -325,7 +324,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
 
 TEST(SampleGeneratorTest, GenerateDslxConstantTuple) {
   dslx::Module module("test");
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* element0 =
       module.Make<dslx::BuiltinTypeAnnotation>(
           dslx::FakeSpan(), dslx::BuiltinType::kU32,

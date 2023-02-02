@@ -26,7 +26,7 @@ namespace {
 using ::xls::status_testing::IsOkAndHolds;
 
 TEST(SampleGeneratorTest, GenerateBasicSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   sample_options.set_calls_per_sample(3);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -42,7 +42,7 @@ TEST(SampleGeneratorTest, GenerateBasicSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateCodegenSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   sample_options.set_codegen(true);
   sample_options.set_simulate(true);
@@ -61,7 +61,7 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateChannelArgument) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(
       std::make_unique<dslx::ChannelType>(std::make_unique<dslx::BitsType>(
@@ -81,7 +81,7 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateBasicProcSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   constexpr int64_t kProcTicks = 3;
   sample_options.set_calls_per_sample(0);

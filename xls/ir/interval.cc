@@ -302,8 +302,8 @@ std::string Interval::ToString() const {
                          upper_bound_.ToString(pref, false));
 }
 
-Interval Interval::Random(uint32_t seed, int64_t bit_count) {
-  std::mt19937 gen(seed);
+Interval Interval::Random(uint64_t seed, int64_t bit_count) {
+  std::mt19937_64 gen(seed);
   std::uniform_int_distribution<int32_t> distrib(0, 255);
   int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
   std::vector<uint8_t> start_bytes(num_bytes);

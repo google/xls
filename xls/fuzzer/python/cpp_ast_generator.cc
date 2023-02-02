@@ -39,7 +39,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
 
   py::class_<ValueGenerator>(m, "ValueGenerator")
       .def(py::init(
-          [](int64_t seed) { return ValueGenerator{std::mt19937(seed)}; }))
+          [](int64_t seed) { return ValueGenerator{std::mt19937_64(seed)}; }))
       .def("random", &ValueGenerator::RandomDouble)
       .def("randrange", py::overload_cast<int64_t>(&ValueGenerator::RandRange))
       .def("randrange_biased_towards_zero",
