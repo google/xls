@@ -341,8 +341,8 @@ set_output_delay [expr $clk_period * $clk_io_pct] -clock op_clk [all_outputs] ; 
     XLS_ASSIGN_OR_RETURN(STAStatistics sta_stats,
                          ParseOpenSTAOutput(sta_stdout));
 
-    result->set_max_frequency_hz(sta_stats.fmax);
-    result->set_slack_ps(sta_stats.slack);
+    result->set_max_frequency_hz(sta_stats.max_frequency_hz);
+    result->set_slack_ps(sta_stats.slack_ps);
 
     return absl::OkStatus();
   }

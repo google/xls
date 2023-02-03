@@ -227,9 +227,9 @@ Fanout     Cap    Slew   Delay    Time   Description
   )";
   XLS_ASSERT_OK_AND_ASSIGN(STAStatistics sta_stats,
 			   ParseOpenSTAOutput(input));
-  EXPECT_EQ(sta_stats.slack, 22);
-  EXPECT_EQ(sta_stats.period, 47);
-  EXPECT_EQ(sta_stats.fmax, 21276595744);
+  EXPECT_EQ(( sta_stats.period_ps *100 ), 4722); // compare ints, not floats
+  EXPECT_EQ(sta_stats.slack_ps, 22);
+  EXPECT_EQ(sta_stats.max_frequency_hz, 21177466880);
 }
 
 

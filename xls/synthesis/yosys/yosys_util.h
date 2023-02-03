@@ -44,9 +44,9 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
 // Parses the given strings output of STA and returns information about the
 // results.
 struct STAStatistics {
-  int64_t period;
-  int64_t fmax;
-  int64_t slack;
+  float period_ps;
+  int64_t max_frequency_hz;
+  int64_t slack_ps;
 };
 absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output);
 

@@ -117,27 +117,29 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
 absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
   STAStatistics stats;
 
-  std::string clk_period;
-  std::string freq;
-  std::string slack;
+  std::string clk_period_ps;
+  std::string freq_mhz;
+  float tmp_float =0.0;
+  std::string slack_ps;
 
   for (std::string_view line : absl::StrSplit(sta_output, '\n')) {
     line = absl::StripAsciiWhitespace(line);
-    // We're looking for lines with this outline, all in ps
+    // We're looking for lines with this outline, all in ps, freq in mhz
     //
     //   clk period_min = 116.71 fmax = 8568.43
     //   worst slack -96.67
     // And we want to extract 116.71 and 8568.43 and -96.67
 
-    if (RE2::PartialMatch(line, "\\w+ = (\\d+.\\d+) \\w+ = (\\d+.\\d+)",
-                          &clk_period, &freq)) {
-
-      XLS_RET_CHECK(!absl::SimpleAtoi(clk_period, &stats.period));
-      stats.fmax = 1e12 / stats.period;  // use clk in ps for accuracy
+  
+  if (RE2::PartialMatch(line, R"(op_clk period_min = (\d+.\d+) fmax = (\d+.\d+))",
+                          &clk_period_ps, &freq_mhz)) {
+    XLS_RET_CHECK(absl::SimpleAtof(clk_period_ps, &stats.period_ps));
+    stats.max_frequency_hz = (int64_t) 1e12 / stats.period_ps;  // use clk in ps for accuracy
     }
       
-    if (RE2::PartialMatch(line, "^worst slack (-?\\d+.\\d+)", &slack)) {
-      XLS_RET_CHECK(!absl::SimpleAtoi(slack, &stats.slack));
+    if (RE2::PartialMatch(line, R"(^worst slack (-?\d+.\d+))", &slack_ps)) {
+      XLS_RET_CHECK(absl::SimpleAtof(slack_ps, &tmp_float));
+      stats.slack_ps = (int64_t) tmp_float;
     }
   }
 
