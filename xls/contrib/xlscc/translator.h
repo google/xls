@@ -854,7 +854,7 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
-      int64_t warn_unroll_iters = 100,
+      int64_t warn_unroll_iters = 100, int64_t z3_rlimit = -1,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -1012,6 +1012,8 @@ class Translator {
   const int64_t max_unroll_iters_;
   // The maximum number of iterations before loop unrolling prints a warning.
   const int64_t warn_unroll_iters_;
+  // The rlimit to set for z3 when unrolling loops
+  const int64_t z3_rlimit_;
 
   // Generate an error when an init interval > supported is requested?
   const bool error_on_init_interval_;

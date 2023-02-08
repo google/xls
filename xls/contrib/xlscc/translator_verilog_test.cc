@@ -101,6 +101,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
       /*error_on_init_interval=*/false,
       /*warn_unroll_iters=*/100,
       /*max_unroll_iters=*/100,
+      /*z3_rlimit=*/-1,
       /*existing_parser=*/std::move(parser));
 
   xls::Package package("my_package");
@@ -234,6 +235,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
       new xlscc::Translator(/*error_on_init_interval=*/false,
                             /*max_unroll_iters=*/100,
                             /*warn_unroll_iters=*/100,
+                            /*z3_rlimit=*/-1,
                             /*existing_parser=*/std::move(parser)));
 
   xls::Package package("my_package");

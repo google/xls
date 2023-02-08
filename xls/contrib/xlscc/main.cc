@@ -91,6 +91,9 @@ ABSL_FLAG(int, max_unroll_iters, 1000,
 ABSL_FLAG(int, warn_unroll_iters, 100,
           "Maximum number of iterations to allow loops to be unrolled");
 
+ABSL_FLAG(int, z3_rlimit, -1,
+          "rlimit to set for z3 solver (eg for loop unrolling)");
+
 namespace xlscc {
 
 absl::Status Run(std::string_view cpp_path) {
@@ -99,7 +102,8 @@ absl::Status Run(std::string_view cpp_path) {
 
   xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval),
                                absl::GetFlag(FLAGS_max_unroll_iters),
-                               absl::GetFlag(FLAGS_warn_unroll_iters));
+                               absl::GetFlag(FLAGS_warn_unroll_iters),
+                               absl::GetFlag(FLAGS_z3_rlimit));
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

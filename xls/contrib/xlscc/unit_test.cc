@@ -133,13 +133,13 @@ void XlsccTestBase::RunWithStatics(
 
 template <typename... Args>
 std::string ErrorMessage(const xls::SourceInfo& loc,
-                           const absl::FormatSpec<Args...>& format,
-                           const Args&... args) {
-    std::string result = absl::StrFormat(format, args...);
-    for (const xls::SourceLocation& location : loc.locations) {
-      absl::StrAppend(&result, "\n", location.ToString());
-    }
-    return result;
+                         const absl::FormatSpec<Args...>& format,
+                         const Args&... args) {
+  std::string result = absl::StrFormat(format, args...);
+  for (const xls::SourceLocation& location : loc.locations) {
+    absl::StrAppend(&result, "\n", location.ToString());
+  }
+  return result;
 }
 
 absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
@@ -154,7 +154,7 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
   // the test run in a reasonable time.
-  translator_.reset(new xlscc::Translator(error_on_init_interval, 100, 100,
+  translator_.reset(new xlscc::Translator(error_on_init_interval, 100, 100, -1,
                                           std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
@@ -174,8 +174,8 @@ absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
                                      bool fail_xlscc_check) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanFile(temp, clang_argv, io_test_mode,
-      error_on_init_interval, loc, fail_xlscc_check);
+  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval, loc,
+                  fail_xlscc_check);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(

@@ -83,10 +83,11 @@ using std::vector;
 namespace xlscc {
 
 Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
-                       int64_t warn_unroll_iters,
+                       int64_t warn_unroll_iters, int64_t z3_rlimit,
                        std::unique_ptr<CCParser> existing_parser)
     : max_unroll_iters_(max_unroll_iters),
       warn_unroll_iters_(warn_unroll_iters),
+      z3_rlimit_(z3_rlimit),
       error_on_init_interval_(error_on_init_interval) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
@@ -4079,6 +4080,11 @@ absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
   xls::solvers::z3::ScopedErrorHandler seh(ctx);
 
   Z3_ast z3_node = z3_translator.GetTranslation(node);
+
+  if (z3_rlimit_ >= 0) {
+    std::string rlimit_str = std::to_string(z3_rlimit_);
+    Z3_global_param_set("rlimit", rlimit_str.c_str());
+  }
 
   Z3_ast asserted = xls::solvers::z3::BitVectorToBoolean(ctx, z3_node);
   Z3_lbool satisfiable = Z3_solver_check_assumptions(ctx, solver, 1, &asserted);
