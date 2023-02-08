@@ -447,7 +447,8 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
                          InstantiateOneArg(i, member_type, arg_type));
     if (*instantiated_member_type != arg_type) {
-      return XlsTypeErrorStatus(span(), *instantiated_member_type, arg_type,
+      return XlsTypeErrorStatus(args()[i].span, *instantiated_member_type,
+                                arg_type,
                                 "Mismatch between member and argument types.");
     }
   }
