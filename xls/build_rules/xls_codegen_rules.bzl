@@ -424,7 +424,7 @@ def _xls_benchmark_verilog_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",

@@ -34,7 +34,7 @@ def main(argv):
   # bazel-out/k8-fastbuild/bin/xls/[...]
   path = '/'.join(path.split('/')[3:])
 
-  print("""#!/bin/bash
+  print("""#!/usr/bin/env bash
 
 temp=$(mktemp)
 stdout="${{temp}}.stdout"

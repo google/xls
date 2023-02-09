@@ -36,7 +36,7 @@ def _check_sha256sum_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             # Note two spaces is required between the sha256sum and filename to
             # comply with the sha256sum input format.
             "echo \"{}  {}\" | sha256sum -c -".format(
