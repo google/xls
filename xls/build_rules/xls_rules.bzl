@@ -192,7 +192,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             dslx_test_cmd,
             ir_equivalence_test_cmd,

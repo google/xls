@@ -746,7 +746,7 @@ def _xls_ir_equivalence_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",
@@ -852,7 +852,7 @@ def _xls_eval_ir_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",
@@ -950,7 +950,7 @@ def _xls_benchmark_ir_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",

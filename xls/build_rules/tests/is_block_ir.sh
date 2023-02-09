@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/usr/bin/env bash
 # Copyright 2022 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,4 +16,5 @@
 # Checks that at the given input file(s) contains the string 'block'. Used as a
 # very crude check that the input file(s) is block-level XLS IR file.
 
+set -e -x
 grep block "$@"

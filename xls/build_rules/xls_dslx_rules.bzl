@@ -418,7 +418,7 @@ def _xls_dslx_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             "\n".join(cmds),
             "exit 0",

@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/usr/bin/env bash
 # Copyright 2021 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,4 +15,5 @@
 
 # Checks that the given input file(s) contains the string 'clk'.
 
+set -e -x
 grep clk "$@"
