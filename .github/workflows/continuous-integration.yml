@@ -44,7 +44,7 @@ jobs:
       # over 6 hours of build time.
       - name: Bazel Test All (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/... -//xls/contrib/xlscc/...
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=errors -- //xls/... -//xls/contrib/xlscc/...
   cleanup:
     name: Bazel Cache Cleanup
     needs: build
