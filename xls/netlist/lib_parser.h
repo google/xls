@@ -238,11 +238,11 @@ class Scanner {
  private:
   static bool IsIdentifierStart(char c) { return std::isalpha(c); }
   static bool IsIdentifierRest(char c) {
-    return std::isalpha(c) || std::isdigit(c) || c == '_';
+    return std::isalpha(c) != 0 || std::isdigit(c) != 0 || c == '_';
   }
   static bool IsWhitespace(char c) { return c == ' ' || c == '\n'; }
   static bool IsNumberRest(char c) {
-    return std::isdigit(c) || c == '.' || c == 'e' || c == '-';
+    return std::isdigit(c) != 0 || c == '.' || c == 'e' || c == '-';
   }
 
   // Scans an identifier token.

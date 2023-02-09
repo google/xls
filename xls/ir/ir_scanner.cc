@@ -248,9 +248,9 @@ class Tokenizer {
         continue;
       }
 
-      if (isalpha(current()) || current() == '_') {
+      if (isalpha(current()) != 0 || current() == '_') {
         std::string_view value = CaptureWhile([](char c) {
-          return isalpha(c) || c == '_' || c == '.' || isdigit(c);
+          return isalpha(c) != 0 || c == '_' || c == '.' || isdigit(c) != 0;
         });
         tokens.push_back(
             Token::MakeIdentOrKeyword(value, start_lineno, start_colno));

@@ -356,7 +356,7 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
           absl::StrFormat("Invalid digit for binary number: '%c'", PeekChar()));
     }
   } else {
-    s = ScanWhile(startc, [](char c) { return std::isdigit(c); });
+    s = ScanWhile(startc, [](char c) { return std::isdigit(c) != 0; });
     if (absl::StartsWith(s, "0") && s.size() != 1) {
       return ScanError(
           Span(GetPos(), GetPos()),
@@ -593,11 +593,11 @@ absl::StatusOr<Token> Scanner::Pop() {
     case '"': DropChar(); result = Token(TokenKind::kDoubleQuote, mk_span()); break;  // NOLINT
     // clang-format on
     default:
-      if (std::isalpha(startc) || startc == '_') {
+      if (std::isalpha(startc) != 0 || startc == '_') {
         XLS_ASSIGN_OR_RETURN(result,
                              ScanIdentifierOrKeyword(PopChar(), start_pos));
-      } else if (std::isdigit(startc) ||
-                 (startc == '-' && std::isdigit((PeekChar2OrNull())))) {
+      } else if (std::isdigit(startc) != 0 ||
+                 (startc == '-' && std::isdigit((PeekChar2OrNull())) != 0)) {
         XLS_ASSIGN_OR_RETURN(result, ScanNumber(PopChar(), start_pos));
       } else if (startc == '-') {  // Minus handling is after the "number" path.
         DropChar();
