@@ -95,12 +95,12 @@ def load_external_repositories():
         ],
     )
 
-    # Version: pypi-v0.11.0, 2020/10/27
+    # Version release tag 2023-01-11
     http_archive(
         name = "com_google_absl_py",
-        strip_prefix = "abseil-py-ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4",
-        urls = ["https://github.com/abseil/abseil-py/archive/ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4.zip"],
-        sha256 = "c4d112feb36d254de0057b9e67f5423c64908f17219b13f799b47b4deacc279c",
+        strip_prefix = "abseil-py-1.4.0",
+        urls = ["https://github.com/abseil/abseil-py/archive/refs/tags/v1.4.0.tar.gz"],
+        sha256 = "0fb3a4916a157eb48124ef309231cecdfdd96ff54adf1660b39c0d4a9790a2c0",
     )
 
     # Note - use @com_github_google_re2 instead of more canonical
@@ -207,7 +207,10 @@ def load_external_repositories():
         shallow_since = "1647023481 +0100",
         remote = "https://github.com/google/or-tools.git",
         # Removes undesired dependencies like Eigen, BLISS, SCIP
-        patches = ["@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff"],
+        patches = [
+            "@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:no-glpk.diff",
+        ],
     )
 
     http_archive(
