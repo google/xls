@@ -250,8 +250,10 @@ class AstCloner : public AstNodeVisitor {
       new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
     }
 
-    old_to_new_[n] = module_->Make<FormatMacro>(n->span(), n->macro(),
-                                                n->format(), new_args);
+    old_to_new_[n] = module_->Make<FormatMacro>(
+        n->span(), n->macro(),
+        std::vector<FormatStep>(n->format().begin(), n->format().end()),
+        new_args);
     return absl::OkStatus();
   }
 

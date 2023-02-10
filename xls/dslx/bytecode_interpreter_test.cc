@@ -51,16 +51,19 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
   };
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<FormatStep> steps,
                            ParseFormatString("x: {:x} y: {}"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::string result, BytecodeInterpreter::TraceDataToString(steps, stack));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string result,
+                           BytecodeInterpreter::TraceDataToString(
+                               Bytecode::TraceData(steps, {}), stack));
   EXPECT_TRUE(stack.empty());
   EXPECT_EQ("x: 42 y: 4", result);
 }
 
-absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
-                                      std::string_view program,
-                                      std::string_view entry,
-                                      std::vector<InterpValue> args = {}) {
+// Helper that runs the bytecode interpreter after emitting an entry function as
+// bytecode.
+static absl::StatusOr<InterpValue> Interpret(
+    ImportData* import_data, std::string_view program, std::string_view entry,
+    std::vector<InterpValue> args = {},
+    std::vector<std::string>* trace_output = nullptr) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", import_data));
@@ -71,7 +74,8 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(import_data, tm.type_info, f, ParametricEnv()));
 
-  return BytecodeInterpreter::Interpret(import_data, bf.get(), args);
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), args, nullptr,
+                                        trace_output);
 }
 
 static const Pos kFakePos("fake.x", 0, 0);
@@ -103,6 +107,29 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
       BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}),
       StatusIs(absl::StatusCode::kInternal,
                ::testing::HasSubstr("!stack_.empty()")));
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtStructValue) {
+  constexpr std::string_view kProgram = R"(
+struct Point {
+  x: u32,
+  y: u32,
+}
+fn main() -> () {
+  let p = Point{x: u32:42, y: u32:64};
+  let _ = trace_fmt!("{}", p);
+  ()
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(&import_data, kProgram, "main", /*args=*/{}, &trace_output));
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre("Point{x: u32:42, y: u32:64}"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
 // Interprets a nearly-minimal bytecode program; the same from

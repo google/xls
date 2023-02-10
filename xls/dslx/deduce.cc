@@ -2756,11 +2756,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
   for (Expr* arg : node->args()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg_type,
                          DeduceAndResolve(arg, ctx));
-    if (!IsBits(*arg_type)) {
+    if (!IsBits(*arg_type) && !arg_type->IsStruct()) {
       return TypeInferenceErrorStatus(
           arg->span(), arg_type.get(),
-          absl::StrFormat("%s macro only supports printing simple bits values",
-                          node->macro()));
+          absl::StrFormat(
+              "%s macro only supports printing bits values or structs",
+              node->macro()));
     }
   }
 

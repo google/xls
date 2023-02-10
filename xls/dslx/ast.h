@@ -1767,7 +1767,7 @@ class FormatMacro : public Expr {
 
   const std::string macro() const { return macro_; }
   const absl::Span<Expr* const> args() const { return args_; }
-  const std::vector<FormatStep> format() const { return format_; }
+  absl::Span<const FormatStep> format() const { return format_; }
 
  private:
   std::string macro_;

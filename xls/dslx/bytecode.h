@@ -254,7 +254,33 @@ class Bytecode {
     std::optional<ParametricEnv> caller_bindings;
   };
 
-  using TraceData = std::vector<FormatStep>;
+  // Information necessary to run a trace operation.
+  class TraceData {
+   public:
+    TraceData(const TraceData& other) = delete;
+    TraceData(TraceData&& other) = default;
+    TraceData& operator=(TraceData&& other) = default;
+
+    TraceData(
+        std::vector<FormatStep> steps,
+        std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc)
+        : steps_(std::move(steps)),
+          struct_fmt_desc_(std::move(struct_fmt_desc)) {}
+
+    absl::Span<const FormatStep> steps() const { return steps_; }
+    absl::Span<const std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc()
+        const {
+      return struct_fmt_desc_;
+    }
+
+   private:
+    std::vector<FormatStep> steps_;
+
+    // For default formatting of struct operands we hold metadata that allows us
+    // to format them in more detail (struct name, fields, etc).
+    std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc_;
+  };
+
   using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
                             std::unique_ptr<ConcreteType>, InvocationData,
                             MatchArmItem, SpawnData, TraceData>;
@@ -291,6 +317,11 @@ class Bytecode {
   // Creates an operation with associated string or InterpValue data.
   Bytecode(Span source_span, Op op, std::optional<Data> data)
       : source_span_(source_span), op_(op), data_(std::move(data)) {}
+
+  // Not copyable, but move-able.
+  Bytecode(const Bytecode& other) = delete;
+  Bytecode(Bytecode&& other) = default;
+  Bytecode& operator=(Bytecode&& other) = default;
 
   Span source_span() const { return source_span_; }
   Op op() const { return op_; }

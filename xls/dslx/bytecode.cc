@@ -593,8 +593,8 @@ std::string Bytecode::ToString(bool source_locs) const {
 
       std::string operator()(const TraceData& trace_data) {
         std::vector<std::string> pieces;
-        pieces.reserve(trace_data.size());
-        for (const auto& step : trace_data) {
+        pieces.reserve(trace_data.steps().size());
+        for (const FormatStep& step : trace_data.steps()) {
           if (std::holds_alternative<std::string>(step)) {
             pieces.push_back(std::get<std::string>(step));
           } else {

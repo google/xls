@@ -88,13 +88,15 @@ class BytecodeInterpreter {
   using PostFnEvalHook = std::function<absl::Status(
       const Function* f, absl::Span<const InterpValue> args,
       const ParametricEnv*, const InterpValue& got)>;
-  virtual ~BytecodeInterpreter() {}
 
-  // Takes ownership of `args`.
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
-      PostFnEvalHook post_fn_eval_hook = nullptr);
+      PostFnEvalHook post_fn_eval_hook = nullptr,
+      std::vector<std::string>* trace_output = nullptr);
+
+  virtual ~BytecodeInterpreter() {}
+
   absl::Status InitFrame(BytecodeFunction* bf,
                          const std::vector<InterpValue>& args,
                          const TypeInfo* type_info);
@@ -107,12 +109,17 @@ class BytecodeInterpreter {
       const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack);
 
  protected:
-  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf);
+  BytecodeInterpreter(ImportData* import_data,
+                      std::vector<std::string>* trace_output);
+
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
       ImportData* import_data, BytecodeFunction* bf,
-      const std::vector<InterpValue>& args);
+      const std::vector<InterpValue>& args,
+      std::vector<std::string>* trace_output);
+
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
+
   absl::Status Run(PostFnEvalHook post_fn_eval_hook = nullptr);
 
  private:
@@ -228,7 +235,8 @@ class BytecodeInterpreter {
   static absl::StatusOr<InterpValue> Pop(std::vector<InterpValue>& stack);
   absl::StatusOr<InterpValue> Pop() { return Pop(stack_); }
 
-  ImportData* import_data_;
+  ImportData* const import_data_;
+  std::vector<std::string>* const trace_output_;
   std::vector<InterpValue> stack_;
 
   std::vector<Frame> frames_;
@@ -265,7 +273,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
                                 std::vector<ProcInstance>* proc_instances);
 
  private:
-  ProcConfigBytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
+  ProcConfigBytecodeInterpreter(ImportData* import_data,
                                 std::vector<ProcInstance>* proc_instances);
 
   absl::Status EvalSpawn(const Bytecode& bytecode) override;

@@ -54,6 +54,7 @@
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_conversion_utils.h"
+#include "xls/dslx/make_struct_format_descriptor.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parametric_env.h"
 #include "xls/dslx/proc_config_ir_converter.h"
@@ -1878,16 +1879,86 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
   BValue control_predicate = implicit_token_data_->create_control_predicate();
 
-  std::vector<BValue> ir_args = {};
-  for (auto* arg : node->args()) {
-    XLS_RETURN_IF_ERROR(Visit(arg));
-    XLS_ASSIGN_OR_RETURN(BValue ir_arg, Use(arg));
-    ir_args.push_back(ir_arg);
+  // We have to rewrite the format string if a struct is present.
+  //
+  // Traverse through the original format steps, and if we encounter a struct,
+  // blow it up getting its component elements.
+  //
+  // Implementation note: in order to do this, we walk through the original
+  // format steps and keep track of what corresponding argument number an
+  // interpolation would be referencing. When a struct is encountered, we "deep
+  // traverse it's elements" and push corresponding string format data for the
+  // fields. Ultimately this produces fmt_steps and corresponding ir_args -- we
+  // may have done a bunch of additional GetTupleElement() operations to feed
+  // ir_args leaf struct fields component-wise.
+
+  std::vector<FormatStep> fmt_steps;
+  std::vector<BValue> ir_args;
+
+  std::function<void(const BValue&, const StructFormatDescriptor&)> flatten =
+      [&](const BValue& struct_value,
+          const StructFormatDescriptor& struct_format_descriptor) {
+        fmt_steps.push_back(
+            absl::StrCat(struct_format_descriptor.struct_name(), "{"));
+        size_t fieldno = 0;
+        for (size_t i = 0; i < struct_format_descriptor.elements().size();
+             ++i) {
+          const StructFormatDescriptor::Element& e =
+              struct_format_descriptor.elements().at(i);
+          std::string leader = absl::StrCat(e.field_name, ": ");
+          if (i != 0) {
+            leader = absl::StrCat(", ", leader);
+          }
+          fmt_steps.push_back(leader);
+          BValue field_value =
+              function_builder_->TupleIndex(struct_value, fieldno++);
+          if (std::holds_alternative<StructFormatFieldDescriptor>(e.fmt)) {
+            const auto& sfd = std::get<StructFormatFieldDescriptor>(e.fmt);
+            fmt_steps.push_back(sfd.format);
+            ir_args.push_back(field_value);
+          } else {
+            const auto& sub_struct =
+                std::get<std::unique_ptr<StructFormatDescriptor>>(e.fmt);
+            flatten(field_value, *sub_struct);
+          }
+        }
+        fmt_steps.push_back("}");
+      };
+
+  size_t next_argno = 0;
+  for (size_t node_format_index = 0; node_format_index < node->format().size();
+       ++node_format_index) {
+    const FormatStep& step = node->format().at(node_format_index);
+    if (std::holds_alternative<std::string>(step)) {
+      fmt_steps.push_back(step);
+    } else {
+      XLS_RET_CHECK(std::holds_alternative<FormatPreference>(step));
+      Expr* arg = node->args().at(next_argno);
+
+      // Grab the IR builder value for this argument.
+      //
+      // (If it's a struct we'll need to flatten it later.)
+      XLS_RETURN_IF_ERROR(Visit(arg));
+      XLS_ASSIGN_OR_RETURN(BValue ir_arg, Use(arg));
+
+      std::optional<ConcreteType*> maybe_type =
+          current_type_info_->GetItem(arg);
+      XLS_RET_CHECK(maybe_type.has_value());
+      ConcreteType* type = maybe_type.value();
+      if (type->IsStruct()) {
+        auto struct_format_descriptor =
+            MakeStructFormatDescriptor(type->AsStruct());
+        flatten(ir_arg, *struct_format_descriptor);
+      } else {
+        fmt_steps.push_back(step);
+        ir_args.push_back(ir_arg);
+      }
+      next_argno += 1;
+    }
   }
 
-  BValue trace_result_token =
-      function_builder_->Trace(implicit_token_data_->entry_token,
-                               control_predicate, ir_args, node->format());
+  BValue trace_result_token = function_builder_->Trace(
+      implicit_token_data_->entry_token, control_predicate, ir_args, fmt_steps);
   implicit_token_data_->control_tokens.push_back(trace_result_token);
 
   // The result of the trace is the output token, so pass it along.

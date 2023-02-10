@@ -48,6 +48,7 @@ namespace xls::dslx {
 
 class BitsType;
 class TupleType;
+class StructType;
 
 // Represents a parametric binding in a ConcreteType, which is either a) a
 // parametric expression or b) evaluated to an InterpValue. When type
@@ -177,6 +178,9 @@ class ConcreteType {
 
   bool IsUnit() const;
   bool IsToken() const;
+  bool IsStruct() const;
+
+  const StructType& AsStruct() const;
 
  protected:
   static std::vector<std::unique_ptr<ConcreteType>> Clone(

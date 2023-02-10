@@ -61,6 +61,21 @@ in the XLS project, with the relevant Google style guides
     test case must live outside an unnamed namespace in the test file for the
     "friending" to work properly.
 
+*   For simple const accessors, for the sake of consistency in the code base,
+    and a weak preference towards the benefits of information hiding, prefer to
+    return view types over the apparent type of the member; e.g.
+
+    ```
+    class MyClass {
+     public:
+      // This return type is preferrable to `const std::vector<uint64_t>&`.
+      absl::Span<const uint64_t> values() const { return values_; }
+
+     private:
+      std::vector<uint64_t> values_;
+    };
+    ```
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can

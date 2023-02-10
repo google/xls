@@ -273,8 +273,18 @@ bool ConcreteType::IsUnit() const {
   return false;
 }
 
+bool ConcreteType::IsStruct() const {
+  return dynamic_cast<const StructType*>(this) != nullptr;
+}
+
 bool ConcreteType::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
+}
+
+const StructType& ConcreteType::AsStruct() const {
+  auto* s = dynamic_cast<const StructType*>(this);
+  XLS_CHECK(s != nullptr);
+  return *s;
 }
 
 // -- TokenType

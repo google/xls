@@ -202,6 +202,11 @@ xls_dslx_test(
     dslx_test_args = {"compare": "interpreter"},
 )
 
+xls_dslx_test(
+    name = "trace_fmt_struct",
+    srcs = ["trace_fmt_struct.x"],
+)
+
 dslx_lang_test(name = "array_of_typedef_in_tuple")
 
 dslx_lang_test(

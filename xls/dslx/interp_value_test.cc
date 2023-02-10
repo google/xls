@@ -169,5 +169,61 @@ TEST(InterpValueTest, TestPredicates) {
   EXPECT_FALSE(InterpValue::MakeU32(1).IsTrue());
 }
 
+TEST(InterpValueTest, FormatNilTupleWrongElementCount) {
+  auto tuple = InterpValue::MakeTuple({});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+  StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
+  ASSERT_THAT(tuple.ToStructString(fmt_desc),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Number of tuple elements (0)")));
+}
+
+TEST(InterpValueTest, FormatFlatStructViaDescriptor) {
+  auto uf = InterpValue::MakeUBits(/*bit_count=*/4, 0xf);
+  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, -1);
+  auto tuple = InterpValue::MakeTuple({uf, sf});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "y", StructFormatFieldDescriptor{FormatPreference::kSignedDecimal}});
+  StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToStructString(fmt_desc));
+  EXPECT_EQ(s, "MyStruct{x: u4:0xf, y: s4:-1}");
+}
+
+TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
+  auto uf = InterpValue::MakeUBits(/*bit_count=*/4, 0xf);
+  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, -1);
+  auto inner = InterpValue::MakeTuple({uf, sf});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "y", StructFormatFieldDescriptor{FormatPreference::kSignedDecimal}});
+  auto inner_fmt_desc = std::make_unique<StructFormatDescriptor>(
+      "InnerStruct", std::move(elements));
+
+  auto outer = InterpValue::MakeTuple(
+      {inner, InterpValue::MakeUBits(/*bit_count=*/32, 42)});
+
+  std::vector<StructFormatDescriptor::Element> outer_elements;
+  outer_elements.push_back(StructFormatDescriptor::Element{
+      .field_name = "a", .fmt = std::move(inner_fmt_desc)});
+  outer_elements.push_back(StructFormatDescriptor::Element{
+      "b", StructFormatFieldDescriptor{FormatPreference::kUnsignedDecimal}});
+  StructFormatDescriptor outer_fmt_desc{"OuterStruct",
+                                        std::move(outer_elements)};
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s, outer.ToStructString(outer_fmt_desc));
+  EXPECT_EQ(s, "OuterStruct{a: InnerStruct{x: u4:0xf, y: s4:-1}, b: u32:42}");
+}
+
 }  // namespace
 }  // namespace xls::dslx

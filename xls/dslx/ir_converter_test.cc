@@ -1734,6 +1734,56 @@ TEST(IrConverterTest, FormatMacro) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, FormatMacroStructArg) {
+  constexpr std::string_view kProgram = R"(
+struct Point {
+  x: u32,
+  y: s8,
+}
+
+fn main() {
+  let p = Point{x: u32:42, y: s8:7};
+  let _ = trace_fmt!("Look! I don't explode *and* I can trace a struct: {}", p);
+  ()
+})";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = true;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, FormatMacroNestedStructArg) {
+  constexpr std::string_view kProgram = R"(
+struct U32Wrapper {
+  v: u32
+}
+
+struct Point {
+  x: U32Wrapper,
+  y: s8,
+}
+
+fn main() {
+  let p = Point{x: U32Wrapper{v: u32:42}, y: s8:7};
+  let _ = trace_fmt!("Look! I don't explode *and* I can trace a nested struct: {}", p);
+  ()
+})";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = true;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
   constexpr std::string_view kProgram = R"(
   const FOO = u32:0;

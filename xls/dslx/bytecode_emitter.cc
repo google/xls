@@ -39,6 +39,8 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/make_struct_format_descriptor.h"
+#include "xls/dslx/struct_format_descriptor.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value
@@ -679,12 +681,28 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 }
 
 absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
-  for (auto* arg : node->args()) {
+  for (const Expr* arg : node->args()) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
+  std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc;
+  for (const Expr* arg : node->args()) {
+    std::optional<ConcreteType*> maybe_type = type_info_->GetItem(arg);
+    XLS_RET_CHECK(maybe_type.has_value());
+    const ConcreteType* type = maybe_type.value();
+    auto* struct_type = dynamic_cast<const StructType*>(type);
+    if (struct_type != nullptr) {
+      struct_fmt_desc.push_back(MakeStructFormatDescriptor(*struct_type));
+    } else {
+      struct_fmt_desc.push_back(nullptr);
+    }
+  }
+
+  Bytecode::TraceData trace_data(
+      std::vector<FormatStep>(node->format().begin(), node->format().end()),
+      std::move(struct_fmt_desc));
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kTrace, node->format()));
+      Bytecode(node->span(), Bytecode::Op::kTrace, std::move(trace_data)));
   return absl::OkStatus();
 }
 
@@ -791,13 +809,12 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
       XLS_RETURN_IF_ERROR(node->args().at(0)->AcceptExpr(this));
 
-      Bytecode::TraceData trace_data;
-      trace_data.push_back(absl::StrCat("trace of ",
-                                        node->args()[0]->ToString(), " @ ",
-                                        node->span().ToString(), ": "));
-      trace_data.push_back(FormatPreference::kDefault);
-      bytecode_.push_back(
-          Bytecode(node->span(), Bytecode::Op::kTrace, trace_data));
+      std::vector<FormatStep> steps;
+      steps.push_back(absl::StrCat("trace of ", node->args()[0]->ToString(),
+                                   " @ ", node->span().ToString(), ": "));
+      steps.push_back(FormatPreference::kDefault);
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
+                                   Bytecode::TraceData(std::move(steps), {})));
       return absl::OkStatus();
     }
   }
@@ -1356,10 +1373,12 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
   // arm is strictly wildcards, but it doesn't seem worth the effort.
   arm_offsets.push_back(bytecode_.size());
   Add(Bytecode::MakeJumpDest(node->span()));
-  Bytecode::TraceData trace_data;
-  trace_data.push_back("The value was not matched: value: ");
-  trace_data.push_back(FormatPreference::kDefault);
-  Add(Bytecode(node->span(), Bytecode::Op::kFail, trace_data));
+
+  std::vector<FormatStep> steps;
+  steps.push_back("The value was not matched: value: ");
+  steps.push_back(FormatPreference::kDefault);
+  Add(Bytecode(node->span(), Bytecode::Op::kFail,
+               Bytecode::TraceData(steps, {})));
 
   size_t done_offset = bytecode_.size();
   Add(Bytecode::MakeJumpDest(node->span()));

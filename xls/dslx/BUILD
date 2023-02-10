@@ -123,7 +123,9 @@ cc_library(
         ":concrete_type",
         ":import_data",
         ":interp_value",
+        ":make_struct_format_descriptor",
         ":parametric_env",
+        ":struct_format_descriptor",
         ":type_info",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -853,11 +855,20 @@ cc_test(
 )
 
 cc_library(
+    name = "struct_format_descriptor",
+    hdrs = ["struct_format_descriptor.h"],
+    deps = [
+        "//xls/ir:format_preference",
+    ],
+)
+
+cc_library(
     name = "interp_value",
     srcs = ["interp_value.cc"],
     hdrs = ["interp_value.h"],
     deps = [
         ":ast",
+        ":struct_format_descriptor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -1154,6 +1165,7 @@ cc_library(
         ":import_data",
         ":interp_value",
         ":ir_conversion_utils",
+        ":make_struct_format_descriptor",
         ":mangle",
         ":parametric_env",
         ":proc_config_ir_converter",
@@ -1572,5 +1584,15 @@ cc_library(
     hdrs = ["warning_collector.h"],
     deps = [
         ":pos",
+    ],
+)
+
+cc_library(
+    name = "make_struct_format_descriptor",
+    srcs = ["make_struct_format_descriptor.cc"],
+    hdrs = ["make_struct_format_descriptor.h"],
+    deps = [
+        ":concrete_type",
+        ":struct_format_descriptor",
     ],
 )

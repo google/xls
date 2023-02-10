@@ -32,6 +32,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/struct_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
@@ -301,6 +302,15 @@ class InterpValue {
       bool humanize = false,
       FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
+
+  // Formats this tuple value using the given struct format description.
+  //
+  // Returns an error status if the struct descriptor does not correspond to the
+  // tuple structure appropriately.
+  //
+  // Precondition: IsTuple()
+  absl::StatusOr<std::string> ToStructString(
+      const StructFormatDescriptor& fmt_desc) const;
 
   InterpValueTag tag() const { return tag_; }
 

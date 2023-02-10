@@ -212,6 +212,48 @@ std::string InterpValue::ToString(bool humanize,
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+absl::StatusOr<std::string> InterpValue::ToStructString(
+    const StructFormatDescriptor& fmt_desc) const {
+  if (!IsTuple()) {
+    return absl::FailedPreconditionError(
+        "Can only format a tuple InterpValue as a struct");
+  }
+  std::vector<std::string> pieces = {fmt_desc.struct_name(), "{"};
+  const std::vector<InterpValue>& values = GetValuesOrDie();
+  if (values.size() != fmt_desc.elements().size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Number of tuple elements (%d) did not correspond to "
+                        "number of struct formatting elements (%d)",
+                        values.size(), fmt_desc.elements().size()));
+  }
+  for (int64_t i = 0; i < values.size(); ++i) {
+    const InterpValue& e = values.at(i);
+    const StructFormatDescriptor::Element& fmt_element =
+        fmt_desc.elements().at(i);
+
+    pieces.push_back(fmt_element.field_name);
+    pieces.push_back(": ");
+
+    if (std::holds_alternative<StructFormatFieldDescriptor>(fmt_element.fmt)) {
+      const auto& field =
+          std::get<StructFormatFieldDescriptor>(fmt_element.fmt);
+      pieces.push_back(e.ToString(/*humanize=*/false, field.format));
+    } else {
+      const auto& substruct_fmt_desc =
+          std::get<std::unique_ptr<StructFormatDescriptor>>(fmt_element.fmt);
+      XLS_ASSIGN_OR_RETURN(std::string piece,
+                           e.ToStructString(*substruct_fmt_desc));
+      pieces.push_back(std::move(piece));
+    }
+
+    if (i + 1 != values.size()) {
+      pieces.push_back(", ");
+    }
+  }
+  pieces.push_back("}");
+  return absl::StrJoin(pieces, "");
+}
+
 bool InterpValue::Eq(const InterpValue& other) const {
   auto values_equal = [&] {
     const std::vector<InterpValue>& lhs = GetValuesOrDie();
