@@ -1,4 +1,3 @@
-pycparser==2.19
 Flask==1.1.2
 Jinja2==2.11.3
 werkzeug==1.0.1
