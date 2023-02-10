@@ -84,6 +84,10 @@ bazel 5.2.0
 ~/xls$ bazel test -c opt -- //xls/...
 ```
 
+The build needs Python3 to be available. If your python3 binary is at an
+unusual location, you can tell `bazel` by providing a command line flag
+`--repo_env PYTHON_BIN_PATH=/path/to/python3` for `bazel` to find `python3`.
+
 Reference build/test environment setups are also provided via `Dockerfile`s:
 
 ```console
