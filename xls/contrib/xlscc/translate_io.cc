@@ -15,6 +15,8 @@
 #include "absl/status/status.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
+#include "clang/include/clang/AST/OperationKinds.h"
+#include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
@@ -52,7 +54,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   }
 
   // Channel must be inserted first by AddOpToChannel
-  if (op.op == OpType::kRecv) {
+  if (op.op == OpType::kRecv || op.op == OpType::kRead) {
     xls::Type* xls_item_type;
     std::shared_ptr<CType> channel_item_type;
     if (op.is_blocking) {
@@ -90,7 +92,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
   context().sf->io_ops.push_back(op);
 
-  if (op.op == OpType::kRecv) {
+  if (op.op == OpType::kRecv || op.op == OpType::kRead) {
     SideEffectingParameter side_effecting_param;
     side_effecting_param.type = SideEffectingParameterType::kIOOp;
     side_effecting_param.param_name =
@@ -127,22 +129,39 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel type should be a template specialization"));
   }
+  const std::string template_name =
+      template_spec->getTemplateName().getAsTemplateDecl()->getNameAsString();
   if ((template_spec->template_arguments().size() != 1) &&
       (template_spec->template_arguments().size() != 2)) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel should have 1 or 2 template args"));
   }
   OpType op_type = OpType::kNull;
-  if (template_spec->template_arguments().size() == 2) {
+  int64_t memory_size = -1;
+
+  // TODO(seanhaskell): Put these strings in one place
+  if (template_name == "__xls_memory") {
+    if (template_spec->template_arguments().size() != 2) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Memory should have 2 template args"));
+    }
     const clang::TemplateArgument& arg = template_spec->template_arguments()[1];
-    XLS_ASSIGN_OR_RETURN(int64_t val,
+    XLS_ASSIGN_OR_RETURN(memory_size,
                          EvaluateInt64(*arg.getAsExpr(), ctx, loc));
-    op_type = static_cast<OpType>(val);
+  } else if (template_name == "__xls_channel") {
+    if (template_spec->template_arguments().size() == 2) {
+      const clang::TemplateArgument& arg =
+          template_spec->template_arguments()[1];
+      XLS_ASSIGN_OR_RETURN(int64_t val,
+                           EvaluateInt64(*arg.getAsExpr(), ctx, loc));
+      op_type = static_cast<OpType>(val);
+    }
   }
   const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
                        TranslateTypeFromClang(arg.getAsType(), loc));
-  return std::make_shared<CChannelType>(item_type, op_type);
+
+  return std::make_shared<CChannelType>(item_type, op_type, memory_size);
 }
 
 absl::Status Translator::CreateChannelParam(
@@ -153,6 +172,7 @@ absl::Status Translator::CreateChannelParam(
 
   new_channel.item_type = channel_type->GetItemType();
   new_channel.unique_name = channel_name->getNameAsString();
+  new_channel.memory_size = channel_type->GetMemorySize();
 
   auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
   CValue cval(/*rvalue=*/xls::BValue(), channel_type,
@@ -164,7 +184,69 @@ absl::Status Translator::CreateChannelParam(
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
-    const clang::Expr* expr, const xls::SourceInfo& loc) {
+    const clang::Expr* expr, const xls::SourceInfo& loc,
+    const CValue assignment_value) {
+  xls::BValue op_condition = context().full_condition_bval(loc);
+  XLS_CHECK(op_condition.valid());
+  if (auto operator_call =
+          clang::dyn_cast<const clang::CXXOperatorCallExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(IOChannel * channel,
+                         GetChannelForExprOrNull(operator_call->getArg(0)));
+
+    if (channel != nullptr) {
+      if (operator_call->getOperator() ==
+          clang::OverloadedOperatorKind::OO_Subscript) {
+        XLS_ASSIGN_OR_RETURN(CValue addr_val,
+                             GenerateIR_Expr(operator_call->getArg(1), loc));
+        XLS_CHECK(addr_val.valid());
+
+        const bool is_write = assignment_value.valid();
+
+        IOOp op;
+
+        op.is_blocking = true;
+
+        XLS_ASSIGN_OR_RETURN(
+            xls::BValue addr_val_converted,
+            GenTypeConvert(
+                addr_val, CChannelType::MemoryAddressType(channel->memory_size),
+                loc));
+
+        if (is_write) {
+          op.op = OpType::kWrite;
+          XLS_CHECK(assignment_value.rvalue().valid());
+
+          auto addr_val_tup = context().fb->Tuple(
+              {addr_val_converted, assignment_value.rvalue()}, loc);
+
+          std::vector<xls::BValue> sp = {addr_val_tup, op_condition};
+          op.ret_value = context().fb->Tuple(sp, loc);
+
+        } else {
+          op.op = OpType::kRead;
+          std::vector<xls::BValue> sp = {addr_val_converted, op_condition};
+          op.ret_value = context().fb->Tuple(sp, loc);
+        }
+
+        // TODO(seanhaskell): Short circuit as with IO ops?
+        const bool do_default = false;
+        XLS_ASSIGN_OR_RETURN(
+            IOOp * op_ptr,
+            AddOpToChannel(op, channel, loc, /*mask=*/do_default));
+        (void)op_ptr;
+
+        IOOpReturn ret;
+        ret.generate_expr = false;
+        ret.value = op.input_value;
+
+        return ret;
+      }
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Unsupported IO op from operator: %s",
+          clang::getOperatorSpelling(operator_call->getOperator())));
+    }
+  }
+
   if (auto member_call =
           clang::dyn_cast<const clang::CXXMemberCallExpr>(expr)) {
     const clang::Expr* object = member_call->getImplicitObjectArgument();
@@ -172,11 +254,13 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     XLS_ASSIGN_OR_RETURN(IOChannel * channel, GetChannelForExprOrNull(object));
 
     if (channel != nullptr) {
+      if (assignment_value.valid()) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Assignment to IO ops not supported"));
+      }
+
       const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
       const std::string op_name = funcdecl->getNameAsString();
-
-      xls::BValue op_condition = context().full_condition_bval(loc);
-      XLS_CHECK(op_condition.valid());
 
       // Short circuit the op condition if possible
       XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition, loc));

@@ -125,8 +125,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                            StripTypeQualifiers(param->getType()));
       XLS_ASSIGN_OR_RETURN(
           auto ctype, TranslateTypeFromClang(stripped.base, GetLoc(*param)));
-      channel_info.channel_type =
-          std::make_shared<CChannelType>(ctype, op_type_spec);
+      channel_info.channel_type = std::make_shared<CChannelType>(
+          ctype, op_type_spec, /*memory_size=*/-1);
       channel_info.extra_return =
           stripped.is_ref && !stripped.base.isConstQualified();
     } else if (channel_spec.type() == ChannelType::FIFO) {
@@ -142,7 +142,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                          "declarations not supported"));
       }
       channel_info.channel_type = std::make_shared<CChannelType>(
-          channel_info.channel_type->GetItemType(), op_type_spec);
+          channel_info.channel_type->GetItemType(), op_type_spec,
+          /*memory_size=*/-1);
     } else {
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(*param),
@@ -319,8 +320,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 
       ExternalChannelInfo channel_info = {
           .decl = field->name(),
-          .channel_type = std::make_shared<CChannelType>(
-              channel_type->GetPointeeType(), OpType::kRecv),
+          .channel_type =
+              std::make_shared<CChannelType>(channel_type->GetPointeeType(),
+                                             OpType::kRecv, /*memory_size=*/-1),
           .interface_type = InterfaceType::kDirect};
       top_decls.push_back(channel_info);
     }

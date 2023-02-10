@@ -454,7 +454,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
 
       auto channel_type = std::make_shared<CChannelType>(
-          inner_channel->item_type, inner_channel->channel_op_type);
+          inner_channel->item_type, inner_channel->channel_op_type,
+          inner_channel->memory_size);
 
       auto lvalue = std::make_shared<LValue>(inner_channel);
       XLS_RETURN_IF_ERROR(

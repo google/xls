@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
@@ -691,8 +693,9 @@ absl::Status CReferenceType::GetMetadataValue(
       "Can't generate externally useful metadata for references");
 }
 
-CChannelType::CChannelType(std::shared_ptr<CType> item_type, OpType op_type)
-    : item_type_(item_type), op_type_(op_type) {}
+CChannelType::CChannelType(std::shared_ptr<CType> item_type, OpType op_type,
+                           int64_t memory_size)
+    : item_type_(item_type), op_type_(op_type), memory_size_(memory_size) {}
 
 bool CChannelType::operator==(const CType& o) const {
   if (!o.Is<CChannelType>()) return false;
@@ -734,5 +737,20 @@ absl::StatusOr<bool> CChannelType::ContainsLValues(
 }
 
 OpType CChannelType::GetOpType() const { return op_type_; }
+
+int64_t CChannelType::GetMemorySize() const { return memory_size_; }
+
+int64_t CChannelType::GetMemoryAddressWidth() const {
+  return MemoryAddressWidth(memory_size_);
+}
+
+std::shared_ptr<CType> CChannelType::MemoryAddressType(int64_t memory_size) {
+  return std::make_shared<CIntType>(MemoryAddressWidth(memory_size), false);
+}
+
+int64_t CChannelType::MemoryAddressWidth(int64_t memory_size) {
+  XLS_CHECK_GT(memory_size, 0);
+  return std::ceil(std::log2(memory_size));
+}
 
 }  //  namespace xlscc

@@ -234,6 +234,7 @@ absl::Status Translator::and_condition(xls::BValue and_condition,
     XLSCC_CHECK_NE(&second_to_top, &top, loc);
     XLSCC_CHECK_EQ(top.fb, second_to_top.fb, loc);
     XLSCC_CHECK_EQ(top.sf, second_to_top.sf, loc);
+
     XLS_RETURN_IF_ERROR(PropagateVariables(/*from=*/top,
                                            /*to=*/second_to_top, loc));
   }
@@ -1643,6 +1644,16 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     XLSCC_CHECK_NE(lcv.lvalue().get(), nullptr, loc);
     return Assign(lcv.lvalue(), rvalue, loc);
   }
+  if (auto call = clang::dyn_cast<const clang::CallExpr>(lvalue)) {
+    XLS_ASSIGN_OR_RETURN(
+        IOOpReturn ret,
+        InterceptIOOp(call, GetLoc(*call), /*assignment_value=*/rvalue));
+    // If this call is an IO op, then return the IO value, rather than
+    //  generating the call.
+    if (!ret.generate_expr) {
+      return absl::OkStatus();
+    }
+  }
   return absl::UnimplementedError(
       ErrorMessage(loc, "Unimplemented assignment to lvalue of type %s",
                    lvalue->getStmtClassName()));
@@ -2073,8 +2084,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstanceDeeply(
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> elem_type,
           ResolveTypeInstanceDeeply(ret_channel->GetItemType()));
-      return std::make_shared<CChannelType>(elem_type,
-                                            ret_channel->GetOpType());
+      return std::make_shared<CChannelType>(elem_type, ret_channel->GetOpType(),
+                                            ret_channel->GetMemorySize());
     }
   }
 
@@ -2393,9 +2404,7 @@ absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
 
 absl::StatusOr<IOChannel*> Translator::GetChannelForExprOrNull(
     const clang::Expr* object) {
-  PushContextGuard guard(*this, GetLoc(*object));
-  context().mask_side_effects = true;
-  context().any_side_effects_requested = false;
+  MaskSideEffectsGuard guard(*this);
 
   XLS_ASSIGN_OR_RETURN(CValue cval, GenerateIR_Expr(object, GetLoc(*object)));
 
@@ -2417,9 +2426,7 @@ Translator::GetChannelParamForExprOrNull(const clang::Expr* object) {
     return nullptr;
   }
 
-  PushContextGuard guard(*this, loc);
-  context().mask_side_effects = true;
-  context().any_side_effects_requested = false;
+  MaskSideEffectsGuard guard(*this);
   XLS_ASSIGN_OR_RETURN(CValue cval, GenerateIR_Expr(object, loc));
 
   XLSCC_CHECK_NE(cval.lvalue(), nullptr, loc);
@@ -3824,6 +3831,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       context().have_returned_condition =
           context().fb->Or(reach_here_cond, context().have_returned_condition);
     }
+
     XLS_RETURN_IF_ERROR(and_condition(
         context().fb->Not(context().have_returned_condition, loc), loc));
   } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
@@ -4069,6 +4077,31 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
 
   return absl::StrFormat("[unsupported %s / %s]", node->GetName(),
                          typeid(*node).name());
+}
+
+std::string Debug_VariablesChangedBetween(const TranslationContext& before,
+                                          const TranslationContext& after) {
+  std::ostringstream ostr;
+
+  for (const auto& [key, value] : before.variables) {
+    if (after.variables.contains(key)) {
+      ostr << "changed " << key->getNameAsString() << ": "
+           << before.variables.at(key).debug_string() << " -> "
+           << after.variables.at(key).debug_string() << "\n";
+    } else {
+      ostr << "only after " << key->getNameAsString() << ": "
+           << after.variables.at(key).debug_string() << "\n";
+    }
+  }
+
+  for (const auto& [key, value] : before.variables) {
+    if (!after.variables.contains(key)) {
+      ostr << "only before " << key->getNameAsString() << ": "
+           << before.variables.at(key).debug_string() << "\n";
+    }
+  }
+
+  return ostr.str();
 }
 
 absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
@@ -4323,7 +4356,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     std::shared_ptr<CInstantiableTypeAlias> ret(
         new CInstantiableTypeAlias(type->getAsRecordDecl()));
 
-    if (ret->base()->getNameAsString() == "__xls_channel") {
+    // TODO(seanhaskell): Put these strings in one place
+    if (ret->base()->getNameAsString() == "__xls_channel" ||
+        ret->base()->getNameAsString() == "__xls_memory") {
       XLS_ASSIGN_OR_RETURN(
           auto channel_type,
           GetChannelType(t, type->getAsRecordDecl()->getASTContext(), loc));

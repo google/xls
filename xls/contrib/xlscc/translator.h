@@ -357,13 +357,14 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
-enum class OpType { kNull = 0, kSend, kRecv };
+enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO };
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
  public:
-  CChannelType(std::shared_ptr<CType> item_type, OpType op_type);
+  CChannelType(std::shared_ptr<CType> item_type, OpType op_type,
+               int64_t memory_size);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -376,12 +377,17 @@ class CChannelType : public CType {
 
   std::shared_ptr<CType> GetItemType() const;
   OpType GetOpType() const;
+  int64_t GetMemorySize() const;
+  int64_t GetMemoryAddressWidth() const;
+  static std::shared_ptr<CType> MemoryAddressType(int64_t memory_size);
+  static int64_t MemoryAddressWidth(int64_t memory_size);
 
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
  private:
   std::shared_ptr<CType> item_type_;
   OpType op_type_;
+  int64_t memory_size_;
 };
 
 struct IOChannel;
@@ -591,6 +597,8 @@ struct IOChannel {
   std::shared_ptr<CType> item_type;
   // Direction of the port (in/out)
   OpType channel_op_type = OpType::kNull;
+  // Memory size (if applicable)
+  int64_t memory_size = -1;
   // The total number of IO ops on the channel within the function
   // (IO ops are conditional, so this is the maximum in a real invocation)
   int total_ops = 0;
@@ -847,6 +855,9 @@ struct TranslationContext {
   bool any_side_effects_requested = false;
 };
 
+std::string Debug_VariablesChangedBetween(const TranslationContext& before,
+                                          const TranslationContext& after);
+
 class Translator {
   void debug_prints(const TranslationContext& context);
 
@@ -984,11 +995,27 @@ class Translator {
   struct MaskAssignmentsGuard {
     explicit MaskAssignmentsGuard(Translator& translator)
         : translator(translator),
-          prev_val(translator.context().mask_side_effects) {
+          prev_val(translator.context().mask_assignments) {
       translator.context().mask_assignments = true;
     }
     ~MaskAssignmentsGuard() {
       translator.context().mask_assignments = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  // This guard makes all side effects, including assignments, no-ops, for a
+  // period determined by RAII.
+  struct MaskSideEffectsGuard {
+    explicit MaskSideEffectsGuard(Translator& translator)
+        : translator(translator),
+          prev_val(translator.context().mask_side_effects) {
+      translator.context().mask_side_effects = true;
+    }
+    ~MaskSideEffectsGuard() {
+      translator.context().mask_side_effects = prev_val;
     }
 
     Translator& translator;
@@ -1218,8 +1245,9 @@ class Translator {
   };
   // Checks if an expression is an IO op, and if so, generates the value
   //  to replace it in IR generation.
-  absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
-                                           const xls::SourceInfo& loc);
+  absl::StatusOr<IOOpReturn> InterceptIOOp(
+      const clang::Expr* expr, const xls::SourceInfo& loc,
+      const CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer

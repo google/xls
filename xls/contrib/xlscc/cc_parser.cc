@@ -448,7 +448,6 @@ enum __xls_channel_dir {
 };
 
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
-
 class __xls_channel {
  public:
   T read() {
@@ -465,6 +464,19 @@ class __xls_channel {
     return true;
   }
 };
+
+template<typename T, unsigned long long Size>
+class __xls_memory {
+ public:
+  T& operator[](long long int addr) {
+    static T ret;
+    return ret;
+  }
+  T operator[](long long int addr)const {
+    return T();
+  }
+};
+
 
 // Bypass no outputs error
 int __xlscc_unimplemented() { return 0; }
