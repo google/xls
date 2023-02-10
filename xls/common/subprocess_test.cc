@@ -32,7 +32,7 @@ TEST(SubprocessTest, EmptyArgvFails) {
 
 TEST(SubprocessTest, FailingCommandFails) {
   auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "/bin/echo hey && /bin/echo hello >&2 && /bin/false"});
+      {"/bin/sh", "-c", "echo hey && echo hello >&2 && /bin/false"});
 
   ASSERT_THAT(result, StatusIs(absl::StatusCode::kInternal));
   EXPECT_THAT(result.status().ToString(), HasSubstr("hey"));
@@ -40,8 +40,8 @@ TEST(SubprocessTest, FailingCommandFails) {
 }
 
 TEST(SubprocessTest, WorkingCommandWorks) {
-  auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "/bin/echo hey && /bin/echo hello >&2"});
+  auto result =
+      InvokeSubprocess({"/bin/sh", "-c", "echo hey && echo hello >&2"});
 
   XLS_ASSERT_OK(result);
   EXPECT_EQ(result->first, "hey\n");
@@ -50,7 +50,7 @@ TEST(SubprocessTest, WorkingCommandWorks) {
 
 TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
   auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "/usr/bin/env seq 10000 && /bin/echo hello >&2"});
+      {"/bin/sh", "-c", "/usr/bin/env seq 10000 && echo hello >&2"});
 
   XLS_ASSERT_OK(result);
   EXPECT_THAT(result->first, HasSubstr("\n10000\n"));
@@ -59,7 +59,7 @@ TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
 
 TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
   auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "/usr/bin/env seq 10000 >&2 && /bin/echo hello"});
+      {"/bin/sh", "-c", "/usr/bin/env seq 10000 >&2 && echo hello"});
 
   XLS_ASSERT_OK(result);
   EXPECT_EQ(result->first, "hello\n");

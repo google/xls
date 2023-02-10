@@ -44,7 +44,7 @@ class IrMinimizerMainTest(absltest.TestCase):
   def test_minimize_add_no_remove_params(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     test_sh_file = self.create_tempfile()
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep add $1'])
+    self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params=false', ir_file.full_path
@@ -61,7 +61,7 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   def test_minimize_add_remove_params(self):
     ir_file = self.create_tempfile(content=ADD_IR)
     test_sh_file = self.create_tempfile()
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep add $1'])
+    self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params', ir_file.full_path
@@ -80,10 +80,14 @@ top fn foo() -> bits[32] {
     test_sh_file = self.create_tempfile()
     # Shell script is run with -e so if any of the greps fail then the script
     # fails.
-    self._write_sh_script(test_sh_file.full_path, [
-        '/bin/grep not.1.*x $1', '/bin/grep add.2.*not.1.*y $1',
-        '/bin/grep not.3.*add.2 $1'
-    ])
+    self._write_sh_script(
+        test_sh_file.full_path,
+        [
+            '/usr/bin/env grep not.1.*x $1',
+            '/usr/bin/env grep add.2.*not.1.*y $1',
+            '/usr/bin/env grep not.3.*add.2 $1',
+        ],
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         '--can_remove_params', ir_file.full_path
@@ -101,7 +105,9 @@ top fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     # The test script only checks to see if a not(x) instruction is in the IR.
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep not.*x $1'])
+    self._write_sh_script(
+        test_sh_file.full_path, ['/usr/bin/env grep not.*x $1']
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         ir_file.full_path
@@ -122,7 +128,9 @@ top fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[
     test_sh_file = self.create_tempfile()
     # The test script only checks to see if a tuple(... x ...) instruction is in
     # the IR. A single element tuple containing x should remain.
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep "tuple(.*x" $1'])
+    self._write_sh_script(
+        test_sh_file.full_path, ['/usr/bin/env grep "tuple(.*x" $1']
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         ir_file.full_path
@@ -139,8 +147,9 @@ top fn foo() -> bits[32][3] {
 """
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
-    self._write_sh_script(test_sh_file.full_path,
-                          [r'/bin/grep "bits\[32\]\[[123]\]" $1'])
+    self._write_sh_script(
+        test_sh_file.full_path, [r'/usr/bin/env grep "bits\[32\]\[[123]\]" $1']
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH,
         '--test_executable=' + test_sh_file.full_path,
@@ -344,7 +353,9 @@ top fn foo(x: bits[32], y: bits[1]) -> bits[32] {
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     # The test script only checks to see if `test_node` is in the IR.
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep test_node $1'])
+    self._write_sh_script(
+        test_sh_file.full_path, ['/usr/bin/env grep test_node $1']
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         ir_file.full_path
@@ -361,7 +372,9 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     ir_file = self.create_tempfile(content=input_ir)
     test_sh_file = self.create_tempfile()
     # The test script checks to see if `bits[42]` is in the IR.
-    self._write_sh_script(test_sh_file.full_path, ['/bin/grep bits.42 $1'])
+    self._write_sh_script(
+        test_sh_file.full_path, ['/usr/bin/env grep bits.42 $1']
+    )
     minimized_ir = subprocess.check_output([
         IR_MINIMIZER_MAIN_PATH,
         '--test_executable=' + test_sh_file.full_path,
