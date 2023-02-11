@@ -15,7 +15,6 @@
 """Provides helper that loads external repositories with third-party code."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -54,13 +53,13 @@ def load_external_repositories():
         sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
     )
 
-    git_repository(
+    http_archive(
         name = "boringssl",
         # Commit date: 2022-09-14
         # Note for updating: we need to use a commit from the main-with-bazel branch.
-        commit = "d345d68d5c4b5471290ebe13f090f1fd5b7e8f58",
-        remote = "https://boringssl.googlesource.com/boringssl",
-        shallow_since = "1663197646 +0000",
+        strip_prefix = "boringssl-d345d68d5c4b5471290ebe13f090f1fd5b7e8f58",
+        sha256 = "482796f369c8655dbda3be801ae98c47916ecd3bff223d007a723fd5f5ecba22",
+        urls = ["https://github.com/google/boringssl/archive/d345d68d5c4b5471290ebe13f090f1fd5b7e8f58.zip"],
     )
 
     # Commit on 2023-02-09
@@ -192,20 +191,20 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
-    git_repository(
+    http_archive(
         name = "platforms",
-        remote = "https://github.com/bazelbuild/platforms.git",
-        # Apparently the arguments below are the reproducible form of this tag.
-        # tag = "0.0.5",
-        commit = "fbd0d188dac49fbcab3d2876a2113507e6fc68e9",
-        shallow_since = "1644333305 -0500",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+        ],
+        sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
     )
 
-    git_repository(
+    http_archive(
         name = "com_google_ortools",
-        commit = "525162feaadaeef640783b2eaea38cf4b623877f",
-        shallow_since = "1647023481 +0100",
-        remote = "https://github.com/google/or-tools.git",
+        urls = ["https://github.com/google/or-tools/archive/525162feaadaeef640783b2eaea38cf4b623877f.tar.gz"],
+        sha256 = "e1305990a5f2cfff2a91825cf2af7aca358e4b857af516207a996501e31825e4",
+        strip_prefix = "or-tools-525162feaadaeef640783b2eaea38cf4b623877f",
         # Removes undesired dependencies like Eigen, BLISS, SCIP
         patches = [
             "@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff",
