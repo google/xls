@@ -344,7 +344,6 @@ absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(std::optional<Token> if_, TryPopKeyword(Keyword::kIf));
   if (if_.has_value()) {  // Ternary
     XLS_ASSIGN_OR_RETURN(Expr * test, ParseExpression(bindings));
-    XLS_VLOG(5) << "test: " << test->ToString();
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                          "Opening brace for 'if' (ternary) expression."));
@@ -1820,6 +1819,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
   Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
 
   // TODO(rspringer): 2021-10-13: Rework this when issue #507 is
@@ -1847,6 +1847,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
         "element for each Proc data member.");
   }
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+
   Block* block = module_->Make<Block>(Span(start_pos, GetPos()), body);
 
   Span span(oparen.span().start(), cbrace.span().limit());
@@ -2045,6 +2046,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
                                         Bindings* outer_bindings) {
   XLS_ASSIGN_OR_RETURN(Token proc_token, PopKeywordOrError(Keyword::kProc));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
+
   Bindings bindings(outer_bindings);
   bindings.Add(name_def->identifier(), name_def);
 
@@ -2121,6 +2123,12 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
                                                name_def->identifier()));
       XLS_RETURN_IF_ERROR(module_->AddTop(init));
       outer_bindings->Add(init->name_def()->identifier(), init->name_def());
+    } else {
+      return ParseErrorStatus(
+          peek->span(),
+          absl::StrFormat("Unexpected token in proc body: %s; want one of "
+                          "'config', 'next', or 'init'",
+                          peek->ToErrorString()));
     }
 
     XLS_ASSIGN_OR_RETURN(peek, PeekToken());

@@ -396,6 +396,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         warnings_as_errors=True,
         want_err_retcode=True)
 
+  def test_unterminated_proc(self):
+    stderr = self._run('xls/dslx/tests/errors/unterminated_proc.x')
+    self.assertIn('unterminated_proc.x:23:1-23:1', stderr)
+    self.assertIn('ParseError', stderr)
+    self.assertIn('Unexpected token in proc body: EOF; want one of', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()
