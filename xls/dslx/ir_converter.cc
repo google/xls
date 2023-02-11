@@ -37,7 +37,8 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/meta/type_traits.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/dslx/command_line_utils.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -51,17 +52,23 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/create_import_data.h"
+#include "xls/dslx/error_printer.h"
 #include "xls/dslx/extract_conversion_order.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/make_struct_format_descriptor.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parametric_env.h"
+#include "xls/dslx/parser.h"
 #include "xls/dslx/proc_config_ir_converter.h"
+#include "xls/dslx/scanner.h"
+#include "xls/dslx/typecheck.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_parser.h"
 
 namespace xls::dslx {
 namespace {
@@ -3648,6 +3655,106 @@ absl::StatusOr<Value> InterpValueToValue(const InterpValue& iv) {
           "Cannot convert interpreter value with tag: " +
           TagToString(iv.tag()));
   }
+}
+
+namespace {
+absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
+                                                  std::string_view module_name,
+                                                  bool print_on_error,
+                                                  std::string_view filename,
+                                                  bool* printed_error) {
+  Scanner scanner{std::string(filename), std::string(text)};
+  Parser parser(std::string(module_name), &scanner);
+  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
+  *printed_error = TryPrintError(module_or.status());
+  return module_or;
+}
+
+
+// Adds IR-converted symbols from the module specified by "path" to the given
+// "package".
+//
+// TODO(leary): 2021-07-21 We should be able to reuse the type checking if
+// there are overlapping nodes in the module DAG between files to process. For
+// now we throw it away for each file and re-derive it (we need to refactor to
+// make the modules outlive any given AddPathToPackage() if we want to
+// appropriately reuse things in ImportData).
+absl::Status AddContentsToPackage(
+    std::string_view file_contents, std::string_view module_name,
+    std::optional<std::string_view> path, std::optional<std::string_view> entry,
+    const ConvertOptions& convert_options, ImportData* import_data,
+    Package* package, bool* printed_error) {
+  // Parse the module text.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Module> module,
+      ParseText(file_contents, module_name, /*print_on_error=*/true,
+                /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
+  WarningCollector warnings;
+  absl::StatusOr<TypeInfo*> type_info_or =
+      CheckModule(module.get(), import_data, &warnings);
+  if (!type_info_or.ok()) {
+    *printed_error = TryPrintError(type_info_or.status());
+    return type_info_or.status();
+  }
+
+  if (convert_options.warnings_as_errors && !warnings.warnings().empty()) {
+    if (printed_error != nullptr) {
+      *printed_error = true;
+    }
+    PrintWarnings(warnings);
+    return absl::InvalidArgumentError(
+        "Warnings encountered and warnings-as-errors set.");
+  }
+
+  if (entry.has_value()) {
+    XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
+        module.get(), entry.value(), /*import_data=*/import_data,
+        /*parametric_env=*/nullptr, convert_options, package));
+  } else {
+    XLS_RETURN_IF_ERROR(
+        ConvertModuleIntoPackage(module.get(), import_data, convert_options,
+                                 /*traverse_tests=*/false, package));
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
+absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
+    absl::Span<const std::string_view> paths, std::string stdlib_path,
+    absl::Span<const std::filesystem::path> dslx_paths,
+    const ConvertOptions& convert_options, std::optional<std::string_view> top,
+    std::optional<std::string_view> package_name, bool* printed_error) {
+  std::string resolved_package_name;
+  if (package_name.has_value()) {
+    resolved_package_name = package_name.value();
+  } else {
+    if (paths.size() > 1) {
+      return absl::InvalidArgumentError(
+          "Package name must be given when multiple input paths are supplied");
+    }
+    // Get it from the one module name (if package name was unspecified and we
+    // just have one path).
+    XLS_ASSIGN_OR_RETURN(resolved_package_name, PathToName(paths[0]));
+  }
+  auto package =
+      std::make_unique<xls::Package>(std::move(resolved_package_name));
+
+  if (paths.size() > 1 && top.has_value()) {
+    return absl::InvalidArgumentError(
+        "Top cannot be supplied with multiple input paths (need a single input "
+        "path to know where to resolve the entry function");
+  }
+  for (std::string_view path : paths) {
+    ImportData import_data(CreateImportData(stdlib_path, dslx_paths));
+    XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
+    XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
+    XLS_RETURN_IF_ERROR(AddContentsToPackage(
+        text, module_name, /*path=*/path, /*entry=*/top, convert_options,
+        &import_data, package.get(), printed_error));
+  }
+
+  return package;
 }
 
 }  // namespace xls::dslx

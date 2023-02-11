@@ -45,6 +45,9 @@ struct ConvertOptions {
 
   // Should the generated IR be verified?
   bool verify_ir = true;
+
+  // Should warnings be treated as errors?
+  bool warnings_as_errors = true;
 };
 
 // Converts the contents of a module to IR form.
@@ -111,6 +114,28 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
 
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
+
+// Converts DSLX files at paths into a package.
+//
+// The intent is that ir_converter_main should be a thin wrapper around this,
+// and users should be able to generate IR internally much the same way they
+// would by hand.
+//
+// Args:
+//   paths: Paths to DSLX files
+//   import_data: The import data for typechecking, etc.
+//   options: Conversion options.
+//   top: Optionally, the name of the top function/proc.
+//   package_name: Optionally, the name of the package.
+//   printed_error: If a non-null pointer is passes, sets the contents to a
+//     boolean value indicating if an error was printed during conversion.
+absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
+    absl::Span<const std::string_view> paths, std::string stdlib_path,
+    absl::Span<const std::filesystem::path> dslx_paths,
+    const ConvertOptions& convert_options,
+    std::optional<std::string_view> top = std::nullopt,
+    std::optional<std::string_view> package_name = std::nullopt,
+    bool* printed_error = nullptr);
 
 }  // namespace xls::dslx
 
