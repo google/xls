@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
+
       - name: Mount Bazel Cache
         uses: actions/cache@v3
         with:
@@ -32,19 +33,28 @@ jobs:
           # if it doesn't already exist.
           key: bazel-cache-20_04-${{ github.sha }}
           restore-keys: bazel-cache-20_04-
+
       - name: Install bazelisk
         run: |
           curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+
       - name: Install dependencies via apt
         run: sudo apt-get install python3-dev python3-distutils python3-dev python-is-python3 libtinfo5
-      # Note: xlscc is excluded because it builds Clang, and that pushes us
-      # over 6 hours of build time.
+
+      - name: Bazel fetch
+        # Let's fetch all WORKSPACE artifacts to see if they can resolve fully
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" fetch //...
+
       - name: Bazel Test All (opt)
+        # Note: xlscc is excluded because it builds Clang, and that pushes us
+        # over 6 hours of build time.
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=errors -- //xls/... -//xls/contrib/xlscc/...
+
   cleanup:
     name: Bazel Cache Cleanup
     needs: build
