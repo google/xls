@@ -27,6 +27,13 @@ def load_external_repositories():
     repo_rules_hdl()
 
     http_archive(
+        name = "rules_cc",
+        urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.5/rules_cc-0.0.5.tar.gz"],
+        sha256 = "2004c71f3e0a88080b2bd3b6d3b73b4c597116db9c9a36676d0ffad39b849214",
+        strip_prefix = "rules_cc-0.0.5",
+    )
+
+    http_archive(
         name = "com_google_googletest",
         urls = ["https://github.com/google/googletest/archive/0e6aac2571eb1753b8855d8d1f592df64d1a4828.zip"],  # 2022-11-14
         strip_prefix = "googletest-0e6aac2571eb1753b8855d8d1f592df64d1a4828",
