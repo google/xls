@@ -1025,8 +1025,7 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 //    ColonRef if the type lives in an external module.
 class TypeRef : public AstNode {
  public:
-  TypeRef(Module* owner, Span span, std::string text,
-          TypeDefinition type_definition);
+  TypeRef(Module* owner, Span span, TypeDefinition type_definition);
 
   ~TypeRef() override;
 
@@ -1037,20 +1036,18 @@ class TypeRef : public AstNode {
   }
 
   std::string_view GetNodeTypeName() const override { return "TypeRef"; }
-  std::string ToString() const override { return text_; }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
   }
 
-  const std::string& text() const { return text_; }
   const TypeDefinition& type_definition() const { return type_definition_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
-  std::string text_;
   TypeDefinition type_definition_;
 };
 

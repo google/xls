@@ -490,7 +490,7 @@ class AstGenerator {
     NameDef* name_def = MakeNameDef(type_name);
     auto* type_def =
         module_->Make<TypeDef>(fake_span_, name_def, type, /*is_public=*/false);
-    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_name, type_def);
+    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_def);
     type_defs_.push_back(type_def);
     type_bit_counts_[type_ref->ToString()] = GetTypeBitCount(type);
     return module_->Make<TypeRefTypeAnnotation>(

@@ -796,8 +796,7 @@ class AstCloner : public AstNodeVisitor {
                 }},
         n->type_definition()));
 
-    old_to_new_[n] =
-        module_->Make<TypeRef>(n->span(), n->text(), new_type_definition);
+    old_to_new_[n] = module_->Make<TypeRef>(n->span(), new_type_definition);
     return absl::OkStatus();
   }
 

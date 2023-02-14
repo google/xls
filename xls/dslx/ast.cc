@@ -635,12 +635,18 @@ ConstantArray::~ConstantArray() {}
 
 // -- class TypeRef
 
-TypeRef::TypeRef(Module* owner, Span span, std::string text,
-                 TypeDefinition type_definition)
+TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
     : AstNode(owner),
       span_(std::move(span)),
-      text_(std::move(text)),
       type_definition_(type_definition) {}
+
+std::string TypeRef::ToString() const {
+  return absl::visit(Visitor{[&](TypeDef* n) { return n->identifier(); },
+                             [&](StructDef* n) { return n->identifier(); },
+                             [&](EnumDef* n) { return n->identifier(); },
+                             [&](ColonRef* n) { return n->ToString(); }},
+                     type_definition_);
+}
 
 TypeRef::~TypeRef() {}
 

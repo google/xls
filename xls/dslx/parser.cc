@@ -476,7 +476,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
 
   XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
                        BoundNodeToTypeDefinition(type_def));
-  return module_->Make<TypeRef>(tok.span(), *tok.GetValue(), type_definition);
+  return module_->Make<TypeRef>(tok.span(), type_definition);
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
@@ -1294,12 +1294,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     return module_->Make<Join>(Span(join.span().start(), GetPos()), tokens);
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
-    std::string lhs_str = *peek->GetValue();
-    if (peek_is_kw_in) {
-      lhs_str = "in";
-    } else if (peek_is_kw_out) {
-      lhs_str = "out";
-    }
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(outer_bindings));
     if (std::holds_alternative<ColonRef*>(nocr)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
@@ -1307,7 +1301,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       if (peek_is_obrace) {
         ColonRef* colon_ref = std::get<ColonRef*>(nocr);
         TypeRef* type_ref =
-            module_->Make<TypeRef>(colon_ref->span(), lhs_str, colon_ref);
+            module_->Make<TypeRef>(colon_ref->span(), colon_ref);
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
             MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
@@ -1386,8 +1380,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
           goto done;
         }
 
-        auto* type_ref = module_->Make<TypeRef>(span, lhs->ToString(),
-                                                ToTypeDefinition(lhs).value());
+        auto* type_ref =
+            module_->Make<TypeRef>(span, ToTypeDefinition(lhs).value());
         auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
             span, type_ref, std::vector<Expr*>());
         XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type_annot));
@@ -1465,8 +1459,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
               DropTokenOrDie();
               // TODO(rspringer): We can't currently support parameterized
               // ColonRef-to-types with this function structure.
-              auto* type_ref = module_->Make<TypeRef>(
-                  span, lhs->ToString(), down_cast<ColonRef*>(lhs));
+              auto* type_ref =
+                  module_->Make<TypeRef>(span, down_cast<ColonRef*>(lhs));
               auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
                   span, type_ref, /*parametrics=*/std::vector<Expr*>());
               auto* array_type = module_->Make<ArrayTypeAnnotation>(
@@ -2026,8 +2020,8 @@ absl::StatusOr<TypeAnnotation*> Parser::CloneReturnType(TypeAnnotation* input) {
   if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(input);
       typeref_type != nullptr) {
     TypeRef* old_ref = typeref_type->type_ref();
-    TypeRef* new_ref = module_->Make<TypeRef>(old_ref->span(), old_ref->text(),
-                                              old_ref->type_definition());
+    TypeRef* new_ref =
+        module_->Make<TypeRef>(old_ref->span(), old_ref->type_definition());
 
     std::vector<Expr*> new_parametrics;
     for (auto* parametric : typeref_type->parametrics()) {
@@ -2219,9 +2213,7 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings* bindings,
   const Span span(start_tok.span().start(), type_name.span().limit());
   ColonRef* mod_ref =
       module_->Make<ColonRef>(span, subject, *type_name.GetValue());
-  std::string composite =
-      absl::StrFormat("%s::%s", *start_tok.GetValue(), *type_name.GetValue());
-  return module_->Make<TypeRef>(span, /*text=*/composite, mod_ref);
+  return module_->Make<TypeRef>(span, mod_ref);
 }
 
 absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {

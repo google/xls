@@ -513,7 +513,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       // Message/struct or enum.
       std::string type_name = std::get<std::string>(element.type);
       auto* type_ref = module->Make<dslx::TypeRef>(
-          span, type_name, name_to_record->at(type_name)->dslx_typedef);
+          span, name_to_record->at(type_name)->dslx_typedef);
       type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
           span, type_ref, std::vector<dslx::Expr*>());
     } else {
@@ -714,7 +714,7 @@ absl::Status EmitStructData(
     std::string type_name =
         GetParentPrefixedName(top_package, fd->message_type());
     auto* type_ref = module->Make<dslx::TypeRef>(
-        span, type_name, name_to_record.at(type_name)->dslx_typedef);
+        span, name_to_record.at(type_name)->dslx_typedef);
     auto* typeref_type = module->Make<dslx::TypeRefTypeAnnotation>(
         span, type_ref, std::vector<dslx::Expr*>());
     return EmitArray(
