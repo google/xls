@@ -1341,11 +1341,32 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
     XLS_VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
-                   "defaulting to variable: " << node->ToString();
+                   "defaulting to variable: "
+                << node->ToString();
     return absl::OkStatus();
   }
   return absl::UnimplementedError(
       "Unhandled node for conversion from XLS IR to Z3: " + node->ToString());
+}
+
+absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
+  XLS_CHECK_EQ(invoke->operands().size(), invoke->to_apply()->params().size());
+
+  std::vector<Z3_ast> z3_params;
+  for (const Node* param_node : invoke->operands()) {
+    z3_params.push_back(GetValue(param_node));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<IrTranslator> sub_translator,
+      CreateAndTranslate(ctx(), invoke->to_apply(),
+                         /*imported_params=*/z3_params, allow_unsupported_));
+
+  Z3_ast z3_ret = sub_translator->GetValue(invoke->to_apply()->return_value());
+
+  NoteTranslation(invoke, z3_ret);
+
+  return absl::OkStatus();
 }
 
 Z3_ast IrTranslator::GetValue(const Node* node) {

@@ -84,7 +84,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
       std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator_parent,
       xls::solvers::z3::IrTranslator::CreateAndTranslate(
           /*source=*/nullptr,
-          /*allow_unsupported=*/true));
+          /*allow_unsupported=*/false));
 
   Z3_solver solver =
       xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
@@ -173,7 +173,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
             xls::solvers::z3::IrTranslator::CreateAndTranslate(
                 /*ctx=*/z3_translator_parent->ctx(),
                 /*source=*/not_break.node(),
-                /*allow_unsupported=*/true));
+                /*allow_unsupported=*/false));
 
         XLS_ASSIGN_OR_RETURN(
             Z3_lbool result,
