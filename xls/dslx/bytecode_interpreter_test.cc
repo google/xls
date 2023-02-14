@@ -63,7 +63,7 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
 static absl::StatusOr<InterpValue> Interpret(
     std::string_view program, std::string_view entry,
     std::vector<InterpValue> args = {},
-    std::vector<std::string>* trace_output = nullptr) {
+    const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions()) {
   ImportData import_data(CreateImportDataForTest());
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
@@ -75,8 +75,7 @@ static absl::StatusOr<InterpValue> Interpret(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
 
-  return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, nullptr,
-                                        trace_output);
+  return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, options);
 }
 
 static const Pos kFakePos("fake.x", 0, 0);
@@ -124,8 +123,11 @@ fn main() -> () {
 )";
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      Interpret(kProgram, "main", /*args=*/{}, &trace_output));
+      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
+                                   BytecodeInterpreterOptions().trace_hook(
+                                       [&](std::string_view s) {
+                                         trace_output.push_back(std::string{s});
+                                       })));
   EXPECT_THAT(trace_output,
               testing::ElementsAre("Point{x: u32:42, y: u32:64}"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
@@ -1377,6 +1379,353 @@ fn doomed() {
             y: u32:4
         }
     ])"));
+}
+
+TEST(BytecodeInterpreterTest, TraceChannels) {
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv(tok, in_ch);
+    let tok = send(tok, out_ch, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32> out;
+  data_in: chan<u32> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<u32>;
+    let (output_in, output_out) = chan<u32>;
+    spawn incrementer(input_in, output_out);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+
+    let tok = send(tok, data_out, u32:42);
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, data_out, u32:100);
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           tm.module->GetTestProc("tester_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue terminator,
+      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+  std::vector<ProcInstance> proc_instances;
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      &import_data, ti, test_proc->proc(), terminator, &proc_instances,
+      BytecodeInterpreterOptions().trace_channels(true).trace_hook(
+          [&](std::string_view s) {
+            trace_output.push_back(std::string{s});
+          })));
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_ASSERT_OK(p.Run());
+    }
+  }
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre(
+                  "Sent data on channel `tester_proc::data_out`: u32:42",
+                  "Received data on channel `incrementer::in_ch`: u32:42",
+                  "Sent data on channel `incrementer::out_ch`: u32:43",
+                  "Received data on channel `tester_proc::data_in`: u32:43",
+                  "Sent data on channel `tester_proc::data_out`: u32:100",
+                  "Received data on channel `incrementer::in_ch`: u32:100",
+                  "Sent data on channel `incrementer::out_ch`: u32:101",
+                  "Received data on channel `tester_proc::data_in`: u32:101",
+                  "Sent data on channel `tester_proc::terminator`: u1:1"));
+}
+
+TEST(BytecodeInterpreterTest, TraceChannelsWithNonblockingReceive) {
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i, valid) = recv_non_blocking(tok, in_ch);
+    let tok = send(tok, out_ch, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32> out;
+  data_in: chan<u32> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<u32>;
+    let (output_in, output_out) = chan<u32>;
+    spawn incrementer(input_in, output_out);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+    let tok = send_if(tok, data_out, false, u32:42);
+    let (tok, result) = recv(tok, data_in);
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           tm.module->GetTestProc("tester_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue terminator,
+      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+  std::vector<ProcInstance> proc_instances;
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      &import_data, ti, test_proc->proc(), terminator, &proc_instances,
+      BytecodeInterpreterOptions().trace_channels(true).trace_hook(
+          [&](std::string_view s) {
+            trace_output.push_back(std::string{s});
+          })));
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_ASSERT_OK(p.Run());
+    }
+  }
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre(
+                  "Sent data on channel `incrementer::out_ch`: u32:1",
+                  "Received data on channel `tester_proc::data_in`: u32:1",
+                  "Sent data on channel `tester_proc::terminator`: u1:1"));
+}
+
+TEST(BytecodeInterpreterTest, TraceStructChannels) {
+  constexpr std::string_view kProgram = R"(
+struct Foo {
+  a: u32,
+  b: u16
+}
+
+proc incrementer {
+  in_ch: chan<Foo> in;
+  out_ch: chan<Foo> out;
+
+  init { () }
+
+  config(in_ch: chan<Foo> in,
+         out_ch: chan<Foo> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv(tok, in_ch);
+    let tok = send(tok, out_ch, Foo { a:i.a + u32:1, b:i.b + u16:1 });
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<Foo> out;
+  data_in: chan<Foo> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<Foo>;
+    let (output_in, output_out) = chan<Foo>;
+    spawn incrementer(input_in, output_out);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+
+    let tok = send(tok, data_out, Foo { a:u32:42, b:u16:100 });
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, data_out, Foo{ a:u32:555, b:u16:123 });
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           tm.module->GetTestProc("tester_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue terminator,
+      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+  std::vector<ProcInstance> proc_instances;
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      &import_data, ti, test_proc->proc(), terminator, &proc_instances,
+      BytecodeInterpreterOptions().trace_channels(true).trace_hook(
+          [&](std::string_view s) {
+            trace_output.push_back(std::string{s});
+          })));
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_ASSERT_OK(p.Run());
+    }
+  }
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre(
+                  "Sent data on channel `tester_proc::data_out`: Foo{a: "
+                  "u32:42, b: u16:100}",
+                  "Received data on channel `incrementer::in_ch`: Foo{a: "
+                  "u32:42, b: u16:100}",
+                  "Sent data on channel `incrementer::out_ch`: Foo{a: u32:43, "
+                  "b: u16:101}",
+                  "Received data on channel `tester_proc::data_in`: Foo{a: "
+                  "u32:43, b: u16:101}",
+                  "Sent data on channel `tester_proc::data_out`: Foo{a: "
+                  "u32:555, b: u16:123}",
+                  "Received data on channel `incrementer::in_ch`: Foo{a: "
+                  "u32:555, b: u16:123}",
+                  "Sent data on channel `incrementer::out_ch`: Foo{a: u32:556, "
+                  "b: u16:124}",
+                  "Received data on channel `tester_proc::data_in`: Foo{a: "
+                  "u32:556, b: u16:124}",
+                  "Sent data on channel `tester_proc::terminator`: u1:1"));
+}
+
+TEST(BytecodeInterpreterTest, TraceArrayOfChannels) {
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv(tok, in_ch);
+    let tok = send(tok, out_ch, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32>[1] out;
+  data_in: chan<u32>[1] in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<u32>[1];
+    let (output_in, output_out) = chan<u32>[1];
+    spawn incrementer(input_in[0], output_out[0]);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+
+    let tok = send(tok, data_out[0], u32:42);
+    let (tok, result) = recv(tok, data_in[0]);
+
+    let tok = send(tok, data_out[0], u32:100);
+    let (tok, result) = recv(tok, data_in[0]);
+
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           tm.module->GetTestProc("tester_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue terminator,
+      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+  std::vector<ProcInstance> proc_instances;
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      &import_data, ti, test_proc->proc(), terminator, &proc_instances,
+      BytecodeInterpreterOptions().trace_channels(true).trace_hook(
+          [&](std::string_view s) {
+            trace_output.push_back(std::string{s});
+          })));
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_ASSERT_OK(p.Run());
+    }
+  }
+  EXPECT_THAT(
+      trace_output,
+      testing::ElementsAre(
+          "Sent data on channel `tester_proc::(data_out)[0]`: u32:42",
+          "Received data on channel `incrementer::in_ch`: u32:42",
+          "Sent data on channel `incrementer::out_ch`: u32:43",
+          "Received data on channel `tester_proc::(data_in)[0]`: u32:43",
+          "Sent data on channel `tester_proc::(data_out)[0]`: u32:100",
+          "Received data on channel `incrementer::in_ch`: u32:100",
+          "Sent data on channel `incrementer::out_ch`: u32:101",
+          "Received data on channel `tester_proc::(data_in)[0]`: u32:101",
+          "Sent data on channel `tester_proc::terminator`: u1:1"));
 }
 
 }  // namespace

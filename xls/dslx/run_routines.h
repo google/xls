@@ -105,6 +105,7 @@ struct ParseAndTestOptions {
   std::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
   bool warnings_as_errors = true;
+  bool trace_channels = false;
 };
 
 enum class TestResult {

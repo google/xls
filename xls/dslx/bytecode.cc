@@ -399,7 +399,6 @@ DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
 DEF_UNARY_BUILDER(Pop);
 DEF_UNARY_BUILDER(Range);
-DEF_UNARY_BUILDER(Send);
 DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
@@ -429,14 +428,17 @@ DEF_UNARY_BUILDER(Swap);
   return Bytecode(span, Op::kMatchArm, std::move(item));
 }
 
-/* static */ Bytecode Bytecode::MakeRecv(Span span,
-                                         std::unique_ptr<ConcreteType> type) {
-  return Bytecode(span, Op::kRecv, std::move(type));
+/* static */ Bytecode Bytecode::MakeRecv(Span span, ChannelData channel_data) {
+  return Bytecode(span, Op::kRecv, std::move(channel_data));
 }
 
-/* static */ Bytecode Bytecode::MakeRecvNonBlocking(
-    Span span, std::unique_ptr<ConcreteType> type) {
-  return Bytecode(span, Op::kRecvNonBlocking, std::move(type));
+/* static */ Bytecode Bytecode::MakeRecvNonBlocking(Span span,
+                                                    ChannelData channel_data) {
+  return Bytecode(span, Op::kRecvNonBlocking, std::move(channel_data));
+}
+
+/* static */ Bytecode Bytecode::MakeSend(Span span, ChannelData channel_data) {
+  return Bytecode(span, Op::kSend, std::move(channel_data));
 }
 
 /* static */ Bytecode Bytecode::MakeSpawn(Span span, SpawnData spawn_data) {
@@ -448,98 +450,63 @@ DEF_UNARY_BUILDER(Swap);
 }
 
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<JumpTarget>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a JumpTarget.");
-  }
-
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<JumpTarget>(data_.value()));
   return std::get<JumpTarget>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::MatchArmItem*> Bytecode::match_arm_item() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<MatchArmItem>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not MatchArmItem.");
-  }
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<MatchArmItem>(data_.value()));
   return &std::get<MatchArmItem>(data_.value());
 }
 
 absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<NumElements>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a NumElements.");
-  }
-
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<NumElements>(data_.value()));
   return std::get<NumElements>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::TraceData*> Bytecode::trace_data() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<TraceData>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a TraceData.");
-  }
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<TraceData>(data_.value()));
   return &std::get<TraceData>(data_.value());
 }
 
-absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<SlotIndex>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
-  }
+absl::StatusOr<const Bytecode::ChannelData*> Bytecode::channel_data() const {
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<ChannelData>(data_.value()));
+  return &std::get<ChannelData>(data_.value());
+}
 
+absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<SlotIndex>(data_.value()));
   return std::get<SlotIndex>(data_.value());
 }
 
 absl::StatusOr<Bytecode::InvocationData> Bytecode::invocation_data() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<InvocationData>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a ParametricEnv.");
-  }
-
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<InvocationData>(data_.value()));
   return std::get<InvocationData>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::SpawnData*> Bytecode::spawn_data() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<SpawnData>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
-  }
-
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<SpawnData>(data_.value()));
   return &std::get<SpawnData>(data_.value());
 }
 
 absl::StatusOr<InterpValue> Bytecode::value_data() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<InterpValue>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
-  }
-
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(std::holds_alternative<InterpValue>(data_.value()));
   return std::get<InterpValue>(data_.value());
 }
 
 absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
-  if (!data_.has_value()) {
-    return absl::InvalidArgumentError("Bytecode does not hold data.");
-  }
-  if (!std::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not a ConcreteType.");
-  }
+  XLS_RET_CHECK(data_.has_value());
+  XLS_RET_CHECK(
+      std::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value()));
   return std::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
 }
 
@@ -603,6 +570,10 @@ std::string Bytecode::ToString(bool source_locs) const {
           }
         }
         return absl::StrCat("trace data: ", absl::StrJoin(pieces, ", "));
+      }
+
+      std::string operator()(const ChannelData& channel_data) {
+        return std::string{channel_data.channel_name()};
       }
 
       std::string operator()(const JumpTarget& target) {

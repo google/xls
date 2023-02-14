@@ -31,7 +31,6 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
-#include "xls/dslx/error_printer.h"
 #include "xls/dslx/run_routines.h"
 
 // LINT.IfChange
@@ -52,6 +51,9 @@ ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
+ABSL_FLAG(bool, trace_channels, false,
+          "If true, values sent and received on channels are emitted as trace "
+          "messages");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -73,7 +75,7 @@ absl::Status RealMain(std::string_view entry_module_path,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
-                      bool* printed_error) {
+                      bool trace_channels, bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
   std::optional<RunComparator> run_comparator;
@@ -95,6 +97,7 @@ absl::Status RealMain(std::string_view entry_module_path,
       .execute = execute,
       .seed = seed,
       .warnings_as_errors = warnings_as_errors,
+      .trace_channels = trace_channels,
   };
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
@@ -125,6 +128,7 @@ int main(int argc, char* argv[]) {
   std::string compare_flag_str = absl::GetFlag(FLAGS_compare);
   bool execute = absl::GetFlag(FLAGS_execute);
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
+  bool trace_channels = absl::GetFlag(FLAGS_trace_channels);
 
   xls::dslx::CompareFlag compare_flag;
   if (compare_flag_str == "none") {
@@ -160,7 +164,7 @@ int main(int argc, char* argv[]) {
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
       args[0], dslx_paths, test_filter, preference.value(), compare_flag,
-      execute, warnings_as_errors, seed, &printed_error);
+      execute, warnings_as_errors, seed, trace_channels, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

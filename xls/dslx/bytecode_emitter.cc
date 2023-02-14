@@ -680,27 +680,38 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   return absl::OkStatus();
 }
 
+static absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
+ConcreteTypeToStructFormatDescriptor(const ConcreteType* type) {
+  auto* struct_type = dynamic_cast<const StructType*>(type);
+  if (struct_type == nullptr) {
+    return nullptr;
+  }
+  return MakeStructFormatDescriptor(*struct_type);
+}
+
+static absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
+ExprToStructFormatDescriptor(const Expr* expr, const TypeInfo* type_info) {
+  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  XLS_RET_CHECK(maybe_type.has_value());
+  return ConcreteTypeToStructFormatDescriptor(maybe_type.value());
+}
+
 absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   for (const Expr* arg : node->args()) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
-  std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc;
+  std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_descs;
   for (const Expr* arg : node->args()) {
-    std::optional<ConcreteType*> maybe_type = type_info_->GetItem(arg);
-    XLS_RET_CHECK(maybe_type.has_value());
-    const ConcreteType* type = maybe_type.value();
-    auto* struct_type = dynamic_cast<const StructType*>(type);
-    if (struct_type != nullptr) {
-      struct_fmt_desc.push_back(MakeStructFormatDescriptor(*struct_type));
-    } else {
-      struct_fmt_desc.push_back(nullptr);
-    }
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
+        ExprToStructFormatDescriptor(arg, type_info_));
+    struct_fmt_descs.push_back(std::move(struct_fmt_desc));
   }
 
   Bytecode::TraceData trace_data(
       std::vector<FormatStep>(node->format().begin(), node->format().end()),
-      std::move(struct_fmt_desc));
+      std::move(struct_fmt_descs));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kTrace, std::move(trace_data)));
   return absl::OkStatus();
@@ -1034,16 +1045,37 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
   return channel_type->payload_type().CloneToUnique();
 }
 
+absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
+    const Expr* channel, const TypeInfo* type_info) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+                       GetChannelPayloadType(type_info, channel));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
+      ConcreteTypeToStructFormatDescriptor(channel_payload_type.get()));
+
+  // Determine the owning proc by walking the parent links.
+  AstNode* proc_node = channel->parent();
+  while (dynamic_cast<const Proc*>(proc_node) == nullptr) {
+    proc_node = proc_node->parent();
+    XLS_RET_CHECK(proc_node != nullptr);
+  }
+  std::string_view proc_name =
+      dynamic_cast<const Proc*>(proc_node)->identifier();
+
+  return Bytecode::ChannelData(
+      absl::StrFormat("%s::%s", proc_name, channel->ToString()),
+      std::move(channel_payload_type), std::move(struct_fmt_desc));
+}
+
 }  // namespace
 
 absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
-                       GetChannelPayloadType(type_info_, node->channel()));
-  Add(Bytecode::MakeRecv(node->span(), std::move(channel_payload_type)));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeRecv(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 
@@ -1052,11 +1084,9 @@ absl::Status BytecodeEmitter::HandleRecvNonBlocking(
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
-                       GetChannelPayloadType(type_info_, node->channel()));
-  Add(Bytecode::MakeRecvNonBlocking(node->span(),
-                                    std::move(channel_payload_type)));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 
@@ -1064,10 +1094,9 @@ absl::Status BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
-                       GetChannelPayloadType(type_info_, node->channel()));
-  Add(Bytecode::MakeRecv(node->span(), std::move(channel_payload_type)));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeRecv(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 
@@ -1076,11 +1105,9 @@ absl::Status BytecodeEmitter::HandleRecvIfNonBlocking(
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
-                       GetChannelPayloadType(type_info_, node->channel()));
-  Add(Bytecode::MakeRecvNonBlocking(node->span(),
-                                    std::move(channel_payload_type)));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 
@@ -1089,7 +1116,9 @@ absl::Status BytecodeEmitter::HandleSend(const Send* node) {
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
-  Add(Bytecode::MakeSend(node->span()));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeSend(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 
@@ -1098,7 +1127,9 @@ absl::Status BytecodeEmitter::HandleSendIf(const SendIf* node) {
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
-  Add(Bytecode::MakeSend(node->span()));
+  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
+                       CreateChannelData(node->channel(), type_info_));
+  Add(Bytecode::MakeSend(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
 

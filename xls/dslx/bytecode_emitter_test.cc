@@ -1336,7 +1336,7 @@ proc Parent {
       "load 3 @ test.x:16:25-16:28",
       "load 0 @ test.x:16:30-16:31",
       "literal u1:1 @ test.x:16:20-16:32",
-      "recv uN[32] @ test.x:16:20-16:32",
+      "recv Child::c @ test.x:16:20-16:32",
       "expand_tuple @ test.x:16:9-16:17",
       "store 5 @ test.x:16:10-16:13",
       "store 6 @ test.x:16:15-16:16",

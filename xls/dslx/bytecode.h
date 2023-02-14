@@ -281,9 +281,35 @@ class Bytecode {
     std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc_;
   };
 
+  // Information necessary for channel operations.
+  class ChannelData {
+   public:
+    ChannelData(const ChannelData& other) = delete;
+    ChannelData(ChannelData&& other) = default;
+    ChannelData& operator=(ChannelData&& other) = default;
+
+    ChannelData(std::string_view channel_name,
+                std::unique_ptr<ConcreteType> payload_type,
+                std::unique_ptr<StructFormatDescriptor> struct_fmt_desc)
+        : channel_name_(channel_name),
+          payload_type_(std::move(payload_type)),
+          struct_fmt_desc_(std::move(struct_fmt_desc)) {}
+
+    std::string_view channel_name() const { return channel_name_; }
+    const ConcreteType& payload_type() const { return *payload_type_; }
+    const StructFormatDescriptor* struct_fmt_desc() const {
+      return struct_fmt_desc_.get();
+    }
+
+   private:
+    std::string channel_name_;
+    std::unique_ptr<ConcreteType> payload_type_;
+    std::unique_ptr<StructFormatDescriptor> struct_fmt_desc_;
+  };
+
   using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
                             std::unique_ptr<ConcreteType>, InvocationData,
-                            MatchArmItem, SpawnData, TraceData>;
+                            MatchArmItem, SpawnData, TraceData, ChannelData>;
 
   static Bytecode MakeCreateTuple(Span span, NumElements elements);
   static Bytecode MakeDup(Span span);
@@ -298,14 +324,13 @@ class Bytecode {
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
-  static Bytecode MakeRecv(Span span, std::unique_ptr<ConcreteType> type);
-  static Bytecode MakeRecvNonBlocking(Span span,
-                                      std::unique_ptr<ConcreteType> type);
+  static Bytecode MakeRecv(Span span, ChannelData channel_data);
+  static Bytecode MakeRecvNonBlocking(Span span, ChannelData channel_data);
   static Bytecode MakeRange(Span span);
   static Bytecode MakeStore(Span span, SlotIndex slot_index);
   static Bytecode MakeSpawn(Span span, SpawnData spawn_data);
   static Bytecode MakeSwap(Span span);
-  static Bytecode MakeSend(Span span);
+  static Bytecode MakeSend(Span span, ChannelData channel_data);
 
   // TODO(rspringer): 2022-02-14: These constructors end up being pretty
   // verbose. Consider a builder?
@@ -336,6 +361,7 @@ class Bytecode {
   absl::StatusOr<SlotIndex> slot_index() const;
   absl::StatusOr<const SpawnData*> spawn_data() const;
   absl::StatusOr<const TraceData*> trace_data() const;
+  absl::StatusOr<const ChannelData*> channel_data() const;
   absl::StatusOr<const ConcreteType*> type_data() const;
   absl::StatusOr<InterpValue> value_data() const;
 

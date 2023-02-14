@@ -61,21 +61,22 @@ namespace {
 constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
 
-absl::Status RunTestFunction(
-    ImportData* import_data, TypeInfo* type_info, Module* module,
-    TestFunction* tf, BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook) {
+absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
+                             Module* module, TestFunction* tf,
+                             const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(import_data, type_info, tf->fn(), absl::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
-                                        post_fn_eval_hook)
+                                        options)
       .status();
 }
 
 absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
-                         Module* module, TestProc* tp) {
+                         Module* module, TestProc* tp,
+                         const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
 
@@ -86,7 +87,7 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
   XLS_ASSIGN_OR_RETURN(InterpValue terminator,
                        ti->GetConstExpr(tp->proc()->config()->params()[0]));
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-      import_data, ti, tp->proc(), terminator, &proc_instances));
+      import_data, ti, tp->proc(), terminator, &proc_instances, options));
 
   std::shared_ptr<InterpValue::Channel> term_chan =
       terminator.GetChannelOrDie();
@@ -396,7 +397,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   // If JIT comparisons are "on", we register a post-evaluation hook to compare
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
-  BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook;
+  PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
     absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
         ConvertModuleToPackage(entry_module, &import_data,
@@ -436,14 +437,18 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
+    BytecodeInterpreterOptions interpreter_options;
+    interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
+        .trace_hook(InfoLoggingTraceHook)
+        .trace_channels(options.trace_channels);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,
-                               entry_module, tf, post_fn_eval_hook);
+                               entry_module, tf, interpreter_options);
     } else {
       XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module->GetTestProc(test_name));
-      status =
-          RunTestProc(&import_data, tm_or.value().type_info, entry_module, tp);
+      status = RunTestProc(&import_data, tm_or.value().type_info, entry_module,
+                           tp, interpreter_options);
     }
 
     if (status.ok()) {

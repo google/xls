@@ -26,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
@@ -76,24 +75,57 @@ class Frame {
   std::unique_ptr<BytecodeFunction> bf_holder_;
 };
 
+using PostFnEvalHook = std::function<absl::Status(
+    const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
+    const InterpValue& got)>;
+using TraceHook = std::function<void(std::string_view)>;
+
+// Trace hook which logs trace messages to INFO.
+inline void InfoLoggingTraceHook(std::string_view entry) {
+  XLS_LOG(INFO) << entry;
+}
+
+class BytecodeInterpreterOptions {
+ public:
+  // Callback to invoke after a DSLX function is evaluated by the interpreter.
+  // This is useful for e.g. externally-implementing and hooking-in comparison
+  // to the JIT execution mode.
+  BytecodeInterpreterOptions& post_fn_eval_hook(PostFnEvalHook hook) {
+    post_fn_eval_hook_ = std::move(hook);
+    return *this;
+  }
+  const PostFnEvalHook& post_fn_eval_hook() const { return post_fn_eval_hook_; }
+
+  // Callback to invoke when a trace operation executes. The callback argument
+  // is the trace string.
+  BytecodeInterpreterOptions& trace_hook(TraceHook hook) {
+    trace_hook_ = std::move(hook);
+    return *this;
+  }
+  const TraceHook& trace_hook() const { return trace_hook_; }
+
+  // Whether to log values sent and received on channels as trace messages.
+  BytecodeInterpreterOptions& trace_channels(bool value) {
+    trace_channels_ = value;
+    return *this;
+  }
+  bool trace_channels() const { return trace_channels_; }
+
+ private:
+  PostFnEvalHook post_fn_eval_hook_ = nullptr;
+  TraceHook trace_hook_ = nullptr;
+  bool trace_channels_ = false;
+};
+
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
 // and a set of initial environmental bindings (key/value pairs) and executes
 // until end result.
 class BytecodeInterpreter {
  public:
-  // Function signature for a "post function-evaluation hook" -- this is invoked
-  // after a function is evaluated by the interpreter. This is useful for e.g.
-  // externally-implementing and hooking-in comparison to the JIT execution
-  // mode.
-  using PostFnEvalHook = std::function<absl::Status(
-      const Function* f, absl::Span<const InterpValue> args,
-      const ParametricEnv*, const InterpValue& got)>;
-
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
-      PostFnEvalHook post_fn_eval_hook = nullptr,
-      std::vector<std::string>* trace_output = nullptr);
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   virtual ~BytecodeInterpreter() {}
 
@@ -110,17 +142,18 @@ class BytecodeInterpreter {
 
  protected:
   BytecodeInterpreter(ImportData* import_data,
-                      std::vector<std::string>* trace_output);
+                      const BytecodeInterpreterOptions& options);
 
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
-      std::vector<std::string>* trace_output);
+      const BytecodeInterpreterOptions& options);
 
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
+  const BytecodeInterpreterOptions& options() const { return options_; }
 
-  absl::Status Run(PostFnEvalHook post_fn_eval_hook = nullptr);
+  absl::Status Run();
 
  private:
   friend class ProcInstance;
@@ -236,10 +269,10 @@ class BytecodeInterpreter {
   absl::StatusOr<InterpValue> Pop() { return Pop(stack_); }
 
   ImportData* const import_data_;
-  std::vector<std::string>* const trace_output_;
   std::vector<InterpValue> stack_;
-
   std::vector<Frame> frames_;
+
+  BytecodeInterpreterOptions options_;
 };
 
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
@@ -257,24 +290,26 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // should be placed.
   static absl::Status InitializeProcNetwork(
       ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-      InterpValue terminator, std::vector<ProcInstance>* proc_instances);
+      InterpValue terminator, std::vector<ProcInstance>* proc_instances,
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   virtual ~ProcConfigBytecodeInterpreter() = default;
 
   // Implementation of Spawn handling common to both InitializeProcNetwork
   // and EvalSpawn. `next_args` should not include Proc members or the
   // obligatory Token; they're added to the arg list internally.
-  static absl::Status EvalSpawn(ImportData* import_data,
-                                const TypeInfo* type_info,
-                                const std::optional<ParametricEnv>& bindings,
-                                std::optional<const Spawn*> maybe_spawn,
-                                Proc* proc,
-                                const std::vector<InterpValue>& config_args,
-                                std::vector<ProcInstance>* proc_instances);
+  static absl::Status EvalSpawn(
+      ImportData* import_data, const TypeInfo* type_info,
+      const std::optional<ParametricEnv>& bindings,
+      std::optional<const Spawn*> maybe_spawn, Proc* proc,
+      const std::vector<InterpValue>& config_args,
+      std::vector<ProcInstance>* proc_instances,
+      const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
  private:
   ProcConfigBytecodeInterpreter(ImportData* import_data,
-                                std::vector<ProcInstance>* proc_instances);
+                                std::vector<ProcInstance>* proc_instances,
+                                const BytecodeInterpreterOptions& options);
 
   absl::Status EvalSpawn(const Bytecode& bytecode) override;
 

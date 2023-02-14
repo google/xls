@@ -71,18 +71,17 @@ void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
-    const std::vector<InterpValue>& args, PostFnEvalHook post_fn_eval_hook,
-    std::vector<std::string>* trace_output) {
-  XLS_ASSIGN_OR_RETURN(
-      auto interpreter,
-      BytecodeInterpreter::CreateUnique(import_data, bf, args, trace_output));
-  XLS_RETURN_IF_ERROR(interpreter->Run(post_fn_eval_hook));
+    const std::vector<InterpValue>& args,
+    const BytecodeInterpreterOptions& options) {
+  XLS_ASSIGN_OR_RETURN(auto interpreter, BytecodeInterpreter::CreateUnique(
+                                             import_data, bf, args, options));
+  XLS_RETURN_IF_ERROR(interpreter->Run());
   return interpreter->stack_.back();
 }
 
-BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
-                                         std::vector<std::string>* trace_output)
-    : import_data_(import_data), trace_output_(trace_output) {}
+BytecodeInterpreter::BytecodeInterpreter(
+    ImportData* import_data, const BytecodeInterpreterOptions& options)
+    : import_data_(import_data), options_(options) {}
 
 absl::Status BytecodeInterpreter::InitFrame(
     BytecodeFunction* bf, const std::vector<InterpValue>& args,
@@ -102,14 +101,13 @@ absl::Status BytecodeInterpreter::InitFrame(
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeInterpreter>>
 BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
                                   const std::vector<InterpValue>& args,
-                                  std::vector<std::string>* trace_output) {
-  auto interp =
-      absl::WrapUnique(new BytecodeInterpreter(import_data, trace_output));
+                                  const BytecodeInterpreterOptions& options) {
+  auto interp = absl::WrapUnique(new BytecodeInterpreter(import_data, options));
   XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args, bf->type_info()));
   return interp;
 }
 
-absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
+absl::Status BytecodeInterpreter::Run() {
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
     while (frame->pc() < frame->bf()->bytecodes().size()) {
@@ -143,13 +141,13 @@ absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
           frame->type_info()->GetItem(source_fn);
       if (fn_return.has_value()) {
         bool fn_returns_value = *fn_return.value() != *ConcreteType::MakeUnit();
-        if (post_fn_eval_hook != nullptr && fn_returns_value) {
+        if (options_.post_fn_eval_hook() != nullptr && fn_returns_value) {
           ParametricEnv holder;
           const ParametricEnv* bindings = &holder;
           if (frame->bindings().has_value()) {
             bindings = &frame->bindings().value();
           }
-          XLS_RETURN_IF_ERROR(post_fn_eval_hook(
+          XLS_RETURN_IF_ERROR(options_.post_fn_eval_hook()(
               source_fn, frame->initial_args(), bindings, stack_.back()));
         }
       }
@@ -860,6 +858,16 @@ absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
   return RangeInternal();
 }
 
+// Returns the given InterpValue formatted using the given format descriptor (if
+// it is not null).
+static absl::StatusOr<std::string> ToStringMaybeFormatted(
+    const InterpValue& value, const StructFormatDescriptor* struct_fmt_desc) {
+  if (struct_fmt_desc != nullptr) {
+    return value.ToStructString(*struct_fmt_desc);
+  }
+  return value.ToString(/*humanize=*/false);
+}
+
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
     const Bytecode& bytecode) {
   // TODO(rspringer): 2022-03-10 Thread safety!
@@ -868,35 +876,24 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
-  if (condition.IsTrue()) {
-    if (channel->empty()) {
-      XLS_RET_CHECK(bytecode.has_data());
-      const Bytecode::Data& data = bytecode.data().value();
-
-      XLS_RET_CHECK(
-          std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
-      const std::unique_ptr<ConcreteType>& payload_type =
-          std::get<std::unique_ptr<ConcreteType>>(data);
-
-      XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                           CreateZeroValueFromType(*payload_type));
-      stack_.push_back(
-          InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
-    } else {
-      stack_.push_back(InterpValue::MakeTuple(
-          {token, channel->front(), InterpValue::MakeBool(true)}));
-      channel->pop_front();
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
+  if (condition.IsTrue() && !channel->empty()) {
+    if (options_.trace_channels() && options_.trace_hook() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_data,
+          ToStringMaybeFormatted(channel->front(),
+                                 channel_data->struct_fmt_desc()));
+      options_.trace_hook()(absl::StrFormat("Received data on channel `%s`: %s",
+                                            channel_data->channel_name(),
+                                            formatted_data));
     }
+    stack_.push_back(InterpValue::MakeTuple(
+        {token, channel->front(), InterpValue::MakeBool(true)}));
+    channel->pop_front();
   } else {
-    XLS_RET_CHECK(bytecode.has_data());
-    const Bytecode::Data& data = bytecode.data().value();
-
-    XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
-    const std::unique_ptr<ConcreteType>& payload_type =
-        std::get<std::unique_ptr<ConcreteType>>(data);
-
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                         CreateZeroValueFromType(*payload_type));
+                         CreateZeroValueFromType(channel_data->payload_type()));
     stack_.push_back(
         InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
   }
@@ -910,6 +907,8 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
 
+  XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                       bytecode.channel_data());
   if (condition.IsTrue()) {
     if (channel->empty()) {
       // Restore the stack!
@@ -920,19 +919,20 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
 
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
+    if (options_.trace_channels() && options_.trace_hook() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_data,
+          ToStringMaybeFormatted(channel->front(),
+                                 channel_data->struct_fmt_desc()));
+      options_.trace_hook()(absl::StrFormat("Received data on channel `%s`: %s",
+                                            channel_data->channel_name(),
+                                            formatted_data));
+    }
     stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
     channel->pop_front();
   } else {
-    XLS_RET_CHECK(bytecode.has_data());
-    const Bytecode::Data& data = bytecode.data().value();
-
-    XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
-    const std::unique_ptr<ConcreteType>& payload_type =
-        std::get<std::unique_ptr<ConcreteType>>(data);
-
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                         CreateZeroValueFromType(*payload_type));
-
+                         CreateZeroValueFromType(channel_data->payload_type()));
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     stack_.push_back(InterpValue::MakeTuple({token, zero}));
   }
@@ -947,6 +947,16 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
   if (condition.IsTrue()) {
+    if (options_.trace_channels() && options_.trace_hook() != nullptr) {
+      XLS_ASSIGN_OR_RETURN(const Bytecode::ChannelData* channel_data,
+                           bytecode.channel_data());
+      XLS_ASSIGN_OR_RETURN(
+          std::string formatted_data,
+          ToStringMaybeFormatted(payload, channel_data->struct_fmt_desc()));
+      options_.trace_hook()(absl::StrFormat("Sent data on channel `%s`: %s",
+                                            channel_data->channel_name(),
+                                            formatted_data));
+    }
     channel->push_back(payload);
   }
   stack_.push_back(token);
@@ -1114,11 +1124,9 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
                        bytecode.trace_data());
   XLS_ASSIGN_OR_RETURN(std::string message,
                        TraceDataToString(*trace_data, stack_));
-  if (trace_output_ != nullptr) {
-    trace_output_->push_back(message);
+  if (options_.trace_hook() != nullptr) {
+    options_.trace_hook()(message);
   }
-  // Note: trace is specified to log to the INFO log.
-  XLS_LOG(INFO) << message;
   stack_.push_back(InterpValue::MakeToken());
   return absl::OkStatus();
 }
@@ -1790,16 +1798,18 @@ absl::Status BytecodeInterpreter::RangeInternal() {
 }
 
 ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
-    ImportData* import_data, std::vector<ProcInstance>* proc_instances)
-    : BytecodeInterpreter(import_data, /*trace_output=*/nullptr),
+    ImportData* import_data, std::vector<ProcInstance>* proc_instances,
+    const BytecodeInterpreterOptions& options)
+    : BytecodeInterpreter(import_data, options),
       proc_instances_(proc_instances) {}
 
 absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-    InterpValue terminator, std::vector<ProcInstance>* proc_instances) {
+    InterpValue terminator, std::vector<ProcInstance>* proc_instances,
+    const BytecodeInterpreterOptions& options) {
   return EvalSpawn(import_data, type_info, absl::nullopt, absl::nullopt,
                    root_proc,
-                   /*config_args=*/{terminator}, proc_instances);
+                   /*config_args=*/{terminator}, proc_instances, options);
 }
 
 absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
@@ -1809,7 +1819,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                        bytecode.spawn_data());
   return EvalSpawn(import_data(), frame.type_info(),
                    spawn_data->caller_bindings, spawn_data->spawn,
-                   spawn_data->proc, spawn_data->config_args, proc_instances_);
+                   spawn_data->proc, spawn_data->config_args, proc_instances_,
+                   options());
 }
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
@@ -1817,7 +1828,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     const std::optional<ParametricEnv>& caller_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,
     const std::vector<InterpValue>& config_args,
-    std::vector<ProcInstance>* proc_instances) {
+    std::vector<ProcInstance>* proc_instances,
+    const BytecodeInterpreterOptions& options) {
   const TypeInfo* parent_ti = type_info;
   auto get_parametric_type_info =
       [type_info](const Spawn* spawn, const Invocation* invoc,
@@ -1850,7 +1862,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                        BytecodeEmitter::Emit(import_data, type_info,
                                              proc->config(), caller_bindings));
 
-  ProcConfigBytecodeInterpreter cbi(import_data, proc_instances);
+  ProcConfigBytecodeInterpreter cbi(import_data, proc_instances, options);
   XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
   XLS_RETURN_IF_ERROR(cbi.Run());
   XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
@@ -1896,9 +1908,9 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
       std::unique_ptr<BytecodeFunction> next_bf,
       BytecodeEmitter::EmitProcNext(import_data, type_info, proc->next(),
                                     caller_bindings, member_defs));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeInterpreter> next_interpreter,
-                       CreateUnique(import_data, next_bf.get(), full_next_args,
-                                    /*trace_output=*/nullptr));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeInterpreter> next_interpreter,
+      CreateUnique(import_data, next_bf.get(), full_next_args, options));
   proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
                                          std::move(next_bf), full_next_args});
   return absl::OkStatus();
