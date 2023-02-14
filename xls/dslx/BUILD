@@ -192,7 +192,6 @@ cc_test(
     name = "bytecode_interpreter_test",
     srcs = ["bytecode_interpreter_test.cc"],
     deps = [
-        ":bytecode_cache",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":create_import_data",
@@ -203,7 +202,6 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -227,6 +225,7 @@ cc_library(
         ":parametric_env",
         ":type_info",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

@@ -61,20 +61,21 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
 // Helper that runs the bytecode interpreter after emitting an entry function as
 // bytecode.
 static absl::StatusOr<InterpValue> Interpret(
-    ImportData* import_data, std::string_view program, std::string_view entry,
+    std::string_view program, std::string_view entry,
     std::vector<InterpValue> args = {},
     std::vector<std::string>* trace_output = nullptr) {
+  ImportData import_data(CreateImportDataForTest());
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", import_data));
+      ParseAndTypecheck(program, "test.x", "test", &import_data));
 
   XLS_ASSIGN_OR_RETURN(Function * f,
                        tm.module->GetMemberOrError<Function>(entry));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, tm.type_info, f, ParametricEnv()));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
 
-  return BytecodeInterpreter::Interpret(import_data, bf.get(), args, nullptr,
+  return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, nullptr,
                                         trace_output);
 }
 
@@ -121,12 +122,10 @@ fn main() -> () {
   ()
 }
 )";
-
-  ImportData import_data(CreateImportDataForTest());
   std::vector<std::string> trace_output;
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
-      Interpret(&import_data, kProgram, "main", /*args=*/{}, &trace_output));
+      Interpret(kProgram, "main", /*args=*/{}, &trace_output));
   EXPECT_THAT(trace_output,
               testing::ElementsAre("Point{x: u32:42, y: u32:64}"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
@@ -142,9 +141,7 @@ fn main() -> u32 {
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_EQ(value, InterpValue::MakeU32(3));
 }
 
@@ -159,8 +156,7 @@ fn main() -> u32{
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  absl::StatusOr<InterpValue> value = Interpret(&import_data, kProgram, "main");
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("were not equal")));
 }
@@ -174,8 +170,7 @@ fn main() -> u32{
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  absl::StatusOr<InterpValue> value = Interpret(&import_data, kProgram, "main");
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("not less than")));
 }
@@ -192,9 +187,8 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   d
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "has_name_def_tree"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "has_name_def_tree"));
 
   ASSERT_TRUE(value.IsTuple());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
@@ -223,30 +217,17 @@ fn main(x: u32) -> u32 {
   }
 })";
 
-  ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
-                                                  &import_data, bf.get(),
-                                                  {InterpValue::MakeU32(42)}));
+      InterpValue value,
+      Interpret(kProgram, "main", {InterpValue::MakeU32(42)}));
   EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
-                                            {InterpValue::MakeU32(64)}));
+      value, Interpret(kProgram, "main", {InterpValue::MakeU32(64)}));
   EXPECT_EQ(value, InterpValue::MakeU32(42)) << value.ToString();
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
-                                            {InterpValue::MakeU32(77)}));
+      value, Interpret(kProgram, "main", {InterpValue::MakeU32(77)}));
   EXPECT_EQ(value, InterpValue::MakeU32(78)) << value.ToString();
 }
 
@@ -260,17 +241,6 @@ fn main(t: (u32, u32)) -> u32 {
   }
 })";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
   auto tuple_one = InterpValue::MakeTuple(
       {InterpValue::MakeU32(42), InterpValue::MakeU32(64)});
   auto tuple_two = InterpValue::MakeTuple(
@@ -280,21 +250,17 @@ fn main(t: (u32, u32)) -> u32 {
   auto tuple_four = InterpValue::MakeTuple(
       {InterpValue::MakeU32(42), InterpValue::MakeU32(42)});
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(&import_data, bf.get(), {tuple_one}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main", {tuple_one}));
   EXPECT_EQ(value, InterpValue::MakeU32(1)) << value.ToString();
 
-  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
-                                      &import_data, bf.get(), {tuple_two}));
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple_two}));
   EXPECT_EQ(value, InterpValue::MakeU32(2)) << value.ToString();
 
-  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
-                                      &import_data, bf.get(), {tuple_three}));
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple_three}));
   EXPECT_EQ(value, InterpValue::MakeU32(3)) << value.ToString();
 
-  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
-                                      &import_data, bf.get(), {tuple_four}));
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {tuple_four}));
   EXPECT_EQ(value, InterpValue::MakeU32(3)) << value.ToString();
 }
 
@@ -308,25 +274,13 @@ fn main(x: u32) -> u32 {
   }
 })";
 
-  ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
-                                                  &import_data, bf.get(),
-                                                  {InterpValue::MakeU32(42)}));
+      InterpValue value,
+      Interpret(kProgram, "main", {InterpValue::MakeU32(42)}));
   EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
-                                            {InterpValue::MakeU32(43)}));
+      value, Interpret(kProgram, "main", {InterpValue::MakeU32(43)}));
   EXPECT_EQ(value, InterpValue::MakeU32(44)) << value.ToString();
 }
 
@@ -338,19 +292,9 @@ fn main(x: u32) -> u32 {
   }
 })";
 
-  ImportData import_data(CreateImportDataForTest());
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
-                                                  &import_data, bf.get(),
-                                                  {InterpValue::MakeU32(1)}));
+      InterpValue value,
+      Interpret(kProgram, "main", {InterpValue::MakeU32(1)}));
   EXPECT_EQ(value, InterpValue::MakeU32(2));
 }
 
@@ -362,18 +306,8 @@ fn main(x: u32) -> u32 {
   }
 })";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-  absl::StatusOr<InterpValue> value = BytecodeInterpreter::Interpret(
-      &import_data, bf.get(), {InterpValue::MakeU32(2)});
+  absl::StatusOr<InterpValue> value =
+      Interpret(kProgram, "main", {InterpValue::MakeU32(2)});
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("The value was not matched")));
 }
@@ -389,33 +323,19 @@ fn main(x: u32, y: u32, z: u32) -> u32 {
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
-                        &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
   InterpValue one(InterpValue::MakeU32(1));
   InterpValue two(InterpValue::MakeU32(2));
   InterpValue three(InterpValue::MakeU32(3));
   InterpValue four(InterpValue::MakeU32(4));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(&import_data, bf.get(), {one, one, two}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main", {one, one, two}));
   EXPECT_EQ(value, two) << value.ToString();
 
-  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
-                                      &import_data, bf.get(), {two, one, two}));
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main", {two, one, two}));
   EXPECT_EQ(value, four) << value.ToString();
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
-                                            {three, one, two}));
+  XLS_ASSERT_OK_AND_ASSIGN(value,
+                           Interpret(kProgram, "main", {three, one, two}));
   EXPECT_EQ(value, InterpValue::MakeU32(0xdeadbeef)) << value.ToString();
 }
 
@@ -426,9 +346,7 @@ fn main() -> u32 {
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_EQ(value, InterpValue::MakeU32(42)) << value.ToString();
 }
 
@@ -439,9 +357,7 @@ fn main() -> u32 {
 }
 )";
 
-  ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
 }
 
@@ -453,9 +369,7 @@ fn do_and() -> u32 {
   a & b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_and"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_and"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xa5a5a5a5ll);
@@ -469,9 +383,7 @@ fn do_concat() -> u64 {
   a ++ b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_concat"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_concat"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xa5a5a5a5ffffffffll);
@@ -485,9 +397,7 @@ fn do_div() -> u32 {
   a / b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_div"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_div"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x21082108);
@@ -501,9 +411,7 @@ fn do_mul() -> u32 {
   a * b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_mul"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_mul"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x84208420);
@@ -517,9 +425,7 @@ fn do_or() -> u32 {
   a | b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_or"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_or"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xffffffff);
@@ -533,9 +439,7 @@ fn do_shll() -> u32 {
   a << b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_shll"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_shll"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x84208420);
@@ -549,9 +453,7 @@ fn do_shrl() -> s32 {
   a >> b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_shrl"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_shrl"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_val, bits.ToInt64());
   EXPECT_EQ(int_val, -32);
@@ -565,9 +467,7 @@ fn do_shrl() -> u32 {
   a >> b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_shrl"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_shrl"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x21082108);
@@ -581,9 +481,7 @@ fn do_sub() -> u32 {
   a - b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_sub"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_sub"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x4b4b4b4b);
@@ -597,9 +495,7 @@ fn do_xor() -> u32 {
   a ^ b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "do_xor"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "do_xor"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xffff0000);
@@ -613,9 +509,7 @@ fn unops() -> s32 {
   -b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "unops"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "unops"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x2);
@@ -629,9 +523,7 @@ fn arrays() -> u32[3] {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "arrays"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "arrays"));
   ASSERT_TRUE(value.IsArray());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t num_elements, value.GetLength());
   ASSERT_EQ(num_elements, 3);
@@ -658,9 +550,8 @@ fn index_array() -> u32 {
   a[u32:0] + b[u32:1]
 })";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "index_array"));
+                           Interpret(kProgram, "index_array"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
   EXPECT_EQ(int_value, 4);
@@ -675,9 +566,8 @@ fn index_tuple() -> u32 {
   a.1.1 + b.0.1.0
 })";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "index_tuple"));
+                           Interpret(kProgram, "index_tuple"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToInt64());
   EXPECT_EQ(int_value, 6);
@@ -691,9 +581,8 @@ fn simple_slice() -> u16 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "simple_slice"));
+                           Interpret(kProgram, "simple_slice"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xdead);
@@ -708,10 +597,8 @@ fn negative_start_slice() -> u16 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      Interpret(&import_data, kProgram, "negative_start_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "negative_start_slice"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xdead);
@@ -726,9 +613,8 @@ fn negative_end_slice() -> u16 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "negative_end_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "negative_end_slice"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xbeef);
@@ -741,9 +627,8 @@ fn width_slice() -> s16 {
   a[u32:8 +: s16]
 })";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "width_slice"));
+                           Interpret(kProgram, "width_slice"));
   ASSERT_TRUE(value.IsBits());
   ASSERT_TRUE(value.IsSigned());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
@@ -767,9 +652,8 @@ fn oob_width_slice() -> (u32, u32)[4] {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue result, Interpret(&import_data, kProgram, "oob_width_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
+                           Interpret(kProgram, "oob_width_slice"));
   XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* array_elements,
                            result.GetValues());
   for (int i = 0; i < array_elements->size(); i++) {
@@ -790,9 +674,8 @@ fn width_slice() -> u32 {
   a[u32:16 +: u32]
 })";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "width_slice"));
+                           Interpret(kProgram, "width_slice"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0x0000dead);
@@ -807,9 +690,8 @@ fn both_negative_slice() -> u8 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "both_negative_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "both_negative_slice"));
   ASSERT_TRUE(value.IsBits());
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitsOrDie().ToUint64());
   EXPECT_EQ(int_value, 0xad);
@@ -824,9 +706,8 @@ fn cast_extend() -> u32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "cast_extend"));
+                           Interpret(kProgram, "cast_extend"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x25a5);
@@ -840,9 +721,8 @@ fn cast_sign_extend() -> s32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value, Interpret(&import_data, kProgram, "cast_sign_extend"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_sign_extend"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToInt64());
   EXPECT_EQ(int_val, -1);
@@ -855,9 +735,8 @@ fn cast_shrink() -> u16 {
   let b = s32:0x8fff5a5a;
   a as u16 + b as u16
 })";
-  auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "cast_shrink"));
+                           Interpret(kProgram, "cast_shrink"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xffff);
@@ -870,9 +749,8 @@ fn cast_array_to_bits() -> u32 {
   a as u32
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "cast_array_to_bits"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_array_to_bits"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x0c0a0f0e);
@@ -886,9 +764,8 @@ fn cast_bits_to_array() -> u8 {
   b[u32:2]
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "cast_bits_to_array"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_bits_to_array"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0x0f);
@@ -907,9 +784,8 @@ fn cast_enum_to_bits() -> u3 {
   a as u3
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "cast_enum_to_bits"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_enum_to_bits"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 3);
@@ -928,9 +804,8 @@ fn cast_bits_to_enum() -> MyEnum {
   a as MyEnum
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
-                                                        "cast_bits_to_enum"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "cast_bits_to_enum"));
   InterpValue::EnumData enum_data = value.GetEnumData().value();
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, enum_data.value.ToUint64());
   EXPECT_EQ(int_val, 2);
@@ -968,9 +843,9 @@ fn cast_bits_to_enum() -> MyEnum {
   XLS_ASSERT_OK_AND_ASSIGN(bf,
                            BytecodeFunction::Create(f->owner(), f, tm.type_info,
                                                     std::move(bytecodes)));
-  absl::StatusOr<InterpValue> value =
+  absl::StatusOr<InterpValue> result =
       BytecodeInterpreter::Interpret(&import_data, bf.get(), {});
-  EXPECT_THAT(value.status(),
+  EXPECT_THAT(result.status(),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Cast op requires ConcreteType data.")));
 }
@@ -984,23 +859,11 @@ fn has_params(x: u32, y: u64) -> u48 {
   x + y
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("has_params"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(1));
   params.push_back(InterpValue::MakeU64(10));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(&import_data, bf.get(), params));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "has_params", params));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -1019,9 +882,7 @@ fn caller() -> u32{
   callee(a, b)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "caller"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "caller"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 300);
@@ -1042,21 +903,10 @@ fn caller(a: u32) -> u32{
   callee(a, b)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("caller"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(100));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(&import_data, bf.get(), params));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "caller", params));
 
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
@@ -1075,9 +925,7 @@ fn main() -> u32 {
   a as u32 + b
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
   EXPECT_EQ(int_value, 80);
 }
@@ -1097,9 +945,7 @@ fn main() -> u32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
   EXPECT_EQ(int_value, 12);
 }
@@ -1120,9 +966,7 @@ fn main() -> u32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
   EXPECT_EQ(int_value, 300);
 }
@@ -1135,9 +979,7 @@ fn main() -> (u1, u8) {
   add_with_carry(x, y)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual, Interpret(kProgram, "main"));
   InterpValue expected(InterpValue::MakeTuple(
       {InterpValue::MakeUBits(1, 1), InterpValue::MakeUBits(8, 1)}));
   EXPECT_TRUE(expected.Eq(actual));
@@ -1150,9 +992,7 @@ fn main() -> u16 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0xadbe);
 }
@@ -1163,9 +1003,7 @@ fn main() -> u32 {
   bit_slice_update(u32:0xbeefbeef, u32:16, u32:0xdead)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0xdeadbeef);
 }
@@ -1176,9 +1014,7 @@ fn main() -> u32 {
   clz(u32:0xbeef)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 16);
 }
@@ -1189,9 +1025,7 @@ fn main() -> u32 {
   ctz(u32:0xbeef0000)
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 16);
 }
@@ -1206,9 +1040,7 @@ fn main() -> u8 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0x41);
 }
@@ -1223,9 +1055,7 @@ fn main() -> u32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0x80604020);
 }
@@ -1240,9 +1070,7 @@ fn main() -> u32 {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0x00000020);
 }
@@ -1254,9 +1082,7 @@ fn main() -> u32[5] {
 }
 )";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* elements,
                            value.GetValues());
   EXPECT_EQ(elements->size(), 5);
@@ -1272,29 +1098,16 @@ TEST(BytecodeInterpreterTest, BuiltinGate) {
 fn main(p: bool, x: u32) -> u32 {
   gate!(p, x)
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,
-      BytecodeInterpreter::Interpret(
-          &import_data, bf.get(),
-          {InterpValue::MakeBool(true), InterpValue::MakeU32(0xbeef)}));
+      Interpret(kProgram, "main",
+                {InterpValue::MakeBool(true), InterpValue::MakeU32(0xbeef)}));
   XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0xbeef);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(
-                 &import_data, bf.get(),
-                 {InterpValue::MakeBool(false), InterpValue::MakeU32(0xbeef)}));
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main",
+                                            {InterpValue::MakeBool(false),
+                                             InterpValue::MakeU32(0xbeef)}));
   XLS_ASSERT_OK_AND_ASSIGN(int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0x0);
 }
@@ -1305,28 +1118,14 @@ fn main(x: s10, y: s10) -> s10 {
   let mulp = smulp(x, y);
   mulp.0 + mulp.1
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(
-          &import_data, bf.get(),
-          {InterpValue::MakeSBits(10, 3), InterpValue::MakeSBits(10, -5)}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main",
+                                     {InterpValue::MakeSBits(10, 3),
+                                      InterpValue::MakeSBits(10, -5)}));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(-15));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+  XLS_ASSERT_OK_AND_ASSIGN(value, Interpret(kProgram, "main",
                                             {InterpValue::MakeSBits(10, 511),
                                              InterpValue::MakeSBits(10, -5)}));
   XLS_ASSERT_OK_AND_ASSIGN(bits, value.GetBits());
@@ -1339,30 +1138,18 @@ fn main(x: u10, y: u10) -> u10 {
   let mulp = umulp(x, y);
   mulp.0 + mulp.1
 })";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetMemberOrError<Function>("main"));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue value,
-      BytecodeInterpreter::Interpret(
-          &import_data, bf.get(),
-          {InterpValue::MakeUBits(10, 3), InterpValue::MakeUBits(10, 5)}));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(kProgram, "main",
+                                     {InterpValue::MakeUBits(10, 3),
+                                      InterpValue::MakeUBits(10, 5)}));
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(15));
 
-  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
-                                      &import_data, bf.get(),
-                                      {InterpValue::MakeUBits(10, 1023),
-                                       InterpValue::MakeUBits(10, 1000)}));
+  XLS_ASSERT_OK_AND_ASSIGN(value,
+                           Interpret(kProgram, "main",
+                                     {InterpValue::MakeUBits(10, 1023),
+                                      InterpValue::MakeUBits(10, 1000)}));
   XLS_ASSERT_OK_AND_ASSIGN(bits, value.GetBits());
   EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(24));
 }
@@ -1373,9 +1160,7 @@ fn main() -> u32[8] {
   u32:8..u32:16
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* elements,
                            value.GetValues());
   EXPECT_EQ(elements->size(), 8);
@@ -1392,9 +1177,7 @@ fn main() -> u7 {
   u7::MAX
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x7f));
 }
 
@@ -1404,9 +1187,7 @@ fn main() -> s3 {
   s3::MAX
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_THAT(value.GetBitValueInt64(), IsOkAndHolds(3));
 }
 
@@ -1417,9 +1198,7 @@ fn main() -> MyU9 {
   MyU9::MAX
 })";
 
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
-                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
 }
 
@@ -1529,9 +1308,7 @@ fn doomed() {
     assert_eq(a, b)
 })";
 
-  ImportData import_data(CreateImportDataForTest());
-  absl::StatusOr<InterpValue> value =
-      Interpret(&import_data, kProgram, "doomed");
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("were not equal")));
   EXPECT_TRUE(absl::StrContains(value.status().message(),
@@ -1585,9 +1362,7 @@ fn doomed() {
     assert_eq(a, b)
 })";
 
-  ImportData import_data(CreateImportDataForTest());
-  absl::StatusOr<InterpValue> value =
-      Interpret(&import_data, kProgram, "doomed");
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
                                        HasSubstr("were not equal")));
   EXPECT_TRUE(absl::StrContains(value.status().message(),
