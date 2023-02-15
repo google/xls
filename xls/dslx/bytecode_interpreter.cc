@@ -107,7 +107,8 @@ BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
   return interp;
 }
 
-absl::Status BytecodeInterpreter::Run() {
+absl::Status BytecodeInterpreter::Run(bool* progress_made) {
+  blocked_channel_name_ = std::nullopt;
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
     while (frame->pc() < frame->bf()->bytecodes().size()) {
@@ -130,6 +131,9 @@ absl::Status BytecodeInterpreter::Run() {
             << " bytecode: " << bytecodes.at(frame->pc()).ToString()
             << " not a jump_dest or old bytecode: " << bytecode.ToString()
             << " was not a call op.";
+      }
+      if (progress_made != nullptr) {
+        *progress_made = true;
       }
     }
 
@@ -914,6 +918,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       // Restore the stack!
       stack_.push_back(channel_value);
       stack_.push_back(condition);
+      blocked_channel_name_ = channel_data->channel_name();
       return absl::UnavailableError("Channel is empty.");
     }
 
@@ -1916,8 +1921,9 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   return absl::OkStatus();
 }
 
-absl::Status ProcInstance::Run() {
-  absl::Status result_status = interpreter_->Run();
+absl::StatusOr<ProcRunResult> ProcInstance::Run() {
+  bool progress_made = false;
+  absl::Status result_status = interpreter_->Run(&progress_made);
 
   if (result_status.ok()) {
     InterpValue result_value = interpreter_->stack_.back();
@@ -1935,12 +1941,17 @@ absl::Status ProcInstance::Run() {
 
     XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,
                                                 /*type_info=*/nullptr));
-    return absl::OkStatus();
+    return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
+                         .blocked_channel_name = std::nullopt,
+                         .progress_made = progress_made};
   }
 
   if (result_status.code() == absl::StatusCode::kUnavailable) {
     // Empty recv channel. Just return Ok and we'll try again next time.
-    return absl::OkStatus();
+    return ProcRunResult{
+        .execution_state = ProcExecutionState::kBlockedOnReceive,
+        .blocked_channel_name = interpreter_->blocked_channel_name(),
+        .progress_made = progress_made};
   }
 
   return result_status;

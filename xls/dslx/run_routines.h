@@ -106,6 +106,7 @@ struct ParseAndTestOptions {
   ConvertOptions convert_options;
   bool warnings_as_errors = true;
   bool trace_channels = false;
+  std::optional<int64_t> max_ticks;
 };
 
 enum class TestResult {

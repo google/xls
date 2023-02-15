@@ -54,6 +54,9 @@ ABSL_FLAG(bool, warnings_as_errors, true,
 ABSL_FLAG(bool, trace_channels, false,
           "If true, values sent and received on channels are emitted as trace "
           "messages");
+ABSL_FLAG(int64_t, max_ticks, 100000,
+          "If non-zero, the maximum number of ticks to execute on any proc. If "
+          "exceeded an error is returned.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -75,7 +78,8 @@ absl::Status RealMain(std::string_view entry_module_path,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
-                      bool trace_channels, bool* printed_error) {
+                      bool trace_channels, std::optional<int64_t> max_ticks,
+                      bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
   std::optional<RunComparator> run_comparator;
@@ -98,7 +102,7 @@ absl::Status RealMain(std::string_view entry_module_path,
       .seed = seed,
       .warnings_as_errors = warnings_as_errors,
       .trace_channels = trace_channels,
-  };
+      .max_ticks = max_ticks};
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
@@ -129,6 +133,10 @@ int main(int argc, char* argv[]) {
   bool execute = absl::GetFlag(FLAGS_execute);
   bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
   bool trace_channels = absl::GetFlag(FLAGS_trace_channels);
+  std::optional<int64_t> max_ticks =
+      absl::GetFlag(FLAGS_max_ticks) == 0
+          ? std::nullopt
+          : std::optional<int64_t>(absl::GetFlag(FLAGS_max_ticks));
 
   xls::dslx::CompareFlag compare_flag;
   if (compare_flag_str == "none") {
@@ -162,9 +170,10 @@ int main(int argc, char* argv[]) {
       << "-trace_format_preference accepts default|binary|hex|decimal";
 
   bool printed_error = false;
-  absl::Status status = xls::dslx::RealMain(
-      args[0], dslx_paths, test_filter, preference.value(), compare_flag,
-      execute, warnings_as_errors, seed, trace_channels, &printed_error);
+  absl::Status status =
+      xls::dslx::RealMain(args[0], dslx_paths, test_filter, preference.value(),
+                          compare_flag, execute, warnings_as_errors, seed,
+                          trace_channels, max_ticks, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

@@ -111,10 +111,20 @@ class BytecodeInterpreterOptions {
   }
   bool trace_channels() const { return trace_channels_; }
 
+  // When executing procs, this is the maximum number of ticks which will
+  // execute executed before a DeadlineExceeded error is returned. If nullopt
+  // no limit is imposed.
+  BytecodeInterpreterOptions& max_ticks(std::optional<int64_t> value) {
+    max_ticks_ = value;
+    return *this;
+  }
+  std::optional<int64_t> max_ticks() const { return max_ticks_; }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   TraceHook trace_hook_ = nullptr;
   bool trace_channels_ = false;
+  std::optional<int64_t> max_ticks_;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
@@ -152,8 +162,13 @@ class BytecodeInterpreter {
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
   const BytecodeInterpreterOptions& options() const { return options_; }
+  const std::optional<std::string>& blocked_channel_name() const {
+    return blocked_channel_name_;
+  }
 
-  absl::Status Run();
+  // Sets `progress_made` to true (if not null) if at least a single bytecode
+  // executed.  Progress can be stalled on blocked receive operations.
+  absl::Status Run(bool* progress_made = nullptr);
 
  private:
   friend class ProcInstance;
@@ -273,6 +288,14 @@ class BytecodeInterpreter {
   std::vector<Frame> frames_;
 
   BytecodeInterpreterOptions options_;
+
+  // This field is set to the name of the blocked channel when a receive is
+  // blocked. This is reset (and potentially set again) each time the Run method
+  // executes.
+  // TODO(meheff): 2023/02/14 A better way of handling this is by definining a
+  // separate continuation data structure which encapsulates the entire
+  // execution state including this value.
+  std::optional<std::string> blocked_channel_name_;
 };
 
 // Specialization of BytecodeInterpreter for executing Proc `config` functions.
@@ -316,6 +339,27 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   std::vector<ProcInstance>* proc_instances_;
 };
 
+// The execution state that a proc may be left in after a call to
+// ProcInstance::Run.
+enum class ProcExecutionState {
+  // The proc tick completed.
+  kCompleted,
+  // The proc tick was blocked on a blocking receive.
+  kBlockedOnReceive,
+};
+
+// Data structure holding the result of a single call to ProcInstance::Run.
+struct ProcRunResult {
+  ProcExecutionState execution_state;
+
+  // If tick state is kBlockedOnReceive this field holds the name of the blocked
+  // channel.
+  std::optional<std::string> blocked_channel_name;
+
+  // Whether any progress was made (at least one instruction was executed).
+  bool progress_made;
+};
+
 // A ProcInstance is an instantiation of a Proc.
 // ProcInstance : Proc :: Object : Class, roughly.
 class ProcInstance {
@@ -328,11 +372,8 @@ class ProcInstance {
         next_fn_(std::move(next_fn)),
         next_args_(std::move(next_args)) {}
 
-  // Executes a single "tick" of the ProcInstance. Returns success if the
-  // ProcInstance fully completed execution of its `next` function _OR_ if the
-  // ProcInstance is blocked trying to receive on an empty channel. IOW, this
-  // will only return non-OK in case of a fatal error.
-  absl::Status Run();
+  // Executes a single "tick" of the ProcInstance.
+  absl::StatusOr<ProcRunResult> Run();
 
  private:
   Proc* proc_;

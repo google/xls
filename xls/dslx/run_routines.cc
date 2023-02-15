@@ -91,10 +91,32 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 
   std::shared_ptr<InterpValue::Channel> term_chan =
       terminator.GetChannelOrDie();
+  int64_t tick_count = 0;
   while (term_chan->empty()) {
-    for (auto& p : proc_instances) {
-      XLS_RETURN_IF_ERROR(p.Run());
+    bool progress_made = false;
+    if (options.max_ticks().has_value() &&
+        tick_count > options.max_ticks().value()) {
+      return absl::DeadlineExceededError(
+          absl::StrFormat("Exceeded limit of %d proc ticks before terminating",
+                          options.max_ticks().value()));
     }
+
+    std::vector<std::string> blocked_channels;
+    for (auto& p : proc_instances) {
+      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
+      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
+        XLS_RET_CHECK(run_result.blocked_channel_name.has_value());
+        blocked_channels.push_back(run_result.blocked_channel_name.value());
+      }
+      progress_made |= run_result.progress_made;
+    }
+
+    if (!progress_made) {
+      return absl::DeadlineExceededError(
+          absl::StrFormat("Procs are deadlocked. Blocked channels: %s",
+                          absl::StrJoin(blocked_channels, ", ")));
+    }
+    ++tick_count;
   }
 
   InterpValue ret_val = term_chan->front();
@@ -440,7 +462,8 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     BytecodeInterpreterOptions interpreter_options;
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(InfoLoggingTraceHook)
-        .trace_channels(options.trace_channels);
+        .trace_channels(options.trace_channels)
+        .max_ticks(options.max_ticks);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,

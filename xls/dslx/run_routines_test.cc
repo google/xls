@@ -262,4 +262,102 @@ TEST(QuickcheckTest, Seeding) {
   EXPECT_EQ(results1, results2);
 }
 
+TEST(BytecodeInterpreterTest, DeadlockedProc) {
+  // Test proc never sends to the subproc, so network is deadlocked.
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv(tok, in_ch);
+    let tok = send(tok, out_ch, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32> out;
+  data_in: chan<u32> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<u32>;
+    let (output_in, output_out) = chan<u32>;
+    spawn incrementer(input_in, output_out);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+    let tok = send_if(tok, data_out, false, u32:42);
+    let (tok, result) = recv(tok, data_in);
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+  ParseAndTestOptions options;
+  options.max_ticks = 100;
+  absl::StatusOr<TestResult> result =
+      ParseAndTest(kProgram, "test_module", "test.x", options);
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+}
+
+TEST(BytecodeInterpreterTest, TooManyTicks) {
+  // Test proc never receives and spins forever.
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv_if(tok, in_ch, false);
+    let tok = send_if(tok, out_ch, false, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32> out;
+  data_in: chan<u32> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_in, input_out) = chan<u32>;
+    let (output_in, output_out) = chan<u32>;
+    spawn incrementer(input_in, output_out);
+    (input_out, output_in, terminator)
+  }
+
+  next(tok: token, state: ()) {
+    let tok = send(tok, data_out, u32:42);
+    let (tok, result) = recv(tok, data_in);
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+  ParseAndTestOptions options;
+  options.max_ticks = 100;
+  absl::StatusOr<TestResult> result =
+      ParseAndTest(kProgram, "test_module", "test.x", options);
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+}
+
 }  // namespace xls::dslx

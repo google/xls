@@ -198,7 +198,7 @@ RunProc(
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
   for (int i = 0; i < proc_ticks; i++) {
-    XLS_RETURN_IF_ERROR(proc_instances[0].Run());
+    XLS_RETURN_IF_ERROR(proc_instances[0].Run().status());
   }
 
   // TODO(vmirian): Ideally, the result should be a tuple containing two
