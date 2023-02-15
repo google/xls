@@ -402,6 +402,12 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('ParseError', stderr)
     self.assertIn('Unexpected token in proc body: EOF; want one of', stderr)
 
+  def test_recursive_replicate(self):
+    stderr = self._run('xls/dslx/tests/errors/replicate_github_issue_263.x')
+    self.assertIn('replicate_github_issue_263.x:22:24-22:41', stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn('Recursion detected while typechecking', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()
