@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Returns a value with X bits set (of type bits[X]).
-pub fn mask_bits<X: u32, Y:u32= X + u32:1>() -> bits[X] {
+pub fn mask_bits<X: u32, Y:u32= {X + u32:1}>() -> bits[X] {
   !bits[X]:0
 }
 

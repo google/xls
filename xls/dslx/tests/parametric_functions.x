@@ -18,6 +18,6 @@ fn basic<X: u32>(x: bits[X]) -> bits[X] {
   5 as bits[X]
 }
 
-fn empty_param_list<X: u32 = u32: 5>() -> bits[5] {
+fn empty_param_list<X: u32 = {u32: 5}>() -> bits[5] {
   bits[X]: 1
 }

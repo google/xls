@@ -16,12 +16,12 @@ fn max(x: u32, y: u32) -> u32 {
     if (x > y) {x} else {y}
 }
 
-fn smulp_with_add<M: u32, N: u32, O: u32 = max(M, N)>(x: sN[M], y: sN[N]) -> sN[O] {
+fn smulp_with_add<M: u32, N: u32, O: u32 = {max(M, N)}>(x: sN[M], y: sN[N]) -> sN[O] {
     let partial_product = smulp(x as sN[O], y as sN[O]);
     partial_product.0 + partial_product.1
 }
 
-fn umulp_with_add<M: u32, N: u32, O: u32 = max(M, N)>(x: uN[M], y: uN[N]) -> uN[O] {
+fn umulp_with_add<M: u32, N: u32, O: u32 = {max(M, N)}>(x: uN[M], y: uN[N]) -> uN[O] {
     let partial_product = umulp(x as uN[O], y as uN[O]);
     partial_product.0 + partial_product.1
 }

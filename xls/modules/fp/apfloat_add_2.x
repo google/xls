@@ -43,11 +43,11 @@ type APFloat = apfloat::APFloat;
 //  - NORMALIZED_FRACTION: WIDE_FRACTION minus one bit for post normalization
 //    (where the implicit leading 1 bit is dropped).
 pub fn add<EXP_SZ: u32, FRACTION_SZ: u32,
-    WIDE_EXP: u32 = EXP_SZ + u32:1,
-    CARRY_EXP: u32 = WIDE_EXP + u32:1,
-    WIDE_FRACTION: u32 = FRACTION_SZ + u32:5,
-    CARRY_FRACTION: u32 = WIDE_FRACTION + u32:1,
-    NORMALIZED_FRACTION: u32 = WIDE_FRACTION - u32:1>(
+    WIDE_EXP: u32 = {EXP_SZ + u32:1},
+    CARRY_EXP: u32 = {WIDE_EXP + u32:1},
+    WIDE_FRACTION: u32 = {FRACTION_SZ + u32:5},
+    CARRY_FRACTION: u32 = {WIDE_FRACTION + u32:1},
+    NORMALIZED_FRACTION: u32 = {WIDE_FRACTION - u32:1}>(
     x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>) ->
     APFloat<EXP_SZ, FRACTION_SZ> {
   // Step 1: align the fractions.

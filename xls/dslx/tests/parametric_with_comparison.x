@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn foo<A: u32, B: u32, C: u32 = if A > B { A } else { B }>(x: bits[A], y: bits[B]) -> bits[C] {
+fn foo<A: u32, B: u32, C: u32 = {if A > B { A } else { B }}>(x: bits[A], y: bits[B]) -> bits[C] {
   let use_a = if A > B { u1:1 } else { u1:0 };
   if use_a {
     ((x + (y as bits[A])) as bits[C])

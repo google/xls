@@ -15,7 +15,7 @@
 // DSLX standard library routines.
 
 // Returns the maximum signed value contained in N bits.
-pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
+pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
   ((sN[N]:1 << N_MINUS_ONE) - sN[N]:1) as sN[N]
 }
 
@@ -29,7 +29,7 @@ fn signed_max_value_test() {
 }
 
 // Returns the minimum signed value contained in N bits.
-pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
+pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
   (uN[N]:1 << N_MINUS_ONE) as sN[N]
 }
 
@@ -42,7 +42,7 @@ fn signed_min_value_test() {
 }
 
 // Returns the maximum unsigned value contained in N bits.
-pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = N + u32:1>() -> uN[N] {
+pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = {N + u32:1}>() -> uN[N] {
     ((uN[N_PLUS_ONE]:1 << N) - uN[N_PLUS_ONE]:1) as uN[N]
 }
 
@@ -56,12 +56,12 @@ fn unsigned_max_value_test() {
 }
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn umul<N: u32, M: u32, R: u32 = N + M>(x: uN[N], y: uN[M]) -> uN[R] {
+pub fn umul<N: u32, M: u32, R: u32 = {N + M}>(x: uN[N], y: uN[M]) -> uN[R] {
   (x as uN[R]) * (y as uN[R])
 }
 
 // Returns signed mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn smul<N: u32, M: u32, R: u32 = N + M>(x: sN[N], y: sN[M]) -> sN[R] {
+pub fn smul<N: u32, M: u32, R: u32 = {N + M}>(x: sN[N], y: sN[M]) -> sN[R] {
   (x as sN[R]) * (y as sN[R])
 }
 
@@ -82,7 +82,7 @@ fn umul_test() {
 
 // Calculate x / y one bit at a time. This is an alternative to using
 // the division operator '/' which may not synthesize nicely.
-pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
+pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N] {
 
   let init_shift_amount = ((N as uN[N])-uN[N]:1);
   let x = x as uN[DN];
@@ -212,7 +212,7 @@ fn find_index_test() {
 }
 
 // Concatenates 3 values of arbitrary bitwidths to a single value.
-pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(
+pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = {X + Y + Z}>(
     x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
   x ++ y ++ z
 }

@@ -495,7 +495,7 @@ ParametricBinding::~ParametricBinding() {}
 std::string ParametricBinding::ToString() const {
   std::string suffix;
   if (expr_ != nullptr) {
-    suffix = absl::StrFormat(" = %s", expr_->ToString());
+    suffix = absl::StrFormat(" = {%s}", expr_->ToString());
   }
   return absl::StrFormat("%s: %s%s", name_def_->ToString(),
                          type_annotation_->ToString(), suffix);
@@ -1507,6 +1507,15 @@ std::string UnopKindToString(UnopKind k) {
 Block::~Block() {}
 
 std::string Block::ToString() const {
+  // If we're within parametric bindings, we give the expression inline.
+  AstNode* p = parent();
+  while (p != nullptr) {
+    if (dynamic_cast<ParametricBinding*>(p) != nullptr) {
+      return absl::StrCat("{", body_->ToString(), "}");
+    }
+    p = p->parent();
+  }
+
   return absl::StrFormat("{\n%s\n}",
                          Indent(body_->ToString(), kDefaultIndentSpaces));
 }

@@ -259,8 +259,9 @@ class InterpreterTest(test_base.TestCase):
     self._parse_and_test(program)
 
   def test_derived_parametric(self):
-    program = textwrap.dedent("""\
-    fn parametric<X: u32, Y: u32 = X+X, Z: u32 = Y+u32:1>(
+    program = textwrap.dedent(
+        """\
+    fn parametric<X: u32, Y: u32 = {X+X}, Z: u32 = {Y+u32:1}>(
           x: bits[X]) -> (u32, u32, u32) {
       (X, Y, Z)
     }
@@ -268,7 +269,8 @@ class InterpreterTest(test_base.TestCase):
     fn parametric_test() {
       assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0))
     }
-    """)
+    """
+    )
     self._parse_and_test(program)
 
   def test_bool_not(self):

@@ -336,7 +336,7 @@ fn f(x: u32) -> (u32, u8) {
 TEST(TypecheckTest, DerivedExprTypeMismatch) {
   EXPECT_THAT(
       Typecheck(R"(
-fn p<X: u32, Y: bits[4] = X+X>(x: bits[X]) -> bits[X] { x }
+fn p<X: u32, Y: bits[4] = {X+X}>(x: bits[X]) -> bits[X] { x }
 fn f() -> u32 { p(u32:3) }
 )"),
       StatusIs(
@@ -347,14 +347,14 @@ fn f() -> u32 { p(u32:3) }
 
 TEST(TypecheckTest, ParametricInstantiationVsArgOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn parametric<X: u32 = u32:5> (x: bits[X]) -> bits[X] { x }
+fn parametric<X: u32 = {u32:5}> (x: bits[X]) -> bits[X] { x }
 fn main() -> bits[5] { parametric(u5:1) }
 )"));
 }
 
 TEST(TypecheckTest, ParametricInstantiationVsArgError) {
   EXPECT_THAT(Typecheck(R"(
-fn foo<X: u32 = u32: 5>(x: bits[X]) -> bits[X] { x }
+fn foo<X: u32 = {u32:5}>(x: bits[X]) -> bits[X] { x }
 fn bar() -> bits[10] { foo(u5:1) + foo(u10: 1) }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -363,14 +363,14 @@ fn bar() -> bits[10] { foo(u5:1) + foo(u10: 1) }
 
 TEST(TypecheckTest, ParametricInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn parametric<X: u32 = u32:5>() -> bits[5] { bits[X]:1 + bits[5]:1 }
+fn parametric<X: u32 = {u32:5}>() -> bits[5] { bits[X]:1 + bits[5]:1 }
 fn main() -> bits[5] { parametric() }
 )"));
 }
 
 TEST(TypecheckTest, ParametricInstantiationVsBodyError) {
   EXPECT_THAT(Typecheck(R"(
-fn foo<X: u32 = u32:5>() -> bits[10] { bits[X]:1 + bits[10]:1 }
+fn foo<X: u32 = {u32:5}>() -> bits[10] { bits[X]:1 + bits[10]:1 }
 fn bar() -> bits[10] { foo() }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -380,7 +380,7 @@ fn bar() -> bits[10] { foo() }
 
 TEST(TypecheckTest, ParametricInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn parametric<X: u32 = u32: 5>() -> bits[5] { bits[X]: 1 }
+fn parametric<X: u32 = {u32: 5}>() -> bits[5] { bits[X]: 1 }
 fn main() -> bits[5] { parametric() }
 )"));
 }
@@ -388,7 +388,7 @@ fn main() -> bits[5] { parametric() }
 TEST(TypecheckTest, ParametricInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
-fn foo<X: u32 = u32: 5>() -> bits[10] { bits[X]: 1 }
+fn foo<X: u32 = {u32: 5}>() -> bits[10] { bits[X]: 1 }
 fn bar() -> bits[10] { foo() }
 )"),
       StatusIs(
@@ -417,18 +417,18 @@ fn bar() -> bits[10] { fazz(u10: 1) }
 
 TEST(TypecheckTest, ParametricIndirectInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn foo<X: u32, R: u32 = X + X>(x: bits[X]) -> bits[R] {
+fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] {
   let a = bits[R]: 5;
   x++x + a
 }
-fn fazz<Y: u32, T: u32 = Y + Y>(y: bits[Y]) -> bits[T] { foo(y) }
+fn fazz<Y: u32, T: u32 = {Y + Y}>(y: bits[Y]) -> bits[T] { foo(y) }
 fn bar() -> bits[10] { fazz(u5:1) }
 )"));
 }
 
 TEST(TypecheckTest, ParametricIndirectInstantiationVsBodyError) {
   EXPECT_THAT(Typecheck(R"(
-fn foo<X: u32, D: u32 = X + X>(x: bits[X]) -> bits[X] {
+fn foo<X: u32, D: u32 = {X + X}>(x: bits[X]) -> bits[X] {
   let a = bits[D]:5;
   x + a
 }
@@ -441,8 +441,8 @@ fn bar() -> bits[5] { fazz(u5:1) })"),
 
 TEST(TypecheckTest, ParametricIndirectInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn foo<X: u32, R: u32 = X + X>(x: bits[X]) -> bits[R] { x++x }
-fn fazz<Y: u32, T: u32 = Y + Y>(y: bits[Y]) -> bits[T] { foo(y) }
+fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] { x++x }
+fn fazz<Y: u32, T: u32 = {Y + Y}>(y: bits[Y]) -> bits[T] { foo(y) }
 fn bar() -> bits[10] { fazz(u5:1) }
 )"));
 }
@@ -450,8 +450,8 @@ fn bar() -> bits[10] { fazz(u5:1) }
 TEST(TypecheckTest, ParametricIndirectInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
-fn foo<X: u32, R: u32 = X + X>(x: bits[X]) -> bits[R] { x * x }
-fn fazz<Y: u32, T: u32 = Y + Y>(y: bits[Y]) -> bits[T] { foo(y) }
+fn foo<X: u32, R: u32 = {X + X}>(x: bits[X]) -> bits[R] { x * x }
+fn fazz<Y: u32, T: u32 = {Y + Y}>(y: bits[Y]) -> bits[T] { foo(y) }
 fn bar() -> bits[10] { fazz(u5:1) }
 )"),
       StatusIs(
@@ -461,14 +461,14 @@ fn bar() -> bits[10] { fazz(u5:1) }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsArgOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn foo<X: u32, Y: u32 = X + X>(x: bits[X], y: bits[Y]) -> bits[X] { x }
+fn foo<X: u32, Y: u32 = {X + X}>(x: bits[X], y: bits[Y]) -> bits[X] { x }
 fn bar() -> bits[5] { foo(u5:1, u10: 2) }
 )"));
 }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsArgError) {
   EXPECT_THAT(Typecheck(R"(
-fn foo<X: u32, Y: u32 = X + X>(x: bits[X], y: bits[Y]) -> bits[X] { x }
+fn foo<X: u32, Y: u32 = {X + X}>(x: bits[X], y: bits[Y]) -> bits[X] { x }
 fn bar() -> bits[5] { foo(u5:1, u11: 2) }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -477,7 +477,7 @@ fn bar() -> bits[5] { foo(u5:1, u11: 2) }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsBodyOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn foo<W: u32, Z: u32 = W + W>(w: bits[W]) -> bits[1] {
+fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
     let val: bits[Z] = w++w + bits[Z]: 5;
     and_reduce(val)
 }
@@ -487,7 +487,7 @@ fn bar() -> bits[1] { foo(u5: 5) + foo(u10: 10) }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsBodyError) {
   EXPECT_THAT(Typecheck(R"(
-fn foo<W: u32, Z: u32 = W + W>(w: bits[W]) -> bits[1] {
+fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[1] {
   let val: bits[Z] = w + w;
   and_reduce(val)
 }
@@ -499,8 +499,8 @@ fn bar() -> bits[1] { foo(u5:5) }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsReturnOk) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn double<X: u32, Y: u32 = X + X> (x: bits[X]) -> bits[Y] { x++x }
-fn foo<W: u32, Z: u32 = W + W> (w: bits[W]) -> bits[Z] { double(w) }
+fn double<X: u32, Y: u32 = {X + X}> (x: bits[X]) -> bits[Y] { x++x }
+fn foo<W: u32, Z: u32 = {W + W}> (w: bits[W]) -> bits[Z] { double(w) }
 fn bar() -> bits[10] { foo(u5:1) }
 )"));
 }
@@ -508,8 +508,8 @@ fn bar() -> bits[10] { foo(u5:1) }
 TEST(TypecheckTest, ParametricDerivedInstantiationVsReturnError) {
   EXPECT_THAT(
       Typecheck(R"(
-fn double<X: u32, Y: u32 = X + X>(x: bits[X]) -> bits[Y] { x + x }
-fn foo<W: u32, Z: u32 = W + W>(w: bits[W]) -> bits[Z] { double(w) }
+fn double<X: u32, Y: u32 = {X + X}>(x: bits[X]) -> bits[Y] { x + x }
+fn foo<W: u32, Z: u32 = {W + W}>(w: bits[W]) -> bits[Z] { double(w) }
 fn bar() -> bits[10] { foo(u5:1) }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -520,7 +520,7 @@ fn bar() -> bits[10] { foo(u5:1) }
 TEST(TypecheckTest, ParametricDerivedInstantiationViaFnCall) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn double(n: u32) -> u32 { n * u32: 2 }
-fn foo<W: u32, Z: u32 = double(W)>(w: bits[W]) -> bits[Z] { w++w }
+fn foo<W: u32, Z: u32 = {double(W)}>(w: bits[W]) -> bits[Z] { w++w }
 fn bar() -> bits[10] { foo(u5:1) }
 )"));
 }
@@ -555,7 +555,7 @@ fn bar() -> bits[1] {
 
 TEST(TypecheckTest, BitSliceOnParametricWidth) {
   XLS_EXPECT_OK(Typecheck(R"(
-fn get_middle_bits<N: u32, R: u32 = N - u32:2>(x: bits[N]) -> bits[R] {
+fn get_middle_bits<N: u32, R: u32 = {N - u32:2}>(x: bits[N]) -> bits[R] {
   x[1:-1]
 }
 
@@ -1420,7 +1420,7 @@ TEST(TypecheckStructInstanceTest, SplatWithExtraFieldQ) {
 // Helper for parametric struct instance based tests.
 absl::Status TypecheckParametricStructInstance(std::string program) {
   program = R"(
-struct Point<N: u32, M: u32 = N + N> {
+struct Point<N: u32, M: u32 = {N + N}> {
   x: bits[N],
   y: bits[M],
 }

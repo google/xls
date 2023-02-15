@@ -27,7 +27,7 @@ fn func(a: u32) -> u32 {
 }
 
 fn dot_product<BITCOUNT: u32, LENGTH: u32,
-               IDX_BITS: u32 = func(LENGTH+u32:1)>
+               IDX_BITS: u32 = {func(LENGTH+u32:1)}>
     (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT] {
   for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT])
       in range(bits[IDX_BITS]:0 , LENGTH as bits[IDX_BITS]) {

@@ -34,7 +34,7 @@ fn half_floor(size: u32) -> u32 { (size >> u32: 1) }
 fn is_odd(size: u32) -> bool { size[0:1] != u1:0 }
 
 struct DelayState<DATA_WIDTH:u32, DELAY: u32,
- ADDR_WIDTH:u32=addr_width(half_floor(DELAY))> {
+ ADDR_WIDTH:u32={addr_width(half_floor(DELAY))}> {
   // Current index into the RAM
   idx: bits[ADDR_WIDTH],
   // For the first DELAY cycles, the RAM has not been filled and whatever you
@@ -74,10 +74,10 @@ proc Delay0or1<DATA_WIDTH:u32, DELAY_IS_ONE:bool, INIT_DATA:u32> {
 }
 
 // Only works on DELAY even, the wrapper handles the case with odd-DELAY values.
-proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32=u32:0,
-                   ADDR_WIDTH:u32=addr_width(half_floor(DELAY)),
-                   DOUBLE_DATA_WIDTH:u32=double(DATA_WIDTH),
-                   HALF_FLOOR_DELAY:u32=half_floor(DELAY)> {
+proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
+                   ADDR_WIDTH:u32={addr_width(half_floor(DELAY))},
+                   DOUBLE_DATA_WIDTH:u32={double(DATA_WIDTH)},
+                   HALF_FLOOR_DELAY:u32={half_floor(DELAY)}> {
     data_in: chan<bits[DATA_WIDTH]> in;
     data_out: chan<bits[DATA_WIDTH]> out;
     ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;
@@ -157,11 +157,11 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32=u32:0,
 // A proc that implements a delay.
 // For the first DELAY transactions, the output is INIT_DATA. After that, the
 // output transactions are the inputs delayed by DELAY.
-pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32=u32:0,
-               ADDR_WIDTH:u32=addr_width(half_floor(DELAY)),
-               DOUBLE_DATA_WIDTH:u32=double(DATA_WIDTH),
-               HALF_FLOOR_DELAY:u32=half_floor(DELAY),
-               DELAY_IS_ODD:bool=is_odd(DELAY)> {
+pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
+               ADDR_WIDTH:u32={addr_width(half_floor(DELAY))},
+               DOUBLE_DATA_WIDTH:u32={double(DATA_WIDTH)},
+               HALF_FLOOR_DELAY:u32={half_floor(DELAY)},
+               DELAY_IS_ODD:bool={is_odd(DELAY)}> {
     data_in: chan<bits[DATA_WIDTH]> in;
     data_out: chan<bits[DATA_WIDTH]> out;
     ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;

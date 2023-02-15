@@ -14,7 +14,7 @@
 
 fn double(x: u32) -> u32 { x * u32:2 }
 
-struct ParametricPoint<A: u32, B: u32 = double(A)> {
+struct ParametricPoint<A: u32, B: u32 = {double(A)}> {
   x: bits[A],
   y: bits[B]
 }

@@ -149,7 +149,7 @@ fn double(n: u32) -> u32 {
   n * u32:2
 }
 
-fn self_append<A: u32, B: u32 = double(A)>(x: bits[A]) -> bits[B] {
+fn self_append<A: u32, B: u32 = {double(A)}>(x: bits[A]) -> bits[B] {
   x++x
 }
 
@@ -161,7 +161,8 @@ fn main() -> bits[10] {
 In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
 instantiation. Using that value, we can evaluate `B = double(A=5)`. This derived
 expression is analogous to C++'s constexpr – a simple expression that can be
-evaluated at that point in compilation.
+evaluated at that point in compilation. Note that the expression must be wrapped
+in `{}` curly braces.
 
 See
 [advanced understanding](#advanced-understanding-parametricity-constraints-and-unification)
@@ -566,7 +567,7 @@ section.
 ```dslx
 fn double(n: u32) -> u32 { n * u32:2 }
 
-struct Point<N: u32, M: u32 = double(N)> {
+struct Point<N: u32, M: u32 = {double(N)}> {
   x: bits[N],
   y: bits[M],
 }

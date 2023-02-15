@@ -88,7 +88,7 @@ fn zero_test() {
   ()
 }
 
-pub fn one<EXP_SZ:u32, FRACTION_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
+pub fn one<EXP_SZ:u32, FRACTION_SZ:u32, MASK_SZ:u32 = {EXP_SZ - u32:1}>(
     sign: bits[1])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   APFloat<EXP_SZ, FRACTION_SZ>{
@@ -148,8 +148,8 @@ fn inf_test() {
 // no meaning in that case.
 pub fn unbiased_exponent<EXP_SZ:u32,
                          FRACTION_SZ:u32,
-                         UEXP_SZ:u32 = EXP_SZ + u32:1,
-                         MASK_SZ:u32 = EXP_SZ - u32:1>
+                         UEXP_SZ:u32 = {EXP_SZ + u32:1},
+                         MASK_SZ:u32 = {EXP_SZ - u32:1}>
                          (f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
   let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
   let subnormal_exp = (sN[UEXP_SZ]:1 - bias) as sN[EXP_SZ];
@@ -203,8 +203,8 @@ fn unbiased_exponent_subnormal_test() {
 // As a result the answer is just unbiased_exponent + 2^EXP_SZ - 1
 pub fn bias<EXP_SZ: u32,
             FRACTION_SZ: u32,
-            UEXP_SZ: u32 = EXP_SZ + u32:1,
-            MASK_SZ: u32 = EXP_SZ - u32:1>
+            UEXP_SZ: u32 = {EXP_SZ + u32:1},
+            MASK_SZ: u32 = {EXP_SZ - u32:1}>
             (unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ] {
   let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
   let extended_unbiased_exp = unbiased_exponent as sN[UEXP_SZ];
@@ -219,14 +219,14 @@ fn bias_test() {
   ()
 }
 
-pub fn flatten<EXP_SZ:u32, FRACTION_SZ:u32, TOTAL_SZ:u32 = u32:1+EXP_SZ+FRACTION_SZ>(
+pub fn flatten<EXP_SZ:u32, FRACTION_SZ:u32, TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(
     x: APFloat<EXP_SZ, FRACTION_SZ>) -> bits[TOTAL_SZ] {
   x.sign ++ x.bexp ++ x.fraction
 }
 
 pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
-    TOTAL_SZ:u32 = u32:1+EXP_SZ+FRACTION_SZ,
-    SIGN_OFFSET:u32 = EXP_SZ+FRACTION_SZ>(
+    TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ},
+    SIGN_OFFSET:u32 = {EXP_SZ+FRACTION_SZ}>(
     x: bits[TOTAL_SZ]) -> APFloat<EXP_SZ, FRACTION_SZ> {
   APFloat<EXP_SZ, FRACTION_SZ>{
       sign: (x >> (SIGN_OFFSET as bits[TOTAL_SZ])) as bits[1],
@@ -236,8 +236,8 @@ pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
 }
 
 // Cast the fixed point number to a floating point number.
-pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1,
-  NUM_SRC_BITS:u32, EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + NUM_SRC_BITS>
+pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = {EXP_SZ + u32:1},
+  NUM_SRC_BITS:u32, EXTENDED_FRACTION_SZ:u32 = {FRACTION_SZ + NUM_SRC_BITS}>
   (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
   // Determine sign.
   let sign = (to_cast as uN[NUM_SRC_BITS])[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
@@ -421,7 +421,7 @@ pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
 // fraction (including the hidden bit). This function only normalizes in the
 // direction of decreasing the exponent. Input must be a normal number or
 // zero. Dernormals are flushed to zero in the result.
-pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32, WIDE_FRACTION:u32 = FRACTION_SZ + u32:1>(
+pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32, WIDE_FRACTION:u32 = {FRACTION_SZ + u32:1}>(
     sign: bits[1], exp: bits[EXP_SZ], fraction_with_hidden: bits[WIDE_FRACTION])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   let leading_zeros = clz(fraction_with_hidden) as bits[FRACTION_SZ];
@@ -461,8 +461,8 @@ pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FR
 // Unrepresentable numbers are cast to the minimum representable
 // number (largest magnitude negative number).
 pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
-  UEXP_SZ:u32 = EXP_SZ + u32:1,
-  EXTENDED_FIXED_SZ:u32 = NUM_DST_BITS + u32:1 + FRACTION_SZ + NUM_DST_BITS>
+  UEXP_SZ:u32 = {EXP_SZ + u32:1},
+  EXTENDED_FIXED_SZ:u32 = {NUM_DST_BITS + u32:1 + FRACTION_SZ + NUM_DST_BITS}>
   (to_cast: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[NUM_DST_BITS] {
 
   const MIN_FIXED_VALUE = (uN[NUM_DST_BITS]:1 << (
@@ -938,7 +938,7 @@ fn test_fp_lt_2() {
 
 // Set all bits past the decimal point to 0.
 pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32,
-    EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + u32:1>(
+    EXTENDED_FRACTION_SZ:u32 = {FRACTION_SZ + u32:1}>(
     x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
   let exp = unbiased_exponent(x) as s32;
   let mask = !((u32:1 << ((FRACTION_SZ as u32) - (exp as u32)))
@@ -1050,8 +1050,8 @@ fn round_towards_zero_test() {
 // TODO(rspringer): 2021-08-06: We seem to be unable to call std::umax in
 // template specification. Why?
 pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32,
-            WIDE_FRACTION: u32 = FRACTION_SZ + u32:1,
-            MAX_FRACTION_SZ: u32 = if RESULT_SZ > WIDE_FRACTION { RESULT_SZ } else { WIDE_FRACTION }>(
+            WIDE_FRACTION: u32 = {FRACTION_SZ + u32:1},
+            MAX_FRACTION_SZ: u32 = {if RESULT_SZ > WIDE_FRACTION { RESULT_SZ } else { WIDE_FRACTION }}>(
     x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
   let exp = unbiased_exponent(x);
 

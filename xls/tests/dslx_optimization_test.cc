@@ -136,7 +136,7 @@ fn main(foo: S, foo_bar: S) -> u8 {
 TEST_F(DslxOptimizationTest, UpdateSliceOfWideVector) {
   std::string input = R"(
 pub fn make_mask
-  <N : u32, B : u32, N_PLUS_1: u32 = N + u32:1, MAX_N_B:u32 = if N > B { N } else { B }>
+  <N : u32, B : u32, N_PLUS_1: u32 = {N + u32:1}, MAX_N_B:u32 = {if N > B { N } else { B }}>
   (num_ones : uN[B])
   -> uN[N] {
   let num_bits_clamped =

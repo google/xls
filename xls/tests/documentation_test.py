@@ -102,6 +102,9 @@ class DocumentationTest(parameterized.TestCase):
     print('Running command:', subp.list2cmdline(cmd), file=sys.stderr)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if p.returncode != 0:
+      print('== DSLX block:')
+      print(example.dslx)
+      print('== stderr:')
       print(p.stderr)
     self.assertEqual(p.returncode, 0)
 

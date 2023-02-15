@@ -112,8 +112,8 @@ fn compute_pad_bits_test() {
 // The SHA algorithm tells us to precondition our input by tacking on a
 // trailing "stop" bit, padding out with zeros, and appending the length as a
 // 64-bit quantity such that the resulting number of bits is a multiple of 512.
-fn pad_to_512b_chunk<I: u32, P: u32 = compute_pad_bits(I+u32:65),
-                     R: u32 = I+u32:65+P>(x: bits[I]) -> bits[R] {
+fn pad_to_512b_chunk<I: u32, P: u32 = {compute_pad_bits(I+u32:65)},
+                     R: u32 = {I+u32:65+P}>(x: bits[I]) -> bits[R] {
   let stop_bit: bits[1] = bits[1]:1;
   x ++ stop_bit ++ bits[P]:0 ++ I as bits[64]
 }

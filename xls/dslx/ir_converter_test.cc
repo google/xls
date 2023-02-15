@@ -795,7 +795,7 @@ fn f(x: u4) -> u2 {
 
 TEST(IrConverterTest, InvocationMultiSymbol) {
   const char* program =
-      R"(fn parametric<M: u32, N: u32, R: u32 = M + N>(x: bits[M], y: bits[N]) -> bits[R] {
+      R"(fn parametric<M: u32, N: u32, R: u32 = {M + N}>(x: bits[M], y: bits[N]) -> bits[R] {
   x ++ y
 }
 fn main() -> u8 {

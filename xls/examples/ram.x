@@ -66,7 +66,7 @@ enum SimultaneousReadWriteBehavior : u2 {
 }
 
 // Flatten an array into a word.
-fn flatten<N:u32, M:u32, TOTAL:u32=N*M>(value: uN[N][M]) -> uN[TOTAL] {
+fn flatten<N:u32, M:u32, TOTAL:u32={N*M}>(value: uN[N][M]) -> uN[TOTAL] {
   value as uN[TOTAL]
 }
 
@@ -76,7 +76,7 @@ fn flatten<N:u32, M:u32, TOTAL:u32=N*M>(value: uN[N][M]) -> uN[TOTAL] {
 // the mask. When masking data bits, it is useful to expand the mask from 1 bit
 // per partition to one bit bit per data bit.
 fn expand_mask<DATA_WIDTH:u32, NUM_PARTITIONS:u32,
- EXPANSION_FACTOR:u32=std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)>(
+ EXPANSION_FACTOR:u32={std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)}>(
   partition_mask:uN[NUM_PARTITIONS]) -> uN[DATA_WIDTH] {
   for (idx, data_mask): (u32, uN[DATA_WIDTH]) in range(u32:0, NUM_PARTITIONS) {
     let data_mask_segment =
@@ -189,13 +189,13 @@ fn bits_to_bool_array<N:u32>(x:uN[N]) -> bool[N] {
 //  ASSERT_VALID_READ: if true, add assertion that read operations are only
 //   performed on values that a previous write has set. This is meant to model
 //   asserting that a user doesn't read X from an unitialized SRAM.
-proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32=u32:1,
+proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:1},
   SIMULTANEOUS_READ_WRITE_BEHAVIOR:SimultaneousReadWriteBehavior=
-   SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
-  INITIALIZED:bool=false,
-  ASSERT_VALID_READ:bool=true, ADDR_WIDTH:u32 = std::clog2(SIZE),
+   {SimultaneousReadWriteBehavior::READ_BEFORE_WRITE},
+  INITIALIZED:bool={false},
+  ASSERT_VALID_READ:bool={true}, ADDR_WIDTH:u32 = {std::clog2(SIZE)},
   NUM_PARTITIONS:u32=
-  (DATA_WIDTH + WORD_PARTITION_SIZE - u32:1)/WORD_PARTITION_SIZE> {
+  {(DATA_WIDTH + WORD_PARTITION_SIZE - u32:1)/WORD_PARTITION_SIZE}> {
 
   read_req: chan<ReadReq<ADDR_WIDTH, NUM_PARTITIONS>> in;
   read_resp: chan<ReadResp<DATA_WIDTH>> out;
@@ -408,7 +408,7 @@ pub struct SinglePortRamResp<DATA_WIDTH:u32> {
 
 // Models a single-port RAM.
 proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
- ADDR_WIDTH:u32=std::clog2(SIZE)> {
+ ADDR_WIDTH:u32={std::clog2(SIZE)}> {
   req_chan: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
   resp_chan : chan<SinglePortRamResp<DATA_WIDTH>> out;
 

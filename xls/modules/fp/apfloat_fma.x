@@ -56,9 +56,9 @@ fn is_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE_FRACTIO
 //   EXP_SIGN_CARRY: EXP_CARRY plus one sign bit.
 // For an IEEE binary32 ("float"), these values would be 8, 23, 48, 9, and 10.
 fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
-    WIDE_FRACTION: u32 = (FRACTION_SZ + u32:1) * u32:2,
-    EXP_CARRY: u32 = EXP_SZ + u32:1,
-    EXP_SIGN_CARRY: u32 = EXP_SZ + u32:2>(
+    WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:2},
+    EXP_CARRY: u32 = {EXP_SZ + u32:1},
+    EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>(
         a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>) -> Product {
   // These steps are taken from apfloat_mul_2.x; look there for full comments.
   // Widen the fraction to full size and prepend the formerly-implicit "1".
@@ -142,13 +142,13 @@ fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
 //   WIDE_FRACTION_TOP_ROUNDING: One less than WIDE_FRACTION_LOW_BIT, in other words the
 //       most-significant rounding bit.
 pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
-    EXP_CARRY: u32 = EXP_SZ + u32:1,
-    EXP_SIGN_CARRY: u32 = EXP_CARRY + u32:1,
-    WIDE_FRACTION: u32 = (FRACTION_SZ + u32:1) * u32:3 + u32:1,
-    WIDE_FRACTION_CARRY: u32 = WIDE_FRACTION + u32:1,
-    WIDE_FRACTION_SIGN_CARRY: u32 = WIDE_FRACTION_CARRY + u32:1,
-    WIDE_FRACTION_LOW_BIT: u32 = WIDE_FRACTION - FRACTION_SZ,
-    WIDE_FRACTION_TOP_ROUNDING: u32 = WIDE_FRACTION_LOW_BIT - u32:1>(
+    EXP_CARRY: u32 = {EXP_SZ + u32:1},
+    EXP_SIGN_CARRY: u32 = {EXP_CARRY + u32:1},
+    WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:3 + u32:1},
+    WIDE_FRACTION_CARRY: u32 = {WIDE_FRACTION + u32:1},
+    WIDE_FRACTION_SIGN_CARRY: u32 = {WIDE_FRACTION_CARRY + u32:1},
+    WIDE_FRACTION_LOW_BIT: u32 = {WIDE_FRACTION - FRACTION_SZ},
+    WIDE_FRACTION_TOP_ROUNDING: u32 = {WIDE_FRACTION_LOW_BIT - u32:1}>(
         a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>,
         c: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
   let ab = mul_no_round<EXP_SZ, FRACTION_SZ>(a, b);

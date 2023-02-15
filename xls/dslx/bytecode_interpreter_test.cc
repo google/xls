@@ -954,7 +954,7 @@ fn main() -> u32 {
 
 TEST(BytecodeInterpreterTest, ParametricStruct) {
   constexpr std::string_view kProgram = R"(
-struct MyStruct<N: u32, M: u32 = N * u32:2> {
+struct MyStruct<N: u32, M: u32 = {N * u32:2}> {
   x: uN[N],
   y: uN[M]
 }

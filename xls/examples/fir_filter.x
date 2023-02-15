@@ -26,7 +26,7 @@ type F32 = float32::F32;
 
 
 pub fn fir_filter_fixed<NUM_TAPS:u32, NUM_SAMPLES:u32,
-  NUM_OUTPUTS:u32 = NUM_SAMPLES - NUM_TAPS + u32:1>
+  NUM_OUTPUTS:u32 = {NUM_SAMPLES - NUM_TAPS + u32:1}>
   (samples: s32[NUM_SAMPLES], coefficients: s32[NUM_TAPS])
   -> s32[NUM_OUTPUTS] {
 
@@ -54,7 +54,7 @@ pub fn fir_filter_fixed<NUM_TAPS:u32, NUM_SAMPLES:u32,
 }
 
 pub fn fir_filter_float32<NUM_TAPS:u32, NUM_SAMPLES:u32,
-  NUM_OUTPUTS:u32 = NUM_SAMPLES - NUM_TAPS + u32:1>
+  NUM_OUTPUTS:u32 = {NUM_SAMPLES - NUM_TAPS + u32:1}>
   (samples: F32[NUM_SAMPLES], coefficients: F32[NUM_TAPS])
   -> F32[NUM_OUTPUTS] {
 

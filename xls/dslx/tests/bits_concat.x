@@ -20,7 +20,7 @@ fn binop_chain(x: u1, y: u2, z: u3) -> u6 {
   x ++ y ++ z
 }
 
-fn binop_parametric<M: u32, N: u32, R: u32 = M+N>(x: bits[M], y: bits[N]) -> bits[R] {
+fn binop_parametric<M: u32, N: u32, R: u32 = {M+N}>(x: bits[M], y: bits[N]) -> bits[R] {
   x ++ y
 }
 

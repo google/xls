@@ -804,7 +804,7 @@ TEST_F(ParserTest, ModuleWithSemis) {
 }
 
 TEST_F(ParserTest, ModuleWithParametric) {
-  RoundTrip(R"(fn parametric<X: u32, Y: u32 = (X) + (X)>() -> (u32, u32) {
+  RoundTrip(R"(fn parametric<X: u32, Y: u32 = {(X) + (X)}>() -> (u32, u32) {
   (X, Y)
 })");
 }

@@ -16,7 +16,7 @@
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
 // Slice wrapper to test parametric widths.
-fn get_middle_bits<N: u32, R: u32 = N - u32:2>(x: bits[N]) -> bits[R] {
+fn get_middle_bits<N: u32, R: u32 = {N - u32:2}>(x: bits[N]) -> bits[R] {
   // Slice middle bits out of parametric width.
   x[1:-1]
 }

@@ -86,7 +86,7 @@ TEST(AstGeneratorTest, GeneratesParametricBindings) {
   // googletest cannot currently seem to use \d in regexp patterns, which is
   // quite surprising.
   constexpr const char* kWantPattern =
-      R"(x[0-9]+: u[0-9]+ = u[0-9]+:0x[0-9a-f_]+)";
+      R"(x[0-9]+: u[0-9]+ = \{u[0-9]+:0x[0-9a-f_]+\})";
   EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
   EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
 }

@@ -2527,7 +2527,15 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     XLS_ASSIGN_OR_RETURN(bool dropped_equals, TryDropToken(TokenKind::kEquals));
     Expr* expr = nullptr;
     if (dropped_equals) {
+      XLS_RETURN_IF_ERROR(
+          DropTokenOrError(TokenKind::kOBrace, nullptr,
+                           "expected '{' because parametric expressions must "
+                           "be enclosed in braces"));
       XLS_ASSIGN_OR_RETURN(expr, ParseExpression(bindings));
+      XLS_RETURN_IF_ERROR(
+          DropTokenOrError(TokenKind::kCBrace, nullptr,
+                           "expected '}' because parametric expressions must "
+                           "be enclosed in braces"));
     }
     return module_->Make<ParametricBinding>(name_def, type, expr);
   };
@@ -2537,21 +2545,18 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     Bindings* bindings) {
-  // We need two levels of bindings - one per-parse-parametrics call and one at
-  // top-level.
-  Transaction txn(this, bindings);
-  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
-
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
 
   // <comment>
   DisableDoubleCAngle();
+  auto re_enable_double_cangle =
+      absl::MakeCleanup([this] { EnableDoubleCAngle(); });
 
-  auto parse_parametric = [this, &txn]() -> absl::StatusOr<Expr*> {
+  auto parse_parametric = [this, bindings]() -> absl::StatusOr<Expr*> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOBrace) {
       // Ternary expressions are the first below the let/for/while set.
-      Transaction sub_txn(this, txn.bindings());
+      Transaction sub_txn(this, bindings);
       auto cleanup = absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
 
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
@@ -2564,14 +2569,13 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     }
 
     auto status_or_literal = TryOrRollback<Number*>(
-        txn.bindings(),
-        [this](Bindings* bindings) { return ParseNumber(bindings); });
+        bindings, [this](Bindings* bindings) { return ParseNumber(bindings); });
     if (status_or_literal.ok()) {
       return status_or_literal;
     }
 
     auto status_or_ref = TryOrRollback<std::variant<NameRef*, ColonRef*>>(
-        txn.bindings(),
+        bindings,
         [this](Bindings* bindings) { return ParseNameOrColonRef(bindings); });
     XLS_ASSIGN_OR_RETURN(auto ref, status_or_ref);
     if (std::holds_alternative<NameRef*>(ref)) {
@@ -2581,14 +2585,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     return std::get<ColonRef*>(ref);
   };
 
-  auto status_or_exprs =
-      ParseCommaSeq<Expr*>(parse_parametric, TokenKind::kCAngle);
-  if (status_or_exprs.ok()) {
-    txn.CommitAndCancelCleanup(&cleanup);
-  }
-
-  EnableDoubleCAngle();
-  return status_or_exprs;
+  return ParseCommaSeq<Expr*>(parse_parametric, TokenKind::kCAngle);
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
