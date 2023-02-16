@@ -591,9 +591,6 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
 absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                               const Token* tok) {
-  Transaction txn(this, bindings);
-  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
-
   std::optional<Token> popped;
   if (tok == nullptr) {
     XLS_ASSIGN_OR_RETURN(popped, PopTokenOrError(TokenKind::kIdentifier));
@@ -602,10 +599,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
 
   // If we failed to parse this ref, then put it back on the queue, in case
   // we try another production.
-  XLS_ASSIGN_OR_RETURN(BoundNode bn, txn.bindings()->ResolveNodeOrError(
+  XLS_ASSIGN_OR_RETURN(BoundNode bn, bindings->ResolveNodeOrError(
                                          *tok->GetValue(), tok->span()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
-  txn.CommitAndCancelCleanup(&cleanup);
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
   }
@@ -668,18 +664,14 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
     }
   }
 
-  Transaction txn(this, bindings);
-  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
-                       ParseTypeAnnotation(txn.bindings()));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
   Expr* expr;
   if (peek_is_obrace) {
-    XLS_ASSIGN_OR_RETURN(expr, ParseStructInstance(txn.bindings(), type));
+    XLS_ASSIGN_OR_RETURN(expr, ParseStructInstance(bindings, type));
   } else {
-    XLS_ASSIGN_OR_RETURN(expr, ParseCast(txn.bindings(), type));
+    XLS_ASSIGN_OR_RETURN(expr, ParseCast(bindings, type));
   }
-  txn.CommitAndCancelCleanup(&cleanup);
   return expr;
 }
 
@@ -949,19 +941,11 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
       break;
     }
 
-    Transaction txn(this, bindings);
-    auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
     Token op = PopTokenOrDie();
-    auto status_or_rhs = ParseOrExpression(txn.bindings());
-    XLS_VLOG(5) << "rhs status: " << status_or_rhs.status();
-    if (status_or_rhs.ok()) {
-      XLS_ASSIGN_OR_RETURN(BinopKind kind,
-                           BinopKindFromString(TokenKindToString(op.kind())));
-      lhs = module_->Make<Binop>(op.span(), kind, lhs, status_or_rhs.value());
-      txn.CommitAndCancelCleanup(&cleanup);
-    } else {
-      break;
-    }
+    XLS_ASSIGN_OR_RETURN(BinopKind kind,
+                         BinopKindFromString(TokenKindToString(op.kind())));
+    XLS_ASSIGN_OR_RETURN(Expr* rhs, ParseOrExpression(bindings));
+    lhs = module_->Make<Binop>(op.span(), kind, lhs, rhs);
   }
   XLS_VLOG(5) << "ParseComparisonExpression; result: " << lhs->ToString();
   return lhs;
@@ -2068,6 +2052,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // anywhere - and relax that proc members must be declared at proc top.
   Transaction txn(this, &bindings);
   auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
+
   // Create a separate Bindings object to see what's added during member
   // collection, so we can report better errors below. Members will be added to
   // "bindings" in the next call.
@@ -2547,7 +2532,12 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
 
-  // <comment>
+  // For parametric instantiation we allow a form like:
+  //
+  //  chan<MyStruct<Y>>
+  //
+  // Which can require us to interpret the >> as two close-angle tokens instead
+  // of a single '>>' token.
   DisableDoubleCAngle();
   auto re_enable_double_cangle =
       absl::MakeCleanup([this] { EnableDoubleCAngle(); });
@@ -2555,16 +2545,11 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
   auto parse_parametric = [this, bindings]() -> absl::StatusOr<Expr*> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOBrace) {
-      // Ternary expressions are the first below the let/for/while set.
-      Transaction sub_txn(this, bindings);
-      auto cleanup = absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
-
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      XLS_ASSIGN_OR_RETURN(Expr * expr,
-                           ParseTernaryExpression(sub_txn.bindings()));
+      // Ternary expressions are the first below the let/for/while set.
+      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseTernaryExpression(bindings));
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
 
-      sub_txn.CommitAndCancelCleanup(&cleanup);
       return expr;
     }
 

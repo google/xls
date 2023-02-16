@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/command_line_utils.h"
 
 namespace xls::dslx {
 
@@ -43,7 +44,15 @@ class ParserTest : public ::testing::Test {
                  std::optional<std::string_view> target = absl::nullopt) {
     scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
-    XLS_ASSERT_OK_AND_ASSIGN(auto module, parser_->ParseModule());
+    auto module_or = parser_->ParseModule();
+    if (!module_or.ok()) {
+      TryPrintError(module_or.status(),
+                    [&](std::string_view path) -> absl::StatusOr<std::string> {
+                      return program;
+                    });
+    }
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                             std::move(module_or));
     if (target.has_value()) {
       EXPECT_EQ(module->ToString(), *target);
     } else {
@@ -211,9 +220,16 @@ TEST_F(ParserTest, ParseSimpleProc) {
   Scanner s{"test.x", std::string{text}};
   Parser parser{"test", &s};
   Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * p,
-      parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/&bindings));
+  auto proc_or =
+      parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/&bindings);
+  if (!proc_or.ok()) {
+    TryPrintError(proc_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    XLS_ASSERT_OK(proc_or.status());
+  }
+  const Proc* p = proc_or.value();
   EXPECT_EQ(p->ToString(), text);
 }
 

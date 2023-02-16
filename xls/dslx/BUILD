@@ -782,6 +782,7 @@ cc_test(
     name = "parser_test",
     srcs = ["parser_test.cc"],
     deps = [
+        ":command_line_utils",
         ":parser",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
