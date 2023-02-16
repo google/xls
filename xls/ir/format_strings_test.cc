@@ -45,15 +45,15 @@ TEST(FormatStringsTest, ParseFormats) {
 {{:#x}} = {:#x}
 {{:#b}} = {:#b})";
 
-  std::vector<FormatStep> complex_format = {"x in different formats\n{} = ",
+  std::vector<FormatStep> complex_format = {"x in different formats\n{{}} = ",
                                             FormatPreference::kDefault,
-                                            "\n{:d} = ",
+                                            "\n{{:d}} = ",
                                             FormatPreference::kSignedDecimal,
-                                            "\n{:u} = ",
+                                            "\n{{:u}} = ",
                                             FormatPreference::kUnsignedDecimal,
-                                            "\n{:#x} = ",
+                                            "\n{{:#x}} = ",
                                             FormatPreference::kHex,
-                                            "\n{:#b} = ",
+                                            "\n{{:#b}} = ",
                                             FormatPreference::kBinary};
 
   EXPECT_THAT(ParseFormatString(complex_format_string),
@@ -68,6 +68,14 @@ TEST(FormatStringsTest, ParseFormats) {
   EXPECT_THAT(ParseFormatString(plain_formats_string),
               IsOkAndHolds(plain_formats));
   EXPECT_EQ(OperandsExpectedByFormat(plain_formats), 2);
+
+  std::string struct_formats_string = "{{st0{{x: {}}}}}";
+  std::vector<FormatStep> struct_formats = {
+      "{{st0{{x: ", FormatPreference::kDefault, "}}}}"};
+
+  EXPECT_THAT(ParseFormatString(struct_formats_string),
+              IsOkAndHolds(struct_formats));
+  EXPECT_EQ(OperandsExpectedByFormat(struct_formats), 1);
 }
 
 TEST(FormatStringsTest, ErrorTests) {

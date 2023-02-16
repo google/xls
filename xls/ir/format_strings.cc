@@ -14,8 +14,10 @@
 
 #include "xls/ir/format_strings.h"
 
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/str_replace.h"
 
 namespace xls {
 
@@ -44,11 +46,11 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
 
   while (i < format_string.length()) {
     if (consume_substr("{{")) {
-      fragment += '{';
+      absl::StrAppend(&fragment, "{{");
       continue;
     }
     if (consume_substr("}}")) {
-      fragment += '}';
+      absl::StrAppend(&fragment, "}}");
       continue;
     }
     if (consume_substr("{}")) {
@@ -139,7 +141,11 @@ std::string StepsToVerilogFormatString(absl::Span<const FormatStep> format) {
           absl::StrAppend(out, FormatPreferenceToVerilogSpecifier(
                                    std::get<FormatPreference>(step)));
         } else {
-          absl::StrAppend(out, std::get<std::string>(step));
+          // Convert {{ and }} to { and }.
+          std::string step_str = absl::StrReplaceAll(
+              std::get<std::string>(step), {{"{{", "{"}, {"}}", "}"}});
+
+          absl::StrAppend(out, step_str);
         }
       });
 }

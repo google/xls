@@ -466,6 +466,24 @@ TEST_P(BlockGeneratorTest, BlockWithTrace) {
   }
 }
 
+TEST_P(BlockGeneratorTest, BlockWithExtraBracesTrace) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "{{st0{{a: {}}}}} is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    EXPECT_THAT(
+        verilog,
+        HasSubstr(R"($display("{st0{a: %d}} is not greater than 42", a)"));
+  }
+}
+
 TEST_P(BlockGeneratorTest, PortOrderTest) {
   Package package(TestBaseName());
   Type* u32 = package.GetBitsType(32);

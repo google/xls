@@ -1906,7 +1906,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
       [&](const BValue& struct_value,
           const StructFormatDescriptor& struct_format_descriptor) {
         fmt_steps.push_back(
-            absl::StrCat(struct_format_descriptor.struct_name(), "{"));
+            absl::StrCat(struct_format_descriptor.struct_name(), "{{"));
         size_t fieldno = 0;
         for (size_t i = 0; i < struct_format_descriptor.elements().size();
              ++i) {
@@ -1929,7 +1929,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
             flatten(field_value, *sub_struct);
           }
         }
-        fmt_steps.push_back("}");
+        fmt_steps.push_back("}}");
       };
 
   size_t next_argno = 0;
