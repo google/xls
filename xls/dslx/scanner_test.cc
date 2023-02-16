@@ -281,5 +281,37 @@ TEST(ScannerTest, ScanRandomLookingForCrashes) {
   }
 }
 
+TEST(ScannerTest, TokenEqNeqTests) {
+  Span span_a(Pos("test.x", 0, 0), Pos("test.x", 1, 1));
+  Span span_b(Pos("test.x", 2, 2), Pos("test.x", 3, 3));
+
+  Token test_token(TokenKind::kIdentifier, span_a, "payload");
+  EXPECT_EQ(test_token, test_token);
+
+  Token identically_constructed( TokenKind::kIdentifier, span_a, "payload");
+  EXPECT_EQ(test_token, identically_constructed);
+
+  Token test_payload_mismatch(TokenKind::kIdentifier, span_a, "bad_payload");
+  EXPECT_NE(test_token, test_payload_mismatch);
+
+  Token test_payload_missing(TokenKind::kIdentifier, span_a);
+  EXPECT_NE(test_token, test_payload_missing);
+
+  Token test_span_mismatch(TokenKind::kIdentifier, span_b, "payload");
+  EXPECT_NE(test_token, test_span_mismatch);
+
+  Token test_kind_mismatch(TokenKind::kNumber, span_a, "payload");
+  EXPECT_NE(test_token, test_kind_mismatch);
+
+  Token keyword_token(span_a, Keyword::kBool);
+  EXPECT_EQ(keyword_token, keyword_token);
+
+  Token keyword_identically_constructed(span_a, Keyword::kBool);
+  EXPECT_EQ(keyword_token, keyword_identically_constructed);
+
+  Token keyword_token_mismatch(span_a, Keyword::kFn);
+  EXPECT_NE(keyword_token, keyword_token_mismatch);
+}
+
 }  // namespace
 }  // namespace xls::dslx

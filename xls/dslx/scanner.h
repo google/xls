@@ -182,6 +182,12 @@ class Token {
     return false;
   }
 
+  bool operator==(const Token& other) const {
+    return kind_ == other.kind_ && span_ == other.span_ &&
+      payload_ == other.payload_;
+  }
+  bool operator!=(const Token& other) const { return !(*this == other); }
+
   // Returns a string that represents this token suitable for use in displaying
   // this token for user error reporting; e.g. "keyword:true".
   std::string ToErrorString() const;
