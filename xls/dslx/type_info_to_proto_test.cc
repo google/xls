@@ -115,7 +115,7 @@ TEST(TypeInfoToProtoTest, UnitFunction) {
       "0:3-0:4: NAME_DEF :: `f` :: () -> ()",
       "0:10-0:12: TYPE_ANNOTATION :: `()` :: ()",
       "0:13-0:19: BLOCK :: `{\n  ()\n}` :: ()",
-      "0:15-0:18: XLS_TUPLE :: `()` :: ()",
+      "0:15-0:17: XLS_TUPLE :: `()` :: ()",
   };
   DoRun(program, want);
 }

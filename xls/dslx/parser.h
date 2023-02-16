@@ -374,17 +374,9 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseComparisonExpression(Bindings* bindings);
 
-  absl::StatusOr<Expr*> ParseLogicalAndExpression(Bindings* bindings) {
-    std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleAmpersand};
-    return ParseBinopChain(
-        BindFront(&Parser::ParseComparisonExpression, bindings), kinds);
-  }
+  absl::StatusOr<Expr*> ParseLogicalAndExpression(Bindings* bindings);
 
-  absl::StatusOr<Expr*> ParseLogicalOrExpression(Bindings* bindings) {
-    std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleBar};
-    return ParseBinopChain(
-        BindFront(&Parser::ParseLogicalAndExpression, bindings), kinds);
-  }
+  absl::StatusOr<Expr*> ParseLogicalOrExpression(Bindings* bindings);
 
   absl::StatusOr<Expr*> ParseRangeExpression(Bindings* bindings);
 

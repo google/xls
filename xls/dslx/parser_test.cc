@@ -662,12 +662,12 @@ TEST_F(ParserTest, ModuleConstWithEnumInside) {
   FOO = 0,
   BAR = 1,
 }
-const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR);)";
+const MY_TUPLE = (((MyEnum::FOO, MyEnum::BAR)) as (MyEnum, MyEnum));)";
   RoundTrip(R"(enum MyEnum : u2 {
   FOO = 0,
   BAR = 1,
 }
-const MY_TUPLE = (MyEnum, MyEnum):(MyEnum::FOO, MyEnum::BAR);)",
+const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)",
             expect);
 }
 
