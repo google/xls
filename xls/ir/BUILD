@@ -258,6 +258,7 @@ cc_library(
     name = "ir",
     srcs = [
         "block.cc",
+        "call_graph.cc",
         "dfs_visitor.cc",
         "function.cc",
         "function_base.cc",
@@ -271,6 +272,7 @@ cc_library(
     ],
     hdrs = [
         "block.h",
+        "call_graph.h",
         "dfs_visitor.h",
         "function.h",
         "function_base.h",
@@ -463,9 +465,9 @@ cc_test(
     size = "small",
     srcs = ["package_test.cc"],
     deps = [
-        "ir",
         ":channel",
         ":function_builder",
+        ":ir",
         ":ir_test_base",
         ":type",
         ":xls_type_cc_proto",
@@ -1243,23 +1245,10 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "call_graph",
-    srcs = ["call_graph.cc"],
-    hdrs = ["call_graph.h"],
-    deps = [
-        ":ir",
-        ":op",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_set",
-    ],
-)
-
 cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],
     deps = [
-        ":call_graph",
         ":function_builder",
         ":ir",
         ":ir_test_base",

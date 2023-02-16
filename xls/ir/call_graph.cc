@@ -20,6 +20,10 @@
 
 namespace xls {
 
+namespace {
+// Returns the function called directly by the given node. Nodes which call
+// functions include: map, invoke, etc. If the node does not call a function
+// std::nullopt is returned.
 std::optional<Function*> CalledFunction(Node* node) {
   switch (node->op()) {
     case Op::kCountedFor:
@@ -35,6 +39,7 @@ std::optional<Function*> CalledFunction(Node* node) {
   }
 }
 
+// Returns the functions called directly by the nodes of the given FunctionBase.
 std::vector<Function*> CalledFunctions(FunctionBase* function_base) {
   absl::flat_hash_set<Function*> called_set;
   std::vector<Function*> called;
@@ -48,6 +53,7 @@ std::vector<Function*> CalledFunctions(FunctionBase* function_base) {
   }
   return called;
 }
+}  // namespace
 
 // Recursive DFS visitor of the call graph induced by invoke
 // instructions. Builds a post order of functions in the post_order vector.

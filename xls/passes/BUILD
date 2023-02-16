@@ -212,7 +212,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:call_graph",
     ],
 )
 

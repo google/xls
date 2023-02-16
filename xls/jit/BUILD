@@ -340,7 +340,6 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "//xls/common/logging",
         "//xls/ir",
-        "//xls/ir:call_graph",
         "//xls/ir:events",
         "@llvm-project//llvm:ir_headers",
     ],
