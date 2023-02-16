@@ -214,6 +214,10 @@ class Parser : public TokenParser {
   absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>
   ParseNameDefOrWildcard(Bindings* bindings);
 
+  // Note: do not use this is any new code, backtracking is undesirable, and if
+  // one chooses to use it, one should experience the pain of typing it inline
+  // to drive home its undesirability.
+  //
   // TryOrRollback wraps straighforward transactions: call a function, and
   // rollback or commit depending on the result. Just a shorthand to reduce
   // transaction code footprint.

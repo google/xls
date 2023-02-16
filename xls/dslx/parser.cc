@@ -575,16 +575,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   std::vector<Expr*> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
-    // Try to capture parametrics, if they're present. Capture in a transaction
-    // so we can move on if they're not.
-    auto status_or_parametrics = TryOrRollback<std::vector<Expr*>>(
-        bindings,
-        [this](Bindings* bindings) -> absl::StatusOr<std::vector<Expr*>> {
-          return ParseParametrics(bindings);
-        });
-    if (status_or_parametrics.ok()) {
-      parametrics = status_or_parametrics.value();
-    }
+    XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
   }
 
   std::vector<Expr*> dims;
@@ -697,12 +688,16 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 
   XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
 
-  // TODO(https://github.com/google/xls/issues/247): If explicit parametrics
-  // are present, then they should be matched with the StructDef's to verify
-  // their types agree (a test should be written for this as well).
-  (void)TryOrRollback<std::vector<Expr*>>(bindings, [this](Bindings* bindings) {
-    return ParseParametrics(bindings);
-  });
+  XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
+  if (peek_is_oangle) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Expr*> struct_parametrics,
+                         ParseParametrics(bindings));
+
+    // TODO(https://github.com/google/xls/issues/247): If explicit parametrics
+    // are present, then they should be matched with the StructDef's to verify
+    // their types agree (a test should be written for this as well).
+    (void)struct_parametrics;
+  }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                                        "Opening brace for struct instance."));
