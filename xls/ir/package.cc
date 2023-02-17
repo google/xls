@@ -264,7 +264,7 @@ SourceLocation Package::AddSourceLocation(std::string_view filename,
   return SourceLocation(this_fileno, lineno, colno);
 }
 
-std::string Package::SourceLocationToString(const SourceLocation loc) {
+std::string Package::SourceLocationToString(const SourceLocation& loc) {
   const std::string unknown = "UNKNOWN";
   std::string_view filename =
       fileno_to_filename_.find(loc.fileno()) != fileno_to_filename_.end()
@@ -283,14 +283,14 @@ absl::StatusOr<Type*> Package::MapTypeFromOtherPackage(
   if (other_package_type->IsBits()) {
     const BitsType* bits = other_package_type->AsBitsOrDie();
     return GetBitsType(bits->bit_count());
-
-  } else if (other_package_type->IsArray()) {
+  }
+  if (other_package_type->IsArray()) {
     const ArrayType* array = other_package_type->AsArrayOrDie();
     XLS_ASSIGN_OR_RETURN(Type * elem_type,
                          MapTypeFromOtherPackage(array->element_type()));
     return GetArrayType(array->size(), elem_type);
-
-  } else if (other_package_type->IsTuple()) {
+  }
+  if (other_package_type->IsTuple()) {
     const TupleType* tuple = other_package_type->AsTupleOrDie();
     std::vector<Type*> member_types;
     member_types.reserve(tuple->size());
@@ -300,13 +300,11 @@ absl::StatusOr<Type*> Package::MapTypeFromOtherPackage(
       member_types.push_back(new_elem_type);
     }
     return GetTupleType(member_types);
-
-  } else if (other_package_type->IsToken()) {
-    return GetTokenType();
-
-  } else {
-    return absl::InternalError("Unsupported type.");
   }
+  if (other_package_type->IsToken()) {
+    return GetTokenType();
+  }
+  return absl::InternalError("Unsupported type.");
 }
 
 BitsType* Package::GetBitsType(int64_t bit_count) {
@@ -569,6 +567,7 @@ absl::flat_hash_map<std::string, Function*> Package::GetFunctionByName() {
 
 std::vector<std::string> Package::GetFunctionNames() const {
   std::vector<std::string> names;
+  names.reserve(functions_.size());
   for (const std::unique_ptr<Function>& function : functions_) {
     names.push_back(function->name());
   }

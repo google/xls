@@ -145,7 +145,7 @@ class Package {
 
   // Translates a SourceLocation object into a human readable debug identifier
   // of the form: "<source_file_path>:<line_number>".
-  std::string SourceLocationToString(const SourceLocation loc);
+  std::string SourceLocationToString(const SourceLocation& loc);
 
   // Retrieves the next node ID to assign to a node in the package and
   // increments the next node counter. For use in node construction.

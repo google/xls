@@ -19,7 +19,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
@@ -38,6 +37,7 @@ FunctionType* Function::GetType() {
 std::string Function::DumpIr() const {
   std::string res = "fn " + name() + "(";
   std::vector<std::string> param_strings;
+  param_strings.reserve(params_.size());
   for (Param* param : params_) {
     param_strings.push_back(
         absl::StrFormat("%s: %s", param->name(), param->GetType()->ToString()));
