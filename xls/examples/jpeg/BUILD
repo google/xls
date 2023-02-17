@@ -65,6 +65,16 @@ synthesize_rtl(
     ],
 )
 
+synthesize_rtl(
+    name = "idct_chen_5000ps_model_unit_verilog_synth_by_stage",
+    synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
+    tags = ["manual"],
+    top_module = "idct_chen",
+    deps = [
+        ":idct_chen_5000ps_model_unit_verilog",
+    ],
+)
+
 xls_dslx_test(
     name = "idct_chen_dslx_test",
     srcs = ["idct_chen.x"],

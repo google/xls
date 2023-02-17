@@ -424,6 +424,15 @@ synthesize_rtl(
     ],
 )
 
+synthesize_rtl(
+    name = "find_index_5000ps_model_unit_verilog_synth_by_stage",
+    synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
+    top_module = "find_index",
+    deps = [
+        ":find_index_5000ps_model_unit_verilog",
+    ],
+)
+
 xls_dslx_opt_ir(
     name = "large_array",
     srcs = ["large_array.x"],
