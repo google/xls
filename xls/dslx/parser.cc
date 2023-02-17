@@ -484,9 +484,12 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
-    Bindings* bindings) {
+    Bindings* bindings, std::optional<Token> first) {
   XLS_VLOG(5) << "ParseTypeAnnotation @ " << GetPos();
-  XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
+  if (!first.has_value()) {
+    XLS_ASSIGN_OR_RETURN(first, PopToken());
+  }
+  const Token& tok = first.value();
   XLS_VLOG(5) << "ParseTypeAnnotation; popped: " << tok.ToString();
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
@@ -648,25 +651,18 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
     Bindings* bindings) {
   XLS_VLOG(5) << "ParseCastOrEnumRefOrStructInstance @ " << GetPos()
               << " peek: `" << PeekToken().value()->ToString() << "`";
-  {
-    // Put the first potential production in an isolated transaction; the other
-    // productions below want this first token to remain in the stream.
-    Transaction txn(this, bindings);
-    auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
-    Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
-                         PeekTokenIs(TokenKind::kDoubleColon));
-    if (peek_is_double_colon) {
-      XLS_ASSIGN_OR_RETURN(NameRef * subject,
-                           ParseNameRef(txn.bindings(), &tok));
-      XLS_ASSIGN_OR_RETURN(ColonRef * ref,
-                           ParseColonRef(txn.bindings(), subject));
-      txn.CommitAndCancelCleanup(&cleanup);
-      return ref;
-    }
+
+  Token tok = PopTokenOrDie();
+  XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
+                       PeekTokenIs(TokenKind::kDoubleColon));
+  if (peek_is_double_colon) {
+    XLS_ASSIGN_OR_RETURN(NameRef * subject, ParseNameRef(bindings, &tok));
+    XLS_ASSIGN_OR_RETURN(ColonRef * ref, ParseColonRef(bindings, subject));
+    return ref;
   }
 
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type,
+                       ParseTypeAnnotation(bindings, tok));
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrace, PeekTokenIs(TokenKind::kOBrace));
   Expr* expr;
   if (peek_is_obrace) {
