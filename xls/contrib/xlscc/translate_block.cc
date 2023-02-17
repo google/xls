@@ -21,6 +21,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 
 using std::shared_ptr;
@@ -30,7 +31,7 @@ using std::vector;
 namespace xlscc {
 
 absl::Status Translator::GenerateExternalChannels(
-    const HLSBlock& block, const std::list<ExternalChannelInfo>& top_decls,
+    const std::list<ExternalChannelInfo>& top_decls,
     const xls::SourceInfo& loc) {
   for (const ExternalChannelInfo& top_decl : top_decls) {
     const clang::NamedDecl* decl = top_decl.decl;
@@ -40,24 +41,70 @@ absl::Status Translator::GenerateExternalChannels(
     XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
                          TranslateTypeToXLS(channel_type->GetItemType(), loc));
 
-    xls::Channel* new_channel = nullptr;
-
-    XLS_CHECK(channel_type->GetOpType() == OpType::kRecv ||
-              channel_type->GetOpType() == OpType::kSend);
-    const auto xls_channel_op = (channel_type->GetOpType() == OpType::kRecv)
-                                    ? xls::ChannelOps::kReceiveOnly
-                                    : xls::ChannelOps::kSendOnly;
+    ChannelBundle new_channel;
 
     if (top_decl.interface_type == InterfaceType::kFIFO) {
+      const auto xls_channel_op = top_decl.is_input
+                                      ? xls::ChannelOps::kReceiveOnly
+                                      : xls::ChannelOps::kSendOnly;
       XLS_ASSIGN_OR_RETURN(
-          new_channel, package_->CreateStreamingChannel(
-                           decl->getNameAsString(), xls_channel_op, data_type,
-                           /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
-                           xls::FlowControl::kReadyValid));
+          new_channel.regular,
+          package_->CreateStreamingChannel(
+              decl->getNameAsString(), xls_channel_op, data_type,
+              /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
+      XLS_CHECK(top_decl.is_input);
+      XLS_ASSIGN_OR_RETURN(new_channel.regular,
+                           package_->CreateSingleValueChannel(
+                               decl->getNameAsString(),
+                               xls::ChannelOps::kReceiveOnly, data_type));
+    } else if (top_decl.interface_type == InterfaceType::kMemory) {
+      const std::string& memory_name = top_decl.decl->getNameAsString();
+
       XLS_ASSIGN_OR_RETURN(
-          new_channel, package_->CreateSingleValueChannel(
-                           decl->getNameAsString(), xls_channel_op, data_type));
+          xls::Type * read_request_type,
+          top_decl.channel_type->GetReadRequestType(package_, data_type));
+      XLS_ASSIGN_OR_RETURN(
+          new_channel.read_request,
+          package_->CreateStreamingChannel(
+              memory_name + "__read_request", xls::ChannelOps::kSendOnly,
+              read_request_type,
+              /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Type * read_response_type,
+          top_decl.channel_type->GetReadResponseType(package_, data_type));
+      XLS_ASSIGN_OR_RETURN(
+          new_channel.read_response,
+          package_->CreateStreamingChannel(
+              memory_name + "__read_response", xls::ChannelOps::kReceiveOnly,
+              read_response_type,
+              /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Type * write_request_type,
+          top_decl.channel_type->GetWriteRequestType(package_, data_type));
+      XLS_ASSIGN_OR_RETURN(
+          new_channel.write_request,
+          package_->CreateStreamingChannel(
+              memory_name + "__write_request", xls::ChannelOps::kSendOnly,
+              write_request_type,
+              /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::Type * write_response_type,
+          top_decl.channel_type->GetWriteResponseType(package_, data_type));
+      XLS_ASSIGN_OR_RETURN(
+          new_channel.write_response,
+          package_->CreateStreamingChannel(
+              memory_name + "__write_response", xls::ChannelOps::kReceiveOnly,
+              write_response_type,
+              /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
     } else {
       return absl::InvalidArgumentError(
           ErrorMessage(GetLoc(*decl), "Unknown interface type for channel %s",
@@ -75,7 +122,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
   for (const HLSChannel& channel : block.channels()) {
-    if (!channel.has_name() || !channel.has_is_input() || !channel.has_type()) {
+    if (!channel.has_name() || !channel.has_type()) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Channel is incomplete in proto"));
     }
@@ -112,10 +159,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
         channels_by_name.at(param->getNameAsString());
 
     XLS_CHECK(channel_spec.type() == ChannelType::DIRECT_IN ||
-              channel_spec.type() == ChannelType::FIFO);
-
-    const OpType op_type_spec =
-        channel_spec.is_input() ? OpType::kRecv : OpType::kSend;
+              channel_spec.type() == ChannelType::FIFO ||
+              channel_spec.type() == ChannelType::MEMORY);
 
     ExternalChannelInfo channel_info = {.decl = param};
 
@@ -125,25 +170,31 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
                            StripTypeQualifiers(param->getType()));
       XLS_ASSIGN_OR_RETURN(
           auto ctype, TranslateTypeFromClang(stripped.base, GetLoc(*param)));
-      channel_info.channel_type = std::make_shared<CChannelType>(
-          ctype, op_type_spec, /*memory_size=*/-1);
+      channel_info.channel_type =
+          std::make_shared<CChannelType>(ctype, /*memory_size=*/-1);
       channel_info.extra_return =
           stripped.is_ref && !stripped.base.isConstQualified();
+      channel_info.is_input = channel_spec.is_input();
     } else if (channel_spec.type() == ChannelType::FIFO) {
       channel_info.interface_type = InterfaceType::kFIFO;
       XLS_ASSIGN_OR_RETURN(
           channel_info.channel_type,
           GetChannelType(param->getType(), param->getASTContext(),
                          GetLoc(*param)));
-      if (channel_info.channel_type->GetOpType() != OpType::kNull) {
-        return absl::UnimplementedError(
-            ErrorMessage(GetLoc(*param),
-                         "Direction specifiers in parameter external channel "
-                         "declarations not supported"));
-      }
+
       channel_info.channel_type = std::make_shared<CChannelType>(
-          channel_info.channel_type->GetItemType(), op_type_spec,
+          channel_info.channel_type->GetItemType(),
           /*memory_size=*/-1);
+      channel_info.is_input = channel_spec.is_input();
+    } else if (channel_spec.type() == ChannelType::MEMORY) {
+      channel_info.interface_type = InterfaceType::kMemory;
+      XLS_ASSIGN_OR_RETURN(
+          channel_info.channel_type,
+          GetChannelType(param->getType(), param->getASTContext(),
+                         GetLoc(*param)));
+
+      XLS_CHECK_EQ(channel_spec.depth(),
+                   channel_info.channel_type->GetMemorySize());
     } else {
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(*param),
@@ -175,7 +226,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       CheckInitIntervalValidity(top_level_init_interval, body_loc));
 
   XLS_RETURN_IF_ERROR(GenerateIRBlockCheck(block, top_decls, body_loc));
-  XLS_RETURN_IF_ERROR(GenerateExternalChannels(block, top_decls, body_loc));
+  XLS_RETURN_IF_ERROR(GenerateExternalChannels(top_decls, body_loc));
 
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
@@ -308,7 +359,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
       ExternalChannelInfo channel_info = {
           .decl = field->name(),
           .channel_type = channel_type,
-          .interface_type = InterfaceType::kFIFO};
+          .interface_type = InterfaceType::kFIFO,
+          .is_input = channel_type->GetOpType() == OpType::kRecv};
       top_decls.push_back(channel_info);
     } else if (auto channel_type =
                    std::dynamic_pointer_cast<CReferenceType>(field->type())) {
@@ -322,8 +374,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
           .decl = field->name(),
           .channel_type =
               std::make_shared<CChannelType>(channel_type->GetPointeeType(),
-                                             OpType::kRecv, /*memory_size=*/-1),
-          .interface_type = InterfaceType::kDirect};
+                                             /*memory_size=*/-1),
+          .interface_type = InterfaceType::kDirect,
+          .is_input = true};
       top_decls.push_back(channel_info);
     }
   }
@@ -356,7 +409,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   xls::BValue last_ret_val =
       pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
   for (const IOOp& op : prepared.xls_func->io_ops) {
-    xls::Channel* xls_channel =
+    const ChannelBundle& bundle =
         prepared.xls_channel_by_function_channel.at(op.channel);
     const int return_index = prepared.return_index_for_op.at(&op);
 
@@ -373,6 +426,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     }
 
     if (op.op == OpType::kRecv) {
+      xls::Channel* xls_channel = bundle.regular;
+      XLS_CHECK_NE(xls_channel, nullptr);
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
 
@@ -404,6 +459,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       last_ret_val =
           pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
     } else if (op.op == OpType::kSend) {
+      xls::Channel* xls_channel = bundle.regular;
+      XLS_CHECK_NE(xls_channel, nullptr);
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
                             prepared.xls_func->return_value_count, op_loc);
@@ -411,8 +468,67 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue condition = pb.TupleIndex(
           send_tup, 1, op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
 
-      new_token =
-          pb.SendIf(xls_channel, before_token, condition, {val}, op_loc);
+      new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
+    } else if (op.op == OpType::kRead) {
+      XLS_CHECK_EQ(bundle.regular, nullptr);
+      XLS_CHECK_NE(bundle.read_request, nullptr);
+      XLS_CHECK_NE(bundle.read_response, nullptr);
+
+      const int arg_index = prepared.arg_index_for_op.at(&op);
+      XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
+
+      xls::BValue read_tup =
+          GetFlexTupleField(last_ret_val, return_index,
+                            prepared.xls_func->return_value_count, op_loc);
+
+      xls::BValue addr = pb.TupleIndex(read_tup, 0, op_loc);
+      xls::BValue condition = pb.TupleIndex(read_tup, 1, op_loc);
+
+      xls::BValue mask = pb.Literal(xls::UBits(1, 1), op_loc);
+      xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
+      new_token = pb.SendIf(bundle.read_request, before_token, condition,
+                            send_tuple_with_mask, op_loc);
+
+      xls::BValue receive =
+          pb.ReceiveIf(bundle.read_response, new_token, condition, op_loc);
+
+      new_token = pb.TupleIndex(receive, 0);
+      xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
+      xls::BValue response = pb.TupleIndex(response_tup, 0, op_loc);
+
+      prepared.args[arg_index] = response;
+
+      // The function is invoked again with the value received from the channel
+      //  for each read() Op. The final invocation will produce all complete
+      //  outputs.
+      last_ret_val =
+          pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
+    } else if (op.op == OpType::kWrite) {
+      XLS_CHECK_EQ(bundle.regular, nullptr);
+      XLS_CHECK_NE(bundle.write_request, nullptr);
+      XLS_CHECK_NE(bundle.write_response, nullptr);
+
+      xls::BValue send_tup =
+          GetFlexTupleField(last_ret_val, return_index,
+                            prepared.xls_func->return_value_count, op_loc);
+      // This has (addr, value)
+      xls::BValue send_tuple = pb.TupleIndex(send_tup, 0, op_loc);
+      xls::BValue condition = pb.TupleIndex(
+          send_tup, 1, op_loc,
+          absl::StrFormat("%s_pred", bundle.write_request->name()));
+
+      // This has (addr, value, mask)
+      xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
+      xls::BValue value = pb.TupleIndex(send_tuple, 1, op_loc);
+      xls::BValue mask = pb.Literal(xls::UBits(1, 1), op_loc);
+      xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
+      new_token = pb.SendIf(bundle.write_request, before_token, condition,
+                            send_tuple_with_mask, op_loc);
+
+      xls::BValue receive =
+          pb.ReceiveIf(bundle.write_response, new_token, condition, op_loc);
+      new_token = pb.TupleIndex(receive, 0);
+      // Ignore received value, should be an empty tuple
     } else {
       XLS_CHECK("Unknown IOOp type" == nullptr);
     }
@@ -443,7 +559,8 @@ absl::Status Translator::GenerateIRBlockCheck(
 
   absl::flat_hash_set<string> channel_names_in_block;
   for (const HLSChannel& channel : block.channels()) {
-    if (!channel.has_name() || !channel.has_is_input() || !channel.has_type()) {
+    if (!channel.has_name() || !channel.has_type() ||
+        !(channel.has_is_input() || channel.has_depth())) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Channel is incomplete in proto"));
     }
@@ -587,7 +704,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    xls::Channel* xls_channel = external_channels_by_decl_.at(top_decl.decl);
+    xls::Channel* xls_channel =
+        external_channels_by_decl_.at(top_decl.decl).regular;
 
     xls::BValue receive = pb.Receive(xls_channel, prepared.token);
     prepared.token = pb.TupleIndex(receive, 0);
@@ -608,8 +726,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
     prepared.return_index_for_op[&op] = next_return_index++;
 
     if (op.channel->generated != nullptr) {
-      prepared.xls_channel_by_function_channel[op.channel] =
-          op.channel->generated;
+      ChannelBundle generated_bundle = {.regular = op.channel->generated};
+      prepared.xls_channel_by_function_channel[op.channel] = generated_bundle;
       continue;
     }
 
@@ -617,8 +735,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
         prepared.xls_func->decls_by_io_channel.at(op.channel);
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      xls::Channel* xls_channel = external_channels_by_decl_.at(decl);
-      prepared.xls_channel_by_function_channel[op.channel] = xls_channel;
+      const ChannelBundle bundle = external_channels_by_decl_.at(decl);
+      prepared.xls_channel_by_function_channel[op.channel] = bundle;
     }
   }
 
@@ -628,15 +746,22 @@ absl::Status Translator::GenerateIRBlockPrepare(
     switch (param.type) {
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
-        if (op.channel->channel_op_type == OpType::kRecv) {
+        if (op.op == OpType::kRecv) {
           XLS_ASSIGN_OR_RETURN(
               xls::BValue val,
               CreateDefaultValue(op.channel->item_type, body_loc));
           if (!op.is_blocking) {
-            val = pb.Tuple({val, pb.Literal(xls::UBits(1, 1))});
+            val = pb.Tuple({val, pb.Literal(xls::UBits(1, 1), body_loc)},
+                           body_loc);
           }
           prepared.arg_index_for_op[&op] = prepared.args.size();
           prepared.args.push_back(val);
+        } else if (op.op == OpType::kRead) {
+          XLS_ASSIGN_OR_RETURN(
+              xls::BValue default_value,
+              CreateDefaultValue(op.channel->item_type, body_loc));
+          prepared.arg_index_for_op[&op] = prepared.args.size();
+          prepared.args.push_back(default_value);
         }
         break;
       }

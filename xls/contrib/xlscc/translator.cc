@@ -2084,8 +2084,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstanceDeeply(
       XLS_ASSIGN_OR_RETURN(
           std::shared_ptr<CType> elem_type,
           ResolveTypeInstanceDeeply(ret_channel->GetItemType()));
-      return std::make_shared<CChannelType>(elem_type, ret_channel->GetOpType(),
-                                            ret_channel->GetMemorySize());
+      return std::make_shared<CChannelType>(
+          elem_type, ret_channel->GetMemorySize(), ret_channel->GetOpType());
     }
   }
 
@@ -2470,8 +2470,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     if (external_channels_by_decl_.contains(caller_channel_param)) {
-      external_channels_by_decl_[callee_param] =
+      // Prevent msan error when form map[key] = map.at(other_key)
+      // Re-hashing invalidates reference?
+      const ChannelBundle caller_bundle =
           external_channels_by_decl_.at(caller_channel_param);
+      external_channels_by_decl_[callee_param] = caller_bundle;
     }
   }
 

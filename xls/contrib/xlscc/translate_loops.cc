@@ -310,7 +310,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
-    new_channel.channel_op_type = OpType::kSend;
     new_channel.generated = xls_channel;
     context().sf->io_channels.push_back(new_channel);
     context_out_channel = &context().sf->io_channels.back();
@@ -327,7 +326,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     IOChannel new_channel;
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
-    new_channel.channel_op_type = OpType::kRecv;
     new_channel.generated = xls_channel;
     context().sf->io_channels.push_back(new_channel);
     context_in_channel = &context().sf->io_channels.back();
@@ -454,7 +452,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
 
       auto channel_type = std::make_shared<CChannelType>(
-          inner_channel->item_type, inner_channel->channel_op_type,
+          inner_channel->item_type,
           inner_channel->memory_size);
 
       auto lvalue = std::make_shared<LValue>(inner_channel);

@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -693,15 +694,21 @@ absl::Status CReferenceType::GetMetadataValue(
       "Can't generate externally useful metadata for references");
 }
 
-CChannelType::CChannelType(std::shared_ptr<CType> item_type, OpType op_type,
+CChannelType::CChannelType(std::shared_ptr<CType> item_type,  // OpType op_type,
                            int64_t memory_size)
+    : item_type_(item_type),
+      op_type_(OpType::kNull),
+      memory_size_(memory_size) {}
+
+CChannelType::CChannelType(std::shared_ptr<CType> item_type,
+                           int64_t memory_size, OpType op_type)
     : item_type_(item_type), op_type_(op_type), memory_size_(memory_size) {}
 
 bool CChannelType::operator==(const CType& o) const {
   if (!o.Is<CChannelType>()) return false;
   const auto* o_derived = o.As<CChannelType>();
-  return *item_type_ == *o_derived->item_type_ &&
-         op_type_ == o_derived->op_type_;
+  return *item_type_ == *o_derived->item_type_
+  && op_type_ == o_derived->op_type_ && memory_size_ == o_derived->memory_size_;
 }
 
 int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
@@ -709,6 +716,9 @@ int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
 std::shared_ptr<CType> CChannelType::GetItemType() const { return item_type_; }
 
 CChannelType::operator std::string() const {
+  if (op_type_ == OpType::kRead || op_type_ == OpType::kWrite) {
+    return absl::StrFormat("memory<%s,%i>", string(*item_type_), memory_size_);
+  }
   return absl::StrFormat("channel<%s,%s>", string(*item_type_),
                          (op_type_ == OpType::kRecv)
                              ? "recv"
@@ -751,6 +761,31 @@ std::shared_ptr<CType> CChannelType::MemoryAddressType(int64_t memory_size) {
 int64_t CChannelType::MemoryAddressWidth(int64_t memory_size) {
   XLS_CHECK_GT(memory_size, 0);
   return std::ceil(std::log2(memory_size));
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetReadRequestType(
+    xls::Package* package, xls::Type* item_type) const {
+  xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
+  xls::Type* mask_type = package->GetBitsType(1);
+  return package->GetTupleType({addr_type, mask_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetReadResponseType(
+    xls::Package* package, xls::Type* item_type) const {
+  return package->GetTupleType({item_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetWriteRequestType(
+    xls::Package* package, xls::Type* item_type) const {
+  xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
+  xls::Type* mask_type = package->GetBitsType(1);
+
+  return package->GetTupleType({addr_type, item_type, mask_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetWriteResponseType(
+    xls::Package* package, xls::Type* item_type) const {
+  return package->GetTupleType({});
 }
 
 }  //  namespace xlscc

@@ -20,6 +20,7 @@ enum ChannelType {
   INVALID = 0;
   DIRECT_IN = 1;
   FIFO = 2;
+  MEMORY = 3;
 }
 
 message HLSChannel {
@@ -27,6 +28,7 @@ message HLSChannel {
   optional bool is_input = 2;
   optional ChannelType type = 3;
   optional int32 width_in_bits = 4;
+  optional int32 depth = 5;  // For memories
 }
 
 message HLSBlock {

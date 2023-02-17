@@ -256,6 +256,31 @@ cc_test(
 )
 
 cc_test(
+    name = "translator_memory_test",
+    srcs = ["translator_memory_test.cc"],
+    shard_count = 32,
+    deps = [
+        ":hls_block_cc_proto",
+        ":metadata_output_cc_proto",
+        ":translator",
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
     name = "translator_proc_test",
     srcs = ["translator_proc_test.cc"],
     shard_count = 32,

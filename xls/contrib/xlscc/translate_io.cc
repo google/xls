@@ -42,17 +42,6 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   op.channel = channel;
   op.op_location = loc;
 
-  // Operation type is added late, as it's only known from the read()/write()
-  // call(s)
-  if (channel->channel_op_type == OpType::kNull) {
-    channel->channel_op_type = op.op;
-  } else {
-    if (channel->channel_op_type != op.op) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Channels should be either input or output"));
-    }
-  }
-
   // Channel must be inserted first by AddOpToChannel
   if (op.op == OpType::kRecv || op.op == OpType::kRead) {
     xls::Type* xls_item_type;
@@ -161,7 +150,7 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
                        TranslateTypeFromClang(arg.getAsType(), loc));
 
-  return std::make_shared<CChannelType>(item_type, op_type, memory_size);
+  return std::make_shared<CChannelType>(item_type, memory_size, op_type);
 }
 
 absl::Status Translator::CreateChannelParam(

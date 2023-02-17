@@ -104,6 +104,10 @@ class XlsccTestBase : public xls::IrTestBase {
                 const int min_ticks = 1, const int max_ticks = 100,
                 int top_level_init_interval = 0);
 
+  void IOTest(std::string content, std::list<IOOpTest> inputs,
+            std::list<IOOpTest> outputs,
+            absl::flat_hash_map<std::string, xls::Value> args = {});
+
   absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
       std::string_view name_cont);
 

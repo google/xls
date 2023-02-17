@@ -358,13 +358,14 @@ class CReferenceType : public CType {
 };
 
 enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite };
-enum class InterfaceType { kNull = 0, kDirect, kFIFO };
+enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory };
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
  public:
-  CChannelType(std::shared_ptr<CType> item_type, OpType op_type,
-               int64_t memory_size);
+  CChannelType(std::shared_ptr<CType> item_type, int64_t memory_size);
+  CChannelType(std::shared_ptr<CType> item_type, int64_t memory_size,
+               OpType op_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -381,6 +382,15 @@ class CChannelType : public CType {
   int64_t GetMemoryAddressWidth() const;
   static std::shared_ptr<CType> MemoryAddressType(int64_t memory_size);
   static int64_t MemoryAddressWidth(int64_t memory_size);
+
+  absl::StatusOr<xls::Type*> GetReadRequestType(xls::Package* package,
+                                                xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetReadResponseType(xls::Package* package,
+                                                 xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetWriteRequestType(xls::Package* package,
+                                                 xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetWriteResponseType(xls::Package* package,
+                                                  xls::Type* item_type) const;
 
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
@@ -595,8 +605,6 @@ struct IOChannel {
   std::string unique_name;
   // Type of item the channel transfers
   std::shared_ptr<CType> item_type;
-  // Direction of the port (in/out)
-  OpType channel_op_type = OpType::kNull;
   // Memory size (if applicable)
   int64_t memory_size = -1;
   // The total number of IO ops on the channel within the function
@@ -609,7 +617,7 @@ struct IOChannel {
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
-  OpType op;
+  OpType op = OpType::kNull;
 
   IOChannel* channel = nullptr;
 
@@ -1106,9 +1114,29 @@ class Translator {
   xls::Package* package_ = nullptr;
   int default_init_interval_ = 0;
 
+  struct ChannelBundle {
+    xls::Channel* regular = nullptr;
+
+    xls::Channel* read_request = nullptr;
+    xls::Channel* read_response = nullptr;
+    xls::Channel* write_request = nullptr;
+    xls::Channel* write_response = nullptr;
+
+    inline bool operator==(const ChannelBundle& o) const {
+      return regular == o.regular && read_request == o.read_request &&
+             read_response == o.read_response &&
+             write_request == o.write_request &&
+             write_response == o.write_response;
+    }
+
+    inline bool operator!=(const ChannelBundle& o) const {
+      return !(*this == o);
+    }
+  };
+
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
-  absl::flat_hash_map<const clang::NamedDecl*, xls::Channel*>
+  absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
       external_channels_by_decl_;
 
   // Used as a stack, but need to peek 2nd to top
@@ -1181,7 +1209,7 @@ class Translator {
     GeneratedFunction* xls_func;
     std::vector<xls::BValue> args;
     // Not used for direct-ins
-    absl::flat_hash_map<IOChannel*, xls::Channel*>
+    absl::flat_hash_map<IOChannel*, ChannelBundle>
         xls_channel_by_function_channel;
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
@@ -1198,6 +1226,7 @@ class Translator {
     std::shared_ptr<CChannelType> channel_type;
     InterfaceType interface_type;
     bool extra_return = false;
+    bool is_input = false;
   };
 
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -1215,7 +1244,7 @@ class Translator {
 
   // Creates xls::Channels in the package
   absl::Status GenerateExternalChannels(
-      const HLSBlock& block, const std::list<ExternalChannelInfo>& top_decls,
+      const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::Value> GenerateTopClassInitValue(
