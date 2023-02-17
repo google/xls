@@ -2574,21 +2574,12 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
       return expr;
     }
 
-    auto status_or_literal = TryOrRollback<Number*>(
-        bindings, [this](Bindings* bindings) { return ParseNumber(bindings); });
-    if (status_or_literal.ok()) {
-      return status_or_literal;
+    if (peek->kind() == TokenKind::kIdentifier) {
+      XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
+      return ToExprNode(nocr);
     }
 
-    auto status_or_ref = TryOrRollback<std::variant<NameRef*, ColonRef*>>(
-        bindings,
-        [this](Bindings* bindings) { return ParseNameOrColonRef(bindings); });
-    XLS_ASSIGN_OR_RETURN(auto ref, status_or_ref);
-    if (std::holds_alternative<NameRef*>(ref)) {
-      return std::get<NameRef*>(ref);
-    }
-
-    return std::get<ColonRef*>(ref);
+    return ParseNumber(bindings);
   };
 
   return ParseCommaSeq<Expr*>(parse_parametric, TokenKind::kCAngle);
