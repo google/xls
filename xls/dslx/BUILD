@@ -760,6 +760,7 @@ cc_library(
         ":builtins_metadata",
         ":scanner",
         ":token_parser",
+        "//xls/common:strong_int",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",

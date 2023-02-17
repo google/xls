@@ -71,7 +71,14 @@ class ParserTest : public ::testing::Test {
     for (const std::string& s : predefine) {
       b.Add(s, parser_->module_->GetOrCreateBuiltinNameDef(s));
     }
-    return parser_->ParseExpression(/*bindings=*/&b);
+    auto expr_or = parser_->ParseExpression(/*bindings=*/&b);
+    if (!expr_or.ok()) {
+      TryPrintError(expr_or.status(),
+                    [&](std::string_view path) -> absl::StatusOr<std::string> {
+                      return expr_text;
+                    });
+    }
+    return expr_or;
   }
 
   void RoundTripExpr(std::string expr_text,
@@ -995,6 +1002,13 @@ TEST_F(ParserTest, TernaryWithComparisonTest) {
 TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
   RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"},
                 "if (a) <= (m::b) { u32:42 } else { u32:24 }");
+}
+
+TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
+  RoundTripExpr("for (x, s) in u32:0 .. m::SOME_CONST { x }(i)", {"m", "i"},
+                R"(for (x, s) in u32:0..m::SOME_CONST {
+  x
+}(i))");
 }
 
 TEST_F(ParserTest, TernaryWithOrExpressionTest) {

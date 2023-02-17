@@ -51,6 +51,35 @@
 namespace xls::dslx {
 namespace {
 
+ExprRestrictions MakeRestrictions(std::vector<ExprRestriction> restrictions) {
+  uint64_t value = 0;
+  for (ExprRestriction restriction : restrictions) {
+    value |= static_cast<uint64_t>(restriction);
+  }
+  return ExprRestrictions(value);
+}
+
+bool IsExprRestrictionEnabled(ExprRestrictions restrictions,
+                              ExprRestriction target) {
+  uint64_t target_u64 = static_cast<uint64_t>(target);
+  XLS_CHECK_NE(target_u64, 0);
+
+  // All restriction values should be a pow2.
+  XLS_CHECK_EQ(target_u64 & (target_u64 - 1), 0);
+
+  return (static_cast<uint64_t>(restrictions) & target_u64) != 0;
+}
+
+std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
+  if (restrictions == kNoRestrictions) {
+    return "none";
+  }
+  // Note: right now we only have one flag that can be in the set.
+  XLS_CHECK_EQ(static_cast<uint64_t>(restrictions),
+               static_cast<uint64_t>(ExprRestriction::kNoStructLiteral));
+  return "{no-struct-literal}";
+}
+
 // Collects all names declared through a Let/Spawn/UnrollFor chain.
 // Note that this behaves differently than the NameDefCollector inside
 // bytecode_emitter.cc: that one walks NameRefs and ConstantRefs, whereas this
@@ -305,7 +334,8 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
       absl::StrFormat("Unknown directive: '%s'", directive_name));
 }
 
-absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings,
+                                              ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   XLS_VLOG(5) << "ParseExpression @ " << GetPos() << " peek: `"
               << peek->ToString() << "`";
@@ -327,27 +357,35 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
   if (peek->kind() == TokenKind::kOBrace) {
     return ParseBlockExpression(bindings);
   }
-  return ParseTernaryExpression(bindings);
+  return ParseTernaryExpression(bindings, restrictions);
 }
 
-absl::StatusOr<Expr*> Parser::ParseRangeExpression(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseRangeExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
   XLS_VLOG(5) << "ParseRangeExpression @ " << GetPos();
-  XLS_ASSIGN_OR_RETURN(Expr * result, ParseLogicalOrExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * result,
+                       ParseLogicalOrExpression(bindings, restrictions));
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (peek->kind() == TokenKind::kDoubleDot) {
     DropTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseLogicalOrExpression(bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * rhs,
+                         ParseLogicalOrExpression(bindings, restrictions));
     result = module_->Make<Range>(
         Span(result->span().start(), rhs->span().limit()), result, rhs);
   }
   return result;
 }
 
-absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
-  XLS_VLOG(5) << "ParseTernaryExpression @ " << GetPos();
+absl::StatusOr<Expr*> Parser::ParseTernaryExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  XLS_VLOG(5) << "ParseTernaryExpression @ " << GetPos()
+              << " restrictions: " << ExprRestrictionsToString(restrictions);
   XLS_ASSIGN_OR_RETURN(std::optional<Token> if_, TryPopKeyword(Keyword::kIf));
   if (if_.has_value()) {  // Ternary
-    XLS_ASSIGN_OR_RETURN(Expr * test, ParseExpression(bindings));
+    XLS_ASSIGN_OR_RETURN(
+        Expr * test,
+        ParseExpression(bindings,
+                        MakeRestrictions({ExprRestriction::kNoStructLiteral})));
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                          "Opening brace for 'if' (ternary) expression."));
@@ -369,7 +407,7 @@ absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
     return module_->Make<Ternary>(Span(if_->span().start(), GetPos()), test,
                                   consequent, alternate);
   }
-  return ParseRangeExpression(bindings);
+  return ParseRangeExpression(bindings, restrictions);
 }
 
 absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,
@@ -596,7 +634,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                               const Token* tok) {
   std::optional<Token> popped;
   if (tok == nullptr) {
-    XLS_ASSIGN_OR_RETURN(popped, PopTokenOrError(TokenKind::kIdentifier));
+    XLS_ASSIGN_OR_RETURN(
+        popped, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                                "Expected name reference identiifer"));
     tok = &popped.value();
   }
 
@@ -701,7 +741,9 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
   using StructInstanceMember = std::pair<std::string, Expr*>;
   auto parse_struct_member =
       [this, bindings]() -> absl::StatusOr<StructInstanceMember> {
-    XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+    XLS_ASSIGN_OR_RETURN(
+        Token tok, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                                   "Expected struct instance's member name"));
     XLS_ASSIGN_OR_RETURN(bool dropped_colon, TryDropToken(TokenKind::kColon));
     if (dropped_colon) {
       XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(bindings));
@@ -881,7 +923,7 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
                        "Expect colon after type annotation in cast"));
-  XLS_ASSIGN_OR_RETURN(Expr * term, ParseTerm(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * term, ParseTerm(bindings, kNoRestrictions));
   if (IsOneOf<Number, Array>(term)) {
     if (auto* n = dynamic_cast<Number*>(term)) {
       n->set_type_annotation(type);
@@ -935,24 +977,85 @@ absl::StatusOr<Expr*> Parser::ParseBinopChain(
   return lhs;
 }
 
-absl::StatusOr<Expr*> Parser::ParseLogicalAndExpression(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseLogicalAndExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
   XLS_VLOG(5) << "ParseLogicalAndExpression @ " << GetPos();
   std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleAmpersand};
   return ParseBinopChain(
-      BindFront(&Parser::ParseComparisonExpression, bindings), kinds);
+      [this, bindings, restrictions] {
+        return ParseComparisonExpression(bindings, restrictions);
+      },
+      kinds);
 }
 
-absl::StatusOr<Expr*> Parser::ParseLogicalOrExpression(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseLogicalOrExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
   XLS_VLOG(5) << "ParseLogicalOrExpression @ " << GetPos();
   std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleBar};
   return ParseBinopChain(
-      BindFront(&Parser::ParseLogicalAndExpression, bindings), kinds);
+      [this, bindings, restrictions] {
+        return ParseLogicalAndExpression(bindings, restrictions);
+      },
+      kinds);
 }
 
-absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
+absl::StatusOr<Expr*> Parser::ParseStrongArithmeticExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  return ParseBinopChain(
+      BindFront<Expr*>(&Parser::ParseCastAsExpression, bindings, restrictions),
+      kStrongArithmeticKinds);
+}
+
+absl::StatusOr<Expr*> Parser::ParseWeakArithmeticExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  return ParseBinopChain(
+      BindFront<Expr*>(&Parser::ParseStrongArithmeticExpression, bindings,
+                       restrictions),
+      kWeakArithmeticKinds);
+}
+
+absl::StatusOr<Expr*> Parser::ParseBitwiseExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  return ParseBinopChain(
+      BindFront<Expr*>(&Parser::ParseWeakArithmeticExpression, bindings,
+                       restrictions),
+      kBitwiseKinds);
+}
+
+absl::StatusOr<Expr*> Parser::ParseAndExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  std::initializer_list<TokenKind> amp = {TokenKind::kAmpersand};
+  return ParseBinopChain(
+      BindFront<Expr*>(&Parser::ParseBitwiseExpression, bindings, restrictions),
+      amp);
+}
+
+absl::StatusOr<Expr*> Parser::ParseXorExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  std::initializer_list<TokenKind> hat = {TokenKind::kHat};
+  return ParseBinopChain(
+      [this, bindings, restrictions] {
+        return ParseAndExpression(bindings, restrictions);
+      },
+      hat);
+}
+
+absl::StatusOr<Expr*> Parser::ParseOrExpression(Bindings* bindings,
+                                                ExprRestrictions restrictions) {
+  std::initializer_list<TokenKind> bar = {TokenKind::kBar};
+  return ParseBinopChain(
+      [this, bindings, restrictions] {
+        return ParseXorExpression(bindings, restrictions);
+      },
+      bar);
+}
+
+absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
   XLS_VLOG(5) << "ParseComparisonExpression @ " << GetPos() << " peek: `"
-              << PeekToken().value()->ToString() << "`";
-  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseOrExpression(bindings));
+              << PeekToken().value()->ToString()
+              << "` restrictions: " << ExprRestrictionsToString(restrictions);
+  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseOrExpression(bindings, restrictions));
   while (true) {
     XLS_VLOG(5) << "ParseComparisonExpression; lhs: `" << lhs->ToString()
                 << "` peek: `" << PeekToken().value()->ToString() << "`";
@@ -965,7 +1068,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
     Token op = PopTokenOrDie();
     XLS_ASSIGN_OR_RETURN(BinopKind kind,
                          BinopKindFromString(TokenKindToString(op.kind())));
-    XLS_ASSIGN_OR_RETURN(Expr* rhs, ParseOrExpression(bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseOrExpression(bindings, restrictions));
     lhs = module_->Make<Binop>(op.span(), kind, lhs, rhs);
   }
   XLS_VLOG(5) << "ParseComparisonExpression; result: `" << lhs->ToString()
@@ -1191,11 +1294,12 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
   return module_->Make<XlsTuple>(span, std::move(es));
 }
 
-absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
+absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
+                                        ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   const Pos start_pos = peek->span().start();
   XLS_VLOG(5) << "ParseTerm @ " << start_pos << " peek: `" << peek->ToString()
-              << "`";
+              << "` restrictions: " << ExprRestrictionsToString(restrictions);
 
   bool peek_is_kw_in = peek->IsKeyword(Keyword::kIn);
   bool peek_is_kw_out = peek->IsKeyword(Keyword::kOut);
@@ -1216,7 +1320,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     return module_->Make<String>(Span(start_pos, GetPos()), text);
   } else if (peek->IsKindIn({TokenKind::kBang, TokenKind::kMinus})) {
     Token tok = PopTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * arg, ParseTerm(outer_bindings, restrictions));
     UnopKind unop_kind;
     switch (tok.kind()) {
       // clang-format off
@@ -1238,7 +1342,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel,
+                         ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     return module_->Make<Recv>(Span(recv.span().start(), GetPos()), token,
                                channel);
@@ -1247,7 +1352,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel,
+                         ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     return module_->Make<RecvNonBlocking>(Span(recv.span().start(), GetPos()),
                                           token, channel);
@@ -1257,7 +1363,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * name_ref, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel,
+                         ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -1272,7 +1379,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel,
+                         ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * payload, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -1284,7 +1392,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel,
+                         ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
@@ -1296,15 +1405,19 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->IsKeyword(Keyword::kJoin)) {
     Token join = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    XLS_ASSIGN_OR_RETURN(
-        std::vector<Expr*> tokens,
-        ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
-                      TokenKind::kCParen));
+    XLS_ASSIGN_OR_RETURN(std::vector<Expr*> tokens,
+                         ParseCommaSeq<Expr*>(
+                             [outer_bindings, this]() {
+                               return ParseExpression(outer_bindings);
+                             },
+                             TokenKind::kCParen));
     return module_->Make<Join>(Span(join.span().start(), GetPos()), tokens);
   } else if (peek->kind() == TokenKind::kIdentifier || peek_is_kw_in ||
              peek_is_kw_out) {
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(outer_bindings));
-    if (std::holds_alternative<ColonRef*>(nocr)) {
+    if (std::holds_alternative<ColonRef*>(nocr) &&
+        !IsExprRestrictionEnabled(restrictions,
+                                  ExprRestriction::kNoStructLiteral)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                            PeekTokenIs(TokenKind::kOBrace));
       if (peek_is_obrace) {
@@ -1314,18 +1427,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         XLS_ASSIGN_OR_RETURN(
             TypeAnnotation * type,
             MakeTypeRefTypeAnnotation(colon_ref->span(), type_ref, {}, {}));
-        Transaction inner_txn(this, outer_bindings);
-        auto cleanup =
-            absl::MakeCleanup([&inner_txn]() { inner_txn.Rollback(); });
-        // We see a brace after our colon-ref, and that could be a struct
-        // identifier to instantiate -- see if we can parse a struct instance
-        // here. If not, we fall back to just the colon-ref.
-        auto statusor = ParseStructInstance(outer_bindings, type);
-        if (statusor.ok()) {
-          inner_txn.CommitAndCancelCleanup(&cleanup);
-          return statusor.value();
-        }
-        return colon_ref;
+        return ParseStructInstance(outer_bindings, type);
       }
     }
     lhs = ToExprNode(nocr);
@@ -1353,7 +1455,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
   } else if (peek->IsKeyword(Keyword::kIf)) {  // Ternary expression.
-    XLS_ASSIGN_OR_RETURN(lhs, ParseTernaryExpression(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(
+        lhs, ParseTernaryExpression(outer_bindings, kNoRestrictions));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -1383,10 +1486,12 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       }
       case TokenKind::kOParen: {  // Invocation.
         DropTokenOrDie();
-        XLS_ASSIGN_OR_RETURN(
-            std::vector<Expr*> args,
-            ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
-                          TokenKind::kCParen));
+        XLS_ASSIGN_OR_RETURN(std::vector<Expr*> args,
+                             ParseCommaSeq<Expr*>(
+                                 [outer_bindings, this] {
+                                   return ParseExpression(outer_bindings);
+                                 },
+                                 TokenKind::kCParen));
         XLS_ASSIGN_OR_RETURN(
             lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), outer_bindings,
                                         lhs, std::move(args)));
@@ -1482,10 +1587,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
         }
 
         XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kOParen));
-        XLS_ASSIGN_OR_RETURN(std::vector<Expr*> args,
-                             ParseCommaSeq(BindFront(&Parser::ParseExpression,
-                                                     sub_txn.bindings()),
-                                           TokenKind::kCParen));
+        Bindings* b = sub_txn.bindings();
+        XLS_ASSIGN_OR_RETURN(
+            std::vector<Expr*> args,
+            ParseCommaSeq<Expr*>([b, this] { return ParseExpression(b); },
+                                 TokenKind::kCParen));
         XLS_ASSIGN_OR_RETURN(
             lhs, BuildMacroOrInvocation(
                      Span(new_pos, GetPos()), sub_txn.bindings(), lhs,
@@ -1719,8 +1825,11 @@ absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
   return module_->Make<Index>(Span(start_pos, GetPos()), lhs, index);
 }
 
-absl::StatusOr<Expr*> Parser::ParseCastAsExpression(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTerm(bindings));
+absl::StatusOr<Expr*> Parser::ParseCastAsExpression(
+    Bindings* bindings, ExprRestrictions restrictions) {
+  XLS_VLOG(5) << "ParseCastAsExpression @ " << GetPos()
+              << " restrictions: " << ExprRestrictionsToString(restrictions);
+  XLS_ASSIGN_OR_RETURN(Expr * lhs, ParseTerm(bindings, restrictions));
   while (true) {
     XLS_ASSIGN_OR_RETURN(bool dropped_as, TryDropKeyword(Keyword::kAs));
     if (!dropped_as) {
@@ -2170,7 +2279,8 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,
                                                      Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
-  XLS_ASSIGN_OR_RETURN(Expr * dim, ParseTernaryExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * dim,
+                       ParseTernaryExpression(bindings, kNoRestrictions));
   std::vector<Expr*> dims = {dim};
   const char* const kContext = "at end of type dimensions";
   XLS_RETURN_IF_ERROR(
@@ -2181,7 +2291,8 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,
     if (!dropped_obrack) {
       break;
     }
-    XLS_ASSIGN_OR_RETURN(Expr * dim, ParseTernaryExpression(bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * dim,
+                         ParseTernaryExpression(bindings, kNoRestrictions));
     dims.push_back(dim);
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack, /*start=*/&obrack,
                                          /*context=*/kContext,
@@ -2292,7 +2403,10 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(&for_bindings));
   }
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
-  XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(
+      Expr * iterable,
+      ParseExpression(bindings,
+                      MakeRestrictions({ExprRestriction::kNoStructLiteral})));
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&for_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(
       TokenKind::kOParen, &for_,
@@ -2459,7 +2573,9 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
   using StructMember = std::pair<NameDef*, TypeAnnotation*>;
   auto parse_struct_member = [this,
                               bindings]() -> absl::StatusOr<StructMember> {
-    XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier));
+    XLS_ASSIGN_OR_RETURN(
+        Token tok, PopTokenOrError(TokenKind::kIdentifier, /*start=*/nullptr,
+                                   "Expected struct definition member name"));
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, TokenToNameDef(tok));
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
@@ -2564,7 +2680,8 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
     if (peek->kind() == TokenKind::kOBrace) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
       // Ternary expressions are the first below the let/for/while set.
-      XLS_ASSIGN_OR_RETURN(Expr * expr, ParseTernaryExpression(bindings));
+      XLS_ASSIGN_OR_RETURN(Expr * expr,
+                           ParseTernaryExpression(bindings, kNoRestrictions));
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
 
       return expr;

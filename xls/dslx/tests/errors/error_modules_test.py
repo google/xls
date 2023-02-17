@@ -408,6 +408,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn('Recursion detected while typechecking', stderr)
 
+  def test_precise_struct_error(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/precise_struct_error.x',
+        warnings_as_errors=False,
+        want_err_retcode=True,
+    )
+    self.assertIn('precise_struct_error.x:19:6-19:14', stderr)
+    self.assertIn('ParseError', stderr)
+    self.assertIn('Cannot find a definition for name: "blahblah"', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

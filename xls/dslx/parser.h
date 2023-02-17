@@ -31,6 +31,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/strong_int.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bindings.h"
 #include "xls/dslx/token_parser.h"
@@ -44,6 +45,28 @@ inline T TryGet(const std::variant<Types...>& v) {
   }
   return nullptr;
 }
+
+// As a convenient way to reuse grammar rules with modifications, we allow
+// "restriction" flags to be passed to expression productions.
+//
+// Implementation note: these must each be a power of two so they can be used in
+// an integer flag set.
+//
+// This is useful, for example, when we want to parse a conditional test
+// expression, but we don't want to allow struct literals in that position
+// because it would make the grammar ambiguous (because a '{' can belong to
+// either a conditional body or a struct instance); we can call
+// ParseExpression() with the "no struct literal" restriction to help us wrangle
+// this sort of case.
+enum class ExprRestriction {
+  kNone = 0,
+  kNoStructLiteral = 1,
+};
+
+// Flag set of ExprRestriction values.
+DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
+
+constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
 class Parser : public TokenParser {
  public:
@@ -60,7 +83,8 @@ class Parser : public TokenParser {
       Bindings* bindings = nullptr);
 
   // Parses an expression out of the token stream.
-  absl::StatusOr<Expr*> ParseExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseExpression(
+      Bindings* bindings, ExprRestrictions restrictions = kNoRestrictions);
 
   // TOOD(leary): 2020-09-11 Would be better to rename this to "type alias".
   absl::StatusOr<TypeDef*> ParseTypeDefinition(bool is_public,
@@ -267,7 +291,8 @@ class Parser : public TokenParser {
   // Parses a term as a component of an expression and returns it.
   //
   // Terms are more atomic than arithmetic expressions.
-  absl::StatusOr<Expr*> ParseTerm(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseTerm(Bindings* bindings,
+                                  ExprRestrictions restrictions);
 
   // Parses a slicing index expression.
   absl::StatusOr<Index*> ParseBitSlice(const Pos& start_pos, Expr* lhs,
@@ -300,12 +325,22 @@ class Parser : public TokenParser {
       std::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
           target_tokens);
 
-  absl::StatusOr<Expr*> ParseCastAsExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseCastAsExpression(Bindings* bindings,
+                                              ExprRestrictions restrictions);
 
   template <typename T>
   std::function<absl::StatusOr<T>()> BindFront(
       absl::StatusOr<T> (Parser::*f)(Bindings*), Bindings* bindings) {
     return [this, bindings, f] { return (this->*f)(bindings); };
+  }
+
+  template <typename T>
+  std::function<absl::StatusOr<T>()> BindFront(
+      absl::StatusOr<T> (Parser::*f)(Bindings*, ExprRestrictions),
+      Bindings* bindings, ExprRestrictions restrictions) {
+    return [this, bindings, f, restrictions] {
+      return (this->*f)(bindings, restrictions);
+    };
   }
 
   static constexpr std::initializer_list<TokenKind> kStrongArithmeticKinds = {
@@ -321,57 +356,43 @@ class Parser : public TokenParser {
       TokenKind::kCAngle,       TokenKind::kCAngleEquals,
       TokenKind::kOAngle,       TokenKind::kOAngleEquals};
 
-  absl::StatusOr<Expr*> ParseStrongArithmeticExpression(Bindings* bindings) {
-    return ParseBinopChain(BindFront(&Parser::ParseCastAsExpression, bindings),
-                           kStrongArithmeticKinds);
-  }
+  absl::StatusOr<Expr*> ParseStrongArithmeticExpression(
+      Bindings* bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseWeakArithmeticExpression(Bindings* bindings) {
-    return ParseBinopChain(
-        BindFront(&Parser::ParseStrongArithmeticExpression, bindings),
-        kWeakArithmeticKinds);
-  }
+  absl::StatusOr<Expr*> ParseWeakArithmeticExpression(
+      Bindings* bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseBitwiseExpression(Bindings* bindings) {
-    return ParseBinopChain(
-        BindFront(&Parser::ParseWeakArithmeticExpression, bindings),
-        kBitwiseKinds);
-  }
+  absl::StatusOr<Expr*> ParseBitwiseExpression(Bindings* bindings,
+                                               ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseAndExpression(Bindings* bindings) {
-    std::initializer_list<TokenKind> amp = {TokenKind::kAmpersand};
-    return ParseBinopChain(BindFront(&Parser::ParseBitwiseExpression, bindings),
-                           amp);
-  }
+  absl::StatusOr<Expr*> ParseAndExpression(Bindings* bindings,
+                                           ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseXorExpression(Bindings* bindings) {
-    std::initializer_list<TokenKind> hat = {TokenKind::kHat};
-    return ParseBinopChain(BindFront(&Parser::ParseAndExpression, bindings),
-                           hat);
-  }
+  absl::StatusOr<Expr*> ParseXorExpression(Bindings* bindings,
+                                           ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseOrExpression(Bindings* bindings) {
-    std::initializer_list<TokenKind> bar = {TokenKind::kBar};
-    return ParseBinopChain(BindFront(&Parser::ParseXorExpression, bindings),
-                           bar);
-  }
+  absl::StatusOr<Expr*> ParseOrExpression(Bindings* bindings,
+                                          ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseComparisonExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseComparisonExpression(
+      Bindings* bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseLogicalAndExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseLogicalAndExpression(
+      Bindings* bindings, ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseLogicalOrExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseLogicalOrExpression(Bindings* bindings,
+                                                 ExprRestrictions restrictions);
 
-  absl::StatusOr<Expr*> ParseRangeExpression(Bindings* bindings);
+  absl::StatusOr<Expr*> ParseRangeExpression(Bindings* bindings,
+                                             ExprRestrictions restrictions);
 
   // Parses a ternary expression or expression of higher precedence.
   //
   // Example:
   //
-  //    foo if bar else baz
-  //
-  // TODO(leary): 2020-09-12 Switch to Rust-style block expressions.
-  absl::StatusOr<Expr*> ParseTernaryExpression(Bindings* bindings);
+  //    if { bar } else { baz }
+  absl::StatusOr<Expr*> ParseTernaryExpression(Bindings* bindings,
+                                               ExprRestrictions restrictions);
 
   absl::StatusOr<Param*> ParseParam(Bindings* bindings);
 
