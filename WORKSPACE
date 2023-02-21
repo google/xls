@@ -51,7 +51,7 @@ load_external_repositories()
 # We have to configure Python before gRPC tries to configure it a different
 # way.
 load("@pybind11_bazel//:python_configure.bzl", "python_configure")
-python_configure(name = "local_config_python")
+python_configure(name = "local_config_python", python_version="3")
 
 # gRPC deps should be loaded before initializing other repos. Otherwise, various
 # errors occur during repo loading and initialization.
