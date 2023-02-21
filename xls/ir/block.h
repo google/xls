@@ -161,7 +161,8 @@ class Block : public FunctionBase {
   bool HasImplicitUse(Node* node) const override { return false; }
 
   // Creates a clone of the block with the new name 'new_name'.
-  absl::StatusOr<Block*> Clone(std::string_view new_name) const;
+  absl::StatusOr<Block*> Clone(std::string_view new_name,
+                               Package* target_package = nullptr) const;
 
   std::string DumpIr() const override;
 

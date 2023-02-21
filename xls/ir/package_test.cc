@@ -587,5 +587,205 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
                        HasSubstr("Top entity not set for package:")));
 }
 
+TEST_F(PackageTest, LinkFunctionsSimple) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+  )";
+  constexpr std::string_view text2 = R"(
+package my_package2
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret sub.1: bits[32] = sub(x, y)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
+  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  EXPECT_EQ(pkg1->functions().size(), 2);
+  XLS_EXPECT_OK(pkg1->GetFunction("my_function"));
+  XLS_EXPECT_OK(pkg1->GetFunction("my_function_1"));
+}
+
+TEST_F(PackageTest, LinkFunctionsWithInvokes) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret invoke.2: bits[32] = invoke(x, y, to_apply=f)
+}
+  )";
+  constexpr std::string_view text2 = R"(
+package my_package2
+
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret sub.1: bits[32] = sub(x, y)
+}
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret invoke.2: bits[32] = invoke(x, y, to_apply=f)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
+  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+
+  EXPECT_EQ(pkg1->functions().size(), 4);
+  XLS_EXPECT_OK(pkg1->GetFunction("my_function"));
+  XLS_EXPECT_OK(pkg1->GetFunction("my_function_1"));
+  XLS_EXPECT_OK(pkg1->GetFunction("f"));
+  XLS_EXPECT_OK(pkg1->GetFunction("f_1"));
+}
+
+TEST_F(PackageTest, LinkChannelsAndProcs) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+chan test_channel(
+  bits[32], id=0, kind=streaming, ops=send_receive,
+  flow_control=ready_valid, metadata="""""")
+
+top proc main(__token: token, __state: (), init={()}) {
+  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(__token, tuple_index.3, channel_id=0)
+  after_all.5: token = after_all(send.4, tuple_index.2)
+  tuple.6: () = tuple()
+  next (after_all.5, tuple.6)
+}
+  )";
+  constexpr std::string_view text2 = R"(
+package my_package2
+
+chan another_test_channel(
+  bits[32], id=0, kind=streaming, ops=send_receive,
+  flow_control=ready_valid, metadata="""""")
+
+
+top proc another_main(__token: token, __state: (), init={()}) {
+  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(__token, tuple_index.3, channel_id=0)
+  after_all.5: token = after_all(send.4, tuple_index.2)
+  tuple.6: () = tuple()
+  next (after_all.5, tuple.6)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
+  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  EXPECT_EQ(pkg1->channels().size(), 2);
+  EXPECT_EQ(pkg1->procs().size(), 2);
+  XLS_EXPECT_OK(pkg1->GetProc("main"));
+  XLS_EXPECT_OK(pkg1->GetProc("another_main"));
+  XLS_EXPECT_OK(pkg1->GetChannel("test_channel"));
+  XLS_EXPECT_OK(pkg1->GetChannel("another_test_channel"));
+}
+
+TEST_F(PackageTest, LinkChannelsAndProcsWithInvokes) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+chan test_channel(
+  bits[32], id=0, kind=streaming, ops=send_receive,
+  flow_control=ready_valid, metadata="""""")
+
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.15: bits[32] = add(x, y)
+}
+
+top proc main(__token: token, __state: (), init={()}) {
+  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
+  send.5: token = send(__token, invoke.4, channel_id=0)
+  after_all.6: token = after_all(send.5, tuple_index.2)
+  tuple.7: () = tuple()
+  next (after_all.6, tuple.7)
+}
+  )";
+  constexpr std::string_view text2 = R"(
+package my_package2
+
+chan another_test_channel(
+  bits[32], id=0, kind=streaming, ops=send_receive,
+  flow_control=ready_valid, metadata="""""")
+
+fn f(x: bits[32], y: bits[32]) -> bits[32] {
+  ret sub.15: bits[32] = sub(x, y)
+}
+
+top proc another_main(__token: token, __state: (), init={()}) {
+  receive.1: (token, bits[32]) = receive(__token, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  invoke.4: bits[32] = invoke(tuple_index.3, tuple_index.3, to_apply=f)
+  send.5: token = send(__token, invoke.4, channel_id=0)
+  after_all.6: token = after_all(send.5, tuple_index.2)
+  tuple.7: () = tuple()
+  next (after_all.6, tuple.7)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
+  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+
+  EXPECT_EQ(pkg1->channels().size(), 2);
+  EXPECT_EQ(pkg1->procs().size(), 2);
+  EXPECT_EQ(pkg1->functions().size(), 2);
+  XLS_EXPECT_OK(pkg1->GetProc("main"));
+  XLS_EXPECT_OK(pkg1->GetProc("another_main"));
+  XLS_EXPECT_OK(pkg1->GetChannel("test_channel"));
+  XLS_EXPECT_OK(pkg1->GetChannel("another_test_channel"));
+  XLS_EXPECT_OK(pkg1->GetFunction("f"));
+  XLS_EXPECT_OK(pkg1->GetFunction("f_1"));
+}
+
+TEST_F(PackageTest, LinkBlocks) {
+  constexpr std::string_view text1 = R"(
+package my_package
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+  )";
+  constexpr std::string_view text2 = R"(
+package my_package2
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  sub.7: bits[32] = sub(a, b, id=7)
+  out: () = output_port(sub.7, name=out, id=8)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
+  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+
+  std::cout << pkg1->DumpIr();
+
+  EXPECT_EQ(pkg1->blocks().size(), 2);
+  XLS_EXPECT_OK(pkg1->GetBlock("my_block"));
+  XLS_EXPECT_OK(pkg1->GetBlock("my_block_1"));
+}
 }  // namespace
 }  // namespace xls

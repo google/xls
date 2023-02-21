@@ -19,9 +19,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 
@@ -628,12 +628,15 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
-absl::StatusOr<Block*> Block::Clone(std::string_view new_name) const {
+absl::StatusOr<Block*> Block::Clone(std::string_view new_name,
+                                    Package* target_package) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   absl::flat_hash_map<Register*, Register*> register_map;
   absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
 
-  Package* target_package = package();
+  if (target_package == nullptr) {
+    target_package = package();
+  }
 
   Block* cloned_block = target_package->AddBlock(
       std::make_unique<Block>(new_name, target_package));
@@ -646,9 +649,11 @@ absl::StatusOr<Block*> Block::Clone(std::string_view new_name) const {
   }
 
   for (Register* reg : GetRegisters()) {
+    XLS_ASSIGN_OR_RETURN(Type * mapped_type,
+                         target_package->MapTypeFromOtherPackage(reg->type()));
     XLS_ASSIGN_OR_RETURN(
         register_map[reg],
-        cloned_block->AddRegister(reg->name(), reg->type(), reg->reset()));
+        cloned_block->AddRegister(reg->name(), mapped_type, reg->reset()));
   }
 
   for (Instantiation* inst : GetInstantiations()) {
@@ -673,8 +678,11 @@ absl::StatusOr<Block*> Block::Clone(std::string_view new_name) const {
     if (node->Is<InputPort>()) {
       InputPort* src = node->As<InputPort>();
       XLS_ASSIGN_OR_RETURN(
+          Type * mapped_type,
+          target_package->MapTypeFromOtherPackage(src->GetType()));
+      XLS_ASSIGN_OR_RETURN(
           original_to_clone[node],
-          cloned_block->AddInputPort(src->name(), src->GetType(), src->loc()));
+          cloned_block->AddInputPort(src->name(), mapped_type, src->loc()));
     } else if (node->Is<OutputPort>()) {
       OutputPort* src = node->As<OutputPort>();
       XLS_ASSIGN_OR_RETURN(original_to_clone[node],

@@ -14,18 +14,25 @@
 
 #include "xls/ir/package.h"
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/strong_int.h"
 #include "xls/ir/block.h"
+#include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -136,6 +143,196 @@ Proc* Package::AddProc(std::unique_ptr<Proc> proc) {
 Block* Package::AddBlock(std::unique_ptr<Block> block) {
   blocks_.push_back(std::move(block));
   return blocks_.back().get();
+}
+
+// Private helpers for Package::AddPackage().
+namespace {
+// Helper class that tracks names in a package and resolves name collisions.
+class NameCollisionResolver {
+ public:
+  explicit NameCollisionResolver(absl::flat_hash_set<std::string_view> names)
+      : names_(names), name_updates_({}) {}
+
+  const absl::flat_hash_map<std::string, std::string>& name_updates() const {
+    return name_updates_;
+  }
+  const absl::flat_hash_set<std::string_view>& names() const { return names_; }
+
+  bool Collides(std::string_view name) { return names_.contains(name); }
+
+  std::string ResolveName(std::string_view old_name) {
+    if (!Collides(old_name)) {
+      return std::string(old_name);
+    }
+    std::string new_name;
+    int suffix = 1;
+    do {
+      new_name = absl::StrCat(old_name, "_", suffix);
+      ++suffix;
+    } while (Collides(new_name));
+    names_.insert(new_name);
+    name_updates_[old_name] = new_name;
+    return new_name;
+  }
+
+ private:
+  // Set of every name of a function, proc, or block. We'll need to check
+  // for collisions and resolve them.
+  absl::flat_hash_set<std::string_view> names_;
+  absl::flat_hash_map<std::string, std::string> name_updates_;
+};
+
+// Get a set of all names defined within a package.
+absl::flat_hash_set<std::string_view> AllPackageNames(const Package& package) {
+  absl::flat_hash_set<std::string_view> names;
+
+  for (auto& function : package.functions()) {
+    names.insert(function->name());
+  }
+  for (auto& channel : package.channels()) {
+    names.insert(channel->name());
+  }
+  for (auto& proc : package.procs()) {
+    names.insert(proc->name());
+  }
+  for (auto& block : package.blocks()) {
+    names.insert(block->name());
+  }
+
+  return names;
+}
+
+// Adds channels from other_package to this_package, potentially changing the
+// channel id. Returns channels ID mapping from old id -> new id.
+absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
+    Package* this_package, Package* other_package,
+    NameCollisionResolver* name_resolver) {
+  absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
+  // Channels can collide in two ways: by name, and by id. First we resolve name
+  // collisions, and then we call the various Create*Channel() functions, which
+  // will give a new channel id. We keep track of this new id to update
+  // references to it later.
+  for (auto channel : other_package->channels()) {
+    std::string channel_name =
+        name_resolver->ResolveName(std::move(channel->name()));
+    XLS_ASSIGN_OR_RETURN(
+        auto* new_channel_type,
+        this_package->MapTypeFromOtherPackage(channel->type()));
+    switch (channel->kind()) {
+      case ChannelKind::kSingleValue: {
+        XLS_ASSIGN_OR_RETURN(
+            auto new_channel,
+            this_package->CreateSingleValueChannel(
+                std::move(channel_name), channel->supported_ops(),
+                new_channel_type, std::move(channel->metadata())));
+        channel_id_updates[channel->id()] = new_channel->id();
+        break;
+      }
+      case ChannelKind::kStreaming: {
+        auto streaming_channel = dynamic_cast<StreamingChannel*>(channel);
+        if (streaming_channel == nullptr) {
+          return absl::InternalError(
+              absl::StrFormat("Channel %s had kind kStreaming, but could not "
+                              "be cast to StreamingChannel",
+                              channel->name()));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            auto new_channel,
+            this_package->CreateStreamingChannel(
+                std::move(channel_name), channel->supported_ops(),
+                new_channel_type, channel->initial_values(),
+                streaming_channel->GetFifoDepth(),
+                streaming_channel->GetFlowControl(),
+                std::move(channel->metadata())));
+        channel_id_updates[channel->id()] = new_channel->id();
+        break;
+      }
+    }
+  }
+
+  return channel_id_updates;
+}
+
+// Add FunctionBases (function, proc, and block) from other_package to
+// this_package. Assumes channels have already been added.
+absl::StatusOr<absl::flat_hash_map<const FunctionBase*, FunctionBase*>>
+AddFunctionBasesFromPackage(
+    Package* this_package, Package* other_package,
+    NameCollisionResolver* name_resolver,
+    const absl::flat_hash_map<int64_t, int64_t>& channel_remapping) {
+  std::vector<FunctionBase*> other_function_bases =
+      other_package->GetFunctionBases();
+
+  absl::flat_hash_map<const FunctionBase*, FunctionBase*>
+      function_base_remapping;
+  function_base_remapping.reserve(other_function_bases.size());
+
+  // Cloning functions takes a map from const Function*->Function* instead of
+  // FunctionBase. Keeping a separate map up to date in parallel is not ideal,
+  // but better than making a new subset copy for every function.
+  absl::flat_hash_map<const Function*, Function*> function_remapping;
+  function_remapping.reserve(other_package->functions().size());
+
+  for (auto& caller : other_function_bases) {
+    if (function_base_remapping.contains(caller)) {
+      continue;
+    }
+    // GetDependentFunctions() returns a DFS, so no need for more bookkeeping to
+    // make sure we are cloning in dependency order.
+    for (FunctionBase* callee : GetDependentFunctions(caller)) {
+      if (function_base_remapping.contains(callee)) {
+        continue;
+      }
+      // If needed, find a new name for the current callee and clone it into the
+      // current package.
+      std::string new_name = name_resolver->ResolveName(callee->name());
+      if (callee->IsFunction()) {
+        XLS_ASSIGN_OR_RETURN(Function * new_callee,
+                             callee->AsFunctionOrDie()->Clone(
+                                 new_name, this_package, function_remapping));
+        function_base_remapping[callee] = new_callee;
+        function_remapping[callee->AsFunctionOrDie()] = new_callee;
+      } else if (callee->IsProc()) {
+        XLS_ASSIGN_OR_RETURN(Proc * new_callee,
+                             callee->AsProcOrDie()->Clone(
+                                 new_name, this_package, channel_remapping,
+                                 function_base_remapping));
+        function_base_remapping[callee] = new_callee;
+      } else if (callee->IsBlock()) {
+        XLS_ASSIGN_OR_RETURN(Block * new_block, callee->AsBlockOrDie()->Clone(
+                                                    new_name, this_package));
+        function_base_remapping[callee] = new_block;
+      } else {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "FunctionBase %s was not a function, proc, or block.",
+            callee->name()));
+      }
+    }
+  }
+
+  return function_base_remapping;
+}
+}  // namespace
+
+absl::StatusOr<Package::PackageMergeResult> Package::AddPackage(
+    std::unique_ptr<Package> other) {
+  // Helper that keeps track of old -> new name mapping, resolving collisions if
+  // needed.
+  NameCollisionResolver name_resolver(AllPackageNames(*this));
+
+  // First, merge channels.
+  // Returns a mapping of channel ids from old id -> new id
+  XLS_ASSIGN_OR_RETURN(
+      auto channel_id_updates,
+      AddChannelsFromPackage(this, other.get(), &name_resolver));
+
+  // Next, merge in functions, procs, and blocks.
+  XLS_ASSIGN_OR_RETURN(auto call_mapping, AddFunctionBasesFromPackage(
+                                              this, other.get(), &name_resolver,
+                                              channel_id_updates));
+  return Package::PackageMergeResult{
+      .name_updates = name_resolver.name_updates(),
+      .channel_id_updates = std::move(channel_id_updates)};
 }
 
 absl::StatusOr<Function*> Package::GetFunction(

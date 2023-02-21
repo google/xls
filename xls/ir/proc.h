@@ -145,7 +145,9 @@ class Proc : public FunctionBase {
   // `channel_remapping` it is assumed to be the identity mapping at that key.
   absl::StatusOr<Proc*> Clone(
       std::string_view new_name, Package* target_package = nullptr,
-      absl::flat_hash_map<int64_t, int64_t> channel_remapping = {}) const;
+      absl::flat_hash_map<int64_t, int64_t> channel_remapping = {},
+      absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping =
+          {}) const;
 
   std::string DumpIr() const override;
 

@@ -106,6 +106,17 @@ class Package {
   Proc* AddProc(std::unique_ptr<Proc> proc);
   Block* AddBlock(std::unique_ptr<Block> block);
 
+  struct PackageMergeResult {
+    // other package -> this package name mapping (channels, procs, functions,
+    // and blocks)
+    absl::flat_hash_map<std::string, std::string> name_updates;
+    // other package -> this package channel id mapping
+    absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
+  };
+  // Add another package to this package. Ownership is transferred to this
+  // package.
+  absl::StatusOr<PackageMergeResult> AddPackage(std::unique_ptr<Package> other);
+
   // Get a function, proc, or block by name. Returns an error if no such
   // construct of the indicated kind exists with that name.
   absl::StatusOr<Function*> GetFunction(std::string_view func_name) const;
