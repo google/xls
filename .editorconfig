@@ -11,5 +11,8 @@ trim_trailing_whitespace = true
 [*.{h,cc,sh,yml,py}]
 indent_size = 2
 
+[*.tcl]
+indent_size = 4
+
 [BUILD]
 indent_size = 4
