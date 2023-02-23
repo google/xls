@@ -22,6 +22,7 @@ load(
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -73,6 +74,42 @@ synthesize_rtl(
     deps = [
         ":idct_chen_5000ps_model_unit_verilog",
     ],
+)
+
+xls_ir_verilog(
+    name = "idct_chen_13ps_model_unit",
+    src = ":idct_chen.opt.ir",
+    codegen_args = {
+        "delay_model": "unit",
+        "clock_period_ps": "13",
+        "module_name": "idct_chen",
+        "use_system_verilog": "false",
+    },
+    verilog_file = "idct_chen_13ps_model_unit.v",
+)
+
+verilog_library(
+    name = "idct_chen_13ps_model_unit_verilog",
+    srcs = [
+        ":idct_chen_13ps_model_unit.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "idct_chen_13ps_model_unit_verilog_synth_by_stage",
+    synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
+    tags = ["manual"],
+    top_module = "idct_chen",
+    deps = [
+        ":idct_chen_13ps_model_unit_verilog",
+    ],
+)
+
+run_opensta(
+    name = "idct_chen_13ps_model_unit_verilog_sta_by_stage",
+    sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
+    synth_target = ":idct_chen_13ps_model_unit_verilog_synth_by_stage",
 )
 
 xls_dslx_test(

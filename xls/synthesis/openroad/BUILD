@@ -74,3 +74,5 @@ py_test(
         "@com_google_protobuf//:protobuf_python",
     ],
 )
+
+exports_files(["sta_by_stage.tcl"])
