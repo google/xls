@@ -107,7 +107,7 @@ struct ResidualEdge {
 // flow along the edge.
 class ResidualGraph {
  public:
-  ResidualGraph(const Graph& graph) {
+  explicit ResidualGraph(const Graph& graph) {
     // There are exactly twice as many edges in the residual graph because each
     // edge in the original graph maps to a forward and backward edge in the
     // residual graph. The forward edge in the original graph has the same

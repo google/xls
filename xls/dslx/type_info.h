@@ -264,7 +264,7 @@ class TypeInfo {
   //  parent: Type information that should be queried from the same scope (i.e.
   //    if an AST node is not resolved in the local member maps, the lookup is
   //    then performed in the parent, and so on transitively).
-  TypeInfo(Module* module, TypeInfo* parent = nullptr);
+  explicit TypeInfo(Module* module, TypeInfo* parent = nullptr);
 
   // Traverses to the 'root' (AKA 'most parent') TypeInfo. This is a place to
   // stash context-free information (e.g. that is found in a parametric

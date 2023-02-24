@@ -24,7 +24,7 @@ namespace xls::noc {
 class VirtualChannelConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
-  VirtualChannelConfigProtoBuilder(VirtualChannelConfigProto* proto)
+  explicit VirtualChannelConfigProtoBuilder(VirtualChannelConfigProto* proto)
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the virtual channel.

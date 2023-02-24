@@ -25,7 +25,7 @@ namespace xls::noc {
 class RoutingSchemeConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
-  RoutingSchemeConfigProtoBuilder(
+  explicit RoutingSchemeConfigProtoBuilder(
       RouterConfigProto::RoutingSchemeConfigProto* proto)
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 

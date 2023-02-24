@@ -37,7 +37,8 @@ namespace xls {
 // nice area and power consumption optimization.
 class RollIntoProcPass : public ProcPass {
  public:
-  RollIntoProcPass(std::optional<int64_t> unroll_factor = absl::nullopt);
+  explicit RollIntoProcPass(
+      std::optional<int64_t> unroll_factor = absl::nullopt);
   ~RollIntoProcPass() override {}
 
  protected:

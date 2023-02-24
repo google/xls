@@ -30,7 +30,7 @@ namespace xls {
 // this is detected and an error is raised.
 class SchedulingWrapperPass : public SchedulingPass {
  public:
-  SchedulingWrapperPass(std::unique_ptr<Pass> wrapped_pass)
+  explicit SchedulingWrapperPass(std::unique_ptr<Pass> wrapped_pass)
       : SchedulingPass(
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
             absl::StrFormat("%s (scheduling)", wrapped_pass->long_name())),

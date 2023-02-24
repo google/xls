@@ -67,7 +67,7 @@ std::string DumpLlvmModuleToString(const llvm::Module* module) {
 // Used for reporting a bad optimization level specification to LLVM internals.
 class BadOptLevelError : public llvm::ErrorInfo<BadOptLevelError> {
  public:
-  BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
+  explicit BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
 
   void log(llvm::raw_ostream& os) const override {
     os << "Invalid opt level: " << opt_level_;

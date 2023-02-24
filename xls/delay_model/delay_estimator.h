@@ -28,7 +28,7 @@ namespace xls {
 // Abstraction describing a timing model for XLS operations.
 class DelayEstimator {
  public:
-  DelayEstimator(std::string_view name) : name_(name) {}
+  explicit DelayEstimator(std::string_view name) : name_(name) {}
   virtual ~DelayEstimator() = default;
 
   const std::string& name() const { return name_; }

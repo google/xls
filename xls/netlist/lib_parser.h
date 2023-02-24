@@ -110,8 +110,9 @@ class CharStream {
   }
 
  private:
-  CharStream(std::ifstream file_stream) : if_(std::move(file_stream)) {}
-  CharStream(std::string text) : text_(std::move(text)) {}
+  explicit CharStream(std::ifstream file_stream)
+      : if_(std::move(file_stream)) {}
+  explicit CharStream(std::string text) : text_(std::move(text)) {}
 
   void Unget(char c) {
     cursor_--;

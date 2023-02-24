@@ -30,7 +30,7 @@ namespace xls::dslx {
 
 class BytecodeCache : public BytecodeCacheInterface {
  public:
-  BytecodeCache(ImportData* import_data);
+  explicit BytecodeCache(ImportData* import_data);
   absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
       const Function* f, const TypeInfo* type_info,
       const std::optional<ParametricEnv>& caller_bindings) override;

@@ -25,7 +25,7 @@ namespace xls {
 // flattening trees of dependent concats, and others.
 class ConcatSimplificationPass : public FunctionBasePass {
  public:
-  ConcatSimplificationPass(int64_t opt_level = kMaxOptLevel)
+  explicit ConcatSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("concat_simp", "Concat simplification"),
         opt_level_(opt_level) {}
   ~ConcatSimplificationPass() override {}

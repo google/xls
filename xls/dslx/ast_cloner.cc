@@ -35,7 +35,7 @@ namespace xls::dslx {
 
 class AstCloner : public AstNodeVisitor {
  public:
-  AstCloner(Module* module) : module_(module) {}
+  explicit AstCloner(Module* module) : module_(module) {}
 
   absl::Status HandleArray(const Array* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));

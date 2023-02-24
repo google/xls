@@ -220,7 +220,7 @@ class Bytecode {
     std::string ToString() const;
 
    private:
-    MatchArmItem(Kind kind);
+    explicit MatchArmItem(Kind kind);
     MatchArmItem(
         Kind kind,
         std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);

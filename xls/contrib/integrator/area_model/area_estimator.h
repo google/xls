@@ -24,7 +24,7 @@ namespace xls {
 // Abstraction describing an area model for XLS operations.
 class AreaEstimator {
  public:
-  AreaEstimator(const DelayEstimator* delay_estimator)
+  explicit AreaEstimator(const DelayEstimator* delay_estimator)
       : delay_estimator_(delay_estimator) {}
 
   AreaEstimator(const AreaEstimator& other) = delete;

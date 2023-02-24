@@ -50,7 +50,8 @@ class ParametricExpression {
   using EnvValue = std::variant<const ParametricExpression*, InterpValue>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
-  ParametricExpression(std::optional<InterpValue> const_value = absl::nullopt)
+  explicit ParametricExpression(
+      std::optional<InterpValue> const_value = absl::nullopt)
       : const_value_(const_value) {}
   virtual ~ParametricExpression() = default;
 

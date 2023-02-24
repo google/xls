@@ -48,7 +48,7 @@ class Pragma {
  public:
   Pragma(PragmaType type, int64_t argument);
   Pragma(PragmaType type, std::string argument);
-  Pragma(PragmaType type);
+  explicit Pragma(PragmaType type);
   Pragma();
 
   PragmaType type() const;

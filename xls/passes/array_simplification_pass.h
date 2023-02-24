@@ -25,7 +25,7 @@ namespace xls {
 // ArrayIndex.
 class ArraySimplificationPass : public FunctionBasePass {
  public:
-  ArraySimplificationPass(int64_t opt_level = kMaxOptLevel)
+  explicit ArraySimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("array_simp", "Array Simplification"),
         opt_level_(opt_level) {}
 

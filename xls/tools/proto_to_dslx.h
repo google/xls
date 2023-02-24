@@ -45,7 +45,7 @@ class ProtoToDslxManager {
  public:
   // Constructs an instance that will add DSLX definitions to the
   // previously constructed DSLX module.
-  ProtoToDslxManager(dslx::Module* module);
+  explicit ProtoToDslxManager(dslx::Module* module);
 
   ~ProtoToDslxManager();
 

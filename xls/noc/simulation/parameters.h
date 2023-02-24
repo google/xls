@@ -79,7 +79,8 @@ struct VirtualChannelParam {
 // Interface to protos describing a network.
 class NetworkParam {
  public:
-  NetworkParam(const NetworkConfigProto& network) : network_proto_(&network) {}
+  explicit NetworkParam(const NetworkConfigProto& network)
+      : network_proto_(&network) {}
 
   std::string_view GetName() const { return network_proto_->name(); }
 

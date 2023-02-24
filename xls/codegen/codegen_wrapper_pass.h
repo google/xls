@@ -27,7 +27,7 @@ namespace xls::verilog {
 // block being lowered to Verilog.
 class CodegenWrapperPass : public CodegenPass {
  public:
-  CodegenWrapperPass(std::unique_ptr<FunctionBasePass> wrapped_pass)
+  explicit CodegenWrapperPass(std::unique_ptr<FunctionBasePass> wrapped_pass)
       : CodegenPass(absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
                     absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)) {}

@@ -295,7 +295,7 @@ class StructType : public ConcreteType {
 // Represents a tuple type. Tuples have unnamed members.
 class TupleType : public ConcreteType {
  public:
-  TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
+  explicit TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
@@ -531,7 +531,7 @@ class FunctionType : public ConcreteType {
 // type.
 class ChannelType : public ConcreteType {
  public:
-  ChannelType(std::unique_ptr<ConcreteType> payload_type);
+  explicit ChannelType(std::unique_ptr<ConcreteType> payload_type);
   std::string ToString() const override;
   std::string GetDebugTypeName() const override { return "channel"; }
   std::vector<ConcreteTypeDim> GetAllDims() const override;

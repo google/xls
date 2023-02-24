@@ -330,7 +330,7 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s) {
 
 class DfsIteratorNoTypes {
  public:
-  DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
+  explicit DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
 
   bool HasNext() const { return !to_visit_.empty(); }
 

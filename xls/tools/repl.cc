@@ -17,6 +17,7 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -85,7 +86,7 @@ namespace {
 class Trie {
  public:
   Trie() {}
-  Trie(std::vector<std::string> all) {
+  Trie(std::initializer_list<std::string_view> all) {
     for (const auto& string : all) {
       this->Insert(string);
     }
@@ -93,7 +94,7 @@ class Trie {
 
   // Insert the given string into the trie.
   void Insert(std::string_view string) {
-    strings_.push_back(std::string(string));
+    strings_.emplace_back(string);
   }
 
   // Returns all strings that are suffixes of the given query string.
@@ -476,8 +477,8 @@ absl::Status RealMain(std::string_view dslx_path,
   std::cout << "Welcome to XLS. Type :help for help.\n";
 
   globals->dslx_path = dslx_path;
-  globals->command_trie = {{":help", ":quit", ":reload", ":reset", ":ir",
-                            ":verilog", ":llvm", ":type "}};
+  globals->command_trie = Trie{{":help", ":quit", ":reload", ":reset", ":ir",
+                                ":verilog", ":llvm", ":type "}};
 
   XLS_RETURN_IF_ERROR(CommandReload());
 

@@ -26,7 +26,7 @@ namespace xls {
 // add of 0, etc.
 class ArithSimplificationPass : public FunctionBasePass {
  public:
-  ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
+  explicit ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("arith_simp", "Arithmetic Simplifications"),
         opt_level_(opt_level) {}
   ~ArithSimplificationPass() override {}

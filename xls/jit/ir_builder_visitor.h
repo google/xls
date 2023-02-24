@@ -33,7 +33,7 @@ bool ShouldMaterializeAtUse(Node* node);
 // etc.
 class JitBuilderContext {
  public:
-  JitBuilderContext(
+  explicit JitBuilderContext(
       OrcJit& orc_jit,
       std::optional<JitChannelQueueManager*> queue_mgr = std::nullopt)
       : module_(orc_jit.NewModule("__module")),

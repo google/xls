@@ -239,7 +239,7 @@ class CStructType : public CType {
 
 class CInternalTuple : public CType {
  public:
-  CInternalTuple(std::vector<std::shared_ptr<CType>> fields);
+  explicit CInternalTuple(std::vector<std::shared_ptr<CType>> fields);
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -318,7 +318,7 @@ class CArrayType : public CType {
 // Pointer in C/C++
 class CPointerType : public CType {
  public:
-  CPointerType(std::shared_ptr<CType> pointee_type);
+  explicit CPointerType(std::shared_ptr<CType> pointee_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -339,7 +339,7 @@ class CPointerType : public CType {
 // Reference in C/C++
 class CReferenceType : public CType {
  public:
-  CReferenceType(std::shared_ptr<CType> pointee_type);
+  explicit CReferenceType(std::shared_ptr<CType> pointee_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -409,10 +409,10 @@ struct IOChannel;
 class LValue {
  public:
   LValue() : is_null_(true) {}
-  LValue(const clang::Expr* leaf) : leaf_(leaf) {
+  explicit LValue(const clang::Expr* leaf) : leaf_(leaf) {
     XLS_CHECK_NE(leaf_, nullptr);
   }
-  LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
+  explicit LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
@@ -422,8 +422,8 @@ class LValue {
     XLS_CHECK_NE(lvalue_true_.get(), nullptr);
     XLS_CHECK_NE(lvalue_false_.get(), nullptr);
   }
-  LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
-             compound_by_index)
+  explicit LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
+                      compound_by_index)
       : compound_by_index_(compound_by_index) {
     absl::flat_hash_set<int64_t> to_erase;
     for (const auto& [idx, lval] : compound_by_index_) {
