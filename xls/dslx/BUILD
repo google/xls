@@ -175,6 +175,7 @@ cc_library(
         ":interp_value",
         ":interp_value_helpers",
         ":parametric_env",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",

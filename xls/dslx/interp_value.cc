@@ -213,12 +213,11 @@ std::string InterpValue::ToString(bool humanize,
 }
 
 absl::StatusOr<std::string> InterpValue::ToStructString(
-    const StructFormatDescriptor& fmt_desc) const {
+    const StructFormatDescriptor& fmt_desc, int64_t indentation) const {
   if (!IsTuple()) {
     return absl::FailedPreconditionError(
         "Can only format a tuple InterpValue as a struct");
   }
-  std::vector<std::string> pieces = {fmt_desc.struct_name(), "{"};
   const std::vector<InterpValue>& values = GetValuesOrDie();
   if (values.size() != fmt_desc.elements().size()) {
     return absl::InvalidArgumentError(
@@ -226,32 +225,35 @@ absl::StatusOr<std::string> InterpValue::ToStructString(
                         "number of struct formatting elements (%d)",
                         values.size(), fmt_desc.elements().size()));
   }
+  constexpr int64_t kIndentAmount = 2;
+  auto indent = [&](std::string_view s, int64_t i) {
+    return absl::StrFormat("%s%s", std::string(i, ' '), s);
+  };
+  std::vector<std::string> pieces;
   for (int64_t i = 0; i < values.size(); ++i) {
     const InterpValue& e = values.at(i);
     const StructFormatDescriptor::Element& fmt_element =
         fmt_desc.elements().at(i);
-
-    pieces.push_back(fmt_element.field_name);
-    pieces.push_back(": ");
-
+    std::string element;
     if (std::holds_alternative<StructFormatFieldDescriptor>(fmt_element.fmt)) {
       const auto& field =
           std::get<StructFormatFieldDescriptor>(fmt_element.fmt);
-      pieces.push_back(e.ToString(/*humanize=*/false, field.format));
+      element = e.ToString(/*humanize=*/false, field.format);
     } else {
       const auto& substruct_fmt_desc =
           std::get<std::unique_ptr<StructFormatDescriptor>>(fmt_element.fmt);
-      XLS_ASSIGN_OR_RETURN(std::string piece,
-                           e.ToStructString(*substruct_fmt_desc));
-      pieces.push_back(std::move(piece));
+      XLS_ASSIGN_OR_RETURN(
+          element,
+          e.ToStructString(*substruct_fmt_desc, indentation + kIndentAmount));
     }
-
-    if (i + 1 != values.size()) {
-      pieces.push_back(", ");
-    }
+    pieces.push_back(
+        indent(absl::StrFormat("%s: %s", fmt_element.field_name, element),
+               indentation + kIndentAmount));
   }
-  pieces.push_back("}");
-  return absl::StrJoin(pieces, "");
+  std::string prefix = absl::StrFormat("%s {", fmt_desc.struct_name());
+  std::string interior = absl::StrJoin(pieces, ",\n");
+  std::string suffix = indent("}", indentation);
+  return absl::StrJoin({prefix, interior, suffix}, "\n");
 }
 
 bool InterpValue::Eq(const InterpValue& other) const {

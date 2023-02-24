@@ -310,7 +310,7 @@ class InterpValue {
   //
   // Precondition: IsTuple()
   absl::StatusOr<std::string> ToStructString(
-      const StructFormatDescriptor& fmt_desc) const;
+      const StructFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
 
   InterpValueTag tag() const { return tag_; }
 

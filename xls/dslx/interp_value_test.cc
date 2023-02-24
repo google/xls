@@ -194,7 +194,10 @@ TEST(InterpValueTest, FormatFlatStructViaDescriptor) {
       "y", StructFormatFieldDescriptor{FormatPreference::kSignedDecimal}});
   StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
   XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToStructString(fmt_desc));
-  EXPECT_EQ(s, "MyStruct{x: u4:0xf, y: s4:-1}");
+  EXPECT_EQ(s, R"(MyStruct {
+  x: u4:0xf,
+  y: s4:-1
+})");
 }
 
 TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
@@ -222,7 +225,13 @@ TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
                                         std::move(outer_elements)};
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string s, outer.ToStructString(outer_fmt_desc));
-  EXPECT_EQ(s, "OuterStruct{a: InnerStruct{x: u4:0xf, y: s4:-1}, b: u32:42}");
+  EXPECT_EQ(s, R"(OuterStruct {
+  a: InnerStruct {
+    x: u4:0xf,
+    y: s4:-1
+  },
+  b: u32:42
+})");
 }
 
 }  // namespace

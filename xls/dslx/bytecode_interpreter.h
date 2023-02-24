@@ -26,6 +26,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
@@ -82,7 +83,7 @@ using TraceHook = std::function<void(std::string_view)>;
 
 // Trace hook which logs trace messages to INFO.
 inline void InfoLoggingTraceHook(std::string_view entry) {
-  XLS_LOG(INFO) << entry;
+  XLS_LOG_LINES(INFO, entry);
 }
 
 class BytecodeInterpreterOptions {

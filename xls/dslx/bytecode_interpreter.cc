@@ -45,6 +45,10 @@
 
 namespace xls::dslx {
 
+// How much to indent the data value in the trace emitted when sending/receiving
+// over a channel.
+constexpr int64_t kChannelTraceIndentation = 2;
+
 Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
              const TypeInfo* type_info,
              const std::optional<ParametricEnv>& bindings,
@@ -865,11 +869,14 @@ absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
 // Returns the given InterpValue formatted using the given format descriptor (if
 // it is not null).
 static absl::StatusOr<std::string> ToStringMaybeFormatted(
-    const InterpValue& value, const StructFormatDescriptor* struct_fmt_desc) {
+    const InterpValue& value, const StructFormatDescriptor* struct_fmt_desc,
+    int64_t indentation = 0) {
   if (struct_fmt_desc != nullptr) {
-    return value.ToStructString(*struct_fmt_desc);
+    XLS_ASSIGN_OR_RETURN(std::string value_str,
+                         value.ToStructString(*struct_fmt_desc, indentation));
+    return std::string(indentation, ' ') + value_str;
   }
-  return value.ToString(/*humanize=*/false);
+  return std::string(indentation, ' ') + value.ToString(/*humanize=*/false);
 }
 
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
@@ -887,10 +894,11 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
       XLS_ASSIGN_OR_RETURN(
           std::string formatted_data,
           ToStringMaybeFormatted(channel->front(),
-                                 channel_data->struct_fmt_desc()));
-      options_.trace_hook()(absl::StrFormat("Received data on channel `%s`: %s",
-                                            channel_data->channel_name(),
-                                            formatted_data));
+                                 channel_data->struct_fmt_desc(),
+                                 kChannelTraceIndentation));
+      options_.trace_hook()(
+          absl::StrFormat("Received data on channel `%s`:\n%s",
+                          channel_data->channel_name(), formatted_data));
     }
     stack_.push_back(InterpValue::MakeTuple(
         {token, channel->front(), InterpValue::MakeBool(true)}));
@@ -928,10 +936,11 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       XLS_ASSIGN_OR_RETURN(
           std::string formatted_data,
           ToStringMaybeFormatted(channel->front(),
-                                 channel_data->struct_fmt_desc()));
-      options_.trace_hook()(absl::StrFormat("Received data on channel `%s`: %s",
-                                            channel_data->channel_name(),
-                                            formatted_data));
+                                 channel_data->struct_fmt_desc(),
+                                 kChannelTraceIndentation));
+      options_.trace_hook()(
+          absl::StrFormat("Received data on channel `%s`:\n%s",
+                          channel_data->channel_name(), formatted_data));
     }
     stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
     channel->pop_front();
@@ -957,8 +966,9 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
                            bytecode.channel_data());
       XLS_ASSIGN_OR_RETURN(
           std::string formatted_data,
-          ToStringMaybeFormatted(payload, channel_data->struct_fmt_desc()));
-      options_.trace_hook()(absl::StrFormat("Sent data on channel `%s`: %s",
+          ToStringMaybeFormatted(payload, channel_data->struct_fmt_desc(),
+                                 kChannelTraceIndentation));
+      options_.trace_hook()(absl::StrFormat("Sent data on channel `%s`:\n%s",
                                             channel_data->channel_name(),
                                             formatted_data));
     }
