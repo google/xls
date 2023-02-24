@@ -160,11 +160,7 @@ bool ZeroOrSubnormal(T value) {
 template <typename T>
 T FlushSubnormal(T value) {
   if (std::fpclassify(value) == FP_SUBNORMAL) {
-    if (value < 0) {
-      return -0.0;
-    } else {
-      return 0.0;
-    }
+    return (value < 0) ? -0.0 : 0.0;
   }
 
   return value;
