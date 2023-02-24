@@ -15,6 +15,8 @@
 #ifndef XLS_IR_IR_MATCHER_H_
 #define XLS_IR_IR_MATCHER_H_
 
+#include <optional>
+
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
@@ -571,13 +573,16 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 //   m::Channel(/*name=*/"foo");
 //   m::Channel(/*id=*/42);
 //   m::Channel(ChannelKind::kPort);
+//   m::Channel(node->GetType());
+//   m::ChannelWithType("bits[32]");
 //
 class ChannelMatcher
     : public ::testing::MatcherInterface<const ::xls::Channel*> {
  public:
   ChannelMatcher(std::optional<int64_t> id, std::optional<std::string> name,
-                 std::optional<ChannelKind> kind)
-      : id_(id), name_(name), kind_(kind) {}
+                 std::optional<ChannelKind> kind,
+                 std::optional<std::string_view> type_string)
+      : id_(id), name_(name), kind_(kind), type_string_(type_string) {}
 
   bool MatchAndExplain(const ::xls::Channel* channel,
                        ::testing::MatchResultListener* listener) const override;
@@ -588,34 +593,45 @@ class ChannelMatcher
   std::optional<int64_t> id_;
   std::optional<std::string> name_;
   std::optional<ChannelKind> kind_;
+  std::optional<std::string> type_string_;
 };
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel() {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      absl::nullopt, absl::nullopt, absl::nullopt));
+      std::nullopt, std::nullopt, std::nullopt, std::nullopt));
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    std::optional<int64_t> id, std::optional<std::string> name,
-    std::optional<ChannelKind> kind) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ChannelMatcher(id, name, kind));
-}
-
-inline ::testing::Matcher<const ::xls::Channel*> Channel(int64_t id) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ChannelMatcher(id, absl::nullopt, absl::nullopt));
+    std::optional<int64_t> id, std::optional<std::string> name = std::nullopt,
+    std::optional<ChannelKind> kind = std::nullopt,
+    std::optional<const ::xls::Type*> type_ = std::nullopt) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
+      id, name, kind,
+      type_.has_value() ? std::optional(type_.value()->ToString())
+                        : std::nullopt));
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(
     std::string_view name) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      absl::nullopt, std::string{name}, absl::nullopt));
+      std::nullopt, std::string{name}, std::nullopt, std::nullopt));
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(ChannelKind kind) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
-      absl::nullopt, absl::nullopt, kind));
+      std::nullopt, std::nullopt, kind, std::nullopt));
+}
+
+inline ::testing::Matcher<const ::xls::Channel*> Channel(
+    const ::xls::Type* type_) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
+      std::nullopt, std::nullopt, std::nullopt, type_->ToString()));
+}
+
+inline ::testing::Matcher<const ::xls::Channel*> ChannelWithType(
+    std::string_view type_string) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
+      std::nullopt, std::nullopt, std::nullopt, type_string));
 }
 
 // Abstract base class for matchers of nodes which use channels.

@@ -345,12 +345,14 @@ TEST(IrMatchersTest, SendOps) {
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
   EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
                                    m::Channel(42)));
+  EXPECT_THAT(send.node(), m::Send(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(send_if.node(), m::Send());
   EXPECT_THAT(send_if.node(), m::Send(m::Channel(123)));
   EXPECT_THAT(send_if.node(),
               m::Send(m::Name("my_token"), {m::Name("my_state")}, m::Literal(),
                       m::Channel(123)));
+  EXPECT_THAT(send_if.node(), m::Send(m::ChannelWithType("bits[32]")));
 }
 
 TEST(IrMatchersTest, ReceiveOps) {
@@ -384,6 +386,7 @@ TEST(IrMatchersTest, ReceiveOps) {
               m::Receive(m::Name("my_token"), m::Channel("ch42")));
   EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
                                          m::Channel(ChannelKind::kStreaming)));
+  EXPECT_THAT(receive.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(receive_if.node(), m::Receive());
   EXPECT_THAT(receive_if.node(), m::Receive(m::Channel(123)));
@@ -391,6 +394,7 @@ TEST(IrMatchersTest, ReceiveOps) {
                                             m::Channel("ch123")));
   EXPECT_THAT(receive_if.node(),
               m::Receive(m::Channel(ChannelKind::kStreaming)));
+  EXPECT_THAT(receive_if.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   // Mismatch conditions.
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),
@@ -401,6 +405,9 @@ TEST(IrMatchersTest, ReceiveOps) {
       Explain(receive.node(),
               m::Receive(m::Channel(ChannelKind::kSingleValue))),
       HasSubstr(" has incorrect kind (streaming), expected: single_value"));
+  EXPECT_THAT(
+      Explain(receive.node(), m::Receive(m::ChannelWithType("bits[64]"))),
+      HasSubstr(" has incorrect type (bits[32]), expected: bits[64]"));
 }
 
 TEST(IrMatchersTest, PortMatcher) {

@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "absl/strings/str_join.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 
 namespace xls {
 namespace op_matchers {
@@ -24,7 +25,7 @@ namespace op_matchers {
 bool ChannelMatcher::MatchAndExplain(
     const ::xls::Channel* channel,
     ::testing::MatchResultListener* listener) const {
-  if (!channel) {
+  if (channel == nullptr) {
     return false;
   }
   *listener << channel->ToString();
@@ -44,6 +45,13 @@ bool ChannelMatcher::MatchAndExplain(
     *listener << absl::StreamFormat(" has incorrect kind (%s), expected: %s",
                                     ChannelKindToString(channel->kind()),
                                     ChannelKindToString(kind_.value()));
+    return false;
+  }
+  if (type_string_.has_value() &&
+      channel->type()->ToString() != type_string_.value()) {
+    *listener << absl::StreamFormat(" has incorrect type (%s), expected: %s",
+                                    channel->type()->ToString(),
+                                    type_string_.value());
     return false;
   }
   return true;
