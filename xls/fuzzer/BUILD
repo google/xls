@@ -545,6 +545,33 @@ cc_library(
 )
 
 cc_library(
+    name = "dslx_mutator",
+    srcs = ["dslx_mutator.cc"],
+    hdrs = ["dslx_mutator.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx:scanner",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "dslx_mutator_test",
+    srcs = ["dslx_mutator_test.cc"],
+    deps = [
+        ":dslx_mutator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:mock_distributions",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "scrub_crasher",
     srcs = ["scrub_crasher.cc"],
     hdrs = ["scrub_crasher.h"],
