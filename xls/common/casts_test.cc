@@ -31,7 +31,7 @@ class Base {
   // It's important to have at least one virtual function in the base
   // class; otherwise down_cast, which uses dynamic_cast in a debug
   // build, won't work with it.
-  virtual ~Base() {}
+  virtual ~Base() = default;
 };
 
 // A class derived from Base.

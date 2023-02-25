@@ -101,7 +101,7 @@ struct PartialLineSpans {
 // accepts a `LineInfo*` can safely accept a `nullptr`.
 class LineInfo {
  public:
-  LineInfo() {}
+  LineInfo() = default;
 
   // Start recording a region in which the given node is active.
   // CHECK fails if called multiple times with no intervening `End` calls.

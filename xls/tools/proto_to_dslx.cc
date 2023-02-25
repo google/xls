@@ -936,7 +936,7 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
 ProtoToDslxManager::ProtoToDslxManager(dslx::Module* module)
     : module_(module) {}
 
-ProtoToDslxManager::~ProtoToDslxManager() {}
+ProtoToDslxManager::~ProtoToDslxManager() = default;
 
 absl::Status ProtoToDslxManager::AddProtoInstantiationToDslxModule(
     std::string_view binding_name, const Message& message) {
