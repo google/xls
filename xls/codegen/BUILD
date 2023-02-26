@@ -16,6 +16,7 @@
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )

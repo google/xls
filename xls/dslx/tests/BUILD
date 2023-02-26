@@ -27,6 +27,7 @@ load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
