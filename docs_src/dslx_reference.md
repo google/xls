@@ -239,8 +239,6 @@ The most fundamental type in DSLX is a variable length bit type denoted as
 `bits[n]`, where `n` is a constant. For example:
 
 ```
-bits[0]   // possible, but, don't do that
-
 bits[1]   // a single bit
 uN[1]     // explicitly noting single bit is unsigned
 u1        // convenient shorthand for bits[1]
@@ -250,6 +248,8 @@ u8        // convenient shorthand for bits[8]
 bits[32]  // a 32-bit datatype
 u32       // convenient shorthand for bits[32]
 bits[256] // a 256-bit datatype
+
+bits[0]   // possible, but, don't do that
 ```
 
 DSLX introduces aliases for commonly used types, such as `u8` for an 8-wide bit
@@ -260,9 +260,6 @@ Signed integers are specified via `s*` and `sN[*]`. Similarly to unsigned
 numbers, the `s*` shorthands are defined up to `s64`. For example:
 
 ```
-sN[0]
-s0
-
 sN[1]
 s1
 
@@ -270,10 +267,26 @@ sN[64]
 s64
 
 sN[256]
+
+sN[0]
+s0
 ```
 
 Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.
+
+#### Bit Type Attributes
+
+Bit types have helpful type-level attributes that provide limit values, similar
+to `std::numeric_limits` in C++. For example:
+
+```dslx-snippet
+u3::MAX   // u3:0b111 the "fill with ones" value
+s3::MAX   // s3:0b011 the "maximum signed" value
+
+u3::ZERO  // u3:0b000 the "fill with zeros" value
+s3::ZERO  // s3:0b000 the "fill with zeros" value
+```
 
 #### Character Constants
 

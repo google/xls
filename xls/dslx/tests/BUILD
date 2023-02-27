@@ -71,6 +71,11 @@ dslx_lang_test(
     dslx_deps = [":number_of_imported_type_import_dslx"],
 )
 
+dslx_lang_test(
+    name = "builtin_type_zero",
+    dslx_deps = [":number_of_imported_type_import_dslx"],
+)
+
 dslx_lang_test(name = "fallible_constexpr")
 
 dslx_lang_test(name = "comments")

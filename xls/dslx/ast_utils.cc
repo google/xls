@@ -327,19 +327,22 @@ absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node) {
 
 absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
     const BuiltinNameDef* builtin_name_def, std::string_view attr) {
-  // We only support MAX on builtin types at the moment -- this is checked
-  // during typechecking.
-  if (attr != "MAX") {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Invalid attribute of builtin name %s: %s",
-                        builtin_name_def->identifier(), attr));
-  }
   const auto& sized_type_keywords = GetSizedTypeKeywordsMetadata();
   auto it = sized_type_keywords.find(builtin_name_def->identifier());
   // We should have checked this was a valid type keyword in typechecking.
   XLS_RET_CHECK(it != sized_type_keywords.end());
   auto [is_signed, width] = it->second;
-  return InterpValue::MakeMaxValue(is_signed, width);
+  if (attr == "ZERO") {
+    return InterpValue::MakeZeroValue(is_signed, width);
+  }
+  if (attr == "MAX") {
+    return InterpValue::MakeMaxValue(is_signed, width);
+  }
+  // We only support the above attributes on builtin types at the moment -- this
+  // is checked during typechecking.
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid attribute of builtin name %s: %s",
+                      builtin_name_def->identifier(), attr));
 }
 
 absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
@@ -365,11 +368,14 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
           "Can only take '::' attributes of uN/sN/bits array types.");
   }
 
-  if (attr != "MAX") {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Invalid attribute of builtin array type: %s", attr));
+  if (attr == "ZERO") {
+    return InterpValue::MakeZeroValue(is_signed, constexpr_dim);
   }
-  return InterpValue::MakeMaxValue(is_signed, constexpr_dim);
+  if (attr == "MAX") {
+    return InterpValue::MakeMaxValue(is_signed, constexpr_dim);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid attribute of builtin array type: %s", attr));
 }
 
 }  // namespace xls::dslx

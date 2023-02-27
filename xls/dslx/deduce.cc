@@ -1138,6 +1138,9 @@ DeduceColonRefToBuiltinNameDef(BuiltinNameDef* builtin_name_def,
     if (node->attr() == "MAX") {
       return std::make_unique<BitsType>(is_signed, size);
     }
+    if (node->attr() == "ZERO") {
+      return std::make_unique<BitsType>(is_signed, size);
+    }
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Builtin type '%s' does not have attribute '%s'.",
@@ -1160,7 +1163,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToArrayType(
                         "'::' attributes",
                         resolved->ToString()));
   }
-  if (node->attr() != "MAX") {
+  if (node->attr() != "MAX" && node->attr() != "ZERO") {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Type '%s' does not have attribute '%s'.",

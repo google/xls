@@ -1506,14 +1506,16 @@ fn main() {
                        HasSubstr("uN[20] vs uN[10]")));
 }
 
-TEST(TypecheckTest, MaxViaColonRef) {
+TEST(TypecheckTest, AttrViaColonRef) {
+  XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::ZERO }"));
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MAX }"));
 }
 
-TEST(TypecheckTest, MaxViaColonRefTypeAlias) {
+TEST(TypecheckTest, ColonRefTypeAlias) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU8 = u8;
 fn f() -> u8 { MyU8::MAX }
+fn g() -> u8 { MyU8::ZERO }
 )"));
 }
 
@@ -1521,6 +1523,13 @@ TEST(TypecheckTest, MaxAttrUsedToDefineAType) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyU255 = uN[u8::MAX as u32];
 fn f() -> MyU255 { uN[255]:42 }
+)"));
+}
+
+TEST(TypecheckTest, ZeroAttrUsedToDefineAType) {
+  XLS_EXPECT_OK(Typecheck(R"(
+type MyU0 = uN[u8::ZERO as u32];
+fn f() -> MyU0 { bits[0]:0 }
 )"));
 }
 

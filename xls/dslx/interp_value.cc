@@ -99,6 +99,13 @@ std::string TagToString(InterpValueTag tag) {
                      UBits(value, /*bit_count=*/bit_count)};
 }
 
+/* static */ InterpValue InterpValue::MakeZeroValue(bool is_signed,
+                                                    int64_t bit_count) {
+  return InterpValue{
+      is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits,
+      Bits(bit_count)};
+}
+
 /* static */ InterpValue InterpValue::MakeMaxValue(bool is_signed,
                                                    int64_t bit_count) {
   auto bits = Bits::AllOnes(bit_count);
