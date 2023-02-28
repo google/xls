@@ -22,6 +22,7 @@ load("@rules_hdl//:init.bzl", rules_hdl_init = "init")
 load("@rules_python//python:pip.bzl", "pip_install")
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
+load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
 
 def initialize_external_repositories():
     """Calls set-up methods for external repositories that require that."""
@@ -39,3 +40,4 @@ def initialize_external_repositories():
     )
     initialize_boost()
     initialize_llvm()
+    bazel_compdb_deps()

@@ -211,3 +211,12 @@ Performs terminal-based color code highlighting of a DSL file.
 ## [`dslx/typecheck_main`](https://github.com/google/xls/tree/main/xls/dslx/typecheck_main.cc)
 
 Dumps type information that has been deduced for a given DSL file.
+
+## Development Tools
+
+For C++ development, you might need a compilation database to have good support
+in your IDE. You can create the `compile_commands.json` by running this script.
+
+```
+build_scripts/make-compilation-db.sh
+```
