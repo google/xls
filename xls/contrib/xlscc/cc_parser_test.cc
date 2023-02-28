@@ -361,4 +361,59 @@ TEST_F(CCParserTest, PragmaZeroExtend) {
   ASSERT_EQ(pragma.type(), xlscc::Pragma_ArrayAllowDefaultPad);
 }
 
+TEST_F(CCParserTest, ChannelRead) {
+  xlscc::CCParser parser;
+  constexpr std::string_view cpp_src = R"(
+    #pragma hls_top
+    int foo(__xls_channel<int>& chan) {
+      return chan.read();
+    }
+  )";
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+}
+
+TEST_F(CCParserTest, ChannelWrite) {
+  xlscc::CCParser parser;
+  constexpr std::string_view cpp_src = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int>& chan, int value) {
+      chan.write(value);
+      return;
+    }
+  )";
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+}
+
+TEST_F(CCParserTest, MemoryRead) {
+  xlscc::CCParser parser;
+  constexpr std::string_view cpp_src = R"(
+    #pragma hls_top
+    int foo(const __xls_memory<int, 1024>& mem) {
+      return mem[0] + mem.read(1);
+    }
+  )";
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+}
+
+TEST_F(CCParserTest, MemoryWrite) {
+  xlscc::CCParser parser;
+  constexpr std::string_view cpp_src = R"(
+    #pragma hls_top
+    void foo(__xls_memory<int, 1024>& mem, int value) {
+      mem[0] = value;
+      mem.write(3, value);
+      return;
+    }
+  )";
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+}
+
 }  // namespace

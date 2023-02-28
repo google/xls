@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <vector>
+
 #include "absl/status/status.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
@@ -277,15 +279,34 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       const clang::Expr* assign_ret_value_to = nullptr;
 
       if (op_name == "read") {
-        if (call->getNumArgs() == 1) {
-          assign_ret_value_to = call->getArg(0);
-        } else if (call->getNumArgs() != 0) {
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "IO read() should have one or zero argument(s)"));
+        if (channel->memory_size <= 0) {  // channel read()
+          if (call->getNumArgs() == 1) {
+            assign_ret_value_to = call->getArg(0);
+          } else if (call->getNumArgs() != 0) {
+            return absl::UnimplementedError(ErrorMessage(
+                loc, "IO read() should have one or zero argument(s)"));
+          }
+          op.op = OpType::kRecv;
+          op.ret_value = op_condition;
+          op.is_blocking = true;
+        } else {  // memory read(addr)
+          if (call->getNumArgs() == 1) {
+            assign_ret_value_to = call->getArg(0);
+          } else {
+            return absl::UnimplementedError(
+                ErrorMessage(loc, "Memory read() should have one argument"));
+          }
+          XLS_ASSIGN_OR_RETURN(CValue addr_val_unconverted,
+                               GenerateIR_Expr(call->getArg(0), loc));
+          XLS_ASSIGN_OR_RETURN(
+              xls::BValue addr_val,
+              GenTypeConvert(
+                  addr_val_unconverted,
+                  CChannelType::MemoryAddressType(channel->memory_size), loc));
+          op.op = OpType::kRead;
+          op.ret_value = context().fb->Tuple({addr_val, op_condition}, loc);
+          op.is_blocking = true;
         }
-        op.op = OpType::kRecv;
-        op.ret_value = op_condition;
-        op.is_blocking = true;
       } else if (op_name == "nb_read") {
         if (call->getNumArgs() != 1) {
           return absl::UnimplementedError(
@@ -296,18 +317,42 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         op.ret_value = op_condition;
         op.is_blocking = false;
       } else if (op_name == "write") {
-        if (call->getNumArgs() != 1) {
-          return absl::UnimplementedError(
-              ErrorMessage(loc, "IO write() should have one argument"));
+        if (channel->memory_size <= 0) {  // channel write()
+          if (call->getNumArgs() != 1) {
+            return absl::UnimplementedError(
+                ErrorMessage(loc, "IO write() should have one argument"));
+          }
+
+          XLS_ASSIGN_OR_RETURN(CValue out_val,
+                               GenerateIR_Expr(call->getArg(0), loc));
+
+          std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
+          op.ret_value = context().fb->Tuple(sp, loc);
+          op.op = OpType::kSend;
+          op.is_blocking = true;
+        } else {  // memory write(addr, value)
+          if (call->getNumArgs() != 2) {
+            return absl::UnimplementedError(
+                ErrorMessage(loc, "Memory write() should have two arguments"));
+          }
+
+          XLS_ASSIGN_OR_RETURN(CValue addr_val_unconverted,
+                               GenerateIR_Expr(call->getArg(0), loc));
+          XLS_ASSIGN_OR_RETURN(
+              xls::BValue addr_val,
+              GenTypeConvert(
+                  addr_val_unconverted,
+                  CChannelType::MemoryAddressType(channel->memory_size), loc));
+          XLS_ASSIGN_OR_RETURN(CValue data_val,
+                               GenerateIR_Expr(call->getArg(1), loc));
+          auto addr_val_tup =
+              context().fb->Tuple({addr_val, data_val.rvalue()}, loc);
+
+          std::vector<xls::BValue> sp = {addr_val_tup, op_condition};
+          op.ret_value = context().fb->Tuple(sp, loc);
+          op.op = OpType::kWrite;
+          op.is_blocking = true;
         }
-
-        XLS_ASSIGN_OR_RETURN(CValue out_val,
-                             GenerateIR_Expr(call->getArg(0), loc));
-
-        std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
-        op.op = OpType::kSend;
-        op.is_blocking = true;
       } else {
         return absl::UnimplementedError(
             ErrorMessage(loc, "Unsupported IO op: %s", op_name));

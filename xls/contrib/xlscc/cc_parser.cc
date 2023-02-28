@@ -475,6 +475,12 @@ class __xls_memory {
   T operator[](long long int addr)const {
     return T();
   }
+  void write(long long int addr, const T& value) {
+    return;
+  }
+  T read(long long int addr) const {
+    return T();
+  }
 };
 
 

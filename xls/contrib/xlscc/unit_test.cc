@@ -383,7 +383,7 @@ absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
   return block_spec_;
 }
 
-void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
+void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            std::list<IOOpTest> outputs,
                            absl::flat_hash_map<std::string, xls::Value> args) {
   xlscc::GeneratedFunction* func;
