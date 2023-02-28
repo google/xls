@@ -271,10 +271,14 @@ higher, and the assembly is dumped at level 3 or higher. For example:
 ```
 
 Extract the unoptimized LLVM IR to file to enable working with it in isolation.
-Copy the text from `Optimized module IR:` to `Generated ASM:` into `sample.ll`.
-Execute the following command to remove the logging prefix text.
+Copy the text following `Unoptimized module IR:` or `Optimized module IR:`
+depending upon whether or not the unoptimized or optimized IR is desired. Copy
+into `sample.ll`. Execute the following command to remove the logging prefix
+text.
+
 ```
-  sed -i 's/^.*\] //g' sample.ll```
+sed -i 's/^.*\] //g' sample.ll
+```
 
 ##### Building LLVM tools
 
@@ -286,9 +290,10 @@ The various LLVM tools such as `opt` and `lli` can be built with:
 
 Build in fastbuild mode to get checks and debug features in LLVM.
 
-##### Isolating the bug
+##### Running the LLVM optimization passes
 
-To inspect the optimized LLVM IR, run:
+To run the LLVM IR optimizer run the following (starting with the *unoptimized*
+IR):
 
 ```
   opt sample.ll -O3 -S
@@ -300,7 +305,7 @@ To print the IR before and after each pass:
  opt sample.ll -S -print-after-all -print-before-all -O3
 ```
 
-##### Instcombine
+##### Running the Instcombine pass
 
 Instcombine is an LLVM optimization pass which is a common source of bugs in
 code generated from XLS. To run instcombine alone:
@@ -332,20 +337,20 @@ The LLVM tool `opt` optimizes the LLVM IR and can be piped to `lli` like so:
   opt sample.ll --O2 | lli
 ```
 
-##### Building LLVM at head
+##### Running LLVM code generation
 
-Although the internal Google mirror of LLVM is updated frequently, prior to
-filing an LLVM bug it's a good idea to verify the failure against LLVM head.
-Steps to build:
+If the bug occurs during LLVM code generation (lowering of LLVM IR to object
+code) the LLVM tool `llc` may be used to reproduce the problem. `llc` takes LLVM
+IR and produces assembly or object code. Example invocation for producing object
+code:
 
 ```
-git clone https://github.com/llvm/llvm-project.git
-cd llvm
-mkdir build
-cd build
-cmake -G Ninja ../llvm/
-cmake --build . -- opt
+llc sample.ll -o sample.o --filetype=obj
 ```
+
+The exact output of `llc` depends on the target machine used during compilation.
+Logging in the OrcJit (at vlog level 1) will emit the exact `llc` invocation
+which uses the same target machine as the JIT.
 
 ### Result miscomparison: simulated Verilog
 
@@ -367,3 +372,57 @@ help isolate the problem:
 
 The tool outputs the results of the evaluation to stdout so diffing their
 outputs is required.
+
+### Filing an LLVM bug
+
+If the fuzzer problem is due to a crash or miscompile by LLVM, file an LLVM bug
+[here](https://github.com/llvm/llvm-project/issues).
+[This](https://github.com/llvm/llvm-project/issues/61038) is an example LLVM bug
+found by the fuzzer.
+
+Although the internal Google mirror of LLVM is updated frequently, prior to
+filing an LLVM bug it's a good idea to verify the failure against LLVM head.
+Steps to build LLVM:
+
+```
+git clone https://github.com/llvm/llvm-project.git
+cd llvm-project
+mkdir build
+cd build
+cmake -G Ninja ../llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86
+cmake --build . -- opt # or llc or other target.
+```
+
+LLVM includes a test case minimizer called
+[`bugpoint`](https://llvm.org/docs/Bugpoint.html) which tries to reduce the size
+of an LLVM IR test case. `bugpoint` has many options but it can operate in a
+similar manner to the XLS IR minimizer where a user-specified script is used to
+determine whether the bug exists in the LLVM IR:
+
+```
+bugpoint input.ll -compile-custom -compile-command bugpoint_test.sh
+```
+
+Example bugpoint test script (`bugpoint_test.sh`):
+
+```shell
+#!/bin/bash
+
+# Create a temporary file for the test command
+logfile="$(mktemp)"
+
+# Run your test command (and redirect the output messages)
+/path/to/llc "$@" -o /tmp/out.o -mcpu=skylake-avx512 --filetype=obj > "${logfile}" 2>&1
+ret="$?"
+
+# Print messages when error occurs
+if [ "${ret}" != 0 ]; then
+  echo "test failed"  # must print something on failure
+  cat "${logfile}"
+fi
+
+# Cleanup the temporary file
+rm "${logfile}"
+
+exit "${ret}"
+```
