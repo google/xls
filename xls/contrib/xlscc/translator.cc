@@ -528,6 +528,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
           new_channel.item_type = channel_type->GetItemType();
           new_channel.unique_name = field->name()->getNameAsString();
+          new_channel.memory_size = channel_type->GetMemorySize();
 
           lval =
               std::make_shared<LValue>(AddChannel(field->name(), new_channel));
@@ -2702,12 +2703,18 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     switch (side_effecting_param.type) {
       case SideEffectingParameterType::kIOOp: {
         IOOp* callee_op = side_effecting_param.io_op;
-        XLSCC_CHECK(callee_op->op == OpType::kRecv, loc);
+        XLSCC_CHECK(callee_op->op == OpType::kRecv ||
+                        callee_op->op == OpType::kRead ||
+                        callee_op->op == OpType::kWrite,
+                    loc);
         auto range = caller_ops_by_callee_op.equal_range(callee_op);
         for (auto caller_it = range.first; caller_it != range.second;
              ++caller_it) {
           IOOp* caller_op = caller_it->second;
-          XLSCC_CHECK(caller_op->op == OpType::kRecv, loc);
+          XLSCC_CHECK(caller_op->op == OpType::kRecv ||
+                          callee_op->op == OpType::kRead ||
+                          callee_op->op == OpType::kWrite,
+                      loc);
           XLSCC_CHECK(caller_op->input_value.rvalue().valid(), loc);
           auto args_val = caller_op->input_value.rvalue();
           if (!callee_op->is_blocking) {

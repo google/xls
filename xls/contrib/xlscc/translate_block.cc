@@ -343,25 +343,37 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 
     if (auto channel_type =
             std::dynamic_pointer_cast<CChannelType>(field->type())) {
-      if (channel_type->GetOpType() == OpType::kNull) {
-        return absl::InvalidArgumentError(
-            ErrorMessage(GetLoc(*field->name()),
-                         "Direction unspecified for external channel %s",
-                         field->name()->getNameAsString().c_str()));
+      if (channel_type->GetOpType() != OpType::kNull) {
+        xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
+        channel_spec->set_name(field->name()->getNameAsString());
+        channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
+        channel_spec->set_type(xlscc::FIFO);
+        channel_spec->set_is_input(channel_type->GetOpType() == OpType::kRecv);
+
+        ExternalChannelInfo channel_info = {
+            .decl = field->name(),
+            .channel_type = channel_type,
+            .interface_type = InterfaceType::kFIFO,
+            .is_input = channel_type->GetOpType() == OpType::kRecv};
+        top_decls.push_back(channel_info);
+      } else if (channel_type->GetMemorySize() > 0) {
+        xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
+        channel_spec->set_name(field->name()->getNameAsString());
+        channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
+        channel_spec->set_type(xlscc::MEMORY);
+        channel_spec->set_depth(channel_type->GetMemorySize());
+
+        ExternalChannelInfo channel_info = {
+            .decl = field->name(),
+            .channel_type = channel_type,
+            .interface_type = InterfaceType::kMemory};
+        top_decls.push_back(channel_info);
+      } else {
+        return absl::InvalidArgumentError(ErrorMessage(
+            GetLoc(*field->name()),
+            "Direction or depth unspecified for external channel or memory %s",
+            field->name()->getNameAsString().c_str()));
       }
-
-      xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
-      channel_spec->set_name(field->name()->getNameAsString());
-      channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
-      channel_spec->set_type(xlscc::FIFO);
-      channel_spec->set_is_input(channel_type->GetOpType() == OpType::kRecv);
-
-      ExternalChannelInfo channel_info = {
-          .decl = field->name(),
-          .channel_type = channel_type,
-          .interface_type = InterfaceType::kFIFO,
-          .is_input = channel_type->GetOpType() == OpType::kRecv};
-      top_decls.push_back(channel_info);
     } else if (auto channel_type =
                    std::dynamic_pointer_cast<CReferenceType>(field->type())) {
       xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();

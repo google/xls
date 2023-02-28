@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -2563,14 +2564,38 @@ TEST_F(TranslatorProcTest, IOProcClass) {
   inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
                   xls::Value(xls::SBits(10, 32))};
 
-  {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(15, 64)),
-                      xls::Value(xls::SBits(21, 64)),
-                      xls::Value(xls::SBits(30, 64))};
-    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-             /* min_ticks = */ 3);
-  }
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(15, 64)),
+                    xls::Value(xls::SBits(21, 64)),
+                    xls::Value(xls::SBits(30, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  const std::string ref_meta_str = R"(
+    channels 	 {
+      name: "in"
+      is_input: true
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out"
+      is_input: false
+      type: FIFO
+      width_in_bits: 64
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorProcTest, IOProcClassStructData) {
@@ -2948,12 +2973,35 @@ TEST_F(TranslatorProcTest, IOProcClassSubClass) {
   inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
                   xls::Value(xls::SBits(10, 32))};
 
-  {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(5 * 7 * 10, 64))};
-    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
-             /* min_ticks = */ 3);
-  }
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 * 7 * 10, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+  const std::string ref_meta_str = R"(
+    channels 	 {
+      name: "in"
+      is_input: true
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out"
+      is_input: false
+      type: FIFO
+      width_in_bits: 64
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
 TEST_F(TranslatorProcTest, IOProcClassSubClass2) {
