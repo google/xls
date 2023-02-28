@@ -124,8 +124,7 @@ fi
 : > "${FILE_HASHES_TO_PROCESS}"
 
 # All the files we want to run clang-tidy on: *.cc and *.h
-find . -name "*.cc" -or -name "*.h" \
-  | sed 's|^\./||' > "${FILES_OF_INTEREST}"
+find xls -name "*.cc" -or -name "*.h" > "${FILES_OF_INTEREST}"
 
 # Changing a header should also process all files depending on it.
 # We can't do full C-preprocessing as we don't have all -I available, so
