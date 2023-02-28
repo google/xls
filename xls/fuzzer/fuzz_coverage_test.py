@@ -123,10 +123,15 @@ class FuzzCoverageTest(test_base.TestCase):
     crasher_path = self._create_tempdir()
     summaries_path = self._create_tempdir()
     subprocess.check_call([
-        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=100', '--summary_path=' + summaries_path,
-        '--calls_per_sample=1', '--worker_count=4',
-        '--max_width_bits_types=256', '--max_width_aggregate_types=1024'
+        RUN_FUZZ_MULTIPROCESS_PATH,
+        '--seed=42',
+        '--crash_path=' + crasher_path,
+        '--sample_count=1000',
+        '--summary_path=' + summaries_path,
+        '--calls_per_sample=1',
+        '--worker_count=4',
+        '--max_width_bits_types=256',
+        '--max_width_aggregate_types=1024'
     ])
     summary = self._read_summaries(summaries_path)
     # Verify the type widths are within limits and some large types are

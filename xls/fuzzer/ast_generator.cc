@@ -2128,11 +2128,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
     XLS_LOG(FATAL) << "Invalid kind: " << kind;
   };
 
-  std::vector<UnopBuiltin> choices = {kClz, kCtz, kRev};
-  // Since one_hot adds a bit, only use it when we have head room beneath
-  // max_width_bits_types to add another bit.
+  std::vector<UnopBuiltin> choices = {kRev};
+  // Since one_hot, clz, and ctz adds a bit, only use it when we have head room
+  // beneath max_width_bits_types to add another bit.
   if (GetTypeBitCount(arg.type) < options_.max_width_bits_types) {
     choices.push_back(kOneHot);
+    choices.push_back(kClz);
+    choices.push_back(kCtz);
   }
 
   Invocation* invocation = nullptr;
