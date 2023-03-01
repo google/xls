@@ -28,6 +28,7 @@ set -u
 readonly PROJECT_NAME=xls               # To assemble name inside ${CACHE_DIR}
 readonly EXIT_CODE_ON_WARNINGS=1        # Should fail on warnings found ?
 readonly CLANG_CONFIG_FILE=.clang-tidy  # config file used
+EMIT_DETAILED_FINDINGS="${EMIT_DETAILED_FINDINGS:-0}" # default 0 until few msg
 
 if [ ! -f WORKSPACE ]; then
   echo "This script needs to be invoked in the root of the bazel project"
@@ -112,7 +113,9 @@ fi
 : > "${FILE_HASHES_TO_PROCESS}"
 
 # All the files we want to run clang-tidy on: *.cc and *.h
-find xls -name "*.cc" -or -name "*.h" > "${FILES_OF_INTEREST}"
+find xls -name "*.cc" -or -name "*.h" \
+  | grep -v xlscc/examples \
+  > "${FILES_OF_INTEREST}"
 
 # Changing a header should also process all files depending on it.
 # We can't do full C-preprocessing as we don't have all -I available, so
@@ -190,12 +193,14 @@ ln -sf "${TIDY_OUT}" "${CURRENT_TIDY_OUT}"  # Convenience location
 if [ -s "${TIDY_OUT}" ]; then
   EXIT_CODE="${EXIT_CODE_ON_WARNINGS}"
   echo "::warning::There were clang-tidy warnings. Please fix."
-  echo "::group::clang-tidy detailed output"
-  cat "${TIDY_OUT}"
-  echo "Find this output in ${CURRENT_TIDY_OUT}"
-  echo "::endgroup::"
+  if [ "${EMIT_DETAILED_FINDINGS}" -ne 0 ]; then
+    echo "::group::clang-tidy detailed output"
+    cat "${TIDY_OUT}"
+    echo "Find this output in ${CURRENT_TIDY_OUT}"
+    echo "::endgroup::"
+  fi
 
-  echo "Summary (in ${SUMMARY_OUT})"
+  echo "--- Summary --- (detailed output in ${CURRENT_TIDY_OUT})"
   sed -e 's|\(.*\)\(\[[a-zA-Z.-]*\]$\)|\2|p;d' < "${TIDY_OUT}" \
     | sort | uniq -c | sort -rn > "${SUMMARY_OUT}"
   cat "${SUMMARY_OUT}"
