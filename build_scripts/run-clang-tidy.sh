@@ -40,20 +40,8 @@ fi
 readonly ADDITIONAL_TIDY_OPTIONS=("$@")
 readonly PARALLEL_COUNT="$(nproc)"
 
-# clang-tidy binary name can be provided in CLANG_TIDY environment variable.
-# If not set, try to auto-determine.
-CLANG_TIDY="${CLANG_TIDY:-empty_env}"
-if [ "${CLANG_TIDY}" == "empty_env" ]; then
-  # fallback search to what is found in $PATH, with version priority
-  CLANG_TIDY=clang-tidy
-  for version in $(seq 15 -1 11); do
-    if command -v "clang-tidy-${version}"; then
-      CLANG_TIDY="clang-tidy-${version}"
-      break
-    fi
-  done
-fi
-
+# clang-tidy binary from CLANG_TIDY environment variable or default.
+CLANG_TIDY="${CLANG_TIDY:-clang-tidy}"
 hash "${CLANG_TIDY}" || exit 2  # make sure it is installed.
 
 EXIT_CODE=0
@@ -73,7 +61,7 @@ fi
 # Assemble unique name depending on the configuration. This allows to play with
 # various clang-tidy versions and have outputs cached in separate directories.
 readonly CLANG_SHORT_VERSION="$(${CLANG_TIDY} --version | sed 's/.*version \([0-9]\+\).*/\1/p;d')"
-readonly CONFIG_NAME="v${CLANG_SHORT_VERSION}_$((${CLANG_TIDY} --version; cat ${CLANG_CONFIG_FILE} WORKSPACE; echo ${ADDITIONAL_TIDY_OPTIONS[@]}) | md5sum | cut -b1-8)"
+readonly CONFIG_NAME="v${CLANG_SHORT_VERSION}_$((${CLANG_TIDY} --version; cat ${CLANG_CONFIG_FILE}; echo ${ADDITIONAL_TIDY_OPTIONS[@]}) | md5sum | cut -b1-8)"
 
 readonly BASE_DIR="${CACHE_DIR}/${PROJECT_NAME}-clang-tidy-${CONFIG_NAME}"
 readonly BASE_DIR_TMP="${BASE_DIR}/tmp"
@@ -162,9 +150,10 @@ if [ -s "${FILE_HASHES_TO_PROCESS}" ]; then
   echo "::endgroup::"
 
   # A compilation database is needed to run clang tidy.
-  echo ::group::Build compilation database
-  $(dirname $0)/make-compilation-db.sh
-  echo "::endgroup::"
+  if [ ! -f "compile_commands.json" ]; then
+    echo "No compilation db found. First run make-compilation-db.sh";
+    exit 1
+  fi
 
   # The files might be reported with various absolute prefixes that
   # we remove to canonicalize and report as relative paths from project
