@@ -257,7 +257,7 @@ class Parser : public TokenParser {
       const Span& span, const Token& tok, absl::Span<Expr* const> dims);
   absl::StatusOr<TypeAnnotation*> MakeTypeRefTypeAnnotation(
       const Span& span, TypeRef* type_ref, std::vector<Expr*> dims,
-      std::vector<Expr*> parametrics);
+      std::vector<ExprOrType> parametrics);
 
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings* bindings);
@@ -475,7 +475,7 @@ class Parser : public TokenParser {
   //
   //    x: ParametricStruct<u32:4, N as u64>
   //                       ^---------------^
-  absl::StatusOr<std::vector<Expr*>> ParseParametrics(Bindings* bindings);
+  absl::StatusOr<std::vector<ExprOrType>> ParseParametrics(Bindings* bindings);
 
   // Parses a function out of the token stream.
   absl::StatusOr<Function*> ParseFunctionInternal(bool is_public,
@@ -512,7 +512,7 @@ class Parser : public TokenParser {
   // Invocation based on the callee.
   absl::StatusOr<Expr*> BuildMacroOrInvocation(
       Span span, Bindings* bindings, Expr* callee, std::vector<Expr*> args,
-      std::vector<Expr*> parametrics = std::vector<Expr*>({}));
+      std::vector<ExprOrType> parametrics = std::vector<ExprOrType>{});
 
   // Traverses a Proc declaration to collect all the member data elements
   // present therein - in other words, it collects everything but the "config"

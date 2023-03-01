@@ -124,6 +124,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_SPAWN;
     case AstNodeKind::kFormatMacro:
       return AST_NODE_KIND_FORMAT_MACRO;
+    case AstNodeKind::kZeroMacro:
+      return AST_NODE_KIND_ZERO_MACRO;
     case AstNodeKind::kSlice:
       return AST_NODE_KIND_SLICE;
     case AstNodeKind::kEnumDef:
@@ -297,7 +299,7 @@ absl::StatusOr<EnumTypeProto> ToProto(const EnumType& enum_type) {
   XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_def(),
                        ToProto(enum_type.nominal_type()));
   XLS_ASSIGN_OR_RETURN(*proto.mutable_size(), ToProto(enum_type.size()));
-  proto.set_is_signed(enum_type.signedness());
+  proto.set_is_signed(enum_type.is_signed());
   XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
   return proto;
 }

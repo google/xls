@@ -28,6 +28,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/command_line_utils.h"
 
 namespace xls::dslx {
@@ -63,13 +64,23 @@ class ParserTest : public ::testing::Test {
   // Note: given expression text should have no free variables other than those
   // in "predefine": those are defined a builtin name definitions (like the DSLX
   // builtins are).
-  absl::StatusOr<Expr*> ParseExpr(
-      std::string expr_text, absl::Span<const std::string> predefine = {}) {
+  absl::StatusOr<Expr*> ParseExpr(std::string expr_text,
+                                  absl::Span<const std::string> predefine = {},
+                                  bool populate_dslx_builtins = false) {
     scanner_.emplace(kFilename, expr_text);
     parser_.emplace("test", &*scanner_);
     Bindings b;
+
+    Module& mod = *parser_->module_;
+    if (populate_dslx_builtins) {
+      for (auto const& it : GetParametricBuiltins()) {
+        std::string name(it.first);
+        b.Add(name, mod.GetOrCreateBuiltinNameDef(name));
+      }
+    }
+
     for (const std::string& s : predefine) {
-      b.Add(s, parser_->module_->GetOrCreateBuiltinNameDef(s));
+      b.Add(s, mod.GetOrCreateBuiltinNameDef(s));
     }
     auto expr_or = parser_->ParseExpression(/*bindings=*/&b);
     if (!expr_or.ok()) {
@@ -83,9 +94,11 @@ class ParserTest : public ::testing::Test {
 
   void RoundTripExpr(std::string expr_text,
                      absl::Span<const std::string> predefine = {},
+                     bool populate_dslx_builtins = false,
                      std::optional<std::string> target = absl::nullopt,
                      Expr** parsed = nullptr) {
-    XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr(expr_text, predefine));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Expr * e, ParseExpr(expr_text, predefine, populate_dslx_builtins));
     if (target.has_value()) {
       EXPECT_EQ(e->ToString(), *target);
     } else {
@@ -647,19 +660,26 @@ TEST_F(ParserTest, LocalConstBinding) {
 TEST_F(ParserTest, BitSliceOfCall) {
   // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
   // query.
-  RoundTripExpr("id(x)[0:8]", {"id", "x"}, "(id(x))[0:8]");
+  RoundTripExpr("id(x)[0:8]", {"id", "x"}, /*populate_dslx_builtins=*/false,
+                "(id(x))[0:8]");
 }
 
 TEST_F(ParserTest, BitSliceOfBitSlice) {
   // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
   // query.
-  RoundTripExpr("x[0:8][4:]", {"x"}, "((x)[0:8])[4:]");
+  RoundTripExpr("x[0:8][4:]", {"x"}, /*populate_dslx_builtins=*/false,
+                "((x)[0:8])[4:]");
 }
 
 TEST_F(ParserTest, BitSliceWithWidth) {
   // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
   // query.
-  RoundTripExpr("x[1+:u8]", {"x"}, "(x)[1+:u8]");
+  RoundTripExpr("x[1+:u8]", {"x"}, /*populate_dslx_builtins=*/false,
+                "(x)[1+:u8]");
+}
+
+TEST_F(ParserTest, ZeroMacro) {
+  RoundTripExpr("zero!<u32>()", {}, /*populate_dslx_builtins=*/true);
 }
 
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
@@ -696,6 +716,19 @@ fn f(p: Point) -> u32 {
 }
 fn g(xy: u32) -> Point {
   Point { x: xy, y: xy }
+})";
+  RoundTrip(text);
+}
+
+TEST_F(ParserTest, ParametricWithEnumColonRefInvocation) {
+  const char* text = R"(enum OneValue : u3 {
+  ONE = 4,
+}
+fn p<X: OneValue>() -> OneValue {
+  X
+}
+fn main() {
+  p<OneValue::ONE>()
 })";
   RoundTrip(text);
 }
@@ -764,7 +797,7 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
 
 TEST_F(ParserTest, TupleArrayAndInt) {
   Expr* e;
-  RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, absl::nullopt, &e);
+  RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, absl::nullopt, &e);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   EXPECT_EQ(2, tuple->members().size());
   auto* array = tuple->members()[0];
@@ -775,14 +808,14 @@ TEST_F(ParserTest, Cast) {
   // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
   // its insertion of parens to avoid the round trip target value being special
   // here.
-  RoundTripExpr("foo() as u32", {"foo"}, "((foo()) as u32)");
+  RoundTripExpr("foo() as u32", {"foo"}, false, "((foo()) as u32)");
 }
 
 TEST_F(ParserTest, CastOfCast) {
   // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
   // its insertion of parens to avoid the round trip target value being special
   // here.
-  RoundTripExpr("x as s32 as u32", {"x"}, "((((x) as s32)) as u32)");
+  RoundTripExpr("x as s32 as u32", {"x"}, false, "((((x) as s32)) as u32)");
 }
 
 TEST_F(ParserTest, CastOfCastEnum) {
@@ -830,6 +863,12 @@ TEST_F(ParserTest, ModuleWithParametric) {
   RoundTrip(R"(fn parametric<X: u32, Y: u32 = {(X) + (X)}>() -> (u32, u32) {
   (X, Y)
 })");
+}
+
+TEST_F(ParserTest, ParametricInvocation) { RoundTripExpr("f<u32:2>()", {"f"}); }
+
+TEST_F(ParserTest, ParametricColonRefInvocation) {
+  RoundTripExpr("f<BuiltinEnum::VALUE>()", {"f", "BuiltinEnum"});
 }
 
 TEST_F(ParserTest, ModuleWithTypeAlias) { RoundTrip("type MyType = u32;"); }
@@ -920,7 +959,7 @@ TEST_F(ParserTest, ArrayOfNameRefs) {
 
 TEST_F(ParserTest, EmptyTuple) {
   Expr* e;
-  RoundTripExpr("()", {}, absl::nullopt, &e);
+  RoundTripExpr("()", {}, false, absl::nullopt, &e);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   ASSERT_NE(tuple, nullptr);
   EXPECT_TRUE(tuple->empty());
@@ -939,7 +978,7 @@ TEST_F(ParserTest, MatchFreevars) {
   RoundTripExpr(R"(match x {
   y => z,
 })",
-                {"x", "y", "z"}, absl::nullopt, &e);
+                {"x", "y", "z"}, false, absl::nullopt, &e);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
@@ -951,7 +990,7 @@ TEST_F(ParserTest, ForFreevars) {
   let new_accum: u32 = ((accum) + (i)) + (j);
   new_accum
 }(u32:0))",
-                {"range", "j"}, absl::nullopt, &e);
+                {"range", "j"}, false, absl::nullopt, &e);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
@@ -970,7 +1009,7 @@ TEST_F(ParserTest, Ternary) {
 
 TEST_F(ParserTest, TernaryChain) {
   RoundTripExpr(
-      "if true { u32:42 } else if false { u32:33 } else { u32:24 }", {},
+      "if true { u32:42 } else if false { u32:33 } else { u32:24 }", {}, false,
       "if true { u32:42 } else { if false { u32:33 } else { u32:24 } }");
 
   RoundTripExpr(
@@ -983,6 +1022,7 @@ TEST_F(ParserTest, TernaryChain) {
 })",
       {"really_long_identifier_so_that_this_is_too_many_chars",
        "another_really_long_identifier_so_that_this_is_too_many_chars"},
+      false,
       R"(if really_long_identifier_so_that_this_is_too_many_chars {
   u32:42
 } else {
@@ -995,24 +1035,25 @@ TEST_F(ParserTest, TernaryChain) {
 }
 
 TEST_F(ParserTest, TernaryWithComparisonTest) {
-  RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"},
+  RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"}, false,
                 "if (a) <= (b) { u32:42 } else { u32:24 }");
 }
 
 TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
-  RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"},
+  RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"}, false,
                 "if (a) <= (m::b) { u32:42 } else { u32:24 }");
 }
 
 TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
   RoundTripExpr("for (x, s) in u32:0 .. m::SOME_CONST { x }(i)", {"m", "i"},
+                false,
                 R"(for (x, s) in u32:0..m::SOME_CONST {
   x
 }(i))");
 }
 
 TEST_F(ParserTest, TernaryWithOrExpressionTest) {
-  RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"},
+  RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"}, false,
                 "if (a) || (b) { u32:42 } else { u32:24 }");
 }
 
@@ -1033,16 +1074,18 @@ fn f(a: MyStruct) -> u32 {
 
 TEST_F(ParserTest, ConstantArray) {
   Expr* e;
-  RoundTripExpr("u32[2]:[0, 1]", {}, absl::nullopt, &e);
+  RoundTripExpr("u32[2]:[0, 1]", {}, false, absl::nullopt, &e);
   ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
 }
 
-TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, "!(!(x))"); }
+TEST_F(ParserTest, DoubleNegation) {
+  RoundTripExpr("!!x", {"x"}, false, "!(!(x))");
+}
 
 TEST_F(ParserTest, LogicalOperatorPrecedence) {
   Expr* e;
-  RoundTripExpr("!a || !b && c", {"a", "b", "c"}, "(!(a)) || ((!(b)) && (c))",
-                &e);
+  RoundTripExpr("!a || !b && c", {"a", "b", "c"}, false,
+                "(!(a)) || ((!(b)) && (c))", &e);
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kLogicalOr);
   auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
@@ -1053,8 +1096,8 @@ TEST_F(ParserTest, LogicalOperatorPrecedence) {
 
 TEST_F(ParserTest, LogicalEqualityPrecedence) {
   Expr* e;
-  RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, "((a) ^ (!(b))) == (f())",
-                &e);
+  RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, false,
+                "((a) ^ (!(b))) == (f())", &e);
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kEq);
   auto* binop_lhs = dynamic_cast<Binop*>(binop->lhs());
@@ -1065,7 +1108,8 @@ TEST_F(ParserTest, LogicalEqualityPrecedence) {
 
 TEST_F(ParserTest, CastVsComparatorPrecedence) {
   Expr* e;
-  RoundTripExpr("x >= y as u32", {"x", "y"}, "(x) >= (((y) as u32))", &e);
+  RoundTripExpr("x >= y as u32", {"x", "y"}, false, "(x) >= (((y) as u32))",
+                &e);
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kGe);
   auto* cast = dynamic_cast<Cast*>(binop->rhs());
@@ -1077,7 +1121,7 @@ TEST_F(ParserTest, CastVsComparatorPrecedence) {
 
 TEST_F(ParserTest, CastVsUnaryPrecedence) {
   Expr* e;
-  RoundTripExpr("-x as s32", {"x", "y"}, "((-(x)) as s32)", &e);
+  RoundTripExpr("-x as s32", {"x", "y"}, false, "((-(x)) as s32)", &e);
   auto* cast = dynamic_cast<Cast*>(e);
   ASSERT_NE(cast, nullptr);
   EXPECT_EQ(cast->type_annotation()->ToString(), "s32");
@@ -1141,7 +1185,8 @@ TEST_F(ParserTest, BlockWithinBlock) {
   ()
 })";
 
-  RoundTripExpr(kInput, {}, kOutput);
+  RoundTripExpr(kInput, /*predefine=*/{}, /*populate_dslx_builtins=*/false,
+                /*target=*/kOutput);
 }
 
 TEST_F(ParserTest, UnrollFor) {

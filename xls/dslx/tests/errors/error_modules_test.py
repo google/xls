@@ -24,11 +24,17 @@ _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
-  def _run(self,
-           path: str,
-           warnings_as_errors: bool = True,
-           want_err_retcode: bool = True) -> str:
-    full_path = runfiles.get_path(path)
+  def _run(
+      self,
+      path: str,
+      warnings_as_errors: bool = True,
+      want_err_retcode: bool = True,
+      path_is_runfile: bool = True,
+  ) -> str:
+    if path_is_runfile:
+      full_path = runfiles.get_path(path)
+    else:
+      full_path = path
     p = subp.run([
         _INTERP_PATH, full_path, '--warnings_as_errors={}'.format(
             str(warnings_as_errors).lower())
@@ -41,6 +47,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     else:
       self.assertEqual(p.returncode, 0)
     return p.stderr
+
+  def _test_simple(
+      self, contents: str, want_type: str, want_message_substr: str
+  ):
+    tmp = self.create_tempfile(content=contents)
+    stderr = self._run(tmp.full_path, path_is_runfile=False)
+    print('stderr:')
+    print(stderr)
+    self.assertIn(want_type, stderr)
+    self.assertIn(want_message_substr, stderr)
 
   def test_failing_test_output(self):
     stderr = self._run('xls/dslx/tests/errors/two_failing_tests.x')
@@ -417,6 +433,37 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('precise_struct_error.x:19:6-19:14', stderr)
     self.assertIn('ParseError', stderr)
     self.assertIn('Cannot find a definition for name: "blahblah"', stderr)
+
+  def test_zero_macro_on_enum_sans_zero(self):
+    stderr = self._run('xls/dslx/tests/errors/zero_macro_on_enum_sans_zero.x')
+    self.assertIn('zero_macro_on_enum_sans_zero.x:20:8-20:21', stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        "Enum type 'HasNoZero' does not have a known zero value.", stderr
+    )
+
+  def test_simple_zero_macro_misuses(self):
+    def test(
+        contents: str, want_message_substr: str, want_type: str = 'ParseError'
+    ):
+      self._test_simple(contents, want_type, want_message_substr)
+
+    test(
+        'fn f(x: u32) -> u32 { zero!<u32>(x) }',
+        'zero! macro does not take any arguments',
+    )
+    test('fn f() -> u32 { zero!<u32, u64>() }', 'got 2 parametric arguments')
+    test('fn f() -> () { zero!<>() }', 'got 0 parametric arguments')
+    test(
+        'fn f() -> token { zero!<token>() }',
+        'Cannot make a zero-value of token type',
+        'TypeInferenceError',
+    )
+    test(
+        'fn unit() -> () { () } fn f() { zero!<unit>() }',
+        'Cannot make a zero-value of function type',
+        'TypeInferenceError',
+    )
 
 
 if __name__ == '__main__':

@@ -46,6 +46,7 @@
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/errors.h"
@@ -2099,7 +2100,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   for (int64_t i = 0; i < type_annotation->parametrics().size(); ++i) {
     ParametricBinding* defined_parametric =
         struct_def->parametric_bindings()[i];
-    Expr* annotated_parametric = type_annotation->parametrics()[i];
+    ExprOrType eot = type_annotation->parametrics()[i];
+    XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
+    Expr* annotated_parametric = std::get<Expr*>(eot);
     // TODO(leary): 2020-12-13 This is kind of an ad hoc
     // constexpr-evaluate-to-int implementation, unify and consolidate it.
     if (auto* cast = dynamic_cast<Cast*>(annotated_parametric)) {
@@ -2775,6 +2778,23 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
   return std::make_unique<TokenType>();
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
+    const ZeroMacro* node, DeduceCtx* ctx) {
+  // Note: since it's a macro the parser checks arg count and parametric count.
+  //
+  // This says the type of the parametric type arg is the type of the result.
+  // However, we have to check that all of the transitive type within the
+  // parametric argument type are "zero capable".
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
+                       DeduceAndResolve(ToAstNode(node->type()), ctx));
+
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      MakeZeroValue(*parametric_type, *ctx->type_info(), node->span()));
+  ctx->type_info()->NoteConstExpr(node, value);
+  return parametric_type;
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
@@ -2847,6 +2867,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(MatchArm)
   DEDUCE_DISPATCH(Invocation)
   DEDUCE_DISPATCH(FormatMacro)
+  DEDUCE_DISPATCH(ZeroMacro)
   DEDUCE_DISPATCH(ConstRef)
   DEDUCE_DISPATCH(NameRef)
 

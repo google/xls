@@ -2026,7 +2026,32 @@ omitted.
 `assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
 recommended to use it within `test` constructs (interpretation) only.
 
-### trace_fmt!
+### `zero!<T>`
+
+DSLX has a macro for easy creation of zero values, even from aggregate types.
+Invoke the macro with the type parameter as follows:
+
+```dslx
+struct MyPoint {
+  x: u32,
+  y: u32,
+}
+
+enum MyEnum : u2 {
+  ZERO = u2:0,
+  ONE = u2:1,
+}
+
+#[test]
+fn test_zero_macro() {
+  let _ = assert_eq(zero!<u32>(), u32:0);
+  let _ = assert_eq(zero!<MyPoint>(), MyPoint{x: u32:0, y: u32:0});
+  let _ = assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
+  ()
+}
+```
+
+### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
 dumping of current values to stdout. For example:
@@ -2070,7 +2095,7 @@ Note: `trace!` currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- `trace_fmt!` is more powerful.
 
-### fail!
+### `fail!`
 
 NOTE: this section describes work-in-progress functionality, currently `fail!`
 will only trigger in DSL interpretation (it is discarded in IR conversion).

@@ -93,8 +93,9 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     return parent_->GetConstExpr(const_expr);
   }
 
-  return absl::NotFoundError(absl::StrCat(
-      "No constexpr value found for node \"", const_expr->ToString(), "\"."));
+  return absl::NotFoundError(absl::StrFormat(
+      "No constexpr value found for node `%s` @ %s", const_expr->ToString(),
+      SpanToString(const_expr->GetSpan())));
 }
 
 bool TypeInfo::IsKnownConstExpr(const AstNode* node) {

@@ -492,7 +492,9 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
 
   for (int64_t i = 0; i < invocation->explicit_parametrics().size(); ++i) {
     ParametricBinding* binding = parametric_bindings[i];
-    Expr* value = invocation->explicit_parametrics()[i];
+    ExprOrType eot = invocation->explicit_parametrics()[i];
+    XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
+    auto* value = std::get<Expr*>(eot);
 
     XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
                 << "` via invocation expression: " << value->ToString();

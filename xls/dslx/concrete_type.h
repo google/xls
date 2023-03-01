@@ -115,6 +115,30 @@ class ConcreteTypeDim {
   std::variant<InterpValue, OwnedParametric> value_;
 };
 
+class EnumType;
+class BitsType;
+class FunctionType;
+class ChannelType;
+class TokenType;
+class StructType;
+class TupleType;
+class ArrayType;
+
+// Abstract base class for a ConcreteType visitor.
+class ConcreteTypeVisitor {
+ public:
+  virtual ~ConcreteTypeVisitor() = default;
+
+  virtual absl::Status HandleEnum(const EnumType& t) = 0;
+  virtual absl::Status HandleBits(const BitsType& t) = 0;
+  virtual absl::Status HandleFunction(const FunctionType& t) = 0;
+  virtual absl::Status HandleChannel(const ChannelType& t) = 0;
+  virtual absl::Status HandleToken(const TokenType& t) = 0;
+  virtual absl::Status HandleStruct(const StructType& t) = 0;
+  virtual absl::Status HandleTuple(const TupleType& t) = 0;
+  virtual absl::Status HandleArray(const ArrayType& t) = 0;
+};
+
 // Represents a 'concrete' (evaluated) type, as determined by evaluating a
 // TypeAnnotation in the AST.
 //
@@ -140,6 +164,8 @@ class ConcreteType {
       const InterpValue& value);
 
   virtual ~ConcreteType();
+
+  virtual absl::Status Accept(ConcreteTypeVisitor& v) const = 0;
 
   virtual bool operator==(const ConcreteType& other) const = 0;
   bool operator!=(const ConcreteType& other) const { return !(*this == other); }
@@ -208,6 +234,9 @@ class TokenType : public ConcreteType {
  public:
   ~TokenType() override;
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleToken(*this);
+  }
   bool operator==(const ConcreteType& other) const override {
     return other.IsToken();
   }
@@ -239,6 +268,9 @@ class StructType : public ConcreteType {
   StructType(std::vector<std::unique_ptr<ConcreteType>> members,
              const StructDef& struct_def);
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleStruct(*this);
+  }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
 
@@ -297,6 +329,9 @@ class TupleType : public ConcreteType {
  public:
   explicit TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleTuple(*this);
+  }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
 
@@ -335,6 +370,9 @@ class ArrayType : public ConcreteType {
   ArrayType(std::unique_ptr<ConcreteType> element_type, ConcreteTypeDim size)
       : element_type_(std::move(element_type)), size_(std::move(size)) {}
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleArray(*this);
+  }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
 
@@ -372,6 +410,9 @@ class EnumType : public ConcreteType {
         is_signed_(is_signed),
         members_(members) {}
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleEnum(*this);
+  }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
 
@@ -398,7 +439,7 @@ class EnumType : public ConcreteType {
   const ConcreteTypeDim& size() const { return size_; }
   const std::vector<InterpValue>& members() const { return members_; }
 
-  bool signedness() const { return is_signed_; }
+  bool is_signed() const { return is_signed_; }
 
  private:
   const EnumDef& enum_def_;  // Definition AST node.
@@ -436,6 +477,9 @@ class BitsType : public ConcreteType {
       : is_signed_(is_signed), size_(std::move(size)) {}
   ~BitsType() override = default;
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleBits(*this);
+  }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override;
 
@@ -481,6 +525,9 @@ class FunctionType : public ConcreteType {
                std::unique_ptr<ConcreteType> return_type)
       : params_(std::move(params)), return_type_(std::move(return_type)) {}
 
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleFunction(*this);
+  }
   std::string ToString() const override;
   std::string GetDebugTypeName() const override { return "function"; }
   std::vector<ConcreteTypeDim> GetAllDims() const override;
@@ -532,6 +579,10 @@ class FunctionType : public ConcreteType {
 class ChannelType : public ConcreteType {
  public:
   explicit ChannelType(std::unique_ptr<ConcreteType> payload_type);
+
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleChannel(*this);
+  }
   std::string ToString() const override;
   std::string GetDebugTypeName() const override { return "channel"; }
   std::vector<ConcreteTypeDim> GetAllDims() const override;

@@ -45,6 +45,15 @@
 
 namespace xls::dslx {
 
+ExprOrType ToExprOrType(AstNode* n) {
+  if (Expr* e = down_cast<Expr*>(n)) {
+    return e;
+  }
+  auto* type = down_cast<TypeAnnotation*>(n);
+  XLS_CHECK_NE(type, nullptr);
+  return type;
+}
+
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
     case AstNodeKind::kTypeAnnotation:
@@ -131,6 +140,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "spawn";
     case AstNodeKind::kFormatMacro:
       return "format macro";
+    case AstNodeKind::kZeroMacro:
+      return "zero macro";
     case AstNodeKind::kSlice:
       return "slice";
     case AstNodeKind::kEnumDef:
@@ -990,14 +1001,42 @@ TypeAnnotation::~TypeAnnotation() = default;
 
 // -- class TypeRefTypeAnnotation
 
-TypeRefTypeAnnotation::TypeRefTypeAnnotation(Module* owner, Span span,
-                                             TypeRef* type_ref,
-                                             std::vector<Expr*> parametrics)
+TypeRefTypeAnnotation::TypeRefTypeAnnotation(
+    Module* owner, Span span, TypeRef* type_ref,
+    std::vector<ExprOrType> parametrics)
     : TypeAnnotation(owner, std::move(span)),
       type_ref_(type_ref),
       parametrics_(std::move(parametrics)) {}
 
 TypeRefTypeAnnotation::~TypeRefTypeAnnotation() = default;
+
+std::vector<AstNode*> TypeRefTypeAnnotation::GetChildren(
+    bool want_types) const {
+  std::vector<AstNode*> results = {type_ref_};
+  for (const ExprOrType& e : parametrics_) {
+    if (std::holds_alternative<TypeAnnotation*>(e)) {
+      if (want_types) {
+        results.push_back(std::get<TypeAnnotation*>(e));
+      }
+    } else {
+      results.push_back(std::get<Expr*>(e));
+    }
+  }
+  return results;
+}
+
+std::string TypeRefTypeAnnotation::ToString() const {
+  std::string parametric_str = "";
+  if (!parametrics_.empty()) {
+    std::vector<std::string> pieces;
+    pieces.reserve(parametrics_.size());
+    for (const ExprOrType& e : parametrics_) {
+      pieces.push_back(ToAstNode(e)->ToString());
+    }
+    parametric_str = absl::StrCat("<", absl::StrJoin(pieces, ", "), ">");
+  }
+  return absl::StrCat(type_ref_->ToString(), parametric_str);
+}
 
 // -- class ArrayTypeAnnotation
 
@@ -1211,8 +1250,9 @@ std::string EnumDef::ToString() const {
 
 // -- class Instantiation
 
-Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
-                             const std::vector<Expr*>& explicit_parametrics)
+Instantiation::Instantiation(
+    Module* owner, Span span, Expr* callee,
+    const std::vector<ExprOrType>& explicit_parametrics)
     : Expr(owner, span),
       callee_(callee),
       explicit_parametrics_(explicit_parametrics) {}
@@ -1226,8 +1266,9 @@ std::string Instantiation::FormatParametrics() const {
 
   return absl::StrCat("<",
                       absl::StrJoin(explicit_parametrics_, ", ",
-                                    [](std::string* out, Expr* e) {
-                                      absl::StrAppend(out, e->ToString());
+                                    [](std::string* out, ExprOrType e) {
+                                      absl::StrAppend(out,
+                                                      ToAstNode(e)->ToString());
                                     }),
                       ">");
 }
@@ -1236,7 +1277,7 @@ std::string Instantiation::FormatParametrics() const {
 
 Invocation::Invocation(Module* owner, Span span, Expr* callee,
                        std::vector<Expr*> args,
-                       std::vector<Expr*> explicit_parametrics)
+                       std::vector<ExprOrType> explicit_parametrics)
     : Instantiation(owner, std::move(span), callee, explicit_parametrics),
       args_(std::move(args)) {}
 
@@ -1259,7 +1300,7 @@ std::string Invocation::FormatArgs() const {
 // -- class Spawn
 
 Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-             Invocation* next, std::vector<Expr*> explicit_parametrics,
+             Invocation* next, std::vector<ExprOrType> explicit_parametrics,
              Expr* body)
     : Instantiation(owner, std::move(span), callee, explicit_parametrics),
       config_(config),
@@ -1285,6 +1326,24 @@ std::string Spawn::ToString() const {
   std::string body_str = absl::StrCat(";\n", body_->ToString());
   return absl::StrFormat("spawn %s%s(%s)%s", callee()->ToString(), param_str,
                          config_args, body_str);
+}
+
+// -- class ZeroMacro
+
+ZeroMacro::ZeroMacro(Module* owner, Span span, ExprOrType type)
+    : Expr(owner, std::move(span)), type_(type) {}
+
+ZeroMacro::~ZeroMacro() = default;
+
+std::vector<AstNode*> ZeroMacro::GetChildren(bool want_types) const {
+  if (want_types) {
+    return {ToAstNode(type_)};
+  }
+  return {};
+}
+
+std::string ZeroMacro::ToString() const {
+  return absl::StrFormat("zero!<%s>()", ToAstNode(type_)->ToString());
 }
 
 // -- class FormatMacro
@@ -1435,28 +1494,6 @@ SplatStructInstance::SplatStructInstance(
       splatted_(splatted) {}
 
 SplatStructInstance::~SplatStructInstance() = default;
-
-std::vector<AstNode*> TypeRefTypeAnnotation::GetChildren(
-    bool want_types) const {
-  std::vector<AstNode*> results = {type_ref_};
-  for (Expr* e : parametrics_) {
-    results.push_back(e);
-  }
-  return results;
-}
-
-std::string TypeRefTypeAnnotation::ToString() const {
-  std::string parametric_str = "";
-  if (!parametrics_.empty()) {
-    std::vector<std::string> pieces;
-    pieces.reserve(parametrics_.size());
-    for (Expr* e : parametrics_) {
-      pieces.push_back(e->ToString());
-    }
-    parametric_str = absl::StrCat("<", absl::StrJoin(pieces, ", "), ">");
-  }
-  return absl::StrCat(type_ref_->ToString(), parametric_str);
-}
 
 // -- class Unop
 

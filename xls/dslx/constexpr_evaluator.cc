@@ -36,6 +36,7 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/interp_value.h"
 
@@ -89,6 +90,9 @@ class NameRefCollector : public ExprVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) override {
     return absl::OkStatus();
   }
   absl::Status HandleIndex(const Index* expr) override {
@@ -302,6 +306,27 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
   return InterpretExpr(expr);
+}
+
+absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
+  ExprOrType type_reference = expr->type();
+  std::optional<ConcreteType*> maybe_type =
+      type_info_->GetItem(ToAstNode(type_reference));
+  if (!maybe_type.has_value()) {
+    std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
+    std::string span_str = span.has_value() ? span->ToString() : "<none>";
+    return absl::InternalError(
+        absl::StrFormat("Could not find type for \"%s\" @ %s",
+                        ToAstNode(type_reference)->ToString(), span_str));
+  }
+
+  // At this point type inference should have checked that this type was
+  // zero-able.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      MakeZeroValue(*maybe_type.value(), *type_info_, expr->span()));
+  type_info_->NoteConstExpr(expr, value);
+  return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {

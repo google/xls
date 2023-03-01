@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
@@ -254,6 +255,14 @@ class AstCloner : public AstNodeVisitor {
         n->span(), n->macro(),
         std::vector<FormatStep>(n->format().begin(), n->format().end()),
         new_args);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleZeroMacro(const ZeroMacro* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    ExprOrType new_eot = ToExprOrType(old_to_new_.at(ToAstNode(n->type())));
+    old_to_new_[n] = module_->Make<ZeroMacro>(n->span(), new_eot);
     return absl::OkStatus();
   }
 
@@ -600,10 +609,15 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     XLS_RETURN_IF_ERROR(n->callee()->Accept(this));
 
-    std::vector<Expr*> new_parametrics;
+    std::vector<ExprOrType> new_parametrics;
     new_parametrics.reserve(n->explicit_parametrics().size());
-    for (const Expr* parametric : n->explicit_parametrics()) {
-      new_parametrics.push_back(down_cast<Expr*>(old_to_new_.at(parametric)));
+    for (const ExprOrType& parametric : n->explicit_parametrics()) {
+      AstNode* new_node = old_to_new_.at(ToAstNode(parametric));
+      if (std::holds_alternative<Expr*>(parametric)) {
+        new_parametrics.push_back(down_cast<Expr*>(new_node));
+      } else {
+        new_parametrics.push_back(down_cast<TypeAnnotation*>(new_node));
+      }
     }
 
     Expr* new_body = down_cast<Expr*>(old_to_new_.at(n->body()));
@@ -804,15 +818,20 @@ class AstCloner : public AstNodeVisitor {
       const TypeRefTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    std::vector<Expr*> new_parametrics;
+    std::vector<ExprOrType> new_parametrics;
     new_parametrics.reserve(n->parametrics().size());
-    for (const auto* parametric : n->parametrics()) {
-      new_parametrics.push_back(down_cast<Expr*>(old_to_new_.at(parametric)));
+    for (const ExprOrType& parametric : n->parametrics()) {
+      AstNode* new_node = old_to_new_.at(ToAstNode(parametric));
+      if (std::holds_alternative<Expr*>(parametric)) {
+        new_parametrics.push_back(down_cast<Expr*>(new_node));
+      } else {
+        new_parametrics.push_back(down_cast<TypeAnnotation*>(new_node));
+      }
     }
 
     old_to_new_[n] = module_->Make<TypeRefTypeAnnotation>(
         n->span(), down_cast<TypeRef*>(old_to_new_.at(n->type_ref())),
-        new_parametrics);
+        std::move(new_parametrics));
     return absl::OkStatus();
   }
 

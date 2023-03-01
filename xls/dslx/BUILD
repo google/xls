@@ -33,6 +33,7 @@ cc_library(
         ":ast",
         ":ast_utils",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -122,6 +123,7 @@ cc_library(
         ":ast_utils",
         ":bytecode",
         ":concrete_type",
+        ":concrete_type_zero_value",
         ":import_data",
         ":interp_value",
         ":make_struct_format_descriptor",
@@ -221,6 +223,7 @@ cc_library(
         ":builtins_metadata",
         ":bytecode_emitter",
         ":bytecode_interpreter",
+        ":concrete_type_zero_value",
         ":errors",
         ":import_data",
         ":interp_value",
@@ -785,6 +788,7 @@ cc_test(
     name = "parser_test",
     srcs = ["parser_test.cc"],
     deps = [
+        ":builtins_metadata",
         ":command_line_utils",
         ":parser",
         "//xls/common:xls_gunit_main",
@@ -854,6 +858,19 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "concrete_type_zero_value",
+    srcs = ["concrete_type_zero_value.cc"],
+    hdrs = ["concrete_type_zero_value.h"],
+    deps = [
+        ":concrete_type",
+        ":errors",
+        ":interp_value",
+        ":type_info",
+        "//xls/common/status:ret_check",
     ],
 )
 
@@ -1037,6 +1054,7 @@ cc_library(
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":concrete_type",
+        ":concrete_type_zero_value",
         ":constexpr_evaluator",
         ":deduce_ctx",
         ":errors",

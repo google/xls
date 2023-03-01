@@ -613,7 +613,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   // reference.
   XLS_ASSIGN_OR_RETURN(TypeRef * type_ref, ParseTypeRef(bindings, tok));
 
-  std::vector<Expr*> parametrics;
+  std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
     XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
@@ -726,7 +726,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
-    XLS_ASSIGN_OR_RETURN(std::vector<Expr*> struct_parametrics,
+    XLS_ASSIGN_OR_RETURN(std::vector<ExprOrType> struct_parametrics,
                          ParseParametrics(bindings));
 
     // TODO(https://github.com/google/xls/issues/247): If explicit parametrics
@@ -1480,7 +1480,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
         auto* type_ref =
             module_->Make<TypeRef>(span, ToTypeDefinition(lhs).value());
         auto* type_annot = module_->Make<TypeRefTypeAnnotation>(
-            span, type_ref, std::vector<Expr*>());
+            span, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
         XLS_ASSIGN_OR_RETURN(lhs, ParseCast(outer_bindings, type_annot));
         break;
       }
@@ -1561,7 +1561,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
               auto* type_ref =
                   module_->Make<TypeRef>(span, down_cast<ColonRef*>(lhs));
               auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
-                  span, type_ref, /*parametrics=*/std::vector<Expr*>());
+                  span, type_ref, /*parametrics=*/std::vector<ExprOrType>());
               auto* array_type = module_->Make<ArrayTypeAnnotation>(
                   span, type_ref_type, index);
               XLS_ASSIGN_OR_RETURN(Array * array, ParseArray(outer_bindings));
@@ -1581,8 +1581,10 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
         auto sub_cleanup =
             absl::MakeCleanup([&sub_txn]() { sub_txn.Rollback(); });
 
-        auto status_or_parametrics = ParseParametrics(sub_txn.bindings());
-        if (!status_or_parametrics.ok()) {
+        auto parametrics_or = ParseParametrics(sub_txn.bindings());
+        if (!parametrics_or.ok()) {
+          XLS_VLOG(5) << "ParseParametrics gave error: "
+                      << parametrics_or.status();
           goto done;
         }
 
@@ -1595,7 +1597,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
         XLS_ASSIGN_OR_RETURN(
             lhs, BuildMacroOrInvocation(
                      Span(new_pos, GetPos()), sub_txn.bindings(), lhs,
-                     std::move(args), status_or_parametrics.value()));
+                     std::move(args), std::move(parametrics_or).value()));
         sub_txn.CommitAndCancelCleanup(&sub_cleanup);
         break;
       }
@@ -1616,7 +1618,7 @@ done:
 
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
     Span span, Bindings* bindings, Expr* callee, std::vector<Expr*> args,
-    std::vector<Expr*> parametrics) {
+    std::vector<ExprOrType> parametrics) {
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
     if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
       std::string name = builtin->identifier();
@@ -1651,6 +1653,24 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
             span, absl::StrFormat("The first argument of the %s macro must "
                                   "be a literal string.",
                                   name));
+      }
+
+      if (name == "zero!") {
+        if (parametrics.size() != 1) {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat("%s macro takes a single parametric argument "
+                              "(the type to create a zero value for, e.g. "
+                              "`zero!<T>()`; got %d parametric arguments",
+                              name, parametrics.size()));
+        }
+        if (!args.empty()) {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat("%s macro does not take any arguments", name));
+        }
+
+        return module_->Make<ZeroMacro>(span, parametrics.at(0));
       }
 
       if (name == "fail!") {
@@ -1695,7 +1715,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token spawn, PopKeywordOrError(Keyword::kSpawn));
   XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref, ParseNameOrColonRef(bindings));
 
-  std::vector<Expr*> parametrics;
+  std::vector<ExprOrType> parametrics;
   XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
   if (peek_is_oangle) {
     XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
@@ -2126,10 +2146,11 @@ absl::StatusOr<TypeAnnotation*> Parser::CloneReturnType(TypeAnnotation* input) {
     TypeRef* new_ref =
         module_->Make<TypeRef>(old_ref->span(), old_ref->type_definition());
 
-    std::vector<Expr*> new_parametrics;
-    for (auto* parametric : typeref_type->parametrics()) {
-      XLS_ASSIGN_OR_RETURN(AstNode * new_parametric, CloneAst(parametric));
-      new_parametrics.push_back(down_cast<Expr*>(new_parametric));
+    std::vector<ExprOrType> new_parametrics;
+    for (const ExprOrType& parametric : typeref_type->parametrics()) {
+      XLS_ASSIGN_OR_RETURN(AstNode * new_parametric,
+                           CloneAst(ToAstNode(parametric)));
+      new_parametrics.push_back(ToExprOrType(new_parametric));
     }
     return module_->Make<TypeRefTypeAnnotation>(typeref_type->span(), new_ref,
                                                 new_parametrics);
@@ -2491,7 +2512,7 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
 
 absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
     const Span& span, TypeRef* type_ref, std::vector<Expr*> dims,
-    std::vector<Expr*> parametrics) {
+    std::vector<ExprOrType> parametrics) {
   TypeAnnotation* elem_type = module_->Make<TypeRefTypeAnnotation>(
       span, type_ref, std::move(parametrics));
   for (Expr* dim : dims) {
@@ -2660,7 +2681,7 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
                                            TokenKind::kCAngle);
 }
 
-absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
+absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
     Bindings* bindings) {
   XLS_VLOG(5) << "ParseParametrics @ " << GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
@@ -2675,7 +2696,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
   auto re_enable_double_cangle =
       absl::MakeCleanup([this] { EnableDoubleCAngle(); });
 
-  auto parse_parametric = [this, bindings]() -> absl::StatusOr<Expr*> {
+  auto parse_parametric = [this, bindings]() -> absl::StatusOr<ExprOrType> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOBrace) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
@@ -2687,15 +2708,31 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
       return expr;
     }
 
+    // We permit bare numbers as parametrics for convenience.
+    if (peek->kind() == TokenKind::kNumber || peek->IsKeyword(Keyword::kTrue) ||
+        peek->IsKeyword(Keyword::kFalse)) {
+      return TokenToNumber(PopTokenOrDie());
+    }
+
     if (peek->kind() == TokenKind::kIdentifier) {
       XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
       return ToExprNode(nocr);
     }
 
-    return ParseNumber(bindings);
+    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
+                         ParseTypeAnnotation(bindings));
+
+    {
+      XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+      if (peek->kind() == TokenKind::kColon) {
+        return ParseCast(bindings, type_annotation);
+      }
+    }
+
+    return type_annotation;
   };
 
-  return ParseCommaSeq<Expr*>(parse_parametric, TokenKind::kCAngle);
+  return ParseCommaSeq<ExprOrType>(parse_parametric, TokenKind::kCAngle);
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(

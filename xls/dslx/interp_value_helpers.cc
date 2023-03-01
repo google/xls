@@ -265,7 +265,7 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
-    if (enum_type->signedness()) {
+    if (enum_type->is_signed()) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
                                    value.GetBitsOrDie());
     }

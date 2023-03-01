@@ -667,7 +667,7 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
     return bits->is_signed();
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&c)) {
-    std::optional<bool> signedness = enum_type->signedness();
+    std::optional<bool> signedness = enum_type->is_signed();
     if (!signedness.has_value()) {
       return absl::InvalidArgumentError(
           "Signedness not present for EnumType: " + c.ToString());

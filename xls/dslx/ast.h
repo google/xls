@@ -101,7 +101,8 @@ bool IsOneOf(ObjT* obj) {
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
-  X(XlsTuple)
+  X(XlsTuple)                      \
+  X(ZeroMacro)
 
 // Higher-order macro for all the AST node leaf types (non-abstract).
 //
@@ -139,12 +140,15 @@ bool IsOneOf(ObjT* obj) {
 
 // Forward decl of non-leaf type.
 class Expr;
+class TypeAnnotation;
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
 XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
 
 #undef FORWARD_DECL
+
+using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
 
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
@@ -223,29 +227,37 @@ class FreeVariables {
 // primarily for convenience in tasks like serialization, for most purposes
 // visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
 enum class AstNodeKind {
-  kTypeAnnotation,
+  kArray,
+  kAttr,
+  kBinop,
+  kBlock,
+  kBuiltinNameDef,
+  kCast,
+  kChannelDecl,
+  kColonRef,
+  kConstantDef,
+  kConstRef,
+  kEnumDef,
+  kFor,
+  kFormatMacro,
+  kFunction,
+  kImport,
+  kIndex,
+  kInstantiation,
+  kInvocation,
+  kJoin,
+  kLet,
+  kMatch,
+  kMatchArm,
   kModule,
   kNameDef,
-  kBuiltinNameDef,
-  kTernary,
-  kTypeDef,
-  kNumber,
-  kTypeRef,
-  kImport,
-  kUnop,
-  kBinop,
-  kColonRef,
-  kParam,
-  kFunction,
-  kProc,
-  kNameRef,
-  kConstRef,
-  kArray,
-  kString,
-  kStructInstance,
-  kSplatStructInstance,
   kNameDefTree,
-  kIndex,
+  kNameRef,
+  kNumber,
+  kParam,
+  kParametricBinding,
+  kProc,
+  kQuickCheck,
   kRange,
   kRecv,
   kRecvIf,
@@ -253,32 +265,25 @@ enum class AstNodeKind {
   kRecvNonBlocking,
   kSend,
   kSendIf,
-  kJoin,
+  kSlice,
+  kSpawn,
+  kSplatStructInstance,
+  kString,
+  kStructDef,
+  kStructInstance,
+  kTernary,
   kTestFunction,
   kTestProc,
+  kTupleIndex,
+  kTypeAnnotation,
+  kTypeDef,
+  kTypeRef,
+  kUnop,
+  kUnrollFor,
   kWidthSlice,
   kWildcardPattern,
-  kMatchArm,
-  kMatch,
-  kAttr,
-  kInstantiation,
-  kInvocation,
-  kSpawn,
-  kFormatMacro,
-  kSlice,
-  kEnumDef,
-  kStructDef,
-  kQuickCheck,
   kXlsTuple,
-  kFor,
-  kBlock,
-  kCast,
-  kConstantDef,
-  kLet,
-  kChannelDecl,
-  kParametricBinding,
-  kTupleIndex,
-  kUnrollFor,
+  kZeroMacro,
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
@@ -357,6 +362,8 @@ template <typename... Types>
 inline Expr* ToExprNode(const std::variant<Types...>& v) {
   return absl::ConvertVariantTo<Expr*>(v);
 }
+
+ExprOrType ToExprOrType(AstNode* n);
 
 // Converts sequence of AstNode subtype pointers to vector of the base AstNode*.
 template <typename NodeT>
@@ -482,7 +489,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
 class TypeRefTypeAnnotation : public TypeAnnotation {
  public:
   TypeRefTypeAnnotation(Module* owner, Span span, TypeRef* type_ref,
-                        std::vector<Expr*> parametrics);
+                        std::vector<ExprOrType> parametrics);
 
   ~TypeRefTypeAnnotation() override;
 
@@ -499,12 +506,12 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  const std::vector<Expr*>& parametrics() const { return parametrics_; }
+  const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
   bool HasParametrics() const { return !parametrics_.empty(); }
 
  private:
   TypeRef* type_ref_;
-  std::vector<Expr*> parametrics_;
+  std::vector<ExprOrType> parametrics_;
 };
 
 // Represents an array type annotation; e.g. `u32[5]`.
@@ -1642,7 +1649,7 @@ class Attr : public Expr {
 class Instantiation : public Expr {
  public:
   Instantiation(Module* owner, Span span, Expr* callee,
-                const std::vector<Expr*>& explicit_parametrics);
+                const std::vector<ExprOrType>& explicit_parametrics);
 
   ~Instantiation();
 
@@ -1655,7 +1662,7 @@ class Instantiation : public Expr {
   //    f<a, b, c>()
   //
   // The expressions a, b, c would be in this sequence.
-  const std::vector<Expr*>& explicit_parametrics() const {
+  const std::vector<ExprOrType>& explicit_parametrics() const {
     return explicit_parametrics_;
   }
 
@@ -1664,7 +1671,7 @@ class Instantiation : public Expr {
 
  private:
   Expr* callee_;
-  std::vector<Expr*> explicit_parametrics_;
+  std::vector<ExprOrType> explicit_parametrics_;
 };
 
 // Represents an invocation expression; e.g. `f(a, b, c)` or an implicit
@@ -1672,7 +1679,7 @@ class Instantiation : public Expr {
 class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
-             std::vector<Expr*> explicit_parametrics = std::vector<Expr*>({}));
+             std::vector<ExprOrType> explicit_parametrics = {});
 
   ~Invocation() override;
 
@@ -1709,7 +1716,8 @@ class Spawn : public Instantiation {
  public:
   // A Spawn's body can be nullopt if it's the last expr in an unroll_for body.
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-        Invocation* next, std::vector<Expr*> explicit_parametrics, Expr* body);
+        Invocation* next, std::vector<ExprOrType> explicit_parametrics,
+        Expr* body);
 
   ~Spawn() override;
 
@@ -1737,8 +1745,8 @@ class Spawn : public Instantiation {
   Expr* body_;
 };
 
-// Represents a call to a variable-argument formatting macro; e.g. trace_fmt!("x
-// is {}", x)
+// Represents a call to a variable-argument formatting macro;
+// `e.g. trace_fmt!("x is {}", x)`
 class FormatMacro : public Expr {
  public:
   FormatMacro(Module* owner, Span span, std::string macro,
@@ -1762,7 +1770,7 @@ class FormatMacro : public Expr {
 
   std::string ToString() const override;
 
-  const std::string macro() const { return macro_; }
+  const std::string& macro() const { return macro_; }
   const absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
 
@@ -1770,6 +1778,37 @@ class FormatMacro : public Expr {
   std::string macro_;
   std::vector<FormatStep> format_;
   std::vector<Expr*> args_;
+};
+
+// Represents a call to a parametric "make a zero value" macro;
+// e.g. `zero!<T>()`
+//
+// Note that the parametric arg is a type annotation or a type expression, which
+// we currently represent as ExprOrType.
+class ZeroMacro : public Expr {
+ public:
+  ZeroMacro(Module* owner, Span span, ExprOrType type);
+
+  ~ZeroMacro() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kZeroMacro; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleZeroMacro(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleZeroMacro(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ZeroMacro"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+
+  ExprOrType type() const { return type_; }
+
+ private:
+  ExprOrType type_;
 };
 
 // Represents a slice in the AST.

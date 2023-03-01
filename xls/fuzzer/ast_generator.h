@@ -494,7 +494,7 @@ class AstGenerator {
     type_defs_.push_back(type_def);
     type_bit_counts_[type_ref->ToString()] = GetTypeBitCount(type);
     return module_->Make<TypeRefTypeAnnotation>(
-        fake_span_, type_ref, /*parametrics=*/std::vector<Expr*>{});
+        fake_span_, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
   }
 
   // Generates a logical binary operation (e.g. and, xor, or).

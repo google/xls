@@ -234,9 +234,9 @@ type MyFoo = my_imported_module::Foo;
       /*0=*/
       "3:0-3:37: TYPE_DEF :: `type MyFoo = my_imported_module::Foo;` :: Foo",
       /*1=*/"3:5-3:10: NAME_DEF :: `MyFoo` :: Foo",
-      /*2=*/"3:13-3:36: TYPE_ANNOTATION :: `my_imported_module::Foo` :: Foo",
-      /*3=*/"3:13-3:36: TYPE_REF :: `my_imported_module::Foo` :: Foo",
-      /*4=*/"3:13-3:36: COLON_REF :: `my_imported_module::Foo` :: Foo",
+      /*2=*/"3:13-3:36: COLON_REF :: `my_imported_module::Foo` :: Foo",
+      /*3=*/"3:13-3:36: TYPE_ANNOTATION :: `my_imported_module::Foo` :: Foo",
+      /*4=*/"3:13-3:36: TYPE_REF :: `my_imported_module::Foo` :: Foo",
   };
   DoRun(program, want, /*proto_out=*/nullptr, /*import_data=*/&import_data);
 }

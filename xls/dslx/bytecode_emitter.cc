@@ -38,6 +38,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/make_struct_format_descriptor.h"
 #include "xls/dslx/struct_format_descriptor.h"
@@ -128,6 +129,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(EnumDef);
   DEFAULT_HANDLER(For);
   DEFAULT_HANDLER(FormatMacro);
+  DEFAULT_HANDLER(ZeroMacro);
   absl::Status HandleFunction(const Function* n) override {
     return absl::InternalError(
         absl::StrFormat(
@@ -696,6 +698,17 @@ ExprToStructFormatDescriptor(const Expr* expr, const TypeInfo* type_info) {
   return ConcreteTypeToStructFormatDescriptor(maybe_type.value());
 }
 
+absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
+  std::optional<ConcreteType*> maybe_type =
+      type_info_->GetItem(ToAstNode(node->type()));
+  XLS_RET_CHECK(maybe_type.has_value());
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      MakeZeroValue(*maybe_type.value(), *type_info_, node->span()));
+  Add(Bytecode::MakeLiteral(node->span(), value));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   for (const Expr* arg : node->args()) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
@@ -1005,7 +1018,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   } else if (auto* enum_type = dynamic_cast<EnumType*>(type_or.value());
              enum_type != nullptr) {
     dim = &enum_type->size();
-    is_signed = enum_type->signedness();
+    is_signed = enum_type->is_signed();
   }
 
   XLS_RET_CHECK(dim != nullptr) << absl::StrCat(

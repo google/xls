@@ -515,7 +515,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       auto* type_ref = module->Make<dslx::TypeRef>(
           span, name_to_record->at(type_name)->dslx_typedef);
       type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
-          span, type_ref, std::vector<dslx::Expr*>());
+          span, type_ref, std::vector<dslx::ExprOrType>{});
     } else {
       // Anything else that's supported, i.e., a number.
       FieldDescriptor::Type field_type =
@@ -716,7 +716,7 @@ absl::Status EmitStructData(
     auto* type_ref = module->Make<dslx::TypeRef>(
         span, name_to_record.at(type_name)->dslx_typedef);
     auto* typeref_type = module->Make<dslx::TypeRefTypeAnnotation>(
-        span, type_ref, std::vector<dslx::Expr*>());
+        span, type_ref, std::vector<dslx::ExprOrType>{});
     return EmitArray(
         module, message, fd, reflection, message_record, &array_elements,
         [module, typeref_type]() {

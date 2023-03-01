@@ -337,6 +337,10 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) override {
+    return absl::OkStatus();
+  }
+
   absl::Status HandleIndex(const Index* expr) override {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     // WidthSlice and Slice alternatives only contain constant values and so
