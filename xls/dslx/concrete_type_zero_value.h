@@ -16,8 +16,8 @@
 #define XLS_DSLX_CONCRETE_TYPE_ZERO_VALUE_H_
 
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
 
@@ -27,7 +27,7 @@ namespace xls::dslx {
 // defined zero value, in which cases an error is returned. In this case, span
 // is used to cite the source of the error in the program text.
 absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
-                                          const TypeInfo& type_info,
+                                          const ImportData& type_info,
                                           const Span& span);
 
 }  // namespace xls::dslx

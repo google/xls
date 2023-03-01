@@ -704,7 +704,7 @@ absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
   XLS_RET_CHECK(maybe_type.has_value());
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
-      MakeZeroValue(*maybe_type.value(), *type_info_, node->span()));
+      MakeZeroValue(*maybe_type.value(), *import_data_, node->span()));
   Add(Bytecode::MakeLiteral(node->span(), value));
   return absl::OkStatus();
 }

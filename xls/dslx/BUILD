@@ -868,8 +868,8 @@ cc_library(
     deps = [
         ":concrete_type",
         ":errors",
+        ":import_data",
         ":interp_value",
-        ":type_info",
         "//xls/common/status:ret_check",
     ],
 )

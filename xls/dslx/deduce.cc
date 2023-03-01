@@ -2790,7 +2790,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
-      MakeZeroValue(*parametric_type, *ctx->type_info(), node->span()));
+      MakeZeroValue(*parametric_type, *ctx->import_data(), node->span()));
   ctx->type_info()->NoteConstExpr(node, value);
   return parametric_type;
 }

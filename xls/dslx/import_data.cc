@@ -65,6 +65,14 @@ absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfoForNode(
   return type_info_owner().GetRootTypeInfo(node->owner());
 }
 
+absl::StatusOr<const TypeInfo*> ImportData::GetRootTypeInfoForNode(
+    const AstNode* node) const {
+  XLS_ASSIGN_OR_RETURN(
+      TypeInfo * ti,
+      const_cast<ImportData*>(this)->GetRootTypeInfoForNode(node));
+  return ti;
+}
+
 absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfo(const Module* module) {
   return type_info_owner().GetRootTypeInfo(module);
 }

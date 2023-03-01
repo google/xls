@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/dslx/constexpr_evaluator.h"
 
 #include <stdint.h>
@@ -324,7 +325,7 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
   // zero-able.
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
-      MakeZeroValue(*maybe_type.value(), *type_info_, expr->span()));
+      MakeZeroValue(*maybe_type.value(), *import_data_, expr->span()));
   type_info_->NoteConstExpr(expr, value);
   return absl::OkStatus();
 }

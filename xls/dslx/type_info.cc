@@ -82,6 +82,10 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
 
 absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     const AstNode* const_expr) const {
+  XLS_CHECK_EQ(const_expr->owner(), module_)
+      << const_expr->owner()->name() << " vs " << module_->name()
+      << " node: " << const_expr->ToString();
+
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
     return it->second.value();
   }

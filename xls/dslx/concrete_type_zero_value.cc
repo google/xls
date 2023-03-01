@@ -22,11 +22,13 @@ namespace {
 
 // Returns whether enum type t has a member that is definitively zero-valued.
 absl::StatusOr<bool> HasKnownZeroValue(const EnumType& t,
-                                       const TypeInfo& type_info) {
+                                       const ImportData& import_data) {
   const EnumDef& def = t.nominal_type();
+  XLS_ASSIGN_OR_RETURN(const TypeInfo* type_info,
+                       import_data.GetRootTypeInfoForNode(&def));
 
   for (const EnumMember& member : def.values()) {
-    XLS_ASSIGN_OR_RETURN(InterpValue v, type_info.GetConstExpr(member.value));
+    XLS_ASSIGN_OR_RETURN(InterpValue v, type_info->GetConstExpr(member.value));
     if (v.GetBitsOrDie().IsZero()) {
       return true;
     }
@@ -37,11 +39,12 @@ absl::StatusOr<bool> HasKnownZeroValue(const EnumType& t,
 
 class MakeZeroVisitor : public ConcreteTypeVisitor {
  public:
-  MakeZeroVisitor(const TypeInfo& type_info, const Span& span)
-      : type_info_(type_info), span_(span) {}
+  MakeZeroVisitor(const ImportData& import_data, const Span& span)
+      : import_data_(import_data), span_(span) {}
 
   absl::Status HandleEnum(const EnumType& t) override {
-    XLS_ASSIGN_OR_RETURN(bool has_known_zero, HasKnownZeroValue(t, type_info_));
+    XLS_ASSIGN_OR_RETURN(bool has_known_zero,
+                         HasKnownZeroValue(t, import_data_));
     if (!has_known_zero) {
       return TypeInferenceErrorStatus(
           span_, &t,
@@ -77,7 +80,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
     std::vector<InterpValue> elems;
     for (const auto& member : t.members()) {
       XLS_ASSIGN_OR_RETURN(InterpValue z,
-                           MakeZeroValue(*member, type_info_, span_));
+                           MakeZeroValue(*member, import_data_, span_));
       elems.push_back(std::move(z));
     }
     result_ = InterpValue::MakeTuple(std::move(elems));
@@ -87,7 +90,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
     std::vector<InterpValue> elems;
     for (const auto& t : t.members()) {
       XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                           MakeZeroValue(*t, type_info_, span_));
+                           MakeZeroValue(*t, import_data_, span_));
       elems.push_back(std::move(zero));
     }
     result_ = InterpValue::MakeTuple(std::move(elems));
@@ -96,7 +99,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
 
   absl::Status HandleArray(const ArrayType& t) override {
     XLS_ASSIGN_OR_RETURN(InterpValue elem_value,
-                         MakeZeroValue(t.element_type(), type_info_, span_));
+                         MakeZeroValue(t.element_type(), import_data_, span_));
     XLS_ASSIGN_OR_RETURN(int64_t size, t.size().GetAsInt64());
     XLS_ASSIGN_OR_RETURN(
         result_,
@@ -107,7 +110,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
   const std::optional<InterpValue>& result() const { return result_; }
 
  private:
-  const TypeInfo& type_info_;
+  const ImportData& import_data_;
   const Span& span_;
   std::optional<InterpValue> result_;
 };
@@ -115,9 +118,9 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
 }  // namespace
 
 absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
-                                          const TypeInfo& type_info,
+                                          const ImportData& import_data,
                                           const Span& span) {
-  MakeZeroVisitor v(type_info, span);
+  MakeZeroVisitor v(import_data, span);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   XLS_RET_CHECK(v.result().has_value());
   return std::move(v.result()).value();

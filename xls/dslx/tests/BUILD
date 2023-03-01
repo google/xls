@@ -617,6 +617,11 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "zero_macro_imported_enum",
+    dslx_deps = [":mod_simple_enum_dslx"],
+)
+
+dslx_lang_test(
     name = "mod_enum_fully_qualified_match_importer",
     dslx_deps = [":mod_simple_enum_dslx"],
     # TODO(rspringer): 2021-06-29 We can't lower fail!/assert to Z3, so we
