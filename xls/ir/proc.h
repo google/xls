@@ -37,7 +37,7 @@ class Proc : public FunctionBase {
         next_token_(AddNode(std::make_unique<Param>(
             SourceInfo(), token_param_name, package->GetTokenType(), this))) {}
 
-  virtual ~Proc() = default;
+  ~Proc() override = default;
 
   // Returns the initial values of the state variables.
   absl::Span<const Value> InitValues() const { return init_values_; }

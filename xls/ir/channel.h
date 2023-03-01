@@ -181,7 +181,7 @@ class StreamingChannel : public Channel {
         fifo_depth_(fifo_depth),
         flow_control_(flow_control) {}
 
-  virtual bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const override {
     if (GetFlowControl() == FlowControl::kReadyValid) {
       return GetBlockName().has_value() && GetDataPortName().has_value() &&
              GetReadyPortName().has_value() && GetValidPortName().has_value();
@@ -212,7 +212,7 @@ class SingleValueChannel : public Channel {
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
                 /*initial_values=*/{}, metadata) {}
 
-  virtual bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const override {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 };

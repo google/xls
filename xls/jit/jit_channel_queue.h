@@ -121,7 +121,7 @@ class JitChannelQueue : public ChannelQueue {
  public:
   JitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
       : ChannelQueue(channel), jit_runtime_(jit_runtime) {}
-  virtual ~JitChannelQueue() = default;
+  ~JitChannelQueue() override = default;
 
   virtual void WriteRaw(const uint8_t* data) = 0;
   virtual bool ReadRaw(uint8_t* buffer) = 0;
@@ -138,7 +138,7 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
       : JitChannelQueue(channel, jit_runtime),
         byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
                     channel->kind() == ChannelKind::kSingleValue) {}
-  virtual ~ThreadSafeJitChannelQueue() = default;
+  ~ThreadSafeJitChannelQueue() override = default;
 
   // Write raw bytes representing a value in LLVM's native format.
   void WriteRaw(const uint8_t* data) override {
@@ -176,7 +176,7 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
       : JitChannelQueue(channel, jit_runtime),
         byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
                     channel->kind() == ChannelKind::kSingleValue) {}
-  virtual ~ThreadUnsafeJitChannelQueue() = default;
+  ~ThreadUnsafeJitChannelQueue() override = default;
 
   void WriteRaw(const uint8_t* data) override { byte_queue_.Write(data); }
   bool ReadRaw(uint8_t* buffer) override {
@@ -200,7 +200,7 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
 // A Channel manager which holds exclusively JitChannelQueues.
 class JitChannelQueueManager : public ChannelQueueManager {
  public:
-  virtual ~JitChannelQueueManager() = default;
+  ~JitChannelQueueManager() override = default;
 
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.

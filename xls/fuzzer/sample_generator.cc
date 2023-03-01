@@ -55,12 +55,13 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
 
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
-  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) {
+  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) override {
     has_nb_recv_ = true;
     return absl::OkStatus();
   }
 
-  absl::Status HandleRecvIfNonBlocking(const dslx::RecvIfNonBlocking* n) {
+  absl::Status HandleRecvIfNonBlocking(
+      const dslx::RecvIfNonBlocking* n) override {
     has_nb_recv_ = true;
     return absl::OkStatus();
   }

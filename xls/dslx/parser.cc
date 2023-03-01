@@ -86,14 +86,16 @@ std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
 // only extracts names from Let decls.
 class NameDefCollector : public AstNodeVisitorWithDefault {
  public:
-  absl::Status HandleBlock(const Block* n) { return n->body()->Accept(this); }
+  absl::Status HandleBlock(const Block* n) override {
+    return n->body()->Accept(this);
+  }
 
-  absl::Status HandleLet(const Let* n) {
+  absl::Status HandleLet(const Let* n) override {
     XLS_RETURN_IF_ERROR(n->name_def_tree()->Accept(this));
     return n->body()->Accept(this);
   }
 
-  absl::Status HandleNameDefTree(const NameDefTree* n) {
+  absl::Status HandleNameDefTree(const NameDefTree* n) override {
     for (const auto& child : n->GetChildren(/*want_types=*/false)) {
       XLS_RETURN_IF_ERROR(child->Accept(this));
     }
@@ -101,12 +103,14 @@ class NameDefCollector : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleNameDef(const NameDef* n) {
+  absl::Status HandleNameDef(const NameDef* n) override {
     name_defs_.push_back(n);
     return absl::OkStatus();
   }
 
-  absl::Status HandleSpawn(const Spawn* n) { return n->body()->Accept(this); }
+  absl::Status HandleSpawn(const Spawn* n) override {
+    return n->body()->Accept(this);
+  }
 
   const std::vector<const NameDef*>& name_defs() { return name_defs_; }
 

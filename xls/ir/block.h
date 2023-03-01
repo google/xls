@@ -38,7 +38,7 @@ class Block : public FunctionBase {
  public:
   Block(std::string_view name, Package* package)
       : FunctionBase(name, package) {}
-  virtual ~Block() = default;
+  ~Block() override = default;
 
   // Abstraction describing the clock port.
   struct ClockPort {

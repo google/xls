@@ -618,7 +618,7 @@ class FunctionBuilder : public BuilderBase {
   // can be set to false in tests that wish to build malformed IR.
   FunctionBuilder(std::string_view name, Package* package,
                   bool should_verify = true);
-  virtual ~FunctionBuilder() = default;
+  ~FunctionBuilder() override = default;
 
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
@@ -643,7 +643,7 @@ class ProcBuilder : public BuilderBase {
   ProcBuilder(std::string_view name, std::string_view token_name,
               Package* package, bool should_verify = true);
 
-  virtual ~ProcBuilder() = default;
+  ~ProcBuilder() override = default;
 
   // Returns the Proc being constructed.
   Proc* proc() const;
@@ -735,7 +735,7 @@ class TokenlessProcBuilder : public ProcBuilder {
       : ProcBuilder(name, token_name, package, should_verify),
         last_token_(GetTokenParam()) {}
 
-  virtual ~TokenlessProcBuilder() = default;
+  ~TokenlessProcBuilder() override = default;
 
   // Build the proc using the given BValues as the recurrent state. The
   // recurrent token value is a constructed as an AfterAll operation whose
@@ -804,7 +804,7 @@ class BlockBuilder : public BuilderBase {
   BlockBuilder(std::string_view name, Package* package,
                bool should_verify = true)
       : BuilderBase(std::make_unique<Block>(name, package), should_verify) {}
-  virtual ~BlockBuilder() = default;
+  ~BlockBuilder() override = default;
 
   // Returns the Block being constructed.
   Block* block() const { return down_cast<Block*>(function()); }

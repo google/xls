@@ -32,9 +32,9 @@ using ::xls::status_testing::StatusIs;
 // Dummy ExperimentBuilder used in this unit test.
 class TestExperimentBuilder : public ExperimentBuilderBase {
  protected:
-  virtual absl::StatusOr<ExperimentConfig> BuildExperimentConfig() override;
-  virtual absl::StatusOr<ExperimentSweeps> BuildExperimentSweeps() override;
-  virtual absl::StatusOr<ExperimentRunner> BuildExperimentRunner() override;
+  absl::StatusOr<ExperimentConfig> BuildExperimentConfig() override;
+  absl::StatusOr<ExperimentSweeps> BuildExperimentSweeps() override;
+  absl::StatusOr<ExperimentRunner> BuildExperimentRunner() override;
 };
 
 absl::StatusOr<ExperimentConfig>

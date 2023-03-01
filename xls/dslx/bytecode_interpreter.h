@@ -317,7 +317,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
       InterpValue terminator, std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
-  virtual ~ProcConfigBytecodeInterpreter() = default;
+  ~ProcConfigBytecodeInterpreter() override = default;
 
   // Implementation of Spawn handling common to both InitializeProcNetwork
   // and EvalSpawn. `next_args` should not include Proc members or the

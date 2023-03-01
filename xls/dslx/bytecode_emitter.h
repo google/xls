@@ -63,7 +63,7 @@ class BytecodeEmitter : public ExprVisitor {
  private:
   BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
                   const std::optional<ParametricEnv>& caller_bindings);
-  ~BytecodeEmitter();
+  ~BytecodeEmitter() override;
   absl::Status Init(const Function* f);
 
   // Adds the given bytecode to the program.

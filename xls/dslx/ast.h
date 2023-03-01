@@ -1651,7 +1651,7 @@ class Instantiation : public Expr {
   Instantiation(Module* owner, Span span, Expr* callee,
                 const std::vector<ExprOrType>& explicit_parametrics);
 
-  ~Instantiation();
+  ~Instantiation() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kInstantiation; }
 

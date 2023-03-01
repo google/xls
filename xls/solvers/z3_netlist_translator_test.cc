@@ -381,7 +381,7 @@ class NetlistTranslatorTest : public ::testing::Test {
       : config_(nullptr),
         ctx_(nullptr),
         cell_library_(netlist::MakeFakeCellLibrary().value()) {}
-  ~NetlistTranslatorTest() {
+  ~NetlistTranslatorTest() override {
     if (ctx_) {
       Z3_del_context(ctx_);
     }

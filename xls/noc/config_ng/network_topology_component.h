@@ -27,9 +27,9 @@ class ChannelTopologyComponent final : public NetworkComponent {
   explicit ChannelTopologyComponent(NetworkView* view);
 
   // See xls::noc::NetworkComponent::Visit.
-  absl::Status Visit(NetworkComponentVisitor& v);
+  absl::Status Visit(NetworkComponentVisitor& v) override;
 
-  ~ChannelTopologyComponent();
+  ~ChannelTopologyComponent() override;
 };
 
 // A receive port used in the network topology view.
@@ -39,9 +39,9 @@ class ReceivePortTopologyComponent final : public NetworkComponent {
   explicit ReceivePortTopologyComponent(NetworkView* view);
 
   // See xls::noc::NetworkComponent::Visit.
-  absl::Status Visit(NetworkComponentVisitor& v);
+  absl::Status Visit(NetworkComponentVisitor& v) override;
 
-  ~ReceivePortTopologyComponent();
+  ~ReceivePortTopologyComponent() override;
 };
 
 // A router used in the network topology view.
@@ -55,9 +55,9 @@ class RouterTopologyComponent final : public NetworkComponent {
   RouterTopologyComponent& SetCoordinate(const Coordinate& coordinate);
 
   // See xls::noc::NetworkComponent::Visit.
-  absl::Status Visit(NetworkComponentVisitor& v);
+  absl::Status Visit(NetworkComponentVisitor& v) override;
 
-  ~RouterTopologyComponent();
+  ~RouterTopologyComponent() override;
 
  private:
   Coordinate coordinate_;
@@ -70,9 +70,9 @@ class SendPortTopologyComponent final : public NetworkComponent {
   explicit SendPortTopologyComponent(NetworkView* view);
 
   // See xls::noc::NetworkComponent::Visit.
-  absl::Status Visit(NetworkComponentVisitor& v);
+  absl::Status Visit(NetworkComponentVisitor& v) override;
 
-  ~SendPortTopologyComponent();
+  ~SendPortTopologyComponent() override;
 };
 
 }  // namespace xls::noc

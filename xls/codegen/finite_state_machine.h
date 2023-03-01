@@ -168,7 +168,7 @@ class FsmBlock : public FsmBlockBase {
  public:
   explicit FsmBlock(std::string_view debug_name, VerilogFile* file)
       : FsmBlockBase(debug_name, file) {}
-  virtual ~FsmBlock() = default;
+  ~FsmBlock() override = default;
 
   // Sets the next state to transition to.
   T& NextState(FsmState* next_state) {

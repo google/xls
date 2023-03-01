@@ -141,9 +141,9 @@ class GeneralizedGeometricTrafficModel : public TrafficModel {
         next_packet_cycle_(-1),
         random_interface_(&rnd) {}
 
-  std::vector<DataPacket> GetNewCyclePackets(int64_t cycle);
+  std::vector<DataPacket> GetNewCyclePackets(int64_t cycle) override;
 
-  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const {
+  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const override {
     double num_cycles = 1.0e12 / static_cast<double>(cycle_time_ps);
     double num_packets = lambda_ * num_cycles;
     double bits_per_sec = static_cast<double>(packet_size_bits_) * num_packets;
@@ -203,9 +203,9 @@ class ReplayTrafficModel : public TrafficModel {
   ReplayTrafficModel(int64_t packet_size_bits,
                      absl::Span<const int64_t> clock_cycles);
 
-  std::vector<DataPacket> GetNewCyclePackets(int64_t cycle);
+  std::vector<DataPacket> GetNewCyclePackets(int64_t cycle) override;
 
-  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const;
+  double ExpectedTrafficRateInMiBps(int64_t cycle_time_ps) const override;
 
   // Sets clock cycles to list and sorts the complete list of clock cycle.
   void SetClockCycles(absl::Span<const int64_t> clock_cycles);
