@@ -2051,6 +2051,23 @@ fn test_zero_macro() {
 }
 ```
 
+The `zero!<T>` macro can also be used with the struct update syntax to
+initialize a subset of fields to zero. In the example below all fields except
+`foo` are initialized to zero in the struct returned by `f`.
+
+```dslx
+struct MyStruct {
+  foo: u1,
+  bar: u2,
+  baz: u3,
+  bat: u4,
+}
+
+fn f() -> MyStruct {
+  MyStruct{foo: u1:1, ..zero!<MyStruct>()}
+}
+```
+
 ### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
