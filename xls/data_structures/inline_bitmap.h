@@ -62,7 +62,12 @@ class InlineBitmap {
     InlineBitmap result(bit_count, false);
     int64_t byte_count = CeilOfRatio(bit_count, int64_t{8});
     XLS_CHECK_EQ(bytes.size(), byte_count) << "bit_count: " << bit_count;
-    std::memcpy(result.data_.data(), bytes.data(), byte_count);
+    // memcpy() requires valid pointers even when the number of bytes copied is
+    // zero, and an empty absl::Span's data() pointer may not be valid. Guard
+    // the memcpy with a check that the span is not empty.
+    if (!result.data_.empty()) {
+      std::memcpy(result.data_.data(), bytes.data(), byte_count);
+    }
     result.MaskLastWord();
     return result;
   }
@@ -183,8 +188,13 @@ class InlineBitmap {
   // of bytes.
   void WriteBytesToBuffer(absl::Span<uint8_t> bytes) const {
     XLS_CHECK(kEndianness == Endianness::kLittleEndian);
-    std::memcpy(bytes.data(), data_.data(),
-                CeilOfRatio(bit_count_, int64_t{8}));
+    // memcpy() requires valid pointers even when the number of bytes copied is
+    // zero, and an empty absl::Span's data() pointer may not be valid. Guard
+    // the memcpy with a check that the span is not empty.
+    if (!bytes.empty()) {
+      std::memcpy(bytes.data(), data_.data(),
+                  CeilOfRatio(bit_count_, int64_t{8}));
+    }
   }
 
   // Compares against another InlineBitmap as if they were unsigned
