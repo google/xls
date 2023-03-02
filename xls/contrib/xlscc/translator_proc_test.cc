@@ -2699,6 +2699,39 @@ TEST_F(TranslatorProcTest, IOProcClassState) {
   }
 }
 
+TEST_F(TranslatorProcTest, IOProcClassNotInline) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         int st = 10;
+
+         void Run();
+      };
+
+      #pragma hls_top
+      void Block::Run() {
+        st += 3*in.read();
+        out.write(st);
+      }
+      )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(10 + 15, 64)),
+                      xls::Value(xls::SBits(10 + 15 + 21, 64)),
+                      xls::Value(xls::SBits(10 + 15 + 21 + 30, 64))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 3);
+  }
+}
+
 TEST_F(TranslatorProcTest, IOProcClassStateWithLocalStatic) {
   const std::string content = R"(
        class Block {
