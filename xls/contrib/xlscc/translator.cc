@@ -133,6 +133,10 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
 
   context().any_side_effects_requested =
       context().any_side_effects_requested || popped.any_side_effects_requested;
+  context().any_writes_generated =
+      context().any_writes_generated || popped.any_writes_generated;
+  context().any_io_ops_requested =
+      context().any_io_ops_requested || popped.any_io_ops_requested;
 
   if (popped.have_returned_condition.valid()) {
     XLS_RETURN_IF_ERROR(and_condition(
@@ -768,6 +772,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   XLS_ASSIGN_OR_RETURN(sf.xls_func,
                        builder.BuildWithReturnValue(context().return_val));
+
   return &sf;
 }
 
@@ -1067,8 +1072,15 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
   }
 
   if (ctype->Is<CReferenceType>()) {
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> lval,
-                         CreateReferenceValue(initializer, loc));
+    context().any_io_ops_requested = false;
+    MaskIOOtherThanMemoryWritesGuard guard1(*this);
+    MaskMemoryWritesGuard guard2(*this);
+    std::shared_ptr<LValue> lval;
+    XLS_ASSIGN_OR_RETURN(lval, CreateReferenceValue(initializer, loc));
+    if (context().any_io_ops_requested) {
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "References to side effecting operations not supported"));
+    }
     return CValue(xls::BValue(), ctype,
                   /*disable_type_check=*/false, lval);
   }
@@ -1506,7 +1518,9 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     // This happens when copy constructors with non-const reference inputs are
     // invoked. class Temporary { Temporary() { } }; class Blah { Blah(Temporary
     // &in) { } }; Blah x(Temporary());
-    // Ignore assignment to temporaries.
+    // Ignore assignment to temporaries,
+    // but still generate the sub-expression in case it has side-effects.
+    XLS_RETURN_IF_ERROR(GenerateIR_Expr(lvalue, loc).status());
     return absl::OkStatus();
   }
   if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(lvalue)) {
@@ -2267,11 +2281,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   }
 
   if (this_expr != nullptr) {
+    MaskAssignmentsGuard guard_assignments(*this, add_this_return);
+    MaskMemoryWritesGuard guard_writes(*this, add_this_return);
+
     {
       // The Assign() statement below will take care of any assignments
       //  in the expression for "this". Don't do these twice, as it can cause
       //  issues like double-increment https://github.com/google/xls/issues/389
-      MaskAssignmentsGuard mask(*this);
       XLS_ASSIGN_OR_RETURN(this_value_orig, GenerateIR_Expr(this_expr, loc));
     }
 
@@ -2307,7 +2323,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
       GenerateIR_Call(funcdecl, args, pthisval, &this_lval, loc));
 
   if (add_this_return) {
+    MaskIOOtherThanMemoryWritesGuard guard(*this);
     XLSCC_CHECK(pthisval, loc);
+
     XLS_RETURN_IF_ERROR(Assign(this_expr,
                                CValue(thisval, this_value_orig.type(),
                                       /*disable_type_check=*/false, this_lval),
@@ -2525,13 +2543,26 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         funcdecl->getNumParams(), static_cast<int>(expr_args.size())));
   }
 
+  absl::flat_hash_map<const clang::ParmVarDecl*, bool> will_assign_param;
+
   // Add other parameters
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
-    // Map callee IO channels
-    XLS_ASSIGN_OR_RETURN(CValue argv, GenerateIR_Expr(expr_args[pi], loc));
+    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                         StripTypeQualifiers(p->getType()));
 
+    const bool will_assign =
+        stripped.is_ref && (!stripped.base.isConstQualified());
+    will_assign_param[p] = will_assign;
+
+    // Map callee IO channels
+    CValue argv;
+    {
+      MaskAssignmentsGuard guard_assignments(*this, will_assign_param.at(p));
+      MaskMemoryWritesGuard guard_writes(*this, will_assign_param.at(p));
+      XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(expr_args[pi], loc));
+    }
     XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), loc));
     if (is_channel) {
       IOChannel* callee_channel = func->io_channels_by_decl.at(p);
@@ -2549,9 +2580,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           caller_channel, loc);
       continue;
     }
-
-    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                         StripTypeQualifiers(p->getType()));
 
     // Const references don't need a return
     if (stripped.is_ref && (!stripped.base.isConstQualified())) {
@@ -2682,16 +2710,17 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         IOOp * caller_op_ptr,
         AddOpToChannel(caller_op, caller_channel, callee_op.op_location));
 
-    XLSCC_CHECK(
-        caller_op_ptr->channel->generated ||
-            context().sf->decls_by_io_channel.contains(caller_op_ptr->channel),
-        loc);
+    if (caller_op_ptr != nullptr) {
+      XLSCC_CHECK(caller_op_ptr->channel->generated ||
+                      context().sf->decls_by_io_channel.contains(
+                          caller_op_ptr->channel),
+                  loc);
+      XLSCC_CHECK_EQ(caller_op_ptr->after_ops.size(),
+                     callee_op.after_ops.size(), loc);
+    }
 
     caller_ops_by_callee_op.insert(
         std::pair<const IOOp*, IOOp*>(&callee_op, caller_op_ptr));
-
-    XLSCC_CHECK_EQ(caller_op_ptr->after_ops.size(), callee_op.after_ops.size(),
-                   loc);
 
     // Count expected IO returns
     ++expected_returns;
@@ -2711,15 +2740,23 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         for (auto caller_it = range.first; caller_it != range.second;
              ++caller_it) {
           IOOp* caller_op = caller_it->second;
-          XLSCC_CHECK(caller_op->op == OpType::kRecv ||
-                          callee_op->op == OpType::kRead ||
-                          callee_op->op == OpType::kWrite,
-                      loc);
-          XLSCC_CHECK(caller_op->input_value.rvalue().valid(), loc);
-          auto args_val = caller_op->input_value.rvalue();
-          if (!callee_op->is_blocking) {
-            args_val = context().fb->Tuple(
-                {args_val, context().fb->Literal(xls::UBits(1, 1))});
+          xls::BValue args_val;
+          if (caller_op == nullptr) {
+            // Masked, insert dummy argument
+            XLS_ASSIGN_OR_RETURN(
+                args_val,
+                CreateDefaultValue(caller_it->first->input_value.type(), loc));
+          } else {
+            XLSCC_CHECK(caller_op->op == OpType::kRecv ||
+                            callee_op->op == OpType::kRead ||
+                            callee_op->op == OpType::kWrite,
+                        loc);
+            XLSCC_CHECK(caller_op->input_value.rvalue().valid(), loc);
+            args_val = caller_op->input_value.rvalue();
+            if (!callee_op->is_blocking) {
+              args_val = context().fb->Tuple(
+                  {args_val, context().fb->Literal(xls::UBits(1, 1))});
+            }
           }
           args.push_back(args_val);
           // Expected return already expected in above loop
@@ -2798,7 +2835,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                         context().sf->caller_channels_by_callee_channel, loc));
   }
 
-  XLS_ASSIGN_OR_RETURN(auto return_type,
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> return_type,
                        TranslateTypeFromClang(funcdecl->getReturnType(), loc));
 
   // Then explicit return
@@ -2861,11 +2898,22 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                          TranslateTypeFromClang(stripped.base, GetLoc(*p)));
 
     // Const references don't need a return
-    if (stripped.is_ref && (!stripped.base.isConstQualified())) {
+    if (will_assign_param.at(p)) {
       XLSCC_CHECK(!unpacked_returns.empty(), loc);
+
+      MaskIOOtherThanMemoryWritesGuard guard(*this);
       LValueModeGuard lvalue_guard(*this);
+      context().any_writes_generated = false;
       XLS_RETURN_IF_ERROR(
           Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
+
+      if (context().any_writes_generated) {
+        XLS_LOG(WARNING) << ErrorMessage(
+            loc,
+            "Memory write in call-by-reference will generate a read and a "
+            "write. Is this intended here?");
+      }
+
       unpacked_returns.pop_front();
     }
   }
@@ -2877,7 +2925,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       IOOp* caller_op = caller_it->second;
 
       XLSCC_CHECK(!unpacked_returns.empty(), loc);
-      caller_op->ret_value = unpacked_returns.front();
+
+      // Might be masked
+      if (caller_op != nullptr) {
+        caller_op->ret_value = unpacked_returns.front();
+      }
+
       unpacked_returns.pop_front();
     }
   }

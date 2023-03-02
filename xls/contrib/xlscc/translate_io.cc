@@ -28,14 +28,24 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
                                                  const xls::SourceInfo& loc,
                                                  bool mask) {
   context().any_side_effects_requested = true;
+  context().any_io_ops_requested = true;
 
-  if (context().mask_side_effects || mask) {
+  const bool mask_write =
+      context().mask_memory_writes && op.op == OpType::kWrite;
+  const bool mask_other =
+      context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
+
+  if (mask || context().mask_side_effects || mask_write || mask_other) {
     IOOpReturn ret;
     ret.generate_expr = false;
     XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
                          CreateDefaultValue(channel->item_type, loc));
     op.input_value = CValue(default_bval, channel->item_type);
-    return &op;
+    return nullptr;
+  }
+
+  if (op.op == OpType::kWrite) {
+    context().any_writes_generated |= true;
   }
 
   XLS_CHECK_NE(channel, nullptr);

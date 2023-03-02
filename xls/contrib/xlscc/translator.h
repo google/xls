@@ -87,6 +87,8 @@ class CType {
   bool Is() const {
     return typeid(*this) == typeid(Derived);
   }
+
+  inline std::string debug_string() const { return std::string(*this); }
 };
 
 // C/C++ void
@@ -504,6 +506,7 @@ class CValue {
          bool disable_type_check = false,
          std::shared_ptr<LValue> lvalue = nullptr)
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
+    XLS_CHECK_NE(type_.get(), nullptr);
     if (!disable_type_check) {
       XLS_CHECK(!type_->StoredAsXLSBits() ||
                 rvalue.BitCountOrDie() == type_->GetBitWidth());
@@ -622,7 +625,7 @@ struct IOOp {
   IOChannel* channel = nullptr;
 
   // For calls to subroutines with IO inside
-  const IOOp* sub_op;
+  const IOOp* sub_op = nullptr;
 
   // Input __xls_channel parameters take tuple types containing a value for
   //  each read() op. This is the index of this op in the tuple.
@@ -861,6 +864,11 @@ struct TranslationContext {
   // Don't create side-effects when exploring.
   bool mask_side_effects = false;
   bool any_side_effects_requested = false;
+  bool any_writes_generated = false;
+  bool any_io_ops_requested = false;
+
+  bool mask_io_other_than_memory_writes = false;
+  bool mask_memory_writes = false;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -1001,10 +1009,12 @@ class Translator {
 
   // This guard makes assignments no-ops, for a period determined by RAII.
   struct MaskAssignmentsGuard {
-    explicit MaskAssignmentsGuard(Translator& translator)
+    explicit MaskAssignmentsGuard(Translator& translator, bool engage = true)
         : translator(translator),
           prev_val(translator.context().mask_assignments) {
-      translator.context().mask_assignments = true;
+      if (engage) {
+        translator.context().mask_assignments = true;
+      }
     }
     ~MaskAssignmentsGuard() {
       translator.context().mask_assignments = prev_val;
@@ -1017,13 +1027,48 @@ class Translator {
   // This guard makes all side effects, including assignments, no-ops, for a
   // period determined by RAII.
   struct MaskSideEffectsGuard {
-    explicit MaskSideEffectsGuard(Translator& translator)
+    explicit MaskSideEffectsGuard(Translator& translator, bool engage = true)
         : translator(translator),
           prev_val(translator.context().mask_side_effects) {
-      translator.context().mask_side_effects = true;
+      if (engage) {
+        translator.context().mask_side_effects = true;
+      }
     }
     ~MaskSideEffectsGuard() {
       translator.context().mask_side_effects = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  struct MaskIOOtherThanMemoryWritesGuard {
+    explicit MaskIOOtherThanMemoryWritesGuard(Translator& translator,
+                                              bool engage = true)
+        : translator(translator),
+          prev_val(translator.context().mask_io_other_than_memory_writes) {
+      if (engage) {
+        translator.context().mask_io_other_than_memory_writes = true;
+      }
+    }
+    ~MaskIOOtherThanMemoryWritesGuard() {
+      translator.context().mask_io_other_than_memory_writes = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  struct MaskMemoryWritesGuard {
+    explicit MaskMemoryWritesGuard(Translator& translator, bool engage = true)
+        : translator(translator),
+          prev_val(translator.context().mask_memory_writes) {
+      if (engage) {
+        translator.context().mask_memory_writes = true;
+      }
+    }
+    ~MaskMemoryWritesGuard() {
+      translator.context().mask_memory_writes = prev_val;
     }
 
     Translator& translator;

@@ -770,5 +770,50 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemoryPipelinedLoop) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMemoryTest, MemoryWriteReferenceParameterOutput) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void output_value(short& output, int input) {
+        output += input;
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_memory<short, 32>& memory) {
+         const int addr = in.read();
+         output_value(memory[addr], 44);
+       })";
+
+  auto memory_write_tuple = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(64, 16))});
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 5, true),
+          IOOpTest("memory__read", xls::Value(xls::SBits(20, 16)), true)},
+         /*outputs=*/
+         {
+             IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), true),
+             IOOpTest("memory__write", memory_write_tuple, true),
+         });
+}
+
+TEST_F(TranslatorMemoryTest, ReferenceToMemoryOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_memory<short, 32>& memory) {
+         const int addr = in.read();
+         short& val = memory[addr];
+         val += 44;
+       })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("eferences to side effecting operations")));
+}
+
 }  // namespace
 }  // namespace xlscc

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/xlscc/translator.h"
-
 #include <cstdio>
 #include <memory>
 #include <ostream>
@@ -31,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
@@ -273,6 +272,137 @@ TEST_F(TranslatorLogicTest, IncrementInArrayIndex2) {
        })";
 
   Run({{"a", 11}}, 12, content);
+}
+
+TEST_F(TranslatorLogicTest, IncrementInArrayIndex3) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         int arr[4];
+         arr[a] = arr[a++];
+         return a;
+       })";
+
+  Run({{"a", 11}}, 12, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference) {
+  const std::string content = R"(
+    struct Blah {
+      int val() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference2) {
+  const std::string content = R"(
+    struct Blah {
+      operator int() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b);
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference3) {
+  const std::string content = R"(
+    struct Blah {
+      Blah val() {
+        return *this;
+      }
+      operator int() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference4) {
+  const std::string content = R"(
+    struct Blah {
+      int val()const {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ByReferenceSubExpr) {
+  const std::string content = R"(
+
+    int byref(int offset, int& out) {
+      out = out + offset;
+      return offset;
+    }
+
+    int my_package(long long a) {
+      int vals[3] = {1,2,3};
+      int idx = 1;
+      (void)byref(5, vals[idx++]);
+      return vals[1] + idx;
+    })";
+  Run({{"a", 100}}, 2 + 5 + 2, content);
+}
+
+TEST_F(TranslatorLogicTest, ArrayParamAssign) {
+  const std::string content = R"(
+    void addto(int v[6]) {
+      v[3] += 3;
+    }
+
+    int my_package(bool configured) {
+      (void)configured;
+      int brr[6] = {10,20,30,40,50,60};
+      addto(brr);
+      return brr[3];
+    })";
+
+  Run({{"configured", 0}}, 40 + 3, content);
 }
 
 TEST_F(TranslatorLogicTest, Array2D) {
@@ -564,9 +694,14 @@ TEST_F(TranslatorLogicTest, TestXlsccCheck) {
         return a+a;
       })";
 
-  EXPECT_DEATH({auto ret = ScanFile(content, {}, false, false,
-    xls::SourceLocation(xls::Fileno(0), xls::Lineno(1), xls::Colno(1)), true);},
-                  testing::HasSubstr("0,1,1"));
+  EXPECT_DEATH(
+      {
+        auto ret = ScanFile(
+            content, {}, false, false,
+            xls::SourceLocation(xls::Fileno(0), xls::Lineno(1), xls::Colno(1)),
+            true);
+      },
+      testing::HasSubstr("0,1,1"));
 }
 
 #if UNSEQUENCED_TESTS

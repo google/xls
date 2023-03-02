@@ -160,8 +160,7 @@ CIntType::operator std::string() const {
   if (width_ == 8) {
     return pre + (is_declared_as_char() ? "char" : "int8_t");
   }
-  XLS_CHECK(0);
-  return "Unsupported";
+  return absl::StrFormat("native_int[%d]", width_);
 }
 
 absl::Status CIntType::GetMetadata(
@@ -707,8 +706,9 @@ CChannelType::CChannelType(std::shared_ptr<CType> item_type,
 bool CChannelType::operator==(const CType& o) const {
   if (!o.Is<CChannelType>()) return false;
   const auto* o_derived = o.As<CChannelType>();
-  return *item_type_ == *o_derived->item_type_
-  && op_type_ == o_derived->op_type_ && memory_size_ == o_derived->memory_size_;
+  return *item_type_ == *o_derived->item_type_ &&
+         op_type_ == o_derived->op_type_ &&
+         memory_size_ == o_derived->memory_size_;
 }
 
 int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
