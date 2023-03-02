@@ -22,10 +22,10 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "com_grail_bazel_toolchain",
-    sha256 = "dd03374af7885d255eb735b9065a32463a1154d9de6eb47261a49c8acc1cd497",
-    strip_prefix = "bazel-toolchain-0.6.3",
+    sha256 = "fbed0cf24304b57682ca63763528f5fa21c341c2eeff3dc53887eb73638059c4",
+    strip_prefix = "bazel-toolchain-069ee4e20ec605a6c76c1798658e17175b2eb35e",
     urls = [
-        "https://github.com/grailbio/bazel-toolchain/archive/0.6.3.zip",
+        "https://github.com/grailbio/bazel-toolchain/archive/069ee4e20ec605a6c76c1798658e17175b2eb35e.zip",
     ],
 )
 
@@ -37,7 +37,7 @@ load("@com_grail_bazel_toolchain//toolchain:rules.bzl", "llvm_toolchain")
 
 llvm_toolchain(
     name = "llvm_toolchain",
-    llvm_version = "13.0.0",
+    llvm_version = "15.0.6",
 )
 
 load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
