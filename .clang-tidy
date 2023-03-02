@@ -67,5 +67,8 @@ Checks: >
   -misc-redundant-expression,
   -misc-unused-parameters,
 
-WarningsAsErrors: ''
-HeaderFilterRegex: ''
+CheckOptions:
+  - key:             readability-implicit-bool-conversion.AllowPointerConditions
+    value:           'true'
+  - key:             readability-implicit-bool-conversion.AllowIntegerConditions
+    value:           'true'
