@@ -61,5 +61,5 @@ fn caller() -> u32{
   let x = u32:16;
   let y = callee<u32:32>(x);
   let z = callee<{(u32:32 > u32:16) as u32 + u32:4}>(x as u5) as u32;
-  callee<{ (X > (Y) > (Z) > (W)) as u32 + u32:15 }>(u15:8) as u32
+  callee<{((X>Y)<(Z>W)) as u32 + u32:15}>(u15:8) as u32
 }

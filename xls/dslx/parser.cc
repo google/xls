@@ -50,6 +50,14 @@
 namespace xls::dslx {
 namespace {
 
+bool IsComparisonBinopKind(const Expr* e) {
+  auto* binop = dynamic_cast<const Binop*>(e);
+  if (binop == nullptr) {
+    return false;
+  }
+  return GetBinopComparisonKinds().contains(binop->binop_kind());
+}
+
 ExprRestrictions MakeRestrictions(std::vector<ExprRestriction> restrictions) {
   uint64_t value = 0;
   for (ExprRestriction restriction : restrictions) {
@@ -1072,6 +1080,11 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
     XLS_ASSIGN_OR_RETURN(BinopKind kind,
                          BinopKindFromString(TokenKindToString(op.kind())));
     XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseOrExpression(bindings, restrictions));
+    if (!lhs->in_parens() && IsComparisonBinopKind(lhs) &&
+        GetBinopComparisonKinds().contains(kind)) {
+      return ParseErrorStatus(op.span(),
+                              "comparison operators cannot be chained");
+    }
     lhs = module_->Make<Binop>(op.span(), kind, lhs, rhs);
   }
   XLS_VLOG(5) << "ParseComparisonExpression; result: `" << lhs->ToString()
@@ -1448,9 +1461,15 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
         XLS_ASSIGN_OR_RETURN(lhs, ParseTupleRemainder(oparen.span().start(),
                                                       lhs, outer_bindings));
       } else {
-        XLS_RETURN_IF_ERROR(
-            DropTokenOrError(TokenKind::kCParen, /*start=*/&oparen,
-                             "Expected ')' at end of 1-element tuple"));
+        XLS_RETURN_IF_ERROR(DropTokenOrError(
+            TokenKind::kCParen, /*start=*/&oparen,
+            "Expected ')' at end of parenthesized expression"));
+        // Make a note the expression was
+        // wrapped in parens. This helps us disambiguate when people chain
+        // comparison operators on purpose vs accidentally e.g.
+        //    x == y == z    // error
+        //    (x == y) == z  // ok
+        lhs->set_in_parens(true);
       }
     }
   } else if (peek->IsKeyword(Keyword::kMatch)) {  // Match expression.
@@ -1591,7 +1610,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
           goto done;
         }
 
-        XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kOParen));
+        XLS_ASSIGN_OR_RETURN(
+            Token tok,
+            PopTokenOrError(
+                TokenKind::kOParen, /*start=*/nullptr,
+                "Expected a '(' after parametrics for function invocation."));
         Bindings* b = sub_txn.bindings();
         XLS_ASSIGN_OR_RETURN(
             std::vector<Expr*> args,

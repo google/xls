@@ -683,8 +683,18 @@ class Expr : public AstNode {
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
 
+  // Note: this is one of the rare instances where we're ok with updating the
+  // AST node after it has been formed just to note that it is enclosed in
+  // parentheses. For example, we want to flag:
+  //    x == y == z
+  // But not:
+  //    (x == y) == z
+  bool in_parens() const { return in_parens_; }
+  void set_in_parens(bool enabled) { in_parens_ = enabled; }
+
  private:
   Span span_;
+  bool in_parens_ = false;
 };
 
 // ChannelTypeAnnotation has to be placed after the definition of Expr, so it

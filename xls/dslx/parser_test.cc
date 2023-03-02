@@ -678,6 +678,22 @@ TEST_F(ParserTest, BitSliceWithWidth) {
                 "(x)[1+:u8]");
 }
 
+TEST_F(ParserTest, CmpChainParensOnLhs) {
+  RoundTripExpr("(x == y) == z", {"x", "y", "z"},
+                /*populate_dslx_builtins=*/false, "((x) == (y)) == (z)");
+}
+
+TEST_F(ParserTest, CmpChainParensOnRhs) {
+  RoundTripExpr("x == (y == z)", {"x", "y", "z"},
+                /*populate_dslx_builtins=*/false, "(x) == ((y) == (z))");
+}
+
+TEST_F(ParserTest, CmpChainParensOnLhsAndRhs) {
+  RoundTripExpr("(x == y) == (y == z)", {"x", "y", "z"},
+                /*populate_dslx_builtins=*/false,
+                "((x) == (y)) == ((y) == (z))");
+}
+
 TEST_F(ParserTest, ZeroMacro) {
   RoundTripExpr("zero!<u32>()", {}, /*populate_dslx_builtins=*/true);
 }
@@ -1338,6 +1354,53 @@ fn main() -> u32 {
   // The easiest way to verify what we've got the right node is just to do a
   // string comparison, even if it's not pretty.
   EXPECT_EQ(foo_parent->rhs()->ToString(), "(u32:0) + (u32:1)");
+}
+
+TEST_F(ParserTest, ChainedEqualsComparisonError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32, y: u32, z: bool) -> bool {
+  x == y == z
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ParseError: test.x:3:10-3:12 comparison "
+                                 "operators cannot be chained")));
+}
+
+TEST_F(ParserTest, ChainedLtComparisonError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32, y: u32, z: bool) -> bool {
+  x < y < z
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ParseError: test.x:3:9-3:10 comparison "
+                                 "operators cannot be chained")));
+}
+
+TEST_F(ParserTest, ChainedLtGtComparisonError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32, y: u32, z: bool) -> bool {
+  x < y > z
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(
+      parser.ParseModule(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected a '(' after parametrics for function invocation.")));
 }
 
 }  // namespace xls::dslx

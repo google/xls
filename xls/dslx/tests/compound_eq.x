@@ -71,7 +71,7 @@ fn neq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
 #[quickcheck(test_count=100000)]
 fn prop_consistent_eq(x: TestBlob[3], y: TestBlob[3]) -> bool {
   x == x && eq_by_element(x,x) && y == y && eq_by_element(y,y) &&
-  x == y == eq_by_element(x,y)
+  (x == y) == eq_by_element(x,y)
 }
 
 // Use the same test count as prop_consistent_eq because while the edge cases
@@ -79,7 +79,7 @@ fn prop_consistent_eq(x: TestBlob[3], y: TestBlob[3]) -> bool {
 #[quickcheck(test_count=100000)]
 fn prop_consistent_neq(x: TestBlob[3], y: TestBlob[3]) -> bool {
   !(x != x) && !(neq_by_element(x,x)) && !(y != y) && !(neq_by_element(y,y)) &&
-  x != y == neq_by_element(x,y)
+  (x != y) == neq_by_element(x,y)
 }
 
 #[test]
