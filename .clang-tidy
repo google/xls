@@ -26,7 +26,6 @@ Checks: >
   -readability-convert-member-functions-to-static,
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
-  -readability-implicit-bool-conversion,
   -readability-isolate-declaration,
   -readability-magic-numbers,
   -readability-make-member-function-const,
