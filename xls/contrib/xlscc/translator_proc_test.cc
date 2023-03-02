@@ -24,12 +24,12 @@
 #include "absl/strings/str_format.h"
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -3123,6 +3123,92 @@ TEST_F(TranslatorProcTest, IOProcClassDirectIn) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("direct-ins not implemented yet")));
+}
+
+TEST_F(TranslatorProcTest, IOProcClassPropagateVars) {
+  const std::string content = R"(
+    class Block {
+    public:
+      int count = 10;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void foo() {
+
+        out.write(count);
+        count++;
+
+        if(count >= 3) {
+          count = 0;
+        }
+      }
+    };)";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(2, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t proc_state_bits,
+                           GetStateBitsForProcNameContains("Block_proc"));
+  EXPECT_EQ(proc_state_bits, 32);
+}
+
+TEST_F(TranslatorProcTest, IOProcClassPropagateVars2) {
+  const std::string content = R"(
+    class Block {
+    public:
+      int count = 10;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+
+      void IncCount() {
+        ++count;
+      }
+
+      #pragma hls_top
+      void foo() {
+        IncCount();
+        out.write(count);
+      }
+    };)";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(11, 32)),
+                      xls::Value(xls::SBits(12, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t proc_state_bits,
+                           GetStateBitsForProcNameContains("Block_proc"));
+  EXPECT_EQ(proc_state_bits, 32);
 }
 
 }  // namespace

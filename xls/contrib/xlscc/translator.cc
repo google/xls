@@ -564,6 +564,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
       XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
                            GetThisDecl(body_loc, /*for_declaration=*/true));
+
       XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, body_loc));
       context().sf->this_lvalue = this_lval;
     }
@@ -1251,10 +1252,12 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
     XLSCC_CHECK_EQ(rvalue.rvalue().GetType()->kind(),
                    lvalue.rvalue().GetType()->kind(), loc);
 
-    XLSCC_CHECK_EQ(rvalue_to_use.lvalue(), nullptr, loc);
+    XLSCC_CHECK_EQ(rvalue_to_use.lvalue(), rvalue.lvalue(), loc);
     auto cond_sel = context().fb->Select(relative_condition, rvalue.rvalue(),
                                          lvalue.rvalue(), loc);
-    rvalue_to_use = CValue(cond_sel, rvalue_to_use.type());
+    rvalue_to_use =
+        CValue(cond_sel, rvalue_to_use.type(),
+               /*disable_type_check=*/false, rvalue_to_use.lvalue());
   } else {
     // LValue (pointer) case
     XLSCC_CHECK_NE(rvalue_to_use.lvalue(), nullptr, loc);
