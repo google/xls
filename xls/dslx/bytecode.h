@@ -14,8 +14,7 @@
 #ifndef XLS_DSLX_BYTECODE_H_
 #define XLS_DSLX_BYTECODE_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

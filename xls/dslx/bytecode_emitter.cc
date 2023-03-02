@@ -14,9 +14,8 @@
 
 #include "xls/dslx/bytecode_emitter.h"
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

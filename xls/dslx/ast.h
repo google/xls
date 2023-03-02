@@ -15,9 +15,8 @@
 #ifndef XLS_DSLX_AST_H_
 #define XLS_DSLX_AST_H_
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <ostream>

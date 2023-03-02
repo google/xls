@@ -14,8 +14,7 @@
 #ifndef XLS_DSLX_AST_UTILS_H_
 #define XLS_DSLX_AST_UTILS_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <tuple>

@@ -14,10 +14,9 @@
 
 #include "xls/dslx/bytecode.h"
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

@@ -14,9 +14,8 @@
 
 #include "xls/codegen/ram_rewrite_pass.h"
 
-#include <stdint.h>
-
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <typeinfo>

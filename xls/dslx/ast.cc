@@ -14,10 +14,9 @@
 
 #include "xls/dslx/ast.h"
 
-#include <limits.h>
-#include <stdint.h>
-
 #include <algorithm>
+#include <climits>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <string>

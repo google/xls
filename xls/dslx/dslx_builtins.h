@@ -17,8 +17,7 @@
 #ifndef XLS_DSLX_DSLX_BUILTINS_H_
 #define XLS_DSLX_DSLX_BUILTINS_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>

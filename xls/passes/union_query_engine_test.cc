@@ -14,8 +14,7 @@
 
 #include "xls/passes/union_query_engine.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>

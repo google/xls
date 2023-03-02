@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
-#include <string.h>
-
+#include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <initializer_list>
 #include <iostream>

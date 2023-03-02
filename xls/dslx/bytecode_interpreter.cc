@@ -14,9 +14,8 @@
 
 #include "xls/dslx/bytecode_interpreter.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <ios>

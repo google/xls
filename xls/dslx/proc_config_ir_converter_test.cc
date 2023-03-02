@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/proc_config_ir_converter.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

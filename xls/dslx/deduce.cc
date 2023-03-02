@@ -14,9 +14,8 @@
 
 #include "xls/dslx/deduce.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <memory>

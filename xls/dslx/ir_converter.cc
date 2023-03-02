@@ -24,9 +24,8 @@
 
 #include "xls/dslx/ir_converter.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -37,8 +36,6 @@
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/common/file/filesystem.h"
-#include "xls/dslx/command_line_utils.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -47,10 +44,12 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"

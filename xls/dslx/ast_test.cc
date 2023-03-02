@@ -14,8 +14,7 @@
 
 #include "xls/dslx/ast.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 
 #include "gmock/gmock.h"

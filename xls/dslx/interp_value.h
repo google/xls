@@ -15,8 +15,7 @@
 #ifndef XLS_DSLX_INTERP_VALUE_H_
 #define XLS_DSLX_INTERP_VALUE_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <ostream>

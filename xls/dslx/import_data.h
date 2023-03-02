@@ -15,8 +15,7 @@
 #ifndef XLS_DSLX_IMPORT_DATA_H_
 #define XLS_DSLX_IMPORT_DATA_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>

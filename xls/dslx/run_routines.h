@@ -18,8 +18,7 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>

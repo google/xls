@@ -14,8 +14,7 @@
 
 #include "xls/dslx/parametric_instantiator.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <typeinfo>

@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/ast_utils.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

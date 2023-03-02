@@ -14,8 +14,7 @@
 
 #include "xls/dslx/cpp_transpiler.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>

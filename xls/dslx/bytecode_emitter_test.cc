@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/bytecode_emitter.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <variant>

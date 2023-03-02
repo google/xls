@@ -14,8 +14,7 @@
 
 #include "xls/dslx/typecheck.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>

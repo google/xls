@@ -17,8 +17,7 @@
 #ifndef XLS_DSLX_TYPE_INFO_H_
 #define XLS_DSLX_TYPE_INFO_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

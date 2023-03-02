@@ -14,8 +14,7 @@
 
 #include "xls/dslx/constexpr_evaluator.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

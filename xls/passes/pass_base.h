@@ -15,8 +15,7 @@
 #ifndef XLS_PASSES_PASS_BASE_H_
 #define XLS_PASSES_PASS_BASE_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <filesystem>
 #include <memory>
 #include <set>

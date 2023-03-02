@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/bytecode_interpreter.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
