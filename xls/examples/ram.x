@@ -158,12 +158,6 @@ fn write_word_test() {
   );
 }
 
-fn bits_to_bool_array<N:u32>(x:uN[N]) -> bool[N] {
-  for (idx, partial): (u32, bool[N]) in range(u32:0, N) {
-    update(partial, idx, x[idx+:bool])
-  }(bool[N]:[false,...])
-}
-
 // Model of an abstract RAM. The RAM has channel pairs for supported operations,
 // the usage model is to send on a `req` channel and receive on the
 // corresponding `resp` channel. The `resp` channel may be an empty struct where
@@ -238,7 +232,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:1},
     let _ = if read_req_valid && ASSERT_VALID_READ {
       assert_eq(
         mem_initialized[read_req.addr],
-        bits_to_bool_array(read_req.mask))
+        std::convert_to_bools_lsb0(read_req.mask))
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(

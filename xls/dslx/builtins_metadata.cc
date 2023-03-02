@@ -42,6 +42,8 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"umulp", {"(uN[N], uN[N]) -> (uN[N], uN[N])", false}},
       {"smulp", {"(sN[N], sN[N]) -> (sN[N], sN[N])", false}},
 
+      {"array_rev", {"(T[N]) -> T[N]", false}},
+
       // Bitwise reduction ops.
       {"and_reduce", {"(uN[N]) -> u1", false}},
       {"or_reduce", {"(uN[N]) -> u1", false}},

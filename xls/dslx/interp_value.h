@@ -40,6 +40,7 @@ namespace xls::dslx {
 #define XLS_DSLX_BUILTIN_EACH(X)         \
   X("add_with_carry", kAddWithCarry)     \
   X("and_reduce", kAndReduce)            \
+  X("array_rev", kArrayRev)              \
   X("assert_eq", kAssertEq)              \
   X("assert_lt", kAssertLt)              \
   X("bit_slice", kBitSlice)              \

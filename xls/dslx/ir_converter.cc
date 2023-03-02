@@ -382,6 +382,7 @@ class FunctionConverter {
 
   // Builtin invocation handlers.
   absl::Status HandleBuiltinAndReduce(const Invocation* node);
+  absl::Status HandleBuiltinArrayRev(const Invocation* node);
   absl::Status HandleBuiltinArraySlice(const Invocation* node);
   absl::Status HandleBuiltinBitSlice(const Invocation* node);
   absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
@@ -2065,6 +2066,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   absl::flat_hash_map<std::string,
                       decltype(&FunctionConverter::HandleBuiltinClz)>
       map = {
+          {"array_rev", &FunctionConverter::HandleBuiltinArrayRev},
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
@@ -3034,6 +3036,23 @@ absl::Status FunctionConverter::HandleBuiltinAndReduce(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->AndReduce(arg, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinArrayRev(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+  auto* array_type = arg.GetType()->AsArrayOrDie();
+
+  Def(node, [&](const SourceInfo& loc) {
+    std::vector<BValue> elems;
+    for (int64_t i = 0; i < array_type->size(); ++i) {
+      BValue index = function_builder_->Literal(
+          UBits(static_cast<uint64_t>(array_type->size() - i - 1), 64));
+      elems.push_back(function_builder_->ArrayIndex(arg, {index}, loc));
+    }
+    return function_builder_->Array(elems, array_type->element_type(), loc);
   });
   return absl::OkStatus();
 }

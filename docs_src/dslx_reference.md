@@ -1857,6 +1857,22 @@ name of the function must be referred to directly.
 Note: Novel higher order functions (e.g. if a user wanted to write their own
 `map`) cannot currently be written in user-level DSL code.
 
+### `array_rev`
+
+`array_rev` reverses the elements of an array.
+
+```dslx
+#[test]
+fn test_array_rev() {
+  let _ = assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
+  let _ = assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
+  let _ = assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
+  let _ = assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
+  let _ = assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
+  ()
+}
+```
+
 ### `clz`, `ctz`
 
 DSLX provides the common "count leading zeroes" and "count trailing zeroes"

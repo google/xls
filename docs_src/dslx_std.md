@@ -159,10 +159,10 @@ pub fn lsb<N: u32>(x: uN[N]) -> u1
 
 Extracts the LSB (Least Significant Bit) from the value `x` and returns it.
 
-## `std::convert_to_bits`
+## `std::convert_to_bits_msb0`
 
 ```
-pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N]
+pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N]
 ```
 
 Converts an array of `N` bools to a `bits[N]` value.
@@ -192,6 +192,17 @@ There's always a source of confusion in these orderings:
 So, it's somewhat ambiguous whether "index 0" in the array would become the
 least significant bit or the most significant bit. This routine uses the "as it
 looks on paper" conversion; e.g. `[true, false, false]` becomes `0b100`.
+
+## `std::convert_to_bools_lsb0`
+
+```dslx-snippet
+pub fn fn convert_to_bools_lsb0<N:u32>(x: uN[N]) -> bool[N]
+```
+
+Convert a "word" of bits to a corresponding array of booleans.
+
+**Note well:** The least significant bit of the word becomes index 0 in the
+array.
 
 ## `std::mask_bits`
 

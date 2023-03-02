@@ -429,6 +429,16 @@ static void PopulateSignatureToLambdaMap(
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
+  map["(T[N]) -> T[N]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+                            .Len(1)
+                            .IsArray(0)
+                            .status());
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
+  };
   map["(uN[N]) -> u1"] = [](const SignatureData& data,
                             DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
@@ -654,7 +664,10 @@ absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
   }
   const std::string& signature = it->second.signature;
   XLS_VLOG(5) << builtin_name << " => " << signature;
-  return GetSignatureToLambdaMap().at(signature);
+  const auto& lambda_map = GetSignatureToLambdaMap();
+  auto it2 = lambda_map.find(signature);
+  XLS_CHECK(it2 != lambda_map.end()) << signature;
+  return it2->second;
 }
 
 }  // namespace xls::dslx

@@ -164,22 +164,55 @@ pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] {
 }
 
 // Converts an array of N bools to a bits[N] value.
-pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N] {
+//
+// The bool at index 0 in the array because the MSb (most significant bit) in
+// the result.
+pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N] {
   for (i, accum): (u32, uN[N]) in range(u32:0, N) {
    accum | (x[i] as uN[N]) << ((N-i-u32:1) as uN[N])
   }(uN[N]:0)
 }
 
 #[test]
-fn convert_to_bits_test() {
-  let _ = assert_eq(u3:0b000, convert_to_bits(bool[3]:[false, false, false]));
-  let _ = assert_eq(u3:0b001, convert_to_bits(bool[3]:[false, false, true]));
-  let _ = assert_eq(u3:0b010, convert_to_bits(bool[3]:[false, true, false]));
-  let _ = assert_eq(u3:0b011, convert_to_bits(bool[3]:[false, true, true]));
-  let _ = assert_eq(u3:0b100, convert_to_bits(bool[3]:[true, false, false]));
-  let _ = assert_eq(u3:0b110, convert_to_bits(bool[3]:[true, true, false]));
-  let _ = assert_eq(u3:0b111, convert_to_bits(bool[3]:[true, true, true]));
+fn convert_to_bits_msb0_test() {
+  let _ = assert_eq(u3:0b000, convert_to_bits_msb0(bool[3]:[false, false, false]));
+  let _ = assert_eq(u3:0b001, convert_to_bits_msb0(bool[3]:[false, false, true]));
+  let _ = assert_eq(u3:0b010, convert_to_bits_msb0(bool[3]:[false, true, false]));
+  let _ = assert_eq(u3:0b011, convert_to_bits_msb0(bool[3]:[false, true, true]));
+  let _ = assert_eq(u3:0b100, convert_to_bits_msb0(bool[3]:[true, false, false]));
+  let _ = assert_eq(u3:0b110, convert_to_bits_msb0(bool[3]:[true, true, false]));
+  let _ = assert_eq(u3:0b111, convert_to_bits_msb0(bool[3]:[true, true, true]));
   ()
+}
+
+// Converts a bits[N] values to an array of N bools.
+//
+// This variant puts the LSb (least significant bit) of the word at index 0 in
+// the resulting array.
+pub fn convert_to_bools_lsb0<N:u32>(x: uN[N]) -> bool[N] {
+  for (idx, partial): (u32, bool[N]) in range(u32:0, N) {
+    update(partial, idx, x[idx+:bool])
+  }(bool[N]:[false,...])
+}
+
+#[test]
+fn convert_to_bools_lsb0_test() {
+  let _ = assert_eq(convert_to_bools_lsb0(u1:1), bool[1]:[true]);
+  let _ = assert_eq(convert_to_bools_lsb0(u2:0b01), bool[2]:[true, false]);
+  let _ = assert_eq(convert_to_bools_lsb0(u2:0b10), bool[2]:[false, true]);
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b000), bool[3]:[false, false, false]);
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b001), bool[3]:[true, false, false] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b010), bool[3]:[false, true, false] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b011), bool[3]:[true, true, false]  );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b100), bool[3]:[false, false, true] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b110), bool[3]:[false, true, true]  );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b111), bool[3]:[true, true, true]   );
+  ()
+}
+
+#[quickcheck]
+fn convert_to_from_bools(x: u4) -> bool {
+  convert_to_bits_msb0(array_rev(convert_to_bools_lsb0(x))) == x
 }
 
 // Returns (found, index) given array and the element to find within the array.
@@ -196,7 +229,7 @@ pub fn find_index<BITS: u32, ELEMS: u32>(
     update(accum, i, array[i] == x)
   }((bool[ELEMS]:[false, ...]));
 
-  let x: uN[ELEMS] = convert_to_bits(bools);
+  let x: uN[ELEMS] = convert_to_bits_msb0(bools);
   let index = clz(x);
   let found: bool = or_reduce(x);
   (found, if found { index as u32 } else { u32:0 })
