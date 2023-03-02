@@ -3211,6 +3211,48 @@ TEST_F(TranslatorProcTest, IOProcClassPropagateVars2) {
   EXPECT_EQ(proc_state_bits, 32);
 }
 
+TEST_F(TranslatorProcTest, IOProcClassWithoutRef) {
+  const std::string content = R"(
+    class Block {
+    public:
+      int count = 10;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      void IncCount() {
+        ++count;
+      }
+
+      #pragma hls_top
+      void foo() {
+        IncCount();
+        out.write(count);
+      }
+    };)";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(11, 32)),
+                      xls::Value(xls::SBits(12, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t proc_state_bits,
+                           GetStateBitsForProcNameContains("Block_proc"));
+  EXPECT_EQ(proc_state_bits, 32);
+}
+
 }  // namespace
 
 }  // namespace xlscc
