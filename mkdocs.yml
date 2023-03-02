@@ -56,15 +56,15 @@ nav:
     - Ideas and Projects: 'ideas_and_projects.md'
     - FPGA characterization (experimental): 'fpga_characterization.md'
   - NoC:
-    - Overview: 'xls_noc_readme.md'
+    - Overview: 'noc/xls_noc_readme.md'
     - Topologies:
-      - Overview: 'xls_noc_topologies.md'
-      - Dimension Order: 'xls_noc_dimension_order_topology.md'
-      - Tree: 'xls_noc_tree_topology.md'
-      - k-ary n-fly Butterfly: 'xls_noc_butterfly_topology.md'
-      - Fully Connected: 'xls_noc_fully_connected_topology.md'
-      - Star: 'xls_noc_star_topology.md'
-    - Glossary: 'xls_noc_glossary.md'
+      - Overview: 'noc/xls_noc_topologies.md'
+      - Dimension Order: 'noc/xls_noc_dimension_order_topology.md'
+      - Tree: 'noc/xls_noc_tree_topology.md'
+      - k-ary n-fly Butterfly: 'noc/xls_noc_butterfly_topology.md'
+      - Fully Connected: 'noc/xls_noc_fully_connected_topology.md'
+      - Star: 'noc/xls_noc_star_topology.md'
+    - Glossary: 'noc/xls_noc_glossary.md'
 markdown_extensions:
   - mdx_truly_sane_lists
   - pymdownx.superfences
