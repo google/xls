@@ -694,8 +694,10 @@ cc_library(
     hdrs = ["opt.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common/status:status_macros",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir",
@@ -717,10 +719,9 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:pass_base",
     ],
 )
 

@@ -14,6 +14,8 @@
 
 #include "xls/tools/opt.h"
 
+#include "absl/status/status.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/ir_parser.h"
@@ -51,6 +53,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
       .skip_passes = options.skip_passes,
       .inline_procs = options.inline_procs,
       .convert_array_index_to_select = options.convert_array_index_to_select,
+      .ram_rewrites = options.ram_rewrites,
   };
   PassResults results;
   XLS_RETURN_IF_ERROR(
@@ -59,6 +62,43 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
   // in opt, not codegen.
   XLS_RETURN_IF_ERROR(xls::VerifyPackage(package.get(), /*codegen=*/true));
   return package->DumpIr();
+}
+
+absl::StatusOr<std::string> OptimizeIrForTop(
+    std::string_view input_path, int64_t opt_level, std::string_view top,
+    std::string_view ir_dump_path,
+    absl::Span<const std::string> run_only_passes,
+    absl::Span<const std::string> skip_passes,
+    int64_t convert_array_index_to_select, bool inline_procs,
+    std::string_view ram_rewrites_pb) {
+  XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
+  std::vector<RamRewrite> ram_rewrites;
+  if (!ram_rewrites_pb.empty()) {
+    RamRewritesProto ram_rewrite_proto;
+    XLS_RETURN_IF_ERROR(ParseProtobinFile(
+        std::filesystem::path(ram_rewrites_pb), &ram_rewrite_proto))
+        << "Could not read ram rewrites proto at " << ram_rewrites_pb << ".";
+    XLS_ASSIGN_OR_RETURN(ram_rewrites, RamRewritesFromProto(ram_rewrite_proto));
+  }
+  const OptOptions options = {
+      .opt_level = opt_level,
+      .top = top,
+      .ir_dump_path = std::string(ir_dump_path),
+      .run_only_passes =
+          run_only_passes.empty()
+              ? std::nullopt
+              : std::make_optional(std::vector<std::string>(
+                    run_only_passes.begin(), run_only_passes.end())),
+      .skip_passes =
+          std::vector<std::string>(skip_passes.begin(), skip_passes.end()),
+      .convert_array_index_to_select =
+          (convert_array_index_to_select < 0)
+              ? std::nullopt
+              : std::make_optional(convert_array_index_to_select),
+      .inline_procs = inline_procs,
+      .ram_rewrites = std::move(ram_rewrites),
+  };
+  return OptimizeIrForTop(ir, options);
 }
 
 }  // namespace xls::tools

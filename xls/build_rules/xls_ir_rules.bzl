@@ -201,7 +201,11 @@ def _optimize_ir(ctx, src):
 
     if ctx.attr.top:
         opt_ir_args.setdefault("top", ctx.attr.top)
+
     my_args = args_to_string(opt_ir_args)
+    if ctx.attr.ram_rewrites:
+        ram_rewrites = "--ram_rewrites_pb=" + ",".join([",".join([file.path for file in ram_rewrite.files.to_list()]) for ram_rewrite in ctx.attr.ram_rewrites])
+        my_args += " " + ram_rewrites
 
     opt_ir_filename = get_output_filename_value(
         ctx,
@@ -214,7 +218,11 @@ def _optimize_ir(ctx, src):
     opt_ir_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).opt_ir_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src])
+    ram_rewrite_files = []
+    for rewrite in ctx.attr.ram_rewrites:
+        ram_rewrite_files.extend(rewrite.files.to_list())
+
+    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src] + ram_rewrite_files)
 
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
@@ -658,6 +666,7 @@ xls_ir_opt_ir_attrs = dicts.add(
                   "the target name of the bazel rule followed by an " +
                   _OPT_IR_FILE_EXTENSION + " extension is used.",
         ),
+        "ram_rewrites": attr.label_list(doc = "List of ram rewrite protos."),
     },
 )
 

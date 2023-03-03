@@ -40,6 +40,7 @@ struct OptOptions {
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   bool inline_procs;
+  std::vector<RamRewrite> ram_rewrites = {};
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
@@ -47,6 +48,16 @@ struct OptOptions {
 // returns the resulting optimized IR.
 absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
                                              const OptOptions& options);
+
+// Convenience wrapper around the above that builds an OptOptions appropriately.
+// Analagous to calling opt_main with each argument being a flag.
+absl::StatusOr<std::string> OptimizeIrForTop(
+    std::string_view input_path, int64_t opt_level, std::string_view top,
+    std::string_view ir_dump_path,
+    absl::Span<const std::string> run_only_passes,
+    absl::Span<const std::string> skip_passes,
+    int64_t convert_array_index_to_select, bool inline_procs,
+    std::string_view ram_rewrites_pb);
 
 }  // namespace xls::tools
 
