@@ -376,13 +376,13 @@ outputs is required.
 ### Filing an LLVM bug
 
 If the fuzzer problem is due to a crash or miscompile by LLVM, file an LLVM bug
-[here](https://github.com/llvm/llvm-project/issues).
-[This](https://github.com/llvm/llvm-project/issues/61038) is an example LLVM bug
-found by the fuzzer.
+[here](https://github.com/llvm/llvm-project/issues).  Example LLVM bugs found by
+the fuzzer: [1](https://github.com/llvm/llvm-project/issues/61127),
+[2](https://github.com/llvm/llvm-project/issues/61038).
 
 Although the internal Google mirror of LLVM is updated frequently, prior to
 filing an LLVM bug it's a good idea to verify the failure against LLVM head.
-Steps to build LLVM:
+Steps to build a debug build of LLVM:
 
 ```
 git clone https://github.com/llvm/llvm-project.git
@@ -391,6 +391,26 @@ mkdir build
 cd build
 cmake -G Ninja ../llvm -DCMAKE_BUILD_TYPE=Debug -DLLVM_TARGETS_TO_BUILD=X86
 cmake --build . -- opt # or llc or other target.
+```
+
+Below are instructions to configure LLVM with sanitizers enabled. This can be
+useful for reproducing issues found with the sanitizer-enabled fuzz tests.
+
+```
+# Install a version of LLVM which supports necessary sanitizer options.
+sudo apt-get install lld-15 llvm-15 clang-15 libc++1-15
+# In llvm-project directory:
+mkdir build-asan
+cd build-asan
+TOOLBIN=/usr/lib/llvm-15/bin
+# Below enables a particular sanitizer option `sanitize-float-cast-overflow`.
+# `Address` can be used as an option instead of `Undefined` depending on the
+# desired sanitizer check.
+cmake ../llvm -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_CXX_COMPILER=$TOOLBIN/clang++ -DCMAKE_C_COMPILER=$TOOLBIN/clang \
+  -DLLVM_USE_SANITIZER=Undefined \
+  -DLLVM_UBSAN_FLAGS='-fsanitize=float-cast-overflow -fsanitize-undefined-trap-on-error' \
+  -DLLVM_ENABLE_LLD=On -DLLVM_TARGETS_TO_BUILD=X86
 ```
 
 LLVM includes a test case minimizer called
