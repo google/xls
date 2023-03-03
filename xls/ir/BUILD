@@ -1274,3 +1274,13 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+proto_library(
+    name = "ram_rewrite_proto",
+    srcs = ["ram_rewrite.proto"],
+)
+
+cc_proto_library(
+    name = "ram_rewrite_cc_proto",
+    deps = [":ram_rewrite_proto"],
+)

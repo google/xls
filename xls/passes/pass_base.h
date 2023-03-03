@@ -34,6 +34,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ram_rewrite.pb.h"
 
 namespace xls {
 
@@ -53,6 +54,8 @@ enum class RamKind {
 };
 
 std::string_view RamKindToString(RamKind kind);
+absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto);
+
 // Configuration describing the behavior of a RAM.
 struct RamConfig {
   RamKind kind;
@@ -69,6 +72,8 @@ struct RamConfig {
   // Computed mask width: if word_partition_size is nullopt, 0, else
   // ceil(width/word_partition_size).
   int64_t mask_width() const;
+
+  static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
 };
 
 struct RamModelBuilderResult {
@@ -93,7 +98,12 @@ struct RamRewrite {
   // If populated, also add a RAM model of kind "to_kind" driving the new
   // channels using the builder function.
   std::optional<ram_model_builder_t> model_builder;
+
+  static absl::StatusOr<RamRewrite> FromProto(const RamRewriteProto& proto);
 };
+
+absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
+    const RamRewritesProto& proto);
 
 // Options data structure passed to each pass run invocation. This data
 // structure is passed by const reference to PassBase::Run and should contain

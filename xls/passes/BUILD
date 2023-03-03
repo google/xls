@@ -759,6 +759,7 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ram_rewrite_cc_proto",
     ],
 )
 
@@ -767,7 +768,10 @@ cc_test(
     srcs = ["pass_base_test.cc"],
     deps = [
         ":pass_base",
+        "@com_google_absl//absl/status",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:ram_rewrite_cc_proto",
         "@com_google_googletest//:gtest",
     ],
 )

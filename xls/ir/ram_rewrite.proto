@@ -1,0 +1,43 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+enum RamKindProto {
+  RAM_INVALID = 0;
+  RAM_ABSTRACT = 1;
+  RAM_1RW = 2;
+}
+
+message RamConfigProto {
+  RamKindProto kind = 1;
+  int64 width = 2;
+  int64 depth = 3;
+  optional int64 word_partition_size = 4;
+  // TODO(google/xls#861): Add support for initialization info in proto.
+}
+
+message RamRewriteProto {
+  RamConfigProto from_config = 1;
+  map<string, string> from_channels_logical_to_physical = 2;
+  RamConfigProto to_config = 3;
+  string to_name_prefix = 4;
+  optional string model_builder = 5;
+}
+
+message RamRewritesProto {
+  repeated RamRewriteProto rewrites = 1;
+}

@@ -14,9 +14,13 @@
 
 #include "xls/passes/pass_base.h"
 
+#include <cstdint>
 #include <string>
+#include <utility>
 
+#include "absl/status/status.h"
 #include "xls/common/math_util.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 
@@ -45,4 +49,64 @@ int64_t RamConfig::mask_width() const {
   return (width + word_partition_size.value() - 1) /
          word_partition_size.value();
 }
+
+absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
+  switch (proto) {
+    case RamKindProto::RAM_ABSTRACT:
+      return RamKind::kAbstract;
+    case RamKindProto::RAM_1RW:
+      return RamKind::k1RW;
+    default:
+      return absl::InvalidArgumentError("Invalid RamKind");
+  }
+}
+
+/*static*/ absl::StatusOr<RamConfig> RamConfig::FromProto(
+    const RamConfigProto& proto) {
+  XLS_ASSIGN_OR_RETURN(RamKind kind, RamKindFromProto(proto.kind()));
+  return RamConfig{
+      .kind = kind,
+      .width = proto.width(),
+      .depth = proto.depth(),
+      .word_partition_size = proto.has_word_partition_size()
+                                 ? std::optional(proto.word_partition_size())
+                                 : std::nullopt,
+      // TODO(google/xls#861): Add support for initialization info in proto.
+      .initial_value = std::nullopt,
+  };
+}
+
+/*static*/ absl::StatusOr<RamRewrite> RamRewrite::FromProto(
+    const RamRewriteProto& proto) {
+  if (proto.has_model_builder()) {
+    return absl::UnimplementedError("Model builders not yet implemented.");
+  }
+  XLS_ASSIGN_OR_RETURN(RamConfig from_config,
+                       RamConfig::FromProto(proto.from_config()));
+  XLS_ASSIGN_OR_RETURN(RamConfig to_config,
+                       RamConfig::FromProto(proto.to_config()));
+  return RamRewrite{
+      .from_config = from_config,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>(
+              proto.from_channels_logical_to_physical().begin(),
+              proto.from_channels_logical_to_physical().end()),
+      .to_config = to_config,
+      .to_name_prefix = proto.to_name_prefix(),
+      .model_builder = std::nullopt,
+  };
+}
+
+absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
+    const RamRewritesProto& proto) {
+  std::vector<RamRewrite> rewrites;
+  rewrites.reserve(proto.rewrites_size());
+  for (const auto& rewrite_proto : proto.rewrites()) {
+    XLS_ASSIGN_OR_RETURN(RamRewrite rewrite,
+                         RamRewrite::FromProto(rewrite_proto));
+    rewrites.push_back(rewrite);
+  }
+  return rewrites;
+}
+
 }  // namespace xls
