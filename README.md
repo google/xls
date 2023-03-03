@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) | [**Tutorials**](https://google.github.io/xls/tutorials/) ![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/chipsalliance/silicon-notebooks/blob/main/xls-adder-openlane.ipynb) | [**Tutorials**](https://google.github.io/xls/tutorials/) ![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
 
 ## What is XLS?
 
