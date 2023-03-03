@@ -33,8 +33,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 #include <cstdint>
 #include <functional>
@@ -33,11 +33,11 @@
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/deduce.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/deduce.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {

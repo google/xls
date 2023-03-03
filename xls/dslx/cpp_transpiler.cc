@@ -41,7 +41,7 @@
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {
 namespace {

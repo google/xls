@@ -33,7 +33,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 

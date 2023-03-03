@@ -30,10 +30,10 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast_utils.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/ir_conversion_utils.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 namespace {

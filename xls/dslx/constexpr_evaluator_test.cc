@@ -27,14 +27,14 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/type_info.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {
 namespace {

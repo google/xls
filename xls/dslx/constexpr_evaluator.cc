@@ -36,9 +36,9 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type_zero_value.h"
 
 namespace xls::dslx {
 namespace {

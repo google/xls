@@ -1,0 +1,275 @@
+# Copyright 2023 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Frontend type-system and associated data structures.
+
+# pytype tests are present in this file
+
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+cc_library(
+    name = "concrete_type",
+    srcs = ["concrete_type.cc"],
+    hdrs = ["concrete_type.h"],
+    deps = [
+        ":parametric_expression",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:ast",
+        "//xls/dslx:interp_value",
+    ],
+)
+
+cc_test(
+    name = "concrete_type_test",
+    srcs = ["concrete_type_test.cc"],
+    deps = [
+        ":concrete_type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "deduce_ctx",
+    srcs = ["deduce_ctx.cc"],
+    hdrs = ["deduce_ctx.h"],
+    deps = [
+        ":concrete_type",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:string_to_int",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:import_routines",
+        "//xls/dslx:interp_bindings",
+        "//xls/dslx:type_and_bindings",
+        "//xls/dslx:warning_collector",
+    ],
+)
+
+cc_library(
+    name = "deduce",
+    srcs = ["deduce.cc"],
+    hdrs = ["deduce.h"],
+    deps = [
+        ":concrete_type",
+        ":concrete_type_zero_value",
+        ":deduce_ctx",
+        ":parametric_instantiator",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/cleanup",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:ast",
+        "//xls/dslx:ast_utils",
+        "//xls/dslx:bytecode_emitter",
+        "//xls/dslx:bytecode_interpreter",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_routines",
+        "//xls/dslx:interp_bindings",
+        "//xls/dslx:token_utils",
+        "//xls/dslx:type_and_bindings",
+    ],
+)
+
+cc_library(
+    name = "parametric_instantiator",
+    srcs = ["parametric_instantiator.cc"],
+    hdrs = ["parametric_instantiator.h"],
+    deps = [
+        ":concrete_type",
+        ":deduce_ctx",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
+        "//xls/dslx:bytecode_emitter",
+        "//xls/dslx:bytecode_interpreter",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
+        "//xls/dslx:type_and_bindings",
+        "//xls/dslx:type_info",
+    ],
+)
+
+cc_library(
+    name = "typecheck",
+    srcs = ["typecheck.cc"],
+    hdrs = ["typecheck.h"],
+    deps = [
+        ":deduce",
+        ":deduce_ctx",
+        ":parametric_env",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "@com_google_absl//absl/types:span",
+        "//xls/dslx:ast_utils",
+        "//xls/dslx:builtins_metadata",
+        "//xls/dslx:bytecode_emitter",
+        "//xls/dslx:bytecode_interpreter",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:dslx_builtins",
+        "//xls/dslx:errors",
+        "@com_github_google_re2//:re2",
+    ],
+)
+
+cc_test(
+    name = "typecheck_test",
+    srcs = ["typecheck_test.cc"],
+    deps = [
+        ":typecheck",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:ast",
+        "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:error_printer",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:type_info_to_proto",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "parametric_expression",
+    srcs = ["parametric_expression.cc"],
+    hdrs = ["parametric_expression.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:pos",
+    ],
+)
+
+cc_test(
+    name = "parametric_expression_test",
+    srcs = ["parametric_expression_test.cc"],
+    deps = [
+        ":parametric_expression",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "concrete_type_zero_value",
+    srcs = ["concrete_type_zero_value.cc"],
+    hdrs = ["concrete_type_zero_value.h"],
+    deps = [
+        ":concrete_type",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:errors",
+        "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
+    ],
+)
+
+cc_library(
+    name = "parametric_env",
+    srcs = ["parametric_env.cc"],
+    hdrs = ["parametric_env.h"],
+    deps = [
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/dslx:interp_value",
+    ],
+)
+
+# -- binary for invoking type checking subsystem
+
+cc_binary(
+    name = "typecheck_main",
+    srcs = ["typecheck_main.cc"],
+    deps = [
+        ":typecheck",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:type_info_to_proto",
+    ],
+)
+
+py_test(
+    name = "typecheck_main_test",
+    srcs = ["typecheck_main_test.py"],
+    data = [
+        ":typecheck_main",
+        "//xls/dslx/tests:mod_const_enum_importer.x",
+        "//xls/dslx/tests:mod_simple_const_enum.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
+    ],
+)

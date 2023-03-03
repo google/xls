@@ -27,7 +27,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {
 

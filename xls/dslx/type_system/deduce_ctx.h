@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_DEDUCE_CTX_H_
-#define XLS_DSLX_DEDUCE_CTX_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_DEDUCE_CTX_H_
+#define XLS_DSLX_TYPE_SYSTEM_DEDUCE_CTX_H_
 
 #include <cstddef>
 #include <filesystem>  // NOLINT
@@ -29,10 +29,10 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_and_bindings.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -238,4 +238,4 @@ ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_DEDUCE_CTX_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_CTX_H_

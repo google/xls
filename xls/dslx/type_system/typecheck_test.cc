@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 #include <cstdint>
 #include <iostream>

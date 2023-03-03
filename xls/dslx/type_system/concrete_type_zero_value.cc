@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/concrete_type_zero_value.h"
+#include "xls/dslx/type_system/concrete_type_zero_value.h"
 
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/errors.h"

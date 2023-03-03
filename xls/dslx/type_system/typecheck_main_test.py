@@ -19,7 +19,7 @@ import subprocess as subp
 from absl.testing import absltest
 from xls.common import runfiles
 
-_TYPECHECK_MAIN_PATH = runfiles.get_path('xls/dslx/typecheck_main')
+_TYPECHECK_MAIN_PATH = runfiles.get_path('xls/dslx/type_system/typecheck_main')
 
 
 class TypecheckMainTest(absltest.TestCase):

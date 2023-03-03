@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_CPP_PARAMETRIC_INSTANTIATOR_H_
-#define XLS_DSLX_CPP_PARAMETRIC_INSTANTIATOR_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
+#define XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
 
 #include <stdint.h>
 
@@ -27,11 +27,11 @@
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/type_and_bindings.h"
 #include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 
 namespace xls::dslx {
 
@@ -302,4 +302,4 @@ class StructInstantiator : public ParametricInstantiator {
 }  // namespace internal
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CPP_PARAMETRIC_INSTANTIATOR_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_

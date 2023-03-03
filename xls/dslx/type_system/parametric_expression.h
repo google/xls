@@ -14,8 +14,8 @@
 
 // Sub-AST used for representing parametric type expressions.
 
-#ifndef XLS_DSLX_PARAMETRIC_EXPRESSION_H_
-#define XLS_DSLX_PARAMETRIC_EXPRESSION_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_EXPRESSION_H_
+#define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_EXPRESSION_H_
 
 #include <cstdint>
 #include <memory>
@@ -39,7 +39,7 @@ namespace xls::dslx {
 //
 //     bits[M+N]
 //
-// If we evalute the parametric expression M+N with an environment {M: 3, N; 7}
+// If we evaluate the parametric expression M+N with an environment {M: 3, N; 7}
 // we get:
 //
 //     bits[10]
@@ -293,4 +293,4 @@ class ParametricSymbol : public ParametricExpression {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_PARAMETRIC_EXPRESSION_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_EXPRESSION_H_

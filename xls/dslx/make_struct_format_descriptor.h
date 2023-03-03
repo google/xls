@@ -15,8 +15,8 @@
 #ifndef XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
 #define XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
 
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/struct_format_descriptor.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 

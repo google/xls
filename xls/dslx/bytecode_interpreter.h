@@ -29,7 +29,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 

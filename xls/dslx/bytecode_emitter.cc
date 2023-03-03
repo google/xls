@@ -36,11 +36,11 @@
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/make_struct_format_descriptor.h"
 #include "xls/dslx/struct_format_descriptor.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/concrete_type_zero_value.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value

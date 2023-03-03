@@ -29,10 +29,10 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/parametric_instantiator.h"
 #include "xls/dslx/type_and_bindings.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_instantiator.h"
 
 namespace xls::dslx {
 

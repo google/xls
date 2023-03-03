@@ -34,7 +34,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");

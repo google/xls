@@ -50,7 +50,7 @@
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 

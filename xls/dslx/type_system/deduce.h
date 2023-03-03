@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_DEDUCE_H_
-#define XLS_DSLX_DEDUCE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_
+#define XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_
 
 #include <memory>
 #include <vector>
@@ -21,11 +21,11 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/parametric_instantiator.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_instantiator.h"
 
 namespace xls::dslx {
 
@@ -68,4 +68,4 @@ ParametricBindingsToConstraints(absl::Span<ParametricBinding* const> bindings,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_DEDUCE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_DEDUCE_H_

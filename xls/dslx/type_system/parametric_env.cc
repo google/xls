@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 #include <stdint.h>
 

@@ -20,8 +20,8 @@
 // Concrete types are used in both type inference deduction and interpreter
 // evaluation of the DSL.
 
-#ifndef XLS_DSLX_CONCRETE_TYPE_H_
-#define XLS_DSLX_CONCRETE_TYPE_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
+#define XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -42,7 +42,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/parametric_expression.h"
+#include "xls/dslx/type_system/parametric_expression.h"
 
 namespace xls::dslx {
 
@@ -669,4 +669,4 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CONCRETE_TYPE_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_

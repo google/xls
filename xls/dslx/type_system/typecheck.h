@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPECHECK_H_
-#define XLS_DSLX_TYPECHECK_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_
 
 #include <filesystem>  // NOLINT
 #include <memory>
@@ -24,7 +24,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 
 namespace xls::dslx {
 
@@ -69,4 +69,4 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPECHECK_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPECHECK_H_

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/deduce.h"
+#include "xls/dslx/type_system/deduce.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -44,13 +44,13 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/concrete_type_zero_value.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/token_utils.h"
 #include "xls/dslx/type_and_bindings.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/concrete_type_zero_value.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 
 namespace xls::dslx {
 namespace {

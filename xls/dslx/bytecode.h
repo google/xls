@@ -28,11 +28,11 @@
 #include "absl/types/variant.h"
 #include "xls/common/strong_int.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/pos.h"
 #include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {

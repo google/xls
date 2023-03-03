@@ -25,7 +25,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 

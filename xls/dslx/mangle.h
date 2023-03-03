@@ -21,7 +21,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 

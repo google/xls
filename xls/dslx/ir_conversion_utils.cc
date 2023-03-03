@@ -24,7 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 
 namespace xls::dslx {
 

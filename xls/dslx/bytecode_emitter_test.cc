@@ -29,8 +29,8 @@
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/parametric_env.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
 namespace {

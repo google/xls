@@ -34,7 +34,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_converter.h"
-#include "xls/dslx/parametric_env.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/jit/function_jit.h"
