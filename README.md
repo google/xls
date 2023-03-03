@@ -4,7 +4,12 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/chipsalliance/silicon-notebooks/blob/main/xls-adder-openlane.ipynb) | [**Tutorials**](https://google.github.io/xls/tutorials/) ![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/chipsalliance/silicon-notebooks/blob/main/xls-adder-openlane.ipynb) | [**Tutorials**](https://google.github.io/xls/tutorials/)
+
+[**Conda packages**](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/latest_release_date.svg)](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/platforms.svg)](https://anaconda.org/litex-hub/xls)
+
+![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
+
 
 ## What is XLS?
 
@@ -43,9 +48,22 @@ out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 [reporting bugs](https://github.com/google/xls/issues), and letting us know
 what you think!
 
+## Install using conda
+
+```bash
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -p conda-env/ -b
+source conda-env/bin/activate
+conda install --yes -c litex-hub xls
+interpreter_main --version
+ir_converter_main --version
+opt_main --version
+codegen_main --version
+```
+
 ## Building From Source
 
-Currently, XLS must be built from source using the Bazel build system.
+You can build XLS from source using the Bazel build system.
 
 *Note:* Binary distributions of the XLS library are not currently available, but
 we hope to enable them via continuous integration,
