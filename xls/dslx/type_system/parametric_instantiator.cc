@@ -33,8 +33,8 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/bytecode_emitter.h"
-#include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
 
 namespace xls::dslx {

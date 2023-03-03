@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_BYTECODE_H_
-#define XLS_DSLX_BYTECODE_H_
+#ifndef XLS_DSLX_BYTECODE_BYTECODE_H_
+#define XLS_DSLX_BYTECODE_BYTECODE_H_
 
 #include <cstdint>
 #include <memory>
@@ -440,4 +440,4 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BYTECODE_H_
+#endif  // XLS_DSLX_BYTECODE_BYTECODE_H_

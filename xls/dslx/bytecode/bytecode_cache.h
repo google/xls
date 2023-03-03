@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_BYTECODE_CACHE_H_
-#define XLS_DSLX_BYTECODE_CACHE_H_
+#ifndef XLS_DSLX_BYTECODE_BYTECODE_CACHE_H_
+#define XLS_DSLX_BYTECODE_BYTECODE_CACHE_H_
 
 #include <memory>
 #include <optional>
@@ -20,8 +20,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/bytecode.h"
-#include "xls/dslx/bytecode_cache_interface.h"
+#include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
@@ -45,4 +45,4 @@ class BytecodeCache : public BytecodeCacheInterface {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BYTECODE_CACHE_H_
+#endif  // XLS_DSLX_BYTECODE_BYTECODE_CACHE_H_

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
 
 #include <cstddef>
 #include <cstdint>

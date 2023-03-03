@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -35,7 +35,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"

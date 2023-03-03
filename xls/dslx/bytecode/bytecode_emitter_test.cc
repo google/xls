@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
 
 #include <cstdint>
 #include <memory>
@@ -25,7 +25,7 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"

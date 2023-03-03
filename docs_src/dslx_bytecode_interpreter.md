@@ -14,20 +14,19 @@ yet support the full set of DSLX functionality.
 
 ## Structure
 
-[The interpreter](https://github.com/google/xls/tree/main/xls/dslx/bytecode_interpreter.h)
+[The interpreter](https://github.com/google/xls/tree/main/xls/dslx/bytecode/bytecode_interpreter.h)
 is implemented as a
 [stack virtual machine](https://en.wikipedia.org/wiki/Stack_machine): it
 consists of a program counter (PC), a stack of frames, and "slot"-based locals
-within a given stack frame
-(_conceptually_ part of the stack frame, but tracked separately in our
-implementation). Both the stack and local storage hold
+within a given stack frame (*conceptually* part of the stack frame, but tracked
+separately in our implementation). Both the stack and local storage hold
 [`InterpValues`](https://github.com/google/xls/tree/main/xls/dslx/interp_value.h), which
 can hold all DSLX data types: bits, tuples, and arrays (and others), thus there
 is no fundamental need for lower-level (i.e., byte) type representation. For the
-purposes of [de]serialization, this may change in the future. Local data
-is addressed by integer-typed "slots", being backed by a simple `std::vector`:
-in other words, slot indices are dense. All slots must be pre-allocated to
-contain all references to locals in the current function stack frame.
+purposes of [de]serialization, this may change in the future. Local data is
+addressed by integer-typed "slots", being backed by a simple `std::vector`: in
+other words, slot indices are dense. All slots must be pre-allocated to contain
+all references to locals in the current function stack frame.
 
 On each "tick", the interpreter reads the current instruction, as given by the
 PC (conceptually, the only register in the virtual machine), executes the
@@ -63,10 +62,10 @@ The below opcodes are supported by the interpreter:
 ## Bytecode generation
 
 The
-[bytecode emitter](https://github.com/google/xls/tree/main/xls/dslx/bytecode_emitter.h) is
-responsible for converting a set of DSLX ASTs (one per function)) into a set of
-linear bytecode representations. It does this via a postorder traversal of the
-AST, converting XLS ops into bytecode instructions along the way, e.g.,
+[bytecode emitter](https://github.com/google/xls/tree/main/xls/dslx/bytecode/bytecode_emitter.h)
+is responsible for converting a set of DSLX ASTs (one per function)) into a set
+of linear bytecode representations. It does this via a postorder traversal of
+the AST, converting XLS ops into bytecode instructions along the way, e.g.,
 converting a DSLX `Binop` for adding two `NameRef`s into two `LOAD` instructions
 (one for each `NameRef`) and one `ADD` instruction.
 

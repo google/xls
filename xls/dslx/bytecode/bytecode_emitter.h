@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_BYTECODE_EMITTER_H_
-#define XLS_DSLX_BYTECODE_EMITTER_H_
+#ifndef XLS_DSLX_BYTECODE_BYTECODE_EMITTER_H_
+#define XLS_DSLX_BYTECODE_BYTECODE_EMITTER_H_
 
 #include <cstdint>
 #include <memory>
@@ -25,7 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -138,4 +138,4 @@ class BytecodeEmitter : public ExprVisitor {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BYTECODE_EMITTER_H_
+#endif  // XLS_DSLX_BYTECODE_BYTECODE_EMITTER_H_

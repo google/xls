@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_BYTECODE_INTERPRETER_H_
-#define XLS_DSLX_BYTECODE_INTERPRETER_H_
+#ifndef XLS_DSLX_BYTECODE_BYTECODE_INTERPRETER_H_
+#define XLS_DSLX_BYTECODE_BYTECODE_INTERPRETER_H_
 
 #include <cstdint>
 #include <functional>
@@ -26,7 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -385,4 +385,4 @@ class ProcInstance {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BYTECODE_INTERPRETER_H_
+#endif  // XLS_DSLX_BYTECODE_BYTECODE_INTERPRETER_H_

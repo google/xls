@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/bytecode_cache.h"
+#include "xls/dslx/bytecode/bytecode_cache.h"
 
 #include <memory>
 #include <optional>
@@ -20,7 +20,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
 
 namespace xls::dslx {
 

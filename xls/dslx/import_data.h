@@ -28,7 +28,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/dslx/bytecode_cache_interface.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_bindings.h"

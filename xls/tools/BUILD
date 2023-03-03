@@ -537,13 +537,13 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/dslx:bytecode_emitter",
-        "//xls/dslx:bytecode_interpreter",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/bytecode:bytecode_emitter",
+        "//xls/dslx/bytecode:bytecode_interpreter",
     ],
 )
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode/bytecode.h"
 
 #include <algorithm>
 #include <cstddef>

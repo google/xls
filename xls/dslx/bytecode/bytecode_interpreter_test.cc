@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <cstdint>
 #include <filesystem>  // NOLINT
@@ -29,7 +29,7 @@
 #include "absl/strings/match.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"

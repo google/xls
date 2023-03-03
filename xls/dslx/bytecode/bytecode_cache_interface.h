@@ -11,13 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_BYTECODE_CACHE_INTERFACE_H_
-#define XLS_DSLX_BYTECODE_CACHE_INTERFACE_H_
+#ifndef XLS_DSLX_BYTECODE_BYTECODE_CACHE_INTERFACE_H_
+#define XLS_DSLX_BYTECODE_BYTECODE_CACHE_INTERFACE_H_
 
 #include <optional>
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -40,4 +40,4 @@ class BytecodeCacheInterface {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BYTECODE_CACHE_INTERFACE_H_
+#endif  // XLS_DSLX_BYTECODE_BYTECODE_CACHE_INTERFACE_H_
