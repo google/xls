@@ -26,7 +26,7 @@
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls {
 namespace internal {

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_PARSER_H_
-#define XLS_DSLX_PARSER_H_
+#ifndef XLS_DSLX_FRONTEND_PARSER_H_
+#define XLS_DSLX_FRONTEND_PARSER_H_
 
 #include <cstddef>
 #include <functional>
@@ -32,9 +32,9 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/strong_int.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/bindings.h"
-#include "xls/dslx/token_parser.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/token_parser.h"
 
 namespace xls::dslx {
 
@@ -555,4 +555,4 @@ const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_PARSER_H_
+#endif  // XLS_DSLX_FRONTEND_PARSER_H_

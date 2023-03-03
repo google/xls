@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/ast_cloner.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 
 #include <memory>
 #include <string_view>
@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {

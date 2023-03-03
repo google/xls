@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/token_utils.h"
+#include "xls/dslx/frontend/token_utils.h"
 
 #include <stdint.h>
 
@@ -24,7 +24,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "xls/common/logging/logging.h"
-#include "xls/dslx/scanner_keywords.inc"
+#include "xls/dslx/frontend/scanner_keywords.inc"
 
 namespace xls::dslx {
 

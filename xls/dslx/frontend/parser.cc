@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/parser.h"
+#include "xls/dslx/frontend/parser.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -38,12 +38,12 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/ast_cloner.h"
-#include "xls/dslx/ast_utils.h"
-#include "xls/dslx/bindings.h"
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
+#include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/ir/name_uniquer.h"
 #include "re2/re2.h"
 

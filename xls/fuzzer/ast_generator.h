@@ -25,8 +25,8 @@
 #include "absl/container/node_hash_set.h"
 #include "absl/strings/match.h"
 #include "xls/common/test_macros.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/format_preference.h"
 

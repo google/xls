@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/parser.h"
+#include "xls/dslx/frontend/parser.h"
 
 #include <memory>
 #include <string>
@@ -28,8 +28,8 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 
 namespace xls::dslx {
 

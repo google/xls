@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/scanner.h"
 
 #include <stdint.h>
 

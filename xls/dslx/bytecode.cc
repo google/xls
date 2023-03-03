@@ -35,7 +35,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 #include "re2/re2.h"

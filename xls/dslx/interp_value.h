@@ -30,7 +30,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/struct_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"

@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/ast_utils.h"
+#include "xls/dslx/frontend/ast_utils.h"
 
 #include <cstdint>
 #include <optional>
@@ -28,8 +28,8 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/token_utils.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/token_utils.h"
 
 namespace xls::dslx {
 namespace {

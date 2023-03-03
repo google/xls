@@ -37,10 +37,10 @@
 #include "xls/common/case_converters.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {

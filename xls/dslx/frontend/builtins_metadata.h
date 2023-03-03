@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_BUILTINS_METADATA_H_
-#define XLS_DSLX_BUILTINS_METADATA_H_
+#ifndef XLS_DSLX_FRONTEND_BUILTINS_METADATA_H_
+#define XLS_DSLX_FRONTEND_BUILTINS_METADATA_H_
 
 #include <string>
 
@@ -38,4 +38,4 @@ bool IsNameParametricBuiltin(std::string_view identifier);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_BUILTINS_METADATA_H_
+#endif  // XLS_DSLX_FRONTEND_BUILTINS_METADATA_H_

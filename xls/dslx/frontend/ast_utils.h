@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_AST_UTILS_H_
-#define XLS_DSLX_AST_UTILS_H_
+#ifndef XLS_DSLX_FRONTEND_AST_UTILS_H_
+#define XLS_DSLX_FRONTEND_AST_UTILS_H_
 
 #include <cstdint>
 #include <string>
@@ -23,7 +23,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 
@@ -108,4 +108,4 @@ inline std::variant<ToTypes...> WidenVariant(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_AST_UTILS_H_
+#endif  // XLS_DSLX_FRONTEND_AST_UTILS_H_

@@ -28,7 +28,7 @@
 #include "absl/strings/strip.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/string_to_int.h"
-#include "xls/dslx/bindings.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 

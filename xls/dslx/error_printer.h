@@ -25,7 +25,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {

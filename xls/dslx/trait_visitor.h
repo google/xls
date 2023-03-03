@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 

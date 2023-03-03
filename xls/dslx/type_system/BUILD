@@ -37,8 +37,8 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
     ],
 )
 
@@ -100,16 +100,16 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
-        "//xls/dslx:ast_utils",
         "//xls/dslx:bytecode_emitter",
         "//xls/dslx:bytecode_interpreter",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
-        "//xls/dslx:token_utils",
         "//xls/dslx:type_and_bindings",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:token_utils",
     ],
 )
 
@@ -153,13 +153,13 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "//xls/dslx:ast_utils",
-        "//xls/dslx:builtins_metadata",
         "//xls/dslx:bytecode_emitter",
         "//xls/dslx:bytecode_interpreter",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:dslx_builtins",
         "//xls/dslx:errors",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtins_metadata",
         "@com_github_google_re2//:re2",
     ],
 )
@@ -173,12 +173,12 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:ast",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:type_info_to_proto",
+        "//xls/dslx/frontend:ast",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -194,7 +194,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "//xls/dslx:interp_value",
-        "//xls/dslx:pos",
+        "//xls/dslx/frontend:pos",
     ],
 )
 

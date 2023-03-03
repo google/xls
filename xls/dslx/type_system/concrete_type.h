@@ -40,7 +40,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_expression.h"
 

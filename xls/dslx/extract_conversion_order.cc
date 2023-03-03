@@ -31,8 +31,8 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {

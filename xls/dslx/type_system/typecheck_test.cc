@@ -27,10 +27,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 

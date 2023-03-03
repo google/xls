@@ -16,7 +16,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/concrete_type.h"
 
 // Specialized error types that can be encountered during DSLX evaluation.

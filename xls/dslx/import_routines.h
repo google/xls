@@ -20,7 +20,7 @@
 #include <string>
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 

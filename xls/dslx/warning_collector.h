@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 

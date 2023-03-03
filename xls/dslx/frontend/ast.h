@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_AST_H_
-#define XLS_DSLX_AST_H_
+#ifndef XLS_DSLX_FRONTEND_AST_H_
+#define XLS_DSLX_FRONTEND_AST_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -44,7 +44,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_strings.h"
 
@@ -390,7 +390,7 @@ class TypeAnnotation : public AstNode {
   Span span_;
 };
 
-#include "xls/dslx/ast_builtin_types.inc"
+#include "xls/dslx/frontend/ast_builtin_types.inc"
 
 // Enumeration of types that are built-in keywords; e.g. `u32`, `bool`, etc.
 enum class BuiltinType {
@@ -3248,4 +3248,4 @@ bool IsConstant(AstNode* n);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_AST_H_
+#endif  // XLS_DSLX_FRONTEND_AST_H_

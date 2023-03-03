@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/ast_utils.h"
+#include "xls/dslx/frontend/ast_utils.h"
 
 #include <memory>
 #include <string>
@@ -21,7 +21,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 
 namespace xls::dslx {

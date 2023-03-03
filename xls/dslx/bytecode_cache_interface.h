@@ -17,8 +17,8 @@
 #include <optional>
 
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
 

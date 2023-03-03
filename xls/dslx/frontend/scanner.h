@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_CPP_SCANNER_H_
-#define XLS_DSLX_CPP_SCANNER_H_
+#ifndef XLS_DSLX_FRONTEND_CPP_SCANNER_H_
+#define XLS_DSLX_FRONTEND_CPP_SCANNER_H_
 
 #include <stdint.h>
 #include <stdio.h>
@@ -37,8 +37,8 @@
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/pos.h"
-#include "xls/dslx/scanner_keywords.inc"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/scanner_keywords.inc"
 
 namespace xls::dslx {
 
@@ -404,4 +404,4 @@ class Scanner {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_CPP_SCANNER_H_
+#endif  // XLS_DSLX_FRONTEND_CPP_SCANNER_H_

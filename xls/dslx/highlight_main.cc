@@ -27,8 +27,8 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 namespace {

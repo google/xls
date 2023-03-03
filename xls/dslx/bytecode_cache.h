@@ -20,9 +20,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/bytecode_cache_interface.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 

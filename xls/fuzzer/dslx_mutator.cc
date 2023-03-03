@@ -16,7 +16,7 @@
 
 #include "absl/random/random.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/scanner.h"
 
 using absl::InvalidArgumentError;
 using absl::StatusOr;

@@ -24,7 +24,7 @@
 #include "pybind11_abseil/statusor_caster.h"
 #include "xls/common/status/import_status_module.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/value_generator.h"

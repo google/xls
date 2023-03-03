@@ -20,8 +20,8 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/extract_conversion_order.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/channel.h"

@@ -35,7 +35,7 @@ xls_pybind_extension(
         "//xls/common/status:import_status_module",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
+        "//xls/dslx/frontend:ast",
         "//xls/fuzzer:ast_generator",
         "//xls/fuzzer:cpp_sample_generator",
         "//xls/fuzzer:value_generator",

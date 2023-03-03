@@ -14,8 +14,8 @@
 //
 // Metadata and utilities around token contents.
 
-#ifndef XLS_DSLX_TOKEN_UTILS_H_
-#define XLS_DSLX_TOKEN_UTILS_H_
+#ifndef XLS_DSLX_FRONTEND_TOKEN_UTILS_H_
+#define XLS_DSLX_FRONTEND_TOKEN_UTILS_H_
 
 #include <cstdint>
 #include <string>
@@ -37,4 +37,4 @@ GetSizedTypeKeywordsMetadata();
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TOKEN_UTILS_H_
+#endif  // XLS_DSLX_FRONTEND_TOKEN_UTILS_H_

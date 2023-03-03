@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TOKEN_PARSER_H_
-#define XLS_DSLX_TOKEN_PARSER_H_
+#ifndef XLS_DSLX_FRONTEND_TOKEN_PARSER_H_
+#define XLS_DSLX_FRONTEND_TOKEN_PARSER_H_
 
 #include <stdint.h>
 
@@ -26,8 +26,8 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/dslx/bindings.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 
@@ -208,4 +208,4 @@ class TokenParser {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TOKEN_PARSER_H_
+#endif  // XLS_DSLX_FRONTEND_TOKEN_PARSER_H_

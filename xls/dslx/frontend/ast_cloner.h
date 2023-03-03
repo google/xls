@@ -11,14 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_AST_CLONER_H_
-#define XLS_DSLX_AST_CLONER_H_
+#ifndef XLS_DSLX_FRONTEND_AST_CLONER_H_
+#define XLS_DSLX_FRONTEND_AST_CLONER_H_
 
 #include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 
@@ -34,4 +34,4 @@ absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root);
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_AST_CLONER_H_
+#endif  // XLS_DSLX_FRONTEND_AST_CLONER_H_

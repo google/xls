@@ -853,12 +853,13 @@ have pre-defined special-syntax-rule names.)
 
 In DSLX code, the "environment" where names are bound (sometimes also referred
 to as a symbol table) is called the
-[`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/bindings.h) -- it maps
-identifiers to the AST node that defines the name (`{string: AstNode}`), which
-can be combined with a mapping from AST node to its deduced type (`{AstNode:
-ConcreteType}`) to resolve the type of an identifier in the program. `Let` is
-one of the key nodes that populates these `Bindings`, but anything that creates
-a bound name does as well (e.g. parameters, for loop induction variables, etc.).
+[`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/frontend/bindings.h) -- it
+maps identifiers to the AST node that defines the name (`{string: AstNode}`),
+which can be combined with a mapping from AST node to its deduced type
+(`{AstNode: ConcreteType}`) to resolve the type of an identifier in the program.
+`Let` is one of the key nodes that populates these `Bindings`, but anything that
+creates a bound name does as well (e.g. parameters, for loop induction
+variables, etc.).
 
 #### Operator Example
 

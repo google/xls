@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/token_parser.h"
+#include "xls/dslx/frontend/token_parser.h"
 
 #include <string>
 #include <string_view>
@@ -24,7 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 

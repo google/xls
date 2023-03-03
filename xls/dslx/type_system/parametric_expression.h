@@ -27,8 +27,8 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/optional.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/pos.h"
 
 namespace xls::dslx {
 
