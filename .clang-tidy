@@ -18,6 +18,7 @@
 ###
 Checks: >
   clang-diagnostic-*,
+  -clang-diagnostic-sign-conversion,
   clang-analyzer-*,
   abseil-*,
   -abseil-no-namespace,
