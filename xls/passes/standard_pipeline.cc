@@ -41,6 +41,7 @@
 #include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
+#include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
@@ -134,6 +135,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<SparsifySelectPass>();
   top->Add<DeadCodeEliminationPass>();
   top->Add<UselessAssertRemovalPass>();
+  top->Add<RamRewritePass>();
   top->Add<UselessIORemovalPass>();
   top->Add<DeadCodeEliminationPass>();
 

@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -32,7 +33,6 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/function.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -40,6 +40,60 @@ namespace xls {
 // This file defines a set of base classes for building XLS compiler passes and
 // pass pipelines. The base classes are templated allowing polymorphism of the
 // data types the pass operates on.
+
+// Metadata for RAMs.
+// TODO(google/xls#873): Ideally this metadata should live in the IR.
+//
+// Kinds of RAMs.
+enum class RamKind {
+  kAbstract,
+  k1RW,
+  k1R1W,
+  k2RW,
+};
+
+std::string_view RamKindToString(RamKind kind);
+// Configuration describing the behavior of a RAM.
+struct RamConfig {
+  RamKind kind;
+  int64_t width;
+  int64_t depth;
+  // Determines granularity of mask.
+  std::optional<int64_t> word_partition_size;
+  // If nullopt, RAM has no initial value. Reading uninitialized memory is
+  // undefined.
+  std::optional<std::vector<Value>> initial_value = std::nullopt;
+
+  // Computed address width: clog2(depth)
+  int64_t addr_width() const;
+  // Computed mask width: if word_partition_size is nullopt, 0, else
+  // ceil(width/word_partition_size).
+  int64_t mask_width() const;
+};
+
+struct RamModelBuilderResult {
+  std::unique_ptr<Package> package;
+  absl::flat_hash_map<std::string, int64_t> channel_logical_name_to_physical_id;
+};
+
+using ram_model_builder_t = std::function<RamModelBuilderResult(RamConfig)>;
+
+// A configuration describing a desired RAM rewrite.
+struct RamRewrite {
+  // Configuration of RAM we start with.
+  RamConfig from_config;
+  // Mapping of the starting channels, from logical (e.g. read_req) to physical,
+  // (the channel's name, e.g. foo_read_req).
+  absl::flat_hash_map<std::string, std::string>
+      from_channels_logical_to_physical;
+  // Configuration of RAM we will rewrite the "from" RAM into.
+  RamConfig to_config;
+  // Name prefix for the new ram model
+  std::string to_name_prefix;
+  // If populated, also add a RAM model of kind "to_kind" driving the new
+  // channels using the builder function.
+  std::optional<ram_model_builder_t> model_builder;
+};
 
 // Options data structure passed to each pass run invocation. This data
 // structure is passed by const reference to PassBase::Run and should contain
@@ -69,6 +123,10 @@ struct PassOptions {
   // chains of selects. Otherwise, this optimization is skipped, since it can
   // sometimes reduce output quality.
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
+
+  // List of RAM rewrites, generally lowering abstract RAMs into concrete
+  // variants.
+  std::vector<RamRewrite> ram_rewrites;
 };
 
 // An object containing information about the invocation of a pass (single call

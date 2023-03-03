@@ -1,0 +1,58 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef XLS_PASSES_RAM_REWRITE_PASS_H_
+#define XLS_PASSES_RAM_REWRITE_PASS_H_
+
+#include <string>
+#include <string_view>
+
+#include "absl/status/statusor.h"
+#include "xls/passes/passes.h"
+
+namespace xls {
+
+// Each kind of ram has logical names for each port. Internally, these are
+// represented as these enums.
+enum class RamLogicalChannel {
+  // Abstract RAM
+  kReadReq,
+  kReadResp,
+  kWriteReq,
+  kWriteResp,
+  // 1RW RAM
+  kReq,
+  kResp,
+};
+
+absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
+    std::string_view name);
+std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel);
+
+// Pass that rewrites RAMs of one type to a new type. Generally this will be
+// some kind of lowering from more abstract to concrete RAMs.
+class RamRewritePass : public Pass {
+ public:
+  explicit RamRewritePass() : Pass("ram_rewrite", "RAM Rewrite") {}
+
+  ~RamRewritePass() override {}
+
+ protected:
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override;
+};
+
+}  // namespace xls
+
+#endif  // XLS_PASSES_RAM_REWRITE_PASS_H_

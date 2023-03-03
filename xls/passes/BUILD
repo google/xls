@@ -48,6 +48,7 @@ cc_library(
         ":proc_inlining_pass",
         ":proc_state_flattening_pass",
         ":proc_state_optimization_pass",
+        ":ram_rewrite_pass",
         ":reassociation_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
@@ -744,6 +745,7 @@ cc_library(
 
 cc_library(
     name = "pass_base",
+    srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
         "@com_google_absl//absl/status",
@@ -751,11 +753,22 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "//xls/common:math_util",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "pass_base_test",
+    srcs = ["pass_base_test.cc"],
+    deps = [
+        ":pass_base",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1083,6 +1096,43 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "ram_rewrite_pass",
+    srcs = ["ram_rewrite_pass.cc"],
+    hdrs = ["ram_rewrite_pass.h"],
+    deps = [
+        ":pass_base",
+        ":passes",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+    ],
+)
+
+cc_test(
+    name = "ram_rewrite_pass_test",
+    srcs = ["ram_rewrite_pass_test.cc"],
+    deps = [
+        ":pass_base",
+        ":ram_rewrite_pass",
+        ":standard_pipeline",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
