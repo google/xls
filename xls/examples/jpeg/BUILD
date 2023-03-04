@@ -25,6 +25,7 @@ load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )

@@ -20,6 +20,7 @@ load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )

@@ -18,6 +18,7 @@
 # pytype binary, library
 
 package(
+    default_applicable_licenses = ["//:license"],
     licenses = ["notice"],  # Apache 2.0
 )
 

@@ -35,6 +35,7 @@ load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
 # load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )

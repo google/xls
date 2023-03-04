@@ -23,6 +23,7 @@ load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
