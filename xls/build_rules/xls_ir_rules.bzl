@@ -132,10 +132,18 @@ def _convert_to_ir(ctx, src):
         "warnings_as_errors",
     )
 
+    # With runs outside a monorepo, the execution root for the workspace of
+    # the binary can be different with the execroot, requiring to change
+    # the dslx stdlib search path accordingly.
+    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
+    wsroot = get_xls_toolchain_info(ctx).dslx_interpreter_tool.label.workspace_root
+    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+
     ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
         ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
+        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
+        wsroot_dslx_path
     )
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
