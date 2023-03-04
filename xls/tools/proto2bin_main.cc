@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
+#include "xls/ir/ram_rewrite.pb.h"
 
 const char kUsage[] = R"(
 Simplified utility to convert a textproto to a binary proto.  Used
@@ -31,7 +32,8 @@ interfaces that utilize binary protos for configuration (ex. xlscc).
 )";
 
 ABSL_FLAG(std::string, message, "",
-          "Message to read testproto as.  Supported: [xlscc.HLSBlock]");
+          "Message to read textproto as.  Supported: [xlscc.HLSBlock, "
+          "xls.RamRewritesProto]");
 ABSL_FLAG(std::string, output, "", "Output file to write binary proto to.");
 
 namespace xls {
@@ -41,6 +43,9 @@ absl::StatusOr<std::unique_ptr<google::protobuf::Message>> MakeProtoForMessageTy
     std::string_view message_type) {
   if (message_type == "xlscc.HLSBlock") {
     return std::make_unique<xlscc::HLSBlock>();
+  }
+  if (message_type == "xls.RamRewritesProto") {
+    return std::make_unique<xls::RamRewritesProto>();
   }
 
   return absl::UnimplementedError(

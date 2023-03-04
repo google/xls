@@ -1230,6 +1230,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:hls_block_cc_proto",
+        "//xls/ir:ram_rewrite_cc_proto",
     ],
 )
 

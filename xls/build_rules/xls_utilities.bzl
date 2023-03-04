@@ -252,7 +252,7 @@ def _proto_data_impl(ctx):
         command = "{} {} --message {} --output {}".format(
             proto2bin_tool.path,
             src.path,
-            ctx.attr._proto_name,
+            ctx.attr.proto_name,
             protobin_file.path,
         ),
         use_default_shell_env = True,
@@ -269,10 +269,10 @@ _proto_data_attrs = {
     ),
     "protobin_file": attr.output(
         doc = "The name of the output file to write binary proto to. If not " +
-              "specified, the target name of the bazel rule followed by an " +
+              "specified, the target name of the bazel rule followed by a " +
               _PROTOBIN_FILE_EXTENSION + " extension is used.",
     ),
-    "_proto_name": attr.string(
+    "proto_name": attr.string(
         doc = "The name of the message type in the .proto files that 'src' " +
               "file represents.",
         default = "xlscc.HLSBlock",

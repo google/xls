@@ -132,7 +132,7 @@ Examples:
 ## proto_data
 
 <pre>
-proto_data(<a href="#proto_data-name">name</a>, <a href="#proto_data-protobin_file">protobin_file</a>, <a href="#proto_data-src">src</a>)
+proto_data(<a href="#proto_data-name">name</a>, <a href="#proto_data-proto_name">proto_name</a>, <a href="#proto_data-protobin_file">protobin_file</a>, <a href="#proto_data-src">src</a>)
 </pre>
 
 Converts a proto text with a xlscc.HLSBlock message to a proto binary.
@@ -158,7 +158,8 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="proto_data-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by an .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  |
+| <a id="proto_data-proto_name"></a>proto_name |  The name of the message type in the .proto files that 'src' file represents.   | String | optional | "xlscc.HLSBlock" |
+| <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by a .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  |
 | <a id="proto_data-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
