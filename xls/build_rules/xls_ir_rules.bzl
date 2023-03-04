@@ -531,13 +531,13 @@ xls_dslx_ir_attrs = dicts.add(
     {
         "dslx_top": attr.string(
             doc = "Defines the 'top' argument of the" +
-                  "//xls/dslx/ir_converter_main.cc application.",
+                  "//xls/dslx/ir_convert:ir_converter_main application.",
             mandatory = True,
         ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool. For details on the " +
                   "arguments, refer to the ir_converter_main application at " +
-                  "//xls/dslx/ir_converter_main.cc. Note the " +
+                  "//xls/dslx/ir_convert/ir_converter_main.cc. Note the " +
                   "'top' argument is not assigned using this attribute.",
         ),
         "ir_file": attr.output(
@@ -614,7 +614,7 @@ xls_dslx_ir = rule(
 
 Example:
 
-An IR conversion with an top entity defined.
+An IR conversion with a top entity defined.
 
     ```
     # Assume a xls_dslx_library target bc_dslx is present.
@@ -723,7 +723,7 @@ Examples:
     )
     ```
 
-1. Optimizing an IR file with an top entity defined.
+1. Optimizing an IR file with a top entity defined.
 
     ```
     xls_ir_opt_ir(

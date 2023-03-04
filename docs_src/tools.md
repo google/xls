@@ -144,7 +144,7 @@ and even imported identifiers can be accessed with `:type foo::bar`.
 
 ## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)
 
-Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
+Runs a Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.
 

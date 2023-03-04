@@ -40,8 +40,9 @@ class DslxOptimizationTest : public IrTestBase {
   absl::StatusOr<std::unique_ptr<VerifiedPackage>> DslxToIr(
       std::string_view dslx) {
     XLS_ASSIGN_OR_RETURN(TempFile dslx_temp, TempFile::CreateWithContent(dslx));
-    XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_converter_main_path,
-                         GetXlsRunfilePath("xls/dslx/ir_converter_main"));
+    XLS_ASSIGN_OR_RETURN(
+        std::filesystem::path ir_converter_main_path,
+        GetXlsRunfilePath("xls/dslx/ir_convert/ir_converter_main"));
     std::pair<std::string, std::string> stdout_stderr;
     XLS_ASSIGN_OR_RETURN(stdout_stderr,
                          InvokeSubprocess({ir_converter_main_path.string(),

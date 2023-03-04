@@ -31,7 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/ir/package.h"
 
 // LINT.IfChange

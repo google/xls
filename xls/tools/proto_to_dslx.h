@@ -72,7 +72,7 @@ class ProtoToDslxManager {
 };
 
 // ProtoToDslx accepts a proto schema and textproto instantiating such, and
-// converts those definitions into a cooresponding DSLX file.
+// converts those definitions into a corresponding DSLX file.
 // Args:
 //   source_root: The path to the root directory containing the input schema
 //       _as_well_as_ any .proto files referenced therein (e.g. that are

@@ -278,7 +278,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_bad_coverpoint_name(self):
     stderr = self._run('xls/dslx/tests/errors/coverpoint_bad_name.x')
     self.assertIn('coverpoint_bad_name.x:16:9-16:40', stderr)
-    self.assertIn('A coverpoint identifer must start with', stderr)
+    self.assertIn('A coverpoint identifier must start with', stderr)
 
   def test_arg0_type_mismatch(self):
     stderr = self._run('xls/dslx/tests/errors/arg0_type_mismatch.x')

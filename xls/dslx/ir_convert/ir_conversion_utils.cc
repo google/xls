@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/ir_conversion_utils.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
 #include <stdint.h>
 

@@ -58,7 +58,7 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/type_system/concrete_type.h"

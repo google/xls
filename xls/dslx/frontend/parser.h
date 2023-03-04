@@ -86,7 +86,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseExpression(
       Bindings* bindings, ExprRestrictions restrictions = kNoRestrictions);
 
-  // TOOD(leary): 2020-09-11 Would be better to rename this to "type alias".
+  // TODO(leary): 2020-09-11 Would be better to rename this to "type alias".
   absl::StatusOr<TypeDef*> ParseTypeDefinition(bool is_public,
                                                Bindings* bindings);
 

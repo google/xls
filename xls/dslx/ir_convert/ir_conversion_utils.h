@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_IR_CONVERSION_UTILS_H_
-#define XLS_DSLX_IR_CONVERSION_UTILS_H_
+#ifndef XLS_DSLX_IR_CONVERT_IR_CONVERSION_UTILS_H_
+#define XLS_DSLX_IR_CONVERT_IR_CONVERSION_UTILS_H_
 
 // Utilities involved in DSLX-to-IR type conversion that aren't strictly part of
 // tree traversal (which is the main concern of ir_converter.h/cc.
@@ -47,4 +47,4 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_IR_CONVERSION_UTILS_H_
+#endif  // XLS_DSLX_IR_CONVERT_IR_CONVERSION_UTILS_H_

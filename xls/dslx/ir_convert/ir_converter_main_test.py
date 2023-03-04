@@ -27,7 +27,9 @@ class IrConverterMainTest(test_base.TestCase):
 
   A_DOT_X = 'fn f() -> u32 { u32:42 }'
   B_DOT_X = 'fn f() -> u32 { u32:64 }'
-  IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
+  IR_CONVERTER_MAIN_PATH = runfiles.get_path(
+      'xls/dslx/ir_convert/ir_converter_main'
+  )
 
   def _ir_convert(self,
                   dslx_contents: Dict[str, str],

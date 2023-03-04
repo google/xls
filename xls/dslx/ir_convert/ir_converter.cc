@@ -22,7 +22,7 @@
 //  6: Interesting events that may occur many times (and will generally be more
 //     noisy) within a function conversion.
 
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -50,7 +50,6 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
-#include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
@@ -58,10 +57,11 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_conversion_utils.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
+#include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/make_struct_format_descriptor.h"
 #include "xls/dslx/mangle.h"
-#include "xls/dslx/proc_config_ir_converter.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
@@ -1108,7 +1108,7 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     // names.
     std::vector<BValue> levels = {rhs};
     // Invoked at each level of the NameDefTree: binds the name in the
-    // NameDefTree to the correponding value (being pattern matched).
+    // NameDefTree to the corresponding value (being pattern matched).
     //
     // Args:
     //  x: Current subtree of the NameDefTree.

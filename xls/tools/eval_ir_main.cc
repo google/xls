@@ -28,7 +28,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/function_interpreter.h"
@@ -124,7 +124,7 @@ ABSL_FLAG(int64_t, llvm_opt_level, 3,
 ABSL_FLAG(std::string, input_validator_expr, "",
           "DSLX expression to validate randomly-generated inputs. "
           "The expression can reference entry function input arguments "
-          "and should return true if the arguments are valud for the "
+          "and should return true if the arguments are valid for the "
           "function and false otherwise.");
 ABSL_FLAG(std::string, input_validator_path, "",
           "Path to a file containing DSLX for an input validator as with "

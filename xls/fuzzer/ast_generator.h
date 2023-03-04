@@ -175,7 +175,7 @@ class AstGenerator {
   // Generates a proc with name "name".
   absl::Status GenerateProcInModule(std::string name);
 
-  // Generate an DSLX function with the given name. call_depth is the current
+  // Generate a DSLX function with the given name. call_depth is the current
   // depth of the call stack (if any) calling this function to be
   // generated. param_types, if given, defines the number and types of the
   // parameters.
@@ -197,7 +197,7 @@ class AstGenerator {
   absl::StatusOr<Function*> GenerateProcInitFunction(
       std::string_view name, TypeAnnotation* return_type);
 
-  // Generate an DSLX proc with the given name.
+  // Generate a DSLX proc with the given name.
   absl::StatusOr<Proc*> GenerateProc(std::string name);
 
   // Chooses a value from the environment that satisfies the predicate "take",
@@ -525,7 +525,7 @@ class AstGenerator {
   }
 
   // Creates a number AST node with value 'value' of type 'type' represented in
-  // a randomly choosen format between binary, decimal, hex and, when possible,
+  // a randomly chosen format between binary, decimal, hex and, when possible,
   // a "character" number. Note that these function expect a builtin type or a
   // one-dimensional array of builtin types.
   Number* GenerateNumber(int64_t value, TypeAnnotation* type);

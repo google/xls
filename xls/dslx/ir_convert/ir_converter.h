@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_IR_CONVERTER_H_
-#define XLS_DSLX_IR_CONVERTER_H_
+#ifndef XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
+#define XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 
 #include <memory>
 #include <string>
@@ -139,4 +139,4 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_IR_CONVERTER_H_
+#endif  // XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_

@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_
-#define XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_
+#ifndef XLS_DSLX_IR_CONVERT_PROC_CONFIG_IR_CONVERTER_H_
+#define XLS_DSLX_IR_CONVERT_PROC_CONFIG_IR_CONVERTER_H_
 
 #include <string>
 #include <variant>
@@ -20,9 +20,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -95,4 +95,4 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_PROC_CONFIG_IR_CONVERTER_H_
+#endif  // XLS_DSLX_IR_CONVERT_PROC_CONFIG_IR_CONVERTER_H_

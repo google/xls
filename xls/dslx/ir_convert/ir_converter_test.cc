@@ -18,7 +18,7 @@
 // tests (i.e. in dslx/tests) are testing functional correctness of results
 // (which is more blackbox with respect to the IR conversion process).
 
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 
 #include <optional>
 #include <string>
@@ -47,7 +47,8 @@ constexpr ConvertOptions kFailNoPos = {
 
 void ExpectIr(std::string_view got, std::string_view test_name) {
   ExpectEqualToGoldenFile(
-      absl::StrFormat("xls/dslx/testdata/ir_converter_test_%s.ir", test_name),
+      absl::StrFormat("xls/dslx/ir_convert/testdata/ir_converter_test_%s.ir",
+                      test_name),
       got);
 }
 

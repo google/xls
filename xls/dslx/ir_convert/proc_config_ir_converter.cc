@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/dslx/proc_config_ir_converter.h"
+#include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 
 #include <optional>
 #include <string>
@@ -31,7 +31,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast_utils.h"
-#include "xls/dslx/ir_conversion_utils.h"
+#include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 

@@ -181,7 +181,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
       if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
         return InvalidIdentifierErrorStatus(
             invocation->span(),
-            "A coverpoint identifer must start with a letter or underscore, "
+            "A coverpoint identifier must start with a letter or underscore, "
             "and otherwise consist of letters, digits, underscores, and/or "
             "dollar signs.");
       }

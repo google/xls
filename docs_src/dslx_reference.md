@@ -2258,7 +2258,7 @@ Unless otherwise specified in the implementation's build configs, functions
 called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
-DSLX implementations are IR-convertable and that IR translation is correct.
+DSLX implementations are IR-convertible and that IR translation is correct.
 
 ### QuickCheck
 

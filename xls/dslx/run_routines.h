@@ -33,7 +33,7 @@
 #include "xls/common/test_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"

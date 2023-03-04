@@ -37,7 +37,9 @@ from xls.ir.python.value import Value as IRValue
 from xls.public.python import runtime_build_actions
 from xls.tools.python import eval_helpers
 
-IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
+IR_CONVERTER_MAIN_PATH = runfiles.get_path(
+    'xls/dslx/ir_convert/ir_converter_main'
+)
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 EVAL_PROC_MAIN_PATH = runfiles.get_path('xls/tools/eval_proc_main')
 IR_OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')

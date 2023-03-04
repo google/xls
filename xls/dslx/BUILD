@@ -184,87 +184,6 @@ cc_test(
 )
 
 cc_library(
-    name = "ir_conversion_utils",
-    srcs = ["ir_conversion_utils.cc"],
-    hdrs = ["ir_conversion_utils.h"],
-    deps = [
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:deduce_ctx",
-        "//xls/dslx/type_system:parametric_env",
-        "//xls/ir",
-        "//xls/ir:type",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "ir_conversion_utils_test",
-    srcs = ["ir_conversion_utils_test.cc"],
-    deps = [
-        ":interp_value",
-        ":ir_conversion_utils",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:parametric_expression",
-        "//xls/ir",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "proc_config_ir_converter",
-    srcs = ["proc_config_ir_converter.cc"],
-    hdrs = ["proc_config_ir_converter.h"],
-    deps = [
-        ":constexpr_evaluator",
-        ":extract_conversion_order",
-        ":import_data",
-        ":ir_conversion_utils",
-        ":type_info",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_utils",
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:parametric_env",
-        "//xls/ir",
-        "//xls/ir:channel",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "proc_config_ir_converter_test",
-    srcs = ["proc_config_ir_converter_test.cc"],
-    deps = [
-        ":create_import_data",
-        ":import_data",
-        ":parse_and_typecheck",
-        ":proc_config_ir_converter",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/dslx/frontend:ast",
-        "//xls/ir",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "trait_visitor",
     srcs = ["trait_visitor.cc"],
     hdrs = ["trait_visitor.h"],
@@ -313,30 +232,6 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
-)
-
-cc_test(
-    name = "ir_converter_test",
-    srcs = ["ir_converter_test.cc"],
-    data = glob(["testdata/*.ir"]),
-    deps = [
-        ":create_import_data",
-        ":ir_converter",
-        ":parse_and_typecheck",
-        "//xls/common:golden_files",
-        "//xls/common:init_xls",
-        "//xls/common/status:matchers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-filegroup(
-    name = "ir_converter_test_sh",
-    srcs = ["ir_converter_test.sh"],
-    visibility = ["//xls:xls_users"],
 )
 
 cc_library(
@@ -511,88 +406,6 @@ cc_library(
 )
 
 cc_library(
-    name = "ir_converter",
-    srcs = ["ir_converter.cc"],
-    hdrs = ["ir_converter.h"],
-    deps = [
-        ":command_line_utils",
-        ":constexpr_evaluator",
-        ":create_import_data",
-        ":error_printer",
-        ":extract_conversion_order",
-        ":import_data",
-        ":interp_value",
-        ":ir_conversion_utils",
-        ":make_struct_format_descriptor",
-        ":mangle",
-        ":proc_config_ir_converter",
-        ":warning_collector",
-        "//xls/common:visitor",
-        "//xls/common/file:filesystem",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:ast_utils",
-        "//xls/dslx/frontend:builtins_metadata",
-        "//xls/dslx/frontend:parser",
-        "//xls/dslx/frontend:scanner",
-        "//xls/dslx/type_system:parametric_env",
-        "//xls/dslx/type_system:typecheck",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:function_builder",
-        "//xls/ir:value",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_library(
-    name = "extract_conversion_order",
-    srcs = ["extract_conversion_order.cc"],
-    hdrs = ["extract_conversion_order.h"],
-    deps = [
-        ":type_info",
-        "//xls/common/status:ret_check",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/frontend:builtins_metadata",
-        "//xls/dslx/type_system:parametric_env",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_test(
-    name = "extract_conversion_order_test",
-    srcs = ["extract_conversion_order_test.cc"],
-    deps = [
-        ":create_import_data",
-        ":extract_conversion_order",
-        ":parse_and_typecheck",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "error_printer",
     srcs = ["error_printer.cc"],
     hdrs = ["error_printer.h"],
@@ -636,7 +449,6 @@ cc_library(
         ":errors",
         ":interp_value",
         ":interp_value_helpers",
-        ":ir_converter",
         ":mangle",
         ":parse_and_typecheck",
         "//xls/common:test_macros",
@@ -644,6 +456,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:bindings",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:typecheck",
         "//xls/interpreter:ir_interpreter",
@@ -765,35 +578,6 @@ cc_library(
 )
 
 #  -- DSLX specific tool binaries / command line utilities
-
-cc_binary(
-    name = "ir_converter_main",
-    srcs = ["ir_converter_main.cc"],
-    visibility = ["//xls:xls_users"],
-    deps = [
-        ":ir_converter",
-        "//xls/common:init_xls",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-py_test(
-    name = "ir_converter_main_test",
-    srcs = ["ir_converter_main_test.py"],
-    data = [":ir_converter_main"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "//xls/common:runfiles",
-        "//xls/common:test_base",
-    ],
-)
 
 cc_binary(
     name = "interpreter_main",
