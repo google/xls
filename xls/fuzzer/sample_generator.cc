@@ -256,8 +256,7 @@ absl::StatusOr<Sample> GenerateFunctionSample(
     args_batch.push_back(std::move(args));
   }
 
-  return Sample(std::move(dslx_text), std::move(sample_options),
-                std::move(args_batch));
+  return Sample(dslx_text, sample_options, std::move(args_batch));
 }
 
 absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
@@ -287,8 +286,8 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
         absl::StrCat(proc->owner()->name(), "__", input_channel_names[index]);
   }
 
-  return Sample(std::move(dslx_text), std::move(sample_options),
-                std::move(channel_values_batch), std::move(ir_channel_names));
+  return Sample(dslx_text, sample_options, std::move(channel_values_batch),
+                std::move(ir_channel_names));
 }
 
 absl::StatusOr<Sample> GenerateSample(

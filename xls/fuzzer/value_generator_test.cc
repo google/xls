@@ -190,6 +190,7 @@ TEST(SampleGeneratorTest, GenerateSingleBitsArgument) {
       /*size=*/dslx::ConcreteTypeDim::CreateU32(42)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
@@ -210,6 +211,7 @@ TEST(SampleGeneratorTest, GenerateMixedBitsArguments) {
       /*signed=*/true,
       /*size=*/dslx::ConcreteTypeDim::CreateU32(22)));
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
@@ -234,6 +236,7 @@ TEST(SampleGeneratorTest, GenerateTupleArgument) {
       std::make_unique<dslx::TupleType>(std::move(tuple_members)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
@@ -256,6 +259,7 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
       dslx::ConcreteTypeDim::CreateU32(24)));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
