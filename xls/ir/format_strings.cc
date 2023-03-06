@@ -115,6 +115,17 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
   return steps;
 }
 
+std::vector<FormatPreference> OperandPreferencesFromFormat(
+    absl::Span<const FormatStep> format) {
+  std::vector<FormatPreference> preferences;
+  for (const FormatStep& step : format) {
+    if (std::holds_alternative<FormatPreference>(step)) {
+      preferences.push_back(std::get<FormatPreference>(step));
+    }
+  }
+  return preferences;
+}
+
 int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format) {
   return std::count_if(format.begin(), format.end(),
                        [](const FormatStep& step) {

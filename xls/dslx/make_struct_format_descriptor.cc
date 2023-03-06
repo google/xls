@@ -17,18 +17,18 @@
 namespace xls::dslx {
 
 std::unique_ptr<StructFormatDescriptor> MakeStructFormatDescriptor(
-    const StructType& struct_type) {
+    const StructType& struct_type, FormatPreference field_preference) {
   std::vector<StructFormatDescriptor::Element> elements;
   for (size_t i = 0; i < struct_type.size(); ++i) {
     const ConcreteType& member_type = struct_type.GetMemberType(i);
     std::string_view name = struct_type.GetMemberName(i);
     if (member_type.IsStruct()) {
       elements.push_back(StructFormatDescriptor::Element{
-          std::string(name),
-          MakeStructFormatDescriptor(member_type.AsStruct())});
+          std::string(name), MakeStructFormatDescriptor(member_type.AsStruct(),
+                                                        field_preference)});
     } else {
       elements.push_back(StructFormatDescriptor::Element{
-          std::string(name), StructFormatFieldDescriptor{}});
+          std::string(name), StructFormatFieldDescriptor{field_preference}});
     }
   }
   return std::make_unique<StructFormatDescriptor>(

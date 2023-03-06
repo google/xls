@@ -47,6 +47,28 @@
 // on the stack (I believe that should be the case for any valid program).
 
 namespace xls::dslx {
+namespace {
+
+absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
+ConcreteTypeToStructFormatDescriptor(const ConcreteType* type,
+                                     FormatPreference field_preference) {
+  auto* struct_type = dynamic_cast<const StructType*>(type);
+  if (struct_type == nullptr) {
+    return nullptr;
+  }
+  return MakeStructFormatDescriptor(*struct_type, field_preference);
+}
+
+absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
+ExprToStructFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
+                             FormatPreference field_preference) {
+  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  XLS_RET_CHECK(maybe_type.has_value());
+  return ConcreteTypeToStructFormatDescriptor(maybe_type.value(),
+                                              field_preference);
+}
+
+}  // namespace
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
@@ -681,22 +703,6 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   return absl::OkStatus();
 }
 
-static absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
-ConcreteTypeToStructFormatDescriptor(const ConcreteType* type) {
-  auto* struct_type = dynamic_cast<const StructType*>(type);
-  if (struct_type == nullptr) {
-    return nullptr;
-  }
-  return MakeStructFormatDescriptor(*struct_type);
-}
-
-static absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
-ExprToStructFormatDescriptor(const Expr* expr, const TypeInfo* type_info) {
-  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
-  XLS_RET_CHECK(maybe_type.has_value());
-  return ConcreteTypeToStructFormatDescriptor(maybe_type.value());
-}
-
 absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
   std::optional<ConcreteType*> maybe_type =
       type_info_->GetItem(ToAstNode(node->type()));
@@ -713,11 +719,16 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
     XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
+  std::vector<FormatPreference> preferences =
+      OperandPreferencesFromFormat(node->format());
+  XLS_RET_CHECK_EQ(preferences.size(), node->args().size());
+
   std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_descs;
-  for (const Expr* arg : node->args()) {
+  for (size_t i = 0; i < node->args().size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
-        ExprToStructFormatDescriptor(arg, type_info_));
+        ExprToStructFormatDescriptor(node->args().at(i), type_info_,
+                                     preferences.at(i)));
     struct_fmt_descs.push_back(std::move(struct_fmt_desc));
   }
 
@@ -1063,7 +1074,8 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
                        GetChannelPayloadType(type_info, channel));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
-      ConcreteTypeToStructFormatDescriptor(channel_payload_type.get()));
+      ConcreteTypeToStructFormatDescriptor(channel_payload_type.get(),
+                                           FormatPreference::kDefault));
 
   // Determine the owning proc by walking the parent links.
   AstNode* proc_node = channel->parent();

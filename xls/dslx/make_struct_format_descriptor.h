@@ -23,7 +23,7 @@ namespace xls::dslx {
 // Converts a struct type, as determined e.g. in type inference, into a format
 // descriptor that can be used in formatting a struct in e.g. trace output.
 std::unique_ptr<StructFormatDescriptor> MakeStructFormatDescriptor(
-    const StructType& struct_type);
+    const StructType& struct_type, FormatPreference field_preference);
 
 }  // namespace xls::dslx
 

@@ -440,6 +440,37 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',
                   result.stderr)
 
+  def test_trace_fmt_struct_field_fmt_pref(self):
+    program = """
+    struct MyStruct {
+      x: u32,
+    }
+    fn main() {
+      let s = MyStruct{x: u32:42};
+      let _ = trace_fmt!("s as hex: {:#x}", s);
+      let _ = trace_fmt!("s as bin: {:#b}", s);
+      ()
+    }
+
+    #[test]
+    fn hello_test() {
+      main()
+    }
+    """
+    # Note: we have to pass `--log_prefix=false` here to match multi-line
+    # logging output easily.
+    program_file = self.create_tempfile(content=program)
+    cmd = [
+        _INTERP_PATH,
+        '--alsologtostderr',
+        '--log_prefix=false',
+        program_file.full_path,
+    ]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    print(result.stderr)
+    self.assertIn('s as hex: MyStruct {\n  x: u32:0x2a\n}', result.stderr)
+    self.assertIn('s as bin: MyStruct {\n  x: u32:0b10_1010\n}', result.stderr)
+
   def test_bitslice_syntax(self):
     program = """
     #[test]
@@ -641,9 +672,10 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('were not equal', stderr)
 
   def test_wide_shifts(self):
-    program = textwrap.dedent("""\
-                              #[test]
-                              fn simple_add_test() {
+    program = textwrap.dedent(
+        """\
+    #[test]
+    fn simple_add_test() {
       let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
       let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
       let four: uN[96] = uN[96]:0x4;
@@ -656,7 +688,8 @@ class InterpreterTest(test_base.TestCase):
       let _ = assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
       assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
     }
-    """)
+    """
+    )
     self._parse_and_test(program)
 
   def test_wide_ashr(self):

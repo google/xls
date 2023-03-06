@@ -1951,6 +1951,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
       fmt_steps.push_back(step);
     } else {
       XLS_RET_CHECK(std::holds_alternative<FormatPreference>(step));
+      FormatPreference preference = std::get<FormatPreference>(step);
       Expr* arg = node->args().at(next_argno);
 
       // Grab the IR builder value for this argument.
@@ -1965,7 +1966,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
       ConcreteType* type = maybe_type.value();
       if (type->IsStruct()) {
         auto struct_format_descriptor =
-            MakeStructFormatDescriptor(type->AsStruct());
+            MakeStructFormatDescriptor(type->AsStruct(), preference);
         flatten(ir_arg, *struct_format_descriptor);
       } else {
         fmt_steps.push_back(step);
