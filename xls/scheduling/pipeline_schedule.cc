@@ -276,7 +276,7 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
 bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   Function* as_func = dynamic_cast<Function*>(function_base_);
 
-  if (c == length() - 1) {
+  if (c >= length() - 1) {
     return false;
   }
 
