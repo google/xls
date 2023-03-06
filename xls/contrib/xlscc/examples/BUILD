@@ -22,6 +22,7 @@ load(
     "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
     "xls_cc_ir",
 )
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -42,6 +43,17 @@ proto_data(
 proto_data(
     name = "mux1to2_block_pb",
     src = "mux1to2.textproto",
+)
+
+proto_data(
+    name = "delay_block_pb",
+    src = "delay.textproto",
+)
+
+proto_data(
+    name = "delay_ram_rewrites_pb",
+    src = "delay_ram_rewrites.textproto",
+    proto_name = "xls.RamRewritesProto",
 )
 
 xls_cc_ir(
@@ -65,6 +77,13 @@ xls_cc_ir(
     ir_file = "mux1to2.ir",
 )
 
+xls_cc_ir(
+    name = "delay_ir",
+    src = "delay.cc",
+    block = ":delay_block_pb",
+    ir_file = "delay.ir",
+)
+
 xls_ir_opt_ir(
     name = "mux3_opt_ir",
     src = ":mux3.ir",
@@ -81,6 +100,15 @@ xls_ir_opt_ir(
     name = "mux1to2_opt_ir",
     src = ":mux1to2.ir",
     opt_ir_file = "mux1to2_opt_ir.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "delay_opt_ir",
+    src = ":delay.ir",
+    opt_ir_file = "delay.opt.ir",
+    ram_rewrites = [
+        ":delay_ram_rewrites_pb",
+    ],
 )
 
 xls_ir_verilog(
@@ -132,6 +160,39 @@ xls_ir_verilog(
         "top": "Mux1To2_proc",
     },
     verilog_file = "mux1to2_stages_5_v.sv",
+)
+
+xls_ir_verilog(
+    name = "delay_v",
+    src = ":delay.opt.ir",
+    codegen_args = {
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "io_constraints": "{req}:send:{resp}:recv:1:1".format(
+            req = "memory__req",
+            resp = "memory__resp",
+        ),
+        "ram_configurations": "ram:1RW:{req}:{resp}".format(
+            req = "memory__req",
+            resp = "memory__resp",
+        ),
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "pipeline_stages": "2",
+    },
+    verilog_file = "delay.sv",
+)
+
+verilog_library(
+    name = "delay",
+    srcs = [":delay.sv"],
 )
 
 cc_test(

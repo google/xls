@@ -1,0 +1,34 @@
+# proto-file: xls/ir/ram_rewrite.proto
+# proto-message: RamRewrites
+
+rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    width: 64
+    depth: 1024
+    word_partition_size: 64
+  }
+  to_config {
+    kind: RAM_1RW
+    width: 64
+    depth: 1024
+    word_partition_size: 64
+  }
+  from_channels_logical_to_physical: {
+    key: "read_req"
+    value: "memory__read_request"
+  }
+  from_channels_logical_to_physical: {
+    key: "read_resp"
+    value: "memory__read_response"
+  }
+  from_channels_logical_to_physical: {
+    key: "write_req"
+    value: "memory__write_request"
+  }
+  from_channels_logical_to_physical: {
+    key: "write_resp"
+    value: "memory__write_response"
+  }
+  to_name_prefix: "memory_"
+}
