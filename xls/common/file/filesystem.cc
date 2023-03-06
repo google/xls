@@ -14,11 +14,12 @@
 
 #include "xls/common/file/filesystem.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <cerrno>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

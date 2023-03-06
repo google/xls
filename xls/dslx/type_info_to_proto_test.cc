@@ -14,8 +14,7 @@
 
 #include "xls/dslx/type_info_to_proto.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>

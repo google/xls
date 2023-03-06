@@ -14,8 +14,7 @@
 
 #include "xls/dslx/frontend/scanner.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>

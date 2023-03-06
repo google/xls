@@ -14,8 +14,7 @@
 
 #include "xls/dslx/frontend/token_utils.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>

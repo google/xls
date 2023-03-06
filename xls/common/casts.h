@@ -17,8 +17,7 @@
 #ifndef XLS_COMMON_CASTS_H_
 #define XLS_COMMON_CASTS_H_
 
-#include <assert.h>
-
+#include <cassert>
 #include <type_traits>
 
 namespace xls {

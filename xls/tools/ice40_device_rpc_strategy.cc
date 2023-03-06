@@ -15,12 +15,12 @@
 #include "xls/tools/ice40_device_rpc_strategy.h"
 
 #include <fcntl.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <filesystem>
 
 #include "absl/status/statusor.h"

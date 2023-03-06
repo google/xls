@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdint.h>
+#include <cstdint>
 
 // Tests for the float32 specialization of the APFloat library.
 #include <cmath>

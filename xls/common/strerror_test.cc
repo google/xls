@@ -14,7 +14,7 @@
 
 #include "xls/common/strerror.h"
 
-#include <errno.h>
+#include <cerrno>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -15,8 +15,7 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
 #define XLS_DSLX_TYPE_SYSTEM_CPP_PARAMETRIC_INSTANTIATOR_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>

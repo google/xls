@@ -14,8 +14,7 @@
 
 #include "xls/dslx/type_system/concrete_type.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>

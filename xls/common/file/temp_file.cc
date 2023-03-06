@@ -15,8 +15,9 @@
 #include "xls/common/file/temp_file.h"
 
 #include <fcntl.h>
-#include <stdlib.h>
 #include <unistd.h>
+
+#include <cstdlib>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

@@ -14,8 +14,7 @@
 
 #include "xls/dslx/interp_bindings.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>

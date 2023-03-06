@@ -14,8 +14,7 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>

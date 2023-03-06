@@ -15,8 +15,7 @@
 #ifndef XLS_DATA_STRUCTURES_PATH_CUT_H_
 #define XLS_DATA_STRUCTURES_PATH_CUT_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <vector>
 

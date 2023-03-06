@@ -14,8 +14,7 @@
 
 #include "xls/dslx/run_routines.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>

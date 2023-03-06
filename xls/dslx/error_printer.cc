@@ -14,11 +14,11 @@
 
 #include "xls/dslx/error_printer.h"
 
-#include <stdint.h>
-#include <stdio.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <iostream>
 #include <string>

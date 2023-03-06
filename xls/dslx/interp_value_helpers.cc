@@ -13,8 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/interp_value_helpers.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>

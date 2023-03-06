@@ -15,8 +15,7 @@
 #ifndef XLS_IR_INTERVAL_SET_H_
 #define XLS_IR_INTERVAL_SET_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <string>

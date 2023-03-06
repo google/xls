@@ -14,9 +14,8 @@
 
 #include "xls/dslx/type_system/parametric_env.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <vector>
 

@@ -15,8 +15,7 @@
 #ifndef XLS_DSLX_FRONTEND_TOKEN_PARSER_H_
 #define XLS_DSLX_FRONTEND_TOKEN_PARSER_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

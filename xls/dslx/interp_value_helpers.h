@@ -14,8 +14,7 @@
 #ifndef XLS_DSLX_INTERP_VALUE_HELPERS_H_
 #define XLS_DSLX_INTERP_VALUE_HELPERS_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <optional>
 #include <string_view>
 #include <vector>

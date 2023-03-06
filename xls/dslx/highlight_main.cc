@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdlib.h>
-
+#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <string>

@@ -14,8 +14,7 @@
 
 #include "xls/common/status/error_code_to_status.h"
 
-#include <errno.h>
-
+#include <cerrno>
 #include <system_error>  // NOLINT(build/c++11)
 
 #include "gmock/gmock.h"

@@ -14,8 +14,7 @@
 
 #include "xls/dslx/frontend/pos.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <string>
 #include <string_view>
 

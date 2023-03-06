@@ -15,8 +15,7 @@
 #ifndef XLS_DSLX_ERROR_PRINTER_H_
 #define XLS_DSLX_ERROR_PRINTER_H_
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <ostream>
 #include <string>

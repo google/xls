@@ -15,9 +15,8 @@
 #ifndef XLS_DSLX_FRONTEND_CPP_SCANNER_H_
 #define XLS_DSLX_FRONTEND_CPP_SCANNER_H_
 
-#include <stdint.h>
-#include <stdio.h>
-
+#include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <ostream>
 #include <string>

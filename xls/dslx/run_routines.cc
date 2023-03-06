@@ -14,10 +14,10 @@
 
 #include "xls/dslx/run_routines.h"
 
-#include <stdint.h>
-#include <time.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <ctime>
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <iostream>
