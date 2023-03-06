@@ -26,7 +26,17 @@ absl::StatusCode ErrorCodeToStatusCode(const std::error_code& ec) {
     return absl::StatusCode::kUnknown;
   }
 
-  switch (static_cast<std::errc>(ec.value())) {
+  std::errc ec_value = static_cast<std::errc>(ec.value());
+
+  // Note: EOPNOTSUPP and ENOTSUP have the same value on Linux, but are
+  // different on BSD derivatives. The compiler complains about duplicate case
+  // values on Linux, so handle them specially outside the switch.
+  if (ec_value == std::errc::operation_not_supported ||  // EOPNOTSUPP
+      ec_value == std::errc::not_supported) {            // ENOTSUP
+    return absl::StatusCode::kUnimplemented;
+  }
+
+  switch (ec_value) {
     case std::errc::address_family_not_supported:  // EAFNOSUPPORT
       return absl::StatusCode::kUnavailable;
     case std::errc::address_in_use:  // EADDRINUSE
@@ -135,10 +145,6 @@ absl::StatusCode ErrorCodeToStatusCode(const std::error_code& ec) {
       return absl::StatusCode::kFailedPrecondition;
     case std::errc::not_enough_memory:  // ENOMEM
       return absl::StatusCode::kResourceExhausted;
-    // Note: this case has the same value as not_supported.
-    // case std::errc::operation_not_supported:  // EOPNOTSUPP
-    case std::errc::not_supported:  // ENOTSUP
-      return absl::StatusCode::kUnimplemented;
     case std::errc::operation_canceled:  // ECANCELED
       return absl::StatusCode::kCancelled;
     case std::errc::operation_in_progress:  // EINPROGRESS
