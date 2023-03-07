@@ -939,6 +939,11 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
 }
 
 absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
+  if (update->start()->GetType()->GetFlatBitCount() > 130) {
+    XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
+                << "slice update start index";
+    return IrTranslator::DefaultHandler(update);
+  }
   ScopedErrorHandler seh(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
   std::vector<Z3_ast> to_update =
