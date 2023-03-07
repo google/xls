@@ -25,7 +25,7 @@ namespace {
 class LogLinesTest : public ::testing::Test {
  protected:
   LogLinesTest() : mock_log_(::xls::testing::kDoNotCaptureLogsYet) {}
-  ~LogLinesTest() override {}
+  ~LogLinesTest() override = default;
   void StartCapturingLogs() { mock_log_.StartCapturingLogs(); }
   ::xls::testing::ScopedMockLog mock_log_;
 };

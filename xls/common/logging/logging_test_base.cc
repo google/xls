@@ -23,7 +23,7 @@ namespace testing {
 using ::testing::IsEmpty;
 using ::testing::Not;
 
-CapturedLogEntry::CapturedLogEntry() {}
+CapturedLogEntry::CapturedLogEntry() = default;
 
 CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
     : text_message(entry.text_message()),

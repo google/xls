@@ -27,7 +27,7 @@ class UselessAssertRemovalPass : public FunctionBasePass {
   UselessAssertRemovalPass()
       : FunctionBasePass("useless_assert_remove",
                          "Remove useless (always true) asserts") {}
-  ~UselessAssertRemovalPass() override {}
+  ~UselessAssertRemovalPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -38,7 +38,7 @@ class MulpCombiningPass : public CodegenPass {
  public:
   MulpCombiningPass()
       : CodegenPass("mulp_combining", "Combine mulp operations") {}
-  ~MulpCombiningPass() override {}
+  ~MulpCombiningPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

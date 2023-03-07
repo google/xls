@@ -501,7 +501,7 @@ class LValue {
 //  is used.
 class CValue {
  public:
-  CValue() {}
+  CValue() = default;
   CValue(xls::BValue rvalue, std::shared_ptr<CType> type,
          bool disable_type_check = false,
          std::shared_ptr<LValue> lvalue = nullptr)

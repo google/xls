@@ -30,7 +30,7 @@ class DeadCodeEliminationPass : public FunctionBasePass {
  public:
   DeadCodeEliminationPass()
       : FunctionBasePass("dce", "Dead Code Elimination") {}
-  ~DeadCodeEliminationPass() override {}
+  ~DeadCodeEliminationPass() override = default;
 
  protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.

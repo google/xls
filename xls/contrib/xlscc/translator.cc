@@ -97,7 +97,7 @@ Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
   }
 }
 
-Translator::~Translator() {}
+Translator::~Translator() = default;
 
 TranslationContext& Translator::PushContext() {
   auto ocond = context().full_condition;

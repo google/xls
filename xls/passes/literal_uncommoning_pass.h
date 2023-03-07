@@ -28,7 +28,7 @@ class LiteralUncommoningPass : public FunctionBasePass {
  public:
   LiteralUncommoningPass()
       : FunctionBasePass("literal_uncommon", "Literal uncommoning") {}
-  ~LiteralUncommoningPass() override {}
+  ~LiteralUncommoningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

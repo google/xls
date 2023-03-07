@@ -31,7 +31,7 @@ namespace xls {
 // function (implications, equality, etc).
 class TernaryQueryEngine : public QueryEngine {
  public:
-  TernaryQueryEngine() {}
+  TernaryQueryEngine() = default;
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 

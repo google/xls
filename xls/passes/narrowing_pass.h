@@ -30,7 +30,7 @@ class NarrowingPass : public FunctionBasePass {
       : FunctionBasePass("narrow", "Narrowing"),
         use_range_analysis_(use_range_analysis),
         opt_level_(opt_level) {}
-  ~NarrowingPass() override {}
+  ~NarrowingPass() override = default;
 
  protected:
   bool use_range_analysis_;

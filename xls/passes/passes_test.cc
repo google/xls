@@ -258,7 +258,7 @@ TEST(PassesTest, InvariantCheckerFailsAfterPass) {
 // Invariant checker which counts the number of times it was invoked.
 class CounterChecker : public InvariantChecker {
  public:
-  explicit CounterChecker() {}
+  explicit CounterChecker() = default;
 
   absl::Status Run(Package* package, const PassOptions& options,
                    PassResults* results) const override {

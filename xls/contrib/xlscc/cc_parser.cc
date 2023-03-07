@@ -37,7 +37,7 @@ class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
  public:
   explicit LibToolVisitor(clang::CompilerInstance& CI, CCParser& translator)
       : ast_context_(&(CI.getASTContext())), parser_(translator) {}
-  virtual ~LibToolVisitor() {}
+  virtual ~LibToolVisitor() = default;
   virtual bool VisitVarDecl(clang::VarDecl* decl) {
     return parser_.LibToolVisitVarDecl(decl);
     return true;

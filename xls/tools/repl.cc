@@ -84,7 +84,7 @@ namespace {
 // Not actually a trie yet, but could be reimplemented with one.
 class Trie {
  public:
-  Trie() {}
+  Trie() = default;
   Trie(std::initializer_list<std::string_view> all) {
     for (const auto& string : all) {
       this->Insert(string);

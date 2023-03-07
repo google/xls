@@ -35,7 +35,7 @@ class SchedulingWrapperPass : public SchedulingPass {
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
             absl::StrFormat("%s (scheduling)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)) {}
-  ~SchedulingWrapperPass() override {}
+  ~SchedulingWrapperPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunInternal(

@@ -28,7 +28,7 @@ class UselessIORemovalPass : public Pass {
  public:
   UselessIORemovalPass()
       : Pass("useless_io_remove", "Remove useless send/receive") {}
-  ~UselessIORemovalPass() override {}
+  ~UselessIORemovalPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,

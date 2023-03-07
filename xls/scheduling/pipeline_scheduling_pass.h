@@ -28,7 +28,7 @@ class PipelineSchedulingPass : public SchedulingPass {
  public:
   PipelineSchedulingPass()
       : SchedulingPass("pipesched", "Pipeline Scheduling") {}
-  ~PipelineSchedulingPass() override {}
+  ~PipelineSchedulingPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunInternal(

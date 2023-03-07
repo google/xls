@@ -464,11 +464,8 @@ TEST(NetlistParserTest, XorUsingCellFunctions) {
 
 class OpaqueBoolValue {
  public:
-  OpaqueBoolValue(const OpaqueBoolValue& rhs) : value_(rhs.value_) {}
-  OpaqueBoolValue& operator=(const OpaqueBoolValue& rhs) {
-    value_ = rhs.value_;
-    return *this;
-  }
+  OpaqueBoolValue(const OpaqueBoolValue& rhs)  = default;
+  OpaqueBoolValue& operator=(const OpaqueBoolValue& rhs) = default;
   OpaqueBoolValue(OpaqueBoolValue&& rhs) { value_ = rhs.value_; }
   OpaqueBoolValue& operator=(OpaqueBoolValue&& rhs) {
     value_ = rhs.value_;

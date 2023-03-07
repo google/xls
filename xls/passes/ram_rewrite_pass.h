@@ -46,7 +46,7 @@ class RamRewritePass : public Pass {
  public:
   explicit RamRewritePass() : Pass("ram_rewrite", "RAM Rewrite") {}
 
-  ~RamRewritePass() override {}
+  ~RamRewritePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,

@@ -39,7 +39,7 @@ class RollIntoProcPass : public ProcPass {
  public:
   explicit RollIntoProcPass(
       std::optional<int64_t> unroll_factor = absl::nullopt);
-  ~RollIntoProcPass() override {}
+  ~RollIntoProcPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(

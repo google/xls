@@ -44,7 +44,7 @@ namespace {
 
 class FakeQueryEngine : public QueryEngine {
  public:
-  FakeQueryEngine() {}
+  FakeQueryEngine() = default;
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
     return ReachedFixpoint::Unchanged;

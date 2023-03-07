@@ -27,7 +27,7 @@ class TupleSimplificationPass : public FunctionBasePass {
  public:
   TupleSimplificationPass()
       : FunctionBasePass("tuple_simp", "Tuple simplification") {}
-  ~TupleSimplificationPass() override {}
+  ~TupleSimplificationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

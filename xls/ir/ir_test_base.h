@@ -42,7 +42,7 @@ class VerifiedPackage : public Package {
 // A test base class with convenience functions for IR tests.
 class IrTestBase : public ::testing::Test {
  protected:
-  IrTestBase() {}
+  IrTestBase() = default;
 
   static std::string TestName() {
     return ::testing::UnitTest::GetInstance()->current_test_info()->name();

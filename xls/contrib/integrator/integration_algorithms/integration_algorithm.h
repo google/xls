@@ -48,7 +48,7 @@ class IntegrationAlgorithm {
       source_functions_.push_back(func);
     }
   }
-  virtual ~IntegrationAlgorithm() {}
+  virtual ~IntegrationAlgorithm() = default;
 
   // Get the IntegrationOptions::Algorithm value corresponding to
   // this algoirthm.

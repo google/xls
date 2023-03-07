@@ -30,7 +30,7 @@ class ConditionalSpecializationPass : public FunctionBasePass {
   explicit ConditionalSpecializationPass(bool use_bdd)
       : FunctionBasePass("cond_spec", "Conditional specialization"),
         use_bdd_(use_bdd) {}
-  ~ConditionalSpecializationPass() override {}
+  ~ConditionalSpecializationPass() override = default;
 
  protected:
   bool use_bdd_;

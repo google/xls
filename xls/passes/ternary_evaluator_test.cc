@@ -30,7 +30,7 @@ using ::testing::ElementsAre;
 
 class TernaryLogicTest : public ::testing::Test {
  protected:
-  TernaryLogicTest() {}
+  TernaryLogicTest() = default;
 
   TernaryVector FromString(std::string_view s) {
     return StringToTernaryVector(s).value();

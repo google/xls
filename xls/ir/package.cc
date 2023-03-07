@@ -44,7 +44,7 @@ Package::Package(std::string_view name) : name_(name) {
   owned_types_.insert(&token_type_);
 }
 
-Package::~Package() {}
+Package::~Package() = default;
 
 std::optional<FunctionBase*> Package::GetTop() const { return top_; }
 

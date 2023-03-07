@@ -103,7 +103,7 @@ class NodeInCycleConstraint {
 // will be scheduled in the last cycle.
 class RecvsFirstSendsLastConstraint {
  public:
-  RecvsFirstSendsLastConstraint() {}
+  RecvsFirstSendsLastConstraint() = default;
 };
 
 using SchedulingConstraint = std::variant<IOConstraint, NodeInCycleConstraint,

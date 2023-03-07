@@ -43,7 +43,7 @@ class RangeQueryVisitor;
 class RangeQueryEngine : public QueryEngine {
  public:
   // Create a `RangeQueryEngine` that contains no data.
-  RangeQueryEngine() {}
+  RangeQueryEngine() = default;
 
   // Populate the data in this `RangeQueryEngine` using the
   // given `FunctionBase*`;

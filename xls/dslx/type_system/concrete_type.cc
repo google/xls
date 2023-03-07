@@ -36,7 +36,7 @@
 
 namespace xls::dslx {
 
-ConcreteType::~ConcreteType() {}
+ConcreteType::~ConcreteType() = default;
 
 /* static */ bool ConcreteType::Equal(
     absl::Span<const std::unique_ptr<ConcreteType>> a,

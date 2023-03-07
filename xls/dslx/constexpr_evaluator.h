@@ -53,7 +53,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   //    `u32[4]:[0, 1, ...]`. The type is needed to determine the number of
   //    elements to fill in.
   // In all other cases, `concrete_type` can be nullptr.
-  ~ConstexprEvaluator() override {}
+  ~ConstexprEvaluator() override = default;
 
   absl::Status HandleArray(const Array* expr) override;
   absl::Status HandleAttr(const Attr* expr) override;

@@ -26,7 +26,7 @@ class Base {
   // It's important to have at least one virtual function in the base
   // class; otherwise down_cast, which uses dynamic_cast in a debug
   // build, won't work with it.
-  virtual ~Base() {}
+  virtual ~Base() = default;
 };
 
 // A class derived from Base.
@@ -42,14 +42,14 @@ class Derived2 : public Base {
 // doesn't let us use the reference form of down_cast with non-references.
 class Derived3 : public Base {
  public:
-  Derived3() { }
+  Derived3() = default;
   Derived3(const Base&) { }
 };
 
 // A class unrelated to the Base class hierarchy.
 class Unrelated {
  public:
-  virtual ~Unrelated() {}
+  virtual ~Unrelated() = default;
 };
 
 

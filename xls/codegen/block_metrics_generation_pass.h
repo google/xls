@@ -26,7 +26,7 @@ class BlockMetricsGenerationPass : public CodegenPass {
  public:
   BlockMetricsGenerationPass()
       : CodegenPass("block_metrics_generation", "block metrics generation") {}
-  ~BlockMetricsGenerationPass() override {}
+  ~BlockMetricsGenerationPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

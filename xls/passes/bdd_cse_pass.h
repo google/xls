@@ -28,7 +28,7 @@ class BddCsePass : public FunctionBasePass {
   explicit BddCsePass()
       : FunctionBasePass("bdd_cse",
                          "BDD-based Common Subexpression Elimination") {}
-  ~BddCsePass() override {}
+  ~BddCsePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

@@ -32,7 +32,7 @@ class TokenDependencyPass : public FunctionBasePass {
                          "Convert data dependencies between "
                          "effectful operations into token "
                          "dependencies") {}
-  ~TokenDependencyPass() override {}
+  ~TokenDependencyPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

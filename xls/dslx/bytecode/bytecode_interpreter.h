@@ -137,7 +137,7 @@ class BytecodeInterpreter {
       const std::vector<InterpValue>& args,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
-  virtual ~BytecodeInterpreter() {}
+  virtual ~BytecodeInterpreter() = default;
 
   absl::Status InitFrame(BytecodeFunction* bf,
                          const std::vector<InterpValue>& args,

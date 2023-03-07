@@ -28,7 +28,7 @@ using std::vector;
 
 namespace xlscc {
 
-CType::~CType() {}
+CType::~CType() = default;
 
 bool CType::operator!=(const CType& o) const { return !(*this == o); }
 
@@ -61,7 +61,7 @@ absl::Status CType::GetMetadataValue(Translator& translator,
       "GetMetadataValue unsupported in CType base class");
 }
 
-CVoidType::~CVoidType() {}
+CVoidType::~CVoidType() = default;
 
 int CVoidType::GetBitWidth() const {
   XLS_CHECK(false);
@@ -87,7 +87,7 @@ bool CVoidType::operator==(const CType& o) const { return o.Is<CVoidType>(); }
 
 CBitsType::CBitsType(int width) : width_(width) {}
 
-CBitsType::~CBitsType() {}
+CBitsType::~CBitsType() = default;
 
 int CBitsType::GetBitWidth() const { return width_; }
 
@@ -121,7 +121,7 @@ bool CBitsType::operator==(const CType& o) const {
   return width_ == o_derived->width_;
 }
 
-CIntType::~CIntType() {}
+CIntType::~CIntType() = default;
 
 CIntType::CIntType(int width, bool is_signed, bool is_declared_as_char)
     : width_(width),
@@ -190,7 +190,7 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
   return absl::OkStatus();
 }
 
-CBoolType::~CBoolType() {}
+CBoolType::~CBoolType() = default;
 
 int CBoolType::GetBitWidth() const { return 1; }
 

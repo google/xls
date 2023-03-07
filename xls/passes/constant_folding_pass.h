@@ -26,7 +26,7 @@ namespace xls {
 class ConstantFoldingPass : public FunctionBasePass {
  public:
   ConstantFoldingPass() : FunctionBasePass("const_fold", "Constant folding") {}
-  ~ConstantFoldingPass() override {}
+  ~ConstantFoldingPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

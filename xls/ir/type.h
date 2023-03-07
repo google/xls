@@ -99,7 +99,7 @@ std::ostream& operator<<(std::ostream& os, const Type* type);
 class BitsType : public Type {
  public:
   explicit BitsType(int64_t bit_count);
-  ~BitsType() override {}
+  ~BitsType() override = default;
   int64_t bit_count() const { return bit_count_; }
 
   TypeProto ToProto() const override;
@@ -128,7 +128,7 @@ class TupleType : public Type {
       leaf_count_ += t->leaf_count();
     }
   }
-  ~TupleType() override {}
+  ~TupleType() override = default;
   std::string ToString() const override;
 
   TypeProto ToProto() const override;
@@ -165,7 +165,7 @@ class ArrayType : public Type {
  public:
   explicit ArrayType(int64_t size, Type* element_type)
       : Type(TypeKind::kArray), size_(size), element_type_(element_type) {}
-  ~ArrayType() override {}
+  ~ArrayType() override = default;
   std::string ToString() const override;
 
   TypeProto ToProto() const override;
@@ -191,7 +191,7 @@ class ArrayType : public Type {
 class TokenType : public Type {
  public:
   explicit TokenType() : Type(TypeKind::kToken) {}
-  ~TokenType() override {}
+  ~TokenType() override = default;
   std::string ToString() const override;
 
   TypeProto ToProto() const override;
@@ -208,7 +208,7 @@ class FunctionType {
   explicit FunctionType(absl::Span<Type* const> parameters, Type* return_type)
       : parameters_(parameters.begin(), parameters.end()),
         return_type_(return_type) {}
-  ~FunctionType() {}
+  ~FunctionType() = default;
   std::string ToString() const;
 
   FunctionTypeProto ToProto() const;

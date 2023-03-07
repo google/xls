@@ -31,7 +31,7 @@ class CodegenWrapperPass : public CodegenPass {
       : CodegenPass(absl::StrFormat("codegen_%s", wrapped_pass->short_name()),
                     absl::StrFormat("%s (codegen)", wrapped_pass->long_name())),
         wrapped_pass_(std::move(wrapped_pass)) {}
-  ~CodegenWrapperPass() override {}
+  ~CodegenWrapperPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

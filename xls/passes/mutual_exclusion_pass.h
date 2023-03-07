@@ -107,7 +107,7 @@ class MutualExclusionPass : public FunctionBasePass {
       : FunctionBasePass(
             "mutual_exclusion",
             "Merge mutually exclusively used nodes using SMT solver") {}
-  ~MutualExclusionPass() override {}
+  ~MutualExclusionPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

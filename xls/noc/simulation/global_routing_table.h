@@ -166,7 +166,7 @@ class DistributedRoutingTableBuilderBase {
       NetworkId network_id, NetworkManager& network_manager,
       NocParameters& network_parameters) = 0;
 
-  virtual ~DistributedRoutingTableBuilderBase() {}
+  virtual ~DistributedRoutingTableBuilderBase() = default;
 
  protected:
   // Setup source_indices_ and sink_indices_ for network.
