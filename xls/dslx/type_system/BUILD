@@ -114,12 +114,42 @@ cc_library(
 )
 
 cc_library(
+    name = "parametric_constraint",
+    srcs = ["parametric_constraint.cc"],
+    hdrs = ["parametric_constraint.h"],
+    deps = [
+        ":concrete_type",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_library(
+    name = "parametric_instantiator_internal",
+    srcs = ["parametric_instantiator_internal.cc"],
+    hdrs = ["parametric_instantiator_internal.h"],
+    deps = [
+        ":concrete_type",
+        ":deduce_ctx",
+        ":parametric_constraint",
+        "@com_google_absl//absl/strings",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
+        "//xls/dslx/bytecode:bytecode_emitter",
+        "//xls/dslx/bytecode:bytecode_interpreter",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_library(
     name = "parametric_instantiator",
     srcs = ["parametric_instantiator.cc"],
     hdrs = ["parametric_instantiator.h"],
     deps = [
         ":concrete_type",
         ":deduce_ctx",
+        ":parametric_constraint",
+        ":parametric_instantiator_internal",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
