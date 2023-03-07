@@ -15,6 +15,7 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "xls_benchmark_ir",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
@@ -77,40 +78,50 @@ synthesize_rtl(
     ],
 )
 
+xls_benchmark_ir(
+    name = "idct_chen_13000ps_model_sky130_benchmark_ir",
+    src = ":idct_chen.ir",
+    benchmark_ir_args = {
+        "delay_model": "sky130",
+        "clock_period_ps": "13000",
+    },
+    tags = ["optonly"],
+)
+
 xls_ir_verilog(
-    name = "idct_chen_13ps_model_unit",
+    name = "idct_chen_13000ps_model_sky130",
     src = ":idct_chen.opt.ir",
     codegen_args = {
-        "delay_model": "unit",
-        "clock_period_ps": "13",
+        "delay_model": "sky130",
+        "clock_period_ps": "13000",
         "module_name": "idct_chen",
         "use_system_verilog": "false",
     },
-    verilog_file = "idct_chen_13ps_model_unit.v",
+    verilog_file = "idct_chen_13000ps_model_sky130.v",
 )
 
 verilog_library(
-    name = "idct_chen_13ps_model_unit_verilog",
+    name = "idct_chen_13000ps_model_sky130_verilog",
     srcs = [
-        ":idct_chen_13ps_model_unit.v",
+        ":idct_chen_13000ps_model_sky130.v",
     ],
     tags = ["manual"],
 )
 
 synthesize_rtl(
-    name = "idct_chen_13ps_model_unit_verilog_synth_by_stage",
+    name = "idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
     synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
     tags = ["manual"],
     top_module = "idct_chen",
     deps = [
-        ":idct_chen_13ps_model_unit_verilog",
+        ":idct_chen_13000ps_model_sky130_verilog",
     ],
 )
 
 run_opensta(
-    name = "idct_chen_13ps_model_unit_verilog_sta_by_stage",
+    name = "idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
     sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
-    synth_target = ":idct_chen_13ps_model_unit_verilog_synth_by_stage",
+    synth_target = ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
 )
 
 xls_dslx_test(
