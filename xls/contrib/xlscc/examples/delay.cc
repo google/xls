@@ -40,24 +40,26 @@ void delay(__xls_channel<uint32_t>& in,
 
   const auto input_value = in.read();
   uint32_t output_value = 0;
+
   if (reading) {
-    const memory_t read_value = memory[addr];
     prev_write = input_value;
-    prev_read = memory_initialized ? (read_value & 0xFFFFFFFFUL) : 0;
-    output_value = (read_value >> 32) & 0xFFFFFFFFUL;
+    if (memory_initialized) {
+      const memory_t read_value = memory[addr];
+      prev_read = read_value & 0xFFFFFFFFUL;
+      output_value = (read_value >> 32) & 0xFFFFFFFFUL;
+    } else {
+      prev_read = DEFAULT_OUTPUT_VALUE;
+      output_value = DEFAULT_OUTPUT_VALUE;
+    }
   } else {
     memory[addr] = (static_cast<uint64_t>(prev_write) << 32) | input_value;
     output_value = prev_read;
+  }
 
-    addr++;
-    if (addr >= MEMORY_SIZE) {
-      addr = 0;
-      memory_initialized = true;
-    }
-  }
-  if (!memory_initialized) {
-    output_value = DEFAULT_OUTPUT_VALUE;
-  }
+  const addr_t next_addr = addr + (reading ? 0 : 1);
+  memory_initialized = memory_initialized || (!reading && (next_addr == 0));
+  addr = next_addr;
+
   out.write(output_value);
   reading = !reading;
 }
