@@ -277,13 +277,23 @@ bool ConcreteType::IsStruct() const {
   return dynamic_cast<const StructType*>(this) != nullptr;
 }
 
+bool ConcreteType::IsArray() const {
+  return dynamic_cast<const ArrayType*>(this) != nullptr;
+}
+
 bool ConcreteType::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
 }
 
 const StructType& ConcreteType::AsStruct() const {
   auto* s = dynamic_cast<const StructType*>(this);
-  XLS_CHECK(s != nullptr);
+  XLS_CHECK(s != nullptr) << "ConcreteType is not a struct: " << ToString();
+  return *s;
+}
+
+const ArrayType& ConcreteType::AsArray() const {
+  auto* s = dynamic_cast<const ArrayType*>(this);
+  XLS_CHECK(s != nullptr) << "ConcreteType is not an array: " << ToString();
   return *s;
 }
 

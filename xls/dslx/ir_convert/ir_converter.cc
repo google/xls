@@ -57,10 +57,11 @@
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
-#include "xls/dslx/make_struct_format_descriptor.h"
+#include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/typecheck.h"
@@ -472,7 +473,7 @@ class FunctionConverter {
   // function.
   CValue DefConst(const AstNode* node, Value ir_value);
 
-  absl::Status Visit(AstNode* node);
+  absl::Status Visit(const AstNode* node);
 
   // Creates a predicate that corresponds to reaching the current program point
   // being converted. Handlers that convert `match` constructs (and similar)
@@ -645,7 +646,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
       : converter_(converter) {}
 
   // Causes node "n" to accept this visitor (basic double-dispatch).
-  absl::Status Visit(AstNode* n) {
+  absl::Status Visit(const AstNode* n) {
     XLS_VLOG(6) << this << " visiting: `" << n->ToString() << "` ("
                 << n->GetNodeTypeName() << ")"
                 << " @ " << SpanToString(n->GetSpan());
@@ -773,7 +774,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   FunctionConverter* converter_;
 };
 
-absl::Status FunctionConverter::Visit(AstNode* node) {
+absl::Status FunctionConverter::Visit(const AstNode* node) {
   FunctionConverterVisitor visitor(this);
   return visitor.Visit(node);
 }
@@ -1910,74 +1911,22 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   // may have done a bunch of additional GetTupleElement() operations to feed
   // ir_args leaf struct fields component-wise.
 
+  std::vector<BValue> args;
+  for (const Expr* arg : node->args()) {
+    XLS_RETURN_IF_ERROR(Visit(arg));
+    XLS_ASSIGN_OR_RETURN(BValue argval, Use(arg));
+    args.push_back(argval);
+  }
+
   std::vector<FormatStep> fmt_steps;
   std::vector<BValue> ir_args;
 
-  std::function<void(const BValue&, const StructFormatDescriptor&)> flatten =
-      [&](const BValue& struct_value,
-          const StructFormatDescriptor& struct_format_descriptor) {
-        fmt_steps.push_back(
-            absl::StrCat(struct_format_descriptor.struct_name(), "{{"));
-        size_t fieldno = 0;
-        for (size_t i = 0; i < struct_format_descriptor.elements().size();
-             ++i) {
-          const StructFormatDescriptor::Element& e =
-              struct_format_descriptor.elements().at(i);
-          std::string leader = absl::StrCat(e.field_name, ": ");
-          if (i != 0) {
-            leader = absl::StrCat(", ", leader);
-          }
-          fmt_steps.push_back(leader);
-          BValue field_value =
-              function_builder_->TupleIndex(struct_value, fieldno++);
-          if (std::holds_alternative<StructFormatFieldDescriptor>(e.fmt)) {
-            const auto& sfd = std::get<StructFormatFieldDescriptor>(e.fmt);
-            fmt_steps.push_back(sfd.format);
-            ir_args.push_back(field_value);
-          } else {
-            const auto& sub_struct =
-                std::get<std::unique_ptr<StructFormatDescriptor>>(e.fmt);
-            flatten(field_value, *sub_struct);
-          }
-        }
-        fmt_steps.push_back("}}");
-      };
+  XLS_ASSIGN_OR_RETURN(
+      BValue trace_result_token,
+      ConvertFormatMacro(*node, implicit_token_data_->entry_token,
+                         control_predicate, args, *current_type_info_,
+                         *function_builder_));
 
-  size_t next_argno = 0;
-  for (size_t node_format_index = 0; node_format_index < node->format().size();
-       ++node_format_index) {
-    const FormatStep& step = node->format().at(node_format_index);
-    if (std::holds_alternative<std::string>(step)) {
-      fmt_steps.push_back(step);
-    } else {
-      XLS_RET_CHECK(std::holds_alternative<FormatPreference>(step));
-      FormatPreference preference = std::get<FormatPreference>(step);
-      Expr* arg = node->args().at(next_argno);
-
-      // Grab the IR builder value for this argument.
-      //
-      // (If it's a struct we'll need to flatten it later.)
-      XLS_RETURN_IF_ERROR(Visit(arg));
-      XLS_ASSIGN_OR_RETURN(BValue ir_arg, Use(arg));
-
-      std::optional<ConcreteType*> maybe_type =
-          current_type_info_->GetItem(arg);
-      XLS_RET_CHECK(maybe_type.has_value());
-      ConcreteType* type = maybe_type.value();
-      if (type->IsStruct()) {
-        auto struct_format_descriptor =
-            MakeStructFormatDescriptor(type->AsStruct(), preference);
-        flatten(ir_arg, *struct_format_descriptor);
-      } else {
-        fmt_steps.push_back(step);
-        ir_args.push_back(ir_arg);
-      }
-      next_argno += 1;
-    }
-  }
-
-  BValue trace_result_token = function_builder_->Trace(
-      implicit_token_data_->entry_token, control_predicate, ir_args, fmt_steps);
   implicit_token_data_->control_tokens.push_back(trace_result_token);
 
   // The result of the trace is the output token, so pass it along.

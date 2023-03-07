@@ -132,6 +132,7 @@ cc_library(
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
+        ":convert_format_macro",
         ":extract_conversion_order",
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
@@ -153,7 +154,7 @@ cc_library(
         "//xls/dslx:error_printer",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
-        "//xls/dslx:make_struct_format_descriptor",
+        "//xls/dslx:make_value_format_descriptor",
         "//xls/dslx:mangle",
         "//xls/dslx:warning_collector",
         "//xls/dslx/frontend:ast",
@@ -206,6 +207,20 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "convert_format_macro",
+    srcs = ["convert_format_macro.cc"],
+    hdrs = ["convert_format_macro.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/dslx:make_value_format_descriptor",
+        "//xls/dslx:type_info",
+        "//xls/dslx:value_format_descriptor",
+        "//xls/dslx/frontend:ast",
+        "//xls/ir:function_builder",
     ],
 )
 

@@ -31,7 +31,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/struct_format_descriptor.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
@@ -304,14 +304,8 @@ class InterpValue {
       FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
 
-  // Formats this tuple value using the given struct format description.
-  //
-  // Returns an error status if the struct descriptor does not correspond to the
-  // tuple structure appropriately.
-  //
-  // Precondition: IsTuple()
-  absl::StatusOr<std::string> ToStructString(
-      const StructFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
+  absl::StatusOr<std::string> ToFormattedString(
+      const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
 
   InterpValueTag tag() const { return tag_; }
 
@@ -394,6 +388,28 @@ class InterpValue {
 
  private:
   friend struct InterpValuePickler;
+
+  // Formats this tuple value using the given struct format description.
+  //
+  // Returns an error status if the struct descriptor does not correspond to the
+  // tuple structure appropriately.
+  //
+  // Precondition: IsTuple()
+  absl::StatusOr<std::string> ToStructString(
+      const StructFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for tuple values (that are not participating in a struct
+  // type).
+  absl::StatusOr<std::string> ToTupleString(
+      const TupleFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for array values.
+  absl::StatusOr<std::string> ToArrayString(
+      const ArrayFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for enum values.
+  absl::StatusOr<std::string> ToEnumString(
+      const EnumFormatDescriptor& fmt_desc) const;
 
   // Note: currently InterpValues are not scoped to a lifetime, so we use a
   // shared_ptr for referring to token data for identity purposes.

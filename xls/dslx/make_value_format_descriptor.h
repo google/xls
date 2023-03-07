@@ -15,15 +15,14 @@
 #ifndef XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
 #define XLS_DSLX_MAKE_STRUCT_FORMAT_DESCRIPTOR_H_
 
-#include "xls/dslx/struct_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/value_format_descriptor.h"
 
 namespace xls::dslx {
 
-// Converts a struct type, as determined e.g. in type inference, into a format
-// descriptor that can be used in formatting a struct in e.g. trace output.
-std::unique_ptr<StructFormatDescriptor> MakeStructFormatDescriptor(
-    const StructType& struct_type, FormatPreference field_preference);
+absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
+MakeValueFormatDescriptor(const ConcreteType& type,
+                          FormatPreference field_preference);
 
 }  // namespace xls::dslx
 

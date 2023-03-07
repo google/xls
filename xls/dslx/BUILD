@@ -235,10 +235,12 @@ cc_test(
 )
 
 cc_library(
-    name = "struct_format_descriptor",
-    hdrs = ["struct_format_descriptor.h"],
+    name = "value_format_descriptor",
+    hdrs = ["value_format_descriptor.h"],
     deps = [
+        "//xls/ir:bits",
         "//xls/ir:format_preference",
+        "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
 
@@ -247,7 +249,7 @@ cc_library(
     srcs = ["interp_value.cc"],
     hdrs = ["interp_value.h"],
     deps = [
-        ":struct_format_descriptor",
+        ":value_format_descriptor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
@@ -683,11 +685,13 @@ cc_library(
 )
 
 cc_library(
-    name = "make_struct_format_descriptor",
-    srcs = ["make_struct_format_descriptor.cc"],
-    hdrs = ["make_struct_format_descriptor.h"],
+    name = "make_value_format_descriptor",
+    srcs = ["make_value_format_descriptor.cc"],
+    hdrs = ["make_value_format_descriptor.h"],
     deps = [
-        ":struct_format_descriptor",
+        ":value_format_descriptor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx/type_system:concrete_type",
     ],
 )

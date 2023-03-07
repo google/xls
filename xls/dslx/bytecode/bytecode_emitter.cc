@@ -37,10 +37,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/make_struct_format_descriptor.h"
-#include "xls/dslx/struct_format_descriptor.h"
+#include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
+#include "xls/dslx/value_format_descriptor.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value
@@ -49,23 +49,13 @@
 namespace xls::dslx {
 namespace {
 
-absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
-ConcreteTypeToStructFormatDescriptor(const ConcreteType* type,
-                                     FormatPreference field_preference) {
-  auto* struct_type = dynamic_cast<const StructType*>(type);
-  if (struct_type == nullptr) {
-    return nullptr;
-  }
-  return MakeStructFormatDescriptor(*struct_type, field_preference);
-}
-
-absl::StatusOr<std::unique_ptr<StructFormatDescriptor>>
-ExprToStructFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
-                             FormatPreference field_preference) {
+absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
+ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
+                            FormatPreference field_preference) {
   std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   XLS_RET_CHECK(maybe_type.has_value());
-  return ConcreteTypeToStructFormatDescriptor(maybe_type.value(),
-                                              field_preference);
+  XLS_RET_CHECK(maybe_type.value() != nullptr);
+  return MakeValueFormatDescriptor(*maybe_type.value(), field_preference);
 }
 
 }  // namespace
@@ -723,18 +713,18 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
       OperandPreferencesFromFormat(node->format());
   XLS_RET_CHECK_EQ(preferences.size(), node->args().size());
 
-  std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_descs;
+  std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs;
   for (size_t i = 0; i < node->args().size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
-        std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
-        ExprToStructFormatDescriptor(node->args().at(i), type_info_,
-                                     preferences.at(i)));
-    struct_fmt_descs.push_back(std::move(struct_fmt_desc));
+        std::unique_ptr<ValueFormatDescriptor> value_fmt_desc,
+        ExprToValueFormatDescriptor(node->args().at(i), type_info_,
+                                    preferences.at(i)));
+    value_fmt_descs.push_back(std::move(value_fmt_desc));
   }
 
   Bytecode::TraceData trace_data(
       std::vector<FormatStep>(node->format().begin(), node->format().end()),
-      std::move(struct_fmt_descs));
+      std::move(value_fmt_descs));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kTrace, std::move(trace_data)));
   return absl::OkStatus();
@@ -1072,10 +1062,9 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
     const Expr* channel, const TypeInfo* type_info) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
                        GetChannelPayloadType(type_info, channel));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<StructFormatDescriptor> struct_fmt_desc,
-      ConcreteTypeToStructFormatDescriptor(channel_payload_type.get(),
-                                           FormatPreference::kDefault));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ValueFormatDescriptor> struct_fmt_desc,
+                       MakeValueFormatDescriptor(*channel_payload_type.get(),
+                                                 FormatPreference::kDefault));
 
   // Determine the owning proc by walking the parent links.
   AstNode* proc_node = channel->parent();

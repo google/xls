@@ -218,6 +218,24 @@ std::string InterpValue::ToString(bool humanize,
   XLS_LOG(FATAL) << "Unhandled tag: " << tag_;
 }
 
+absl::StatusOr<std::string> InterpValue::ToArrayString(
+    const ArrayFormatDescriptor& fmt_desc, int64_t indentation) const {
+  std::string s = "[";
+  const std::vector<InterpValue>& values = GetValuesOrDie();
+  for (size_t i = 0; i < values.size(); ++i) {
+    const InterpValue& v = values.at(i);
+    XLS_ASSIGN_OR_RETURN(
+        std::string elem,
+        v.ToFormattedString(fmt_desc.element_format(), indentation));
+    absl::StrAppend(&s, elem);
+    if (i + 1 != values.size()) {
+      absl::StrAppend(&s, ", ");
+    }
+  }
+  absl::StrAppend(&s, "]");
+  return s;
+}
+
 absl::StatusOr<std::string> InterpValue::ToStructString(
     const StructFormatDescriptor& fmt_desc, int64_t indentation) const {
   if (!IsTuple()) {
@@ -240,18 +258,9 @@ absl::StatusOr<std::string> InterpValue::ToStructString(
     const InterpValue& e = values.at(i);
     const StructFormatDescriptor::Element& fmt_element =
         fmt_desc.elements().at(i);
-    std::string element;
-    if (std::holds_alternative<StructFormatFieldDescriptor>(fmt_element.fmt)) {
-      const auto& field =
-          std::get<StructFormatFieldDescriptor>(fmt_element.fmt);
-      element = e.ToString(/*humanize=*/false, field.format);
-    } else {
-      const auto& substruct_fmt_desc =
-          std::get<std::unique_ptr<StructFormatDescriptor>>(fmt_element.fmt);
-      XLS_ASSIGN_OR_RETURN(
-          element,
-          e.ToStructString(*substruct_fmt_desc, indentation + kIndentAmount));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        std::string element,
+        e.ToFormattedString(*fmt_element.fmt, indentation + kIndentAmount));
     pieces.push_back(
         indent(absl::StrFormat("%s: %s", fmt_element.field_name, element),
                indentation + kIndentAmount));
@@ -260,6 +269,84 @@ absl::StatusOr<std::string> InterpValue::ToStructString(
   std::string interior = absl::StrJoin(pieces, ",\n");
   std::string suffix = indent("}", indentation);
   return absl::StrJoin({prefix, interior, suffix}, "\n");
+}
+
+absl::StatusOr<std::string> InterpValue::ToTupleString(
+    const TupleFormatDescriptor& fmt_desc, int64_t indentation) const {
+  if (!IsTuple()) {
+    return absl::FailedPreconditionError(
+        "Can only format a tuple InterpValue as a struct");
+  }
+  const std::vector<InterpValue>& values = GetValuesOrDie();
+  XLS_RET_CHECK_EQ(values.size(), fmt_desc.elements().size());
+
+  std::vector<std::string> pieces;
+  for (int64_t i = 0; i < values.size(); ++i) {
+    const InterpValue& e = values.at(i);
+    const ValueFormatDescriptor& fmt_element = *fmt_desc.elements().at(i);
+    XLS_ASSIGN_OR_RETURN(std::string element,
+                         e.ToFormattedString(fmt_element, indentation));
+    pieces.push_back(element);
+  }
+  if (fmt_desc.size() == 1) {
+    // Singleton tuple has trailing comma.
+    return absl::StrCat("(", absl::StrJoin(pieces, ", "), ",)");
+  }
+  return absl::StrCat("(", absl::StrJoin(pieces, ", "), ")");
+}
+
+absl::StatusOr<std::string> InterpValue::ToEnumString(
+    const EnumFormatDescriptor& fmt_desc) const {
+  const auto& value_to_name = fmt_desc.value_to_name();
+  if (auto it = value_to_name.find(GetBitsOrDie()); it == value_to_name.end()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Enum value %s was not found in enum descriptor for %s",
+                        ToString(), fmt_desc.enum_name()));
+  } else {
+    return absl::StrCat(fmt_desc.enum_name(), "::", it->second);
+  }
+}
+
+absl::StatusOr<std::string> InterpValue::ToFormattedString(
+    const ValueFormatDescriptor& fmt_desc, int64_t indentation) const {
+  class Visitor : public ValueFormatVisitor {
+   public:
+    explicit Visitor(const InterpValue& v, int64_t indentation)
+        : v_(v), indentation_(indentation) {}
+
+    absl::Status HandleStruct(const StructFormatDescriptor& d) override {
+      XLS_ASSIGN_OR_RETURN(result_, v_.ToStructString(d, indentation_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleArray(const ArrayFormatDescriptor& d) override {
+      XLS_ASSIGN_OR_RETURN(result_, v_.ToArrayString(d, indentation_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleEnum(const EnumFormatDescriptor& d) override {
+      XLS_ASSIGN_OR_RETURN(result_, v_.ToEnumString(d));
+      return absl::OkStatus();
+    }
+    absl::Status HandleTuple(const TupleFormatDescriptor& d) override {
+      XLS_ASSIGN_OR_RETURN(result_, v_.ToTupleString(d, indentation_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleLeafValue(const LeafValueFormatDescriptor& d) override {
+      result_ = v_.ToString(/*humanize=*/true, d.format());
+      return absl::OkStatus();
+    }
+
+    const std::optional<std::string>& result() const { return result_; }
+
+   private:
+    const InterpValue& v_;
+    const int64_t indentation_;
+    std::optional<std::string> result_;
+  };
+
+  Visitor v(*this, indentation);
+  XLS_RETURN_IF_ERROR(fmt_desc.Accept(v));
+  XLS_RET_CHECK(v.result().has_value());
+  return std::move(v.result()).value();
 }
 
 bool InterpValue::Eq(const InterpValue& other) const {

@@ -262,14 +262,14 @@ class Bytecode {
 
     TraceData(
         std::vector<FormatStep> steps,
-        std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc)
+        std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs)
         : steps_(std::move(steps)),
-          struct_fmt_desc_(std::move(struct_fmt_desc)) {}
+          value_fmt_descs_(std::move(value_fmt_descs)) {}
 
     absl::Span<const FormatStep> steps() const { return steps_; }
-    absl::Span<const std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc()
+    absl::Span<const std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs()
         const {
-      return struct_fmt_desc_;
+      return value_fmt_descs_;
     }
 
    private:
@@ -277,7 +277,7 @@ class Bytecode {
 
     // For default formatting of struct operands we hold metadata that allows us
     // to format them in more detail (struct name, fields, etc).
-    std::vector<std::unique_ptr<StructFormatDescriptor>> struct_fmt_desc_;
+    std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs_;
   };
 
   // Information necessary for channel operations.
@@ -289,21 +289,21 @@ class Bytecode {
 
     ChannelData(std::string_view channel_name,
                 std::unique_ptr<ConcreteType> payload_type,
-                std::unique_ptr<StructFormatDescriptor> struct_fmt_desc)
+                std::unique_ptr<ValueFormatDescriptor> value_fmt_desc)
         : channel_name_(channel_name),
           payload_type_(std::move(payload_type)),
-          struct_fmt_desc_(std::move(struct_fmt_desc)) {}
+          value_fmt_desc_(std::move(value_fmt_desc)) {}
 
     std::string_view channel_name() const { return channel_name_; }
     const ConcreteType& payload_type() const { return *payload_type_; }
-    const StructFormatDescriptor* struct_fmt_desc() const {
-      return struct_fmt_desc_.get();
+    const ValueFormatDescriptor* value_fmt_desc() const {
+      return value_fmt_desc_.get();
     }
 
    private:
     std::string channel_name_;
     std::unique_ptr<ConcreteType> payload_type_;
-    std::unique_ptr<StructFormatDescriptor> struct_fmt_desc_;
+    std::unique_ptr<ValueFormatDescriptor> value_fmt_desc_;
   };
 
   using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,

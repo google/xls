@@ -128,8 +128,8 @@ fn main() -> () {
                                          trace_output.push_back(std::string{s});
                                        })));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
-  x: u32:42,
-  y: u32:64
+  x: 42,
+  y: 64
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -161,10 +161,10 @@ fn main() -> () {
                                        })));
   EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
   p: Point {
-    x: u32:42,
-    y: u32:64
+    x: 42,
+    y: 64
   },
-  z: u32:123
+  z: 123
 })"));
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
@@ -1492,15 +1492,15 @@ proc tester_proc {
   }
   EXPECT_THAT(trace_output,
               testing::ElementsAre(
-                  "Sent data on channel `tester_proc::data_out`:\n  u32:42",
-                  "Received data on channel `incrementer::in_ch`:\n  u32:42",
-                  "Sent data on channel `incrementer::out_ch`:\n  u32:43",
-                  "Received data on channel `tester_proc::data_in`:\n  u32:43",
-                  "Sent data on channel `tester_proc::data_out`:\n  u32:100",
-                  "Received data on channel `incrementer::in_ch`:\n  u32:100",
-                  "Sent data on channel `incrementer::out_ch`:\n  u32:101",
-                  "Received data on channel `tester_proc::data_in`:\n  u32:101",
-                  "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+                  "Sent data on channel `tester_proc::data_out`:\n  42",
+                  "Received data on channel `incrementer::in_ch`:\n  42",
+                  "Sent data on channel `incrementer::out_ch`:\n  43",
+                  "Received data on channel `tester_proc::data_in`:\n  43",
+                  "Sent data on channel `tester_proc::data_out`:\n  100",
+                  "Received data on channel `incrementer::in_ch`:\n  100",
+                  "Sent data on channel `incrementer::out_ch`:\n  101",
+                  "Received data on channel `tester_proc::data_in`:\n  101",
+                  "Sent data on channel `tester_proc::terminator`:\n  1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannelsWithNonblockingReceive) {
@@ -1573,9 +1573,9 @@ proc tester_proc {
   }
   EXPECT_THAT(trace_output,
               testing::ElementsAre(
-                  "Sent data on channel `incrementer::out_ch`:\n  u32:1",
-                  "Received data on channel `tester_proc::data_in`:\n  u32:1",
-                  "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+                  "Sent data on channel `incrementer::out_ch`:\n  1",
+                  "Received data on channel `tester_proc::data_in`:\n  1",
+                  "Sent data on channel `tester_proc::terminator`:\n  1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceStructChannels) {
@@ -1659,14 +1659,14 @@ proc tester_proc {
   EXPECT_EQ(trace_output[0],
             R"(Sent data on channel `tester_proc::data_out`:
   Foo {
-    a: u32:42,
-    b: u16:100
+    a: 42,
+    b: 100
   })");
   EXPECT_EQ(trace_output[1],
             R"(Received data on channel `incrementer::in_ch`:
   Foo {
-    a: u32:42,
-    b: u16:100
+    a: 42,
+    b: 100
   })");
 }
 
@@ -1746,15 +1746,15 @@ proc tester_proc {
   EXPECT_THAT(
       trace_output,
       testing::ElementsAre(
-          "Sent data on channel `tester_proc::(data_out)[0]`:\n  u32:42",
-          "Received data on channel `incrementer::in_ch`:\n  u32:42",
-          "Sent data on channel `incrementer::out_ch`:\n  u32:43",
-          "Received data on channel `tester_proc::(data_in)[0]`:\n  u32:43",
-          "Sent data on channel `tester_proc::(data_out)[0]`:\n  u32:100",
-          "Received data on channel `incrementer::in_ch`:\n  u32:100",
-          "Sent data on channel `incrementer::out_ch`:\n  u32:101",
-          "Received data on channel `tester_proc::(data_in)[0]`:\n  u32:101",
-          "Sent data on channel `tester_proc::terminator`:\n  u1:1"));
+          "Sent data on channel `tester_proc::(data_out)[0]`:\n  42",
+          "Received data on channel `incrementer::in_ch`:\n  42",
+          "Sent data on channel `incrementer::out_ch`:\n  43",
+          "Received data on channel `tester_proc::(data_in)[0]`:\n  43",
+          "Sent data on channel `tester_proc::(data_out)[0]`:\n  100",
+          "Received data on channel `incrementer::in_ch`:\n  100",
+          "Sent data on channel `incrementer::out_ch`:\n  101",
+          "Received data on channel `tester_proc::(data_in)[0]`:\n  101",
+          "Sent data on channel `tester_proc::terminator`:\n  1"));
 }
 
 }  // namespace

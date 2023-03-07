@@ -468,8 +468,94 @@ class InterpreterTest(test_base.TestCase):
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
     print(result.stderr)
-    self.assertIn('s as hex: MyStruct {\n  x: u32:0x2a\n}', result.stderr)
-    self.assertIn('s as bin: MyStruct {\n  x: u32:0b10_1010\n}', result.stderr)
+    self.assertIn('s as hex: MyStruct {\n  x: 0x2a\n}', result.stderr)
+    self.assertIn('s as bin: MyStruct {\n  x: 0b10_1010\n}', result.stderr)
+
+  def test_trace_fmt_array_of_struct(self):
+    program = """
+    struct MyStruct {
+      x: u32,
+    }
+    fn main() {
+      let s = MyStruct{x: u32:42};
+      let a = MyStruct[1]:[s];
+      let _ = trace_fmt!("a as hex: {:#x}", a);
+      let _ = trace_fmt!("a as bin: {:#b}", a);
+      ()
+    }
+
+    #[test]
+    fn hello_test() {
+      main()
+    }
+    """
+    # Note: we have to pass `--log_prefix=false` here to match multi-line
+    # logging output easily.
+    program_file = self.create_tempfile(content=program)
+    cmd = [
+        _INTERP_PATH,
+        '--alsologtostderr',
+        '--log_prefix=false',
+        program_file.full_path,
+    ]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    print(result.stderr)
+    self.assertIn('a as hex: [MyStruct {\n  x: 0x2a\n}]', result.stderr)
+    self.assertIn('a as bin: [MyStruct {\n  x: 0b10_1010\n}]', result.stderr)
+
+  def test_trace_fmt_array_of_enum(self):
+    program = """
+    enum MyEnum : u2 {
+      ONE = 1,
+      TWO = 2,
+    }
+    fn main() {
+      let a = MyEnum[2]:[MyEnum::ONE, MyEnum::TWO];
+      let _ = trace_fmt!("a: {:#x}", a);
+      ()
+    }
+
+    #[test]
+    fn hello_test() {
+      main()
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [
+        _INTERP_PATH,
+        '--alsologtostderr',
+        program_file.full_path,
+    ]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    print(result.stderr)
+    self.assertIn('a: [MyEnum::ONE, MyEnum::TWO]', result.stderr)
+
+  def test_trace_fmt_tuple_of_enum(self):
+    program = """
+    enum MyEnum : u2 {
+      ONE = 1,
+      TWO = 2,
+    }
+    fn main() {
+      let t = (MyEnum::ONE, MyEnum::TWO, u32:42);
+      let _ = trace_fmt!("t: {:#x}", t);
+      ()
+    }
+
+    #[test]
+    fn hello_test() {
+      main()
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    cmd = [
+        _INTERP_PATH,
+        '--alsologtostderr',
+        program_file.full_path,
+    ]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
+    print(result.stderr)
+    self.assertIn('t: (MyEnum::ONE, MyEnum::TWO, 0x2a)', result.stderr)
 
   def test_bitslice_syntax(self):
     program = """

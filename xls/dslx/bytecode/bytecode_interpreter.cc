@@ -43,6 +43,22 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
+namespace {
+
+// Returns the given InterpValue formatted using the given format descriptor (if
+// it is not null).
+absl::StatusOr<std::string> ToStringMaybeFormatted(
+    const InterpValue& value, const ValueFormatDescriptor* value_fmt_desc,
+    int64_t indentation = 0) {
+  if (value_fmt_desc != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::string value_str,
+                         value.ToFormattedString(*value_fmt_desc, indentation));
+    return std::string(indentation, ' ') + value_str;
+  }
+  return std::string(indentation, ' ') + value.ToString(/*humanize=*/false);
+}
+
+}  // namespace
 
 // How much to indent the data value in the trace emitted when sending/receiving
 // over a channel.
@@ -865,19 +881,6 @@ absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
   return RangeInternal();
 }
 
-// Returns the given InterpValue formatted using the given format descriptor (if
-// it is not null).
-static absl::StatusOr<std::string> ToStringMaybeFormatted(
-    const InterpValue& value, const StructFormatDescriptor* struct_fmt_desc,
-    int64_t indentation = 0) {
-  if (struct_fmt_desc != nullptr) {
-    XLS_ASSIGN_OR_RETURN(std::string value_str,
-                         value.ToStructString(*struct_fmt_desc, indentation));
-    return std::string(indentation, ' ') + value_str;
-  }
-  return std::string(indentation, ' ') + value.ToString(/*humanize=*/false);
-}
-
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
     const Bytecode& bytecode) {
   // TODO(rspringer): 2022-03-10 Thread safety!
@@ -890,11 +893,10 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
                        bytecode.channel_data());
   if (condition.IsTrue() && !channel->empty()) {
     if (options_.trace_channels() && options_.trace_hook() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          std::string formatted_data,
-          ToStringMaybeFormatted(channel->front(),
-                                 channel_data->struct_fmt_desc(),
-                                 kChannelTraceIndentation));
+      XLS_ASSIGN_OR_RETURN(std::string formatted_data,
+                           ToStringMaybeFormatted(
+                               channel->front(), channel_data->value_fmt_desc(),
+                               kChannelTraceIndentation));
       options_.trace_hook()(
           absl::StrFormat("Received data on channel `%s`:\n%s",
                           channel_data->channel_name(), formatted_data));
@@ -932,11 +934,10 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
     if (options_.trace_channels() && options_.trace_hook() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(
-          std::string formatted_data,
-          ToStringMaybeFormatted(channel->front(),
-                                 channel_data->struct_fmt_desc(),
-                                 kChannelTraceIndentation));
+      XLS_ASSIGN_OR_RETURN(std::string formatted_data,
+                           ToStringMaybeFormatted(
+                               channel->front(), channel_data->value_fmt_desc(),
+                               kChannelTraceIndentation));
       options_.trace_hook()(
           absl::StrFormat("Received data on channel `%s`:\n%s",
                           channel_data->channel_name(), formatted_data));
@@ -965,7 +966,7 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
                            bytecode.channel_data());
       XLS_ASSIGN_OR_RETURN(
           std::string formatted_data,
-          ToStringMaybeFormatted(payload, channel_data->struct_fmt_desc(),
+          ToStringMaybeFormatted(payload, channel_data->value_fmt_desc(),
                                  kChannelTraceIndentation));
       options_.trace_hook()(absl::StrFormat("Sent data on channel `%s`:\n%s",
                                             channel_data->channel_name(),
@@ -1115,11 +1116,11 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
       pieces.push_back(std::get<std::string>(trace_element));
     } else {
       const InterpValue& value = args.at(argno);
-      if (argno < trace_data.struct_fmt_desc().size() &&
-          trace_data.struct_fmt_desc().at(argno) != nullptr) {
+      if (argno < trace_data.value_fmt_descs().size() &&
+          trace_data.value_fmt_descs().at(argno) != nullptr) {
         XLS_ASSIGN_OR_RETURN(
             std::string formatted,
-            value.ToStructString(*trace_data.struct_fmt_desc().at(argno)));
+            value.ToFormattedString(*trace_data.value_fmt_descs().at(argno)));
         pieces.push_back(formatted);
       } else {
         pieces.push_back(value.ToString(

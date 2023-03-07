@@ -174,9 +174,10 @@ TEST(InterpValueTest, FormatNilTupleWrongElementCount) {
 
   std::vector<StructFormatDescriptor::Element> elements;
   elements.emplace_back(StructFormatDescriptor::Element{
-      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
   StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
-  ASSERT_THAT(tuple.ToStructString(fmt_desc),
+  ASSERT_THAT(tuple.ToFormattedString(fmt_desc),
               status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr("Number of tuple elements (0)")));
@@ -189,14 +190,16 @@ TEST(InterpValueTest, FormatFlatStructViaDescriptor) {
 
   std::vector<StructFormatDescriptor::Element> elements;
   elements.emplace_back(StructFormatDescriptor::Element{
-      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
   elements.emplace_back(StructFormatDescriptor::Element{
-      "y", StructFormatFieldDescriptor{FormatPreference::kSignedDecimal}});
+      "y", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kSignedDecimal)});
   StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
-  XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToStructString(fmt_desc));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToFormattedString(fmt_desc));
   EXPECT_EQ(s, R"(MyStruct {
-  x: u4:0xf,
-  y: s4:-1
+  x: 0xf,
+  y: -1
 })");
 }
 
@@ -207,9 +210,11 @@ TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
 
   std::vector<StructFormatDescriptor::Element> elements;
   elements.emplace_back(StructFormatDescriptor::Element{
-      "x", StructFormatFieldDescriptor{FormatPreference::kHex}});
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
   elements.emplace_back(StructFormatDescriptor::Element{
-      "y", StructFormatFieldDescriptor{FormatPreference::kSignedDecimal}});
+      "y", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kSignedDecimal)});
   auto inner_fmt_desc = std::make_unique<StructFormatDescriptor>(
       "InnerStruct", std::move(elements));
 
@@ -220,17 +225,19 @@ TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
   outer_elements.push_back(StructFormatDescriptor::Element{
       .field_name = "a", .fmt = std::move(inner_fmt_desc)});
   outer_elements.push_back(StructFormatDescriptor::Element{
-      "b", StructFormatFieldDescriptor{FormatPreference::kUnsignedDecimal}});
+      "b", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kUnsignedDecimal)});
   StructFormatDescriptor outer_fmt_desc{"OuterStruct",
                                         std::move(outer_elements)};
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string s, outer.ToStructString(outer_fmt_desc));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s,
+                           outer.ToFormattedString(outer_fmt_desc));
   EXPECT_EQ(s, R"(OuterStruct {
   a: InnerStruct {
-    x: u4:0xf,
-    y: s4:-1
+    x: 0xf,
+    y: -1
   },
-  b: u32:42
+  b: 42
 })");
 }
 

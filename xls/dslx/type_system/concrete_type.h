@@ -205,8 +205,10 @@ class ConcreteType {
   bool IsUnit() const;
   bool IsToken() const;
   bool IsStruct() const;
+  bool IsArray() const;
 
   const StructType& AsStruct() const;
+  const ArrayType& AsArray() const;
 
  protected:
   static std::vector<std::unique_ptr<ConcreteType>> Clone(
