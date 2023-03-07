@@ -136,7 +136,7 @@ def _convert_to_ir(ctx, src):
     # the binary can be different with the execroot, requiring to change
     # the dslx stdlib search path accordingly.
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
-    wsroot = get_xls_toolchain_info(ctx).dslx_interpreter_tool.label.workspace_root
+    wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
