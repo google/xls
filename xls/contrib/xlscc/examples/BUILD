@@ -84,6 +84,13 @@ xls_cc_ir(
     ir_file = "delay.ir",
 )
 
+xls_cc_ir(
+    name = "block_from_class_ir",
+    src = "block_from_class.cc",
+    block_from_class = "block_from_class.pbtxt",
+    ir_file = "block_from_class.ir",
+)
+
 xls_ir_opt_ir(
     name = "mux3_opt_ir",
     src = ":mux3.ir",
@@ -109,6 +116,12 @@ xls_ir_opt_ir(
     ram_rewrites = [
         ":delay_ram_rewrites_pb",
     ],
+)
+
+xls_ir_opt_ir(
+    name = "block_from_class_opt_ir",
+    src = ":block_from_class.ir",
+    opt_ir_file = "block_from_class.opt.ir",
 )
 
 xls_ir_verilog(
@@ -193,6 +206,24 @@ xls_ir_verilog(
 verilog_library(
     name = "delay",
     srcs = [":delay.sv"],
+)
+
+xls_ir_verilog(
+    name = "block_from_class_v",
+    src = ":block_from_class.opt.ir",
+    codegen_args = {
+        "module_name": "block_from_class",
+        "pipeline_stages": "1",
+        "generator": "pipeline",
+        "reset": "rst",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "reset_data_path": "false",
+        "flop_inputs": "false",
+        "flop_outputs": "false",
+        "top": "MyBlock_proc",
+    },
+    verilog_file = "block_from_class.sv",
 )
 
 cc_test(

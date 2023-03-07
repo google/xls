@@ -96,10 +96,13 @@ def _get_runfiles_for_xls_cc_ir(ctx):
     """
     transitive_runfiles = []
 
-    runfiles = ctx.runfiles(files = [ctx.file.src] + [ctx.file.block] +
-                                    ctx.files._default_cc_header_files +
-                                    ctx.files._default_synthesis_header_files +
-                                    ctx.files.src_deps)
+    files = ([ctx.file.src] +
+             ctx.files._default_cc_header_files +
+             ctx.files._default_synthesis_header_files +
+             ctx.files.src_deps)
+    if ctx.file.block:
+        files.append(ctx.file.block)
+    runfiles = ctx.runfiles(files = files)
     transitive_runfiles.append(ctx.attr
         ._xlscc_tool[DefaultInfo].default_runfiles)
     transitive_runfiles.append(ctx.attr
@@ -124,7 +127,8 @@ def _get_transitive_built_files_for_xls_cc_ir(ctx):
     transitive_built_files = []
 
     transitive_built_files.append(ctx.attr.src[DefaultInfo].files)
-    transitive_built_files.append(ctx.attr.block[DefaultInfo].files)
+    if ctx.attr.block:
+        transitive_built_files.append(ctx.attr.block[DefaultInfo].files)
     transitive_built_files.append(ctx.attr._xlscc_tool[DefaultInfo].files)
     transitive_built_files.append(ctx.attr
         ._default_cc_header_files[DefaultInfo].files)
@@ -162,6 +166,7 @@ def _xls_cc_ir_impl(ctx):
         "defines",
         "include_dirs",
         "meta_out",
+        "block_from_class",
     )
 
     xlscc_args = append_default_to_args(
@@ -193,27 +198,38 @@ def _xls_cc_ir_impl(ctx):
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
     ir_file = ctx.actions.declare_file(ir_filename)
+    outputs = [ir_file]
+    block_pb_out_filename = getattr(ctx.attr, "block_from_class")
+    block_from_class_flag = ""
+    if block_pb_out_filename:
+        block_pb_file = ctx.actions.declare_file(block_pb_out_filename.name)
+        outputs.append(block_pb_file)
+        block_pb = block_pb_file.path
+        block_from_class_flag = "--block_from_class"
+    else:
+        block_pb = ctx.file.block.path
 
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
     ctx.actions.run_shell(
-        outputs = [ir_file],
+        outputs = outputs,
         # The IR converter executable is a tool needed by the action.
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} > {}".format(
+        command = "{} {} --block_pb {} {} {} > {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
-            ctx.file.block.path,
+            block_pb,
+            block_from_class_flag,
             my_args,
             ir_file.path,
         ),
         mnemonic = "ConvertXLSCC",
         progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
     )
-    return [ConvIRInfo(conv_ir_file = ir_file), [ir_file], runfiles]
+    return [ConvIRInfo(conv_ir_file = ir_file), outputs, runfiles]
 
 _xls_cc_ir_attrs = {
     "src": attr.label(
@@ -225,14 +241,24 @@ _xls_cc_ir_attrs = {
     ),
     "block": attr.label(
         doc = "Protobuf describing top-level block interface. A single " +
-              "source file single source file must be provided. The file " +
-              "must have a '" + _PROTOBIN_FILE_EXTENSION + "' or a '" +
-              _BINARYPB_FILE_EXTENSION + "' extension.",
-        mandatory = True,
+              "source file must be provided. The file " + "must have a '" +
+              _PROTOBIN_FILE_EXTENSION + "' or a '" +
+              _BINARYPB_FILE_EXTENSION + "' extension. To create this " +
+              "protobuf automatically from your C++ source file, use " +
+              "'block_from_class' instead. Exactly one of 'block' or " +
+              "'block_from_class' should be specified.",
+        mandatory = False,
         allow_single_file = [
             _PROTOBIN_FILE_EXTENSION,
             _BINARYPB_FILE_EXTENSION,
         ],
+    ),
+    "block_from_class": attr.output(
+        doc = "Filename of the generated top-level block interface protobuf, " +
+              "created from a C++ class. To manually specify this protobuf, " +
+              "use 'block' instead. Exactly one of 'block' or " +
+              "'block_from_class' should be specified.",
+        mandatory = False,
     ),
     "src_deps": attr.label_list(
         doc = "Additional source files for the rule. The file must have a " +
@@ -321,7 +347,8 @@ defined.
 def xls_cc_ir_macro(
         name,
         src,
-        block,
+        block = None,
+        block_from_class = None,
         src_deps = [],
         xlscc_args = {},
         enable_generated_file = True,
@@ -351,7 +378,13 @@ def xls_cc_ir_macro(
         file must be provided. The file must have a '.cc' extension.
       block: Protobuf describing top-level block interface. A single source file
         single source file must be provided. The file must have a '.protobin'
-        or a '.binarypb' extension.
+        or a '.binarypb' extension. To create this protobuf automatically from
+        your C++ source file, use 'block_from_class' instead. Exactly one of
+        'block' or 'block_from_class' should be specified.
+      block_from_class: Filename of the generated top-level block interface
+        protobuf created from a C++ class. To manually specify this protobuf,
+        use 'block' instead. Exactly one of 'block' or 'block_from_class'
+        should be specified.
       src_deps: Additional source files for the rule. The file must have a
         '.cc', '.h' or '.inc' extension.
       xlscc_args: Arguments of the XLSCC conversion tool.
@@ -365,11 +398,18 @@ def xls_cc_ir_macro(
     # Type check input
     string_type_check("name", name)
     string_type_check("src", src)
-    string_type_check("block", block)
+    string_type_check("block", block, True)
+    string_type_check("block_from_class", block_from_class, True)
     list_type_check("src_deps", src_deps)
     dictionary_type_check("xlscc_args", xlscc_args)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
+
+    if block == None and block_from_class == None:
+        fail("Either 'block' or 'block_from_class' is required.")
+
+    if block != None and block_from_class != None:
+        fail("Specify either 'block' or 'block_from_class', but not both.")
 
     # Append output files to arguments.
     kwargs = _append_xls_cc_ir_generated_files(kwargs, name)
@@ -378,6 +418,7 @@ def xls_cc_ir_macro(
         name = name,
         src = src,
         block = block,
+        block_from_class = block_from_class,
         src_deps = src_deps,
         xlscc_args = xlscc_args,
         outs = _get_xls_cc_ir_generated_files(kwargs),

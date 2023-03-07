@@ -10,7 +10,7 @@
 ## xls_cc_ir
 
 <pre>
-xls_cc_ir(<a href="#xls_cc_ir-name">name</a>, <a href="#xls_cc_ir-src">src</a>, <a href="#xls_cc_ir-block">block</a>, <a href="#xls_cc_ir-src_deps">src_deps</a>, <a href="#xls_cc_ir-xlscc_args">xlscc_args</a>, <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>,
+xls_cc_ir(<a href="#xls_cc_ir-name">name</a>, <a href="#xls_cc_ir-src">src</a>, <a href="#xls_cc_ir-block">block</a>, <a href="#xls_cc_ir-block_from_class">block_from_class</a>, <a href="#xls_cc_ir-src_deps">src_deps</a>, <a href="#xls_cc_ir-xlscc_args">xlscc_args</a>, <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>,
           <a href="#xls_cc_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_ir-kwargs">kwargs</a>)
 </pre>
 
@@ -40,7 +40,8 @@ Examples:
 | :------------- | :------------- | :------------- |
 | <a id="xls_cc_ir-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_cc_ir-src"></a>src |  The C/C++ source file containing the top level block. A single source file must be provided. The file must have a '.cc' extension.   |  none |
-| <a id="xls_cc_ir-block"></a>block |  Protobuf describing top-level block interface. A single source file single source file must be provided. The file must have a '.protobin' or a '.binarypb' extension.   |  none |
+| <a id="xls_cc_ir-block"></a>block |  Protobuf describing top-level block interface. A single source file single source file must be provided. The file must have a '.protobin' or a '.binarypb' extension. To create this protobuf automatically from your C++ source file, use 'block_from_class' instead. Exactly one of 'block' or 'block_from_class' should be specified.   |  <code>None</code> |
+| <a id="xls_cc_ir-block_from_class"></a>block_from_class |  Filename of the generated top-level block interface protobuf created from a C++ class. To manually specify this protobuf, use 'block' instead. Exactly one of 'block' or 'block_from_class' should be specified.   |  <code>None</code> |
 | <a id="xls_cc_ir-src_deps"></a>src_deps |  Additional source files for the rule. The file must have a '.cc', '.h' or '.inc' extension.   |  <code>[]</code> |
 | <a id="xls_cc_ir-xlscc_args"></a>xlscc_args |  Arguments of the XLSCC conversion tool.   |  <code>{}</code> |
 | <a id="xls_cc_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
