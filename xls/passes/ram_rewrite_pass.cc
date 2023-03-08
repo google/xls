@@ -435,7 +435,7 @@ absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
     return RamLogicalChannel::kResp;
   }
   return absl::InvalidArgumentError(
-      absl::StrFormat("Unrecogrnized logical channel name for ram: %s.", name));
+      absl::StrFormat("Unrecognized logical channel name for ram: %s.", name));
 }
 
 std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel) {
