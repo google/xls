@@ -172,7 +172,7 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-absl::StatusOr<bool> CanonicalizeNode(Node* n) {
+static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   FunctionBase* f = n->function_base();
 
   // Always move kLiteral to right for commutative operators.
