@@ -133,7 +133,7 @@ class ParametricInstantiator {
 
   // Note: the expressions may be null (e.g. when the parametric binding has no
   // "default" expression and must be provided by the user).
-  absl::flat_hash_map<std::string, Expr*> constraints_;
+  absl::flat_hash_map<std::string, Expr*> parametric_default_exprs_;
 
   absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
       parametric_binding_types_;

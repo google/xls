@@ -132,6 +132,7 @@ cc_library(
     deps = [
         ":concrete_type",
         ":deduce_ctx",
+        ":parametric_bind",
         ":parametric_constraint",
         "@com_google_absl//absl/strings",
         "//xls/dslx:constexpr_evaluator",
@@ -345,6 +346,30 @@ cc_test(
     srcs = ["type_info_test.cc"],
     deps = [
         ":type_info",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "parametric_bind",
+    srcs = ["parametric_bind.cc"],
+    hdrs = ["parametric_bind.h"],
+    deps = [
+        ":concrete_type",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:errors",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_test(
+    name = "parametric_bind_test",
+    srcs = ["parametric_bind_test.cc"],
+    deps = [
+        ":parametric_bind",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

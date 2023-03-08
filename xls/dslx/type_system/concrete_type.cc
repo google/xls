@@ -688,4 +688,13 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
       "Cannot determined signedness; type is neither enum nor bits.");
 }
 
+const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim) {
+  if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+    return nullptr;
+  }
+  const ParametricExpression* parametric =
+      std::get<ConcreteTypeDim::OwnedParametric>(dim.value()).get();
+  return dynamic_cast<const ParametricSymbol*>(parametric);
+}
+
 }  // namespace xls::dslx

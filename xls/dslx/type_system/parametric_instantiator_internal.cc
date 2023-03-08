@@ -19,6 +19,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/type_system/parametric_bind.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -47,15 +48,6 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
                                       expr, env, absl::nullopt));
   return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
                                         /*args=*/{});
-}
-
-const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim) {
-  if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
-    return nullptr;
-  }
-  const ParametricExpression* parametric =
-      std::get<ConcreteTypeDim::OwnedParametric>(dim.value()).get();
-  return dynamic_cast<const ParametricSymbol*>(parametric);
 }
 
 }  // namespace
@@ -96,7 +88,7 @@ ParametricInstantiator::ParametricInstantiator(
         ctx_->type_info()->SetItem(constraint.expr(), *resolved_type);
       }
       parametric_binding_types_.emplace(identifier, std::move(resolved_type));
-      constraints_[identifier] = constraint.expr();
+      parametric_default_exprs_[identifier] = constraint.expr();
     }
   }
 }
@@ -152,9 +144,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
 }
 
 absl::Status ParametricInstantiator::VerifyConstraints() {
-  XLS_VLOG(5) << "Verifying " << constraints_.size() << " constraints";
+  XLS_VLOG(5) << "Verifying " << parametric_default_exprs_.size()
+              << " constraints";
   for (const auto& name : constraint_order_) {
-    Expr* expr = constraints_[name];
+    Expr* expr = parametric_default_exprs_[name];
     XLS_VLOG(5) << "name: " << name
                 << " expr: " << (expr == nullptr ? "<none>" : expr->ToString());
     if (expr == nullptr) {  // e.g. <X: u32> has no expr
@@ -209,53 +202,10 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
   // Create bindings for symbolic parameter dimensions based on argument values
   // passed.
   const ConcreteTypeDim& param_dim = param_type.size();
-
-  const ParametricSymbol* symbol = TryGetParametricSymbol(param_dim);
-  if (symbol == nullptr) {
-    return absl::OkStatus();  // Nothing to bind in the formal argument type.
-  }
-
-  XLS_ASSIGN_OR_RETURN(int64_t arg_dim,
-                       ConcreteTypeDim::GetAs64Bits(arg_type.size().value()));
-
-  const std::string& pdim_name = symbol->identifier();
-  if (!parametric_env_.contains(pdim_name)) {
-    XLS_RET_CHECK(parametric_binding_types_.contains(pdim_name))
-        << "Cannot bind " << pdim_name << " : it has no associated type.";
-    XLS_VLOG(5) << "Binding " << pdim_name << " to " << arg_dim;
-    const ConcreteType& type = *parametric_binding_types_.at(pdim_name);
-    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bit_count, type.GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t width, bit_count.GetAsInt64());
-    parametric_env_.emplace(
-        pdim_name,
-        InterpValue::MakeUBits(/*bit_count=*/width, /*value=*/arg_dim));
-    return absl::OkStatus();
-  }
-
-  const InterpValue& seen = parametric_env_.at(pdim_name);
-  int64_t seen_value = seen.GetBitValueInt64().value();
-  if (seen_value == arg_dim) {
-    return absl::OkStatus();  // No contradiction.
-  }
-
-  // We see a conflict between something we previously observed and something
-  // we are now observing.
-  if (Expr* expr = constraints_[pdim_name]) {
-    // Error is violated constraint.
-    std::string message = absl::StrFormat(
-        "Parametric constraint violated, saw %s = %d; then %s = %s = %d",
-        pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim);
-    auto saw_type =
-        std::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
-    return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
-  }
-
-  // Error is conflicting argument types.
-  std::string message = absl::StrFormat(
-      "Parametric value %s was bound to different values at different "
-      "places in invocation; saw: %d; then: %d",
-      pdim_name, seen_value, arg_dim);
-  return XlsTypeErrorStatus(span_, param_type, arg_type, message);
+  const ConcreteTypeDim& arg_dim = arg_type.size();
+  return ParametricBindConcreteTypeDim(
+      param_type, param_dim, arg_type, arg_dim, span_,
+      parametric_binding_types_, parametric_default_exprs_, parametric_env_);
 }
 
 absl::Status ParametricInstantiator::SymbolicBindTuple(

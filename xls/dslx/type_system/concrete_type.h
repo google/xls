@@ -669,6 +669,10 @@ inline bool IsBits(const ConcreteType& c) {
 // type, is signed.
 absl::StatusOr<bool> IsSigned(const ConcreteType& c);
 
+// Attempts to get a ParametricSymbol contained in the given dimension, or
+// nullptr if there is none.
+const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_TYPE_SYSTEM_CONCRETE_TYPE_H_
