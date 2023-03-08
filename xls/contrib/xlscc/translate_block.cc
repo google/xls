@@ -431,6 +431,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     xls::BValue new_token;
     if (!op.after_ops.empty()) {
       std::vector<xls::BValue> after_tokens;
+      after_tokens.reserve(op.after_ops.size());
       for (const IOOp* op : op.after_ops) {
         after_tokens.push_back(op_tokens.at(op));
       }
