@@ -22,7 +22,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <utility>
 
 #include "absl/container/fixed_array.h"
@@ -44,7 +44,7 @@ struct Pipe {
       : exit(std::move(exit)), entrance(std::move(entrance)) {}
 
   // Opens a Unix pipe with a C++ friendly interface.
-  static absl::StatusOr<Pipe> Open() {
+  static absl::StatusOr<Pipe> Open(bool buffered) {
     int descriptors[2];
     if (pipe(descriptors) != 0 ||
         fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) != 0||
@@ -52,7 +52,11 @@ struct Pipe {
       return absl::InternalError(
           absl::StrCat("Failed to initialize pipe:", Strerror(errno)));
     }
-
+    if (!buffered && (fcntl(descriptors[0], F_SETFD, FNDELAY) != 0 ||
+                      fcntl(descriptors[1], F_SETFD, FNDELAY) != 0)) {
+      return absl::InternalError(
+          absl::StrCat("Could not set pipe to FNDELAY:", Strerror(errno)));
+    }
     return Pipe(FileDescriptor(descriptors[0]), FileDescriptor(descriptors[1]));
   }
 
@@ -96,7 +100,7 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
     poll_list[i].fd = fds[i]->get();
     poll_list[i].events = POLLIN;
   }
-  int descriptors_left = fds.size();
+  size_t descriptors_left = fds.size();
 
   auto close_fd_by_index = [&](int idx) {
     poll_list[idx].fd = -1;
@@ -126,7 +130,7 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
       // connection, but there may be data waiting to be read. read() will
       // return 0 bytes when we consume all the data, so just ignore that error.
       if ((poll_list[i].revents & (POLLHUP | POLLIN)) != 0) {
-        int bytes = read(poll_list[i].fd, buffer.data(), buffer.size());
+        size_t bytes = read(poll_list[i].fd, buffer.data(), buffer.size());
         if (bytes == 0) {
           // All data is read.
           close_fd_by_index(i);
@@ -148,10 +152,9 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
   while (waitpid(pid, &wait_status, 0) == -1) {
     if (errno == EINTR) {
       continue;
-    } else {
-      return absl::InternalError(
-          absl::StrCat("waitpid failed: ", Strerror(errno)));
     }
+    return absl::InternalError(
+         absl::StrCat("waitpid failed: ", Strerror(errno)));
   }
   return WEXITSTATUS(wait_status);
 }
@@ -177,14 +180,15 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
   }
   argv_pointers.push_back(nullptr);
 
-  XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open());
-  XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open());
+  XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open(/*buffered=*/true));
+  XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open(/*buffered=*/false));
 
   pid_t pid = fork();
   if (pid == -1) {
     return absl::InternalError(
         absl::StrCat("Failed to fork: ", Strerror(errno)));
-  } else if (pid == 0) {
+  }
+  if (pid == 0) {
     PrepareAndExecInChildProcess(argv_pointers, cwd, stdout_pipe, stderr_pipe);
   }
   // This is the parent process.
