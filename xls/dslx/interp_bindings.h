@@ -27,7 +27,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

@@ -19,8 +19,8 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/type_info.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

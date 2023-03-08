@@ -32,7 +32,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_info_to_proto.h"
+#include "xls/dslx/type_system/type_info_to_proto.h"
 #include "xls/dslx/type_system/typecheck.h"
 
 ABSL_FLAG(std::string, dslx_path, "",

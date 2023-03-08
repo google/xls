@@ -17,7 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/function_builder.h"
 

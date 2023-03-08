@@ -32,7 +32,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_info_to_proto.h"
+#include "xls/dslx/type_system/type_info_to_proto.h"
 
 namespace xls::dslx {
 namespace {

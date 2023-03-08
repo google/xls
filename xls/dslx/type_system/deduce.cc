@@ -47,10 +47,10 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/token_utils.h"
-#include "xls/dslx/type_and_bindings.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type_and_bindings.h"
 
 namespace xls::dslx {
 namespace {

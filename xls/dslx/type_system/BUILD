@@ -15,6 +15,7 @@
 # Frontend type-system and associated data structures.
 
 # pytype tests are present in this file
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -61,6 +62,7 @@ cc_library(
     hdrs = ["deduce_ctx.h"],
     deps = [
         ":concrete_type",
+        ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -71,7 +73,6 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
-        "//xls/dslx:type_and_bindings",
         "//xls/dslx:warning_collector",
     ],
 )
@@ -85,6 +86,7 @@ cc_library(
         ":concrete_type_zero_value",
         ":deduce_ctx",
         ":parametric_instantiator",
+        ":type_and_bindings",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
@@ -104,7 +106,6 @@ cc_library(
         "//xls/dslx:errors",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
-        "//xls/dslx:type_and_bindings",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -150,6 +151,8 @@ cc_library(
         ":deduce_ctx",
         ":parametric_constraint",
         ":parametric_instantiator_internal",
+        ":type_and_bindings",
+        ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
@@ -162,8 +165,6 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
-        "//xls/dslx:type_and_bindings",
-        "//xls/dslx:type_info",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
     ],
@@ -198,6 +199,7 @@ cc_test(
     name = "typecheck_test",
     srcs = ["typecheck_test.cc"],
     deps = [
+        ":type_info_to_proto",
         ":typecheck",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -207,7 +209,6 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx:type_info_to_proto",
         "//xls/dslx/frontend:ast",
         "@com_google_googletest//:gtest",
     ],
@@ -266,12 +267,98 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "type_info_proto",
+    srcs = ["type_info.proto"],
+)
+
+cc_proto_library(
+    name = "type_info_cc_proto",
+    deps = [":type_info_proto"],
+)
+
+cc_library(
+    name = "type_info_to_proto",
+    srcs = ["type_info_to_proto.cc"],
+    hdrs = ["type_info_to_proto.h"],
+    deps = [
+        ":type_info",
+        ":type_info_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:proto_adaptor_utils",
+        "//xls/dslx:import_data",
+    ],
+)
+
+cc_test(
+    name = "type_info_to_proto_test",
+    srcs = ["type_info_to_proto_test.cc"],
+    deps = [
+        ":type_info_to_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "type_and_bindings",
+    hdrs = ["type_and_bindings.h"],
+    deps = [
+        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:parametric_env",
+    ],
+)
+
+cc_library(
+    name = "type_info",
+    srcs = ["type_info.cc"],
+    hdrs = ["type_info.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/meta:type_traits",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/status:ret_check",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:parametric_env",
+    ],
+)
+
+cc_test(
+    name = "type_info_test",
+    srcs = ["type_info_test.cc"],
+    deps = [
+        ":type_info",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 # -- binary for invoking type checking subsystem
 
 cc_binary(
     name = "typecheck_main",
     srcs = ["typecheck_main.cc"],
     deps = [
+        ":type_info_to_proto",
         ":typecheck",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -284,7 +371,6 @@ cc_binary(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "//xls/dslx:type_info_to_proto",
     ],
 )
 

@@ -15,7 +15,6 @@
 # Frontend syntax.
 
 # pytype tests are present in this file
-# cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
@@ -33,7 +32,6 @@ cc_library(
         ":errors",
         ":import_data",
         ":interp_value",
-        ":type_info",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -44,6 +42,7 @@ cc_library(
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:concrete_type_zero_value",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -63,7 +62,6 @@ cc_test(
         ":create_import_data",
         ":import_data",
         ":parse_and_typecheck",
-        ":type_info",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -71,6 +69,7 @@ cc_test(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -84,7 +83,6 @@ cc_library(
     hdrs = ["cpp_transpiler.h"],
     deps = [
         ":import_data",
-        ":type_info",
         "//xls/common:case_converters",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
@@ -92,6 +90,7 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -194,47 +193,6 @@ cc_library(
 )
 
 cc_library(
-    name = "type_and_bindings",
-    hdrs = ["type_and_bindings.h"],
-    deps = [
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:parametric_env",
-    ],
-)
-
-cc_library(
-    name = "type_info",
-    srcs = ["type_info.cc"],
-    hdrs = ["type_info.h"],
-    deps = [
-        "//xls/common/status:ret_check",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:parametric_env",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
-    ],
-)
-
-cc_test(
-    name = "type_info_test",
-    srcs = ["type_info_test.cc"],
-    deps = [
-        ":type_info",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "value_format_descriptor",
     hdrs = ["value_format_descriptor.h"],
     deps = [
@@ -282,10 +240,9 @@ cc_library(
     srcs = ["interp_bindings.cc"],
     hdrs = ["interp_bindings.h"],
     deps = [
-        "//xls/dslx/frontend:ast",
         ":interp_value",
-        # ":symbolic_type",
-        ":type_info",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -317,10 +274,10 @@ cc_library(
     deps = [
         ":default_dslx_stdlib_path",
         ":interp_bindings",
-        ":type_info",
         "//xls/common/status:ret_check",
         "//xls/dslx/bytecode:bytecode_cache_interface",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/meta:type_traits",
@@ -339,7 +296,6 @@ cc_library(
     data = ["//xls/dslx/stdlib:x_files"],
     deps = [
         ":import_data",
-        ":type_info",
         "//xls/common/config:xls_config",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -347,6 +303,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
+        "//xls/dslx/type_system:type_info",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -391,12 +348,12 @@ cc_library(
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":errors",
-        ":type_and_bindings",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:deduce_ctx",
         "//xls/dslx/type_system:parametric_instantiator",
+        "//xls/dslx/type_system:type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -498,7 +455,6 @@ cc_library(
     hdrs = ["parse_and_typecheck.h"],
     deps = [
         ":import_routines",
-        ":type_info",
         ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -507,6 +463,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
+        "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -516,50 +473,6 @@ cc_library(
     name = "default_dslx_stdlib_path",
     srcs = ["default_dslx_stdlib_path.cc"],
     hdrs = ["default_dslx_stdlib_path.h"],
-)
-
-proto_library(
-    name = "type_info_proto",
-    srcs = ["type_info.proto"],
-)
-
-cc_proto_library(
-    name = "type_info_cc_proto",
-    deps = [":type_info_proto"],
-)
-
-cc_library(
-    name = "type_info_to_proto",
-    srcs = ["type_info_to_proto.cc"],
-    hdrs = ["type_info_to_proto.h"],
-    deps = [
-        ":import_data",
-        ":type_info",
-        ":type_info_cc_proto",
-        "//xls/common:proto_adaptor_utils",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_test(
-    name = "type_info_to_proto_test",
-    srcs = ["type_info_to_proto_test.cc"],
-    deps = [
-        ":create_import_data",
-        ":import_data",
-        ":parse_and_typecheck",
-        ":type_info_to_proto",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
-        "@com_google_googletest//:gtest",
-    ],
 )
 
 cc_library(

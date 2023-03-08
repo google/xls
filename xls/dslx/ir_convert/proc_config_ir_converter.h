@@ -23,7 +23,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
 

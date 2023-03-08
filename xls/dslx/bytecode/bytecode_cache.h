@@ -24,7 +24,7 @@
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

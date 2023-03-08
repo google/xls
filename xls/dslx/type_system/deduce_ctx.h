@@ -31,8 +31,8 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/type_and_bindings.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_and_bindings.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {

@@ -136,7 +136,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
-        "//xls/dslx:type_info",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 

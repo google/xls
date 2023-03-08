@@ -36,11 +36,11 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common/status:ret_check",
         "//xls/dslx:interp_value",
-        "//xls/dslx:type_info",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
         "//xls/ir:bits_ops",
         "//xls/ir:format_strings",
         "//xls/ir:number_parser",
@@ -59,8 +59,8 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "//xls/dslx:import_data",
-        "//xls/dslx:type_info",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 
@@ -70,9 +70,9 @@ cc_library(
     deps = [
         ":bytecode",
         "@com_google_absl//absl/status:statusor",
-        "//xls/dslx:type_info",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 
@@ -97,13 +97,13 @@ cc_library(
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:make_value_format_descriptor",
-        "//xls/dslx:type_info",
         "//xls/dslx:value_format_descriptor",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:concrete_type_zero_value",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
     ],
 )
 

@@ -31,9 +31,9 @@
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_info.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {

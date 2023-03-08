@@ -72,7 +72,8 @@ converting a DSLX `Binop` for adding two `NameRef`s into two `LOAD` instructions
 To do this, the emitter needs access to the full set of resolved type and import
 information: in other words, it requires a fully-populated
 [`ImportData`](https://github.com/google/xls/tree/main/xls/dslx/import.h) and the
-top-level [`TypeInfo`](https://github.com/google/xls/tree/main/xls/dslx/type_info.h) for
+top-level
+[`TypeInfo`](https://github.com/google/xls/tree/main/xls/dslx/type_system/type_info.h) for
 the module containing the function to convert. This places bytecode emission in
 sequence after typechecking and deduction.
 

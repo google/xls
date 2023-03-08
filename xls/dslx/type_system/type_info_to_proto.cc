@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_info_to_proto.h"
+#include "xls/dslx/type_system/type_info_to_proto.h"
 
 #include <algorithm>
 #include <cstdint>
