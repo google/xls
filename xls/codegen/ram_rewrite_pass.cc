@@ -27,11 +27,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/visitor.h"
 #include "xls/ir/block.h"
 #include "xls/ir/nodes.h"
 
