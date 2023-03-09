@@ -20,6 +20,24 @@
 
 namespace xls::dslx {
 
+// Attrs:
+//  span: The span where this argument is being passed in the invocation, used
+//    in returned positional error messages.
+//  parametric_binding_types: Mapping from parametric symbol to its type; e.g.
+//    in the signature for `p` below, this would map "p" to BitsType u32.
+//  parametric_default_exprs: Mapping from parametric symbol to its "default
+//    expression"; e.g. in `p<X: u32, Y: u32 = X+X>` the expression for X would
+//    be nullptr and for Y would be `X+X`.
+//  parametric_env: The environment we're populating with parametric bindings
+//    (symbols to interpreter values).
+struct ParametricBindContext {
+  const Span& span;
+  const absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>&
+      parametric_binding_types;
+  const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs;
+  absl::flat_hash_map<std::string, InterpValue>& parametric_env;
+};
+
 // Binds a formal argument's parametric symbol via an actual argument, if
 // applicable.
 //
@@ -42,23 +60,18 @@ namespace xls::dslx {
 //  arg_type: The type of the *actual* argument being passed to the formal
 //    parameter.
 //  arg_dim: The dimension held by arg_type.
-//  span: The span where this argument is being passed in the invocation, used
-//    in returned positional error messages.
-//  parametric_binding_types: Mapping from parametric symbol to its type; e.g.
-//    in the signature for `p` above, this would map "p" to BitsType u32.
-//  parametric_default_exprs: Mapping from parametric symbol to its "default
-//    expression"; e.g. in `p<X: u32, Y: u32 = X+X>` the expression for X would
-//    be nullptr and for Y would be `X+X`.
-//  parametric_env: The environment we're populating with parametric bindings
-//    (symbols to interpreter values).
-absl::Status ParametricBindConcreteTypeDim(
-    const ConcreteType& param_type, const ConcreteTypeDim& param_dim,
-    const ConcreteType& arg_type, const ConcreteTypeDim& arg_dim,
-    const Span& span,
-    const absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>&
-        parametric_binding_types,
-    const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs,
-    absl::flat_hash_map<std::string, InterpValue>& parametric_env);
+//  ctx: The parametric binding context.
+absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
+                                           const ConcreteTypeDim& param_dim,
+                                           const ConcreteType& arg_type,
+                                           const ConcreteTypeDim& arg_dim,
+                                           ParametricBindContext& ctx);
+
+// As described above in ParametricBindConcreteTypeDim, but handles arbitrary
+// parameter types / argument type bindings.
+absl::Status ParametricBind(const ConcreteType& param_type,
+                            const ConcreteType& arg_type,
+                            ParametricBindContext& ctx);
 
 }  // namespace xls::dslx
 

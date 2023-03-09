@@ -111,7 +111,9 @@ ParametricInstantiator::InstantiateOneArg(int64_t i,
   XLS_VLOG(5) << absl::StreamFormat(
       "Symbolically binding param %d formal %s against arg %s", i,
       param_type.ToString(), arg_type.ToString());
-  XLS_RETURN_IF_ERROR(SymbolicBind(param_type, arg_type));
+  ParametricBindContext ctx{span_, parametric_binding_types_,
+                            parametric_default_exprs_, parametric_env_};
+  XLS_RETURN_IF_ERROR(ParametricBind(param_type, arg_type, ctx));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        Resolve(param_type));
   XLS_VLOG(5) << "Resolved parameter type from " << param_type.ToString()
@@ -194,120 +196,6 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     }
   }
   return absl::OkStatus();
-}
-
-template <typename T>
-absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
-                                                      const T& arg_type) {
-  // Create bindings for symbolic parameter dimensions based on argument values
-  // passed.
-  const ConcreteTypeDim& param_dim = param_type.size();
-  const ConcreteTypeDim& arg_dim = arg_type.size();
-  return ParametricBindConcreteTypeDim(
-      param_type, param_dim, arg_type, arg_dim, span_,
-      parametric_binding_types_, parametric_default_exprs_, parametric_env_);
-}
-
-absl::Status ParametricInstantiator::SymbolicBindTuple(
-    const TupleType& param_type, const TupleType& arg_type) {
-  XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
-  for (int64_t i = 0; i < param_type.size(); ++i) {
-    const ConcreteType& param_member = param_type.GetMemberType(i);
-    const ConcreteType& arg_member = arg_type.GetMemberType(i);
-    XLS_RETURN_IF_ERROR(SymbolicBind(param_member, arg_member));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ParametricInstantiator::SymbolicBindStruct(
-    const StructType& param_type, const StructType& arg_type) {
-  XLS_RET_CHECK_EQ(param_type.size(), arg_type.size());
-  for (int64_t i = 0; i < param_type.size(); ++i) {
-    const ConcreteType& param_member = param_type.GetMemberType(i);
-    const ConcreteType& arg_member = arg_type.GetMemberType(i);
-    XLS_RETURN_IF_ERROR(SymbolicBind(param_member, arg_member));
-  }
-  return absl::OkStatus();
-}
-
-absl::Status ParametricInstantiator::SymbolicBindBits(
-    const ConcreteType& param_type, const ConcreteType& arg_type) {
-  if (dynamic_cast<const EnumType*>(&param_type) != nullptr) {
-    return absl::OkStatus();  // Enums have no size, so nothing to bind.
-  }
-
-  auto* param_bits = dynamic_cast<const BitsType*>(&param_type);
-  XLS_RET_CHECK(param_bits != nullptr);
-  auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
-  XLS_RET_CHECK(arg_bits != nullptr);
-  return SymbolicBindDims(*param_bits, *arg_bits);
-}
-
-absl::Status ParametricInstantiator::SymbolicBindArray(
-    const ArrayType& param_type, const ArrayType& arg_type) {
-  XLS_RETURN_IF_ERROR(
-      SymbolicBind(param_type.element_type(), arg_type.element_type()));
-  return SymbolicBindDims(param_type, arg_type);
-}
-
-absl::Status ParametricInstantiator::SymbolicBindFunction(
-    const FunctionType& param_type, const FunctionType& arg_type) {
-  return absl::UnimplementedError("SymbolicBindFunction()");
-}
-
-absl::Status ParametricInstantiator::SymbolicBind(
-    const ConcreteType& param_type, const ConcreteType& arg_type) {
-  if (auto* param_bits = dynamic_cast<const BitsType*>(&param_type)) {
-    auto* arg_bits = dynamic_cast<const BitsType*>(&arg_type);
-    XLS_RET_CHECK(arg_bits != nullptr);
-    return SymbolicBindBits(*param_bits, *arg_bits);
-  }
-  if (auto* param_enum = dynamic_cast<const EnumType*>(&param_type)) {
-    auto* arg_enum = dynamic_cast<const EnumType*>(&arg_type);
-    XLS_RET_CHECK(arg_enum != nullptr);
-    XLS_RET_CHECK_EQ(&param_enum->nominal_type(), &arg_enum->nominal_type());
-    // If the enums are the same, we do the same thing as we do with bits
-    // (ignore the primitive and symbolic bind the dims).
-    return SymbolicBindBits(*param_enum, *arg_enum);
-  }
-  if (auto* param_tuple = dynamic_cast<const TupleType*>(&param_type)) {
-    auto* arg_tuple = dynamic_cast<const TupleType*>(&arg_type);
-    return SymbolicBindTuple(*param_tuple, *arg_tuple);
-  }
-  if (auto* param_struct = dynamic_cast<const StructType*>(&param_type)) {
-    auto* arg_struct = dynamic_cast<const StructType*>(&arg_type);
-    const StructDef& param_nominal = param_struct->nominal_type();
-    const StructDef& arg_nominal = arg_struct->nominal_type();
-    if (&param_nominal != &arg_nominal) {
-      std::string message =
-          absl::StrFormat("parameter type name: '%s'; argument type name: '%s'",
-                          param_nominal.identifier(), arg_nominal.identifier());
-      return XlsTypeErrorStatus(span_, param_type, arg_type, message);
-    }
-    return SymbolicBindStruct(*param_struct, *arg_struct);
-  }
-  if (auto* param_array = dynamic_cast<const ArrayType*>(&param_type)) {
-    auto* arg_array = dynamic_cast<const ArrayType*>(&arg_type);
-    XLS_RET_CHECK(arg_array != nullptr);
-    return SymbolicBindArray(*param_array, *arg_array);
-  }
-  if (auto* param_fn = dynamic_cast<const FunctionType*>(&param_type)) {
-    auto* arg_fn = dynamic_cast<const FunctionType*>(&arg_type);
-    XLS_RET_CHECK(arg_fn != nullptr);
-    return SymbolicBindFunction(*param_fn, *arg_fn);
-  }
-  if (dynamic_cast<const TokenType*>(&param_type) != nullptr) {
-    // Tokens aren't parameterizable.
-    return absl::OkStatus();
-  }
-  if (dynamic_cast<const ChannelType*>(&param_type) != nullptr) {
-    // Neither are channels.
-    return absl::OkStatus();
-  }
-
-  return absl::InternalError(
-      absl::StrFormat("Unhandled parameter type for symbolic binding: %s @ %s",
-                      param_type.ToString(), span_.ToString()));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<FunctionInstantiator>>

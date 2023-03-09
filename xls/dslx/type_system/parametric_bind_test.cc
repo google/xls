@@ -40,9 +40,34 @@ TEST(ParametricBindTest, SampleConcreteDimBind) {
       /*is_signed=*/false,
       ConcreteTypeDim(std::make_unique<ParametricSymbol>("X", fake_span)));
 
+  ParametricBindContext ctx{fake_span, parametric_binding_types,
+                            parametric_default_exprs, parametric_env};
   XLS_ASSERT_OK(ParametricBindConcreteTypeDim(
-      *param_type, param_type->size(), *arg_type, arg_type->size(), fake_span,
-      parametric_binding_types, parametric_default_exprs, parametric_env));
+      *param_type, param_type->size(), *arg_type, arg_type->size(), ctx));
+  ASSERT_TRUE(parametric_env.contains("X"));
+  EXPECT_EQ(parametric_env.at("X"), InterpValue::MakeU32(8));
+}
+
+// Tests a simple sample binding that's the same as above, but triggered at the
+// type level.
+TEST(ParametricBindTest, SampleConcreteTypeBind) {
+  absl::flat_hash_map<std::string, InterpValue> parametric_env;
+  const absl::flat_hash_map<std::string, Expr*> parametric_default_exprs = {
+      {"X", nullptr},
+  };
+  absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
+      parametric_binding_types;
+  parametric_binding_types.emplace("X", BitsType::MakeU32());
+
+  const Span fake_span = Span::Fake();
+  auto arg_type = BitsType::MakeU8();
+  auto param_type = std::make_unique<BitsType>(
+      /*is_signed=*/false,
+      ConcreteTypeDim(std::make_unique<ParametricSymbol>("X", fake_span)));
+  ParametricBindContext ctx{fake_span, parametric_binding_types,
+                            parametric_default_exprs, parametric_env};
+
+  XLS_ASSERT_OK(ParametricBind(*param_type, *arg_type, ctx));
   ASSERT_TRUE(parametric_env.contains("X"));
   EXPECT_EQ(parametric_env.at("X"), InterpValue::MakeU32(8));
 }
