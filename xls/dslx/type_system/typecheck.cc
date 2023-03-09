@@ -547,21 +547,6 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
         ParametricConstraint(*remaining_binding, std::move(binding_type)));
   }
 
-  // Map resolved parametrics from the caller's context onto the corresponding
-  // symbols in the callee's.
-  ParametricEnv caller_parametric_env =
-      parent_ctx->fn_stack().back().parametric_env();
-  absl::flat_hash_map<std::string, InterpValue> caller_parametric_env_map =
-      caller_parametric_env.ToMap();
-  for (const ParametricConstraint& constraint : parametric_constraints) {
-    if (auto* name_ref = dynamic_cast<NameRef*>(constraint.expr());
-        name_ref != nullptr &&
-        caller_parametric_env_map.contains(name_ref->identifier())) {
-      explicit_bindings.insert(
-          {constraint.identifier(),
-           caller_parametric_env_map.at(name_ref->identifier())});
-    }
-  }
   return InstantiateFunction(invocation->span(), fn_type, instantiate_args, ctx,
                              parametric_constraints, &explicit_bindings);
 }
