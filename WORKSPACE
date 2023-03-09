@@ -20,6 +20,7 @@ workspace(name = "com_google_xls")
 # files because it's not allowed to use `load` inside of a function.
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+# Commit on  2023-02-09, current as of 2023-03-09.
 http_archive(
     name = "com_grail_bazel_toolchain",
     sha256 = "fbed0cf24304b57682ca63763528f5fa21c341c2eeff3dc53887eb73638059c4",
