@@ -465,6 +465,22 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'TypeInferenceError',
     )
 
+  def test_parametric_instantiation_with_runtime_value(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/parametric_instantiation_with_runtime_value.x'
+    )
+    self.assertIn(
+        'parametric_instantiation_with_runtime_value.x:20:5-20:6', stderr
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        (
+            'Parametric expression `x` was not constexpr -- parametric values'
+            ' must be compile-time constants'
+        ),
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

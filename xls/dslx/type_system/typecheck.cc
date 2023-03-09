@@ -515,14 +515,20 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
         parent_ctx->import_data(), parent_ctx->type_info(),
         parent_ctx->fn_stack().back().parametric_env(), value,
         value_type.get()));
-    if (parent_ctx->type_info()->IsKnownConstExpr(value)) {
-      explicit_bindings.insert(
-          {binding->identifier(),
-           parent_ctx->type_info()->GetConstExpr(value).value()});
-    } else {
-      parametric_constraints.push_back(
-          ParametricConstraint(*binding, std::move(binding_type), value));
+
+    // The value we're instantiating the function with must be constexpr -- we
+    // can't instantiate with values determined at runtime, of course.
+    if (!parent_ctx->type_info()->IsKnownConstExpr(value)) {
+      return TypeInferenceErrorStatus(
+          value->span(), value_type.get(),
+          absl::StrFormat("Parametric expression `%s` was not constexpr -- "
+                          "parametric values must be compile-time constants",
+                          value->ToString()));
     }
+
+    explicit_bindings.insert(
+        {binding->identifier(),
+         parent_ctx->type_info()->GetConstExpr(value).value()});
   }
 
   // The bindings that were not explicitly filled by the caller are taken from
