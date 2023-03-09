@@ -30,8 +30,8 @@ def repo():
     )
 
     # Commit on 2023-02-15, current as of 2023-02-16
-    git_hash = "6689294f2d4f45de02a527d947b4703b4c008b53"
-    git_sha256 = "3893db1ae3dd6d7748a4002de0d9f9812878d6f643b7d7b49b8655b383d98a6b"
+    git_hash = "210f3e9ebee449a60992dc57ade4665a766313ff"
+    git_sha256 = "c806205363a4f2f95d3442d8960c258aaa52df12acda449a4a69263b9d30b66f"
 
     maybe(
         http_archive,
