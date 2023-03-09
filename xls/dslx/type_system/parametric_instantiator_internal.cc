@@ -54,10 +54,12 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
 
 ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>>
-        parametric_constraints,
-    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints)
-    : span_(std::move(span)), args_(args), ctx_(XLS_DIE_IF_NULL(ctx)) {
+    absl::Span<const ParametricConstraint> parametric_constraints,
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
+    : span_(std::move(span)),
+      args_(args),
+      ctx_(XLS_DIE_IF_NULL(ctx)),
+      parametric_env_(explicit_parametrics) {
   // We add derived type information so we can resolve types based on
   // parametrics; e.g. in
   //
@@ -67,29 +69,28 @@ ParametricInstantiator::ParametricInstantiator(
   //  interpret the expression to an InterpValue.
   ctx_->AddDerivedTypeInfo();
 
-  if (explicit_constraints != nullptr) {
-    parametric_env_ = *explicit_constraints;
-
-    // Explicit constraints are conceptually evaluated before other parametric
-    // expressions.
-    for (const auto& [identifier, value] : *explicit_constraints) {
-      constraint_order_.push_back(identifier);
-    }
+  // Explicit constraints are conceptually evaluated before other parametric
+  // expressions.
+  absl::flat_hash_set<std::string> ordered;
+  for (const auto& [identifier, value] : explicit_parametrics) {
+    constraint_order_.push_back(identifier);
+    ordered.insert(identifier);
   }
 
-  if (parametric_constraints.has_value()) {
-    for (const ParametricConstraint& constraint :
-         parametric_constraints.value()) {
-      const std::string& identifier = constraint.identifier();
+  for (const ParametricConstraint& constraint : parametric_constraints) {
+    const std::string& identifier = constraint.identifier();
+    if (!ordered.contains(identifier)) {
       constraint_order_.push_back(identifier);
-      std::unique_ptr<ConcreteType> resolved_type =
-          Resolve(constraint.type()).value();
-      if (constraint.expr() != nullptr) {
-        ctx_->type_info()->SetItem(constraint.expr(), *resolved_type);
-      }
-      parametric_binding_types_.emplace(identifier, std::move(resolved_type));
-      parametric_default_exprs_[identifier] = constraint.expr();
+      ordered.insert(identifier);
     }
+
+    std::unique_ptr<ConcreteType> resolved_type =
+        Resolve(constraint.type()).value();
+    if (constraint.expr() != nullptr) {
+      ctx_->type_info()->SetItem(constraint.expr(), *resolved_type);
+    }
+    parametric_binding_types_.emplace(identifier, std::move(resolved_type));
+    parametric_default_exprs_[identifier] = constraint.expr();
   }
 }
 
@@ -202,17 +203,12 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
 FunctionInstantiator::Make(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>>
-        parametric_constraints,
-    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
-  XLS_VLOG(5)
-      << "Making FunctionInstantiator for " << function_type.ToString()
-      << " with "
-      << (parametric_constraints.has_value() ? parametric_constraints->size()
-                                             : 0)
-      << " parametric constraints and "
-      << (explicit_constraints == nullptr ? 0 : explicit_constraints->size())
-      << " explicit constraints";
+    absl::Span<const ParametricConstraint> parametric_constraints,
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics) {
+  XLS_VLOG(5) << "Making FunctionInstantiator for " << function_type.ToString()
+              << " with " << parametric_constraints.size()
+              << " parametric constraints and " << explicit_parametrics.size()
+              << " explicit constraints";
   if (args.size() != function_type.params().size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "ArgCountMismatchError: %s Expected %d parameter(s) but got %d "
@@ -221,7 +217,7 @@ FunctionInstantiator::Make(
   }
   return absl::WrapUnique(
       new FunctionInstantiator(std::move(span), function_type, args, ctx,
-                               parametric_constraints, explicit_constraints));
+                               parametric_constraints, explicit_parametrics));
 }
 
 absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
@@ -256,7 +252,7 @@ StructInstantiator::Make(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>> parametric_bindings) {
+    absl::Span<const ParametricConstraint> parametric_bindings) {
   XLS_RET_CHECK_EQ(args.size(), member_types.size());
   return absl::WrapUnique(new StructInstantiator(std::move(span), struct_type,
                                                  args, member_types, ctx,

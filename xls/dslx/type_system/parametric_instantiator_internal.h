@@ -38,12 +38,11 @@ class ParametricInstantiator {
   // See `InstantiateFunction` for details on
   // parametric_constraints/explicit_constraints and member comments for other
   // arguments.
-  ParametricInstantiator(Span span, absl::Span<const InstantiateArg> args,
-                         DeduceCtx* ctx,
-                         std::optional<absl::Span<const ParametricConstraint>>
-                             parametric_constraints,
-                         const absl::flat_hash_map<std::string, InterpValue>*
-                             explicit_constraints);
+  ParametricInstantiator(
+      Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
+      absl::Span<const ParametricConstraint> parametric_constraints,
+      const absl::flat_hash_map<std::string, InterpValue>&
+          explicit_parametrics);
 
   // Non-movable as the destructor performs meaningful work -- the class
   // lifetime is used as a scope for parametric type information (used in
@@ -91,30 +90,6 @@ class ParametricInstantiator {
   // types).
   absl::Status VerifyConstraints();
 
-  // The following is a group of helpers that bind parametric symbols in
-  // param_type according to arg_type.
-  //
-  // e.g. for SymbolicBindBits, if the formal argument is `x: uN[N]` and the
-  // actual argument is a u32, we'll bind `N=32` in the `parametric_env_`
-  // map.
-  template <typename T>
-  absl::Status SymbolicBindDims(const T& param_type, const T& arg_type);
-
-  absl::Status SymbolicBindBits(const ConcreteType& param_type,
-                                const ConcreteType& arg_type);
-  absl::Status SymbolicBindTuple(const TupleType& param_type,
-                                 const TupleType& arg_type);
-  absl::Status SymbolicBindStruct(const StructType& param_type,
-                                  const StructType& arg_type);
-  absl::Status SymbolicBindArray(const ArrayType& param_type,
-                                 const ArrayType& arg_type);
-  absl::Status SymbolicBindFunction(const FunctionType& param_type,
-                                    const FunctionType& arg_type);
-
-  // Binds symbols present in 'param_type' according to value of 'arg_type'.
-  absl::Status SymbolicBind(const ConcreteType& param_type,
-                            const ConcreteType& arg_type);
-
   // Span for the instantiation; e.g. of the invocation AST node being
   // instantiated.
   Span span_;
@@ -146,10 +121,9 @@ class FunctionInstantiator : public ParametricInstantiator {
   static absl::StatusOr<std::unique_ptr<FunctionInstantiator>> Make(
       Span span, const FunctionType& function_type,
       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-      std::optional<absl::Span<const ParametricConstraint>>
-          parametric_constraints,
-      const absl::flat_hash_map<std::string, InterpValue>*
-          explicit_constraints = nullptr);
+      absl::Span<const ParametricConstraint> parametric_constraints,
+      const absl::flat_hash_map<std::string, InterpValue>&
+          explicit_parametrics);
 
   // Updates symbolic bindings for the parameter types according to args_'s
   // types.
@@ -159,14 +133,13 @@ class FunctionInstantiator : public ParametricInstantiator {
   absl::StatusOr<TypeAndBindings> Instantiate() override;
 
  private:
-  FunctionInstantiator(Span span, const FunctionType& function_type,
-                       absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-                       std::optional<absl::Span<const ParametricConstraint>>
-                           parametric_constraints,
-                       const absl::flat_hash_map<std::string, InterpValue>*
-                           explicit_constraints = nullptr)
+  FunctionInstantiator(
+      Span span, const FunctionType& function_type,
+      absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
+      absl::Span<const ParametricConstraint> parametric_constraints,
+      const absl::flat_hash_map<std::string, InterpValue>& explicit_parametrics)
       : ParametricInstantiator(std::move(span), args, ctx,
-                               parametric_constraints, explicit_constraints),
+                               parametric_constraints, explicit_parametrics),
         function_type_(CloneToUnique(function_type)),
         param_types_(function_type_->params()) {}
 
@@ -182,8 +155,7 @@ class StructInstantiator : public ParametricInstantiator {
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,
-      std::optional<absl::Span<const ParametricConstraint>>
-          parametric_bindings);
+      absl::Span<const ParametricConstraint> parametric_bindings);
 
   absl::StatusOr<TypeAndBindings> Instantiate() override;
 
@@ -193,10 +165,10 @@ class StructInstantiator : public ParametricInstantiator {
       absl::Span<const InstantiateArg> args,
       absl::Span<std::unique_ptr<ConcreteType> const> member_types,
       DeduceCtx* ctx,
-      std::optional<absl::Span<const ParametricConstraint>> parametric_bindings)
+      absl::Span<const ParametricConstraint> parametric_bindings)
       : ParametricInstantiator(std::move(span), args, ctx,
                                /*parametric_constraints=*/parametric_bindings,
-                               /*explicit_constraints=*/nullptr),
+                               /*explicit_constraints=*/{}),
         struct_type_(CloneToUnique(struct_type)),
         member_types_(member_types) {}
 

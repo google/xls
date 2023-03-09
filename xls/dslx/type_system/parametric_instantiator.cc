@@ -59,51 +59,43 @@ static std::string ToString(
   });
 }
 static std::string ToString(
-    const absl::flat_hash_map<std::string, InterpValue>* map) {
-  if (map == nullptr) {
-    return "none";
-  }
-  if (map->empty()) {
-    return "{}";
-  }
-  return absl::StrJoin(
-      *map, ", ",
-      [](std::string* out, const std::pair<std::string, InterpValue>& p) {
-        out->append(absl::StrCat(p.first, ":", p.second.ToString()));
-      });
+    const absl::flat_hash_map<std::string, InterpValue>& map) {
+  return absl::StrCat(
+      "{",
+      absl::StrJoin(
+          map, ", ",
+          [](std::string* out, const std::pair<std::string, InterpValue>& p) {
+            out->append(absl::StrCat(p.first, ":", p.second.ToString()));
+          }),
+      "}");
 }
 
 static std::string ToString(
-    const std::optional<absl::Span<const ParametricConstraint>>&
-        parametric_constraints) {
-  if (parametric_constraints.has_value()) {
-    return "none";
-  }
-  if (parametric_constraints.value().empty()) {
-    return "[]";
-  }
-  return absl::StrJoin(parametric_constraints.value(), ", ",
-                       [](std::string* out, const ParametricConstraint& c) {
-                         absl::StrAppend(out, c.ToString());
-                       });
+    const absl::Span<const ParametricConstraint>& parametric_constraints) {
+  return absl::StrCat(
+      "[",
+      absl::StrJoin(parametric_constraints, ", ",
+                    [](std::string* out, const ParametricConstraint& c) {
+                      absl::StrAppend(out, c.ToString());
+                    }),
+      "]");
 }
 
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>>
-        parametric_constraints,
-    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
+    absl::Span<const ParametricConstraint> parametric_constraints,
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings) {
   XLS_VLOG(5) << "Function instantiation @ " << span
               << " type: " << function_type.ToString();
   XLS_VLOG(5) << " parametric constraints: "
               << ToString(parametric_constraints);
   XLS_VLOG(5) << " arg types:              " << ToTypesString(args);
-  XLS_VLOG(5) << " explicit constraints:   " << ToString(explicit_constraints);
+  XLS_VLOG(5) << " explicit bindings:   " << ToString(explicit_bindings);
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::FunctionInstantiator::Make(
                            std::move(span), function_type, args, ctx,
-                           parametric_constraints, explicit_constraints));
+                           parametric_constraints, explicit_bindings));
   return instantiator->Instantiate();
 }
 
@@ -112,8 +104,7 @@ absl::StatusOr<TypeAndBindings> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>>
-        parametric_bindings) {
+    absl::Span<const ParametricConstraint> parametric_constraints) {
   XLS_VLOG(5) << "Struct instantiation @ " << span
               << " type: " << struct_type.ToString();
   XLS_VLOG(5) << " arg types:           " << ToTypesString(args);
@@ -121,7 +112,7 @@ absl::StatusOr<TypeAndBindings> InstantiateStruct(
   XLS_ASSIGN_OR_RETURN(auto instantiator,
                        internal::StructInstantiator::Make(
                            std::move(span), struct_type, args, member_types,
-                           ctx, parametric_bindings));
+                           ctx, parametric_constraints));
   return instantiator->Instantiate();
 }
 

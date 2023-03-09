@@ -515,10 +515,9 @@ static void PopulateSignatureToLambdaMap(
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
-    std::optional<absl::Span<const ParametricConstraint>>
-        mapped_parametric_bindings;
+    absl::Span<const ParametricConstraint> mapped_parametric_bindings;
     if (data.parametric_bindings.has_value()) {
-      mapped_parametric_bindings.emplace(data.parametric_bindings.value());
+      mapped_parametric_bindings = data.parametric_bindings.value();
     }
 
     // Note that InstantiateFunction will check that the mapped function type
@@ -528,7 +527,8 @@ static void PopulateSignatureToLambdaMap(
         TypeAndBindings tab,
         InstantiateFunction(
             data.span, *f, mapped_fn_args, ctx,
-            /*parametric_constraints=*/mapped_parametric_bindings));
+            /*parametric_constraints=*/mapped_parametric_bindings,
+            /*explicit_bindings=*/{}));
     auto return_type =
         std::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{

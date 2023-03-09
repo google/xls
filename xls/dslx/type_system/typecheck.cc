@@ -548,7 +548,7 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
   }
 
   return InstantiateFunction(invocation->span(), fn_type, instantiate_args, ctx,
-                             parametric_constraints, &explicit_bindings);
+                             parametric_constraints, explicit_bindings);
 }
 
 }  // namespace

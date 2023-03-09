@@ -49,17 +49,15 @@ namespace xls::dslx {
 //    in conflict as a result of deductive inference; e.g. for
 //    `f<N: u32, R: u32 = N+N>(x: bits[N]) -> bits[R] { x }` we'll find the
 //    "constraint" on R of being `N+N` is incorrect/infeasible (when N != 0).
-//  explicit_constraints: Environment to use for evaluating the
+//  explicit_bindings: Environment to use for evaluating the
 //    parametric_constraints expressions; e.g. for the example above if the
 //    caller invoked `const M: u32 = 42; f<M>(x)`, this environment would
 //    be `{N: u32:42}` (since M is passed as the N value for the callee).
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>>
-        parametric_constraints = absl::nullopt,
-    const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints =
-        nullptr);
+    absl::Span<const ParametricConstraint> parametric_constraints,
+    const absl::flat_hash_map<std::string, InterpValue>& explicit_bindings);
 
 // Instantiates a struct using the bindings derived from args' types.
 //
@@ -69,8 +67,7 @@ absl::StatusOr<TypeAndBindings> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    std::optional<absl::Span<const ParametricConstraint>> parametric_bindings =
-        absl::nullopt);
+    absl::Span<const ParametricConstraint> parametric_constraints);
 
 }  // namespace xls::dslx
 
