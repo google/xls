@@ -437,6 +437,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

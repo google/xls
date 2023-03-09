@@ -56,6 +56,14 @@ class FunctionBase {
     return absl::StrCat(package_->name(), "::", name_);
   }
 
+  std::optional<int64_t> GetInitiationInterval() const {
+    return initiation_interval_;
+  }
+
+  void SetInitiationInterval(int64_t ii) { initiation_interval_ = ii; }
+
+  void ClearInitiationInterval() { initiation_interval_ = std::nullopt; }
+
   // DumpIr emits the IR in a parsable, hierarchical text format.
   virtual std::string DumpIr() const = 0;
 
@@ -162,6 +170,7 @@ class FunctionBase {
 
   std::string name_;
   Package* package_;
+  std::optional<int64_t> initiation_interval_;
 
   // Store Nodes in std::list as they can be added and removed arbitrarily and
   // we want a stable iteration order. Keep a map from instruction pointer to

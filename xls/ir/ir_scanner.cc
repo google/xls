@@ -65,6 +65,8 @@ std::string LexicalTokenTypeToString(LexicalTokenType token_type) {
       return "quoted string";
     case LexicalTokenType::kRightArrow:
       return "->";
+    case LexicalTokenType::kHash:
+      return "#";
   }
   return absl::StrCat("LexicalTokenType(", static_cast<int>(token_type), ")");
 }
@@ -329,6 +331,9 @@ class Tokenizer {
           break;
         case '<':
           token_type = LexicalTokenType::kLt;
+          break;
+        case '#':
+          token_type = LexicalTokenType::kHash;
           break;
         default:
           std::string char_str = absl::ascii_iscntrl(current())

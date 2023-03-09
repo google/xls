@@ -726,15 +726,27 @@ std::string Package::DumpIr() const {
   std::optional<FunctionBase*> top = GetTop();
   for (auto& function : functions()) {
     std::string prefix = "";
+    // TODO(taktoa):
+    //   Refactor this so that attribute printing happens in function.cc
+    if (function->GetInitiationInterval().has_value()) {
+      int64_t ii = function->GetInitiationInterval().value();
+      absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
+    }
     if (top.has_value() && top.value() == function.get()) {
-      prefix = "top ";
+      absl::StrAppend(&prefix, "top ");
     }
     function_dumps.push_back(absl::StrCat(prefix, function->DumpIr()));
   }
   for (auto& proc : procs()) {
+    // TODO(taktoa):
+    //   Refactor this so that attribute printing happens in proc.cc
     std::string prefix = "";
+    if (proc->GetInitiationInterval().has_value()) {
+      int64_t ii = proc->GetInitiationInterval().value();
+      absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
+    }
     if (top.has_value() && top.value() == proc.get()) {
-      prefix = "top ";
+      absl::StrAppend(&prefix, "top ");
     }
     function_dumps.push_back(absl::StrCat(prefix, proc->DumpIr()));
   }

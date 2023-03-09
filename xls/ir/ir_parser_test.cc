@@ -940,7 +940,7 @@ Garbage
 )";
   EXPECT_THAT(Parser::ParsePackage(input).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected declaration")));
+                       HasSubstr("Expected attribute or declaration")));
 }
 
 TEST(IrParserTest, ParseEmptyStringAsPackage) {
@@ -2979,6 +2979,113 @@ top reg
       Parser::ParsePackage(input),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Expected fn, proc or block definition, got")));
+}
+
+TEST(IrParserTest, ParseIIFunction) {
+  std::string input = R"(package test
+
+#[initiation_interval(12)]
+top fn example() -> bits[32] {
+  ret literal.1: bits[32] = literal(value=2, id=1)
+}
+)";
+  ParsePackageAndCheckDump(input);
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * f, pkg->GetFunction("example"));
+  EXPECT_EQ(f->GetInitiationInterval(), 12);
+}
+
+TEST(IrParserTest, ParseIIProc) {
+  std::string input = R"(package test
+
+#[initiation_interval(12)]
+top proc example(tkn: token, init={}) {
+  next (tkn)
+}
+)";
+  ParsePackageAndCheckDump(input);
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * f, pkg->GetProc("example"));
+  EXPECT_EQ(f->GetInitiationInterval(), 12);
+}
+
+TEST(IrParserTest, ParseNonexistentAttributeFunction) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+top fn example() -> bits[32] {
+  ret literal.1: bits[32] = literal(value=2, id=1)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid attribute for function: foobar")));
+}
+
+TEST(IrParserTest, ParseNonexistentAttributeProc) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+top proc example(tkn: token, init={}) {
+  next (tkn)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid attribute for proc: foobar")));
+}
+
+TEST(IrParserTest, ParseTrailingAttribute) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Illegal attribute at end of file")));
+}
+
+TEST(IrParserTest, ParseBlockAttribute) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+block example(in: bits[32], out: bits[32]) {
+  in: bits[32] = input_port(name=in, id=2)
+  out: () = output_port(in, name=out, id=5)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(input),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Attributes are not supported on blocks.")));
+}
+
+TEST(IrParserTest, ParseChannelAttribute) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Attributes are not supported on channel declarations.")));
+}
+
+TEST(IrParserTest, ParseFileNumberAttribute) {
+  std::string input = R"(package test
+
+#[foobar(12)]
+file_number 0 "fake_file.x"
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Attributes are not supported on file number declarations.")));
 }
 
 }  // namespace xls
