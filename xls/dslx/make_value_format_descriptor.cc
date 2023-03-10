@@ -79,24 +79,59 @@ absl::StatusOr<std::unique_ptr<EnumFormatDescriptor>> MakeEnumFormatDescriptor(
 absl::StatusOr<std::unique_ptr<ValueFormatDescriptor>>
 MakeValueFormatDescriptor(const ConcreteType& type,
                           FormatPreference field_preference) {
-  if (auto* a = dynamic_cast<const ArrayType*>(&type)) {
-    return MakeArrayFormatDescriptor(*a, field_preference);
-  }
-  if (auto* s = dynamic_cast<const StructType*>(&type)) {
-    return MakeStructFormatDescriptor(*s, field_preference);
-  }
-  if (auto* t = dynamic_cast<const TupleType*>(&type)) {
-    return MakeTupleFormatDescriptor(*t, field_preference);
-  }
-  if (auto* e = dynamic_cast<const EnumType*>(&type)) {
-    return MakeEnumFormatDescriptor(*e, field_preference);
-  }
-  if (auto* t = dynamic_cast<const BitsType*>(&type)) {
-    return std::make_unique<LeafValueFormatDescriptor>(field_preference);
-  }
-  return absl::InvalidArgumentError(
-      "Cannot make a ValueFormatDescriptor for type: " +
-      type.GetDebugTypeName());
+  class Visitor : public ConcreteTypeVisitor {
+   public:
+    explicit Visitor(FormatPreference field_preference)
+        : field_preference_(field_preference) {}
+
+    absl::Status HandleArray(const ArrayType& t) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           MakeArrayFormatDescriptor(t, field_preference_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleStruct(const StructType& t) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           MakeStructFormatDescriptor(t, field_preference_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleTuple(const TupleType& t) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           MakeTupleFormatDescriptor(t, field_preference_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleEnum(const EnumType& t) override {
+      XLS_ASSIGN_OR_RETURN(result_,
+                           MakeEnumFormatDescriptor(t, field_preference_));
+      return absl::OkStatus();
+    }
+    absl::Status HandleBits(const BitsType& t) override {
+      result_ = std::make_unique<LeafValueFormatDescriptor>(field_preference_);
+      return absl::OkStatus();
+    }
+    absl::Status HandleFunction(const FunctionType& t) override {
+      return absl::InvalidArgumentError("Cannot format a function type; got: " +
+                                        t.ToString());
+    }
+    absl::Status HandleToken(const TokenType& t) override {
+      return absl::InvalidArgumentError("Cannot format a token type; got: " +
+                                        t.ToString());
+    }
+    absl::Status HandleChannel(const ChannelType& t) override {
+      return absl::InvalidArgumentError("Cannot format a channel type; got: " +
+                                        t.ToString());
+    }
+
+    std::unique_ptr<ValueFormatDescriptor>& result() { return result_; }
+
+   private:
+    const FormatPreference field_preference_;
+    std::unique_ptr<ValueFormatDescriptor> result_;
+  };
+
+  Visitor v(field_preference);
+  XLS_RETURN_IF_ERROR(type.Accept(v));
+  XLS_RET_CHECK(v.result() != nullptr);
+  return std::move(v.result());
 }
 
 }  // namespace xls::dslx
