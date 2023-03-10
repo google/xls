@@ -751,7 +751,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(EnumDef)
   INVALID(Import)
   INVALID(Function)
-  INVALID(TypeDef)
+  INVALID(TypeAlias)
   INVALID(Proc)
   INVALID(Module)
   INVALID(QuickCheck)
@@ -1516,7 +1516,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     }
     AstNode* definer = name_def->definer();
     if (dynamic_cast<EnumDef*>(definer) != nullptr ||
-        dynamic_cast<TypeDef*>(definer) != nullptr) {
+        dynamic_cast<TypeAlias*>(definer) != nullptr) {
       continue;
     }
     XLS_VLOG(5) << "Converting freevar name: " << name_def->ToString();
@@ -3253,9 +3253,9 @@ absl::Status FunctionConverter::CastFromArray(const Cast* node,
 
 absl::StatusOr<FunctionConverter::DerefVariant>
 FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
-  while (std::holds_alternative<TypeDef*>(node)) {
-    auto* type_def = std::get<TypeDef*>(node);
-    TypeAnnotation* annotation = type_def->type_annotation();
+  while (std::holds_alternative<TypeAlias*>(node)) {
+    auto* type_alias = std::get<TypeAlias*>(node);
+    TypeAnnotation* annotation = type_alias->type_annotation();
     if (auto* type_ref_annotation =
             dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
       node = type_ref_annotation->type_ref()->type_definition();

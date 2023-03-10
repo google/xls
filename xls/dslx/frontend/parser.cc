@@ -219,9 +219,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       }
 
       if (peek->IsKeyword(Keyword::kType)) {
-        XLS_ASSIGN_OR_RETURN(TypeDef * type_def,
-                             ParseTypeDefinition(/*is_public=*/true, bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(type_def));
+        XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
+                             ParseTypeAlias(/*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias));
         continue;
       }
 
@@ -278,10 +278,9 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         break;
       }
       case Keyword::kType: {
-        XLS_ASSIGN_OR_RETURN(
-            TypeDef * type_def,
-            ParseTypeDefinition(/*is_public=*/false, bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(type_def));
+        XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
+                             ParseTypeAlias(/*is_public=*/false, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias));
         break;
       }
       case Keyword::kStruct: {
@@ -433,8 +432,8 @@ absl::StatusOr<Expr*> Parser::ParseTernaryExpression(
   return ParseRangeExpression(bindings, restrictions);
 }
 
-absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,
-                                                     Bindings* bindings) {
+absl::StatusOr<TypeAlias*> Parser::ParseTypeAlias(bool is_public,
+                                                  Bindings* bindings) {
   const Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kType));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
@@ -442,10 +441,10 @@ absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,
   XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
-  auto* type_def = module_->Make<TypeDef>(span, name_def, type, is_public);
-  name_def->set_definer(type_def);
-  bindings->Add(name_def->identifier(), type_def);
-  return type_def;
+  auto* type_alias = module_->Make<TypeAlias>(span, name_def, type, is_public);
+  name_def->set_definer(type_alias);
+  bindings->Add(name_def->identifier(), type_alias);
+  return type_alias;
 }
 
 absl::StatusOr<Number*> Parser::TokenToNumber(const Token& tok) {
@@ -493,9 +492,9 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
   if (std::holds_alternative<ColonRef*>(type_defn)) {
     return StructRef(std::get<ColonRef*>(type_defn));
   }
-  if (std::holds_alternative<TypeDef*>(type_defn)) {
+  if (std::holds_alternative<TypeAlias*>(type_defn)) {
     return ResolveStruct(bindings,
-                         std::get<TypeDef*>(type_defn)->type_annotation());
+                         std::get<TypeAlias*>(type_defn)->type_annotation());
   }
   if (std::holds_alternative<EnumDef*>(type_defn)) {
     return absl::InvalidArgumentError(
@@ -507,7 +506,7 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
 
 static absl::StatusOr<TypeDefinition> BoundNodeToTypeDefinition(BoundNode bn) {
   // clang-format off
-  if (auto* e = TryGet<TypeDef*>(bn)) { return TypeDefinition(e); }
+  if (auto* e = TryGet<TypeAlias*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<StructDef*>(bn)) { return TypeDefinition(e); }
   if (auto* e = TryGet<EnumDef*>(bn)) { return TypeDefinition(e); }
   // clang-format on
@@ -530,7 +529,7 @@ absl::StatusOr<TypeRef*> Parser::ParseTypeRef(Bindings* bindings,
   }
   XLS_ASSIGN_OR_RETURN(BoundNode type_def, bindings->ResolveNodeOrError(
                                                *tok.GetValue(), tok.span()));
-  if (!IsOneOf<TypeDef, EnumDef, StructDef>(ToAstNode(type_def))) {
+  if (!IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(type_def))) {
     return ParseErrorStatus(
         tok.span(),
         absl::StrFormat(

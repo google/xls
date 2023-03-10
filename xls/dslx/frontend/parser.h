@@ -87,9 +87,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseExpression(
       Bindings* bindings, ExprRestrictions restrictions = kNoRestrictions);
 
-  // TODO(leary): 2020-09-11 Would be better to rename this to "type alias".
-  absl::StatusOr<TypeDef*> ParseTypeDefinition(bool is_public,
-                                               Bindings* bindings);
+  absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings* bindings);
 
  private:
   friend class ParserTest;

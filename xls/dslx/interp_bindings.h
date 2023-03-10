@@ -53,7 +53,7 @@ struct FnCtx {
 class InterpBindings {
  public:
   using Entry =
-      std::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
+      std::variant<InterpValue, TypeAlias*, EnumDef*, StructDef*, Module*>;
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
@@ -89,7 +89,7 @@ class InterpBindings {
   void AddModule(std::string identifier, Module* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddTypeDef(std::string identifier, TypeDef* value) {
+  void AddTypeAlias(std::string identifier, TypeAlias* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
   void AddEnumDef(std::string identifier, EnumDef* value) {

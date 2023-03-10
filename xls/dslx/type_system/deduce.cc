@@ -271,8 +271,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(const TypeRef* node,
   return ctx->Deduce(ToAstNode(node->type_definition()));
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeDef(const TypeDef* node,
-                                                            DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeAlias(
+    const TypeAlias* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(node->type_annotation()));
   ctx->type_info()->SetItem(node->name_def(), *type);
@@ -1053,8 +1053,8 @@ static bool IsPublic(const ModuleMember& member) {
   if (std::holds_alternative<Proc*>(member)) {
     return std::get<Proc*>(member)->is_public();
   }
-  if (std::holds_alternative<TypeDef*>(member)) {
-    return std::get<TypeDef*>(member)->is_public();
+  if (std::holds_alternative<TypeAlias*>(member)) {
+    return std::get<TypeAlias*>(member)->is_public();
   }
   if (std::holds_alternative<StructDef*>(member)) {
     return std::get<StructDef*>(member)->is_public();
@@ -1713,9 +1713,9 @@ static absl::StatusOr<StructDef*> DerefToStruct(
     if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
       return std::get<StructDef*>(current);
     }
-    if (std::holds_alternative<TypeDef*>(current)) {
-      auto* type_def = std::get<TypeDef*>(current);
-      TypeAnnotation* annotation = type_def->type_annotation();
+    if (std::holds_alternative<TypeAlias*>(current)) {
+      auto* type_alias = std::get<TypeAlias*>(current);
+      TypeAnnotation* annotation = type_alias->type_annotation();
       TypeRefTypeAnnotation* type_ref =
           dynamic_cast<TypeRefTypeAnnotation*>(annotation);
       if (type_ref == nullptr) {
@@ -2820,7 +2820,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Number)
   DEDUCE_DISPATCH(String)
   DEDUCE_DISPATCH(TypeRef)
-  DEDUCE_DISPATCH(TypeDef)
+  DEDUCE_DISPATCH(TypeAlias)
   DEDUCE_DISPATCH(XlsTuple)
   DEDUCE_DISPATCH(Ternary)
   DEDUCE_DISPATCH(Binop)

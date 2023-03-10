@@ -59,8 +59,8 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (std::holds_alternative<EnumDef*>(bn)) {
     return std::get<EnumDef*>(bn)->name_def();
   }
-  if (std::holds_alternative<TypeDef*>(bn)) {
-    return std::get<TypeDef*>(bn)->name_def();
+  if (std::holds_alternative<TypeAlias*>(bn)) {
+    return std::get<TypeAlias*>(bn)->name_def();
   }
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return std::get<ConstantDef*>(bn)->name_def();
@@ -86,8 +86,8 @@ Span BoundNodeGetSpan(BoundNode bn) {
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return std::get<ConstantDef*>(bn)->span();
   }
-  if (std::holds_alternative<TypeDef*>(bn)) {
-    return std::get<TypeDef*>(bn)->span();
+  if (std::holds_alternative<TypeAlias*>(bn)) {
+    return std::get<TypeAlias*>(bn)->span();
   }
   if (std::holds_alternative<StructDef*>(bn)) {
     return std::get<StructDef*>(bn)->span();
@@ -109,7 +109,7 @@ Span BoundNodeGetSpan(BoundNode bn) {
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
   // clang-format off
   if (std::holds_alternative<EnumDef*>(bn)) { return "EnumDef"; }
-  if (std::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
+  if (std::holds_alternative<TypeAlias*>(bn)) { return "TypeAlias"; }
   if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
   if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
   if (std::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }

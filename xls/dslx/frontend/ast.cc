@@ -65,7 +65,7 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "builtin name definition";
     case AstNodeKind::kTernary:
       return "ternary";
-    case AstNodeKind::kTypeDef:
+    case AstNodeKind::kTypeAlias:
       return "type alias";
     case AstNodeKind::kNumber:
       return "number";
@@ -201,7 +201,7 @@ absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
 }
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
-  if (auto* n = dynamic_cast<TypeDef*>(node)) {
+  if (auto* n = dynamic_cast<TypeAlias*>(node)) {
     return TypeDefinition(n);
   }
   if (auto* n = dynamic_cast<StructDef*>(node)) {
@@ -651,7 +651,7 @@ TypeRef::TypeRef(Module* owner, Span span, TypeDefinition type_definition)
       type_definition_(type_definition) {}
 
 std::string TypeRef::ToString() const {
-  return absl::visit(Visitor{[&](TypeDef* n) { return n->identifier(); },
+  return absl::visit(Visitor{[&](TypeAlias* n) { return n->identifier(); },
                              [&](StructDef* n) { return n->identifier(); },
                              [&](EnumDef* n) { return n->identifier(); },
                              [&](ColonRef* n) { return n->ToString(); }},
@@ -845,8 +845,8 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
       if (std::get<QuickCheck*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (std::holds_alternative<TypeDef*>(member)) {
-      if (std::get<TypeDef*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<TypeAlias*>(member)) {
+      if (std::get<TypeAlias*>(member)->identifier() == target) {
         return &member;
       }
     } else if (std::holds_alternative<StructDef*>(member)) {
@@ -890,8 +890,8 @@ absl::flat_hash_map<std::string, TypeDefinition>
 Module::GetTypeDefinitionByName() const {
   absl::flat_hash_map<std::string, TypeDefinition> result;
   for (auto& member : top_) {
-    if (std::holds_alternative<TypeDef*>(member)) {
-      TypeDef* td = std::get<TypeDef*>(member);
+    if (std::holds_alternative<TypeAlias*>(member)) {
+      TypeAlias* td = std::get<TypeAlias*>(member);
       result[td->identifier()] = td;
     } else if (std::holds_alternative<EnumDef*>(member)) {
       EnumDef* enum_ = std::get<EnumDef*>(member);
@@ -907,8 +907,8 @@ Module::GetTypeDefinitionByName() const {
 std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
   std::vector<TypeDefinition> results;
   for (auto& member : top_) {
-    if (std::holds_alternative<TypeDef*>(member)) {
-      TypeDef* td = std::get<TypeDef*>(member);
+    if (std::holds_alternative<TypeAlias*>(member)) {
+      TypeAlias* td = std::get<TypeAlias*>(member);
       results.push_back(td);
     } else if (std::holds_alternative<EnumDef*>(member)) {
       EnumDef* enum_def = std::get<EnumDef*>(member);
@@ -951,7 +951,7 @@ absl::Status Module::AddTop(ModuleMember member) {
                       [](TestFunction* tf) { return tf->identifier(); },
                       [](TestProc* tp) { return tp->proc()->identifier(); },
                       [](QuickCheck* qc) { return qc->identifier(); },
-                      [](TypeDef* td) { return td->identifier(); },
+                      [](TypeAlias* td) { return td->identifier(); },
                       [](StructDef* sd) { return sd->identifier(); },
                       [](ConstantDef* cd) { return cd->identifier(); },
                       [](EnumDef* ed) { return ed->identifier(); },
@@ -976,7 +976,7 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
   if (auto* n = dynamic_cast<Function*    >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<TestFunction*>(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<QuickCheck*  >(node)) { return ModuleMember(n); }
-  if (auto* n = dynamic_cast<TypeDef*     >(node)) { return ModuleMember(n); }
+  if (auto* n = dynamic_cast<TypeAlias*   >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<StructDef*   >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<ConstantDef* >(node)) { return ModuleMember(n); }
   if (auto* n = dynamic_cast<EnumDef*     >(node)) { return ModuleMember(n); }
@@ -2231,15 +2231,15 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
       "Invalid NumberKind: %d", static_cast<int64_t>(number_kind_)));
 }
 
-TypeDef::TypeDef(Module* owner, Span span, NameDef* name_def,
-                 TypeAnnotation* type, bool is_public)
+TypeAlias::TypeAlias(Module* owner, Span span, NameDef* name_def,
+                     TypeAnnotation* type, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
       type_annotation_(type),
       is_public_(is_public) {}
 
-TypeDef::~TypeDef() = default;
+TypeAlias::~TypeAlias() = default;
 
 // -- class Array
 

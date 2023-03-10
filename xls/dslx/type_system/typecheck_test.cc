@@ -274,9 +274,9 @@ TEST(TypecheckTest, LogicalAndOfComparisons) {
 
 TEST(TypecheckTest, Typedef) {
   XLS_EXPECT_OK(Typecheck(R"(
-type MyTypeDef = (u32, u8);
-fn id(x: MyTypeDef) -> MyTypeDef { x }
-fn f() -> MyTypeDef { id((u32:42, u8:127)) }
+type MyTypeAlias = (u32, u8);
+fn id(x: MyTypeAlias) -> MyTypeAlias { x }
+fn f() -> MyTypeAlias { id((u32:42, u8:127)) }
 )"));
 }
 

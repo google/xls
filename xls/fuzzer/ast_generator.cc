@@ -63,8 +63,8 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
       }
     }
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
-    return IsUBits(def->type_annotation());
+  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
+    return IsUBits(alias->type_annotation());
   }
   return false;
 }
@@ -127,8 +127,8 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
   if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
     return ElemIsBitVectorType(array);
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
-    return IsBits(def->type_annotation());
+  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
+    return IsBits(alias->type_annotation());
   }
   return false;
 }
@@ -478,8 +478,8 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeRef(const TypeRef* type_ref) override {
     const TypeDefinition& type_def = type_ref->type_definition();
-    if (std::holds_alternative<TypeDef*>(type_def)) {
-      return std::get<TypeDef*>(type_def)->Accept(this);
+    if (std::holds_alternative<TypeAlias*>(type_def)) {
+      return std::get<TypeAlias*>(type_def)->Accept(this);
     }
     if (std::holds_alternative<StructDef*>(type_def)) {
       return std::get<StructDef*>(type_def)->Accept(this);
@@ -491,8 +491,8 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     return std::get<ColonRef*>(type_def)->Accept(this);
   }
 
-  absl::Status HandleTypeDef(const TypeDef* type_def) override {
-    return type_def->type_annotation()->Accept(this);
+  absl::Status HandleTypeAlias(const TypeAlias* type_alias) override {
+    return type_alias->type_annotation()->Accept(this);
   }
 
   absl::Status HandleStructDef(const StructDef* struct_def) override {
@@ -620,9 +620,9 @@ absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
     const TypeDefinition& type_def = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
-    TypeDef* def = std::get<TypeDef*>(type_def);
-    return GenerateExprOfType(ctx, def->type_annotation());
+    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_def));
+    TypeAlias* alias = std::get<TypeAlias*>(type_def);
+    return GenerateExprOfType(ctx, alias->type_annotation());
   }
   XLS_CHECK(IsBits(type));
   std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
@@ -671,10 +671,10 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   }
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
-    const TypeDefinition& type_def = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
-    TypeDef* def = std::get<TypeDef*>(type_def);
-    return GenerateMatchArmPattern(ctx, def->type_annotation());
+    const TypeDefinition& type_definition = type_ref->type_definition();
+    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_definition));
+    TypeAlias* alias = std::get<TypeAlias*>(type_definition);
+    return GenerateMatchArmPattern(ctx, alias->type_annotation());
   }
   XLS_CHECK(IsBits(type));
   // Five percent of the time, generate a wildcardpattern.
@@ -950,8 +950,8 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
     }
     return total;
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(type)) {
-    return GetTypeBitCount(def->type_annotation());
+  if (auto* type_alias = dynamic_cast<const TypeAlias*>(type)) {
+    return GetTypeBitCount(type_alias->type_annotation());
   }
 
   return type_bit_counts_.at(type_str);
@@ -2239,7 +2239,7 @@ absl::Status AstGenerator::GenerateFunctionInModule(std::string name) {
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
-  for (auto& item : type_defs_) {
+  for (auto& item : type_aliases_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   for (auto& item : functions_) {
@@ -2363,7 +2363,7 @@ absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
-  for (auto& item : type_defs_) {
+  for (auto& item : type_aliases_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   for (auto& item : functions_) {

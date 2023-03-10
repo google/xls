@@ -37,16 +37,16 @@ namespace {
 // Has to be an enum or builtin-type name, given the context we're in: looking
 // for _values_ hanging off, e.g. in service of a `::` ref.
 absl::StatusOr<std::variant<EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
-ResolveTypeDefToDirectColonRefSubject(ImportData* import_data,
-                                      const TypeInfo* type_info,
-                                      TypeDef* type_def) {
+ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        TypeAlias* type_def) {
   XLS_VLOG(5) << "ResolveTypeDefToDirectColonRefSubject; type_def: `"
               << type_def->ToString() << "`";
 
   TypeDefinition td = type_def;
-  while (std::holds_alternative<TypeDef*>(td)) {
-    TypeDef* type_def = std::get<TypeDef*>(td);
-    XLS_VLOG(5) << "TypeDef: `" << type_def->ToString() << "`";
+  while (std::holds_alternative<TypeAlias*>(td)) {
+    TypeAlias* type_def = std::get<TypeAlias*>(td);
+    XLS_VLOG(5) << "TypeAlias: `" << type_def->ToString() << "`";
     TypeAnnotation* type = type_def->type_annotation();
     XLS_VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
 
@@ -78,20 +78,20 @@ ResolveTypeDefToDirectColonRefSubject(ImportData* import_data,
     Module* module = std::get<Module*>(subject);
     XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
 
-    if (std::holds_alternative<TypeDef*>(td)) {
+    if (std::holds_alternative<TypeAlias*>(td)) {
       // We need to get the right type info for the enum's containing module. We
       // can get the top-level module since [currently?] enums can't be
       // parameterized.
       type_info = import_data->GetRootTypeInfo(module).value();
-      return ResolveTypeDefToDirectColonRefSubject(import_data, type_info,
-                                                   std::get<TypeDef*>(td));
+      return ResolveTypeAliasToDirectColonRefSubject(import_data, type_info,
+                                                     std::get<TypeAlias*>(td));
     }
   }
 
   if (!std::holds_alternative<EnumDef*>(td)) {
     return absl::InternalError(
         "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
-        "TypeDef "
+        "TypeAlias "
         "directory or indirectly refers to an EnumDef.");
   }
 
@@ -204,23 +204,23 @@ ResolveColonRefNameRefSubject(NameRef* name_ref, ImportData* import_data,
   }
 
   // If the LHS isn't an Import, then it has to be an EnumDef (possibly via a
-  // TypeDef).
+  // TypeAlias).
   if (EnumDef* enum_def = dynamic_cast<EnumDef*>(definer);
       enum_def != nullptr) {
     return enum_def;
   }
 
-  TypeDef* type_def = dynamic_cast<TypeDef*>(definer);
-  XLS_RET_CHECK(type_def != nullptr);
+  TypeAlias* type_alias = dynamic_cast<TypeAlias*>(definer);
+  XLS_RET_CHECK(type_alias != nullptr);
 
-  if (type_def->owner() != type_info->module()) {
+  if (type_alias->owner() != type_info->module()) {
     // We need to get the right type info for the enum's containing module. We
     // can get the top-level module since [currently?] enums can't be
     // parameterized (and we know this must be an enum, per the above).
-    type_info = import_data->GetRootTypeInfo(type_def->owner()).value();
+    type_info = import_data->GetRootTypeInfo(type_alias->owner()).value();
   }
-  XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeDefToDirectColonRefSubject(
-                                          import_data, type_info, type_def));
+  XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeAliasToDirectColonRefSubject(
+                                          import_data, type_info, type_alias));
   return WidenVariant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>(
       resolved);
 }
@@ -249,10 +249,10 @@ ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
   // that we might have to traverse an EnumDef.
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        module->GetTypeDefinition(subject->attr()));
-  if (std::holds_alternative<TypeDef*>(td)) {
+  if (std::holds_alternative<TypeAlias*>(td)) {
     XLS_ASSIGN_OR_RETURN(auto resolved,
-                         ResolveTypeDefToDirectColonRefSubject(
-                             import_data, type_info, std::get<TypeDef*>(td)));
+                         ResolveTypeAliasToDirectColonRefSubject(
+                             import_data, type_info, std::get<TypeAlias*>(td)));
     return WidenVariant<Module*, EnumDef*, BuiltinNameDef*,
                         ArrayTypeAnnotation*>(resolved);
   }
@@ -277,8 +277,8 @@ absl::Status VerifyParentage(const Module* module) {
     if (std::holds_alternative<QuickCheck*>(member)) {
       return VerifyParentage(std::get<QuickCheck*>(member));
     }
-    if (std::holds_alternative<TypeDef*>(member)) {
-      return VerifyParentage(std::get<TypeDef*>(member));
+    if (std::holds_alternative<TypeAlias*>(member)) {
+      return VerifyParentage(std::get<TypeAlias*>(member));
     }
     if (std::holds_alternative<StructDef*>(member)) {
       return VerifyParentage(std::get<StructDef*>(member));

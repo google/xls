@@ -457,13 +457,14 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
   } else if (std::holds_alternative<TestProc*>(member)) {
     XLS_RETURN_IF_ERROR(
         CheckTestProc(std::get<TestProc*>(member), module, ctx));
-  } else if (std::holds_alternative<TypeDef*>(member)) {
-    TypeDef* type_def = std::get<TypeDef*>(member);
-    XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
+  } else if (std::holds_alternative<TypeAlias*>(member)) {
+    TypeAlias* type_alias = std::get<TypeAlias*>(member);
+    XLS_VLOG(2) << "Typechecking type alias: " << type_alias->ToString();
     ScopedFnStackEntry scoped(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
     scoped.Finish();
-    XLS_VLOG(2) << "Finished typechecking typedef: " << type_def->ToString();
+    XLS_VLOG(2) << "Finished typechecking type alias: "
+                << type_alias->ToString();
   }
 
   return absl::OkStatus();

@@ -204,7 +204,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(TestProc);
   DEFAULT_HANDLER(TupleIndex);
   DEFAULT_HANDLER(TupleTypeAnnotation);
-  DEFAULT_HANDLER(TypeDef);
+  DEFAULT_HANDLER(TypeAlias);
   DEFAULT_HANDLER(TypeRef);
   DEFAULT_HANDLER(TypeRefTypeAnnotation);
   DEFAULT_HANDLER(Unop);

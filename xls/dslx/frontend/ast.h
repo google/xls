@@ -127,7 +127,7 @@ bool IsOneOf(ObjT* obj) {
   X(StructDef)                    \
   X(TestFunction)                 \
   X(TestProc)                     \
-  X(TypeDef)                      \
+  X(TypeAlias)                    \
   X(TypeRef)                      \
   X(WidthSlice)                   \
   X(WildcardPattern)              \
@@ -277,7 +277,7 @@ enum class AstNodeKind {
   kTestProc,
   kTupleIndex,
   kTypeAnnotation,
-  kTypeDef,
+  kTypeAlias,
   kTypeRef,
   kUnop,
   kUnrollFor,
@@ -936,21 +936,19 @@ class String : public Expr {
 // Represents a user-defined-type definition; e.g.
 //    type Foo = (u32, u32);
 //    type Bar = (u32, Foo);
-//
-// TODO(leary): 2020-09-15 Rename to TypeAlias, less of a loaded term.
-class TypeDef : public AstNode {
+class TypeAlias : public AstNode {
  public:
-  TypeDef(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
-          bool is_public);
+  TypeAlias(Module* owner, Span span, NameDef* name_def, TypeAnnotation* type,
+            bool is_public);
 
-  ~TypeDef() override;
+  ~TypeAlias() override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kTypeDef; }
+  AstNodeKind kind() const override { return AstNodeKind::kTypeAlias; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleTypeDef(this);
+    return v->HandleTypeAlias(this);
   }
-  std::string_view GetNodeTypeName() const override { return "TypeDef"; }
+  std::string_view GetNodeTypeName() const override { return "TypeAlias"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
@@ -1032,7 +1030,8 @@ class ConstantArray : public Array {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition = std::variant<TypeDef*, StructDef*, EnumDef*, ColonRef*>;
+using TypeDefinition =
+    std::variant<TypeAlias*, StructDef*, EnumDef*, ColonRef*>;
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
@@ -1879,8 +1878,8 @@ struct EnumMember {
 
 // Represents a user-defined enum definition; e.g.
 //
-//  type MyTypeDef = u2;
-//  enum Foo : MyTypeDef {
+//  type MyTypeAlias = u2;
+//  enum Foo : MyTypeAlias {
 //    A = 0,
 //    B = 1,
 //    C = 2,
@@ -3028,7 +3027,7 @@ class ChannelDecl : public Expr {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeDef*, StructDef*, ConstantDef*, EnumDef*, Import*>;
+                 TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
@@ -3141,8 +3140,8 @@ class Module : public AstNode {
 
   const EnumDef* FindEnumDef(const Span& span) const;
 
-  // Obtains all the type definition nodes in the module:
-  //    TypeDef, Struct, Enum
+  // Obtains all the type definition nodes in the module; e.g. TypeAlias,
+  // StructDef, EnumDef.
   absl::flat_hash_map<std::string, TypeDefinition> GetTypeDefinitionByName()
       const;
 
@@ -3168,7 +3167,9 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, Proc*> GetProcByName() const {
     return GetTopWithTByName<Proc>();
   }
-  std::vector<TypeDef*> GetTypeDefs() const { return GetTopWithT<TypeDef>(); }
+  std::vector<TypeAlias*> GetTypeAliases() const {
+    return GetTopWithT<TypeAlias>();
+  }
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
   }

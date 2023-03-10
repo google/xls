@@ -765,11 +765,11 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTypeDef(const TypeDef* n) override {
+  absl::Status HandleTypeAlias(const TypeAlias* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
-    TypeDef* new_td = module_->Make<TypeDef>(
+    TypeAlias* new_td = module_->Make<TypeAlias>(
         n->span(), new_name_def,
         down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         n->is_public());
@@ -802,10 +802,10 @@ class AstCloner : public AstNodeVisitor {
                       down_cast<StructDef*>(old_to_new_.at(struct_def));
                   return absl::OkStatus();
                 },
-                [&](TypeDef* type_def) -> absl::Status {
-                  XLS_RETURN_IF_ERROR(type_def->Accept(this));
+                [&](TypeAlias* type_alias) -> absl::Status {
+                  XLS_RETURN_IF_ERROR(type_alias->Accept(this));
                   new_type_definition =
-                      down_cast<TypeDef*>(old_to_new_.at(type_def));
+                      down_cast<TypeAlias*>(old_to_new_.at(type_alias));
                   return absl::OkStatus();
                 }},
         n->type_definition()));
@@ -935,9 +935,9 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
               new_member = down_cast<QuickCheck*>(cloner.old_to_new().at(qc));
               return absl::OkStatus();
             },
-            [&](TypeDef* td) -> absl::Status {
-              XLS_RETURN_IF_ERROR(td->Accept(&cloner));
-              new_member = down_cast<TypeDef*>(cloner.old_to_new().at(td));
+            [&](TypeAlias* t) -> absl::Status {
+              XLS_RETURN_IF_ERROR(t->Accept(&cloner));
+              new_member = down_cast<TypeAlias*>(cloner.old_to_new().at(t));
               return absl::OkStatus();
             },
             [&](StructDef* sd) -> absl::Status {

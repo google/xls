@@ -308,18 +308,18 @@ TEST(AstClonerTest, EnumDef) {
   XLS_ASSERT_OK(VerifyClone(enum_def, clone));
 }
 
-TEST(AstClonerTest, TypeDef) {
+TEST(AstClonerTest, TypeAlias) {
   constexpr std::string_view kProgram =
       R"(type RobsUnnecessaryType = uN[0xbeef];)";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(
-      TypeDef * type_def,
-      module->GetMemberOrError<TypeDef>("RobsUnnecessaryType"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_def));
+      TypeAlias * type_alias,
+      module->GetMemberOrError<TypeAlias>("RobsUnnecessaryType"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_alias));
   EXPECT_EQ(kProgram, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(type_def, clone));
+  XLS_ASSERT_OK(VerifyClone(type_alias, clone));
 }
 
 TEST(AstClonerTest, QuickCheck) {

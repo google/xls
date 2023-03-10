@@ -29,7 +29,7 @@
 namespace xls::dslx {
 
 using TopNode =
-    std::variant<Function*, Proc*, TestFunction*, StructDef*, TypeDef*>;
+    std::variant<Function*, Proc*, TestFunction*, StructDef*, TypeAlias*>;
 
 // Assigns concrete types and validates such on all elements of `f`, which must
 // be a non-parametric user-defined function.

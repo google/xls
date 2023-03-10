@@ -483,15 +483,15 @@ class AstGenerator {
 
   // Creates and returns a type ref for the given type.
   //
-  // As part of this process, an ast.TypeDef is created and added to the set of
-  // currently active set.
+  // As part of this process, a TypeAlias is created and added to the
+  // currently-active set.
   TypeRefTypeAnnotation* MakeTypeRefTypeAnnotation(TypeAnnotation* type) {
     std::string type_name = GenSym();
     NameDef* name_def = MakeNameDef(type_name);
-    auto* type_def =
-        module_->Make<TypeDef>(fake_span_, name_def, type, /*is_public=*/false);
-    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_def);
-    type_defs_.push_back(type_def);
+    auto* type_alias = module_->Make<TypeAlias>(fake_span_, name_def, type,
+                                                /*is_public=*/false);
+    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_alias);
+    type_aliases_.push_back(type_alias);
     type_bit_counts_[type_ref->ToString()] = GetTypeBitCount(type);
     return module_->Make<TypeRefTypeAnnotation>(
         fake_span_, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
@@ -646,7 +646,7 @@ class AstGenerator {
   std::vector<Function*> functions_;
 
   // Types defined during module generation.
-  std::vector<TypeDef*> type_defs_;
+  std::vector<TypeAlias*> type_aliases_;
 
   // Widths of the aggregate types, indexed by TypeAnnotation::ToString().
   absl::flat_hash_map<std::string, int64_t> type_bit_counts_;
