@@ -23,6 +23,9 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 # Commit on  2023-02-09, current as of 2023-03-09.
 http_archive(
     name = "com_grail_bazel_toolchain",
+    # Patch until https://github.com/grailbio/bazel-toolchain/pull/191 is merged.
+    patch_args = ["-p1"],
+    patches = ["//dependency_support/com_grail_bazel_toolchain:0001-Fix-call-to-int-version.patch"],
     sha256 = "fbed0cf24304b57682ca63763528f5fa21c341c2eeff3dc53887eb73638059c4",
     strip_prefix = "bazel-toolchain-069ee4e20ec605a6c76c1798658e17175b2eb35e",
     urls = [

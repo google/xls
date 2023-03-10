@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Paul Rigge <rigge@google.com>
+Date: Thu, 9 Mar 2023 16:29:17 -0800
+Subject: Fix call to `int(version)`.
+
+In 08d1aa8cee67a7a9c51c09225cead1dad42dadc3, Python scripts were
+rewritten in Starlark. The Python code
+
+```
+try:
+    int_version = int(version)
+except ValueError:
+    pass
+```
+
+became
+
+```
+int_version = int(version)
+```
+
+This will fail if `version` is not an integer. Fix this by adding a
+check of `version.isdigit()` before calling `int()`.
+
+diff --git a/toolchain/internal/release_name.bzl b/toolchain/internal/release_name.bzl
+index 937c744..9c95565 100755
+--- a/toolchain/internal/release_name.bzl
++++ b/toolchain/internal/release_name.bzl
+@@ -103,7 +103,8 @@ def _linux(llvm_version, distname, version, arch):
+         os_name = "linux-gnu-ubuntu-16.04"
+     elif distname == "debian":
+         int_version = 0
+-        int_version = int(version)
++        if version.isdigit():
++            int_version = int(version)
+         if int_version == 0 or int_version >= 9:
+             os_name = _ubuntu_osname(arch, "20.04", major_llvm_version, llvm_version)
+         elif int_version == 8 and major_llvm_version < 7:
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+
