@@ -175,7 +175,6 @@ cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
-    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":strerror",
         "@com_google_absl//absl/container:fixed_array",
