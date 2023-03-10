@@ -70,8 +70,9 @@ xabsl::StatusBuilder RetCheckFailSlowPath(xabsl::SourceLocation location,
 inline xabsl::StatusBuilder RetCheckImpl(const absl::Status& status,
                                          const char* condition,
                                          xabsl::SourceLocation location) {
-  if (ABSL_PREDICT_TRUE(status.ok()))
+  if (ABSL_PREDICT_TRUE(status.ok())) {
     return xabsl::StatusBuilder(absl::OkStatus(), location);
+  }
   return RetCheckFailSlowPath(location, condition, status);
 }
 

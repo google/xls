@@ -48,9 +48,13 @@ bool SafeFNMatch(std::string_view pattern, std::string_view str) {
     }
     if (pattern.front() == '*') {
       pattern.remove_prefix(1);
-      if (pattern.empty()) return true;
+      if (pattern.empty()) {
+        return true;
+      }
       do {
-        if (SafeFNMatch(pattern, str)) return true;
+        if (SafeFNMatch(pattern, str)) {
+          return true;
+        }
         str.remove_prefix(1);
       } while (!str.empty());
       return false;

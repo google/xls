@@ -2535,8 +2535,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Number of return values expected. If >1, the return will be a tuple.
   // (See MakeFunctionReturn()).
-  if (add_this_return) ++expected_returns;
-  if (!funcdecl->getReturnType()->isVoidType()) ++expected_returns;
+  if (add_this_return) {
+    ++expected_returns;
+  }
+  if (!funcdecl->getReturnType()->isVoidType()) {
+    ++expected_returns;
+  }
 
   if (expr_args.size() != funcdecl->getNumParams()) {
     return absl::UnimplementedError(ErrorMessage(
@@ -3902,10 +3906,18 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         context().fb->Not(context().have_returned_condition, loc), loc));
   } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
     for (auto decl : declstmt->decls()) {
-      if (clang::isa<clang::TypedefDecl>(decl)) break;
-      if (clang::isa<clang::StaticAssertDecl>(decl)) break;
-      if (clang::isa<clang::EnumDecl>(decl)) break;
-      if (clang::isa<clang::TypeAliasDecl>(decl)) break;
+      if (clang::isa<clang::TypedefDecl>(decl)) {
+        break;
+      }
+      if (clang::isa<clang::StaticAssertDecl>(decl)) {
+        break;
+      }
+      if (clang::isa<clang::EnumDecl>(decl)) {
+        break;
+      }
+      if (clang::isa<clang::TypeAliasDecl>(decl)) {
+        break;
+      }
       if (auto recd = clang::dyn_cast<const clang::RecordDecl>(decl)) {
         XLS_RETURN_IF_ERROR(ScanStruct(recd));
       } else {

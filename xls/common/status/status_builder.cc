@@ -42,7 +42,9 @@ StatusBuilder::Rep::Rep(const Rep& r)
 absl::Status StatusBuilder::JoinMessageToStatus(absl::Status s,
                                                 std::string_view msg,
                                                 MessageJoinStyle style) {
-  if (msg.empty()) return s;
+  if (msg.empty()) {
+    return s;
+  }
   if (style == MessageJoinStyle::kAnnotate) {
     return AnnotateStatus(s, msg);
   }
@@ -55,7 +57,9 @@ absl::Status StatusBuilder::JoinMessageToStatus(absl::Status s,
 }
 
 void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
-  if (rep_->logging_mode == Rep::LoggingMode::kDisabled) return;
+  if (rep_->logging_mode == Rep::LoggingMode::kDisabled) {
+    return;
+  }
 
   absl::LogSeverity severity = rep_->log_severity;
   switch (rep_->logging_mode) {
@@ -142,7 +146,9 @@ void StatusBuilder::ConditionallyLog(const absl::Status& status) const {
 
 void StatusBuilder::SetStatusCode(absl::StatusCode canonical_code,
                                   absl::Status* status) {
-  if (status->code() == canonical_code) return;
+  if (status->code() == canonical_code) {
+    return;
+  }
   absl::Status new_status(canonical_code, status->message());
   CopyPayloads(*status, &new_status);
   using std::swap;
@@ -164,7 +170,9 @@ absl::Status StatusBuilder::WithMessage(const absl::Status& status,
 
 absl::Status StatusBuilder::AnnotateStatus(const absl::Status& s,
                                            std::string_view msg) {
-  if (s.ok() || msg.empty()) return s;
+  if (s.ok() || msg.empty()) {
+    return s;
+  }
 
   std::string_view new_msg = msg;
   std::string annotated;

@@ -131,7 +131,9 @@ class Bindings {
   }
 
   bool ContainsFailLabel(const std::string& label) {
-    if (fail_labels_.contains(label)) return true;
+    if (fail_labels_.contains(label)) {
+      return true;
+    }
     if (parent_ != nullptr) {
       return parent_->ContainsFailLabel(label);
     }
