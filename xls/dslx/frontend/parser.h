@@ -71,7 +71,8 @@ constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 class Parser : public TokenParser {
  public:
   Parser(std::string module_name, Scanner* scanner)
-      : TokenParser(scanner), module_(new Module(std::move(module_name))) {}
+      : TokenParser(scanner),
+        module_(new Module(std::move(module_name), scanner->filename())) {}
 
   absl::StatusOr<Function*> ParseFunction(
       bool is_public, Bindings* bindings,

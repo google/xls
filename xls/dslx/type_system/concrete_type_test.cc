@@ -72,7 +72,7 @@ TEST(ConcreteTypeTest, TestArrayOfU32) {
 }
 
 TEST(ConcreteTypeTest, TestEnum) {
-  Module m("test");
+  Module m("test", /*fs_path=*/std::nullopt);
   Pos fake_pos("fake.x", 0, 0);
   Span fake_span(fake_pos, fake_pos);
   auto* my_enum = m.Make<NameDef>(fake_span, "MyEnum", nullptr);
@@ -142,7 +142,7 @@ TEST(ConcreteTypeTest, FromInterpValueTupleOfTwoNumbers) {
 }
 
 TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
-  Module module("test");
+  Module module("test", /*fs_path=*/std::nullopt);
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "x", nullptr),
@@ -167,7 +167,7 @@ TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
 }
 
 TEST(ConcreteTypeTest, EmptyStructTypeIsNotUnit) {
-  Module module("test");
+  Module module("test", /*fs_path=*/std::nullopt);
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),

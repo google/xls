@@ -922,7 +922,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
                        ConstructProtoViaText(text_proto, message_name,
                                              descriptor_pool, &factory));
 
-  auto module = std::make_unique<dslx::Module>("the_module");
+  auto module =
+      std::make_unique<dslx::Module>("the_module", /*fs_path=*/std::nullopt);
 
   ProtoToDslxManager proto_to_dslx(module.get());
   XLS_RETURN_IF_ERROR(proto_to_dslx.AddProtoInstantiationToDslxModule(

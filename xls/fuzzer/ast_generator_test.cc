@@ -59,7 +59,7 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
   AstGeneratorOptions options;
   ValueGenerator value_gen(std::mt19937_64{0});
   AstGenerator g(options, &value_gen);
-  g.module_ = std::make_unique<Module>("test_module");
+  g.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt);
 
   TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
   XLS_LOG(INFO) << "u7: " << u7->ToString();
@@ -79,7 +79,7 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
 TEST(AstGeneratorTest, GeneratesParametricBindings) {
   ValueGenerator value_gen(std::mt19937_64{0});
   AstGenerator g(AstGeneratorOptions(), &value_gen);
-  g.module_ = std::make_unique<Module>("my_mod");
+  g.module_ = std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt);
   std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
   // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12

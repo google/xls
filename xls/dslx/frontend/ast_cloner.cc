@@ -904,7 +904,7 @@ absl::StatusOr<AstNode*> CloneAst(AstNode* root) {
 }
 
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
-  auto new_module = std::make_unique<Module>(module->name());
+  auto new_module = std::make_unique<Module>(module->name(), module->fs_path());
   AstCloner cloner(new_module.get());
   for (const ModuleMember member : module->top()) {
     ModuleMember new_member;

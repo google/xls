@@ -799,9 +799,10 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
       module_(module),
       import_data_(import_data),
       options_(std::move(options)),
-      // TODO(leary): 2019-07-19 Create a way to get the file path from the
-      // module.
-      fileno_(package_data.package->GetOrCreateFileno("fake_file.x")),
+      fileno_(module->fs_path().has_value()
+                  ? package_data.package->GetOrCreateFileno(
+                        std::string(module->fs_path().value()))
+                  : Fileno(0)),
       proc_data_(proc_data),
       is_top_(is_top) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;

@@ -41,6 +41,8 @@ bzl_library(
     ],
 )
 
+dslx_lang_test(name = "two_plus_two")
+
 dslx_lang_test(name = "zero_macro")
 
 dslx_lang_test(name = "tuple_with_array_member")

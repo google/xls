@@ -82,7 +82,7 @@ pub fn GetLatency() -> s64 {
   EXPECT_EQ(package->DumpIr(),
             R"(package test_package
 
-file_number 0 "fake_file.x"
+file_number 0 "top_module.x"
 
 fn __top__GetLatency() -> bits[64] {
   ret params_latency: bits[64] = literal(value=7, id=3, pos=[(0,2,15)])
@@ -135,7 +135,7 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   EXPECT_EQ(package->DumpIr(),
             R"(package test_package
 
-file_number 0 "fake_file.x"
+file_number 0 "top_module.x"
 
 chan test_package__in_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan test_package__in_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")

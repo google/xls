@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/type_system/type_info.h"
-
-#include "gtest/gtest.h"
-#include "absl/status/statusor.h"
-#include "xls/common/status/matchers.h"
-
-namespace xls::dslx {
-namespace {
-
-TEST(TypeInfoTest, Instantiate) {
-  Module module("test", /*fs_path=*/std::nullopt);
-  TypeInfoOwner owner;
-  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * type_info, owner.New(&module));
-  EXPECT_EQ(type_info->parent(), nullptr);
+fn main() -> u32 {
+  u32:2 + u32:2
 }
 
-}  // namespace
-}  // namespace xls::dslx
+#[test]
+fn test_main() {
+  assert_eq(main(), u32:4)
+}

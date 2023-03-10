@@ -31,7 +31,7 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(CppAst, ModuleWithConstant) {
-  Module m("test");
+  Module m("test", /*fs_path=*/std::nullopt);
   const Span fake_span;
   Number* number = m.Make<Number>(fake_span, std::string("42"),
                                   NumberKind::kOther, /*type=*/nullptr);
@@ -63,7 +63,7 @@ TEST(CppAst, GetNumberAsInt64) {
        static_cast<uint64_t>(-1)},
       {"-1", static_cast<uint64_t>(-1)},
   };
-  Module m("test");
+  Module m("test", /*fs_path=*/std::nullopt);
   auto make_num = [&m](std::string text) {
     const Span fake_span;
     return m.Make<Number>(fake_span, text, NumberKind::kOther,
@@ -88,7 +88,7 @@ TEST(CppAst, CharacterNumberToStringTest) {
       {R"(l)", R"('l')"},  {R"(S)", R"('S')"},  {R"(")", R"('"')"},
       {R"(')", R"('\'')"}, {R"(\)", R"('\\')"},
   };
-  Module m("test");
+  Module m("test", /*fs_path=*/std::nullopt);
   auto make_char_num = [&m](std::string text) {
     const Span fake_span;
     return m.Make<Number>(fake_span, text, NumberKind::kCharacter,

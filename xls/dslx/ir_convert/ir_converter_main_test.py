@@ -40,58 +40,66 @@ class IrConverterMainTest(test_base.TestCase):
       path = os.path.join(tempdir, filename)
       with open(path, 'w') as f:
         f.write(contents)
-      tempfiles.append(path)
+      tempfiles.append(filename)
     cmd = [self.IR_CONVERTER_MAIN_PATH] + tempfiles
     if package_name is not None:
       cmd.append('--package_name=' + package_name)
-    return subprocess.check_output(cmd, encoding='utf-8')
+    return subprocess.check_output(cmd, encoding='utf-8', cwd=tempdir)
 
   def test_a_dot_x(self) -> None:
     self.assertEqual(
         self._ir_convert({'a.x': self.A_DOT_X}),
-        textwrap.dedent("""\
+        textwrap.dedent(
+            """\
     package a
 
-    file_number 0 "fake_file.x"
+    file_number 0 "a.x"
 
     fn __a__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=42, id=1, pos=[(0,0,20)])
     }
-    """))
+    """
+        ),
+    )
 
   def test_b_dot_x(self) -> None:
     self.assertEqual(
         self._ir_convert({'b.x': self.B_DOT_X}),
-        textwrap.dedent("""\
+        textwrap.dedent(
+            """\
     package b
 
-    file_number 0 "fake_file.x"
+    file_number 0 "b.x"
 
     fn __b__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=64, id=1, pos=[(0,0,20)])
     }
-    """))
+    """
+        ),
+    )
 
   def test_multi_file(self) -> None:
     self.assertEqual(
-        self._ir_convert({
-            'a.x': self.A_DOT_X,
-            'b.x': self.B_DOT_X
-        },
-                         package_name='my_entry'),
-        textwrap.dedent("""\
+        self._ir_convert(
+            {'a.x': self.A_DOT_X, 'b.x': self.B_DOT_X}, package_name='my_entry'
+        ),
+        textwrap.dedent(
+            """\
     package my_entry
 
-    file_number 0 "fake_file.x"
+    file_number 0 "a.x"
+    file_number 1 "b.x"
 
     fn __a__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=42, id=1, pos=[(0,0,20)])
     }
 
     fn __b__f() -> bits[32] {
-      ret literal.2: bits[32] = literal(value=64, id=2, pos=[(0,0,20)])
+      ret literal.2: bits[32] = literal(value=64, id=2, pos=[(1,0,20)])
     }
-    """))
+    """
+        ),
+    )
 
 
 if __name__ == '__main__':

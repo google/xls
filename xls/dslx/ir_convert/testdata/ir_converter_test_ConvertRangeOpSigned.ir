@@ -1,6 +1,6 @@
 package test_module
 
-file_number 0 "fake_file.x"
+file_number 0 "test_module.x"
 
 fn __test_module__main() -> bits[32][4] {
   ret literal.1: bits[32][4] = literal(value=[4294967294, 4294967295, 0, 1], id=1)

@@ -28,7 +28,7 @@ namespace xls::dslx {
 namespace {
 
 TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
-  Module module("test_module");
+  Module module("test_module", /*fs_path=*/std::nullopt);
   NameDef* name_def = module.Make<NameDef>(Span::Fake(), "proc_name", nullptr);
   NameDef* config_name_def =
       module.Make<NameDef>(Span::Fake(), "config_name", nullptr);
@@ -76,8 +76,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
 TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   std::vector<std::string> import_tokens{"robs", "dslx", "import_module"};
   ImportTokens subject(import_tokens);
-  ModuleInfo module_info(std::make_unique<Module>("import_module"),
-                         /*type_info=*/nullptr, "robs/dslx/import_module.x");
+  ModuleInfo module_info(
+      std::make_unique<Module>("import_module", /*fs_path=*/std::nullopt),
+      /*type_info=*/nullptr, "robs/dslx/import_module.x");
   Module* import_module = &module_info.module();
 
   NameDef* name_def =
@@ -118,7 +119,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   XLS_ASSERT_OK(import_module->AddTop(original_proc));
   name_def->set_definer(original_proc);
 
-  Module module("test_module");
+  Module module("test_module", /*fs_path=*/std::nullopt);
   NameDef* module_def =
       module.Make<NameDef>(Span::Fake(), "import_module", nullptr);
   Import* import = module.Make<Import>(Span::Fake(), import_tokens, module_def,

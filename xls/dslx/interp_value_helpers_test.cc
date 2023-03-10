@@ -52,7 +52,7 @@ TEST(InterpValueHelpersTest, CastBitsToArray) {
 TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
   constexpr int kBitCount = 13;
   constexpr int kNumMembers = 16;
-  Module module("my_test_module");
+  Module module("my_test_module", /*fs_path=*/std::nullopt);
 
   std::vector<EnumMember> members;
   std::vector<InterpValue> member_values;
@@ -130,7 +130,7 @@ TEST(InterpValueHelpersTest, CreateZeroBitsAndArrayValues) {
 TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   const Span kFakeSpan = Span::Fake();
 
-  Module module("test");
+  Module module("test", /*fs_path=*/std::nullopt);
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "x", nullptr),

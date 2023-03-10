@@ -444,7 +444,7 @@ message TypeB {
       ConstructProtoViaText(textproto_b2, "xls.TypeB", descriptor_pool.get(),
                             &factory));
 
-  dslx::Module module("test_module");
+  dslx::Module module("test_module", /*fs_path=*/std::nullopt);
 
   ProtoToDslxManager proto_to_dslx(&module);
   XLS_ASSERT_OK(

@@ -254,6 +254,8 @@ class Scanner {
   void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
   void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }
 
+  std::string_view filename() const { return filename_; }
+
  private:
   // Helper routine that creates a canonically-formatted scan error (which uses
   // the status code for an InvalidArgumentError, on the assumption the invalid

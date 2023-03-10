@@ -2375,7 +2375,7 @@ absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
 
 absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
     std::string top_entity_name, std::string module_name) {
-  module_ = std::make_unique<Module>(module_name);
+  module_ = std::make_unique<Module>(module_name, /*fs_path=*/std::nullopt);
   if (options_.generate_proc) {
     XLS_RETURN_IF_ERROR(GenerateProcInModule(top_entity_name));
   } else {

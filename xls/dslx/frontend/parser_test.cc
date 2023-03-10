@@ -122,7 +122,7 @@ class ParserTest : public ::testing::Test {
 };
 
 TEST(BindingsTest, BindingsStack) {
-  Module module("test");
+  Module module("test", /*fs_path=*/std::nullopt);
   Bindings top;
   Bindings leaf0(&top);
   Bindings leaf1(&top);

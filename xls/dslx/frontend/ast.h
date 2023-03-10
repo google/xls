@@ -17,8 +17,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -3037,12 +3039,17 @@ absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 // Attributes:
 //   name: Name of this module.
 //   top: Top-level module constructs; e.g. functions, tests. Given as a
-//   sequence
-//     instead of a mapping in case there are unnamed constructs at the module
-//     level (e.g. metadata, docstrings).
+//    sequence instead of a mapping in case there are unnamed constructs at the
+//    module level (e.g. metadata, docstrings).
+//   fs_path: Name of the filesystem path that led to this module's AST -- if
+//    the AST was constructed in-memory this value will be nullopt. Generally
+//    this was relative to the main binary's $CWD (which is often a place like
+//    Bazel's execution root) -- this helps output be deterministic even when
+//    running distributed compilation.
 class Module : public AstNode {
  public:
-  explicit Module(std::string name) : AstNode(this), name_(std::move(name)) {
+  Module(std::string name, std::optional<std::filesystem::path> fs_path)
+      : AstNode(this), name_(std::move(name)), fs_path_(std::move(fs_path)) {
     XLS_VLOG(3) << "Created module \"" << name_ << "\" @ " << this;
   }
 
@@ -3191,6 +3198,9 @@ class Module : public AstNode {
   std::vector<std::string> GetTestNames() const;
 
   const std::string& name() const { return name_; }
+  const std::optional<std::filesystem::path>& fs_path() const {
+    return fs_path_;
+  }
 
   const AstNode* FindNode(AstNodeKind kind, const Span& span) const {
     for (const auto& node : nodes_) {
@@ -3239,7 +3249,12 @@ class Module : public AstNode {
     return result;
   }
 
-  std::string name_;               // Name of this module.
+  const std::string name_;  // Name of this module.
+
+  // Optional filesystem path (may not be present for e.g. DSLX files created in
+  // memory).
+  const std::optional<std::filesystem::path> fs_path_;
+
   std::vector<ModuleMember> top_;  // Top-level members of this module.
   std::vector<std::unique_ptr<AstNode>> nodes_;  // Lifetime-owned AST nodes.
 

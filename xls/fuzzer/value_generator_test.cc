@@ -273,7 +273,7 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateDslxConstantBits) {
-  dslx::Module module("test");
+  dslx::Module module("test", /*fs_path=*/std::nullopt);
   ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* type = module.Make<dslx::BuiltinTypeAnnotation>(
       dslx::FakeSpan(), dslx::BuiltinType::kU32,
@@ -285,7 +285,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantBits) {
 }
 
 TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
-  dslx::Module module("test");
+  dslx::Module module("test", /*fs_path=*/std::nullopt);
   ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
@@ -306,7 +306,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinLessThan64) {
 }
 
 TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
-  dslx::Module module("test");
+  dslx::Module module("test", /*fs_path=*/std::nullopt);
   ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* dim_type =
       module.Make<dslx::BuiltinTypeAnnotation>(
@@ -327,7 +327,7 @@ TEST(SampleGeneratorTest, GenerateDslxConstantArrayOfBuiltinGreaterThan64) {
 }
 
 TEST(SampleGeneratorTest, GenerateDslxConstantTuple) {
-  dslx::Module module("test");
+  dslx::Module module("test", /*fs_path=*/std::nullopt);
   ValueGenerator value_gen(std::mt19937_64{});
   dslx::BuiltinTypeAnnotation* element0 =
       module.Make<dslx::BuiltinTypeAnnotation>(
