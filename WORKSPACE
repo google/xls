@@ -20,16 +20,13 @@ workspace(name = "com_google_xls")
 # files because it's not allowed to use `load` inside of a function.
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-# Commit on  2023-02-09, current as of 2023-03-09.
+# Commit on  2023-03-10, current as of 2023-03-10.
 http_archive(
     name = "com_grail_bazel_toolchain",
-    # Patch until https://github.com/grailbio/bazel-toolchain/pull/191 is merged.
-    patch_args = ["-p1"],
-    patches = ["//dependency_support/com_grail_bazel_toolchain:0001-Fix-call-to-int-version.patch"],
-    sha256 = "fbed0cf24304b57682ca63763528f5fa21c341c2eeff3dc53887eb73638059c4",
-    strip_prefix = "bazel-toolchain-069ee4e20ec605a6c76c1798658e17175b2eb35e",
+    sha256 = "d2ba494a40f51064690bbb3e50ee6246803d6ad87dffba903760ff94bc87effc",
+    strip_prefix = "bazel-toolchain-795d76fd03e0b17c0961f0981a8512a00cba4fa2",
     urls = [
-        "https://github.com/grailbio/bazel-toolchain/archive/069ee4e20ec605a6c76c1798658e17175b2eb35e.zip",
+        "https://github.com/grailbio/bazel-toolchain/archive/795d76fd03e0b17c0961f0981a8512a00cba4fa2.zip",
     ],
 )
 
@@ -55,7 +52,11 @@ load_external_repositories()
 # We have to configure Python before gRPC tries to configure it a different
 # way.
 load("@pybind11_bazel//:python_configure.bzl", "python_configure")
-python_configure(name = "local_config_python", python_version="3")
+
+python_configure(
+    name = "local_config_python",
+    python_version = "3",
+)
 
 # gRPC deps should be loaded before initializing other repos. Otherwise, various
 # errors occur during repo loading and initialization.
