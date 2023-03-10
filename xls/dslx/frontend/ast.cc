@@ -1640,9 +1640,14 @@ std::string Function::ToString() const {
     return_type_str = " -> " + return_type_->ToString() + " ";
   }
   std::string pub_str = is_public() ? "pub " : "";
-  return absl::StrFormat("%sfn %s%s(%s)%s%s", pub_str, name_def_->ToString(),
-                         parametric_str, params_str, return_type_str,
-                         body_->ToString());
+  std::string annotation_str;
+  if (extern_verilog_module_name_.has_value()) {
+    annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
+                                     extern_verilog_module_name_.value());
+  }
+  return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
+                         name_def_->ToString(), parametric_str, params_str,
+                         return_type_str, body_->ToString());
 }
 
 std::string Function::ToUndecoratedString(std::string_view identifier) const {

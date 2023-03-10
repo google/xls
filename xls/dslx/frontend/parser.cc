@@ -38,6 +38,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -234,15 +235,15 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (dropped_hash) {
       XLS_ASSIGN_OR_RETURN(auto attribute,
                            ParseAttribute(&name_to_fn, bindings));
-      if (auto* t = TryGet<TestFunction*>(attribute)) {
-        XLS_RETURN_IF_ERROR(module_->AddTop(t));
-      } else if (auto* tp = TryGet<TestProc*>(attribute)) {
-        XLS_RETURN_IF_ERROR(module_->AddTop(tp));
-      } else if (auto* qc = TryGet<QuickCheck*>(attribute)) {
-        XLS_RETURN_IF_ERROR(module_->AddTop(qc));
-      } else {
-        // Nothing, was a directive for the parser.
-      }
+      XLS_RETURN_IF_ERROR(
+          absl::visit(Visitor{
+                          [&](TestFunction* t) { return module_->AddTop(t); },
+                          [&](Function* f) { return module_->AddTop(f); },
+                          [&](TestProc* tp) { return module_->AddTop(tp); },
+                          [&](QuickCheck* qc) { return module_->AddTop(qc); },
+                          [&](std::nullptr_t) { return absl::OkStatus(); },
+                      },
+                      attribute));
       continue;
     }
 
@@ -310,8 +311,8 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return std::move(module_);
 }
 
-absl::StatusOr<
-    std::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
+absl::StatusOr<std::variant<TestFunction*, Function*, TestProc*, QuickCheck*,
+                            std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
@@ -330,6 +331,17 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
 
     return ParseErrorStatus(
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
+  }
+  if (directive_name == "extern_verilog") {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+    XLS_ASSIGN_OR_RETURN(std::string module_name, PopString());
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
+    XLS_ASSIGN_OR_RETURN(bool dropped_pub, TryDropKeyword(Keyword::kPub));
+    XLS_ASSIGN_OR_RETURN(Function * f,
+                         ParseFunction(dropped_pub, bindings, name_to_fn));
+    f->set_extern_verilog_module_name(module_name);
+    return f;
   }
   if (directive_name == "test_proc") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));

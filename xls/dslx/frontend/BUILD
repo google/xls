@@ -94,6 +94,7 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "//xls/common:strong_int",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",

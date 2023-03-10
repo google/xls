@@ -756,7 +756,7 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
   if (std::holds_alternative<Function*>(f)) {
     body = std::get<Function*>(f)->body();
   } else {
-    body = std::get<TestFunction*>(f)->body();
+    body = std::get<TestFunction*>(f)->fn()->body();
   }
   XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
                        GetCallees(body, m, type_info, bindings, proc_id));

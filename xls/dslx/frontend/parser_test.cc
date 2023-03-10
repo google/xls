@@ -951,6 +951,13 @@ fn example() {
 })");
 }
 
+TEST_F(ParserTest, ModuleWithEmptyExternVerilogFunction) {
+  RoundTrip(R"(#[extern_verilog("unit")]
+fn example() {
+  ()
+})");
+}
+
 TEST_F(ParserTest, ModuleWithTestFunction) {
   RoundTrip(R"(fn id(x: u32) -> u32 {
   x

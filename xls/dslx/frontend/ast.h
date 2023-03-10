@@ -1420,6 +1420,11 @@ class ParametricBinding : public AstNode {
 
 class Proc;
 
+// Attrs:
+//  extern_verilog_module_name: Attribute that can be tagged on DSLX functions
+//    to indicate that in the rest of the XLS toolchain the function can/should
+//    be subsituted with this Verilog module instantiation. (The metadata for
+//    this feature is expected to evolve over time beyond a simple name.)
 class Function : public AstNode {
  public:
   // Indicates if a function is normal or is part of a proc instantiation.
@@ -1469,6 +1474,13 @@ class Function : public AstNode {
     return_type_ = return_type;
   }
 
+  void set_extern_verilog_module_name(std::string module_name) {
+    extern_verilog_module_name_ = std::move(module_name);
+  }
+  const std::optional<std::string>& extern_verilog_module_name() const {
+    return extern_verilog_module_name_;
+  }
+
   Tag tag() const { return tag_; }
   std::optional<Proc*> proc() const { return proc_; }
   void set_proc(Proc* proc) { proc_ = proc; }
@@ -1483,7 +1495,8 @@ class Function : public AstNode {
   Tag tag_;
   std::optional<Proc*> proc_;
 
-  bool is_public_;
+  const bool is_public_;
+  std::optional<std::string> extern_verilog_module_name_;
 };
 
 // Represents a parsed 'process' specification in the DSL.
@@ -2460,8 +2473,7 @@ class Join : public Expr {
 // ```
 class TestFunction : public AstNode {
  public:
-  explicit TestFunction(Module* owner, Function* fn)
-      : AstNode(owner), name_def_(fn->name_def()), body_(fn->body()), fn_(fn) {}
+  TestFunction(Module* owner, Function* fn) : AstNode(owner), fn_(fn) {}
 
   ~TestFunction() override;
 
@@ -2472,7 +2484,7 @@ class TestFunction : public AstNode {
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_};
+    return {fn_};
   }
 
   std::string_view GetNodeTypeName() const override { return "TestFunction"; }
@@ -2483,14 +2495,12 @@ class TestFunction : public AstNode {
   Function* fn() const { return fn_; }
   std::optional<Span> GetSpan() const override { return fn_->span(); }
 
-  NameDef* name_def() const { return name_def_; }
-  const std::string& identifier() const { return name_def_->identifier(); }
-  Expr* body() const { return body_; }
+  const std::string& identifier() const {
+    return fn_->name_def()->identifier();
+  }
 
  private:
-  NameDef* name_def_;
-  Expr* body_;
-  Function* fn_;
+  Function* const fn_;
 };
 
 // Represents a construct to unit test a Proc. Analogous to TestFunction, but
