@@ -311,6 +311,86 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
       RamKindToString(to_config.kind)));
 }
 
+// For sends, first we update the payload, then we update the send to use the
+// new payload. The old and new send both return the same thing: a single token.
+absl::Status ReplaceSend(Proc* proc, Send* old_send,
+                         RamLogicalChannel logical_channel,
+                         const RamConfig& from_config,
+                         const RamConfig& to_config, int64_t new_channel_id) {
+  XLS_ASSIGN_OR_RETURN(Node * new_payload,
+                       RepackPayload(proc, old_send->data(), logical_channel,
+                                     from_config, to_config));
+  XLS_RETURN_IF_ERROR(
+      old_send
+          ->ReplaceUsesWithNew<Send>(old_send->token(), new_payload,
+                                     old_send->predicate(), new_channel_id)
+          .status());
+  XLS_RETURN_IF_ERROR(proc->RemoveNode(old_send));
+  return absl::OkStatus();
+}
+
+// Receives are different than sends: only the channel_id (and hence the type)
+// change. The return value is different, though, so we need to hunt down all of
+// those and replace them with a repacked version. The steps are as follows:
+// 1. Add new receives that use the new channel.
+// 2. Update the value returned by the new receive to look like the old
+// receive.
+// 3. Replace the old receive with the repacked new receives.
+absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
+                            RamLogicalChannel logical_channel,
+                            const RamConfig& from_config,
+                            const RamConfig& to_config,
+                            int64_t new_channel_id) {
+  Receive* new_receive = nullptr;
+  if (from_config.kind == RamKind::kAbstract &&
+      to_config.kind == RamKind::k1RW) {
+    switch (logical_channel) {
+      case RamLogicalChannel::kReadResp: {
+        XLS_ASSIGN_OR_RETURN(
+            new_receive,
+            proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
+                                    old_receive->predicate(), new_channel_id,
+                                    old_receive->is_blocking()));
+        break;
+      }
+      case RamLogicalChannel::kWriteResp: {
+        // For a 1RW write, we don't actually do the receive on response
+        // channel. The codegen for 1RW SRAMs internally keeps track of whether
+        // the request was a read or write and will only latch read response
+        // data. Receiving on the response channel after a write will cause
+        // deadlock. To resolve this, we keep the receive but set the predicate
+        // to be unconditionally false.
+        XLS_ASSIGN_OR_RETURN(
+            Literal * new_predicate,
+            proc->MakeNode<Literal>(old_receive->loc(), Value(UBits(0, 1))));
+        XLS_ASSIGN_OR_RETURN(
+            new_receive,
+            proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
+                                    new_predicate, new_channel_id,
+                                    old_receive->is_blocking()));
+        break;
+      }
+      default: {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Invalid logical channel %s for receive on RAM kind %s.",
+            RamLogicalChannelName(logical_channel),
+            RamKindToString(from_config.kind)));
+      }
+    }
+  } else {
+    return absl::UnimplementedError(absl::StrFormat(
+        "New receive not supported for %s -> %s",
+        RamKindToString(from_config.kind), RamKindToString(to_config.kind)));
+  }
+  XLS_ASSIGN_OR_RETURN(Node * new_return_value,
+                       RepackPayload(proc, new_receive, logical_channel,
+                                     from_config, to_config));
+
+  XLS_RETURN_IF_ERROR(old_receive->ReplaceUsesWith(new_return_value));
+  XLS_RETURN_IF_ERROR(proc->RemoveNode(old_receive));
+  return absl::OkStatus();
+}
+
 // Replace sends and receives on old channels with sends and receives on new
 // channels. This involves:
 // 1. Repacking the inputs to sends.
@@ -348,6 +428,8 @@ absl::Status ReplaceChannelReferences(
     for (Node* node : TopoSort(proc.get())) {
       if (node->Is<Send>()) {
         Send* old_send = node->As<Send>();
+        // If this send operates on a channel in our mapping, find the new
+        // channel and replace this send with a new send to the new channel.
         XLS_ASSIGN_OR_RETURN(
             Channel * old_channel,
             proc->package()->GetChannel(old_send->channel_id()));
@@ -360,28 +442,13 @@ absl::Status ReplaceChannelReferences(
             RamLogicalChannel new_logical_channel,
             MapChannel(from_config.kind, logical_channel, to_config.kind));
         int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
-        // For sends, first we update the payload, then we update the send to
-        // use the new payload. The old and new send both return the same thing:
-        // a single token.
-        XLS_ASSIGN_OR_RETURN(
-            Node * new_payload,
-            RepackPayload(proc.get(), old_send->data(), logical_channel,
-                          from_config, to_config));
-        XLS_RETURN_IF_ERROR(old_send
-                                ->ReplaceUsesWithNew<Send>(
-                                    old_send->token(), new_payload,
-                                    old_send->predicate(), new_channel_id)
-                                .status());
-        XLS_RETURN_IF_ERROR(proc->RemoveNode(old_send));
+        XLS_RETURN_IF_ERROR(ReplaceSend(proc.get(), old_send, logical_channel,
+                                        from_config, to_config,
+                                        new_channel_id));
       } else if (node->Is<Receive>()) {
-        // Receives are different than sends: only the channel_id (and hence the
-        // type) change. The return value is different, though, so we need to
-        // hunt down all of those and replace them with a repacked version. The
-        // steps are as follows:
-        // 1. Add new receives that use the new channel.
-        // 2. Update the value returned by the new receive to look like the old
-        // receive.
-        // 3. Replace the old receive with the repacked new receives.
+        // If this receive operates on a channel in our mapping, find the new
+        // channel and replace this receive with a new receive to the new
+        // channel, rewriting the output to match the old channel.
         Receive* old_receive = node->As<Receive>();
         XLS_ASSIGN_OR_RETURN(
             Channel * old_channel,
@@ -395,18 +462,9 @@ absl::Status ReplaceChannelReferences(
             RamLogicalChannel new_logical_channel,
             MapChannel(from_config.kind, logical_channel, to_config.kind));
         int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
-        XLS_ASSIGN_OR_RETURN(
-            Receive * new_receive,
-            proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
-                                    old_receive->predicate(), new_channel_id,
-                                    old_receive->is_blocking()));
-        XLS_ASSIGN_OR_RETURN(
-            Node * new_return_value,
-            RepackPayload(proc.get(), new_receive, logical_channel, from_config,
-                          to_config));
-
-        XLS_RETURN_IF_ERROR(old_receive->ReplaceUsesWith(new_return_value));
-        XLS_RETURN_IF_ERROR(proc->RemoveNode(old_receive));
+        XLS_RETURN_IF_ERROR(ReplaceReceive(proc.get(), old_receive,
+                                           logical_channel, from_config,
+                                           to_config, new_channel_id));
       }
     }
   }
