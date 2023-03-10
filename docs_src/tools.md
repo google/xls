@@ -218,15 +218,21 @@ For C++ development, you might need a compilation database to have good support
 in your IDE. You can create the `compile_commands.json` by running this script.
 
 ```
-build_scripts/make-compilation-db.sh
+dev_utils/make-compilation-db.sh
 ```
 
 To run clang-tidy and create a report of things that might be worthwhile
 fixing, use the following script:
 
 ```
-build_scripts/run-clang-tidy.sh
+dev_utils/run-clang-tidy-cached.sh
 ```
 
 (Note, this will be pretty slow on the first run, but it caches results and
 will only reprocess changed files in subsequent runs).
+
+The output of the clang-tidy runs shows up in the `xls_clang-tidy.out` file
+which is formatted just like an output from a compiler. So to quickly work with
+these, you can use `cat xls_clang-tidy.out` as your 'compiler invocation' in
+your IDE (e.g. `M-x compile` in emacs) and step through next-error locations as
+usual.
