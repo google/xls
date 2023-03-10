@@ -65,11 +65,11 @@ struct Pipe {
 };
 
 void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
-                                  const std::filesystem::path& cwd,
+                                  std::optional<std::filesystem::path> cwd,
                                   const Pipe& stdout_pipe,
                                   const Pipe& stderr_pipe) {
-  if (!cwd.empty()) {
-    if (chdir(cwd.c_str()) != 0) {
+  if (cwd.has_value()) {
+    if (chdir(cwd->c_str()) != 0) {
       XLS_LOG(ERROR) << "chdir failed: " << Strerror(errno);
       _exit(127);
     }
@@ -161,8 +161,9 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
 
 }  // namespace
 
-absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
-    absl::Span<const std::string> argv, const std::filesystem::path& cwd) {
+absl::StatusOr<SubprocessResult> InvokeSubprocess(
+    absl::Span<const std::string> argv,
+    std::optional<std::filesystem::path> cwd) {
   if (argv.empty()) {
     return absl::InvalidArgumentError("Cannot invoke empty argv list.");
   }
@@ -170,8 +171,8 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
 
   XLS_VLOG(1) << absl::StreamFormat(
       "Running %s; argv: [ %s ], cwd: %s", bin_name, absl::StrJoin(argv, " "),
-      cwd.string().empty() ? std::filesystem::current_path().string()
-                           : cwd.string());
+      cwd.has_value() ? cwd->string()
+                      : std::filesystem::current_path().string());
 
   std::vector<const char*> argv_pointers;
   argv_pointers.reserve(argv.size() + 1);
@@ -213,7 +214,20 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
                         bin_name, stdout_output, stderr_output, exit_status));
   }
 
-  return std::make_pair(stdout_output, stderr_output);
+  return SubprocessResult{.stdout = stdout_output, .stderr = stderr_output};
+}
+
+absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
+    absl::StatusOr<SubprocessResult> result) {
+  if (result.ok()) {
+    return std::make_pair(result->stdout, result->stderr);
+  }
+  return result.status();
+}
+
+absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
+    absl::StatusOr<SubprocessResult> result_or_status) {
+  return result_or_status;
 }
 
 }  // namespace xls

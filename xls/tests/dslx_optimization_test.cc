@@ -44,9 +44,10 @@ class DslxOptimizationTest : public IrTestBase {
         std::filesystem::path ir_converter_main_path,
         GetXlsRunfilePath("xls/dslx/ir_convert/ir_converter_main"));
     std::pair<std::string, std::string> stdout_stderr;
-    XLS_ASSIGN_OR_RETURN(stdout_stderr,
-                         InvokeSubprocess({ir_converter_main_path.string(),
-                                           dslx_temp.path().string()}));
+    XLS_ASSIGN_OR_RETURN(
+        stdout_stderr,
+        SubprocessResultToStrings(SubprocessErrorAsStatus(InvokeSubprocess(
+            {ir_converter_main_path.string(), dslx_temp.path().string()}))));
     return ParsePackage(stdout_stderr.first);
   }
 

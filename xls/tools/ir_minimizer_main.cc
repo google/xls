@@ -180,7 +180,8 @@ absl::StatusOr<bool> StillFailsHelper(
     XLS_QCHECK(absl::GetFlag(FLAGS_input).empty())
         << "Cannot specify --input with --test_executable";
     absl::StatusOr<std::pair<std::string, std::string>> result =
-        InvokeSubprocess({absl::GetFlag(FLAGS_test_executable), ir_path});
+        SubprocessResultToStrings(SubprocessErrorAsStatus(
+            InvokeSubprocess({absl::GetFlag(FLAGS_test_executable), ir_path})));
 
     if (result.ok()) {
       const auto& [stdout_str, stderr_str] = *result;

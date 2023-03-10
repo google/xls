@@ -15,7 +15,7 @@
 #ifndef XLS_COMMON_SUBPROCESS_H_
 #define XLS_COMMON_SUBPROCESS_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -23,11 +23,46 @@
 
 namespace xls {
 
-// Invokes a subprocess with the given argv. If 'cwd' is not empty the
-// subprocess will be invoked in the given directory. Returns the
-// stdout/stderr as a string pair.
-absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
-    absl::Span<const std::string> argv, const std::filesystem::path& cwd = "");
-}
+struct SubprocessResult {
+  std::string stdout;
+  std::string stderr;
+};
 
+// Returns Status::kInternalError if the subprocess unexpectedly terminated or
+// terminated with return code != 0 rather than StatusOk(). This is helpful when
+// invoking a subprocess in the circumstance where a zero return code and
+// clean termination is the only case of interest.
+//
+// Ex:
+//   StatusOr<SubprocessResult> result_or_status
+//     = SubprocessErrorAsStatus(InvokeSubprocess())
+// ...
+// At this moment there is only a result if the subprocess terminated normally
+// with exit code of zero. Failure to spawn the process or unexpected
+// termination or exit code of non-zero will produce a kInternalError status.
+absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
+    absl::StatusOr<SubprocessResult>);
+
+// Discard everything from the result except what came back on stdout and
+// stderr. Preserve all status. This is helpful when caring solely about what
+// came back from the subprocess.
+//
+// Ex:
+//   auto streams_or_status = SubprocessResultToStrings(InvokeSubprocess(...));
+//   if (streams_or_status.ok()) {
+//     XLS_VLOG() << "stdout:" << streams_or_status->first;
+//     XLS_VLOG() << "stderr:" << streams_or_status->second;
+//   }
+absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
+    absl::StatusOr<SubprocessResult> result);
+
+// Invokes a subprocess with the given argv. If 'cwd' is supplied, the
+// subprocess will be invoked in the given directory. Problems in invocation
+// result in a non-OK Status code. Unexpected termination of the subprocess
+// also (currently) results in a non-OK status code.
+absl::StatusOr<SubprocessResult> InvokeSubprocess(
+    absl::Span<const std::string> argv,
+    std::optional<std::filesystem::path> cwd = absl::nullopt);
+
+}  // namespace xls
 #endif  // XLS_COMMON_SUBPROCESS_H_
