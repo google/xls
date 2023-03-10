@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-<!-- nav --> <!-- CI badge -->
+<!-- GitHub banner -->
 
 ## What is XLS?
 
@@ -42,6 +42,19 @@ supported Google product. Expect bugs and sharp edges. Please help by trying it
 out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 [reporting bugs](https://github.com/google/xls/issues), and letting us know
 what you think!
+
+## Install Using Conda
+
+```bash
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -p conda-env/ -b
+source conda-env/bin/activate
+conda install --yes -c litex-hub xls
+interpreter_main --version
+ir_converter_main --version
+opt_main --version
+codegen_main --version
+```
 
 ## Building From Source
 
