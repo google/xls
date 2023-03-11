@@ -93,12 +93,11 @@ absl::StatusOr<PortConfigProto::Direction> GetPortConfigProtoDirection(
 
   if (dir == PortConfigProto::INPUT || dir == PortConfigProto::OUTPUT) {
     return dir;
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("%s PortConfigProto %s "
-                        "must have a direction field set.",
-                        msg, port.name()));
   }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("%s PortConfigProto %s "
+                      "must have a direction field set.",
+                      msg, port.name()));
 }
 
 absl::Status NetworkGraphBuilderImpl::BuildNetwork(

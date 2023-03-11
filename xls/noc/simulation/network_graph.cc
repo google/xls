@@ -337,7 +337,8 @@ PortId Connection::Attach(PortId port) {
       p.SetAttached(id_);
 
       return port;
-    } else if (p.direction() == PortDirection::kInput) {  // To --> Input
+    }
+    if (p.direction() == PortDirection::kInput) {  // To --> Input
       // Detach this connection from the existing to port (if any)
       DetachSink();
 

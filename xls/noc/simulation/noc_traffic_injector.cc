@@ -241,9 +241,8 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToVCs(
         return absl::InvalidArgumentError(
             absl::StrFormat("Unable to find matching vc %s for flow %s",
                             flow.GetVC(), flow.GetName()));
-      } else {
-        vc_index = iter - network_vcs.begin();
       }
+      vc_index = iter - network_vcs.begin();
     }
 
     injector.flows_index_to_vc_index_map_[i] = vc_index;

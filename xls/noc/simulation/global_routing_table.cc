@@ -125,11 +125,11 @@ absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetNextHopPort(
           port_param.GetName(), from.port_id_.AsUInt64(),
           std::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
           sink.AsUInt64()));
-    } else {
-      PortId next_port =
-          network_manager_->GetConnection(from_port.connection()).sink();
-      return PortAndVCIndex{next_port, from.vc_index_};
     }
+    PortId next_port =
+        network_manager_->GetConnection(from_port.connection()).sink();
+    return PortAndVCIndex{next_port, from.vc_index_};
+
   } else {
     NetworkComponentId from_nc_id = from.port_id_.GetNetworkComponentId();
     NetworkComponent& from_nc =
@@ -138,7 +138,8 @@ absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetNextHopPort(
 
     if (from_nc_kind == NetworkComponentKind::kRouter) {
       return GetRouterOutputPort(from, sink);
-    } else if (from_nc_kind == NetworkComponentKind::kLink) {
+    }
+    if (from_nc_kind == NetworkComponentKind::kLink) {
       if (from_nc.GetOutputPortIds().size() == 1) {
         PortId next_port = from_nc.GetOutputPortIds()[0];
         return PortAndVCIndex{next_port, from.vc_index_};
