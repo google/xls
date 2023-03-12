@@ -3282,6 +3282,61 @@ TEST_F(TranslatorProcTest, IOProcClassWithoutRef) {
   EXPECT_EQ(proc_state_bits, 32);
 }
 
+TEST_F(TranslatorProcTest, IOProcClassEnumMember) {
+  const std::string content = R"(
+       enum MyEnum {
+         A = 3,
+         B = 5,
+       };
+
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         MyEnum e = A;
+
+         #pragma hls_top
+         void Run() {
+          out.write(3*in.read() + e);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(15 + 3, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  const std::string ref_meta_str = R"(
+    channels 	 {
+      name: "in"
+      is_input: true
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out"
+      is_input: false
+      type: FIFO
+      width_in_bits: 64
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 }  // namespace
 
 }  // namespace xlscc

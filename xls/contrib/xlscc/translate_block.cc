@@ -672,6 +672,10 @@ absl::Status Translator::GenerateIRBlockPrepare(
     const std::list<ExternalChannelInfo>& top_decls,
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
+  GeneratedFunction temp_sf;
+  context() = TranslationContext();
+  context().propagate_up = false;
+  context().sf = &temp_sf;
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
   // This state and argument
