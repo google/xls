@@ -1639,7 +1639,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     return absl::UnimplementedError(absl::StrFormat(
         "Unsupported assignment to dereference of statement of class %i at "
         "%s",
-        (int)uop->getSubExpr()->getStmtClass(), LocString(loc)));
+        static_cast<int>(uop->getSubExpr()->getStmtClass()), LocString(loc)));
   }
   if (clang::isa<clang::CXXThisExpr>(lvalue)) {
     XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
@@ -1653,7 +1653,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       return absl::UnimplementedError(ErrorMessage(
           loc,
           "Ternaries in lvalues only supported for pointers, type used is %s",
-          (std::string)*result_type));
+          std::string(*result_type)));
     }
     XLS_ASSIGN_OR_RETURN(
         CValue lcv,

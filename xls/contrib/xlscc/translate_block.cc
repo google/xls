@@ -199,7 +199,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       return absl::InvalidArgumentError(ErrorMessage(
           GetLoc(*param),
           "Don't know how to interpret channel type %i for param %s",
-          (int)channel_spec.type(), param->getNameAsString()));
+          static_cast<int>(channel_spec.type()), param->getNameAsString()));
     }
 
     top_decls.push_back(channel_info);

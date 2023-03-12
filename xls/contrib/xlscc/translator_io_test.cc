@@ -36,12 +36,8 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
-using xls::status_testing::IsOkAndHolds;
-
 namespace xlscc {
 namespace {
-
-using xls::status_testing::IsOkAndHolds;
 
 class TranslatorIOTest : public XlsccTestBase {
  public:

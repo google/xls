@@ -2005,7 +2005,7 @@ TEST_F(TranslatorLogicTest, CapitalizeFirstLetter) {
       xls::Value(xls::Value::TupleOwned({xls::Value(xls::UBits(1, 1))}));
 
   const char* input = "hello world";
-  std::string output = "";
+  std::string output;
   for (; *input != 0u; ++input) {
     const char inc = *input;
     XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
