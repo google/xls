@@ -43,6 +43,7 @@
 #include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/ram_rewrite_pass.h"
 #include "xls/passes/reassociation_pass.h"
+#include "xls/passes/receive_default_value_simplification_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
@@ -70,6 +71,8 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<ComparisonSimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<TableSwitchPass>();
+    Add<DeadCodeEliminationPass>();
+    Add<ReceiveDefaultValueSimplificationPass>();
     Add<DeadCodeEliminationPass>();
     Add<SelectSimplificationPass>(opt_level);
     Add<DeadCodeEliminationPass>();

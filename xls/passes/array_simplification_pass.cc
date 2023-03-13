@@ -19,22 +19,13 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
-#include "xls/ir/value_helpers.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
 namespace {
-
-// Returns true if the given node is a binary select (two cases, no default).
-bool IsBinarySelect(Node* node) {
-  if (!node->Is<Select>()) {
-    return false;
-  }
-  Select* sel = node->As<Select>();
-  return sel->cases().size() == 2 && !sel->default_value().has_value();
-}
 
 // Returns true if the given index value is definitely out of bounds for the
 // given array type.

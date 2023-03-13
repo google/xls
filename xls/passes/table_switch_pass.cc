@@ -13,23 +13,14 @@
 // limitations under the License.
 #include "xls/passes/table_switch_pass.h"
 
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 
 namespace xls {
-
-// Returns true if the given node is a two-way select with a single-bit
-// selector.
-bool IsBinarySelect(Node* node) {
-  return node->Is<Select>() &&
-         node->As<Select>()->selector()->BitCountOrDie() == 1 &&
-         !node->As<Select>()->default_value().has_value();
-}
 
 // If the given node is an Op::kEq or Op::kNe node which compares against a
 // bits-typed literal which fits in a uint64_t, then return the two operands of

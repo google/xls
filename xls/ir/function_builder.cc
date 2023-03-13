@@ -1448,6 +1448,15 @@ BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
   return TupleIndex(rcv_if, 1);
 }
 
+std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveIfNonBlocking(
+    Channel* channel, BValue pred, const SourceInfo& loc,
+    std::string_view name) {
+  BValue rcv =
+      ProcBuilder::ReceiveIfNonBlocking(channel, last_token_, pred, loc, name);
+  last_token_ = TupleIndex(rcv, 0, loc);
+  return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
+}
+
 BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
                                   const SourceInfo& loc,
                                   std::string_view name) {

@@ -769,6 +769,14 @@ class TokenlessProcBuilder : public ProcBuilder {
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
+  // Add a conditional, non-blocking receive operation. The type of the data
+  // value received is determined by the channel. The returned BValue is a pair
+  // of the received data itself along with a valid bit.
+  using ProcBuilder::ReceiveIfNonBlocking;
+  std::pair<BValue, BValue> ReceiveIfNonBlocking(
+      Channel* channel, BValue pred, const SourceInfo& loc = SourceInfo(),
+      std::string_view name = "");
+
   // Add a send operation. Returns the token-typed BValue of the send node.
   using ProcBuilder::Send;
   BValue Send(Channel* channel, BValue data,

@@ -50,6 +50,7 @@ cc_library(
         ":proc_state_optimization_pass",
         ":ram_rewrite_pass",
         ":reassociation_pass",
+        ":receive_default_value_simplification_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
         ":strength_reduction_pass",
@@ -901,12 +902,11 @@ cc_library(
     hdrs = ["table_switch_pass.h"],
     deps = [
         ":passes",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
     ],
 )
 
@@ -916,15 +916,13 @@ cc_library(
     hdrs = ["array_simplification_pass.h"],
     deps = [
         ":passes",
-        ":range_query_engine",
         ":ternary_query_engine",
-        ":union_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
     ],
 )
 
@@ -1150,6 +1148,39 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "receive_default_value_simplification_pass",
+    srcs = ["receive_default_value_simplification_pass.cc"],
+    hdrs = ["receive_default_value_simplification_pass.h"],
+    deps = [
+        ":pass_base",
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
+cc_test(
+    name = "receive_default_value_simplification_pass_test",
+    srcs = ["receive_default_value_simplification_pass_test.cc"],
+    deps = [
+        ":receive_default_value_simplification_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value_helpers",
+        "@com_google_googletest//:gtest",
     ],
 )
 

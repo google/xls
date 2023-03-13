@@ -166,6 +166,9 @@ std::vector<NodePtrT> SetToSortedVector(
   return v;
 }
 
+// Returns true if the given node is a binary select (two cases, no default).
+bool IsBinarySelect(Node* node);
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_
