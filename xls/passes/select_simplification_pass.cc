@@ -298,30 +298,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     return true;
   }
 
-  // For a two-way select with an inverted selector, the NOT can be
-  // removed and the cases interchanged.
-  //
-  //   p = ...
-  //   not_p = not(p)
-  //   sel = sel(not_p, cases=[a, b])
-  //
-  // becomes:
-  //
-  //   sel = sel(p, case=[b, a])
-  if (node->Is<Select>() &&
-      node->As<Select>()->selector()->BitCountOrDie() == 1 &&
-      node->As<Select>()->selector()->op() == Op::kNot &&
-      node->As<Select>()->cases().size() == 2) {
-    Select* sel = node->As<Select>();
-    XLS_RETURN_IF_ERROR(
-        sel->ReplaceUsesWithNew<Select>(
-               sel->selector()->operand(0),
-               /*cases=*/std::vector<Node*>{sel->get_case(1), sel->get_case(0)},
-               /*default_value=*/absl::nullopt)
-            .status());
-    return true;
-  }
-
   // One-hot-select with a constant selector can be replaced with OR of the
   // activated cases.
   if (node->Is<OneHotSelect>() &&
@@ -489,23 +465,6 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
                            f->MakeNode<Concat>(node->loc(), new_selectors));
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<OneHotSelect>(new_selector, new_cases)
-              .status());
-      return true;
-    }
-  }
-
-  // Replace a select with a default which only handles a single value of the
-  // selector with a select without a default.
-  if (node->Is<Select>()) {
-    Select* sel = node->As<Select>();
-    if (sel->default_value().has_value() &&
-        (sel->cases().size() + 1) ==
-            (1ULL << sel->selector()->BitCountOrDie())) {
-      std::vector<Node*> new_cases(sel->cases().begin(), sel->cases().end());
-      new_cases.push_back(*sel->default_value());
-      XLS_RETURN_IF_ERROR(
-          node->ReplaceUsesWithNew<Select>(sel->selector(), new_cases,
-                                           /*default_value=*/absl::nullopt)
               .status());
       return true;
     }
@@ -975,7 +934,7 @@ absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
   for (Node* node : TopoSort(func)) {
     XLS_ASSIGN_OR_RETURN(bool node_changed,
                          SimplifyNode(node, query_engine, opt_level_));
-    changed = changed | node_changed;
+    changed = changed || node_changed;
   }
 
   // Use a worklist to split OneHotSelects based on common bits in the cases

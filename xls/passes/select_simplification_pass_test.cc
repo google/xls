@@ -116,37 +116,6 @@ TEST_F(SelectSimplificationPassTest, FourWayTupleSelect) {
                                             m::TupleIndex(m::Tuple(), 1)})));
 }
 
-TEST_F(SelectSimplificationPassTest, SelectWithTrivialDefault) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
-        ret sel.1: bits[8] = sel(p, cases=[x], default=y)
-     }
-  )",
-                                                       p.get()));
-
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Select(m::Param("p"),
-                        /*cases=*/{m::Param("x"), m::Param("y")}));
-}
-
-TEST_F(SelectSimplificationPassTest, SelectWithInvertedSelector) {
-  auto p = CreatePackage();
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn f(p: bits[1], x: bits[8], y: bits[8]) -> bits[8] {
-        not.1: bits[1] = not(p)
-        ret sel.2: bits[8] = sel(not.1, cases=[x, y])
-     }
-  )",
-                                                       p.get()));
-
-  EXPECT_THAT(Run(f), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              m::Select(m::Param("p"),
-                        /*cases=*/{m::Param("y"), m::Param("x")}));
-}
-
 TEST_F(SelectSimplificationPassTest, SelectWithConstantZeroSelector) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(

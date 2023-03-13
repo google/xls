@@ -390,6 +390,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
     ],
 )
 
