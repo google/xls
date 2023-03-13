@@ -53,9 +53,9 @@ class DslxOptimizationTest : public IrTestBase {
 
   // Returns the number of operations with one of the given opcodes in the
   // function.
-  int64_t OpCount(Function* function, absl::Span<const Op> ops) {
+  int64_t OpCount(FunctionBase* function_base, absl::Span<const Op> ops) {
     int64_t count = 0;
-    for (Node* node : function->nodes()) {
+    for (Node* node : function_base->nodes()) {
       if (std::find(ops.begin(), ops.end(), node->op()) != ops.end()) {
         ++count;
       }
@@ -64,8 +64,8 @@ class DslxOptimizationTest : public IrTestBase {
   }
 
   // Returns true if the given IR function has a node with the given op.
-  bool FunctionHasOp(Function* function, Op op) {
-    return OpCount(function, {op}) != 0;
+  bool HasOp(FunctionBase* function_base, Op op) {
+    return OpCount(function_base, {op}) != 0;
   }
 };
 
@@ -90,14 +90,14 @@ fn main(i: u32) -> (bool, u32) {
   // TODO(b/159035667): The optimized IR is much more complicated than it should
   // be. When optimizations have been added which simplify the IR, add stricter
   // tests here.
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayIndex));
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayUpdate));
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
+  EXPECT_FALSE(HasOp(entry, Op::kArrayIndex));
+  EXPECT_FALSE(HasOp(entry, Op::kArrayUpdate));
+  EXPECT_FALSE(HasOp(entry, Op::kReverse));
 
   // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Sensitivity
   // analysis should be able to remove these nodes.
-  EXPECT_TRUE(FunctionHasOp(entry, Op::kSignExt));
-  EXPECT_TRUE(FunctionHasOp(entry, Op::kAnd));
+  EXPECT_TRUE(HasOp(entry, Op::kSignExt));
+  EXPECT_TRUE(HasOp(entry, Op::kAnd));
 }
 
 TEST_F(DslxOptimizationTest, AttributeNamePropagation) {
@@ -202,6 +202,60 @@ fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
 
   // The original has five shifts. Verify that only four remain.
   EXPECT_EQ(OpCount(entry, {Op::kShll, Op::kShrl, Op::kShra}), 4);
+}
+
+TEST_F(DslxOptimizationTest, ReceiveZeroDefaultValue) {
+  std::string input = R"(
+proc main {
+  in_ch: chan<u32> in;
+
+  init { u32:42 }
+
+  config(ch: chan<u32> in) {
+    (ch, )
+  }
+
+  next (tok: token, state: u32) {
+    let (tok, data) = recv_if(tok, in_ch, state == u32:0, u32:0);
+    data
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  Proc* main = package->procs().front().get();
+
+  // A select is added to handle the default value. Verify it is removed.
+  EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  // Selects with zero can be simplified to ANDs.
+  EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
+}
+
+TEST_F(DslxOptimizationTest, ReceiveZeroDefaultValueCompoundType) {
+  std::string input = R"(
+proc main {
+  in_ch: chan<(u32, u16, u8)> in;
+
+  init { (u32:0, u16:0, u8:0) }
+
+  config(ch: chan<(u32, u16, u8)> in) {
+    (ch, )
+  }
+
+  next (tok: token, state: (u32, u16, u8)) {
+    let (tok, data) = recv_if(tok, in_ch, state.0 == u32:0, (u32:0, u16:0, u8:0));
+    data
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  Proc* main = package->procs().front().get();
+
+  // A select is added to handle the default value. Verify it is removed.
+  EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  // Selects with zero can be simplified to ANDs.
+  EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
 }
 
 }  // namespace

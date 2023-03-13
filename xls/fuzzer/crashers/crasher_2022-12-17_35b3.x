@@ -175,7 +175,7 @@ proc main {
     let x17: bool = (x6) != (((x11) as uN[1261]));
     let x18: u7 = !(x11);
     let x19: u7 = gate!((((x17) as uN[1261])) != (x2), x10);
-    let x22: (token, x20[W32_V13]) = recv_if(x14, x21, x17);
+    let x22: (token, x20[W32_V13]) = recv_if(x14, x21, x17, zero!<x20[W32_V13]>());
     let x23: token = x22.0;
     let x24: x20[W32_V13] = x22.1;
     let x26: u7 = {

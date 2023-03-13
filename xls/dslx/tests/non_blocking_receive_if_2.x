@@ -27,9 +27,9 @@ proc Main {
         (do_recv_in, data_in, result_out)
     }
 
-    next(tok: token, state: ()) {
-        let (tok, do_recv, do_recv_valid) = recv_non_blocking(tok, do_recv_in);
-        let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv);
+  next(tok: token, state: ()) {
+        let (tok, do_recv, do_recv_valid) = recv_non_blocking(tok, do_recv_in, false);
+        let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv, u32:42);
         let _ = send(tok, result_out, (foo, foo_valid));
         ()
     }
@@ -54,21 +54,21 @@ proc Tester {
 
     next(tok: token, state: ()) {
         // First, tell the proc to receive without data present. Expect a
-        // result of 0.
+        // result of 42 (the supplied default value).
         let tok = send(tok, do_recv_out, true);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:0, false));
+        let _ = assert_eq(result, (u32:42, false));
 
         // Next, tell the proc to NOT receive without data present.
         let tok = send(tok, do_recv_out, false);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:0, false));
+        let _ = assert_eq(result, (u32:42, false));
 
         // Next, tell the proc to not receive with data present.
         let tok = send(tok, data_out, u32:2);
         let tok = send(tok, do_recv_out, false);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:0, false));
+        let _ = assert_eq(result, (u32:42, false));
 
         // Finally, tell the proc to receive with data present. Expect the
         // previously-sent value.
@@ -79,7 +79,7 @@ proc Tester {
         let (tok, result0) = recv(tok, result_in);
         let (tok, result1) = recv(tok, result_in);
         let (tok, result2) = recv(tok, result_in);
-        let _ = assert_eq(result0.0+result1.0+result2.0, u32:2);
+        let _ = assert_eq(result0.0+result1.0+result2.0, u32:86);
 
         let tok = send(tok, terminator, true);
         ()

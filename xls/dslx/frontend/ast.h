@@ -2259,7 +2259,8 @@ class Recv : public Expr {
 // from another proc.
 class RecvNonBlocking : public Expr {
  public:
-  RecvNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel);
+  RecvNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel,
+                  Expr* default_value);
 
   ~RecvNonBlocking() override;
 
@@ -2279,15 +2280,17 @@ class RecvNonBlocking : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {token_, channel_};
+    return {token_, channel_, default_value_};
   }
 
   NameRef* token() const { return token_; }
   Expr* channel() const { return channel_; }
+  Expr* default_value() const { return default_value_; }
 
  private:
   NameRef* token_;
   Expr* channel_;
+  Expr* default_value_;
 };
 
 // A RecvIf is a recv node that's guarded by a condition: the send will be
@@ -2295,7 +2298,7 @@ class RecvNonBlocking : public Expr {
 class RecvIf : public Expr {
  public:
   RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
-         Expr* condition);
+         Expr* condition, Expr* default_value);
 
   ~RecvIf() override;
 
@@ -2312,17 +2315,19 @@ class RecvIf : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {token_, channel_, condition_};
+    return {token_, channel_, condition_, default_value_};
   }
 
   NameRef* token() const { return token_; }
   Expr* channel() const { return channel_; }
   Expr* condition() const { return condition_; }
+  Expr* default_value() const { return default_value_; }
 
  private:
   NameRef* token_;
   Expr* channel_;
   Expr* condition_;
+  Expr* default_value_;
 };
 
 // Represents a non-blocking recv node: the mechanism by which a proc gets info
@@ -2333,7 +2338,7 @@ class RecvIf : public Expr {
 class RecvIfNonBlocking : public Expr {
  public:
   RecvIfNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel,
-                    Expr* condition);
+                    Expr* condition, Expr* default_value);
 
   ~RecvIfNonBlocking() override;
 
@@ -2353,17 +2358,19 @@ class RecvIfNonBlocking : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {token_, channel_, condition_};
+    return {token_, channel_, condition_, default_value_};
   }
 
   NameRef* token() const { return token_; }
   Expr* channel() const { return channel_; }
   Expr* condition() const { return condition_; }
+  Expr* default_value() const { return default_value_; }
 
  private:
   NameRef* token_;
   Expr* channel_;
   Expr* condition_;
+  Expr* default_value_;
 };
 
 // Represents a send node: the mechanism by which a proc sends info to another

@@ -324,7 +324,7 @@ proc incrementer {
     (in_ch, out_ch)
   }
   next(tok: token, _: ()) {
-    let (tok, i) = recv_if(tok, in_ch, false);
+    let (tok, i) = recv_if(tok, in_ch, false, u32:0);
     let tok = send_if(tok, out_ch, false, i + u32:1);
     ()
   }

@@ -29,12 +29,16 @@ proc __test_module__main__producer_0_next(__token: token, __state: bits[1], init
 }
 
 proc __test_module__main__consumer_0_next(__token: token, __state: bits[1], init={0}) {
-  receive.18: (token, bits[32]) = receive(__token, predicate=__state, channel_id=0, id=18)
-  tuple_index.19: token = tuple_index(receive.18, index=0, id=19)
+  receive.19: (token, bits[32]) = receive(__token, predicate=__state, channel_id=0, id=19)
+  literal.18: bits[32] = literal(value=42, id=18)
+  tuple_index.21: bits[32] = tuple_index(receive.19, index=1, id=21)
+  tuple_index.20: token = tuple_index(receive.19, index=0, id=20)
+  sel.22: bits[32] = sel(__state, cases=[literal.18, tuple_index.21], id=22)
+  tuple.23: (token, bits[32]) = tuple(tuple_index.20, sel.22, id=23)
   literal.17: bits[1] = literal(value=1, id=17)
-  tuple_index.20: token = tuple_index(receive.18, index=0, id=20)
-  foo: bits[32] = tuple_index(receive.18, index=1, id=21)
-  not.22: bits[1] = not(__state, id=22)
-  after_all.23: token = after_all(__token, tuple_index.19, id=23)
-  next (after_all.23, not.22)
+  tuple_index.24: token = tuple_index(tuple.23, index=0, id=24)
+  foo: bits[32] = tuple_index(tuple.23, index=1, id=25)
+  not.26: bits[1] = not(__state, id=26)
+  after_all.27: token = after_all(__token, tuple_index.20, id=27)
+  next (after_all.27, not.26)
 }

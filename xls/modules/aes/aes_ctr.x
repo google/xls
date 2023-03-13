@@ -110,7 +110,8 @@ pub proc aes_ctr {
     next(tok: token, state: State) {
         let step = state.step;
 
-        let (tok, cmd) = recv_if(tok, command_in, step == Step::IDLE);
+        let (tok, cmd) = recv_if(
+            tok, command_in, step == Step::IDLE, zero!<Command>());
         let cmd = if step == Step::IDLE { cmd } else { state.command };
         let ctr = if step == Step::IDLE { cmd.initial_ctr } else { state.ctr };
         let blocks_left = if step == Step::IDLE {
@@ -120,7 +121,8 @@ pub proc aes_ctr {
         };
         let full_ctr = cmd.iv ++ ctr;
 
-        let (tok, block) = recv_if(tok, ptxt_in, blocks_left != u32:0);
+        let (tok, block) = recv_if(
+            tok, ptxt_in, blocks_left != u32:0, zero!<Block>());
         let ctxt = aes_ctr_encrypt(cmd.key, cmd.key_width, full_ctr, block);
         let tok = send(tok, ctxt_out, ctxt);
 

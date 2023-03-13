@@ -160,7 +160,7 @@ proc main {
     let x2: s57 = (x1) * (x1);
     let x3: s57 = -(x2);
     let x4: s57 = (x3) - (x1);
-    let x6: (token, u33) = recv_if(x0, x5, bool:true);
+    let x6: (token, u33) = recv_if(x0, x5, bool:true, u33:0);
     let x7: token = x6.0;
     let x8: u33 = x6.1;
     let x9: u57 = (((x2) as u57))[x8+:u57];

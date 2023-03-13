@@ -2190,13 +2190,26 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
+  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  BValue value =
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+
+  BValue recv =
       builder_ptr->ReceiveNonBlocking(std::get<Channel*>(ir_value), token);
-  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+  BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
+
+  // IR non-blocking receive has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(receive_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({token_value, value, receive_activated});
+
   tokens_.push_back(token_value);
-  node_to_ir_[node] = value;
+  node_to_ir_[node] = repackaged_result;
 
   return absl::OkStatus();
 }
@@ -2222,13 +2235,25 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->condition()));
+  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
+
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
-  BValue value =
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+
+  BValue recv =
       builder_ptr->ReceiveIf(std::get<Channel*>(ir_value), token, predicate);
-  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+
+  // IR receive-if has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(predicate, {default_value, received_value});
+  BValue repackaged_result = builder_ptr->Tuple({token_value, value});
+
   tokens_.push_back(token_value);
-  node_to_ir_[node] = value;
+  node_to_ir_[node] = repackaged_result;
   return absl::OkStatus();
 }
 
@@ -2254,13 +2279,27 @@ absl::Status FunctionConverter::HandleRecvIfNonBlocking(
   }
 
   XLS_RETURN_IF_ERROR(Visit(node->condition()));
+  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
+
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
-  BValue value = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
-                                                   token, predicate);
-  BValue token_value = builder_ptr->TupleIndex(value, 0);
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+
+  BValue recv = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
+                                                  token, predicate);
+  BValue token_value = builder_ptr->TupleIndex(recv, 0);
+  BValue received_value = builder_ptr->TupleIndex(recv, 1);
+  BValue receive_activated = builder_ptr->TupleIndex(recv, 2);
+
+  // IR non-blocking receive-if has a default value of zero. Mux in the
+  // default_value specified in DSLX.
+  BValue value =
+      builder_ptr->Select(receive_activated, {default_value, received_value});
+  BValue repackaged_result =
+      builder_ptr->Tuple({token_value, value, receive_activated});
+
   tokens_.push_back(token_value);
-  node_to_ir_[node] = value;
+  node_to_ir_[node] = repackaged_result;
   return absl::OkStatus();
 }
 

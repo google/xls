@@ -2387,6 +2387,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
   ChannelType* ct = dynamic_cast<ChannelType*>(channel_type.get());
   XLS_RET_CHECK_NE(ct, nullptr);
 
+  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+                       Deduce(node->default_value(), ctx));
+  if (*default_value_type != ct->payload_type()) {
+    return XlsTypeErrorStatus(node->span(), *default_value_type,
+                              ct->payload_type(),
+                              "Default value type does not match channel type");
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
   elements.emplace_back(ct->payload_type().CloneToUnique());
@@ -2415,6 +2423,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
   ChannelType* ct = dynamic_cast<ChannelType*>(channel_type.get());
   XLS_RET_CHECK_NE(ct, nullptr);
 
+  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+                       Deduce(node->default_value(), ctx));
+  if (*default_value_type != ct->payload_type()) {
+    return XlsTypeErrorStatus(node->span(), *default_value_type,
+                              ct->payload_type(),
+                              "Default value type does not match channel type");
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
   elements.emplace_back(ct->payload_type().CloneToUnique());
@@ -2440,6 +2456,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
   XLS_ASSIGN_OR_RETURN(auto channel_type, Deduce(node->channel(), ctx));
   ChannelType* ct = dynamic_cast<ChannelType*>(channel_type.get());
   XLS_RET_CHECK_NE(ct, nullptr);
+
+  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+                       Deduce(node->default_value(), ctx));
+  if (*default_value_type != ct->payload_type()) {
+    return XlsTypeErrorStatus(node->span(), *default_value_type,
+                              ct->payload_type(),
+                              "Default value type does not match channel type");
+  }
 
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());

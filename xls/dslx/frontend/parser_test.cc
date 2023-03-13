@@ -411,7 +411,7 @@ proc consumer {
     false
   }
   next(tok: token, do_recv: bool) {
-    let (_, foo) = recv_if(tok, c, do_recv);
+    let (_, foo) = recv_if(tok, c, do_recv, u32:0);
     let _ = assert_eq(foo, true);
     (!(do_recv),)
   }
@@ -443,7 +443,7 @@ proc consumer {
     ()
   }
   next(tok: token, state: ()) {
-    let (_, foo, valid) = recv_non_blocking(tok, c);
+    let (_, foo, valid) = recv_non_blocking(tok, c, u32:0);
     let _ = assert_eq(!((foo) ^ (valid)), true);
     ()
   }
@@ -462,7 +462,7 @@ TEST_F(ParserTest, ParseRecvIfNb) {
     ()
   }
   next(tok: token, state: ()) {
-    let tok = recv_if_non_blocking(tok, c, true);
+    let tok = recv_if_non_blocking(tok, c, true, u32:0);
     ()
   }
 })";

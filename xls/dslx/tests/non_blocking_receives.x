@@ -28,8 +28,8 @@ proc test_impl {
   }
 
   next(tok: token, state: u32) {
-    let (tok0, i0, valid0) = recv_non_blocking(tok, in0);
-    let (tok1, i1, valid1) = recv_non_blocking(tok, in1);
+    let (tok0, i0, valid0) = recv_non_blocking(tok, in0, u32:123);
+    let (tok1, i1, valid1) = recv_non_blocking(tok, in1, u32:42);
 
     let o0 = u32:0;
     let o0 = if(valid0) { o0 + i0 } else { o0 };

@@ -1813,47 +1813,54 @@ std::string Recv::ToString() const {
 // -- class RecvNonBlocking
 
 RecvNonBlocking::RecvNonBlocking(Module* owner, Span span, NameRef* token,
-                                 Expr* channel)
-    : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
+                                 Expr* channel, Expr* default_value)
+    : Expr(owner, std::move(span)),
+      token_(token),
+      channel_(channel),
+      default_value_(default_value) {}
 
 RecvNonBlocking::~RecvNonBlocking() = default;
 
 std::string RecvNonBlocking::ToString() const {
-  return absl::StrFormat("recv_non_blocking(%s, %s)", token_->identifier(),
-                         channel_->ToString());
+  return absl::StrFormat("recv_non_blocking(%s, %s, %s)", token_->identifier(),
+                         channel_->ToString(), default_value_->ToString());
 }
 
 // -- class RecvIf
 
 RecvIf::RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
-               Expr* condition)
+               Expr* condition, Expr* default_value)
     : Expr(owner, std::move(span)),
       token_(token),
       channel_(channel),
-      condition_(condition) {}
+      condition_(condition),
+      default_value_(default_value) {}
 
 RecvIf::~RecvIf() = default;
 
 std::string RecvIf::ToString() const {
-  return absl::StrFormat("recv_if(%s, %s, %s)", token_->identifier(),
-                         channel_->ToString(), condition_->ToString());
+  return absl::StrFormat("recv_if(%s, %s, %s, %s)", token_->identifier(),
+                         channel_->ToString(), condition_->ToString(),
+                         default_value_->ToString());
 }
 
 // -- class RecvIfNonBlocking
 
 RecvIfNonBlocking::RecvIfNonBlocking(Module* owner, Span span, NameRef* token,
-                                     Expr* channel, Expr* condition)
+                                     Expr* channel, Expr* condition,
+                                     Expr* default_value)
     : Expr(owner, std::move(span)),
       token_(token),
       channel_(channel),
-      condition_(condition) {}
+      condition_(condition),
+      default_value_(default_value) {}
 
 RecvIfNonBlocking::~RecvIfNonBlocking() = default;
 
 std::string RecvIfNonBlocking::ToString() const {
-  return absl::StrFormat("recv_if_non_blocking(%s, %s, %s)",
+  return absl::StrFormat("recv_if_non_blocking(%s, %s, %s, %s)",
                          token_->identifier(), channel_->ToString(),
-                         condition_->ToString());
+                         condition_->ToString(), default_value_->ToString());
 }
 
 // -- class Send

@@ -556,7 +556,8 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<RecvNonBlocking>(
         n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())));
+        down_cast<Expr*>(old_to_new_.at(n->channel())),
+        down_cast<Expr*>(old_to_new_.at(n->default_value())));
     return absl::OkStatus();
   }
 
@@ -565,7 +566,8 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module_->Make<RecvIf>(
         n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
         down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->condition())));
+        down_cast<Expr*>(old_to_new_.at(n->condition())),
+        down_cast<Expr*>(old_to_new_.at(n->default_value())));
     return absl::OkStatus();
   }
 
@@ -574,7 +576,8 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module_->Make<RecvIfNonBlocking>(
         n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
         down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->condition())));
+        down_cast<Expr*>(old_to_new_.at(n->condition())),
+        down_cast<Expr*>(old_to_new_.at(n->default_value())));
     return absl::OkStatus();
   }
 

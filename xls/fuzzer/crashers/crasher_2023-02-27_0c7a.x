@@ -167,7 +167,7 @@ proc main {
     let x11: u62 = rev(x7);
     let x12: u62 = !(x4);
     let x13: bool = (x5) & (x5);
-    let x15: (token, sN[116]) = recv_if(x0, x14, x9);
+    let x15: (token, sN[116]) = recv_if(x0, x14, x9, sN[116]:0);
     let x16: token = x15.0;
     let x17: sN[116] = x15.1;
     let x18: bool = (x5) & (x5);

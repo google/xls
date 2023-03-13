@@ -284,6 +284,7 @@ struct ChannelOpInfo {
   ChannelTypeAnnotation::Direction channel_direction;
   bool requires_payload;
   bool requires_predicate;
+  bool requires_default_value;
 };
 
 ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
@@ -292,27 +293,32 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
       return ChannelOpInfo{
           .channel_direction = ChannelTypeAnnotation::Direction::kIn,
           .requires_payload = false,
-          .requires_predicate = false};
+          .requires_predicate = false,
+          .requires_default_value = false};
     case ChannelOpType::kRecvNonBlocking:
       return ChannelOpInfo{
           .channel_direction = ChannelTypeAnnotation::Direction::kIn,
           .requires_payload = false,
-          .requires_predicate = false};
+          .requires_predicate = false,
+          .requires_default_value = true};
     case ChannelOpType::kRecvIf:
       return ChannelOpInfo{
           .channel_direction = ChannelTypeAnnotation::Direction::kIn,
           .requires_payload = false,
-          .requires_predicate = true};
+          .requires_predicate = true,
+          .requires_default_value = true};
     case ChannelOpType::kSend:
       return ChannelOpInfo{
           .channel_direction = ChannelTypeAnnotation::Direction::kOut,
           .requires_payload = true,
-          .requires_predicate = false};
+          .requires_predicate = false,
+          .requires_default_value = false};
     case ChannelOpType::kSendIf:
       return ChannelOpInfo{
           .channel_direction = ChannelTypeAnnotation::Direction::kOut,
           .requires_payload = true,
-          .requires_predicate = true};
+          .requires_predicate = true,
+          .requires_default_value = false};
   }
 
   XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
@@ -321,11 +327,6 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
-  // Lambda that chooses a boolean value for a predicate.
-  auto choose_predicate = [this](const TypedExpr& e) -> bool {
-    TypeAnnotation* t = e.type;
-    return IsUBits(t) && GetTypeBitCount(t) == 1;
-  };
   // Equal distribution for channel ops.
   ChannelOpType chan_op_type = RandomChoice<ChannelOpType>(
       {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
@@ -335,6 +336,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // If needed, generate a predicate.
   std::optional<TypedExpr> predicate;
   if (chan_op_info.requires_predicate) {
+    auto choose_predicate = [this](const TypedExpr& e) -> bool {
+      TypeAnnotation* t = e.type;
+      return IsUBits(t) && GetTypeBitCount(t) == 1;
+    };
     predicate = ChooseEnvValueOptional(&ctx->env, /*take=*/choose_predicate);
     if (!predicate.has_value()) {
       // If there's no natural environment value to use as the predicate,
@@ -361,6 +366,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // Generate an arbitrary type for the channel.
   TypeAnnotation* channel_type =
       GenerateType(0, max_width_bits_types, max_width_aggregate_types);
+
+  // If needed, generate a default value.
+  std::optional<TypedExpr> default_value;
+  if (chan_op_info.requires_default_value) {
+    // TODO(meheff): 2023/03/10 Use ChooseEnvValueOptional with randomly
+    // generated constant as backup. Will require the ability to generate a
+    // random constant of arbitrary type.
+    XLS_ASSIGN_OR_RETURN(default_value,
+                         ChooseEnvValue(&ctx->env, channel_type));
+  }
 
   // If needed, choose a payload from the environment.
   std::optional<TypedExpr> payload;
@@ -396,12 +411,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
           MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kRecvNonBlocking:
       return TypedExpr{
-          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr),
+          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr,
+                                         default_value.value().expr),
           MakeTupleType(
               {token.type, channel_type, MakeTypeAnnotation(false, 1)})};
     case ChannelOpType::kRecvIf:
       return TypedExpr{module_->Make<RecvIf>(fake_span_, token_name_ref,
-                                             chan_expr, predicate.value().expr),
+                                             chan_expr, predicate.value().expr,
+                                             default_value.value().expr),
                        MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kSend:
       return TypedExpr{module_->Make<Send>(fake_span_, token_name_ref,

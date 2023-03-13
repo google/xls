@@ -236,11 +236,13 @@ pub proc ghash {
     }
 
     next(tok: token, state: State) {
-        let (tok, command) = recv_if(tok, command_in, state.step == Step::IDLE);
+        let (tok, command) = recv_if(
+            tok, command_in, state.step == Step::IDLE, zero!<Command>());
         let state = get_current_state(state, command);
 
         // Get the current working block and update block counts.
-        let (tok, input_block) = recv_if(tok, input_in, state.step == Step::RECV_INPUT);
+        let (tok, input_block) = recv_if(
+          tok, input_in, state.step == Step::RECV_INPUT, zero!<Block>());
         let block =
             if state.step == Step::RECV_INPUT {
                 input_block

@@ -114,7 +114,10 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
             we: we,
             re: re,
         });
-        let (tok, resp) = recv_if(tok, ram_resp, re);
+        let zero_resp = RamResp<DOUBLE_DATA_WIDTH> {
+          data: bits[DOUBLE_DATA_WIDTH]:0
+        };
+        let (tok, resp) = recv_if(tok, ram_resp, re, zero_resp);
 
         let current_data = if state.init_done {
             if state.is_read_stage {

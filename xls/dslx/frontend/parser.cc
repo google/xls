@@ -1381,9 +1381,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * channel,
                          ParseTerm(outer_bindings, restrictions));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(Expr * default_value, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     return module_->Make<RecvNonBlocking>(Span(recv.span().start(), GetPos()),
-                                          token, channel);
+                                          token, channel, default_value);
   } else if (peek->IsKeyword(Keyword::kRecvIf) ||
              peek->IsKeyword(Keyword::kRecvIfNonBlocking)) {
     Token token = PopTokenOrDie();
@@ -1394,13 +1396,16 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
                          ParseTerm(outer_bindings, restrictions));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
+    XLS_ASSIGN_OR_RETURN(Expr * default_value, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     if (token.GetKeyword() == Keyword::kRecvIf) {
       return module_->Make<RecvIf>(Span(token.span().start(), GetPos()),
-                                   name_ref, channel, condition);
+                                   name_ref, channel, condition, default_value);
     }
     return module_->Make<RecvIfNonBlocking>(
-        Span(token.span().start(), GetPos()), name_ref, channel, condition);
+        Span(token.span().start(), GetPos()), name_ref, channel, condition,
+        default_value);
   } else if (peek->IsKeyword(Keyword::kSend)) {
     Token send = PopTokenOrDie();
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));

@@ -549,7 +549,7 @@ proc MyProc {
     let tok = send(tok, input_p, state);
     let tok = send_if(tok, input_p, state > u32:32, state);
     let (tok1, state) = recv(tok, output_c);
-    let (tok2, foo) = recv_if(tok, output_c, state > u32:32);
+    let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
     let tok = join(tok1, tok2);
     (state) + (foo)
   }
@@ -568,7 +568,7 @@ fn MyProc.next(tok: token, state: u32) -> u32 {
   let tok = send(tok, input_p, state);
   let tok = send_if(tok, input_p, (state) > (u32:32), state);
   let (tok1, state) = recv(tok, output_c);
-  let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32));
+  let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32), u64:0);
   let tok = join(tok1, tok2);
   (state) + (foo)
 }
@@ -588,7 +588,7 @@ proc MyProc {
     let tok = send(tok, input_p, state);
     let tok = send_if(tok, input_p, (state) > (u32:32), state);
     let (tok1, state) = recv(tok, output_c);
-    let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32));
+    let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32), u64:0);
     let tok = join(tok1, tok2);
     (state) + (foo)
   }

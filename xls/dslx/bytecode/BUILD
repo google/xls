@@ -96,6 +96,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_helpers",
         "//xls/dslx:make_value_format_descriptor",
         "//xls/dslx:value_format_descriptor",
         "//xls/dslx/frontend:ast",

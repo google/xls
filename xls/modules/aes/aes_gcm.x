@@ -208,7 +208,8 @@ proc aes_gcm {
     }
 
     next(tok: token, state: State) {
-        let (tok, command) = recv_if(tok, command_in, state.step == Step::IDLE);
+        let (tok, command) = recv_if(
+            tok, command_in, state.step == Step::IDLE, zero!<Command>());
         let ctr_command = get_ctr_command(command);
         let ghash_command = get_ghash_command(command);
 
@@ -223,7 +224,8 @@ proc aes_gcm {
         // Send the block we read to the appropriate place: if it's an AAD block,
         // it goes to GHASH. If it's a msg block, it goes to CTR.
         let (tok, input_block) = recv_if(
-            tok, data_in, state.step == Step::READ_AAD || state.step == Step::READ_MSG);
+            tok, data_in, state.step == Step::READ_AAD || state.step == Step::READ_MSG,
+            zero!<Block>());
         let aad_blocks_left =
             if state.step == Step::READ_AAD {
                 if state.aad_blocks_left <= u32:1 { u32:0 } else { state.aad_blocks_left - u32:1 }
@@ -242,7 +244,8 @@ proc aes_gcm {
 
         // We could slightly better performance if we delayed reading from CTR by one "tick"
         // after sending it data, but it's unclear if it'd be worth the complexity.
-        let (tok, ctr_block) = recv_if(tok, ctr_result_in, state.step == Step::READ_MSG);
+        let (tok, ctr_block) =
+             recv_if(tok, ctr_result_in, state.step == Step::READ_MSG, zero!<Block>());
         // Ciphertext always goes to GHASH.
         let ghash_block = if state.command.encrypt { ctr_block } else { input_block };
         let tok0 = send_if(tok, ghash_input_out, state.step == Step::READ_MSG, ghash_block);
@@ -250,7 +253,8 @@ proc aes_gcm {
         let tok = join(tok0, tok1);
 
         // Once we've read all outputs from CTR, we just need to read the last block from GHASH.
-        let (tok, tag) = recv_if(tok, ghash_tag_in, state.step == Step::HASH_LENGTHS);
+        let (tok, tag) = recv_if(
+            tok, ghash_tag_in, state.step == Step::HASH_LENGTHS, zero!<Block>());
 
         // Finally, XOR the GHASH'ed tag with counter 1.
         let ctr_block = create_ctr_block(state.command.iv);

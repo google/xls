@@ -36,7 +36,7 @@ proc consumer {
     }
 
     next(tok: token, do_recv: bool) {
-        let (tok, foo) = recv_if(tok, c, do_recv);
+        let (tok, foo) = recv_if(tok, c, do_recv, u32:42);
         !do_recv
     }
 }

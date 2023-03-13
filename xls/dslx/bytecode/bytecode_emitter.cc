@@ -37,6 +37,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
@@ -1085,9 +1086,16 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
 absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+  // All receives need a predicate. Set to true for unconditional receive..
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
   XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
                        CreateChannelData(node->channel(), type_info_));
+  // Default value which is unused because the predicate is always
+  // true. Required because the Recv bytecode has a predicate and default value
+  // operand.
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value,
+                       CreateZeroValueFromType(channel_data.payload_type()));
+  Add(Bytecode::MakeLiteral(node->span(), default_value));
   Add(Bytecode::MakeRecv(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -1097,6 +1105,7 @@ absl::Status BytecodeEmitter::HandleRecvNonBlocking(
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
+  XLS_RETURN_IF_ERROR(node->default_value()->AcceptExpr(this));
   XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
                        CreateChannelData(node->channel(), type_info_));
   Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));
@@ -1107,6 +1116,7 @@ absl::Status BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->default_value()->AcceptExpr(this));
   XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
                        CreateChannelData(node->channel(), type_info_));
   Add(Bytecode::MakeRecv(node->span(), std::move(channel_data)));
@@ -1118,6 +1128,7 @@ absl::Status BytecodeEmitter::HandleRecvIfNonBlocking(
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->default_value()->AcceptExpr(this));
   XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
                        CreateChannelData(node->channel(), type_info_));
   Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));

@@ -1274,6 +1274,39 @@ proc entry {
                        HasSubstr("Cannot send on an input channel.")));
 }
 
+TEST(TypecheckTest, RecvIfDefaultValueWrongType) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+    c : chan<u32> in;
+    init {
+        u32:0
+    }
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    next(tok: token, state: u32) {
+        let (tok, x) = recv_if(tok, c, true, u42:1234);
+        (state + x,)
+    }
+}
+
+proc entry {
+    c: chan<u32> out;
+    init { () }
+    config() {
+        let (p, c) = chan<u32>;
+        spawn foo(p);
+        (c,)
+    }
+    next (tok: token, state: ()) { () }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Default value type does not match channel type")));
+}
+
 TEST(TypecheckTest, InitDoesntMatchStateParam) {
   constexpr std::string_view kProgram = R"(
 proc oopsie {

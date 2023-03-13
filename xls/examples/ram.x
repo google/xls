@@ -224,8 +224,19 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:1},
     let (mem, mem_initialized) = state;
 
     // Perform nonblocking receives on each request channel.
-    let (tok, read_req, read_req_valid) = recv_non_blocking(tok, read_req);
-    let (tok, write_req, write_req_valid) = recv_non_blocking(tok, write_req);
+    let zero_read_req = ReadReq<ADDR_WIDTH, NUM_PARTITIONS> {
+      addr:bits[ADDR_WIDTH]:0,
+      mask:bits[NUM_PARTITIONS]:0,
+    };
+    let (tok, read_req, read_req_valid) =
+      recv_non_blocking(tok, read_req, zero_read_req);
+    let zero_write_req = WriteReq<ADDR_WIDTH, NUM_PARTITIONS> {
+      addr:bits[ADDR_WIDTH]:0,
+      data:bits[DATA_WIDTH]:0,
+      mask:bits[NUM_PARTITIONS]:0,
+    };
+    let (tok, write_req, write_req_valid) =
+      recv_non_blocking(tok, write_req, zero_write_req);
 
     // Assert memory being read is initialized by checking that all partitions
     // have been initialized.

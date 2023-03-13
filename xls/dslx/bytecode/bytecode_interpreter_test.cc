@@ -1516,7 +1516,7 @@ proc incrementer {
     (in_ch, out_ch)
   }
   next(tok: token, _: ()) {
-    let (tok, i, valid) = recv_non_blocking(tok, in_ch);
+    let (tok, i, valid) = recv_non_blocking(tok, in_ch, u32:0);
     let tok = send(tok, out_ch, i + u32:1);
     ()
   }

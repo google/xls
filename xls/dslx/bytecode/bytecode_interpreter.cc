@@ -883,7 +883,7 @@ absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
     const Bytecode& bytecode) {
-  // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
@@ -905,17 +905,15 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
         {token, channel->front(), InterpValue::MakeBool(true)}));
     channel->pop_front();
   } else {
-    XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                         CreateZeroValueFromType(channel_data->payload_type()));
-    stack_.push_back(
-        InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
+    stack_.push_back(InterpValue::MakeTuple(
+        {token, default_value, InterpValue::MakeBool(false)}));
   }
 
   return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
-  // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue default_value, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
@@ -927,6 +925,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
       // Restore the stack!
       stack_.push_back(channel_value);
       stack_.push_back(condition);
+      stack_.push_back(default_value);
       blocked_channel_name_ = channel_data->channel_name();
       return absl::UnavailableError("Channel is empty.");
     }
@@ -945,10 +944,8 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
     stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
     channel->pop_front();
   } else {
-    XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                         CreateZeroValueFromType(channel_data->payload_type()));
     XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
-    stack_.push_back(InterpValue::MakeTuple({token, zero}));
+    stack_.push_back(InterpValue::MakeTuple({token, default_value}));
   }
 
   return absl::OkStatus();
