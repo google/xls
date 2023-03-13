@@ -214,6 +214,8 @@ Dumps type information that has been deduced for a given DSL file.
 
 ## Development Tools
 
+### clang-tidy
+
 For C++ development, you might need a compilation database to have good support
 in your IDE. You can create the `compile_commands.json` by running this script.
 
@@ -236,3 +238,12 @@ which is formatted just like an output from a compiler. So to quickly work with
 these, you can use `cat xls_clang-tidy.out` as your 'compiler invocation' in
 your IDE (e.g. `M-x compile` in emacs) and step through next-error locations as
 usual.
+
+### Golden Comparison Files
+
+To re-generate golden reference files (for all test targets that use golden
+reference file comparisons), run:
+
+```
+dev_utils/rebuild_golden_files.sh
+```
