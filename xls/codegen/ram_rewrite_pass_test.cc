@@ -22,6 +22,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -29,7 +30,9 @@
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
+#include "xls/codegen/ram_configuration.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
@@ -43,6 +46,7 @@ using status_testing::StatusIs;
 using testing::AllOf;
 using testing::AnyOf;
 using testing::Contains;
+using testing::Eq;
 using testing::HasSubstr;
 using testing::Not;
 
@@ -124,8 +128,7 @@ struct RamChannelRewriteTestParam {
   // IR must contain a proc named "my_proc"
   std::string_view ir_text;
   int64_t pipeline_stages;
-  absl::Span<const std::pair<std::string_view, std::string_view>>
-      req_resp_channel_pairs;
+  absl::Span<const std::string_view> ram_config_strings;
 };
 
 class RamRewritePassTest
@@ -144,15 +147,11 @@ class RamRewritePassTest
         .streaming_channel_ready_suffix("_ready")
         .module_name("pipelined_proc");
     std::vector<std::unique_ptr<RamConfiguration>> ram_configurations;
-    ram_configurations.reserve(param.req_resp_channel_pairs.size());
-    int ram_id = 0;
-    for (auto const& [req_name, resp_name] : param.req_resp_channel_pairs) {
-      ram_configurations.push_back(std::make_unique<Ram1RWConfiguration>(
-          /*ram_name=*/absl::StrFormat("ram%d", ram_id),
-          /*latency=*/1,
-          /*request_name=*/req_name,
-          /*response_name=*/resp_name));
-      ram_id++;
+    ram_configurations.reserve(param.ram_config_strings.size());
+    for (std::string_view config_string : param.ram_config_strings) {
+      std::unique_ptr<RamConfiguration> config =
+          RamConfiguration::ParseString(config_string).value();
+      ram_configurations.push_back(std::move(config));
     }
     codegen_options.ram_configurations(ram_configurations);
     return codegen_options;
@@ -166,11 +165,34 @@ class RamRewritePassTest
 
     auto scheduling_options =
         SchedulingOptions().pipeline_stages(param.pipeline_stages);
-    // Add constraints for each req/resp pair to be scheduled one cycle apart
-    for (auto& [req_channel, resp_channel] : param.req_resp_channel_pairs) {
-      scheduling_options.add_constraint(IOConstraint(
-          req_channel, IODirection::kSend, resp_channel, IODirection::kReceive,
-          /*minimum_latency=*/1, /*maximum_latency=*/1));
+    // Add constraints for each ram config to be scheduled according to the
+    // config's latency
+    for (const auto& ram_config : codegen_options.ram_configurations()) {
+      if (ram_config->ram_kind() == "1RW") {
+        auto* ram1rw_config = down_cast<Ram1RWConfiguration*>(ram_config.get());
+        scheduling_options.add_constraint(IOConstraint(
+            ram1rw_config->rw_port_configuration().request_channel_name,
+            IODirection::kSend,
+            ram1rw_config->rw_port_configuration().response_channel_name,
+            IODirection::kReceive,
+            /*minimum_latency=*/ram1rw_config->latency(),
+            /*maximum_latency=*/ram1rw_config->latency()));
+        continue;
+      }
+      if (ram_config->ram_kind() == "1R1W") {
+        auto* ram1rw_config =
+            down_cast<Ram1R1WConfiguration*>(ram_config.get());
+        scheduling_options.add_constraint(IOConstraint(
+            ram1rw_config->r_port_configuration().request_channel_name,
+            IODirection::kSend,
+            ram1rw_config->r_port_configuration().response_channel_name,
+            IODirection::kReceive,
+            /*minimum_latency=*/ram1rw_config->latency(),
+            /*maximum_latency=*/ram1rw_config->latency()));
+        // No write response port, no constraint to add.
+        // TODO(rigge): add write completion scheduling constraint.
+        continue;
+      }
     }
 
     XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
@@ -200,28 +222,68 @@ TEST_P(RamRewritePassTest, PortsUpdated) {
 
   EXPECT_TRUE(changed);
 
-  int ram_id = 0;
-  for (auto& [req_channel, resp_channel] : param.req_resp_channel_pairs) {
-    EXPECT_THAT(
-        block->GetPorts(),
-        Not(AnyOf(Contains(PortByName(absl::StrCat(req_channel, "_valid"))),
-                  Contains(PortByName(absl::StrCat(req_channel, "_data"))),
-                  Contains(PortByName(absl::StrCat(req_channel, "_ready"))))));
-    EXPECT_THAT(
-        block->GetPorts(),
-        AllOf(Contains(PortByName(absl::StrFormat("ram%d_addr", ram_id))),
-              Contains(PortByName(absl::StrFormat("ram%d_wr_data", ram_id))),
-              Contains(PortByName(absl::StrFormat("ram%d_we", ram_id))),
-              Contains(PortByName(absl::StrFormat("ram%d_re", ram_id)))));
-    EXPECT_THAT(
-        block->GetPorts(),
-        Not(AnyOf(
-            Contains(PortByName(absl::StrFormat("ram%d_valid", ram_id))),
-            Contains(PortByName(absl::StrFormat("ram%d_data", ram_id))),
-            Contains(PortByName(absl::StrFormat("ram%d_ready", ram_id))))));
+  for (const auto& config : codegen_options.ram_configurations()) {
+    std::vector<std::string_view> old_channel_names;
+    EXPECT_THAT(config->ram_kind(), AnyOf(Eq("1RW"), Eq("1R1W")));
+    if (config->ram_kind() == "1RW") {
+      EXPECT_THAT(
+          block->GetPorts(),
+          AllOf(Contains(
+                    PortByName(absl::StrFormat("%s_addr", config->ram_name()))),
+                Contains(PortByName(
+                    absl::StrFormat("%s_wr_data", config->ram_name()))),
+                Contains(
+                    PortByName(absl::StrFormat("%s_we", config->ram_name()))),
+                Contains(
+                    PortByName(absl::StrFormat("%s_re", config->ram_name()))),
+                Contains(PortByName(
+                    absl::StrFormat("%s_rd_data", config->ram_name())))));
+
+      old_channel_names.push_back(down_cast<Ram1RWConfiguration*>(config.get())
+                                      ->rw_port_configuration()
+                                      .request_channel_name);
+      old_channel_names.push_back(down_cast<Ram1RWConfiguration*>(config.get())
+                                      ->rw_port_configuration()
+                                      .response_channel_name);
+    } else if (config->ram_kind() == "1R1W") {
+      EXPECT_THAT(block->GetPorts(),
+                  AllOf(Contains(PortByName(
+                            absl::StrFormat("%s_rd_en", config->ram_name()))),
+                        Contains(PortByName(
+                            absl::StrFormat("%s_rd_addr", config->ram_name()))),
+                        Contains(PortByName(
+                            absl::StrFormat("%s_rd_data", config->ram_name()))),
+                        Contains(PortByName(
+                            absl::StrFormat("%s_wr_en", config->ram_name()))),
+                        Contains(PortByName(
+                            absl::StrFormat("%s_wr_addr", config->ram_name()))),
+                        Contains(PortByName(absl::StrFormat(
+                            "%s_wr_addr", config->ram_name())))));
+      old_channel_names.push_back(down_cast<Ram1R1WConfiguration*>(config.get())
+                                      ->r_port_configuration()
+                                      .request_channel_name);
+      old_channel_names.push_back(down_cast<Ram1R1WConfiguration*>(config.get())
+                                      ->r_port_configuration()
+                                      .response_channel_name);
+      old_channel_names.push_back(down_cast<Ram1R1WConfiguration*>(config.get())
+                                      ->w_port_configuration()
+                                      .request_channel_name);
+    }
+    for (auto old_channel_name : old_channel_names) {
+      EXPECT_THAT(
+          block->GetPorts(),
+          Not(AnyOf(
+              Contains(PortByName(absl::StrCat(old_channel_name, "_valid"))),
+              Contains(PortByName(absl::StrCat(old_channel_name, "_data"))),
+              Contains(PortByName(absl::StrCat(old_channel_name, "_ready"))))));
+    }
     EXPECT_THAT(block->GetPorts(),
-                Contains(PortByName(absl::StrFormat("ram%d_rd_data", ram_id))));
-    ram_id++;
+                Not(AnyOf(Contains(PortByName(
+                              absl::StrFormat("%s_valid", config->ram_name()))),
+                          Contains(PortByName(
+                              absl::StrFormat("%s_data", config->ram_name()))),
+                          Contains(PortByName(absl::StrFormat(
+                              "%s_ready", config->ram_name()))))));
   }
 }
 
@@ -250,35 +312,81 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
   EXPECT_TRUE(changed);
 
   EXPECT_TRUE(unit.signature.has_value());
-  for (auto& [req_channel, resp_channel] : param.req_resp_channel_pairs) {
-    for (auto& channel : unit.signature->streaming_channels()) {
-      EXPECT_NE(req_channel, channel.name());
-      EXPECT_NE(resp_channel, channel.name());
-    }
-    bool found = false;
-    for (auto& ram : unit.signature->rams()) {
-      EXPECT_EQ(ram.ram_oneof_case(), RamProto::RamOneofCase::kRam1Rw);
-      if (ram.ram_1rw().rw_port().request().name() == req_channel &&
-          ram.ram_1rw().rw_port().response().name() == resp_channel) {
-        found = true;
+  for (const auto& config : codegen_options.ram_configurations()) {
+    absl::flat_hash_set<std::string_view> channel_names;
+    EXPECT_THAT(config->ram_kind(), AnyOf(Eq("1RW"), Eq("1R1W")));
+    if (config->ram_kind() == "1RW") {
+      auto* ram1rw_config = down_cast<Ram1RWConfiguration*>(config.get());
+      bool found = false;
+      for (auto& ram : unit.signature->rams()) {
+        if (ram.ram_oneof_case() != RamProto::RamOneofCase::kRam1Rw) {
+          continue;
+        }
+        if (ram.ram_1rw().rw_port().request().name() ==
+                ram1rw_config->rw_port_configuration().request_channel_name &&
+            ram.ram_1rw().rw_port().response().name() ==
+                ram1rw_config->rw_port_configuration().response_channel_name) {
+          found = true;
+        }
       }
+      EXPECT_TRUE(found);
+      channel_names.insert(
+          ram1rw_config->rw_port_configuration().request_channel_name);
+      channel_names.insert(
+          ram1rw_config->rw_port_configuration().response_channel_name);
+    } else if (config->ram_kind() == "1R1W") {
+      auto* ram1r1w_config = down_cast<Ram1R1WConfiguration*>(config.get());
+      bool found = false;
+      for (auto& ram : unit.signature->rams()) {
+        if (ram.ram_oneof_case() != RamProto::RamOneofCase::kRam1R1W) {
+          continue;
+        }
+        if (ram.ram_1r1w().r_port().request().name() ==
+                ram1r1w_config->r_port_configuration().request_channel_name &&
+            ram.ram_1r1w().r_port().response().name() ==
+                ram1r1w_config->r_port_configuration().response_channel_name) {
+          found = true;
+        }
+      }
+      EXPECT_TRUE(found);
+      channel_names.insert(
+          ram1r1w_config->r_port_configuration().request_channel_name);
+      channel_names.insert(
+          ram1r1w_config->r_port_configuration().response_channel_name);
+      channel_names.insert(
+          ram1r1w_config->w_port_configuration().request_channel_name);
     }
-    EXPECT_TRUE(found);
+    for (auto& channel : unit.signature->streaming_channels()) {
+      EXPECT_THAT(channel_names, Not(Contains(Eq(channel.name()))));
+    }
   }
 }
 
-constexpr std::pair<std::string_view, std::string_view> kSingleReqResp[] = {
-    {"req", "resp"}};
+// Tests implicitly rely on rams being named ram0, ram1, and so on.
+constexpr std::string_view kSingle1RW[] = {"ram0:1RW:req:resp"};
 
-constexpr std::pair<std::string_view, std::string_view> kThreeReqResp[] = {
-    {"req0", "resp0"},
-    {"req1", "resp1"},
-    {"req2", "resp2"},
+constexpr std::string_view kThree1RW[] = {
+    std::string_view("ram0:1RW:req0:resp0"),
+    std::string_view("ram1:1RW:req1:resp1"),
+    std::string_view("ram2:1RW:req2:resp2"),
+};
+
+constexpr std::string_view kSingle1R1W[] = {"ram0:1R1W:rd_req:rd_resp:wr_req"};
+
+constexpr std::string_view kThree1R1W[] = {
+    std::string_view("ram0:1R1W:rd_req0:rd_resp0:wr_req0"),
+    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1"),
+    std::string_view("ram2:1R1W:rd_req2:rd_resp2:wr_req2"),
+};
+
+constexpr std::string_view k1RWAnd1R1W[] = {
+    std::string_view("ram0:1RW:req0:resp0"),
+    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1"),
 };
 
 constexpr RamChannelRewriteTestParam kTestParameters[] = {
     RamChannelRewriteTestParam{
-        .test_name = "Simple32Bit",
+        .test_name = "Simple32Bit1RW",
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
@@ -296,10 +404,10 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
 }
   )",
         .pipeline_stages = 2,
-        .req_resp_channel_pairs = kSingleReqResp,
+        .ram_config_strings = kSingle1RW,
     },
     RamChannelRewriteTestParam{
-        .test_name = "Simple32BitWithExtraneousChannels",
+        .test_name = "Simple32Bit1RWWithExtraneousChannels",
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
@@ -323,10 +431,10 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
 }
   )",
         .pipeline_stages = 4,
-        .req_resp_channel_pairs = kSingleReqResp,
+        .ram_config_strings = kSingle1RW,
     },
     RamChannelRewriteTestParam{
-        .test_name = "32BitWithThreeRamChannels",
+        .test_name = "32BitWithThree1RWRams",
         .ir_text = R"(package  test
 chan req0((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
@@ -363,7 +471,126 @@ proc my_proc(__token: token, __state: (), init={()}) {
 }
   )",
         .pipeline_stages = 20,
-        .req_resp_channel_pairs = kThreeReqResp,
+        .ram_config_strings = kThree1RW,
+    },
+    RamChannelRewriteTestParam{
+        .test_name = "Simple32Bit1R1W",
+        .ir_text = R"(package  test
+chan rd_req((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+proc my_proc(__token: token, __state: bits[32], init={0}) {
+  to_send0: (bits[32]) = tuple(__state)
+  send_token0: token = send(__token, to_send0, channel_id=0)
+  rcv: (token, (bits[32])) = receive(send_token0, channel_id=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  to_send1: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  one_lit: bits[32] = literal(value=1)
+  next_state: bits[32] = add(__state, one_lit)
+  next (send_token1, next_state)
+}
+  )",
+        .pipeline_stages = 2,
+        .ram_config_strings = kSingle1R1W,
+    },
+    RamChannelRewriteTestParam{
+        .test_name = "Simple32Bit1R1WWithExtraneousChannels",
+        .ir_text = R"(package  test
+chan rd_req((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan extra0(bits[1], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan extra1(bits[1], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+
+proc my_proc(__token: token, __state: bits[32], init={0}) {
+  to_send0: (bits[32]) = tuple(__state)
+  send_token0: token = send(__token, to_send0, channel_id=0)
+  rcv: (token, (bits[32])) = receive(send_token0, channel_id=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  to_send1: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  extra0_rcv: (token, bits[1]) = receive(send_token1, channel_id=3)
+  extra0_token: token = tuple_index(extra0_rcv, index=0)
+  extra1_rcv: (token, bits[1]) = receive(extra0_token, channel_id=4)
+  extra1_token: token = tuple_index(extra1_rcv, index=0)
+  one_lit: bits[32] = literal(value=1)
+  next_state: bits[32] = add(__state, one_lit)
+  next (extra1_token, next_state)
+}
+  )",
+        .pipeline_stages = 2,
+        .ram_config_strings = kSingle1R1W,
+    },
+    RamChannelRewriteTestParam{
+        .test_name = "32BitWithThree1R1WRams",
+        .ir_text = R"(package  test
+chan rd_req0((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req0((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_req1((bits[32]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp1((bits[32]), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req1((bits[32], bits[32]), id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_req2((bits[32]), id=6, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp2((bits[32]), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req2((bits[32], bits[32]), id=8, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+proc my_proc(__token: token, __state: bits[32], init={0}) {
+  to_send0: (bits[32]) = tuple(__state)
+  send_token0: token = send(__token, to_send0, channel_id=0)
+  rcv: (token, (bits[32])) = receive(send_token0, channel_id=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  to_send1: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  send_token2: token = send(send_token1, to_send0, channel_id=3)
+  rcv1: (token, (bits[32])) = receive(send_token2, channel_id=4)
+  rcv_token1: token = tuple_index(rcv1, index=0)
+  to_send2: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token3: token = send(rcv_token1, to_send2, channel_id=5)
+  send_token4: token = send(send_token3, to_send0, channel_id=6)
+  rcv2: (token, (bits[32])) = receive(send_token4, channel_id=7)
+  rcv_token2: token = tuple_index(rcv2, index=0)
+  to_send3: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token5: token = send(rcv_token2, to_send2, channel_id=8)
+  one_lit: bits[32] = literal(value=1)
+  next_state: bits[32] = add(__state, one_lit)
+  next (send_token5, next_state)
+}
+  )",
+        .pipeline_stages = 20,
+        .ram_config_strings = kThree1R1W,
+    },
+    RamChannelRewriteTestParam{
+        .test_name = "Simple32Bit1RWAnd1R1W",
+        .ir_text = R"(package  test
+chan req0((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan rd_req1((bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan rd_resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_req1((bits[32], bits[32]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+
+proc my_proc(__token: token, __state: bits[32], init={0}) {
+  true_lit: bits[1] = literal(value=1)
+  false_lit: bits[1] = literal(value=0)
+  to_send0: (bits[32], bits[32], bits[1], bits[1]) = tuple(__state, __state, true_lit, false_lit)
+  send_token0: token = send(__token, to_send0, channel_id=0)
+  rcv0: (token, (bits[32])) = receive(send_token0, channel_id=1)
+  rcv_token0: token = tuple_index(rcv0, index=0)
+  one_lit: bits[32] = literal(value=1)
+  to_send1: (bits[32]) = tuple(__state)
+  send_token1: token = send(rcv_token0, to_send1, channel_id=2)
+  rcv1: (token, (bits[32])) = receive(send_token1, channel_id=3)
+  rcv_token1: token = tuple_index(rcv1, index=0)
+  to_send2: (bits[32], bits[32]) = tuple(__state, __state)
+  send_token2: token = send(rcv_token1, to_send2, channel_id=4)
+  next_state: bits[32] = add(__state, one_lit)
+  next (send_token2, next_state)
+}
+  )",
+        .pipeline_stages = 4,
+        .ram_config_strings = k1RWAnd1R1W,
     },
 };
 
@@ -379,10 +606,20 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 // Expects channels named "req" and "resp" and a top level proc named "my_proc".
-absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package) {
+absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
+                                             std::string_view ram_kind) {
   std::vector<std::unique_ptr<RamConfiguration>> ram_configurations;
-  ram_configurations.push_back(
-      std::make_unique<Ram1RWConfiguration>("ram", 1, "req", "resp"));
+  if (ram_kind == "1RW") {
+    ram_configurations.push_back(
+        std::make_unique<Ram1RWConfiguration>("ram", 1, "req", "resp"));
+  } else if (ram_kind == "1R1W") {
+    ram_configurations.push_back(std::make_unique<Ram1R1WConfiguration>(
+        "ram", 1, "rd_req", "rd_resp", "wr_req"));
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Unrecognized ram_kind %s.", ram_kind));
+  }
+
   CodegenOptions codegen_options;
   codegen_options.flop_inputs(false)
       .flop_outputs(false)
@@ -392,7 +629,7 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package) {
       .streaming_channel_valid_suffix("_valid")
       .streaming_channel_ready_suffix("_ready")
       .module_name("pipelined_proc")
-      .ram_configurations(std::move(ram_configurations));
+      .ram_configurations(ram_configurations);
   CodegenPassOptions pass_options{
       .codegen_options = codegen_options,
   };
@@ -414,7 +651,7 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package) {
   return block;
 }
 
-struct TestProcVars {
+struct TestProc1RWVars {
   std::optional<std::string_view> req_type = std::nullopt;
   std::optional<std::string_view> resp_type = std::nullopt;
   std::optional<std::string_view> req_chan_params = std::nullopt;
@@ -422,7 +659,7 @@ struct TestProcVars {
   std::optional<std::string_view> send_value = std::nullopt;
 };
 
-std::string MakeTestProc(TestProcVars vars) {
+std::string MakeTestProc1RW(TestProc1RWVars vars) {
   return absl::StrReplaceAll(
       R"(
   package test
@@ -456,116 +693,318 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
       });
 }
 
-// Tests for checking invalid inputs
-TEST(RamRewritePassInvalidInputsTest, InvalidChannelFlowControl) {
+struct TestProc1R1WVars {
+  std::optional<std::string_view> rd_req_type = std::nullopt;
+  std::optional<std::string_view> rd_resp_type = std::nullopt;
+  std::optional<std::string_view> wr_req_type = std::nullopt;
+  std::optional<std::string_view> rd_req_chan_params = std::nullopt;
+  std::optional<std::string_view> rd_resp_chan_params = std::nullopt;
+  std::optional<std::string_view> wr_req_chan_params = std::nullopt;
+  std::optional<std::string_view> rd_send_value = std::nullopt;
+  std::optional<std::string_view> wr_send_value = std::nullopt;
+};
+
+std::string MakeTestProc1R1W(TestProc1R1WVars vars) {
+  return absl::StrReplaceAll(
+      R"(
+package test
+
+chan rd_req($rd_req_type, id=0, $rd_req_chan_params, metadata="""""")
+chan rd_resp($rd_resp_type, id=1, $rd_resp_chan_params, metadata="""""")
+chan wr_req($wr_req_type, id=2, $wr_req_chan_params,metadata="""""")
+
+proc my_proc(__token: token, __state: bits[32], init={0}) {
+  true_lit: bits[1] = literal(value=1)
+  false_lit: bits[1] = literal(value=0)
+  to_send0: $rd_req_type = $rd_send_value
+  send_token0: token = send(__token, to_send0, channel_id=0)
+  rcv: (token, $rd_resp_type) = receive(send_token0, channel_id=1)
+  rcv_token: token = tuple_index(rcv, index=0)
+  to_send1: $wr_req_type = $wr_send_value
+  send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  one_lit: bits[32] = literal(value=1)
+  next_state: bits[32] = add(__state, one_lit)
+  next (send_token1, next_state)
+}
+  )",
+      {
+          {"$rd_req_type", vars.rd_req_type.value_or("(bits[32])")},
+          {"$rd_resp_type", vars.rd_resp_type.value_or("(bits[32])")},
+          {"$wr_req_type", vars.wr_req_type.value_or("(bits[32], bits[32])")},
+          {"$rd_req_chan_params",
+           vars.rd_req_chan_params.value_or(
+               "kind=streaming, flow_control=ready_valid, ops=send_only")},
+          {"$rd_resp_chan_params",
+           vars.rd_resp_chan_params.value_or(
+               "kind=streaming, flow_control=ready_valid, ops=receive_only")},
+          {"$wr_req_chan_params",
+           vars.wr_req_chan_params.value_or(
+               "kind=streaming, flow_control=ready_valid, ops=send_only")},
+          {"$rd_send_value", vars.rd_send_value.value_or("tuple(__state)")},
+          {"$wr_send_value",
+           vars.wr_send_value.value_or("tuple(__state, __state)")},
+      });
+}
+
+// Tests for checking invalid inputs on 1rw RAMs.
+TEST(RamRewritePassInvalidInputsTest, TestDefaultsWork1RW) {
+  std::string ir_text = MakeTestProc1RW({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"));
+}
+
+TEST(RamRewritePassInvalidInputsTest, InvalidChannelFlowControl1RW) {
   // Try single_value channels instead of streaming
-  std::string ir_text = MakeTestProc(
-      TestProcVars{.req_chan_params = "kind=single_value, ops=send_only"});
+  std::string ir_text = MakeTestProc1RW(
+      TestProc1RWVars{.req_chan_params = "kind=single_value, ops=send_only"});
   // The channels are single_value, so ready/valid ports are missing and the
   // pass will error.
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal));
 }
 
-TEST(RamRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple) {
+TEST(RamRewritePassInvalidInputsTest, InvalidReqChannelTypeNotTuple1RW) {
   // Try bits type instead of tuple for req channel
-  std::string ir_text = MakeTestProc(TestProcVars{
+  std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "bits[32]", .send_value = "add(__state, __state)"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Request must be a tuple type")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple) {
+TEST(RamRewritePassInvalidInputsTest, InvalidRespChannelTypeNotTuple1RW) {
   // Try bits type instead of tuple for resp channel
-  std::string ir_text = MakeTestProc(TestProcVars{.resp_type = "bits[32]"});
+  std::string ir_text =
+      MakeTestProc1RW(TestProc1RWVars{.resp_type = "bits[32]"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Response must be a tuple type")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries) {
+TEST(RamRewritePassInvalidInputsTest, WrongNumberRequestChannelEntries1RW) {
   // Add an extra field to the req channel
-  std::string ir_text = MakeTestProc(TestProcVars{
+  std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "(bits[32], bits[32], bits[1], bits[1], bits[1])",
       .send_value = "tuple(__state, __state, true_lit, false_lit, false_lit)"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   EXPECT_THAT(
-      MakeBlockAndRunPasses(package.get()),
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Request must be a tuple type with 4 elements")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries) {
+TEST(RamRewritePassInvalidInputsTest, WrongNumberResponseChannelEntries1RW) {
   // Add an extra field to the response channel
   std::string ir_text =
-      MakeTestProc(TestProcVars{.resp_type = "(bits[32], bits[1])"});
+      MakeTestProc1RW(TestProc1RWVars{.resp_type = "(bits[32], bits[1])"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   EXPECT_THAT(
-      MakeBlockAndRunPasses(package.get()),
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
       StatusIs(absl::StatusCode::kInternal,
                HasSubstr("Response must be a tuple type with 1 element")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, RequestElementNotBits) {
+TEST(RamRewritePassInvalidInputsTest, RequestElementNotBits1RW) {
   // Replace re with a token (re must be bits[1])
-  std::string ir_text = MakeTestProc(TestProcVars{
+  std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "(bits[32], bits[32], bits[1], token)",
       .send_value = "tuple(__state, __state, true_lit, __token)",
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("element must be type bits, got token")));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr(
+                   "Request element re (idx=3) must be type bits, got token")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, ResponseElementNotBits) {
+TEST(RamRewritePassInvalidInputsTest, ResponseElementNotBits1RW) {
   // Replace re with a token (re must be bits[1])
-  std::string ir_text = MakeTestProc(TestProcVars{.resp_type = "(token)"});
+  std::string ir_text =
+      MakeTestProc1RW(TestProc1RWVars{.resp_type = "(token)"});
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
               StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("element must be type bits, got token")));
+                       HasSubstr("Response element rd_data (idx=0) must not "
+                                 "contain token, got token.")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, WeMustBeWidth1) {
+TEST(RamRewritePassInvalidInputsTest, WeMustBeWidth1For1RW) {
   // Replace we with bits[32] (must be bits[1])
-  std::string ir_text = MakeTestProc(TestProcVars{
+  std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "(bits[32], bits[32], bits[32], bits[1])",
       .send_value = "tuple(__state, __state, __state, true_lit)",
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Request we element must have width 1")));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Request element we (idx=2) must be type bits[1]")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, ReMustBeWidth1) {
+TEST(RamRewritePassInvalidInputsTest, ReMustBeWidth1For1RW) {
   // Replace re with bits[32] (must be bits[1])
-  std::string ir_text = MakeTestProc(TestProcVars{
+  std::string ir_text = MakeTestProc1RW(TestProc1RWVars{
       .req_type = "(bits[32], bits[32], bits[1], bits[32])",
       .send_value = "tuple(__state, __state, true_lit, __state)",
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
-  EXPECT_THAT(MakeBlockAndRunPasses(package.get()),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Request re element must have width 1")));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1RW"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("Request element re (idx=3) must be type bits[1]")));
 }
 
-TEST(RamRewritePassInvalidInputsTest, RespDataWidthMustMatchReqDataWidth) {
-  // Try a 64-bit response (must match 32-bit request data width)
-  std::string ir_text = MakeTestProc(TestProcVars{
-      .resp_type = "(bits[64])",
+// Tests for checking invalid inputs on 1r1w RAMs.
+TEST(RamRewritePassInvalidInputsTest, TestDefaultsWork1R1W) {
+  std::string ir_text = MakeTestProc1R1W({});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  XLS_EXPECT_OK(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"));
+}
+
+TEST(RamRewritePassInvalidInputsTest,
+     InvalidReadRequestChannelFlowControl1R1W) {
+  // Try single_value channels instead of streaming
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .rd_req_chan_params = "kind=single_value, ops=send_only"});
+  // The channels are single_value, so ready/valid ports are missing and the
+  // pass will error.
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal));
+}
+
+TEST(RamRewritePassInvalidInputsTest,
+     InvalidReadResponseChannelFlowControl1R1W) {
+  // Try single_value channels instead of streaming
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .rd_resp_chan_params = "kind=single_value, ops=receive_only"});
+  // The channels are single_value, so ready/valid ports are missing and the
+  // pass will error.
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal));
+}
+
+TEST(RamRewritePassInvalidInputsTest, InvalidWriteChannelFlowControl1R1W) {
+  // Try single_value channels instead of streaming
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .wr_req_chan_params = "kind=single_value, ops=send_only"});
+  // The channels are single_value, so ready/valid ports are missing and the
+  // pass will error.
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal));
+}
+
+TEST(RamRewritePassInvalidInputsTest, InvalidReadReqChannelTypeNotTuple1R1W) {
+  // Try bits type instead of tuple for req channel
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .rd_req_type = "bits[32]", .rd_send_value = "add(__state, __state)"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("rd_req must be a tuple type")));
+}
+
+TEST(RamRewritePassInvalidInputsTest, InvalidWriteReqChannelTypeNotTuple1R1W) {
+  // Try bits type instead of tuple for req channel
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .wr_req_type = "bits[32]", .wr_send_value = "add(__state, __state)"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("wr_req must be a tuple type")));
+}
+
+TEST(RamRewritePassInvalidInputsTest, InvalidReadRespChannelTypeNotTuple1R1W) {
+  // Try bits type instead of tuple for resp channel
+  std::string ir_text =
+      MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "bits[32]"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("rd_resp must be a tuple type")));
+}
+
+TEST(RamRewritePassInvalidInputsTest,
+     WrongNumberReadRequestChannelEntries1R1W) {
+  // Add an extra field to the req channel
+  std::string ir_text = MakeTestProc1R1W(
+      TestProc1R1WVars{.rd_req_type = "(bits[32], bits[1])",
+                       .rd_send_value = "tuple(__state, true_lit)"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("rd_req must be a tuple type with 1 elements")));
+}
+
+TEST(RamRewritePassInvalidInputsTest,
+     WrongNumberWriteRequestChannelEntries1R1W) {
+  // Add an extra field to the req channel
+  std::string ir_text = MakeTestProc1R1W(
+      TestProc1R1WVars{.wr_req_type = "(bits[32], bits[32], bits[1])",
+                       .wr_send_value = "tuple(__state, __state, true_lit)"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("wr_req must be a tuple type with 2 elements")));
+}
+
+TEST(RamRewritePassInvalidInputsTest,
+     WrongNumberReadResponseChannelEntries1R1W) {
+  // Add an extra field to the response channel
+  std::string ir_text =
+      MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "(bits[32], bits[1])"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+      StatusIs(absl::StatusCode::kInternal,
+               HasSubstr("rd_resp must be a tuple type with 1 element")));
+}
+
+TEST(RamRewritePassInvalidInputsTest, ReadRequestElementNotBits1R1W) {
+  // Replace re with a token (addr must be bits)
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .rd_req_type = "(token)",
+      .rd_send_value = "tuple(__token)",
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
   EXPECT_THAT(
-      MakeBlockAndRunPasses(package.get()),
-      StatusIs(absl::StatusCode::kInternal,
-               HasSubstr("Response rd_data element (width=64) must have the "
-                         "same width as request wr_data element (width=32)")));
+      MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+      StatusIs(
+          absl::StatusCode::kInternal,
+          HasSubstr(
+              "rd_req element rd_addr (idx=0) must be type bits, got token")));
+}
+
+TEST(RamRewritePassInvalidInputsTest, WriteRequestElementNotBits1R1W) {
+  // Replace re with a token (data must be bits[1])
+  std::string ir_text = MakeTestProc1R1W(TestProc1R1WVars{
+      .wr_req_type = "(bits[32], token)",
+      .wr_send_value = "tuple(__state, __token)",
+  });
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("wr_req element wr_data (idx=1) must not "
+                                 "contain token, got token")));
+}
+
+TEST(RamRewritePassInvalidInputsTest, ReadResponseElementNotBits1R1W) {
+  // Replace rd_data with a token (data must be bits[1])
+  std::string ir_text =
+      MakeTestProc1R1W(TestProc1R1WVars{.rd_resp_type = "(token)"});
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(MakeBlockAndRunPasses(package.get(), /*ram_kind=*/"1R1W"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("rd_resp element rd_data (idx=0) must not "
+                                 "contain token, got token.")));
 }
 
 }  // namespace
