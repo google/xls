@@ -16,6 +16,7 @@
 #define XLS_COMMON_SUBPROCESS_H_
 
 #include <filesystem>  // NOLINT
+#include <iostream>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -26,7 +27,13 @@ namespace xls {
 struct SubprocessResult {
   std::string stdout;
   std::string stderr;
+  int exit_status;
+
+  // The results of WIFEXITED for the subprocess.
+  // https://pubs.opengroup.org/onlinepubs/9699919799/functions/wait.html
+  bool normal_termination;
 };
+std::ostream &operator<<(std::ostream &os, const SubprocessResult &other);
 
 // Returns Status::kInternalError if the subprocess unexpectedly terminated or
 // terminated with return code != 0 rather than StatusOk(). This is helpful when

@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
@@ -23,6 +24,9 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::_;
+using testing::AllOf;
+using testing::FieldsAre;
 using testing::HasSubstr;
 
 TEST(SubprocessTest, EmptyArgvFails) {
@@ -31,7 +35,31 @@ TEST(SubprocessTest, EmptyArgvFails) {
   EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
-TEST(SubprocessTest, FailingCommandFails) {
+TEST(SubprocessTest, NonZeroExitWorks) {
+  auto result = InvokeSubprocess(
+      {"/bin/sh", "-c", "echo -n hey && echo -n hello >&2 && exit 10"},
+      absl::nullopt);
+
+  EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
+                          /*stdout=*/"hey",
+                          /*stderr=*/"hello",
+                          /*exit_status=*/10,
+                          /*normal_termination=*/true)));
+}
+
+TEST(SubprocessTest, CrashingExitWorks) {
+  auto result = InvokeSubprocess(
+      {"/bin/sh", "-c", "echo -n hey && echo -n hello >&2 && kill -ABRT $$"},
+      absl::nullopt);
+
+  EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
+                          /*stdout=*/_,
+                          /*stderr=*/"hello",
+                          /*exit_status=*/_,
+                          /*normal_termination=*/false)));
+}
+
+TEST(SubprocessTest, ErrorAsStatusFailingCommand) {
   auto result = SubprocessErrorAsStatus(InvokeSubprocess(
       {"/bin/sh", "-c", "echo hey && echo hello >&2 && /bin/false"},
       absl::nullopt));
@@ -71,6 +99,35 @@ TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
   XLS_ASSERT_OK(result_or_status);
   EXPECT_EQ(result_or_status->stdout, "hello\n");
   EXPECT_THAT(result_or_status->stderr, HasSubstr("\n10000\n"));
+}
+
+TEST(SubprocessTest, ErrorAsStatusWorks) {
+  // Translates abnormal termination.
+  SubprocessResult bad_exit{.stderr = "word_a", .normal_termination = false};
+  absl::StatusOr<SubprocessResult> exit_payload = bad_exit;
+  absl::StatusOr<SubprocessResult> exit_result =
+      SubprocessErrorAsStatus(exit_payload);
+  EXPECT_THAT(exit_result,
+              StatusIs(absl::StatusCode::kInternal, HasSubstr("word_a")));
+
+  // Translates non-zero exit code.
+  SubprocessResult bad_code{.stdout = "word_c",
+                            .stderr = "word_d",
+                            .exit_status = 4,
+                            .normal_termination = true};
+  absl::StatusOr<SubprocessResult> code_payload = bad_code;
+  absl::StatusOr<SubprocessResult> code_result =
+      SubprocessErrorAsStatus(code_payload);
+  EXPECT_THAT(code_result,
+              StatusIs(absl::StatusCode::kInternal,
+                       AllOf(HasSubstr("word_c"), HasSubstr("word_d"))));
+
+  // Passes status through intact.
+  absl::StatusOr<SubprocessResult> status = absl::AbortedError("word_e");
+  absl::StatusOr<SubprocessResult> same_status =
+      SubprocessErrorAsStatus(status);
+  EXPECT_THAT(same_status,
+              StatusIs(absl::StatusCode::kAborted, HasSubstr("word_e")));
 }
 
 TEST(SubprocessTest, ResultsUnpackToStringPair) {

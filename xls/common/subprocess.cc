@@ -88,11 +88,14 @@ void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
 }
 
 // Takes a list of file descriptor data streams and reads them into a list of
-// strings, one for each provided file descriptor. Uses poll.
-absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
-    absl::Span<FileDescriptor*> fds) {
+// strings, one for each provided file descriptor.
+//
+// The 'result' vector is populated with all the data that was read in from the
+// fd's regardless to the status that is returned. Non-OK status will still
+// populate what it can into 'result'.
+absl::Status ReadFileDescriptors(absl::Span<FileDescriptor*> fds,
+                                 std::vector<std::string>& result) {
   absl::FixedArray<char> buffer(4096);
-  std::vector<std::string> result;
   result.resize(fds.size());
   std::vector<pollfd> poll_list;
   poll_list.resize(fds.size());
@@ -143,10 +146,10 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
     }
   }
 
-  return std::move(result);
+  return absl::OkStatus();
 }
 
-// Waits for a process to finish. Returns its exit status code.
+// Waits for a process to finish. Returns the wait_status.
 absl::StatusOr<int> WaitForPid(pid_t pid) {
   int wait_status;
   while (waitpid(pid, &wait_status, 0) == -1) {
@@ -156,7 +159,7 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
     return absl::InternalError(
          absl::StrCat("waitpid failed: ", Strerror(errno)));
   }
-  return WEXITSTATUS(wait_status);
+  return wait_status;
 }
 
 }  // namespace
@@ -198,7 +201,11 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
 
   // Read from the output streams of the subprocess.
   FileDescriptor* fds[] = {&stdout_pipe.exit, &stderr_pipe.exit};
-  XLS_ASSIGN_OR_RETURN(auto output_strings, ReadFileDescriptors(fds));
+  std::vector<std::string> output_strings;
+  absl::Status read_status = ReadFileDescriptors(fds, output_strings);
+  if (!read_status.ok()) {
+    XLS_VLOG(1) << "ReadFileDescriptors non-ok status: " << read_status;
+  }
   const auto& stdout_output = output_strings[0];
   const auto& stderr_output = output_strings[1];
 
@@ -206,15 +213,11 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stderr:\n ", stderr_output));
 
   // Wait for the subprocess to finish.
-  XLS_ASSIGN_OR_RETURN(int exit_status, WaitForPid(pid));
-  if (exit_status != 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to execute %s; stdout: \"\"\"%s\"\"\"; "
-                        "stderr: \"\"\"%s\"\"\"; exit code: %d",
-                        bin_name, stdout_output, stderr_output, exit_status));
-  }
-
-  return SubprocessResult{.stdout = stdout_output, .stderr = stderr_output};
+  XLS_ASSIGN_OR_RETURN(int wait_status, WaitForPid(pid));
+  return SubprocessResult{.stdout = stdout_output,
+                          .stderr = stderr_output,
+                          .exit_status = WEXITSTATUS(wait_status),
+                          .normal_termination = WIFEXITED(wait_status)};
 }
 
 absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
@@ -227,7 +230,22 @@ absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
 
 absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
     absl::StatusOr<SubprocessResult> result_or_status) {
-  return result_or_status;
+  if (!result_or_status.ok() || (result_or_status->exit_status == 0 &&
+      result_or_status->normal_termination)) {
+    return result_or_status;
+  }
+
+  return absl::InternalError(absl::StrFormat(
+      "Subprocess exit_code: %d normal_termination: %d stdout: %s stderr: %s",
+      result_or_status->exit_status, result_or_status->normal_termination,
+      result_or_status->stdout, result_or_status->stderr));
+}
+
+std::ostream& operator<<(std::ostream& os, const SubprocessResult& other) {
+  os << "exit_status:" << other.exit_status
+     << " normal_termination:" << other.normal_termination
+     << "\nstdout:" << other.stdout << "\nstderr:" << other.stderr << std::endl;
+  return os;
 }
 
 }  // namespace xls

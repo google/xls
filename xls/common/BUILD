@@ -196,6 +196,7 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
