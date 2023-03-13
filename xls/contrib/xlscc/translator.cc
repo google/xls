@@ -283,6 +283,9 @@ absl::StatusOr<CValue> Translator::StructUpdate(
                      string(*rvalue.type()), string(*cfield.type())));
   }
 
+  XLS_ASSIGN_OR_RETURN(int64_t counted_from_type,
+                       stype.count_lvalue_compounds(*this));
+
   // No tuple update, so we need to rebuild the tuple
   std::vector<xls::BValue> bvals;
   absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
@@ -291,15 +294,27 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     compounds = struct_before.lvalue()->get_compounds();
   }
 
+  XLS_CHECK(
+      (struct_before.lvalue().get() == nullptr) ||
+      (struct_before.lvalue()->get_compounds().size() == 0) ||
+      (struct_before.lvalue()->get_compounds().size() == counted_from_type));
+
+  XLS_CHECK((rvalue.lvalue().get() == nullptr) ||
+            (rvalue.lvalue()->get_compounds().size() == 0) ||
+            (rvalue.lvalue()->get_compounds().size() == counted_from_type));
+
   for (auto it = stype.fields().begin(); it != stype.fields().end(); it++) {
     std::shared_ptr<CField> fp = *it;
+    XLS_ASSIGN_OR_RETURN(bool has_lvals, fp->type()->ContainsLValues(*this));
     xls::BValue bval;
     if (fp->index() != cfield.index()) {
       bval = GetStructFieldXLS(struct_before.rvalue(), fp->index(), stype, loc);
     } else {
       bval = rvalue.rvalue().valid() ? rvalue.rvalue()
                                      : context().fb->Tuple({}, loc);
-      compounds[fp->index()] = rvalue.lvalue();
+      if (has_lvals) {
+        compounds[fp->index()] = rvalue.lvalue();
+      }
     }
     bvals.push_back(bval);
   }
@@ -311,8 +326,13 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   if (struct_before.lvalue() != nullptr) {
     lval = std::make_shared<LValue>(compounds);
   }
+
+  XLS_CHECK((lval.get() == nullptr) || (lval->get_compounds().size() == 0) ||
+            (lval->get_compounds().size() == counted_from_type));
+
   CValue ret(new_tuple, struct_before.type(), /*disable_type_check=*/false,
              lval);
+
   return ret;
 }
 
@@ -2321,6 +2341,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   for (int pi = skip_args; pi < call->getNumArgs(); ++pi) {
     args.push_back(call->getArg(pi));
   }
+
   XLS_ASSIGN_OR_RETURN(
       CValue call_res,
       GenerateIR_Call(funcdecl, args, pthisval, &this_lval, loc));

@@ -480,6 +480,19 @@ std::shared_ptr<CField> CStructType::get_field(
   return found->second;
 }
 
+absl::StatusOr<int64_t> CStructType::count_lvalue_compounds(
+    Translator& translator) const {
+  int64_t ret = 0;
+  for (const auto& field : fields_) {
+    XLS_ASSIGN_OR_RETURN(bool field_has_lval,
+                         field->type()->ContainsLValues(translator));
+    if (field_has_lval) {
+      ++ret;
+    }
+  }
+  return ret;
+}
+
 CInternalTuple::CInternalTuple(std::vector<std::shared_ptr<CType>> fields)
     : fields_(fields) {}
 

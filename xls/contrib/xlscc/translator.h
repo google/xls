@@ -230,6 +230,7 @@ class CStructType : public CType {
   // Get the full CField struct by name.
   // returns nullptr if the field is not found
   std::shared_ptr<CField> get_field(const clang::NamedDecl* name) const;
+  absl::StatusOr<int64_t> count_lvalue_compounds(Translator& translator) const;
 
  private:
   bool no_tuple_flag_;
@@ -472,12 +473,12 @@ class LValue {
                              lvalue_true()->debug_string(),
                              lvalue_false()->debug_string());
     }
-    std::string ret;
+    std::string ret = "(";
     for (const auto& [idx, lval] : get_compounds()) {
       ret += absl::StrFormat("[%i]: %s ", idx,
                              lval ? lval->debug_string() : "(null)");
     }
-    return ret;
+    return ret + ")";
   }
 
  private:
@@ -545,9 +546,10 @@ class CValue {
   std::shared_ptr<CType> type() const { return type_; }
   std::shared_ptr<LValue> lvalue() const { return lvalue_; }
   std::string debug_string() const {
-    return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
-                           (type_ != nullptr) ? std::string(*type_) : "(null)",
-                           lvalue_.get());
+    return absl::StrFormat(
+        "(rval=%s, type=%s, lval=%s)", rvalue_.ToString(),
+        (type_ != nullptr) ? std::string(*type_) : "(null)",
+        lvalue_ ? lvalue_->debug_string().c_str() : "(null)");
   }
   bool operator==(const CValue& o) const {
     if (rvalue_.node() != o.rvalue_.node()) {

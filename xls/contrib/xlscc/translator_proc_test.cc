@@ -3337,6 +3337,121 @@ TEST_F(TranslatorProcTest, IOProcClassEnumMember) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct) {
+  const std::string content = R"(
+      struct State {
+        int val;
+      };
+
+      class Block {
+      public:
+        __xls_channel<int, __xls_channel_dir_In> in;
+        __xls_channel<int, __xls_channel_dir_Out> out;
+
+        State state;
+
+        int Calculate() { return 11; }
+
+        #pragma hls_top
+        void Run() {
+          state = State();
+          auto x = in.read();
+          int tmp = Calculate();
+          out.write(tmp + x);
+        }
+      };
+)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(11 + 5, 32))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  const std::string ref_meta_str = R"(
+    channels 	 {
+      name: "in"
+      is_input: true
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out"
+      is_input: false
+      type: FIFO
+      width_in_bits: 32
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
+TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
+  const std::string content = R"(
+    struct Foo {
+      int x;
+    };
+    struct Bar {
+      __xls_channel<int, __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+      
+      Foo y;
+
+      int Calculate() {
+        return 10;
+      }
+
+      void Run() {
+        y = Foo();
+        y.x += Calculate();
+      }
+    };
+    #pragma hls_top
+    void my_package(__xls_channel<int, __xls_channel_dir_In>& in,
+         __xls_channel<int, __xls_channel_dir_Out>& out) {
+      Bar foo = {.in = in, .out = out};
+      foo.y.x = in.read();
+      foo.Run();
+      out.write(foo.y.x);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(0 * 80 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 1);
+  }
+}
+
 }  // namespace
 
 }  // namespace xlscc
