@@ -298,10 +298,12 @@ cc_library(
 cc_test(
     name = "type_info_to_proto_test",
     srcs = ["type_info_to_proto_test.cc"],
+    data = glob(["testdata/*.txt"]),
     deps = [
         ":type_info_to_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
