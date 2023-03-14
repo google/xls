@@ -196,7 +196,7 @@ class StreamingChannel : public Channel {
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
- public:
+ private:
   std::optional<int64_t> fifo_depth_;
   FlowControl flow_control_;
 };
