@@ -797,10 +797,25 @@ class Statement : public AstNode {
 // let i = {
 //   u32:5
 // };
+//
+// Attrs:
+//  statements: Sequence of statements contained within the block.
+//  trailing_semi: Whether the final statement had a trailing semicolon after
+//    it.
+//
+// Note: in the degenerate case where there are no statements in the block,
+// trailing_semi is always true.
 class Block : public Expr {
  public:
-  Block(Module* owner, Span span, std::vector<Statement*> statements)
-      : Expr(owner, std::move(span)), statements_(std::move(statements)) {}
+  Block(Module* owner, Span span, std::vector<Statement*> statements,
+        bool trailing_semi)
+      : Expr(owner, std::move(span)),
+        statements_(std::move(statements)),
+        trailing_semi_(trailing_semi) {
+    if (statements_.empty()) {
+      XLS_CHECK(trailing_semi) << "empty block but trailing_semi is false";
+    }
+  }
 
   ~Block() override;
 
@@ -818,6 +833,7 @@ class Block : public Expr {
   }
 
   absl::Span<Statement* const> statements() const { return statements_; }
+  bool trailing_semi() const { return trailing_semi_; }
 
   // This is a transitionary helper as we migrate from single expressions as
   // function bodies to multiple statements.
@@ -825,6 +841,7 @@ class Block : public Expr {
 
  private:
   std::vector<Statement*> statements_;
+  bool trailing_semi_;
 };
 
 // Represents a reference to a name (identifier).

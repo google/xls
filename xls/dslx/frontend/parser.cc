@@ -2011,8 +2011,9 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
 
   Statement* s = module_->Make<Statement>(body);
-  Block* block = module_->Make<Block>(Span(start_pos, GetPos()),
-                                      std::vector<Statement*>{s});
+  Block* block =
+      module_->Make<Block>(Span(start_pos, GetPos()),
+                           std::vector<Statement*>{s}, /*trailing_semi=*/false);
 
   Span span(oparen.span().start(), cbrace.span().limit());
   NameDef* name_def =
@@ -2688,11 +2689,34 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings* bindings) {
   Bindings block_bindings(bindings);
   Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(&block_bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-  Statement* s = module_->Make<Statement>(e);
-  return module_->Make<Block>(Span(start_pos, GetPos()),
-                              std::vector<Statement*>{s});
+  // For empty block we consider that it had a trailing semi and return unit
+  // from it.
+  bool last_expr_had_trailing_semi = true;
+  std::vector<Statement*> stmts;
+  while (true) {
+    XLS_ASSIGN_OR_RETURN(bool dropped_cbrace, TryDropToken(TokenKind::kCBrace));
+    if (dropped_cbrace) {
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(bool peek_is_type, PeekTokenIs(Keyword::kType));
+    if (peek_is_type) {
+      XLS_ASSIGN_OR_RETURN(
+          TypeAlias * alias,
+          ParseTypeAlias(/*is_public=*/false, &block_bindings));
+      stmts.push_back(module_->Make<Statement>(alias));
+    } else {
+      XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(&block_bindings));
+      stmts.push_back(module_->Make<Statement>(e));
+      XLS_ASSIGN_OR_RETURN(bool dropped_semi, TryDropToken(TokenKind::kSemi));
+      last_expr_had_trailing_semi = dropped_semi;
+      if (!dropped_semi) {
+        XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+        break;
+      }
+    }
+  }
+  return module_->Make<Block>(Span(start_pos, GetPos()), stmts,
+                              last_expr_had_trailing_semi);
 }
 
 absl::StatusOr<Expr*> Parser::ParseParenthesizedExpr(Bindings* bindings) {

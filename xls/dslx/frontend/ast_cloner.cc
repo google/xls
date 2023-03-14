@@ -92,7 +92,8 @@ class AstCloner : public AstNodeVisitor {
     for (Statement* old : n->statements()) {
       new_statements.push_back(down_cast<Statement*>(old_to_new_.at(old)));
     }
-    old_to_new_[n] = module_->Make<Block>(n->span(), std::move(new_statements));
+    old_to_new_[n] = module_->Make<Block>(n->span(), std::move(new_statements),
+                                          n->trailing_semi());
     return absl::OkStatus();
   }
 

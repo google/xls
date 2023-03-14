@@ -724,6 +724,13 @@ TEST_F(ParserTest, ZeroMacro) {
   RoundTripExpr("zero!<u32>()", {}, /*populate_dslx_builtins=*/true);
 }
 
+TEST_F(ParserTest, ParseBlockWithTwoStatements) {
+  RoundTripExpr(R"({
+  type MyU32 = u32;
+  MyU32:42
+})");
+}
+
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
   // TODO(leary): 2021-01-26 This doesn't round trip properly, note the type
   // annotation on the tuple constant is dropped.

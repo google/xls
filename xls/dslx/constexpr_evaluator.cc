@@ -381,11 +381,29 @@ absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
-  XLS_ASSIGN_OR_RETURN(Expr * body_expr, expr->GetSingleBodyExpression());
-  XLS_RETURN_IF_ERROR(body_expr->AcceptExpr(this));
-  if (type_info_->IsKnownConstExpr(body_expr)) {
-    type_info_->NoteConstExpr(expr,
-                              type_info_->GetConstExpr(body_expr).value());
+  bool all_statements_constexpr = true;
+  Expr* last_expr = nullptr;
+  for (Statement* stmt : expr->statements()) {
+    if (!std::holds_alternative<Expr*>(stmt->wrapped())) {
+      continue;
+    }
+    Expr* body_expr = std::get<Expr*>(stmt->wrapped());
+    XLS_RETURN_IF_ERROR(body_expr->AcceptExpr(this));
+    if (type_info_->IsKnownConstExpr(body_expr)) {
+      last_expr = body_expr;
+      type_info_->NoteConstExpr(body_expr,
+                                type_info_->GetConstExpr(body_expr).value());
+    } else {
+      all_statements_constexpr = false;
+    }
+  }
+  if (all_statements_constexpr) {
+    if (expr->trailing_semi()) {
+      type_info_->NoteConstExpr(expr, InterpValue::MakeUnit());
+    } else {
+      type_info_->NoteConstExpr(expr,
+                                type_info_->GetConstExpr(last_expr).value());
+    }
   }
   return absl::OkStatus();
 }

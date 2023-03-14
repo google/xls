@@ -2982,11 +2982,23 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
 }
 
 absl::Status FunctionConverter::HandleBlock(const Block* node) {
+  Expr* last_expr = nullptr;
   for (const Statement* s : node->statements()) {
+    if (std::holds_alternative<Expr*>(s->wrapped())) {
+      last_expr = std::get<Expr*>(s->wrapped());
+    }
     XLS_RETURN_IF_ERROR(Visit(s));
   }
-  XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(node->statements().back()));
-  SetNodeToIr(node, bvalue);
+  if (node->trailing_semi() || last_expr == nullptr) {
+    // Define the block result as nil.
+    Def(node, [&](const SourceInfo& loc) {
+      return function_builder_->Tuple({}, loc);
+    });
+  } else {
+    XLS_RET_CHECK(last_expr != nullptr);
+    XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(last_expr));
+    SetNodeToIr(node, bvalue);
+  }
   return absl::OkStatus();
 }
 

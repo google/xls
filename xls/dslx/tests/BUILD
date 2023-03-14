@@ -52,6 +52,10 @@ dslx_lang_test(
     dslx_deps = [":mod_imported_dslx"],
 )
 
+dslx_lang_test(name = "local_type_alias")
+
+dslx_lang_test(name = "block_with_trailing_semi")
+
 dslx_lang_test(
     name = "binops",
     test_ir_equivalence = False,

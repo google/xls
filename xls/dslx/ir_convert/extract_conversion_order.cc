@@ -313,8 +313,13 @@ class InvocationVisitor : public ExprVisitor {
   }
 
   absl::Status HandleBlock(const Block* expr) override {
-    XLS_ASSIGN_OR_RETURN(Expr * body_expr, expr->GetSingleBodyExpression());
-    return body_expr->AcceptExpr(this);
+    for (Statement* stmt : expr->statements()) {
+      if (std::holds_alternative<Expr*>(stmt->wrapped())) {
+        Expr* e = std::get<Expr*>(stmt->wrapped());
+        XLS_RETURN_IF_ERROR(e->AcceptExpr(this));
+      }
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleCast(const Cast* expr) override {

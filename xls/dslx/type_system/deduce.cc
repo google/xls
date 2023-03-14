@@ -1018,6 +1018,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
   for (const Statement* s : node->statements()) {
     XLS_ASSIGN_OR_RETURN(last, ctx->Deduce(s));
   }
+  // If there's a trailing semicolon this block always yields unit `()`.
+  if (node->trailing_semi()) {
+    last = ConcreteType::MakeUnit();
+  }
   return last;
 }
 

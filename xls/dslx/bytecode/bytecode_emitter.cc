@@ -361,10 +361,21 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
+  XLS_VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span();
+  const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {
     if (std::holds_alternative<Expr*>(s->wrapped())) {
       const Expr* e = std::get<Expr*>(s->wrapped());
       XLS_RETURN_IF_ERROR(e->AcceptExpr(this));
+      last_expression = e;
+    }
+  }
+  if (node->trailing_semi()) {
+    if (last_expression == nullptr) {
+      Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUnit()));
+    } else {
+      Add(Bytecode::MakePop(node->span()));
+      Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUnit()));
     }
   }
   return absl::OkStatus();
@@ -423,6 +434,7 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
 }
 
 absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
+  XLS_VLOG(5) << "BytecodeEmitter::HandleCast @ " << node->span();
   XLS_RETURN_IF_ERROR(node->expr()->AcceptExpr(this));
 
   std::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());

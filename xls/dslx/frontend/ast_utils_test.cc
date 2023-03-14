@@ -43,7 +43,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
   Statement* body_stmt = module.Make<Statement>(body);
 
   Block* block =
-      module.Make<Block>(Span::Fake(), std::vector<Statement*>{body_stmt});
+      module.Make<Block>(Span::Fake(), std::vector<Statement*>{body_stmt},
+                         /*trailing_semi=*/false);
 
   Function* config = module.Make<Function>(
       Span::Fake(), config_name_def,
@@ -102,7 +103,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   Statement* body_stmt = import_module->Make<Statement>(body);
 
   Block* block = import_module->Make<Block>(Span::Fake(),
-                                            std::vector<Statement*>{body_stmt});
+                                            std::vector<Statement*>{body_stmt},
+                                            /*trailing_semi=*/false);
 
   Function* config = import_module->Make<Function>(
       Span::Fake(), config_name_def,
