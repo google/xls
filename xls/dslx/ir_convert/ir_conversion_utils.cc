@@ -85,7 +85,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
       XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(package, *m, bindings));
       members.push_back(type);
     }
-    return package->GetTupleType(std::move(members));
+    return package->GetTupleType(members);
   }
   auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type);
   XLS_RET_CHECK(tuple_type != nullptr) << concrete_type;
@@ -93,7 +93,7 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
     XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(package, *m, bindings));
     members.push_back(type);
   }
-  return package->GetTupleType(std::move(members));
+  return package->GetTupleType(members);
 }
 
 }  // namespace xls::dslx

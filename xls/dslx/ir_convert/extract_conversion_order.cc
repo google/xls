@@ -177,7 +177,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    callees_.emplace_back(std::move(callee_info.value()));
+    callees_.emplace_back(callee_info.value());
     return absl::OkStatus();
   }
 

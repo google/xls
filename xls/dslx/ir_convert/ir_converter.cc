@@ -798,7 +798,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
     : package_data_(package_data),
       module_(module),
       import_data_(import_data),
-      options_(std::move(options)),
+      options_(options),
       fileno_(module->fs_path().has_value()
                   ? package_data.package->GetOrCreateFileno(
                         std::string(module->fs_path().value()))
@@ -1017,7 +1017,7 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
     operands.push_back(v);
   }
   Def(node, [this, &operands](const SourceInfo& loc) {
-    return function_builder_->Tuple(std::move(operands), loc);
+    return function_builder_->Tuple(operands, loc);
   });
   return absl::OkStatus();
 }
@@ -1817,7 +1817,7 @@ absl::Status FunctionConverter::HandleArray(const Array* node) {
   }
   Def(node, [&](const SourceInfo& loc) {
     xls::Type* type = members[0].GetType();
-    return function_builder_->Array(std::move(members), type, loc);
+    return function_builder_->Array(members, type, loc);
   });
   return absl::OkStatus();
 }
@@ -1992,13 +1992,13 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
-    return HandleFailBuiltin(node, std::move(args[1]));
+    return HandleFailBuiltin(node, args[1]);
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
-    return HandleCoverBuiltin(node, std::move(args[1]));
+    return HandleCoverBuiltin(node, args[1]);
   }
   if (called_name == "trace!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
@@ -2525,7 +2525,7 @@ absl::Status FunctionConverter::HandleFunction(
     BValue join_token =
         function_builder_->AfterAll(implicit_token_data_->control_tokens);
     std::vector<BValue> elements = {join_token, return_value};
-    return_value = function_builder_->Tuple(std::move(elements));
+    return_value = function_builder_->Tuple(elements);
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Function * f,
@@ -2756,7 +2756,7 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
   }
 
   Def(node, [this, &members](const SourceInfo& loc) {
-    return function_builder_->Tuple(std::move(members), loc);
+    return function_builder_->Tuple(members, loc);
   });
   return absl::OkStatus();
 }
@@ -2774,7 +2774,7 @@ absl::Status FunctionConverter::HandleStructInstance(
   }
 
   Def(node, [this, &operands](const SourceInfo& loc) {
-    return function_builder_->Tuple(std::move(operands), loc);
+    return function_builder_->Tuple(operands, loc);
   });
   return absl::OkStatus();
 }
@@ -3268,7 +3268,7 @@ absl::Status FunctionConverter::CastToArray(const Cast* node,
   std::reverse(slices.begin(), slices.end());
   xls::Type* element_type = package()->GetBitsType(element_bit_count);
   Def(node, [this, &slices, element_type](const SourceInfo& loc) {
-    return function_builder_->Array(std::move(slices), element_type, loc);
+    return function_builder_->Array(slices, element_type, loc);
   });
   return absl::OkStatus();
 }
@@ -3285,7 +3285,7 @@ absl::Status FunctionConverter::CastFromArray(const Cast* node,
     pieces.push_back(function_builder_->ArrayIndex(array, {index}));
   }
   Def(node, [this, &pieces](const SourceInfo& loc) {
-    return function_builder_->Concat(std::move(pieces), loc);
+    return function_builder_->Concat(pieces, loc);
   });
   return absl::OkStatus();
 }
@@ -3665,9 +3665,9 @@ absl::StatusOr<Value> InterpValueToValue(const InterpValue& iv) {
         ir_values.push_back(std::move(ir_value));
       }
       if (iv.tag() == InterpValueTag::kTuple) {
-        return Value::Tuple(std::move(ir_values));
+        return Value::Tuple(ir_values);
       }
-      return Value::Array(std::move(ir_values));
+      return Value::Array(ir_values);
     }
     default:
       return absl::InvalidArgumentError(
