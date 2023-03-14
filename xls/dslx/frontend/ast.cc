@@ -1025,7 +1025,7 @@ std::vector<AstNode*> TypeRefTypeAnnotation::GetChildren(
 }
 
 std::string TypeRefTypeAnnotation::ToString() const {
-  std::string parametric_str = "";
+  std::string parametric_str;
   if (!parametrics_.empty()) {
     std::vector<std::string> pieces;
     pieces.reserve(parametrics_.size());
@@ -1225,7 +1225,7 @@ absl::StatusOr<Expr*> EnumDef::GetValue(std::string_view name) const {
 }
 
 std::string EnumDef::ToString() const {
-  std::string type_str = "";
+  std::string type_str;
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(" : " + type_annotation_->ToString());
   }
@@ -1710,7 +1710,7 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
 
 std::string Proc::ToString() const {
   std::string pub_str = is_public() ? "pub " : "";
-  std::string parametric_str = "";
+  std::string parametric_str;
   if (!parametric_bindings().empty()) {
     parametric_str = absl::StrFormat(
         "<%s>",
