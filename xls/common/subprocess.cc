@@ -24,17 +24,22 @@
 #include <cstring>
 #include <filesystem>  // NOLINT
 #include <utility>
+#include <vector>
 
 #include "absl/container/fixed_array.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "xls/common/file/file_descriptor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
+#include "xls/common/thread.h"
 
 namespace xls {
 namespace {
@@ -166,7 +171,8 @@ absl::StatusOr<int> WaitForPid(pid_t pid) {
 
 absl::StatusOr<SubprocessResult> InvokeSubprocess(
     absl::Span<const std::string> argv,
-    std::optional<std::filesystem::path> cwd) {
+    std::optional<std::filesystem::path> cwd,
+    std::optional<absl::Duration> optional_timeout) {
   if (argv.empty()) {
     return absl::InvalidArgumentError("Cannot invoke empty argv list.");
   }
@@ -199,6 +205,36 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   stdout_pipe.entrance.Close();
   stderr_pipe.entrance.Close();
 
+  // Order is important here. The optional<Thread> must appear after the mutex
+  // because the thread's destructor calls Join() and because the thread has
+  // references to the mutex. We are depending on destructor invocation being
+  // the reverse order of construction.
+  //
+  // Note that release_watchdog is the Condition trigger protected by the mutex
+  // and signaling that the process has finished and the watchdog should exit.
+  bool release_watchdog = false;
+  absl::Mutex watchdog_mutex;
+  std::optional<xls::Thread> watchdog_thread;
+  if (optional_timeout.has_value() &&
+      *optional_timeout > absl::ZeroDuration()) {
+    auto watchdog = [pid, timeout = optional_timeout.value(), &watchdog_mutex,
+                     &release_watchdog]() {
+      absl::MutexLock lock(&watchdog_mutex);
+      auto condition_lambda = [](void* release_val) {
+        return *static_cast<bool*>(release_val);
+      };
+      if (!watchdog_mutex.AwaitWithTimeout(
+              absl::Condition(condition_lambda, &release_watchdog),
+              timeout)) {
+        // Timeout has lapsed, try to kill the subprocess.
+        if (kill(pid, SIGKILL) == 0) {
+          XLS_VLOG(1) << "Watchdog killed " << pid;
+        }
+      }
+    };
+    watchdog_thread.emplace(watchdog);
+  }
+
   // Read from the output streams of the subprocess.
   FileDescriptor* fds[] = {&stdout_pipe.exit, &stderr_pipe.exit};
   std::vector<std::string> output_strings;
@@ -212,8 +248,13 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stdout:\n ", stdout_output));
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stderr:\n ", stderr_output));
 
-  // Wait for the subprocess to finish.
   XLS_ASSIGN_OR_RETURN(int wait_status, WaitForPid(pid));
+
+  if (watchdog_thread != std::nullopt) {
+    absl::MutexLock lock(&watchdog_mutex);
+    release_watchdog = true;
+  }
+
   return SubprocessResult{.stdout = stdout_output,
                           .stderr = stderr_output,
                           .exit_status = WEXITSTATUS(wait_status),
@@ -231,7 +272,7 @@ absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
 absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
     absl::StatusOr<SubprocessResult> result_or_status) {
   if (!result_or_status.ok() || (result_or_status->exit_status == 0 &&
-      result_or_status->normal_termination)) {
+                                 result_or_status->normal_termination)) {
     return result_or_status;
   }
 

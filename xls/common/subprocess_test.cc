@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {
@@ -55,6 +56,31 @@ TEST(SubprocessTest, CrashingExitWorks) {
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
                           /*stdout=*/_,
                           /*stderr=*/"hello",
+                          /*exit_status=*/_,
+                          /*normal_termination=*/false)));
+}
+
+TEST(SubprocessTest, WatchdogFastExitWorks) {
+  absl::Time start_time = absl::Now();
+  auto result = InvokeSubprocess({"/bin/sh", "-c", "exit 0"}, absl::nullopt,
+                                 absl::Milliseconds(60000));
+  absl::Duration duration = absl::Now() - start_time;
+
+  EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
+                          /*stdout=*/"",
+                          /*stderr=*/"",
+                          /*exit_status=*/0,
+                          /*normal_termination=*/true)));
+  EXPECT_LT(absl::ToInt64Milliseconds(duration), 10000);
+}
+
+TEST(SubprocessTest, WatchdogWorks) {
+  auto result = InvokeSubprocess({"/bin/sh", "-c", "sleep 10s"}, absl::nullopt,
+                                 absl::Milliseconds(50));
+
+  EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
+                          /*stdout=*/"",
+                          /*stderr=*/"",
                           /*exit_status=*/_,
                           /*normal_termination=*/false)));
 }

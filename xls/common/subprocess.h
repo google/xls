@@ -20,6 +20,8 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/time/time.h"
+#include "absl/types/optional.h"
 #include "absl/types/span.h"
 
 namespace xls {
@@ -67,9 +69,13 @@ absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
 // subprocess will be invoked in the given directory. Problems in invocation
 // result in a non-OK Status code. Unexpected termination of the subprocess
 // also (currently) results in a non-OK status code.
+//
+// Subprocesses that run beyond 'optional_timeout' will be stopped. Nullopt is
+// equivalent to absl::ZeroDuration and means "wait forever".
 absl::StatusOr<SubprocessResult> InvokeSubprocess(
     absl::Span<const std::string> argv,
-    std::optional<std::filesystem::path> cwd = absl::nullopt);
+    std::optional<std::filesystem::path> cwd = absl::nullopt,
+    std::optional<absl::Duration> optional_timeout = absl::nullopt);
 
 }  // namespace xls
 #endif  // XLS_COMMON_SUBPROCESS_H_
