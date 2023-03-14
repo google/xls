@@ -60,7 +60,12 @@ class NameRefCollector : public ExprVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleBlock(const Block* expr) override {
-    return expr->body()->AcceptExpr(this);
+    for (const Statement* s : expr->statements()) {
+      if (std::holds_alternative<Expr*>(s->wrapped())) {
+        XLS_RETURN_IF_ERROR(std::get<Expr*>(s->wrapped())->AcceptExpr(this));
+      }
+    }
+    return absl::OkStatus();
   }
   absl::Status HandleBinop(const Binop* expr) override {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
@@ -376,10 +381,11 @@ absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
-  XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
-  if (type_info_->IsKnownConstExpr(expr->body())) {
+  XLS_ASSIGN_OR_RETURN(Expr * body_expr, expr->GetSingleBodyExpression());
+  XLS_RETURN_IF_ERROR(body_expr->AcceptExpr(this));
+  if (type_info_->IsKnownConstExpr(body_expr)) {
     type_info_->NoteConstExpr(expr,
-                              type_info_->GetConstExpr(expr->body()).value());
+                              type_info_->GetConstExpr(body_expr).value());
   }
   return absl::OkStatus();
 }

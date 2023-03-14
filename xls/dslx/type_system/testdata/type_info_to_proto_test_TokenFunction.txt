@@ -10,3 +10,4 @@
   x
 }` :: token
 0:26-0:27: NAME_REF :: `x` :: token
+0:26-0:27: STATEMENT :: `x` :: token

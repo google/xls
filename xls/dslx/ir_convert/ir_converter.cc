@@ -339,6 +339,7 @@ class FunctionConverter {
   absl::Status HandleSend(const Send* node);
   absl::Status HandleSendIf(const SendIf* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
+  absl::Status HandleStatement(const Statement* node);
   absl::Status HandleStructInstance(const StructInstance* node);
   absl::Status HandleTernary(const Ternary* node);
   absl::Status HandleTupleIndex(const TupleIndex* node);
@@ -716,6 +717,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Send)
   NO_TRAVERSE_DISPATCH_VISIT(SendIf)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
+  NO_TRAVERSE_DISPATCH_VISIT(Statement)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Ternary)
   NO_TRAVERSE_DISPATCH_VISIT(TupleIndex)
@@ -2980,9 +2982,21 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
 }
 
 absl::Status FunctionConverter::HandleBlock(const Block* node) {
-  XLS_RETURN_IF_ERROR(Visit(node->body()));
-  XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(node->body()));
+  for (const Statement* s : node->statements()) {
+    XLS_RETURN_IF_ERROR(Visit(s));
+  }
+  XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(node->statements().back()));
   SetNodeToIr(node, bvalue);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleStatement(const Statement* node) {
+  if (std::holds_alternative<Expr*>(node->wrapped())) {
+    XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->wrapped())));
+    Expr* body_expr = std::get<Expr*>(node->wrapped());
+    XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(body_expr));
+    SetNodeToIr(node, bvalue);
+  }
   return absl::OkStatus();
 }
 

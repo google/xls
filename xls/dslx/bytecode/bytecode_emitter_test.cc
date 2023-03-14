@@ -1298,8 +1298,9 @@ proc Parent {
                            tm.module->GetMemberOrError<Proc>("Parent"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * child,
                            tm.module->GetMemberOrError<Proc>("Child"));
-  Spawn* spawn = down_cast<Spawn*>(
-      down_cast<Let*>(parent->config()->body()->body())->body());
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * config_body_expr,
+                           parent->config()->GetSingleBodyExpression());
+  Spawn* spawn = down_cast<Spawn*>(down_cast<Let*>(config_body_expr)->body());
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * parent_ti,
                            tm.type_info->GetTopLevelProcTypeInfo(parent));
   TypeInfo* child_ti =

@@ -40,7 +40,11 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       Span::Fake(), BuiltinType::kU32, module.GetOrCreateBuiltinNameDef("u32"));
   Number* body =
       module.Make<Number>(Span::Fake(), "7", NumberKind::kOther, nullptr);
-  Block* block = module.Make<Block>(Span::Fake(), body);
+  Statement* body_stmt = module.Make<Statement>(body);
+
+  Block* block =
+      module.Make<Block>(Span::Fake(), std::vector<Statement*>{body_stmt});
+
   Function* config = module.Make<Function>(
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
@@ -95,7 +99,11 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
           import_module->GetOrCreateBuiltinNameDef("u32"));
   Number* body = import_module->Make<Number>(Span::Fake(), "7",
                                              NumberKind::kOther, nullptr);
-  Block* block = import_module->Make<Block>(Span::Fake(), body);
+  Statement* body_stmt = import_module->Make<Statement>(body);
+
+  Block* block = import_module->Make<Block>(Span::Fake(),
+                                            std::vector<Statement*>{body_stmt});
+
   Function* config = import_module->Make<Function>(
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),

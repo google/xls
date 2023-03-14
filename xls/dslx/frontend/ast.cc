@@ -55,6 +55,8 @@ ExprOrType ToExprOrType(AstNode* n) {
 
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kStatement:
+      return "statement";
     case AstNodeKind::kTypeAnnotation:
       return "type annotation";
     case AstNodeKind::kModule:
@@ -1546,14 +1548,25 @@ std::string Block::ToString() const {
   // If we're within parametric bindings, we give the expression inline.
   AstNode* p = parent();
   while (p != nullptr) {
-    if (dynamic_cast<ParametricBinding*>(p) != nullptr) {
-      return absl::StrCat("{", body_->ToString(), "}");
+    if (dynamic_cast<ParametricBinding*>(p) != nullptr &&
+        statements_.size() == 1) {
+      return absl::StrCat("{", statements_.at(0)->ToString(), "}");
     }
     p = p->parent();
   }
 
+  std::string statements_str =
+      absl::StrJoin(statements_, "\n", [](std::string* out, Statement* stmt) {
+        absl::StrAppend(out, stmt->ToString());
+      });
   return absl::StrFormat("{\n%s\n}",
-                         Indent(body_->ToString(), kDefaultIndentSpaces));
+                         Indent(statements_str, kDefaultIndentSpaces));
+}
+
+absl::StatusOr<Expr*> Block::GetSingleBodyExpression() const {
+  XLS_RET_CHECK_EQ(statements_.size(), 1);
+  XLS_RET_CHECK(std::holds_alternative<Expr*>(statements_.at(0)->wrapped()));
+  return std::get<Expr*>(statements_.at(0)->wrapped());
 }
 
 // -- class For
@@ -1981,6 +1994,8 @@ std::string ChannelTypeAnnotation::ToString() const {
                          direction_ == Direction::kIn ? "in" : "out");
 }
 
+// -- class TupleTypeAnnotation
+
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,
                                          std::vector<TypeAnnotation*> members)
     : TypeAnnotation(owner, std::move(span)), members_(std::move(members)) {}
@@ -1993,6 +2008,20 @@ std::string TupleTypeAnnotation::ToString() const {
         absl::StrAppend(out, t->ToString());
       });
   return absl::StrFormat("(%s%s)", guts, members_.size() == 1 ? "," : "");
+}
+
+// -- class Statement
+
+/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*>>
+Statement::NodeToWrapped(AstNode* n) {
+  if (auto* e = dynamic_cast<Expr*>(n)) {
+    return e;
+  }
+  if (auto* t = dynamic_cast<TypeAlias*>(n)) {
+    return t;
+  }
+  return absl::InvalidArgumentError(absl::StrCat(
+      "AST node could not be wrapped in a statement: ", n->GetNodeTypeName()));
 }
 
 // -- class WildcardPattern

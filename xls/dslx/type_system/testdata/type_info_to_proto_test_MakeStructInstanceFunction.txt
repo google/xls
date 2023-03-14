@@ -12,6 +12,7 @@
 2:12-2:31: BLOCK :: `{
   S { x: u32:42 }
 }` :: S { x: uN[32] }
+2:16-2:29: STATEMENT :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:16-2:29: STRUCT_INSTANCE :: `S { x: u32:42 }` :: S { x: uN[32] }
 2:21-2:24: TYPE_ANNOTATION :: `u32` :: uN[32]
 2:25-2:27: NUMBER :: `u32:42` :: uN[32]

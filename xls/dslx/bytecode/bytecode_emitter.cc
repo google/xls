@@ -201,6 +201,7 @@ class NameDefCollector : public AstNodeVisitor {
     }
     return absl::OkStatus();
   }
+  DEFAULT_HANDLER(Statement);
   DEFAULT_HANDLER(Ternary);
   DEFAULT_HANDLER(TestProc);
   DEFAULT_HANDLER(TupleIndex);
@@ -360,7 +361,13 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
-  return node->body()->AcceptExpr(this);
+  for (const Statement* s : node->statements()) {
+    if (std::holds_alternative<Expr*>(s->wrapped())) {
+      const Expr* e = std::get<Expr*>(s->wrapped());
+      XLS_RETURN_IF_ERROR(e->AcceptExpr(this));
+    }
+  }
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,

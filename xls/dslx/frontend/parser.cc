@@ -95,7 +95,10 @@ std::string ExprRestrictionsToString(ExprRestrictions restrictions) {
 class NameDefCollector : public AstNodeVisitorWithDefault {
  public:
   absl::Status HandleBlock(const Block* n) override {
-    return n->body()->Accept(this);
+    for (const Statement* s : n->statements()) {
+      XLS_RETURN_IF_ERROR(s->Accept(this));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleLet(const Let* n) override {
@@ -2007,7 +2010,9 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   }
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
 
-  Block* block = module_->Make<Block>(Span(start_pos, GetPos()), body);
+  Statement* s = module_->Make<Statement>(body);
+  Block* block = module_->Make<Block>(Span(start_pos, GetPos()),
+                                      std::vector<Statement*>{s});
 
   Span span(oparen.span().start(), cbrace.span().limit());
   NameDef* name_def =
@@ -2685,7 +2690,9 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(&block_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-  return module_->Make<Block>(Span(start_pos, GetPos()), e);
+  Statement* s = module_->Make<Statement>(e);
+  return module_->Make<Block>(Span(start_pos, GetPos()),
+                              std::vector<Statement*>{s});
 }
 
 absl::StatusOr<Expr*> Parser::ParseParenthesizedExpr(Bindings* bindings) {

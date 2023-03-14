@@ -42,9 +42,10 @@ u32:3)";
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
 }
 
 TEST(AstClonerTest, NameRefs) {
@@ -61,9 +62,10 @@ a)";
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
 }
 
 TEST(AstClonerTest, XlsTuple) {
@@ -83,9 +85,10 @@ let b = u32:1;
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(body_expr, clone));
 }
 
 TEST(AstClonerTest, BasicFunction) {
@@ -614,7 +617,8 @@ fn bar() -> u32{
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * main,
                            module->GetMemberOrError<Function>("bar"));
-  ConstRef* orig_ref = down_cast<ConstRef*>(main->body()->body());
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, main->GetSingleBodyExpression());
+  ConstRef* orig_ref = down_cast<ConstRef*>(body_expr);
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
   ConstRef* new_ref = down_cast<ConstRef*>(clone);
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());

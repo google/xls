@@ -18,6 +18,7 @@
 }` :: uN[32]
 2:23-2:26: NAME_REF :: `pid` :: (uN[32]) -> uN[32]
 2:26-2:37: INVOCATION :: `pid<u32:32>(x)` :: uN[32]
+2:26-2:37: STATEMENT :: `pid<u32:32>(x)` :: uN[32]
 2:27-2:30: TYPE_ANNOTATION :: `u32` :: uN[32]
 2:31-2:33: NUMBER :: `u32:32` :: uN[32]
 2:35-2:36: NAME_REF :: `x` :: uN[32]

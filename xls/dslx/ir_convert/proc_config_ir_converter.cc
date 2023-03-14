@@ -84,7 +84,8 @@ absl::Status ProcConfigIrConverter::Finalize() {
 absl::Status ProcConfigIrConverter::HandleBlock(const Block* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString()
               << " : " << node->span().ToString();
-  return node->body()->Accept(this);
+  XLS_ASSIGN_OR_RETURN(Expr * body_expr, node->GetSingleBodyExpression());
+  return body_expr->Accept(this);
 }
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {

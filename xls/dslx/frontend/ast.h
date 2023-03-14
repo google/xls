@@ -124,6 +124,7 @@ bool IsOneOf(ObjT* obj) {
   X(Proc)                         \
   X(QuickCheck)                   \
   X(Slice)                        \
+  X(Statement)                    \
   X(StructDef)                    \
   X(TestFunction)                 \
   X(TestProc)                     \
@@ -269,6 +270,7 @@ enum class AstNodeKind {
   kSlice,
   kSpawn,
   kSplatStructInstance,
+  kStatement,
   kString,
   kStructDef,
   kStructInstance,
@@ -276,8 +278,8 @@ enum class AstNodeKind {
   kTestFunction,
   kTestProc,
   kTupleIndex,
-  kTypeAnnotation,
   kTypeAlias,
+  kTypeAnnotation,
   kTypeRef,
   kUnop,
   kUnrollFor,
@@ -752,14 +754,53 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   std::optional<std::vector<Expr*>> dims_;
 };
 
+// Represents an AST node that may-or-may-not be an expression. For example, in
+// a function body we may have statements that set up local type aliases, or be
+// "side effecting" operations:
+//
+//    fn f(x: u32) -> () {
+//      type MyU32 = u32;
+//      assert_eq(x, MyU32:42);
+//    }
+//
+// Both of those lines are statements.
+class Statement : public AstNode {
+ public:
+  static absl::StatusOr<std::variant<Expr*, TypeAlias*>> NodeToWrapped(
+      AstNode* n);
+
+  Statement(Module* owner, std::variant<Expr*, TypeAlias*> wrapped)
+      : AstNode(owner), wrapped_(wrapped) {}
+
+  AstNodeKind kind() const override { return AstNodeKind::kStatement; }
+  std::string_view GetNodeTypeName() const override { return "Statement"; }
+  std::string ToString() const override {
+    return ToAstNode(wrapped_)->ToString();
+  }
+  std::optional<Span> GetSpan() const override {
+    return ToAstNode(wrapped_)->GetSpan();
+  }
+  std::vector<AstNode*> GetChildren(bool want_types) const {
+    return {ToAstNode(wrapped_)};
+  }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleStatement(this);
+  }
+
+  const std::variant<Expr*, TypeAlias*>& wrapped() const { return wrapped_; }
+
+ private:
+  std::variant<Expr*, TypeAlias*> wrapped_;
+};
+
 // Represents a block expression, e.g.,
 // let i = {
 //   u32:5
 // };
 class Block : public Expr {
  public:
-  Block(Module* owner, Span span, Expr* body)
-      : Expr(owner, std::move(span)), body_(body) {}
+  Block(Module* owner, Span span, std::vector<Statement*> statements)
+      : Expr(owner, std::move(span)), statements_(std::move(statements)) {}
 
   ~Block() override;
 
@@ -773,13 +814,17 @@ class Block : public Expr {
   std::string_view GetNodeTypeName() const override { return "Block"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {body_};
+    return std::vector<AstNode*>(statements_.begin(), statements_.end());
   }
 
-  Expr* body() const { return body_; }
+  absl::Span<Statement* const> statements() const { return statements_; }
+
+  // This is a transitionary helper as we migrate from single expressions as
+  // function bodies to multiple statements.
+  absl::StatusOr<Expr*> GetSingleBodyExpression() const;
 
  private:
-  Expr* body_;
+  std::vector<Statement*> statements_;
 };
 
 // Represents a reference to a name (identifier).
@@ -1460,6 +1505,9 @@ class Function : public AstNode {
     return parametric_bindings_;
   }
   const std::vector<Param*>& params() const { return params_; }
+
+  // The body of the function is a block (sequence of statements that yields a
+  // final expression).
   Block* body() const { return body_; }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
@@ -1470,6 +1518,13 @@ class Function : public AstNode {
     return absl::btree_set<std::string>(keys.begin(), keys.end());
   }
   NameDef* name_def() const { return name_def_; }
+
+  // This is a transitionary helper as we migrate from single expressions as
+  // function bodies to multiple statements.
+  absl::StatusOr<Expr*> GetSingleBodyExpression() const {
+    return body_->GetSingleBodyExpression();
+  }
+
   TypeAnnotation* return_type() const { return return_type_; }
   void set_return_type(TypeAnnotation* return_type) {
     return_type_ = return_type;

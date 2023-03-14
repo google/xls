@@ -87,8 +87,21 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleBlock(const Block* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Block>(
-        n->span(), down_cast<Expr*>(old_to_new_.at(n->body())));
+    std::vector<Statement*> new_statements;
+    new_statements.reserve(n->statements().size());
+    for (Statement* old : n->statements()) {
+      new_statements.push_back(down_cast<Statement*>(old_to_new_.at(old)));
+    }
+    old_to_new_[n] = module_->Make<Block>(n->span(), std::move(new_statements));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleStatement(const Statement* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    XLS_ASSIGN_OR_RETURN(
+        auto new_wrapped,
+        Statement::NodeToWrapped(old_to_new_.at(ToAstNode(n->wrapped()))));
+    old_to_new_[n] = module_->Make<Statement>(new_wrapped);
     return absl::OkStatus();
   }
 

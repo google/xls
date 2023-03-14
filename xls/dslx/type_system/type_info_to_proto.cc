@@ -151,6 +151,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_TUPLE_INDEX;
     case AstNodeKind::kBlock:
       return AST_NODE_KIND_BLOCK;
+    case AstNodeKind::kStatement:
+      return AST_NODE_KIND_STATEMENT;
     case AstNodeKind::kUnrollFor:
       return AST_NODE_KIND_UNROLL_FOR;
   }
@@ -636,6 +638,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kBlock;
     case AST_NODE_KIND_UNROLL_FOR:
       return AstNodeKind::kUnrollFor;
+    case AST_NODE_KIND_STATEMENT:
+      return AstNodeKind::kStatement;
     // Note: since this is a proto enum there are sentinel values defined in
     // addition to the "real" above, which is why the enumeration of cases is
     // not exhaustive.

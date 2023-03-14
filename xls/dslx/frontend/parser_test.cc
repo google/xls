@@ -216,9 +216,14 @@ TEST_F(ParserTest, ParseIdentityFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  Block* block = dynamic_cast<Block*>(f->body());
+
+  Block* block = f->body();
   ASSERT_TRUE(block != nullptr);
-  NameRef* body = dynamic_cast<NameRef*>(block->body());
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 1);
+  Statement* stmt = stmts.at(0);
+
+  NameRef* body = dynamic_cast<NameRef*>(std::get<Expr*>(stmt->wrapped()));
   ASSERT_TRUE(body != nullptr);
   EXPECT_EQ(body->identifier(), "x");
 }
@@ -561,8 +566,14 @@ fn f(p: Point) -> Point {
   XLS_ASSERT_OK_AND_ASSIGN(TypeDefinition c, m->GetTypeDefinition("Point"));
   ASSERT_TRUE(std::holds_alternative<StructDef*>(c));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetMemberOrError<Function>("f"));
-  Block* block = dynamic_cast<Block*>(f->body());
-  SplatStructInstance* ssi = dynamic_cast<SplatStructInstance*>(block->body());
+
+  Block* block = f->body();
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 1);
+  Statement* stmt = stmts.at(0);
+
+  SplatStructInstance* ssi =
+      dynamic_cast<SplatStructInstance*>(std::get<Expr*>(stmt->wrapped()));
   ASSERT_TRUE(ssi != nullptr) << f->body()->ToString();
   NameRef* splatted = dynamic_cast<NameRef*>(ssi->splatted());
   ASSERT_TRUE(splatted != nullptr) << ssi->splatted()->ToString();
@@ -581,8 +592,13 @@ TEST_F(ParserTest, ConcatFunction) {
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
   EXPECT_EQ(f->params().size(), 2);
-  Block* block = dynamic_cast<Block*>(f->body());
-  Binop* body = dynamic_cast<Binop*>(block->body());
+
+  Block* block = f->body();
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 1);
+  Statement* stmt = stmts.at(0);
+
+  Binop* body = dynamic_cast<Binop*>(std::get<Expr*>(stmt->wrapped()));
   ASSERT_TRUE(body != nullptr);
   EXPECT_EQ(body->binop_kind(), BinopKind::kConcat);
   NameRef* lhs = dynamic_cast<NameRef*>(body->lhs());
@@ -622,8 +638,13 @@ fn f(x: u32) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  Block* block = dynamic_cast<Block*>(f->body());
-  auto* index = dynamic_cast<Index*>(block->body());
+
+  Block* block = f->body();
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 1);
+  Statement* stmt = stmts.at(0);
+
+  auto* index = dynamic_cast<Index*>(std::get<Expr*>(stmt->wrapped()));
   ASSERT_NE(index, nullptr);
   IndexRhs rhs = index->rhs();
   ASSERT_TRUE(std::holds_alternative<Slice*>(rhs));
@@ -644,7 +665,12 @@ TEST_F(ParserTest, LocalConstBinding) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  auto* const_let = dynamic_cast<Let*>(f->body()->body());
+  Block* body = f->body();
+  absl::Span<Statement* const> stmts = body->statements();
+  ASSERT_EQ(stmts.size(), 1);
+  Statement* body_stmt = stmts.at(0);
+
+  auto* const_let = dynamic_cast<Let*>(std::get<Expr*>(body_stmt->wrapped()));
   ASSERT_NE(const_let, nullptr);
   ASSERT_TRUE(const_let->is_const());
   EXPECT_EQ("u8:42", const_let->rhs()->ToString());
@@ -1177,7 +1203,13 @@ fn f(x: u32) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  auto* tuple_index = dynamic_cast<TupleIndex*>(f->body()->body());
+
+  Block* body = f->body();
+  absl::Span<Statement* const> stmts = body->statements();
+  ASSERT_EQ(stmts.size(), 1);
+
+  auto* tuple_index =
+      dynamic_cast<TupleIndex*>(std::get<Expr*>(stmts.at(0)->wrapped()));
   ASSERT_NE(tuple_index, nullptr);
 
   Expr* lhs = tuple_index->lhs();
@@ -1343,8 +1375,13 @@ fn main() -> u32 {
                            parser.ParseModule());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
+
+  Block* body = f->body();
+  absl::Span<Statement* const> stmts = body->statements();
+  ASSERT_EQ(stmts.size(), 1);
+
   // Get the terminal expr.
-  Expr* current_expr = f->body()->body();
+  Expr* current_expr = std::get<Expr*>(stmts.at(0)->wrapped());
   while (dynamic_cast<Let*>(current_expr) != nullptr) {
     current_expr = dynamic_cast<Let*>(current_expr)->body();
   }

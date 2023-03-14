@@ -841,7 +841,9 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
                                  /*body=*/sum, /*is_const=*/false);
-  auto* block = module_->Make<Block>(fake_span_, let);
+  auto* body_stmt = module_->Make<Statement>(let);
+  auto* block =
+      module_->Make<Block>(fake_span_, std::vector<Statement*>{body_stmt});
   return TypedExpr{block, lhs_cast.type};
 }
 
@@ -1391,7 +1393,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   if (RandomBool()) {
     tree_type = MakeTupleType({ivar_type, e.type});
   }
-  Block* block = module_->Make<Block>(fake_span_, body);
+
+  Statement* body_stmt = module_->Make<Statement>(body);
+  Block* block =
+      module_->Make<Block>(fake_span_, std::vector<Statement*>{body_stmt});
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
                                  block, /*init=*/e.expr);
   return TypedExpr{for_, e.type};
@@ -2239,7 +2244,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
                        GenerateBody(call_depth, params, &context));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
-  Block* block = module_->Make<Block>(fake_span_, retval.expr);
+  Statement* retval_statement = module_->Make<Statement>(retval.expr);
+  Block* block = module_->Make<Block>(
+      fake_span_, std::vector<Statement*>{retval_statement});
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/parametric_bindings,
@@ -2280,7 +2287,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   TupleTypeAnnotation* ret_tuple_type =
       module_->Make<TupleTypeAnnotation>(fake_span_, tuple_member_types);
   XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members);
-  Block* block = module_->Make<Block>(fake_span_, ret_tuple);
+  Statement* ret_stmt = module_->Make<Statement>(ret_tuple);
+  Block* block =
+      module_->Make<Block>(fake_span_, std::vector<Statement*>{ret_stmt});
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(
@@ -2319,7 +2328,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
-  Block* block = module_->Make<Block>(fake_span_, retval.expr);
+  Statement* retval_stmt = module_->Make<Statement>(retval.expr);
+  Block* block =
+      module_->Make<Block>(fake_span_, std::vector<Statement*>{retval_stmt});
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
@@ -2338,7 +2349,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
 
   XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_->GenerateDslxConstant(
                                                  module_.get(), return_type));
-  Block* b = module_->Make<Block>(fake_span_, init_constant);
+  Statement* s = module_->Make<Statement>(init_constant);
+  Block* b = module_->Make<Block>(fake_span_, std::vector<Statement*>{s});
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),

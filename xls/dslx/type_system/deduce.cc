@@ -1007,9 +1007,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
   return result_type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStatement(
+    const Statement* node, DeduceCtx* ctx) {
+  return ctx->Deduce(ToAstNode(node->wrapped()));
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
                                                           DeduceCtx* ctx) {
-  return ctx->Deduce(node->body());
+  std::unique_ptr<ConcreteType> last;
+  for (const Statement* s : node->statements()) {
+    XLS_ASSIGN_OR_RETURN(last, ctx->Deduce(s));
+  }
+  return last;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
@@ -2628,7 +2637,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  Expr* current = proc->config()->body()->body();
+  XLS_ASSIGN_OR_RETURN(Expr * current,
+                       proc->config()->GetSingleBodyExpression());
   while (true) {
     if (Let* let = dynamic_cast<Let*>(current); let != nullptr) {
       current = let->body();
@@ -2871,6 +2881,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(SendIf)
   DEDUCE_DISPATCH(Spawn)
   DEDUCE_DISPATCH(SplatStructInstance)
+  DEDUCE_DISPATCH(Statement)
   DEDUCE_DISPATCH(StructInstance)
   DEDUCE_DISPATCH(TupleIndex)
   DEDUCE_DISPATCH(UnrollFor)
