@@ -77,9 +77,8 @@ absl::StatusOr<std::string> OptimizeIrForTop(
   std::vector<RamRewrite> ram_rewrites;
   if (!ram_rewrites_pb.empty()) {
     RamRewritesProto ram_rewrite_proto;
-    XLS_RETURN_IF_ERROR(ParseProtobinFile(
-        std::filesystem::path(ram_rewrites_pb), &ram_rewrite_proto))
-        << "Could not read ram rewrites proto at " << ram_rewrites_pb << ".";
+    XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
+        std::filesystem::path(ram_rewrites_pb), &ram_rewrite_proto));
     XLS_ASSIGN_OR_RETURN(ram_rewrites, RamRewritesFromProto(ram_rewrite_proto));
   }
   const OptOptions options = {

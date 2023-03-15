@@ -44,7 +44,8 @@ int64_t RamConfig::addr_width() const {
 
 int64_t RamConfig::mask_width(int64_t data_width) const {
   if (!word_partition_size.has_value()) {
-    return 0;
+    // TODO(rigge): This should be 0 once masks are supported in codegen
+    return 1;
   }
   return (data_width + word_partition_size.value() - 1) /
          word_partition_size.value();

@@ -678,7 +678,7 @@ xls_ir_opt_ir_attrs = dicts.add(
                   "the target name of the bazel rule followed by an " +
                   _OPT_IR_FILE_EXTENSION + " extension is used.",
         ),
-        "ram_rewrites": attr.label_list(doc = "List of ram rewrite protos."),
+        "ram_rewrites": attr.label_list(doc = "List of ram rewrite protos.", allow_files = True),
         "debug_srcs": attr.label_list(
             doc = "List of additional source files for debugging info.",
             allow_files = True,

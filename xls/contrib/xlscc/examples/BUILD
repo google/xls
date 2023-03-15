@@ -50,12 +50,6 @@ proto_data(
     src = "delay.textproto",
 )
 
-proto_data(
-    name = "delay_ram_rewrites_pb",
-    src = "delay_ram_rewrites.textproto",
-    proto_name = "xls.RamRewritesProto",
-)
-
 xls_cc_ir(
     name = "mux3_ir",
     src = "mux3.cc",
@@ -114,7 +108,7 @@ xls_ir_opt_ir(
     src = ":delay.ir",
     opt_ir_file = "delay.opt.ir",
     ram_rewrites = [
-        ":delay_ram_rewrites_pb",
+        ":delay_ram_rewrites.textproto",
     ],
 )
 
