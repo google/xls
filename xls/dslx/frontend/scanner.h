@@ -117,7 +117,7 @@ const absl::flat_hash_set<Keyword>& GetTypeKeywords();
 class Token {
  public:
   Token(TokenKind kind, Span span,
-        std::optional<std::string> value = absl::nullopt)
+        std::optional<std::string> value = std::nullopt)
       : kind_(kind), span_(span), payload_(value) {}
   Token(Span span, Keyword keyword)
       : kind_(TokenKind::kKeyword), span_(span), payload_(keyword) {}

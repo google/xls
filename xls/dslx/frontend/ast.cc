@@ -694,18 +694,18 @@ ColonRef::~ColonRef() = default;
 
 std::optional<Import*> ColonRef::ResolveImportSubject() const {
   if (!std::holds_alternative<NameRef*>(subject_)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   auto* name_ref = std::get<NameRef*>(subject_);
   AnyNameDef any_name_def = name_ref->name_def();
   if (!std::holds_alternative<const NameDef*>(any_name_def)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const auto* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
   Import* import = dynamic_cast<Import*>(definer);
   if (import == nullptr) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return import;
 }
@@ -751,7 +751,7 @@ std::optional<Function*> Module::GetFunction(std::string_view target_name) {
       }
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::optional<Proc*> Module::GetProc(std::string_view target_name) {
@@ -763,7 +763,7 @@ std::optional<Proc*> Module::GetProc(std::string_view target_name) {
       }
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<TestFunction*> Module::GetTest(std::string_view target_name) {
@@ -872,7 +872,7 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
                      << ToAstNode(member)->GetNodeTypeName();
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<ConstantDef*> Module::GetConstantDef(std::string_view target) {
@@ -1451,7 +1451,7 @@ std::optional<int64_t> StructDef::GetMemberIndex(std::string_view name) const {
       return i;
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // -- class StructInstance

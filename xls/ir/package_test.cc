@@ -314,7 +314,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid, ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
@@ -328,7 +328,7 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   // Creating a channel with a duplicate ID is an error.
   EXPECT_THAT(p.CreateStreamingChannel(
                    "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
-                   /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+                   /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
                    FlowControl::kReadyValid, ChannelMetadataProto(), 1)
                   .status(),
               StatusIs(absl::StatusCode::kInternal,
@@ -426,7 +426,7 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   EXPECT_THAT(pkg->RemoveFunction(func),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot remove function:")));
-  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->SetTop(std::nullopt));
   XLS_EXPECT_OK(pkg->RemoveFunction(func));
   // Set proc as top.
   EXPECT_FALSE(pkg->GetTop().has_value());
@@ -441,7 +441,7 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   EXPECT_THAT(pkg->RemoveProc(proc),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot remove proc:")));
-  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->SetTop(std::nullopt));
   XLS_EXPECT_OK(pkg->RemoveProc(proc));
   // Set block as top.
   EXPECT_FALSE(pkg->GetTop().has_value());
@@ -456,7 +456,7 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   EXPECT_THAT(pkg->RemoveBlock(block),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Cannot remove block:")));
-  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->SetTop(std::nullopt));
   XLS_EXPECT_OK(pkg->RemoveBlock(block));
   EXPECT_EQ(pkg->GetNodeCount(), 0);
 }

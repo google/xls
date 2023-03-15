@@ -82,7 +82,7 @@ proc main {
   ChannelMetadataProto metadata;
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
                            package.GetBitsType(32), {},
-                           /*fifo_depth=*/absl::nullopt, FlowControl::kNone,
+                           /*fifo_depth=*/std::nullopt, FlowControl::kNone,
                            metadata);
 
   ProcConversionData proc_data;

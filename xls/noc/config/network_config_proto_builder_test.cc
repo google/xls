@@ -68,7 +68,7 @@ TEST(NetworkConfigBuilderTest, LinkDefaultPhitBitWidthField) {
   link_builder0.WithPhitBitWidth(kNonDefault);
   builder.SetDefaultLinkPhitBitWidth(kDefault);
   builder.WithLink("Link1");
-  builder.SetDefaultLinkPhitBitWidth(absl::nullopt);
+  builder.SetDefaultLinkPhitBitWidth(std::nullopt);
   LinkConfigProtoBuilder link_builder2 = builder.WithLink("Link2");
   link_builder2.WithPhitBitWidth(kNonDefault);
 
@@ -90,7 +90,7 @@ TEST(NetworkConfigBuilderTest, LinkDefaultSourceSinkPipelineStageField) {
   link_builder0.WithSourceSinkPipelineStage(kNonDefault);
   builder.SetDefaultLinkSourceSinkPipelineStage(kDefault);
   builder.WithLink("Link1");
-  builder.SetDefaultLinkPhitBitWidth(absl::nullopt);
+  builder.SetDefaultLinkPhitBitWidth(std::nullopt);
   LinkConfigProtoBuilder link_builder2 = builder.WithLink("Link2");
   link_builder2.WithSourceSinkPipelineStage(kNonDefault);
 
@@ -112,7 +112,7 @@ TEST(NetworkConfigBuilderTest, LinkDefaultSinkSourcePipelineStageField) {
   link_builder0.WithSinkSourcePipelineStage(kNonDefault);
   builder.SetDefaultLinkSinkSourcePipelineStage(kDefault);
   builder.WithLink("Link1");
-  builder.SetDefaultLinkPhitBitWidth(absl::nullopt);
+  builder.SetDefaultLinkPhitBitWidth(std::nullopt);
   LinkConfigProtoBuilder link_builder2 = builder.WithLink("Link2");
   link_builder2.WithSinkSourcePipelineStage(kNonDefault);
 
@@ -135,7 +135,7 @@ TEST(NetworkConfigBuilderTest, VirtualChannelFlitBitWidthDefaultFields) {
   virtual_channel_builder0.WithFlitBitWidth(kNonDefault);
   builder.SetDefaultVirtualChannelFlitBitWidth(kDefault);
   builder.WithVirtualChannel("VC1");
-  builder.SetDefaultVirtualChannelFlitBitWidth(absl::nullopt);
+  builder.SetDefaultVirtualChannelFlitBitWidth(std::nullopt);
   VirtualChannelConfigProtoBuilder virtual_channel_builder2 =
       builder.WithVirtualChannel("VC2");
   virtual_channel_builder2.WithFlitBitWidth(kNonDefault);
@@ -159,7 +159,7 @@ TEST(NetworkConfigBuilderTest, VirtualChannelDepthDefaultFields) {
   virtual_channel_builder0.WithDepth(kNonDefault);
   builder.SetDefaultVirtualChannelDepth(kDefault);
   builder.WithVirtualChannel("VC1");
-  builder.SetDefaultVirtualChannelDepth(absl::nullopt);
+  builder.SetDefaultVirtualChannelDepth(std::nullopt);
   VirtualChannelConfigProtoBuilder virtual_channel_builder2 =
       builder.WithVirtualChannel("VC2");
   virtual_channel_builder2.WithDepth(kNonDefault);

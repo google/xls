@@ -267,7 +267,7 @@ TEST_F(BlockTest, BlockWithRegisters) {
   BValue out = bb.OutputPort("out", sum_d);
 
   bb.RegisterWrite(state_reg, sum_d,
-                   /*load_enable=*/absl::nullopt, /*reset=*/absl::nullopt,
+                   /*load_enable=*/std::nullopt, /*reset=*/std::nullopt,
                    SourceInfo(), "state_write");
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
@@ -633,8 +633,8 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RegisterWrite * reg_write,
       block->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
-                                     /*load_enable=*/absl::nullopt,
-                                     /*reset=*/absl::nullopt, reg));
+                                     /*load_enable=*/std::nullopt,
+                                     /*reset=*/std::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(block->GetRegisterWrite(reg), IsOkAndHolds(reg_write));
@@ -644,8 +644,8 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
   XLS_ASSERT_OK_AND_ASSIGN(
       RegisterWrite * dup_reg_write,
       block->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
-                                     /*load_enable=*/absl::nullopt,
-                                     /*reset=*/absl::nullopt, reg));
+                                     /*load_enable=*/std::nullopt,
+                                     /*reset=*/std::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,

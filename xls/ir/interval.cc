@@ -110,7 +110,7 @@ std::optional<Interval> Interval::Intersect(const Interval& lhs,
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
   if (!Interval::Overlaps(lhs, rhs)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   Bits lower = lhs.LowerBound();
   if (bits_ops::UGreaterThan(rhs.LowerBound(), lower)) {
@@ -222,11 +222,11 @@ std::optional<int64_t> Interval::Size() const {
   if (size_status.ok()) {
     uint64_t size = *size_status;
     if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return static_cast<int64_t>(size);
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 bool Interval::IsImproper() const {
@@ -247,7 +247,7 @@ bool Interval::IsPrecise() const {
 
 std::optional<Bits> Interval::GetPreciseValue() const {
   if (!IsPrecise()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return lower_bound_;
 }

@@ -587,7 +587,7 @@ TEST_P(PipelineGeneratorTest, TwoBitSelectorAllCasesPopulated) {
   auto y = fb.Param("y", package.GetBitsType(8));
   auto z = fb.Param("z", package.GetBitsType(8));
   auto a = fb.Param("a", package.GetBitsType(8));
-  fb.Select(s, {x, y, z, a}, /*default_value=*/absl::nullopt);
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
@@ -616,7 +616,7 @@ TEST_P(PipelineGeneratorTest, ValidSignal) {
   auto y = fb.Param("y", package.GetBitsType(8));
   auto z = fb.Param("z", package.GetBitsType(8));
   auto a = fb.Param("a", package.GetBitsType(8));
-  fb.Select(s, {x, y, z, a}, /*default_value=*/absl::nullopt);
+  fb.Select(s, {x, y, z, a}, /*default_value=*/std::nullopt);
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 

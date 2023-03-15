@@ -157,7 +157,7 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
                         n->loc(), a, k, is_clamp_high ? Op::kUGt : Op::kULt));
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Select>(cmp, /*cases=*/std::vector<Node*>({a, k}),
-                                      /*default_value=*/absl::nullopt)
+                                      /*default_value=*/std::nullopt)
             .status());
     return true;
   }
@@ -290,7 +290,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
         sel->ReplaceUsesWithNew<Select>(
                sel->selector()->operand(0),
                /*cases=*/std::vector<Node*>{sel->get_case(1), sel->get_case(0)},
-               /*default_value=*/absl::nullopt)
+               /*default_value=*/std::nullopt)
             .status());
     return true;
   }
@@ -306,7 +306,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
       new_cases.push_back(*sel->default_value());
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<Select>(sel->selector(), new_cases,
-                                           /*default_value=*/absl::nullopt)
+                                           /*default_value=*/std::nullopt)
               .status());
       return true;
     }

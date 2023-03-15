@@ -130,7 +130,7 @@ struct Command {
 };
 
 // Parse a command, given a string like `":type identifier"`.
-// Returns `absl::nullopt` only if the command could not be parsed.
+// Returns `std::nullopt` only if the command could not be parsed.
 std::optional<Command> ParseCommand(std::string_view str) {
   std::string_view stripped_str = absl::StripAsciiWhitespace(str);
   auto munch_prefix = [&str](std::string s) {
@@ -161,7 +161,7 @@ std::optional<Command> ParseCommand(std::string_view str) {
     result.arguments.push_back(absl::StripAsciiWhitespace(str));
   } else {
     XLS_VLOG(1) << "Unknown command prefix: \"" << stripped_str << "\"";
-    return absl::nullopt;
+    return std::nullopt;
   }
   return result;
 }

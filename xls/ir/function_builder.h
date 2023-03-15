@@ -279,7 +279,7 @@ class BuilderBase {
   // the selector value. If the number of cases is less than 2**selector_width
   // then a default value must be specified.
   BValue Select(BValue selector, absl::Span<const BValue> cases,
-                std::optional<BValue> default_value = absl::nullopt,
+                std::optional<BValue> default_value = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -507,7 +507,7 @@ class BuilderBase {
   // Binary decodes the n-bit input to a one-hot output. 'width' can be at most
   // 2**n where n is the bit width of the operand. If 'width' is not specified
   // the output is 2**n bits wide.
-  BValue Decode(BValue arg, std::optional<int64_t> width = absl::nullopt,
+  BValue Decode(BValue arg, std::optional<int64_t> width = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -544,7 +544,7 @@ class BuilderBase {
   // Adds an assert op to the function. Assert raises an error containing the
   // given message if the given condition evaluates to false.
   BValue Assert(BValue token, BValue condition, std::string_view message,
-                std::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -794,7 +794,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // Add an assert operation. Returns the token-typed assert operation.
   using BuilderBase::Assert;
   BValue Assert(BValue condition, std::string_view message,
-                std::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -838,8 +838,8 @@ class BlockBuilder : public BuilderBase {
   // Block::AddRegister. If the register being writen has a reset value then
   // `reset` must be specified.
   BValue RegisterWrite(Register* reg, BValue data,
-                       std::optional<BValue> load_enable = absl::nullopt,
-                       std::optional<BValue> reset = absl::nullopt,
+                       std::optional<BValue> load_enable = std::nullopt,
+                       std::optional<BValue> reset = std::nullopt,
                        const SourceInfo& loc = SourceInfo(),
                        std::string_view name = "");
 
@@ -849,13 +849,13 @@ class BlockBuilder : public BuilderBase {
   // and adding a RegisterRead operation. Returned BValue is the RegisterRead
   // operation.
   BValue InsertRegister(std::string_view name, BValue data,
-                        std::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // As InsertRegister above but with a reset value.
   BValue InsertRegister(std::string_view name, BValue data,
                         BValue reset_signal, Reset reset,
-                        std::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // Add an instantiation input/output to the block.

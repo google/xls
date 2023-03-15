@@ -24,7 +24,7 @@ namespace xls {
 
 // If the given node is an Op::kEq or Op::kNe node which compares against a
 // bits-typed literal which fits in a uint64_t, then return the two operands of
-// the comparison as a Uint64Comparison. Returns absl::nullopt otherwise.
+// the comparison as a Uint64Comparison. Returns std::nullopt otherwise.
 struct Uint64Comparison {
   Node* index;
   uint64_t key;
@@ -32,7 +32,7 @@ struct Uint64Comparison {
 };
 std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
   if (node->op() != Op::kEq && node->op() != Op::kNe) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   auto is_uint64_literal = [](Node* n) {
     return n->Is<Literal>() && n->As<Literal>()->value().IsBits() &&
@@ -51,7 +51,7 @@ std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
         node->operand(1)->As<Literal>()->value().bits().ToUint64().value(),
         node->op()};
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Return type of the MatchLink function. See MatchLink comment for details.
@@ -77,10 +77,10 @@ struct Link {
 //   {value} : A literal node.
 //
 // If a match is found, the respective Link fields are filled in (as named
-// above). Otherwise absl::nullopt is returned.
+// above). Otherwise std::nullopt is returned.
 std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   if (!IsBinarySelect(node)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   Select* select = node->As<Select>();
 
@@ -88,7 +88,7 @@ std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   std::optional<Uint64Comparison> match =
       MatchCompareEqAgainstUint64(select->selector());
   if (!match.has_value()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   Node* next;
@@ -105,13 +105,13 @@ std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   // The select instruction must have a literal value for the selector is true
   // case.
   if (!value_node->Is<Literal>()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const Value& value = value_node->As<Literal>()->value();
 
   // The index, if given, must match the non-literal operand of the eq.
   if (index != nullptr && index != match->index) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   return Link{select, match->index, match->key, value, next};
@@ -134,22 +134,22 @@ std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 //
 // The returned array might be: {Value_0, Value_1, Value_2, else_value}
 //
-// Returns absl::nullopt if the chain cannot be represented as an index into a
+// Returns std::nullopt if the chain cannot be represented as an index into a
 // literal array.
 absl::StatusOr<std::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
     XLS_VLOG(3) << "Empty chain.";
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Compute the size of the space indexed by the index of the select
   // chain. Used to test if the selects cover the entire index space. If the
-  // index space is huge (>=2^64) we set this value to absl::nullopt and
+  // index space is huge (>=2^64) we set this value to std::nullopt and
   // consider the index space size to be infinitely large for the purposes of
   // this transformation.
   int64_t index_width = links.front().index->GetType()->GetFlatBitCount();
-  std::optional<uint64_t> index_space_size = absl::nullopt;
+  std::optional<uint64_t> index_space_size = std::nullopt;
   if (index_width < 63) {
     index_space_size = uint64_t{1} << index_width;
   }
@@ -198,7 +198,7 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
   if (!links.back().next->Is<Literal>()) {
     XLS_VLOG(3) << "Final fall-through case is not a literal: "
                 << links.back().next->ToString();
-    return absl::nullopt;
+    return std::nullopt;
   }
   const Value& else_value = links.back().next->As<Literal>()->value();
 
@@ -244,7 +244,7 @@ absl::StatusOr<std::optional<Value>> LinksToTable(
   //  - Handle "partial" chains - those that only cover part of the match space
 
   XLS_VLOG(3) << "Cannot convert link chain to table lookup";
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(

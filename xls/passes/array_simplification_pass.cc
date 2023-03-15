@@ -262,7 +262,7 @@ absl::StatusOr<bool> SimplifyArrayIndex(ArrayIndex* array_index,
             ->ReplaceUsesWithNew<Select>(
                 select->selector(),
                 /*cases=*/std::vector<Node*>({on_false_index, on_true_index}),
-                /*default=*/absl::nullopt)
+                /*default=*/std::nullopt)
             .status());
     return true;
   }
@@ -555,7 +555,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   absl::flat_hash_map<uint64_t, Node*> index_to_element;
 
   if (array_update->indices().empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -607,14 +607,14 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
 
   if (!common_index_prefix.has_value()) {
     // No transformation possible.
-    return absl::nullopt;
+    return std::nullopt;
   }
   XLS_RET_CHECK(source_array != nullptr);
   XLS_RET_CHECK(!update_chain.empty());
 
   // TODO(meheff): If at least half (>=) of the values are set then replace.
   if (index_to_element.size() < (subarray_size + 1) / 2) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   std::vector<Node*> array_elements;
@@ -809,7 +809,7 @@ absl::StatusOr<bool> SimplifyConditionalAssign(Select* select) {
           std::vector<Node*>(
               {update_on_true ? original_value : array_update->update_value(),
                update_on_true ? array_update->update_value() : original_value}),
-          /*default_value=*/absl::nullopt));
+          /*default_value=*/std::nullopt));
 
   XLS_RETURN_IF_ERROR(array_update->ReplaceOperandNumber(1, selected_value));
   XLS_RETURN_IF_ERROR(select->ReplaceUsesWith(array_update));
@@ -843,7 +843,7 @@ absl::StatusOr<bool> SimplifySelectOfArrays(Select* select) {
     XLS_ASSIGN_OR_RETURN(Node * selected_element,
                          select->function_base()->MakeNode<Select>(
                              select->loc(), select->selector(),
-                             /*cases=*/elements, /*default=*/absl::nullopt));
+                             /*cases=*/elements, /*default=*/std::nullopt));
     selected_elements.push_back(selected_element);
   }
   XLS_RETURN_IF_ERROR(select
@@ -892,7 +892,7 @@ absl::StatusOr<bool> SimplifyBinarySelect(Select* select,
                            /*cases=*/
                            std::vector<Node*>({false_update->update_value(),
                                                true_update->update_value()}),
-                           /*default_value=*/absl::nullopt));
+                           /*default_value=*/std::nullopt));
 
   XLS_RETURN_IF_ERROR(select
                           ->ReplaceUsesWithNew<ArrayUpdate>(

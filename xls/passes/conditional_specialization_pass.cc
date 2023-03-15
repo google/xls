@@ -222,7 +222,7 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
     }
   }
   if (query_engine == nullptr) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   std::vector<std::pair<TreeBitLocation, bool>> predicates;

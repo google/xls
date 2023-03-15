@@ -54,7 +54,7 @@ class Token {
   static Token Simple(Kind kind, int64_t pos);
 
   Token(Kind kind, int64_t pos,
-        std::optional<std::string> payload = absl::nullopt)
+        std::optional<std::string> payload = std::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   Kind kind() { return kind_; }

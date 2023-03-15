@@ -92,7 +92,7 @@ class FlattenedMultiDimensionalArray {
   // not valid, returns an nullopt.
   std::optional<Coordinate> GetCoordinateOfIndex(int64_t index) const {
     if (!IsIndexValid(index)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     if (dimensions_.HasZeroDimensions()) {
       return Coordinate({});
@@ -150,7 +150,7 @@ class FlattenedMultiDimensionalArray {
     // dimensional bounds, otherwise the result is 1.
     int64_t DistanceFromEnd(std::optional<int64_t> dimension_index) const {
       if (coordinate_.HasZeroDimensions()) {
-        XLS_CHECK(dimension_index == absl::nullopt)
+        XLS_CHECK(dimension_index == std::nullopt)
             << "For a zero-dimension, the dimension index must be nullopt.";
         return traversed_zero_dimension_ ? 0 : 1;
       }
@@ -170,10 +170,10 @@ class FlattenedMultiDimensionalArray {
     const DimensionBounds& GetDimensions() const { return dimensions_; }
 
     // Returns the coordinate value of the iterator. If the iterator is outside
-    // of the dimensional space, absl::nullopt is returned.
+    // of the dimensional space, std::nullopt is returned.
     std::optional<Coordinate> GetCoordinate() const {
       if (IsAtBounds()) {
-        return absl::nullopt;
+        return std::nullopt;
       }
       return coordinate_;
     }
@@ -325,7 +325,7 @@ class FlattenedMultiDimensionalArray {
   std::optional<int64_t> GetIndexOfCoordinate(
       const Coordinate& coordinate) const {
     if (!IsCoordinateValid(coordinate)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     if (dimensions_.HasZeroDimensions()) {
       return 0;

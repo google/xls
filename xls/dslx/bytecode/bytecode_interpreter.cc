@@ -113,7 +113,7 @@ absl::Status BytecodeInterpreter::InitFrame(
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
   frames_.push_back(
-      Frame(bf, args, type_info, absl::nullopt, /*initial_args=*/{}));
+      Frame(bf, args, type_info, std::nullopt, /*initial_args=*/{}));
   return absl::OkStatus();
 }
 
@@ -1835,7 +1835,7 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
     InterpValue terminator, std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
-  return EvalSpawn(import_data, type_info, absl::nullopt, absl::nullopt,
+  return EvalSpawn(import_data, type_info, std::nullopt, std::nullopt,
                    root_proc,
                    /*config_args=*/{terminator}, proc_instances, options);
 }

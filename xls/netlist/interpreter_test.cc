@@ -55,7 +55,7 @@ TEST(InterpreterTest, BasicFunctionality) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       rtl::Cell tmp_cell,
-      rtl::Cell::Create(entry, "the_cell", params, absl::nullopt, nullptr));
+      rtl::Cell::Create(entry, "the_cell", params, std::nullopt, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(auto cell, module->AddCell(tmp_cell));
   a_ref->NoteConnectedCell(cell);
   b_ref->NoteConnectedCell(cell);
@@ -110,7 +110,7 @@ TEST(InterpreterTest, Tree) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       rtl::Cell tmp_cell,
-      rtl::Cell::Create(and_entry, "and", and_params, absl::nullopt, nullptr));
+      rtl::Cell::Create(and_entry, "and", and_params, std::nullopt, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(auto and_cell, module->AddCell(tmp_cell));
   i0->NoteConnectedCell(and_cell);
   i1->NoteConnectedCell(and_cell);
@@ -123,7 +123,7 @@ TEST(InterpreterTest, Tree) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       tmp_cell,
-      rtl::Cell::Create(or_entry, "or", or_params, absl::nullopt, nullptr));
+      rtl::Cell::Create(or_entry, "or", or_params, std::nullopt, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(auto or_cell, module->AddCell(tmp_cell));
   i2->NoteConnectedCell(or_cell);
   i3->NoteConnectedCell(or_cell);
@@ -135,7 +135,7 @@ TEST(InterpreterTest, Tree) {
   xor_params["Z"] = xor_o;
   XLS_ASSERT_OK_AND_ASSIGN(
       tmp_cell,
-      rtl::Cell::Create(xor_entry, "xor", xor_params, absl::nullopt, nullptr));
+      rtl::Cell::Create(xor_entry, "xor", xor_params, std::nullopt, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(auto xor_cell, module->AddCell(tmp_cell));
   and_o->NoteConnectedCell(xor_cell);
   or_o->NoteConnectedCell(xor_cell);

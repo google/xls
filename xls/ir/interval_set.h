@@ -102,7 +102,7 @@ class IntervalSet {
   void Normalize();
 
   // Return the smallest single proper interval that contains all points in this
-  // interval set. If the set of points is empty, returns `absl::nullopt`.
+  // interval set. If the set of points is empty, returns `std::nullopt`.
   std::optional<Interval> ConvexHull() const;
 
   // Returns an `IntervalSet` the bounds of which have been zero-extended to the
@@ -132,7 +132,7 @@ class IntervalSet {
   static IntervalSet Complement(const IntervalSet& set);
 
   // Returns the number of points covered by the intervals in this interval set,
-  // if that is expressible as an `int64_t`. Otherwise, returns `absl::nullopt`.
+  // if that is expressible as an `int64_t`. Otherwise, returns `std::nullopt`.
   // CHECK fails if the interval set is not normalized.
   std::optional<int64_t> Size() const;
 
@@ -179,7 +179,7 @@ class IntervalSet {
   bool IsPrecise() const;
 
   // Returns the unique member of the interval set if the interval set is
-  // precise. If the interval is not precise, returns absl::nullopt.
+  // precise. If the interval is not precise, returns std::nullopt.
   // CHECK fails if the interval set is not normalized.
   std::optional<Bits> GetPreciseValue() const;
 

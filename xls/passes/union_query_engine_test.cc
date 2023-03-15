@@ -88,7 +88,7 @@ class FakeQueryEngine : public QueryEngine {
     if (implied_node_values_.contains({vec, node})) {
       return implied_node_values_.at({vec, node});
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   bool KnownEquals(const TreeBitLocation& a,

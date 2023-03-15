@@ -74,8 +74,8 @@ absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
 // equivalent to absl::ZeroDuration and means "wait forever".
 absl::StatusOr<SubprocessResult> InvokeSubprocess(
     absl::Span<const std::string> argv,
-    std::optional<std::filesystem::path> cwd = absl::nullopt,
-    std::optional<absl::Duration> optional_timeout = absl::nullopt);
+    std::optional<std::filesystem::path> cwd = std::nullopt,
+    std::optional<absl::Duration> optional_timeout = std::nullopt);
 
 }  // namespace xls
 #endif  // XLS_COMMON_SUBPROCESS_H_

@@ -336,7 +336,7 @@ class Bytecode {
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
   Bytecode(Span source_span, Op op)
-      : source_span_(source_span), op_(op), data_(absl::nullopt) {}
+      : source_span_(source_span), op_(op), data_(std::nullopt) {}
 
   // Creates an operation with associated string or InterpValue data.
   Bytecode(Span source_span, Op op, std::optional<Data> data)

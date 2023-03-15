@@ -97,7 +97,7 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
   std::optional<Bits> lower = LowerBound();
   std::optional<Bits> upper = UpperBound();
   if (!lower.has_value() || !upper.has_value()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return Interval(lower.value(), upper.value());
 }
@@ -249,7 +249,7 @@ std::optional<int64_t> IntervalSet::Size() const {
     if (auto size = interval.Size()) {
       total_size += size.value();
     } else {
-      return absl::nullopt;
+      return std::nullopt;
     }
   }
   return total_size;
@@ -316,7 +316,7 @@ bool IntervalSet::IsPrecise() const {
 std::optional<Bits> IntervalSet::GetPreciseValue() const {
   XLS_CHECK(is_normalized_);
   if (!IsPrecise()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   XLS_CHECK_EQ(intervals_.size(), 1);
   return intervals_.front().GetPreciseValue();

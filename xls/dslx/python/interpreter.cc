@@ -193,7 +193,7 @@ RunProc(
   }
 
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::EvalSpawn(
-      &import_data, proc_type_info, absl::nullopt, absl::nullopt, proc,
+      &import_data, proc_type_info, std::nullopt, std::nullopt, proc,
       config_args, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);

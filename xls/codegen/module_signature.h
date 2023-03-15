@@ -65,7 +65,7 @@ class ModuleSignatureBuilder {
   // initiation interval.
   ModuleSignatureBuilder& WithPipelineInterface(
       int64_t latency, int64_t initiation_interval,
-      std::optional<PipelineControl> pipeline_control = absl::nullopt);
+      std::optional<PipelineControl> pipeline_control = std::nullopt);
 
   // Defines the module interface as purely combinational.
   ModuleSignatureBuilder& WithCombinationalInterface();

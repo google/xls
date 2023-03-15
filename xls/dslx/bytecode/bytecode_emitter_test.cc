@@ -47,7 +47,7 @@ absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
   return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn(),
-                               absl::nullopt);
+                               std::nullopt);
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -1386,7 +1386,7 @@ fn main() -> u32 {
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(
           &import_data, tm.type_info, body, /*env=*/{},
-          /*caller_bindings=*/absl::nullopt));
+          /*caller_bindings=*/std::nullopt));
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 3);
   const std::vector<std::string> kNextExpected = {

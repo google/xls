@@ -58,7 +58,7 @@ class BddFunction {
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
       FunctionBase* f, int64_t path_limit = 0,
       std::optional<std::function<bool(const Node*)>> node_filter =
-          absl::nullopt);
+          std::nullopt);
 
   // Returns the underlying BDD.
   const BinaryDecisionDiagram& bdd() const { return bdd_; }

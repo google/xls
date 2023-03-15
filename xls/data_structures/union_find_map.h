@@ -65,14 +65,14 @@ class UnionFindMap {
   }
 
   // Given a key, returns the representative element in that key's equivalence
-  // class, along with the associated value. Returns `absl::nullopt` if the
+  // class, along with the associated value. Returns `std::nullopt` if the
   // given key has never been inserted.
   std::optional<std::pair<K, V&>> Find(const K& key) {
     if (auto index = GetIndex(key)) {
       uint32_t found = FindRoot(index.value());
       return {{keys_.at(found), values_.at(found)}};
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Union together the equivalence classes of two keys.
@@ -140,7 +140,7 @@ class UnionFindMap {
 
   std::optional<uint32_t> GetIndex(const K& key) const {
     if (!key_to_index_.contains(key)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return key_to_index_.at(key);
   }

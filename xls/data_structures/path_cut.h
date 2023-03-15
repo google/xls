@@ -157,7 +157,7 @@ class PathGraph {
     XLS_CHECK_GE(static_cast<int32_t>(node), 0);
     XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) == node_weights_.size() - 1) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return PathEdgeId(static_cast<int32_t>(node));
   }
@@ -167,7 +167,7 @@ class PathGraph {
     XLS_CHECK_GE(static_cast<int32_t>(node), 0);
     XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) <= 0) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return PathEdgeId(static_cast<int32_t>(node) - 1);
   }
@@ -177,7 +177,7 @@ class PathGraph {
   // each piece of the `PathCut` must be less than or equal to the
   // given `PathNodeWeight`.
   //
-  // Returns `absl::nullopt` when there is no cut that satisfies the constraint
+  // Returns `std::nullopt` when there is no cut that satisfies the constraint
   // given by `maximum_weight`.
   //
   // The algorithm is based on https://cs.stackexchange.com/a/138417
@@ -202,7 +202,7 @@ class PathGraph {
     // prefix of the path graph, subject to the constraint that no piece has
     // total node weight greater than `m`.
     //
-    // The reason we need the `absl::nullopt` is to account for the possibility
+    // The reason we need the `std::nullopt` is to account for the possibility
     // that there is no cut edge prior to `k`. It forms the base case of the
     // recurrence.
     //
@@ -218,7 +218,7 @@ class PathGraph {
     absl::flat_hash_map<CacheKey, CacheItem> cache;
 
     // Initialize the base case of the recurrence.
-    cache[absl::nullopt] = {edge_weight_pdm_.zero(), {}};
+    cache[std::nullopt] = {edge_weight_pdm_.zero(), {}};
 
     for (PathNodeId k(0); static_cast<int32_t>(k) < NumNodes(); k++) {
       std::optional<CacheItem> best;
@@ -243,7 +243,7 @@ class PathGraph {
         };
 
         // Actually run the dynamic programming inner loop.
-        loop_body(absl::nullopt);
+        loop_body(std::nullopt);
         for (PathNodeId t(0); t < k; t++) {
           loop_body(t);
         }
@@ -252,7 +252,7 @@ class PathGraph {
       // This means there was a node that was too big for the given value of
       // `maximum_weight`.
       if (!best.has_value()) {
-        return absl::nullopt;
+        return std::nullopt;
       }
 
       // Corresponds to the … + wₑ(k, k + 1) part of the recurrence.

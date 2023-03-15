@@ -643,7 +643,7 @@ absl::StatusOr<std::optional<int64_t>> IntegrationFunction::GetMergeNodesCost(
                        MergeNodesBackend(node_a, node_b));
   // Can't merge nodes.
   if (!merge_result.can_merge) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Score.

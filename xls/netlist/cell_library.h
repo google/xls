@@ -190,7 +190,7 @@ class AbstractCellLibraryEntry {
       const InputNamesContainer& input_names,
       const OutputPinToFunction& output_pin_to_function,
       const std::optional<AbstractStateTable<EvalT>> state_table,
-      std::optional<std::string> clock_name = absl::nullopt)
+      std::optional<std::string> clock_name = std::nullopt)
       : kind_(kind),
         name_(name),
         input_names_(input_names.begin(), input_names.end()),

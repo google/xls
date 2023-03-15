@@ -133,7 +133,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   NameDef* module_def =
       module.Make<NameDef>(Span::Fake(), "import_module", nullptr);
   Import* import = module.Make<Import>(Span::Fake(), import_tokens, module_def,
-                                       absl::nullopt);
+                                       std::nullopt);
   module_def->set_definer(import);
   NameRef* module_ref =
       module.Make<NameRef>(Span::Fake(), "import_module", module_def);

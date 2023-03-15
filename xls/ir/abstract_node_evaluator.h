@@ -213,7 +213,7 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       std::optional<const Vector> default_value =
           sel->default_value().has_value()
               ? std::optional<const Vector>(operands.back())
-              : absl::nullopt;
+              : std::nullopt;
       return evaluator->Select(operands[0], cases, default_value);
     }
     case Op::kShll:

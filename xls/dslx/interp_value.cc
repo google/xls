@@ -922,7 +922,7 @@ bool InterpValue::operator>=(const InterpValue& rhs) const {
 std::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value) {
   if (function_value.IsBuiltinFunction()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const auto& fn_data =
       std::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());

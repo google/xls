@@ -150,7 +150,7 @@ std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   if (parent_ != nullptr) {
     return parent_->GetItem(key);
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<ConcreteType*> TypeInfo::GetItemOrError(
@@ -196,7 +196,7 @@ std::optional<bool> TypeInfo::GetRequiresImplicitToken(
       root->requires_implicit_token_;
   auto it = map.find(f);
   if (it == map.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   bool result = it->second;
   XLS_VLOG(6) << absl::StreamFormat("GetRequiresImplicitToken %p %s::%s => %s",
@@ -222,7 +222,7 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
   if (it == top->invocations_.end()) {
     XLS_VLOG(5) << "Could not find instantiation for invocation: "
                 << invocation->ToString();
-    return absl::nullopt;
+    return std::nullopt;
   }
   const InvocationData& data = it->second;
   XLS_VLOG(5) << "Invocation " << invocation->ToString()
@@ -230,7 +230,7 @@ std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
               << " invocation data: " << data.ToString();
   auto it2 = data.instantiations.find(caller);
   if (it2 == data.instantiations.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return it2->second;
 }
@@ -288,7 +288,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
   if (it == top->invocations().end()) {
     XLS_VLOG(3) << "Could not find instantiation " << invocation
                 << " in top-level type info: " << top;
-    return absl::nullopt;
+    return std::nullopt;
   }
   const InvocationData& data = it->second;
   auto it2 = data.parametric_env_map.find(caller);
@@ -297,7 +297,7 @@ std::optional<const ParametricEnv*> TypeInfo::GetInvocationCalleeBindings(
         << "Could not find caller symbolic bindings in instantiation data: "
         << caller.ToString() << " " << invocation->ToString() << " @ "
         << invocation->span();
-    return absl::nullopt;
+    return std::nullopt;
   }
   const ParametricEnv* result = &it2->second;
   XLS_VLOG(3) << "Resolved instantiation symbolic bindings for "
@@ -326,12 +326,12 @@ std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
   const TypeInfo* top = GetRoot();
   auto it = top->slices_.find(node);
   if (it == top->slices_.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const SliceData& data = it->second;
   auto it2 = data.bindings_to_start_width.find(parametric_env);
   if (it2 == data.bindings_to_start_width.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return it2->second;
 }
@@ -349,7 +349,7 @@ std::optional<const ImportedInfo*> TypeInfo::GetImported(
   auto* self = GetRoot();
   auto it = self->imports_.find(import);
   if (it == self->imports_.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return &it->second;
 }
@@ -378,7 +378,7 @@ std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
       return info.type_info;
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 TypeInfo::TypeInfo(Module* module, TypeInfo* parent)

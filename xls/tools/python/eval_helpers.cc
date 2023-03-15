@@ -34,7 +34,7 @@ PYBIND11_MODULE(eval_helpers, m) {
   m.def("channel_values_to_string", &ChannelValuesToString);
   m.def("parse_channel_values", &ParseChannelValues,
         py::arg("all_channel_values"),
-        py::arg("max_values_count") = absl::nullopt);
+        py::arg("max_values_count") = std::nullopt);
 }
 
 }  // namespace xls

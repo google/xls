@@ -159,7 +159,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
-  SchedulingUnit<> scheduling_unit = {p, /*schedule=*/absl::nullopt};
+  SchedulingUnit<> scheduling_unit = {p, /*schedule=*/std::nullopt};
   absl::Status scheduling_status =
       scheduling_pipeline->Run(&scheduling_unit, sched_options, &results)
           .status();

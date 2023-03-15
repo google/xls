@@ -267,7 +267,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> outputs,
       std::optional<
           absl::Span<const absl::flat_hash_map<std::string, uint64_t>>>
-          expected_outputs = absl::nullopt) const {
+          expected_outputs = std::nullopt) const {
     XLS_CHECK_EQ(inputs.size(), outputs.size());
     if (expected_outputs.has_value()) {
       XLS_CHECK_EQ(inputs.size(), expected_outputs->size());
@@ -3078,7 +3078,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -3087,7 +3087,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),
@@ -3155,7 +3155,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -3164,7 +3164,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),
@@ -3214,11 +3214,11 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in,
       package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(), "tkn", &package);
   BValue recv = pb.Receive(in);
@@ -3303,15 +3303,15 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_a,
       package.CreateStreamingChannel("in_a", ChannelOps::kReceiveOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_b,
       package.CreateStreamingChannel("in_b", ChannelOps::kReceiveOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(), "tkn", &package);
   BValue a = pb.Receive(in_a);
@@ -3402,19 +3402,19 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_a,
       package.CreateStreamingChannel("in_a", ChannelOps::kReceiveOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_b,
       package.CreateStreamingChannel("in_b", ChannelOps::kReceiveOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_a,
       package.CreateStreamingChannel("out_a", ChannelOps::kSendOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_b,
       package.CreateStreamingChannel("out_b", ChannelOps::kSendOnly, u32, {},
-                                     absl::nullopt, FlowControl::kReadyValid));
+                                     std::nullopt, FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(), "tkn", &package);
   pb.Send(out_a, pb.Not(pb.Not(pb.Not(pb.Not(pb.Receive(in_a))))));

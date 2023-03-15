@@ -808,7 +808,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
 
   // Bind the names to their associated types for use in the body.
   XLS_RETURN_IF_ERROR(
-      BindNames(node->names(), *target_annotated_type, ctx, absl::nullopt));
+      BindNames(node->names(), *target_annotated_type, ctx, std::nullopt));
 
   // Now we can deduce the body.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
@@ -1351,7 +1351,7 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
     Slice* slice, Expr* bound, std::string_view bound_name, ConcreteType* s32,
     const absl::flat_hash_map<std::string, InterpValue>& env, DeduceCtx* ctx) {
   if (bound == nullptr) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   absl::StatusOr<InterpValue> bound_or = InterpretExpr(ctx, bound, env);

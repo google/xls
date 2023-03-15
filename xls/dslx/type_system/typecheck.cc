@@ -91,7 +91,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(import_data, type_info, expr, env,
-                                      /*caller_bindings=*/absl::nullopt));
+                                      /*caller_bindings=*/std::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{});
 }
 
@@ -895,7 +895,7 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     TypeAnnotation* element_type = array_type->element_type();
     auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(element_type);
     if (builtin_type == nullptr) {
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     // If the array size/dim is a scalar < 64b, then the element is really an
@@ -907,7 +907,7 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     if (builtin_type->builtin_type() != BuiltinType::kBits &&
         builtin_type->builtin_type() != BuiltinType::kUN &&
         builtin_type->builtin_type() != BuiltinType::kSN) {
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     XLS_ASSIGN_OR_RETURN(uint64_t array_dim,
@@ -918,7 +918,7 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     }
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

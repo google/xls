@@ -133,7 +133,7 @@ CodegenOptions& CodegenOptions::manual_control(std::string_view input_name) {
 
 std::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
   if (!pipeline_control_.has_value() || !pipeline_control_->has_manual()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return pipeline_control_->manual();
 }
@@ -153,7 +153,7 @@ CodegenOptions& CodegenOptions::valid_control(
 
 std::optional<ValidProto> CodegenOptions::valid_control() const {
   if (!pipeline_control_.has_value() || !pipeline_control_->has_valid()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return pipeline_control_->valid();
 }

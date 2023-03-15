@@ -562,7 +562,7 @@ class BuiltinNameDef : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBuiltinNameDef(this);
   }
-  std::optional<Span> GetSpan() const override { return absl::nullopt; }
+  std::optional<Span> GetSpan() const override { return std::nullopt; }
 
   std::string_view GetNodeTypeName() const override {
     return "BuiltinNameDef";
@@ -885,7 +885,7 @@ class NameRef : public Expr {
     if (std::holds_alternative<const NameDef*>(name_def_)) {
       return std::get<const NameDef*>(name_def_)->span().start();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   std::variant<const NameDef*, BuiltinNameDef*> name_def() const {
@@ -2621,7 +2621,7 @@ class QuickCheck : public AstNode {
   static constexpr int64_t kDefaultTestCount = 1000;
 
   QuickCheck(Module* owner, Span span, Function* f,
-             std::optional<int64_t> test_count = absl::nullopt);
+             std::optional<int64_t> test_count = std::nullopt);
 
   ~QuickCheck() override;
 
@@ -3138,7 +3138,7 @@ class Module : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleModule(this);
   }
-  std::optional<Span> GetSpan() const override { return absl::nullopt; }
+  std::optional<Span> GetSpan() const override { return std::nullopt; }
 
   std::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;

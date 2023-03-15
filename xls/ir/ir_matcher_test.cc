@@ -224,7 +224,7 @@ TEST(IrMatchersTest, Select) {
   auto pred = fb.Param("pred", p.GetBitsType(1));
   auto x = fb.Param("x", p.GetBitsType(32));
   auto y = fb.Param("y", p.GetBitsType(32));
-  fb.Select(pred, {x, y}, /*default_value=*/absl::nullopt);
+  fb.Select(pred, {x, y}, /*default_value=*/std::nullopt);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(f->return_value(), m::Select());
@@ -232,7 +232,7 @@ TEST(IrMatchersTest, Select) {
               m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")}));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")},
-                        /*default_value=*/absl::nullopt));
+                        /*default_value=*/std::nullopt));
 
   EXPECT_THAT(
       Explain(f->return_value(), m::Select(m::Name("pred"), {m::Name("x")},
@@ -324,13 +324,13 @@ TEST(IrMatchersTest, SendOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", "my_token", &p);
@@ -361,13 +361,13 @@ TEST(IrMatchersTest, ReceiveOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", "my_token", &p);

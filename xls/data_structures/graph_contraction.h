@@ -182,7 +182,7 @@ class GraphContraction {
     if (auto pair = vertex_weights_.Find(vertex)) {
       return pair->first;
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns the edges that point out of the given vertex, and their weights.
@@ -206,7 +206,7 @@ class GraphContraction {
     if (auto v = vertex_weights_.Find(vertex)) {
       return v.value().second;
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns the weight of the given edge.
@@ -215,11 +215,11 @@ class GraphContraction {
     if (edges.contains(target)) {
       return edges.at(target);
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns a topological sort of the nodes in the graph if the graph is
-  // acyclic, otherwise returns absl::nullopt.
+  // acyclic, otherwise returns std::nullopt.
   std::optional<std::vector<V>> TopologicalSort() {
     std::vector<V> result;
 
@@ -247,7 +247,7 @@ class GraphContraction {
     }
 
     if (result.size() != Vertices().size()) {
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     return result;
@@ -259,7 +259,7 @@ class GraphContraction {
   // The outer map key is the source of the path and the inner map key is the
   // sink of the path. Those keys only exist if a path exists from that source
   // to that sink.
-  // Returns absl::nullopt if the graph contains a cycle.
+  // Returns std::nullopt if the graph contains a cycle.
   std::optional<absl::flat_hash_map<V, absl::flat_hash_map<V, VW>>>
   LongestNodePaths() {
     absl::flat_hash_map<V, absl::flat_hash_map<V, VW>> result;
@@ -284,7 +284,7 @@ class GraphContraction {
         }
       }
     } else {
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     return result;

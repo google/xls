@@ -74,7 +74,7 @@ std::optional<PartialProductOp*> MatchMulpAdd(Node* node) {
   // itself should have two users: tuple-index for element 0, and tuple-index
   // for element 1.
   if (mulp->users().size() != 2 || !HasSingleUse(lhs) || !HasSingleUse(rhs)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return mulp;
 }

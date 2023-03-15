@@ -59,7 +59,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(import_data, type_info, expr, env,
-                                      /*caller_bindings=*/absl::nullopt));
+                                      /*caller_bindings=*/std::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{});
 }
 
@@ -540,7 +540,7 @@ absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
     }
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Should performance become an issue, optimizing struct layouts by reordering

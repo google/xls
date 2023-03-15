@@ -180,7 +180,7 @@ TEST(GraphContractionTest, RepresentativeOfWorks) {
   EXPECT_TRUE(gc.IdentifyVertices('a', 'b', MergeMonostate, MergeMonostate));
   EXPECT_EQ(gc.RepresentativeOf('a'), 'a');
   EXPECT_EQ(gc.RepresentativeOf('b'), 'a');
-  EXPECT_EQ(gc.RepresentativeOf('c'), absl::nullopt);
+  EXPECT_EQ(gc.RepresentativeOf('c'), std::nullopt);
 }
 
 TEST(GraphContractionTest, AddEdgeWithNonexistentVertices) {

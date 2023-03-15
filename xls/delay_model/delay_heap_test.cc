@@ -169,7 +169,7 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
     // critical-path delay through the whole function.
     XLS_ASSERT_OK_AND_ASSIGN(
         std::vector<CriticalPathEntry> cp_entries,
-        AnalyzeCriticalPath(f, absl::nullopt, *delay_estimator_));
+        AnalyzeCriticalPath(f, std::nullopt, *delay_estimator_));
     EXPECT_EQ(heap.CriticalPathDelay(), cp_entries.front().path_delay_ps);
 
     // Iterate through the frontier removing nodes. This should remove *all*

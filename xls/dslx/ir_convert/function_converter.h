@@ -223,7 +223,7 @@ class FunctionConverter {
       std::string_view identifier) const {
     auto it = parametric_env_map_.find(identifier);
     if (it == parametric_env_map_.end()) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return it->second;
   }

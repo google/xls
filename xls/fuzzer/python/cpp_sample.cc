@@ -96,20 +96,20 @@ PYBIND11_MODULE(cpp_sample, m) {
             }
             return SampleOptions::FromJson(json11::Json(json).dump()).value();
           }),
-          py::arg("input_is_dslx") = absl::nullopt,
-          py::arg("ir_converter_args") = absl::nullopt,
-          py::arg("convert_to_ir") = absl::nullopt,
-          py::arg("optimize_ir") = absl::nullopt,
-          py::arg("use_jit") = absl::nullopt,
-          py::arg("codegen") = absl::nullopt,
-          py::arg("codegen_args") = absl::nullopt,
-          py::arg("simulate") = absl::nullopt,
-          py::arg("simulator") = absl::nullopt,
-          py::arg("use_system_verilog") = absl::nullopt,
-          py::arg("timeout_seconds") = absl::nullopt,
-          py::arg("calls_per_sample") = absl::nullopt,
-          py::arg("proc_ticks") = absl::nullopt,
-          py::arg("top_type") = absl::nullopt)
+          py::arg("input_is_dslx") = std::nullopt,
+          py::arg("ir_converter_args") = std::nullopt,
+          py::arg("convert_to_ir") = std::nullopt,
+          py::arg("optimize_ir") = std::nullopt,
+          py::arg("use_jit") = std::nullopt,
+          py::arg("codegen") = std::nullopt,
+          py::arg("codegen_args") = std::nullopt,
+          py::arg("simulate") = std::nullopt,
+          py::arg("simulator") = std::nullopt,
+          py::arg("use_system_verilog") = std::nullopt,
+          py::arg("timeout_seconds") = std::nullopt,
+          py::arg("calls_per_sample") = std::nullopt,
+          py::arg("proc_ticks") = std::nullopt,
+          py::arg("top_type") = std::nullopt)
       .def("__eq__", &SampleOptions::operator==)
       .def("__ne__", &SampleOptions::operator!=)
       .def_static("from_json", &SampleOptions::FromJson)
@@ -144,8 +144,8 @@ PYBIND11_MODULE(cpp_sample, m) {
             }
             return updated;
           },
-          py::arg("input_is_dslx") = absl::nullopt,
-          py::arg("codegen_args") = absl::nullopt)
+          py::arg("input_is_dslx") = std::nullopt,
+          py::arg("codegen_args") = std::nullopt)
       // Pickling is required by the multiprocess fuzzer which pickles options
       // to send to the separate worker process.
       .def(py::pickle(
@@ -171,8 +171,8 @@ PYBIND11_MODULE(cpp_sample, m) {
                                std::move(ir_channel_names));
                }),
            py::arg("input_text"), py::arg("options"),
-           py::arg("args_batch") = absl::nullopt,
-           py::arg("ir_channel_names") = absl::nullopt)
+           py::arg("args_batch") = std::nullopt,
+           py::arg("ir_channel_names") = std::nullopt)
       .def(py::pickle(
           [](const Sample& self) { return py::make_tuple(self.Serialize()); },
           [](const py::tuple& t) {
@@ -186,7 +186,7 @@ PYBIND11_MODULE(cpp_sample, m) {
           [](const Sample& self, std::string_view error_message) {
             return self.ToCrasher(error_message);
           },
-          py::arg("error_message") = absl::nullopt)
+          py::arg("error_message") = std::nullopt)
       .def("serialize", &Sample::Serialize)
       .def_static("deserialize", &Sample::Deserialize)
       .def_property_readonly("options", &Sample::options)

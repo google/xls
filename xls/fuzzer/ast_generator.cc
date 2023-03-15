@@ -1572,7 +1572,7 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
     }
   }
   if (choices.empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   int64_t index = RandRange(choices.size());
   return *choices[index];
@@ -1669,11 +1669,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     bool should_have_start = RandomBool();
     start = should_have_start
                 ? absl::make_optional(RandRange(start_low, bit_count + 1))
-                : absl::nullopt;
+                : std::nullopt;
     bool should_have_limit = RandomBool();
     limit = should_have_limit
                 ? absl::make_optional(RandRange(-bit_count - 1, bit_count + 1))
-                : absl::nullopt;
+                : std::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
     if (width > 0) {  // Make sure we produce non-zero-width things.
       break;

@@ -104,7 +104,7 @@ class Block : public FunctionBase {
   // Adds a register to the block.
   absl::StatusOr<Register*> AddRegister(
       std::string_view name, Type* type,
-      std::optional<Reset> reset = absl::nullopt);
+      std::optional<Reset> reset = std::nullopt);
 
   // Removes the given register from the block. If the register is not owned by
   // the block then an error is returned.

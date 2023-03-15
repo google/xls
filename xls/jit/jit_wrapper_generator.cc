@@ -200,7 +200,7 @@ std::optional<std::string> MatchTypeSpecialization(const Type& type) {
     return "double";
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Simple matching "driver" for emitting logic to convert a simple type into an
@@ -217,7 +217,7 @@ std::optional<std::string> CreateConversion(std::string_view name,
     return ConvertDouble(name);
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Currently, we only support specialized interfaces if all the params and

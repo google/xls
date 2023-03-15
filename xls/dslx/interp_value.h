@@ -346,7 +346,7 @@ class InterpValue {
       return std::get<EnumData>(payload_);
     }
 
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Note: different from IsBits() which is checking whether the tag is sbits or

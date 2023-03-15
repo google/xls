@@ -259,7 +259,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                 src->loc(), cloned_operands[0],
                 cloned_operands.size() == 2
                     ? std::optional<Node*>(cloned_operands[1])
-                    : absl::nullopt,
+                    : std::nullopt,
                 channel_id, src->is_blocking(), src->GetName()));
         break;
       }
@@ -274,7 +274,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                 src->loc(), cloned_operands[0], cloned_operands[1],
                 cloned_operands.size() == 3
                     ? std::optional<Node*>(cloned_operands[2])
-                    : absl::nullopt,
+                    : std::nullopt,
                 channel_id, src->GetName()));
         break;
       }

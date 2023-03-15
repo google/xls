@@ -103,7 +103,7 @@ void DeduceCtx::AddFnStackEntry(FnStackEntry entry) {
 
 std::optional<FnStackEntry> DeduceCtx::PopFnStackEntry() {
   if (fn_stack_.empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   FnStackEntry result = fn_stack_.back();
   fn_stack_.pop_back();

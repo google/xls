@@ -873,7 +873,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       type_info_->GetInvocationCalleeBindings(
           node, caller_bindings_.has_value() ? caller_bindings_.value()
                                              : ParametricEnv());
-  std::optional<ParametricEnv> final_bindings = absl::nullopt;
+  std::optional<ParametricEnv> final_bindings = std::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }
@@ -1204,7 +1204,7 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
                                               caller_bindings_.has_value()
                                                   ? caller_bindings_.value()
                                                   : ParametricEnv());
-  std::optional<ParametricEnv> final_bindings = absl::nullopt;
+  std::optional<ParametricEnv> final_bindings = std::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }

@@ -141,7 +141,7 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
     XLS_CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
-  std::optional<Node*> default_node = absl::nullopt;
+  std::optional<Node*> default_node = std::nullopt;
   if (default_value.has_value()) {
     default_node = default_value->node();
   }
@@ -151,7 +151,7 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
 
 BValue BuilderBase::Select(BValue selector, BValue on_true, BValue on_false,
                            const SourceInfo& loc, std::string_view name) {
-  return Select(selector, {on_false, on_true}, /*default_value=*/absl::nullopt,
+  return Select(selector, {on_false, on_true}, /*default_value=*/std::nullopt,
                 loc, name);
 }
 
@@ -741,7 +741,7 @@ BValue BuilderBase::SMul(BValue lhs, BValue rhs, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddArithOp(Op::kSMul, lhs, rhs, /*result_width=*/absl::nullopt, loc,
+  return AddArithOp(Op::kSMul, lhs, rhs, /*result_width=*/std::nullopt, loc,
                     name);
 }
 BValue BuilderBase::UMul(BValue lhs, BValue rhs, const SourceInfo& loc,
@@ -749,7 +749,7 @@ BValue BuilderBase::UMul(BValue lhs, BValue rhs, const SourceInfo& loc,
   if (ErrorPending()) {
     return BValue();
   }
-  return AddArithOp(Op::kUMul, lhs, rhs, /*result_width=*/absl::nullopt, loc,
+  return AddArithOp(Op::kUMul, lhs, rhs, /*result_width=*/std::nullopt, loc,
                     name);
 }
 BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64_t result_width,
@@ -772,7 +772,7 @@ BValue BuilderBase::SMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
     return BValue();
   }
   return AddPartialProductOp(Op::kSMulp, lhs, rhs,
-                             /*result_width=*/absl::nullopt, loc, name);
+                             /*result_width=*/std::nullopt, loc, name);
 }
 BValue BuilderBase::UMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
                           std::string_view name) {
@@ -780,7 +780,7 @@ BValue BuilderBase::UMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
     return BValue();
   }
   return AddPartialProductOp(Op::kUMulp, lhs, rhs,
-                             /*result_width=*/absl::nullopt, loc, name);
+                             /*result_width=*/std::nullopt, loc, name);
 }
 BValue BuilderBase::SMulp(BValue lhs, BValue rhs, int64_t result_width,
                           const SourceInfo& loc, std::string_view name) {
@@ -1318,7 +1318,7 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
             token.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/absl::nullopt,
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
                                channel->id(), /*is_blocking=*/true, name);
 }
 
@@ -1335,7 +1335,7 @@ BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
             token.GetType()->ToString()),
         loc);
   }
-  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/absl::nullopt,
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/std::nullopt,
                                channel->id(), /*is_blocking=*/false, name);
 }
 
@@ -1400,7 +1400,7 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
         loc);
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(),
-                            /*predicate=*/absl::nullopt, channel->id(), name);
+                            /*predicate=*/std::nullopt, channel->id(), name);
 }
 
 BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
@@ -1549,8 +1549,8 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
   return AddNode<xls::RegisterWrite>(
       loc, data.node(),
       load_enable.has_value() ? std::optional<Node*>(load_enable->node())
-                              : absl::nullopt,
-      reset.has_value() ? std::optional<Node*>(reset->node()) : absl::nullopt,
+                              : std::nullopt,
+      reset.has_value() ? std::optional<Node*>(reset->node()) : std::nullopt,
       reg, name);
 }
 
@@ -1568,7 +1568,7 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
                     loc);
   }
   Register* reg = reg_status.value();
-  RegisterWrite(reg, data, load_enable, /*reset=*/absl::nullopt, loc,
+  RegisterWrite(reg, data, load_enable, /*reset=*/std::nullopt, loc,
                 absl::StrFormat("%s_write", reg->name()));
   return RegisterRead(reg, loc, reg->name());
 }

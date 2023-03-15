@@ -319,7 +319,7 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
 }
 
 Bytecode::MatchArmItem::MatchArmItem(Kind kind)
-    : kind_(kind), data_(absl::nullopt) {}
+    : kind_(kind), data_(std::nullopt) {}
 
 Bytecode::MatchArmItem::MatchArmItem(
     Kind kind,

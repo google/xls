@@ -44,7 +44,7 @@ class PipelineSchedule {
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
   PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
-                   std::optional<int64_t> length = absl::nullopt);
+                   std::optional<int64_t> length = std::nullopt);
 
   FunctionBase* function_base() const { return function_base_; }
 

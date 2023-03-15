@@ -38,7 +38,7 @@ namespace xls {
 class RollIntoProcPass : public ProcPass {
  public:
   explicit RollIntoProcPass(
-      std::optional<int64_t> unroll_factor = absl::nullopt);
+      std::optional<int64_t> unroll_factor = std::nullopt);
   ~RollIntoProcPass() override = default;
 
  protected:

@@ -181,7 +181,7 @@ std::optional<InterpBindings::Entry> InterpBindings::ResolveEntry(
     return parent_->ResolveEntry(identifier);
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

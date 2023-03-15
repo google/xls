@@ -137,7 +137,7 @@ std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
     std::string_view name) const {
   std::optional<BoundNode> bn = ResolveNode(name);
   if (!bn) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return BoundNodeToAnyNameDef(*bn);
 }

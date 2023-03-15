@@ -144,7 +144,7 @@ bool IsFieldSigned(FieldDescriptor::Type type) {
 // "repeated".
 uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
                        const FieldDescriptor& fd,
-                       std::optional<int> index = absl::nullopt) {
+                       std::optional<int> index = std::nullopt) {
   switch (fd.type()) {
     case FieldDescriptor::Type::TYPE_BOOL:
       if (index) {

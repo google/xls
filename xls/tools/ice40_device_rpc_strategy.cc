@@ -166,7 +166,7 @@ std::string LocalModesToString(tcflag_t local_modes) {
 Ice40DeviceRpcStrategy::~Ice40DeviceRpcStrategy() {
   if (tty_fd_.has_value()) {
     close(tty_fd_.value());
-    tty_fd_ = absl::nullopt;
+    tty_fd_ = std::nullopt;
   }
 }
 

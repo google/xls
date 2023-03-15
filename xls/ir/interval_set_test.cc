@@ -74,7 +74,7 @@ TEST(IntervalTest, ConvexHull) {
   EXPECT_EQ(example.ConvexHull(), MakeInterval(10, 90, 32));
 
   IntervalSet empty(32);
-  EXPECT_EQ(empty.ConvexHull(), absl::nullopt);
+  EXPECT_EQ(empty.ConvexHull(), std::nullopt);
 }
 
 TEST(IntervalTest, ForEachElement) {
@@ -206,7 +206,7 @@ TEST(IntervalTest, Size) {
   IntervalSet too_big(80);
   too_big.AddInterval(MakeInterval(10, 5, 80));
   too_big.Normalize();
-  EXPECT_EQ(too_big.Size(), absl::nullopt);
+  EXPECT_EQ(too_big.Size(), std::nullopt);
 }
 
 TEST(IntervalTest, IsTrueWhenMaskWith) {
@@ -256,7 +256,7 @@ TEST(IntervalTest, IsPrecise) {
   is_not_precise.AddInterval(MakeInterval(12, 12, 10));
   EXPECT_FALSE(is_not_precise.IsPrecise());
   is_not_precise.Normalize();
-  EXPECT_THAT(is_not_precise.GetPreciseValue(), absl::nullopt);
+  EXPECT_THAT(is_not_precise.GetPreciseValue(), std::nullopt);
 }
 
 TEST(IntervalTest, IsMaximal) {

@@ -292,7 +292,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
-  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/absl::nullopt};
+  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/std::nullopt};
 
   absl::Time start = absl::Now();
   XLS_RETURN_IF_ERROR(

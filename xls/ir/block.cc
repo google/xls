@@ -703,10 +703,10 @@ absl::StatusOr<Block*> Block::Clone(std::string_view new_name,
               src->load_enable().has_value()
                   ? std::optional<Node*>(
                         original_to_clone.at(*src->load_enable()))
-                  : absl::nullopt,
+                  : std::nullopt,
               src->reset().has_value()
                   ? std::optional<Node*>(original_to_clone.at(*src->reset()))
-                  : absl::nullopt,
+                  : std::nullopt,
               register_map.at(src->GetRegister()), src->GetName()));
     } else if (node->Is<InstantiationInput>()) {
       InstantiationInput* src = node->As<InstantiationInput>();

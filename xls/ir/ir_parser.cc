@@ -437,7 +437,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(std::optional<Type*> type) {
         XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in array literal"));
       }
-      std::optional<Type*> element_type = absl::nullopt;
+      std::optional<Type*> element_type = std::nullopt;
       if (type.has_value()) {
         element_type = type.value()->AsArrayOrDie()->element_type();
       }
@@ -459,7 +459,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(std::optional<Type*> type) {
         XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in tuple literal"));
       }
-      std::optional<Type*> element_type = absl::nullopt;
+      std::optional<Type*> element_type = std::nullopt;
       if (type.has_value()) {
         element_type =
             type.value()->AsTupleOrDie()->element_type(values.size());
@@ -598,11 +598,11 @@ struct SplitName {
 std::optional<SplitName> SplitNodeName(std::string_view name) {
   std::vector<std::string_view> pieces = absl::StrSplit(name, '.');
   if (pieces.empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   int64_t result;
   if (!absl::SimpleAtoi(pieces.back(), &result)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   pieces.pop_back();
   return SplitName{.op_name = absl::StrJoin(pieces, "."), .node_id = result};
@@ -2162,7 +2162,7 @@ absl::StatusOr<Value> Parser::ParseValue(std::string_view input_string,
 absl::StatusOr<Value> Parser::ParseTypedValue(std::string_view input_string) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  return p.ParseValueInternal(/*expected_type=*/absl::nullopt);
+  return p.ParseValueInternal(/*expected_type=*/std::nullopt);
 }
 
 }  // namespace xls

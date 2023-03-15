@@ -103,7 +103,7 @@ class RangeQueryEngine : public QueryEngine {
   std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Get the intervals associated with each leaf node in the type tree

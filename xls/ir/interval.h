@@ -88,7 +88,7 @@ class Interval {
   static Interval ConvexHull(const Interval& lhs, const Interval& rhs);
 
   // Given two `Interval`s, return an `Interval` representing their
-  // intersection, if one exists. Otherwise, returns `absl::nullopt`.
+  // intersection, if one exists. Otherwise, returns `std::nullopt`.
   // Does not accept improper intervals.
   static std::optional<Interval> Intersect(const Interval& lhs,
                                             const Interval& rhs);
@@ -126,7 +126,7 @@ class Interval {
   Bits SizeBits() const;
 
   // Returns the number of points contained within the interval, assuming that
-  // number fits within a `uint64_t`. If it doesn't, `absl::nullopt` is
+  // number fits within a `uint64_t`. If it doesn't, `std::nullopt` is
   // returned.
   std::optional<int64_t> Size() const;
 
@@ -142,7 +142,7 @@ class Interval {
   bool IsPrecise() const;
 
   // Returns the unique member of the interval if the interval is precise. If
-  // the interval is not precise, returns absl::nullopt.
+  // the interval is not precise, returns std::nullopt.
   std::optional<Bits> GetPreciseValue() const;
 
   // Returns `true` if this is a maximal interval, `false` otherwise.

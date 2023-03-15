@@ -42,7 +42,7 @@ static const char kFilename[] = "test.x";
 class ParserTest : public ::testing::Test {
  public:
   void RoundTrip(std::string program,
-                 std::optional<std::string_view> target = absl::nullopt) {
+                 std::optional<std::string_view> target = std::nullopt) {
     scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
     auto module_or = parser_->ParseModule();
@@ -95,7 +95,7 @@ class ParserTest : public ::testing::Test {
   void RoundTripExpr(std::string expr_text,
                      absl::Span<const std::string> predefine = {},
                      bool populate_dslx_builtins = false,
-                     std::optional<std::string> target = absl::nullopt,
+                     std::optional<std::string> target = std::nullopt,
                      Expr** parsed = nullptr) {
     XLS_ASSERT_OK_AND_ASSIGN(
         Expr * e, ParseExpr(expr_text, predefine, populate_dslx_builtins));
@@ -846,7 +846,7 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
 
 TEST_F(ParserTest, TupleArrayAndInt) {
   Expr* e;
-  RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, absl::nullopt, &e);
+  RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, std::nullopt, &e);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   EXPECT_EQ(2, tuple->members().size());
   auto* array = tuple->members()[0];
@@ -1015,7 +1015,7 @@ TEST_F(ParserTest, ArrayOfNameRefs) {
 
 TEST_F(ParserTest, EmptyTuple) {
   Expr* e;
-  RoundTripExpr("()", {}, false, absl::nullopt, &e);
+  RoundTripExpr("()", {}, false, std::nullopt, &e);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   ASSERT_NE(tuple, nullptr);
   EXPECT_TRUE(tuple->empty());
@@ -1034,7 +1034,7 @@ TEST_F(ParserTest, MatchFreevars) {
   RoundTripExpr(R"(match x {
   y => z,
 })",
-                {"x", "y", "z"}, false, absl::nullopt, &e);
+                {"x", "y", "z"}, false, std::nullopt, &e);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
@@ -1046,7 +1046,7 @@ TEST_F(ParserTest, ForFreevars) {
   let new_accum: u32 = ((accum) + (i)) + (j);
   new_accum
 }(u32:0))",
-                {"range", "j"}, false, absl::nullopt, &e);
+                {"range", "j"}, false, std::nullopt, &e);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
@@ -1130,7 +1130,7 @@ fn f(a: MyStruct) -> u32 {
 
 TEST_F(ParserTest, ConstantArray) {
   Expr* e;
-  RoundTripExpr("u32[2]:[0, 1]", {}, false, absl::nullopt, &e);
+  RoundTripExpr("u32[2]:[0, 1]", {}, false, std::nullopt, &e);
   ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
 }
 

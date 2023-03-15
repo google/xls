@@ -77,7 +77,7 @@ struct PositionalErrorData {
 // ParseErrorStatus() above.
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status,
-    std::optional<std::string_view> target_type = absl::nullopt);
+    std::optional<std::string_view> target_type = std::nullopt);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).
@@ -148,7 +148,7 @@ class Bindings {
       if (parent_ != nullptr) {
         return parent_->ResolveNode(name);
       }
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     return it->second;

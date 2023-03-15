@@ -2331,7 +2331,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
 
-  std::optional<std::vector<Expr*>> dims = absl::nullopt;
+  std::optional<std::vector<Expr*>> dims = std::nullopt;
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
   XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));

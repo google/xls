@@ -332,7 +332,7 @@ class FsmBuilder {
  public:
   FsmBuilder(std::string_view name, Module* module, LogicRef* clk,
              bool use_system_verilog,
-             std::optional<Reset> reset = absl::nullopt)
+             std::optional<Reset> reset = std::nullopt)
       : name_(name),
         module_(module),
         file_(module->file()),
@@ -364,7 +364,7 @@ class FsmBuilder {
   // 'name_next' are added to the module.  The state of the register is affected
   // by calling SetRegisterNext.
   FsmRegister* AddRegister(std::string_view name, int64_t width,
-                           std::optional<int64_t> reset_value = absl::nullopt);
+                           std::optional<int64_t> reset_value = std::nullopt);
   FsmRegister* AddRegister(std::string_view name, DataType* data_type,
                            Expression* reset_value = nullptr);
 

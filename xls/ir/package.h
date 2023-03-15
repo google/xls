@@ -228,15 +228,15 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
-      std::optional<int64_t> fifo_depth = absl::nullopt,
+      std::optional<int64_t> fifo_depth = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      std::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = std::nullopt);
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      std::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = std::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }

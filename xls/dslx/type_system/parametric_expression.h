@@ -51,7 +51,7 @@ class ParametricExpression {
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
   explicit ParametricExpression(
-      std::optional<InterpValue> const_value = absl::nullopt)
+      std::optional<InterpValue> const_value = std::nullopt)
       : const_value_(const_value) {}
   virtual ~ParametricExpression() = default;
 
@@ -145,7 +145,7 @@ class ParametricAdd : public ParametricExpression {
  public:
   ParametricAdd(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
-                std::optional<InterpValue> const_value = absl::nullopt)
+                std::optional<InterpValue> const_value = std::nullopt)
       : ParametricExpression(const_value),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
@@ -195,7 +195,7 @@ class ParametricMul : public ParametricExpression {
  public:
   ParametricMul(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
-                std::optional<InterpValue> const_value = absl::nullopt)
+                std::optional<InterpValue> const_value = std::nullopt)
       : ParametricExpression(const_value),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
@@ -250,7 +250,7 @@ class ParametricMul : public ParametricExpression {
 class ParametricSymbol : public ParametricExpression {
  public:
   ParametricSymbol(std::string identifier, Span span,
-                   std::optional<InterpValue> const_value = absl::nullopt)
+                   std::optional<InterpValue> const_value = std::nullopt)
       : ParametricExpression(const_value),
         identifier_(std::move(identifier)),
         span_(std::move(span)) {}

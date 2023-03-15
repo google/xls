@@ -250,7 +250,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
       f = maybe_f.value();
     } else {
       if (IsNameParametricBuiltin(identifier)) {
-        return absl::nullopt;
+        return std::nullopt;
       }
       return absl::InternalError("Could not resolve invoked function: " +
                                  identifier);
@@ -597,7 +597,7 @@ class InvocationVisitor : public ExprVisitor {
       f = maybe_f.value();
     } else {
       if (IsNameParametricBuiltin(identifier)) {
-        return absl::nullopt;
+        return std::nullopt;
       }
       return absl::InternalError("Could not resolve invoked function: " +
                                  identifier);

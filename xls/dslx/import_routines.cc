@@ -70,7 +70,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
       XLS_VLOG(3) << "Found existing file for import path: " << full_path;
       return full_path;
     }
-    return absl::nullopt;
+    return std::nullopt;
   };
   // Helper that tries to see if the path/parent_path are present
   auto try_paths = [&try_path, subject_path,
@@ -84,7 +84,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
         return *result;
       }
     }
-    return absl::nullopt;
+    return std::nullopt;
   };
 
   XLS_VLOG(3) << "Attempting CWD-relative import path.";

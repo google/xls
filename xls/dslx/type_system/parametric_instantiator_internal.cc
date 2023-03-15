@@ -45,7 +45,7 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(ctx->import_data(), ctx->type_info(),
-                                      expr, env, absl::nullopt));
+                                      expr, env, std::nullopt));
   return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
                                         /*args=*/{});
 }

@@ -100,7 +100,7 @@ class Channel {
     if (metadata_.block_ports().has_block_name()) {
       return metadata_.block_ports().block_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of data port this channel is associated with.
@@ -111,7 +111,7 @@ class Channel {
     if (metadata_.block_ports().has_data_port_name()) {
       return metadata_.block_ports().data_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of valid port this channel is associated with.
@@ -122,7 +122,7 @@ class Channel {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().valid_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of ready port this channel is associated with.
@@ -133,7 +133,7 @@ class Channel {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().ready_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   ChannelKind kind() const { return kind_; }

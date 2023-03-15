@@ -386,7 +386,7 @@ std::optional<const ConcreteType*> StructType::GetMemberTypeByName(
       return &GetMemberType(i);
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::vector<ConcreteTypeDim> StructType::GetAllDims() const {

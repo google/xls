@@ -202,7 +202,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
@@ -211,7 +211,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
           FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb("test", /*token_name=*/"tkn", &package);

@@ -77,7 +77,7 @@ absl::Status RealMain(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::BytecodeFunction> bf,
                        dslx::BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                   f, absl::nullopt));
+                                                   f, std::nullopt));
   XLS_ASSIGN_OR_RETURN(
       dslx::InterpValue result,
       dslx::BytecodeInterpreter::Interpret(&import_data, bf.get(), args));

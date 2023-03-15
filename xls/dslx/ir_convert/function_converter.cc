@@ -427,7 +427,7 @@ std::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
     const AstNode* node) const {
   auto it = node_to_ir_.find(node);
   if (it == node_to_ir_.end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return it->second;
 }

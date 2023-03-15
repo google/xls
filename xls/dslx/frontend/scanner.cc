@@ -289,7 +289,7 @@ absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
   };
   auto it = mapping->find(s);
   if (it == mapping->end()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return it->second;
 }
@@ -323,7 +323,7 @@ absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
     XLS_ASSIGN_OR_RETURN(Token token, PopComment(start_pos));
     return token;
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
@@ -388,7 +388,7 @@ std::optional<Keyword> KeywordFromString(std::string_view s) {
   }
   XLS_DSLX_KEYWORDS(MAKE_CASE)
 #undef MAKE_CASE
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::string TokenKindToString(TokenKind kind) {

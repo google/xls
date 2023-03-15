@@ -2050,7 +2050,7 @@ TEST_F(IntegratorTest, MergeCostExternalExternalTwoMux) {
   auto b_sel = fb_b.Param("sel", p->GetBitsType(1));
   fb_b.Add(b_in1, b_in2, SourceInfo(), "add");
   fb_b.Select(b_sel, {b_in1, b_in2},
-              /*default_value=*/absl::nullopt, SourceInfo(), "mux");
+              /*default_value=*/std::nullopt, SourceInfo(), "mux");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
   Node* a_in1_node = FindNode("in1", func_a);
   Node* a_in2_node = FindNode("in2", func_a);
@@ -2139,7 +2139,7 @@ TEST_F(IntegratorTest, MergeCostInternalExternalOneMux) {
   auto b_sel = fb_b.Param("sel", p->GetBitsType(1));
   fb_b.Add(b_in1, b_in2, SourceInfo(), "add");
   fb_b.Select(b_sel, {b_in1, b_in2},
-              /*default_value=*/absl::nullopt, SourceInfo(), "mux");
+              /*default_value=*/std::nullopt, SourceInfo(), "mux");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
   Node* a_in1_node = FindNode("in1", func_a);
   Node* a_in2_node = FindNode("in2", func_a);

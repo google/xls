@@ -225,7 +225,7 @@ absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
     }
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,

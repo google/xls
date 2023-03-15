@@ -44,7 +44,7 @@ class FnStackEntry {
   // bindings.
   static FnStackEntry Make(Function* f, ParametricEnv parametric_env) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(parametric_env), absl::nullopt);
+                        std::move(parametric_env), std::nullopt);
   }
 
   static FnStackEntry Make(Function* f, ParametricEnv parametric_env,

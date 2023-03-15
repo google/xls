@@ -166,7 +166,7 @@ class Tokenizer {
   absl::StatusOr<std::optional<std::string_view>> MatchQuotedString(
       std::string_view quote, bool allow_multiline) {
     if (!MatchSubstring(quote)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     int64_t start_colno = colno();
     int64_t start_lineno = lineno();
@@ -359,7 +359,7 @@ class Tokenizer {
     if (index_ + 1 < str_.size()) {
       return str_[index_ + 1];
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns the current index in the string.

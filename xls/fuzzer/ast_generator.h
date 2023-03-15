@@ -182,7 +182,7 @@ class AstGenerator {
   absl::StatusOr<Function*> GenerateFunction(
       std::string name, int64_t call_depth = 0,
       std::optional<absl::Span<TypeAnnotation* const>> param_types =
-          absl::nullopt);
+          std::nullopt);
 
   // Generate the proc's config function with the given name and proc parameters
   // (proc members).
@@ -237,7 +237,7 @@ class AstGenerator {
 
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
-      Env* env, std::optional<int64_t> bit_count = absl::nullopt) {
+      Env* env, std::optional<int64_t> bit_count = std::nullopt) {
     auto is_bits = [&](const TypedExpr& e) -> bool {
       return IsBits(e.type) &&
              (bit_count.has_value() ? GetTypeBitCount(e.type) == bit_count
@@ -261,7 +261,7 @@ class AstGenerator {
   // returned values will have the same type potentially by coercing a value to
   // match the type of the other by truncation or zero-extension.
   absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
-      Env* env, std::optional<int64_t> bit_count = absl::nullopt);
+      Env* env, std::optional<int64_t> bit_count = std::nullopt);
 
   absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
@@ -406,7 +406,7 @@ class AstGenerator {
 
   // Generates a number AST node with its associated type.
   TypedExpr GenerateNumberWithType(
-      std::optional<BitsAndSignedness> bas = absl::nullopt);
+      std::optional<BitsAndSignedness> bas = std::nullopt);
 
   // Generates String AST node with a string literal of 'char_count'.
   String* GenerateString(int64_t char_count);
@@ -587,7 +587,7 @@ class AstGenerator {
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
   ConstRef* GetOrCreateConstRef(
-      int64_t value, std::optional<int64_t> want_width = absl::nullopt);
+      int64_t value, std::optional<int64_t> want_width = std::nullopt);
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {

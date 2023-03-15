@@ -41,7 +41,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 class BlockGeneratorTest : public VerilogTestBase {
  protected:
   CodegenOptions codegen_options(
-      std::optional<std::string> clock_name = absl::nullopt) {
+      std::optional<std::string> clock_name = std::nullopt) {
     CodegenOptions options;
     options.use_system_verilog(UseSystemVerilog());
     if (clock_name.has_value()) {
@@ -242,7 +242,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
                                          .asynchronous = false,
                                          .active_low = true}));
   BValue accum = bb.RegisterRead(accum_reg);
-  bb.RegisterWrite(accum_reg, bb.Add(in, accum), /*load_enable=*/absl::nullopt,
+  bb.RegisterWrite(accum_reg, bb.Add(in, accum), /*load_enable=*/std::nullopt,
                    rst_n);
   bb.OutputPort("out", accum);
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
@@ -283,8 +283,8 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
                            block->AddRegister("reg", a.node()->GetType()));
   XLS_ASSERT_OK(block
                     ->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
-                                              /*load_enable=*/absl::nullopt,
-                                              /*reset=*/absl::nullopt, reg)
+                                              /*load_enable=*/std::nullopt,
+                                              /*reset=*/std::nullopt, reg)
                     .status());
   XLS_ASSERT_OK(block->MakeNode<RegisterRead>(SourceInfo(), reg).status());
 

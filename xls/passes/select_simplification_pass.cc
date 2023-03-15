@@ -361,7 +361,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Select>(
                   is_zero, std::vector<Node*>{sel->get_case(0), selected_zero},
-                  /*default_value=*/absl::nullopt)
+                  /*default_value=*/std::nullopt)
               .status());
       return true;
     }
@@ -408,7 +408,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
         XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
                              elements_at_tuple_index(sel->cases(), i));
-        std::optional<Node*> default_element = absl::nullopt;
+        std::optional<Node*> default_element = std::nullopt;
         if (sel->default_value().has_value()) {
           XLS_ASSIGN_OR_RETURN(default_element,
                                node->function_base()->MakeNode<TupleIndex>(
@@ -811,7 +811,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
     if (x != nullptr) {
       XLS_ASSIGN_OR_RETURN(p_x, sel0->ReplaceUsesWithNew<Select>(
                                     p_x, std::vector<Node*>{y, x},
-                                    /*default_value=*/absl::nullopt));
+                                    /*default_value=*/std::nullopt));
       return true;
     }
   }

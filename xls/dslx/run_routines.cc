@@ -68,7 +68,7 @@ absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), absl::nullopt));
+      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), std::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
                                         options)
       .status();

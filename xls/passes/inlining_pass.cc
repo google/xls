@@ -33,7 +33,7 @@ namespace {
 // returned.
 std::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
   if (!node->HasAssignedName()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Find the parameter in the invoked function whose name is a prefix of the
@@ -57,7 +57,7 @@ std::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
     }
   }
   if (matching_param == nullptr) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return derived_name;
 }

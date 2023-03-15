@@ -84,7 +84,7 @@ absl::Status RealMain(std::string_view input_path) {
   if (absl::GetFlag(FLAGS_schedule_path).empty()) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<CriticalPathEntry> critical_path,
-        AnalyzeCriticalPath(top, /*clock_period_ps=*/absl::nullopt,
+        AnalyzeCriticalPath(top, /*clock_period_ps=*/std::nullopt,
                             *delay_estimator));
     std::cout << "# Critical path:\n";
     std::cout << CriticalPathToString(critical_path);
@@ -101,7 +101,7 @@ absl::Status RealMain(std::string_view input_path) {
                            ExtractStage(top, schedule, i));
       XLS_ASSIGN_OR_RETURN(
           std::vector<CriticalPathEntry> critical_path,
-          AnalyzeCriticalPath(stage_function, /*clock_period_ps=*/absl::nullopt,
+          AnalyzeCriticalPath(stage_function, /*clock_period_ps=*/std::nullopt,
                               *delay_estimator));
       std::cout << absl::StrFormat("# Critical path for stage %d:\n", i);
       std::cout << CriticalPathToString(critical_path);

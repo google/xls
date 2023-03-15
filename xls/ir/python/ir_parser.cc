@@ -43,7 +43,7 @@ PYBIND11_MODULE(ir_parser, m) {
             std::shared_ptr<Package> shared_package = std::move(package);
             return PackageHolder(shared_package.get(), shared_package);
           },
-          py::arg("input_string"), py::arg("filename") = absl::nullopt)
+          py::arg("input_string"), py::arg("filename") = std::nullopt)
 
       .def_static("parse_value", PyWrap(&Parser::ParseValue),
                   py::arg("input_string"), py::arg("expected_type"))

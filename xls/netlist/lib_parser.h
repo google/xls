@@ -181,7 +181,7 @@ class Token {
   static Token Simple(Pos pos, TokenKind kind) { return Token(kind, pos); }
 
   Token(TokenKind kind, Pos pos,
-        std::optional<std::string> payload = absl::nullopt)
+        std::optional<std::string> payload = std::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   std::string ToString() const {
@@ -215,7 +215,7 @@ class Scanner {
   absl::StatusOr<Token> Pop() {
     XLS_RETURN_IF_ERROR(Peek().status());
     Token result = std::move(lookahead_.value());
-    lookahead_ = absl::nullopt;
+    lookahead_ = std::nullopt;
     return result;
   }
 
@@ -341,7 +341,7 @@ struct Block {
   // If target_kind is provided it is used as a filter (the only blocks returned
   // have subblock->kind == target_kind).
   std::vector<const Block*> GetSubBlocks(
-      std::optional<std::string_view> target_kind = absl::nullopt) const;
+      std::optional<std::string_view> target_kind = std::nullopt) const;
 
   // Retrieves the first key/value pair in this block that corresponds to
   // target_key.
@@ -363,7 +363,7 @@ class Parser {
   // See comment on kind_allowlist_ member below for details.
   explicit Parser(Scanner* scanner,
                   std::optional<absl::flat_hash_set<std::string>>
-                      kind_allowlist = absl::nullopt)
+                      kind_allowlist = std::nullopt)
       : scanner_(scanner), kind_allowlist_(std::move(kind_allowlist)) {}
 
   absl::StatusOr<std::unique_ptr<Block>> ParseLibrary() {

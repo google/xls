@@ -54,13 +54,13 @@ class Parser {
   // Parses the given input string as a package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
       std::string_view input_string,
-      std::optional<std::string_view> filename = absl::nullopt);
+      std::optional<std::string_view> filename = std::nullopt);
 
   // As above, but sets the entry function to be the given name in the returned
   // package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageWithEntry(
       std::string_view input_string, std::string_view entry,
-      std::optional<std::string_view> filename = absl::nullopt);
+      std::optional<std::string_view> filename = std::nullopt);
 
   // Parse the input_string as a function into the given package.
   // If verify_function_only is true, then only this new function is verified,
@@ -97,16 +97,16 @@ class Parser {
   // should only be used in tests when malformed IR is desired.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
       std::string_view input_string,
-      std::optional<std::string_view> filename = absl::nullopt,
-      std::optional<std::string_view> entry = absl::nullopt);
+      std::optional<std::string_view> filename = std::nullopt,
+      std::optional<std::string_view> entry = std::nullopt);
 
   // As above but creates a package of type PackageT where PackageT must be
   // type derived from Package.
   template <typename PackageT>
   static absl::StatusOr<std::unique_ptr<PackageT>> ParseDerivedPackageNoVerify(
       std::string_view input_string,
-      std::optional<std::string_view> filename = absl::nullopt,
-      std::optional<std::string_view> entry = absl::nullopt);
+      std::optional<std::string_view> filename = std::nullopt,
+      std::optional<std::string_view> entry = std::nullopt);
 
   // Parses a literal value that should be of type "expected_type" and returns
   // it.

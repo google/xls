@@ -2455,7 +2455,7 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   XLS_ASSERT_OK_AND_ASSIGN(Channel * hbo, package->GetChannel("hbo"));
   EXPECT_THAT(down_cast<StreamingChannel*>(hbo)->GetFifoDepth(), Optional(42));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * mtv, package->GetChannel("mtv"));
-  EXPECT_EQ(down_cast<StreamingChannel*>(mtv)->GetFifoDepth(), absl::nullopt);
+  EXPECT_EQ(down_cast<StreamingChannel*>(mtv)->GetFifoDepth(), std::nullopt);
 }
 
 TEST(IrParserTest, ParseTupleIndexWithInvalidBValue) {

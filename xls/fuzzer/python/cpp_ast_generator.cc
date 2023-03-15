@@ -71,12 +71,12 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
              }
              return options;
            }),
-           py::arg("emit_loops") = absl::nullopt,
-           py::arg("max_width_bits_types") = absl::nullopt,
-           py::arg("max_width_aggregate_types") = absl::nullopt,
-           py::arg("emit_gate") = absl::nullopt,
-           py::arg("generate_proc") = absl::nullopt,
-           py::arg("emit_stateless_proc") = absl::nullopt)
+           py::arg("emit_loops") = std::nullopt,
+           py::arg("max_width_bits_types") = std::nullopt,
+           py::arg("max_width_aggregate_types") = std::nullopt,
+           py::arg("emit_gate") = std::nullopt,
+           py::arg("generate_proc") = std::nullopt,
+           py::arg("emit_stateless_proc") = std::nullopt)
       // Pickling is required by the multiprocess fuzzer which pickles options
       // to send to the separate worker process.
       .def(py::pickle(
