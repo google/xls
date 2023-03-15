@@ -146,7 +146,7 @@ genrule(
         -wrapped_module_name add1_8b \\
         -target_device ice40 > $(OUTS)
         """,
-    exec_tools = ["//xls/tools:wrap_io_main"],
+    tools = ["//xls/tools:wrap_io_main"],
 )
 
 iverilog_test(
@@ -178,7 +178,7 @@ genrule(
         -wrapped_module_name repeat_byte_4 \\
         -target_device ice40 > $(OUTS)
         """,
-    exec_tools = ["//xls/tools:wrap_io_main"],
+    tools = ["//xls/tools:wrap_io_main"],
 )
 
 iverilog_test(
