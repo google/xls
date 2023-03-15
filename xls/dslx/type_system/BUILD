@@ -361,6 +361,7 @@ cc_library(
     hdrs = ["parametric_bind.h"],
     deps = [
         ":concrete_type",
+        ":deduce_ctx",
         "//xls/common/status:ret_check",
         "//xls/dslx:errors",
         "//xls/dslx/frontend:pos",

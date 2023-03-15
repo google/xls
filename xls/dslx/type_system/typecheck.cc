@@ -107,8 +107,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
 }
 
 // Checks the function's parametrics' and arguments' types.
-static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
-CheckFunctionParams(Function* f, DeduceCtx* ctx) {
+absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>> CheckFunctionParams(
+    Function* f, DeduceCtx* ctx) {
   for (ParametricBinding* parametric : f->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
@@ -118,10 +118,10 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                            ctx->Deduce(parametric->expr()));
       if (*expr_type != *parametric_binding_type) {
-        return XlsTypeErrorStatus(parametric->span(), *parametric_binding_type,
-                                  *expr_type,
-                                  "Annotated type of derived parametric value "
-                                  "did not match inferred type.");
+        return ctx->TypeMismatchError(
+            parametric->span(), *parametric_binding_type, *expr_type,
+            "Annotated type of derived parametric value "
+            "did not match inferred type.");
       }
     }
     ctx->type_info()->SetItem(parametric->name_def(), *parametric_binding_type);
@@ -436,8 +436,9 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_RET_CHECK(quickcheck_f_body_type.has_value());
     auto u1 = BitsType::MakeU1();
     if (*quickcheck_f_body_type.value() != *u1) {
-      return XlsTypeErrorStatus(f->span(), *quickcheck_f_body_type.value(), *u1,
-                                "Quickcheck functions must return a bool.");
+      return ctx->TypeMismatchError(f->span(), *quickcheck_f_body_type.value(),
+                                    *u1,
+                                    "Quickcheck functions must return a bool.");
     }
 
     XLS_VLOG(2) << "Finished typechecking quickcheck function: "
@@ -505,9 +506,9 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
                          parent_ctx->Deduce(value));
 
     if (*binding_type != *value_type) {
-      return XlsTypeErrorStatus(invocation->callee()->span(), *binding_type,
-                                *value_type,
-                                "Explicit parametric type mismatch.");
+      return ctx->TypeMismatchError(invocation->callee()->span(), *binding_type,
+                                    *value_type,
+                                    "Explicit parametric type mismatch.");
     }
 
     // We have to be at least one fn deep to be instantiating a parametric, so
@@ -550,6 +551,24 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
 
   return InstantiateFunction(invocation->span(), fn_type, instantiate_args, ctx,
                              parametric_constraints, explicit_bindings);
+}
+
+bool IsTypeMismatchStatus(const absl::Status& status) {
+  return status.code() == absl::StatusCode::kInvalidArgument &&
+         status.message() == "DslxTypeMismatchError";
+}
+
+absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
+  if (IsTypeMismatchStatus(orig)) {
+    const std::optional<TypeMismatchErrorData>& data =
+        ctx.type_mismatch_error_data();
+    XLS_RET_CHECK(data.has_value()) << "Internal error: type mismatch error "
+                                       "was not accompanied by detail data";
+    return XlsTypeErrorStatus(data->error_span, *data->lhs, *data->rhs,
+                              data->message);
+  }
+
+  return orig;
 }
 
 }  // namespace
@@ -602,18 +621,18 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                                  body_type->ToString());
   if (*return_type != *body_type) {
     if (f->tag() == Function::Tag::kProcInit) {
-      return XlsTypeErrorStatus(
+      return ctx->TypeMismatchError(
           f->body()->span(), *body_type, *return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (f->tag() == Function::Tag::kProcNext) {
-      return XlsTypeErrorStatus(
+      return ctx->TypeMismatchError(
           f->body()->span(), *body_type, *return_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
-    return XlsTypeErrorStatus(
+    return ctx->TypeMismatchError(
         f->body()->span(), *body_type, *return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
@@ -800,18 +819,18 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // Assert type consistency between the body and deduced return types.
   if (*tab.type != *resolved_body_type) {
     if (callee_fn->tag() == Function::Tag::kProcInit) {
-      return XlsTypeErrorStatus(
+      return ctx->TypeMismatchError(
           callee_fn->body()->span(), *body_type, *tab.type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn->tag() == Function::Tag::kProcNext) {
-      return XlsTypeErrorStatus(
+      return ctx->TypeMismatchError(
           callee_fn->body()->span(), *body_type, *tab.type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
-    return XlsTypeErrorStatus(
+    return ctx->TypeMismatchError(
         callee_fn->body()->span(), *body_type, *tab.type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
@@ -856,7 +875,10 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
   ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
 
   for (const ModuleMember& member : module->top()) {
-    XLS_RETURN_IF_ERROR(CheckModuleMember(member, module, import_data, &ctx));
+    absl::Status status = CheckModuleMember(member, module, import_data, &ctx);
+    if (!status.ok()) {
+      return MaybeExpandTypeErrorData(status, ctx);
+    }
   }
 
   return type_info;

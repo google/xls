@@ -36,12 +36,23 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
                      ImportData* import_data, WarningCollector* warnings)
     : type_info_(type_info),
       module_(module),
-      deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
+      deduce_function_(std::move(deduce_function)),
       typecheck_function_(std::move(typecheck_function)),
       typecheck_module_(std::move(typecheck_module)),
       typecheck_invocation_(std::move(typecheck_invocation)),
       import_data_(import_data),
       warnings_(warnings) {}
+
+absl::Status DeduceCtx::TypeMismatchError(Span mismatch_span,
+                                          const ConcreteType& lhs,
+                                          const ConcreteType& rhs,
+                                          std::string message) {
+  XLS_RET_CHECK(!type_mismatch_error_data_.has_value())
+      << "internal error: nested type mismatch error";
+  type_mismatch_error_data_ = TypeMismatchErrorData{
+      mismatch_span, lhs.CloneToUnique(), rhs.CloneToUnique(), message};
+  return absl::InvalidArgumentError("DslxTypeMismatchError");
+}
 
 // Helper that converts the symbolic bindings to a parametric expression
 // environment (for parametric evaluation).
@@ -51,6 +62,52 @@ ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env) {
     env[binding.identifier] = binding.value;
   }
   return env;
+}
+
+std::unique_ptr<DeduceCtx> DeduceCtx::MakeCtx(TypeInfo* new_type_info,
+                                              Module* new_module) const {
+  return std::make_unique<DeduceCtx>(
+      new_type_info, new_module, deduce_function_, typecheck_function_,
+      typecheck_module_, typecheck_invocation_, import_data_, warnings_);
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCtx::Deduce(
+    const AstNode* node) {
+  XLS_RET_CHECK(deduce_function_ != nullptr);
+  XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
+      << "node: `" << node->ToString() << "` from module "
+      << node->owner()->name()
+      << " vs type info module: " << type_info()->module()->name();
+  return deduce_function_(node, this);
+}
+
+void DeduceCtx::AddDerivedTypeInfo() {
+  type_info_ = type_info_owner().New(module(), /*parent=*/type_info_).value();
+}
+
+absl::Status DeduceCtx::PushTypeInfo(TypeInfo* ti) {
+  XLS_RET_CHECK_EQ(ti->parent(), type_info_);
+  type_info_ = ti;
+  return absl::OkStatus();
+}
+
+absl::Status DeduceCtx::PopDerivedTypeInfo() {
+  XLS_RET_CHECK(type_info_->parent() != nullptr);
+  type_info_ = type_info_->parent();
+  return absl::OkStatus();
+}
+
+void DeduceCtx::AddFnStackEntry(FnStackEntry entry) {
+  fn_stack_.push_back(std::move(entry));
+}
+
+std::optional<FnStackEntry> DeduceCtx::PopFnStackEntry() {
+  if (fn_stack_.empty()) {
+    return absl::nullopt;
+  }
+  FnStackEntry result = fn_stack_.back();
+  fn_stack_.pop_back();
+  return result;
 }
 
 }  // namespace xls::dslx

@@ -73,6 +73,7 @@ class ParametricInstantiator {
   absl::Span<const InstantiateArg> args() const { return args_; }
 
   const Span& span() const { return span_; }
+  DeduceCtx& ctx() { return *ctx_; }
 
  private:
   // Verifies that all parametrics adhere to signature constraints.

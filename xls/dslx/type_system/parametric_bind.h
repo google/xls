@@ -17,6 +17,7 @@
 
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 
 namespace xls::dslx {
 
@@ -30,12 +31,14 @@ namespace xls::dslx {
 //    be nullptr and for Y would be `X+X`.
 //  parametric_env: The environment we're populating with parametric bindings
 //    (symbols to interpreter values).
+//  deduce_ctx: Made available for error reporting.
 struct ParametricBindContext {
   const Span& span;
   const absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>&
       parametric_binding_types;
   const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs;
   absl::flat_hash_map<std::string, InterpValue>& parametric_env;
+  DeduceCtx& deduce_ctx;
 };
 
 // Binds a formal argument's parametric symbol via an actual argument, if
@@ -61,6 +64,7 @@ struct ParametricBindContext {
 //    parameter.
 //  arg_dim: The dimension held by arg_type.
 //  ctx: The parametric binding context.
+//  deduce_ctx: Used for reporting errors.
 absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
                                            const ConcreteTypeDim& param_dim,
                                            const ConcreteType& arg_type,

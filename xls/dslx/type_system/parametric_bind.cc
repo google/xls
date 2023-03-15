@@ -120,7 +120,8 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
         pdim_name, seen_value, pdim_name, expr->ToString(), arg_dim_i64);
     auto saw_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
-    return XlsTypeErrorStatus(ctx.span, *saw_type, arg_type, message);
+    return ctx.deduce_ctx.TypeMismatchError(ctx.span, *saw_type, arg_type,
+                                            message);
   }
 
   // Error is conflicting argument types.
@@ -128,7 +129,8 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
       "Parametric value %s was bound to different values at different "
       "places in invocation; saw: %d; then: %d",
       pdim_name, seen_value, arg_dim_i64);
-  return XlsTypeErrorStatus(ctx.span, param_type, arg_type, message);
+  return ctx.deduce_ctx.TypeMismatchError(ctx.span, param_type, arg_type,
+                                          message);
 }
 
 absl::Status ParametricBind(const ConcreteType& param_type,
@@ -151,7 +153,8 @@ absl::Status ParametricBind(const ConcreteType& param_type,
       std::string message =
           absl::StrFormat("parameter type name: '%s'; argument type name: '%s'",
                           param_nominal.identifier(), arg_nominal.identifier());
-      return XlsTypeErrorStatus(ctx.span, param_type, arg_type, message);
+      return ctx.deduce_ctx.TypeMismatchError(ctx.span, param_type, arg_type,
+                                              message);
     }
     return ParametricBindStruct(*param_struct, *arg_struct, ctx);
   }

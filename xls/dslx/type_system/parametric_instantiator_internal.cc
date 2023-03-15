@@ -106,14 +106,15 @@ ParametricInstantiator::InstantiateOneArg(int64_t i,
     std::string message = absl::StrFormat(
         "Parameter %d and argument types are different kinds (%s vs %s).", i,
         param_type.GetDebugTypeName(), arg_type.GetDebugTypeName());
-    return XlsTypeErrorStatus(span_, param_type, arg_type, message);
+    return ctx_->TypeMismatchError(span_, param_type, arg_type, message);
   }
 
   XLS_VLOG(5) << absl::StreamFormat(
       "Symbolically binding param %d formal %s against arg %s", i,
       param_type.ToString(), arg_type.ToString());
   ParametricBindContext ctx{span_, parametric_binding_types_,
-                            parametric_default_exprs_, parametric_env_};
+                            parametric_default_exprs_, parametric_env_,
+                            this->ctx()};
   XLS_RETURN_IF_ERROR(ParametricBind(param_type, arg_type, ctx));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        Resolve(param_type));
@@ -189,8 +190,8 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
             "%s = %s",
             name, seen.ToString(), name, expr->ToString(),
             result.value().ToString());
-        return XlsTypeErrorStatus(span_, *rhs_type, *lhs_type,
-                                  std::move(message));
+        return ctx_->TypeMismatchError(span_, *rhs_type, *lhs_type,
+                                       std::move(message));
       }
     } else {
       parametric_env_.insert({name, result.value()});
@@ -231,10 +232,10 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
       // Although it's not the *original* parameter (which could be a little
       // confusing to the user) we want to show what the mismatch was directly,
       // so we use the instantiated_param_type here.
-      return XlsTypeErrorStatus(args()[i].span, *instantiated_param_type,
-                                arg_type,
-                                "Mismatch between parameter and argument types "
-                                "(after instantiation).");
+      return ctx().TypeMismatchError(
+          args()[i].span, *instantiated_param_type, arg_type,
+          "Mismatch between parameter and argument types "
+          "(after instantiation).");
     }
   }
 
@@ -266,9 +267,9 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
                          InstantiateOneArg(i, member_type, arg_type));
     if (*instantiated_member_type != arg_type) {
-      return XlsTypeErrorStatus(args()[i].span, *instantiated_member_type,
-                                arg_type,
-                                "Mismatch between member and argument types.");
+      return ctx().TypeMismatchError(
+          args()[i].span, *instantiated_member_type, arg_type,
+          "Mismatch between member and argument types.");
     }
   }
 

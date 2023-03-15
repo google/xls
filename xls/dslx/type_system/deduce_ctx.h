@@ -103,6 +103,15 @@ using TypecheckInvocationFn = std::function<absl::StatusOr<TypeAndBindings>(
     DeduceCtx* ctx, const Invocation*,
     const absl::flat_hash_map<const Param*, InterpValue>&)>;
 
+// Holds structured data on a type mismatch error that occurred during the type
+// checking process.
+struct TypeMismatchErrorData {
+  Span error_span;
+  std::unique_ptr<ConcreteType> lhs;
+  std::unique_ptr<ConcreteType> rhs;
+  std::string message;
+};
+
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
 class DeduceCtx {
@@ -118,21 +127,16 @@ class DeduceCtx {
   //
   // Note that the resulting DeduceCtx has an empty fn_stack.
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
-                                     Module* new_module) const {
-    return std::make_unique<DeduceCtx>(
-        new_type_info, new_module, deduce_function_, typecheck_function_,
-        typecheck_module_, typecheck_invocation_, import_data_, warnings_);
-  }
+                                     Module* new_module) const;
 
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node) {
-    XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
-        << "node: `" << node->ToString() << "` from module "
-        << node->owner()->name()
-        << " vs type info module: " << type_info()->module()->name();
-    return deduce_function_(node, this);
-  }
+  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node);
+
+  // To report structured information on typechecking mismatches we record
+  // metadata on the DeduceCtx object.
+  absl::Status TypeMismatchError(Span mismatch_span, const ConcreteType& lhs,
+                                 const ConcreteType& rhs, std::string message);
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }
   const std::vector<FnStackEntry>& fn_stack() const { return fn_stack_; }
@@ -144,40 +148,21 @@ class DeduceCtx {
   TypeInfo* type_info() const { return type_info_; }
 
   // Creates a new TypeInfo that has the current type_info_ as its parent.
-  void AddDerivedTypeInfo() {
-    type_info_ = type_info_owner().New(module(), /*parent=*/type_info_).value();
-  }
+  void AddDerivedTypeInfo();
 
   // Puts the given TypeInfo on top of the current stack.
-  absl::Status PushTypeInfo(TypeInfo* ti) {
-    XLS_RET_CHECK_EQ(ti->parent(), type_info_);
-    type_info_ = ti;
-    return absl::OkStatus();
-  }
+  absl::Status PushTypeInfo(TypeInfo* ti);
 
   // Pops the current type_info_ and sets the type_info_ to be the popped
   // value's parent (conceptually an inverse of AddDerivedTypeInfo()).
-  absl::Status PopDerivedTypeInfo() {
-    XLS_RET_CHECK(type_info_->parent() != nullptr);
-    type_info_ = type_info_->parent();
-    return absl::OkStatus();
-  }
+  absl::Status PopDerivedTypeInfo();
 
   // Adds an entry to the stack of functions currently being deduced.
-  void AddFnStackEntry(FnStackEntry entry) {
-    fn_stack_.push_back(std::move(entry));
-  }
+  void AddFnStackEntry(FnStackEntry entry);
 
   // Pops an entry from the stack of functions currently being deduced and
   // returns it, conceptually the inverse of AddFnStackEntry().
-  std::optional<FnStackEntry> PopFnStackEntry() {
-    if (fn_stack_.empty()) {
-      return absl::nullopt;
-    }
-    FnStackEntry result = fn_stack_.back();
-    fn_stack_.pop_back();
-    return result;
-  }
+  std::optional<FnStackEntry> PopFnStackEntry();
 
   const TypecheckModuleFn& typecheck_module() const {
     return typecheck_module_;
@@ -197,6 +182,10 @@ class DeduceCtx {
   bool in_typeless_number_ctx() const { return in_typeless_number_ctx_; }
   void set_in_typeless_number_ctx(bool in_typeless_number_ctx) {
     in_typeless_number_ctx_ = in_typeless_number_ctx;
+  }
+
+  const std::optional<TypeMismatchErrorData>& type_mismatch_error_data() const {
+    return type_mismatch_error_data_;
   }
 
  private:
@@ -230,6 +219,9 @@ class DeduceCtx {
   // Keeps track of the function we're currently typechecking and the symbolic
   // bindings that deduction is running on.
   std::vector<FnStackEntry> fn_stack_;
+
+  // Keeps track of any type mismatch error that is currently active.
+  std::optional<TypeMismatchErrorData> type_mismatch_error_data_;
 };
 
 // Helper that converts the symbolic bindings to a parametric expression

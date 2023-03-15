@@ -40,8 +40,14 @@ TEST(ParametricBindTest, SampleConcreteDimBind) {
       /*is_signed=*/false,
       ConcreteTypeDim(std::make_unique<ParametricSymbol>("X", fake_span)));
 
+  DeduceCtx deduce_ctx(
+      /*type_info=*/nullptr, /*module=*/nullptr, /*deduce_function=*/nullptr,
+      /*typecheck_function=*/nullptr, /*typecheck_module=*/nullptr,
+      /*typecheck_invocation=*/nullptr, /*import_data=*/nullptr,
+      /*warnings=*/nullptr);
   ParametricBindContext ctx{fake_span, parametric_binding_types,
-                            parametric_default_exprs, parametric_env};
+                            parametric_default_exprs, parametric_env,
+                            deduce_ctx};
   XLS_ASSERT_OK(ParametricBindConcreteTypeDim(
       *param_type, param_type->size(), *arg_type, arg_type->size(), ctx));
   ASSERT_TRUE(parametric_env.contains("X"));
@@ -64,8 +70,15 @@ TEST(ParametricBindTest, SampleConcreteTypeBind) {
   auto param_type = std::make_unique<BitsType>(
       /*is_signed=*/false,
       ConcreteTypeDim(std::make_unique<ParametricSymbol>("X", fake_span)));
+
+  DeduceCtx deduce_ctx(
+      /*type_info=*/nullptr, /*module=*/nullptr, /*deduce_function=*/nullptr,
+      /*typecheck_function=*/nullptr, /*typecheck_module=*/nullptr,
+      /*typecheck_invocation=*/nullptr, /*import_data=*/nullptr,
+      /*warnings=*/nullptr);
   ParametricBindContext ctx{fake_span, parametric_binding_types,
-                            parametric_default_exprs, parametric_env};
+                            parametric_default_exprs, parametric_env,
+                            deduce_ctx};
 
   XLS_ASSERT_OK(ParametricBind(*param_type, *arg_type, ctx));
   ASSERT_TRUE(parametric_env.contains("X"));
