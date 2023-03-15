@@ -59,7 +59,6 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto);
 // Configuration describing the behavior of a RAM.
 struct RamConfig {
   RamKind kind;
-  int64_t width;
   int64_t depth;
   // Determines granularity of mask.
   std::optional<int64_t> word_partition_size;
@@ -67,11 +66,11 @@ struct RamConfig {
   // undefined.
   std::optional<std::vector<Value>> initial_value = std::nullopt;
 
-  // Computed address width: clog2(depth)
+  // Computed address width: clog2(depth).
   int64_t addr_width() const;
   // Computed mask width: if word_partition_size is nullopt, 0, else
   // ceil(width/word_partition_size).
-  int64_t mask_width() const;
+  int64_t mask_width(int64_t data_width) const;
 
   static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
 };

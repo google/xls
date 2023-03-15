@@ -29,7 +29,7 @@ using status_testing::StatusIs;
 using ::testing::Contains;
 
 TEST(RamDatastructuresTest, AddrWidthCorrect) {
-  RamConfig config{.kind = RamKind::kAbstract, .width = 32, .depth = 2};
+  RamConfig config{.kind = RamKind::kAbstract, .depth = 2};
   EXPECT_EQ(config.addr_width(), 1);
   config.depth = 3;
   EXPECT_EQ(config.addr_width(), 2);
@@ -44,35 +44,35 @@ TEST(RamDatastructuresTest, AddrWidthCorrect) {
 }
 
 TEST(RamDatastructuresTest, MaskWidthCorrect) {
+  int64_t data_width = 32;
   RamConfig config{.kind = RamKind::kAbstract,
-                   .width = 32,
                    .depth = 2,
                    .word_partition_size = std::nullopt};
-  EXPECT_EQ(config.mask_width(), 0);
+  EXPECT_EQ(config.mask_width(data_width), 0);
   config.word_partition_size = 1;
-  EXPECT_EQ(config.mask_width(), 32);
+  EXPECT_EQ(config.mask_width(data_width), 32);
   config.word_partition_size = 2;
-  EXPECT_EQ(config.mask_width(), 16);
+  EXPECT_EQ(config.mask_width(data_width), 16);
   config.word_partition_size = 32;
-  EXPECT_EQ(config.mask_width(), 1);
+  EXPECT_EQ(config.mask_width(data_width), 1);
 
-  config.width = 7;
+  data_width = 7;
   config.word_partition_size = std::nullopt;
-  EXPECT_EQ(config.mask_width(), 0);
+  EXPECT_EQ(config.mask_width(data_width), 0);
   config.word_partition_size = 1;
-  EXPECT_EQ(config.mask_width(), 7);
+  EXPECT_EQ(config.mask_width(data_width), 7);
   config.word_partition_size = 2;
-  EXPECT_EQ(config.mask_width(), 4);
+  EXPECT_EQ(config.mask_width(data_width), 4);
   config.word_partition_size = 3;
-  EXPECT_EQ(config.mask_width(), 3);
+  EXPECT_EQ(config.mask_width(data_width), 3);
   config.word_partition_size = 4;
-  EXPECT_EQ(config.mask_width(), 2);
+  EXPECT_EQ(config.mask_width(data_width), 2);
   config.word_partition_size = 5;
-  EXPECT_EQ(config.mask_width(), 2);
+  EXPECT_EQ(config.mask_width(data_width), 2);
   config.word_partition_size = 6;
-  EXPECT_EQ(config.mask_width(), 2);
+  EXPECT_EQ(config.mask_width(data_width), 2);
   config.word_partition_size = 7;
-  EXPECT_EQ(config.mask_width(), 1);
+  EXPECT_EQ(config.mask_width(data_width), 1);
 }
 
 TEST(RamDatastructuresTest, RamKindProtoTest) {
@@ -87,11 +87,9 @@ TEST(RamDatastructuresTest, RamKindProtoTest) {
 TEST(RamDatastructuresTest, RamConfigProtoTest) {
   RamConfigProto proto;
   proto.set_kind(RamKindProto::RAM_ABSTRACT);
-  proto.set_width(32);
   proto.set_depth(1024);
   XLS_EXPECT_OK(RamConfig::FromProto(proto));
   EXPECT_EQ(RamConfig::FromProto(proto)->kind, RamKind::kAbstract);
-  EXPECT_EQ(RamConfig::FromProto(proto)->width, 32);
   EXPECT_EQ(RamConfig::FromProto(proto)->depth, 1024);
   EXPECT_EQ(RamConfig::FromProto(proto)->word_partition_size, std::nullopt);
   EXPECT_EQ(RamConfig::FromProto(proto)->initial_value, std::nullopt);
@@ -99,7 +97,6 @@ TEST(RamDatastructuresTest, RamConfigProtoTest) {
   proto.set_word_partition_size(1);
   XLS_EXPECT_OK(RamConfig::FromProto(proto));
   EXPECT_EQ(RamConfig::FromProto(proto)->kind, RamKind::kAbstract);
-  EXPECT_EQ(RamConfig::FromProto(proto)->width, 32);
   EXPECT_EQ(RamConfig::FromProto(proto)->depth, 1024);
   EXPECT_EQ(RamConfig::FromProto(proto)->word_partition_size, 1);
   EXPECT_EQ(RamConfig::FromProto(proto)->initial_value, std::nullopt);
@@ -108,10 +105,8 @@ TEST(RamDatastructuresTest, RamConfigProtoTest) {
 TEST(RamDatastructuresTest, RamRewriteProtoTest) {
   RamRewriteProto proto;
   proto.mutable_from_config()->set_kind(RamKindProto::RAM_ABSTRACT);
-  proto.mutable_from_config()->set_width(32);
   proto.mutable_from_config()->set_depth(1024);
   proto.mutable_to_config()->set_kind(RamKindProto::RAM_1RW);
-  proto.mutable_to_config()->set_width(32);
   proto.mutable_to_config()->set_depth(1024);
   proto.mutable_from_channels_logical_to_physical()->insert(
       {"read_req", "ram_read_req"});
@@ -119,10 +114,8 @@ TEST(RamDatastructuresTest, RamRewriteProtoTest) {
 
   XLS_EXPECT_OK(RamRewrite::FromProto(proto));
   EXPECT_EQ(RamRewrite::FromProto(proto)->from_config.kind, RamKind::kAbstract);
-  EXPECT_EQ(RamRewrite::FromProto(proto)->from_config.width, 32);
   EXPECT_EQ(RamRewrite::FromProto(proto)->from_config.depth, 1024);
   EXPECT_EQ(RamRewrite::FromProto(proto)->to_config.kind, RamKind::k1RW);
-  EXPECT_EQ(RamRewrite::FromProto(proto)->to_config.width, 32);
   EXPECT_EQ(RamRewrite::FromProto(proto)->to_config.depth, 1024);
   EXPECT_EQ(
       RamRewrite::FromProto(proto)->from_channels_logical_to_physical.size(),
@@ -136,10 +129,8 @@ TEST(RamDatastructuresTest, RamRewritesProtoTest) {
   RamRewritesProto proto;
   RamRewriteProto rewrite_proto;
   rewrite_proto.mutable_from_config()->set_kind(RamKindProto::RAM_ABSTRACT);
-  rewrite_proto.mutable_from_config()->set_width(32);
   rewrite_proto.mutable_from_config()->set_depth(1024);
   rewrite_proto.mutable_to_config()->set_kind(RamKindProto::RAM_1RW);
-  rewrite_proto.mutable_to_config()->set_width(32);
   rewrite_proto.mutable_to_config()->set_depth(1024);
   rewrite_proto.mutable_from_channels_logical_to_physical()->insert(
       {"read_req", "ram_read_req"});
@@ -150,10 +141,8 @@ TEST(RamDatastructuresTest, RamRewritesProtoTest) {
   EXPECT_EQ(RamRewritesFromProto(proto)->size(), 1);
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).from_config.kind,
             RamKind::kAbstract);
-  EXPECT_EQ(RamRewritesFromProto(proto)->at(0).from_config.width, 32);
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).from_config.depth, 1024);
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).to_config.kind, RamKind::k1RW);
-  EXPECT_EQ(RamRewritesFromProto(proto)->at(0).to_config.width, 32);
   EXPECT_EQ(RamRewritesFromProto(proto)->at(0).to_config.depth, 1024);
   EXPECT_EQ(RamRewritesFromProto(proto)
                 ->at(0)

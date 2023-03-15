@@ -24,7 +24,6 @@ enum RamKindProto {
 
 message RamConfigProto {
   RamKindProto kind = 1;
-  int64 width = 2;
   int64 depth = 3;
   optional int64 word_partition_size = 4;
   // TODO(google/xls#861): Add support for initialization info in proto.

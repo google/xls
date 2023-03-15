@@ -1115,6 +1115,8 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
+        "//xls/ir:type",
+        "//xls/ir:value_helpers",
     ],
 )
 

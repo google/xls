@@ -25,6 +25,8 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value_helpers.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
@@ -71,15 +73,16 @@ absl::StatusOr<std::array<Node*, N>> ExtractTupleElements(
 namespace {
 // Makes channels for config ram_config with the given name prefix.
 absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
-    Package* p, std::string_view name_prefix, const RamConfig& ram_config) {
+    Package* p, std::string_view name_prefix, const RamConfig& ram_config,
+    Type* data_type) {
   absl::flat_hash_map<RamLogicalChannel, Channel*> channels;
 
   int64_t addr_width = ram_config.addr_width();
-  int64_t mask_width = ram_config.mask_width();
+  int64_t data_width = data_type->GetFlatBitCount();
+  int64_t mask_width = ram_config.mask_width(data_width);
 
   Type* addr_type = p->GetBitsType(addr_width);
   Type* mask_type = p->GetBitsType(mask_width);
-  Type* data_type = p->GetBitsType(ram_config.width);
 
   switch (ram_config.kind) {
     case RamKind::kAbstract: {
@@ -138,7 +141,7 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
 // create bare channels for the given config.
 absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>>
 GetChannelsForNewRam(Package* p, std::string_view name_prefix,
-                     const RamConfig &ram_config,
+                     const RamConfig& ram_config, Type* data_type,
                      std::optional<ram_model_builder_t> ram_model_builder) {
   if (ram_model_builder.has_value()) {
     auto [new_package, new_channel_mapping] = (*ram_model_builder)(ram_config);
@@ -160,7 +163,7 @@ GetChannelsForNewRam(Package* p, std::string_view name_prefix,
     }
     return resolved_channel_mapping;
   }
-  return MakeChannels(p, name_prefix, ram_config);
+  return MakeChannels(p, name_prefix, ram_config, data_type);
 }
 
 // Map channels logical names from one ram kind to another, e.g. an abstract
@@ -212,11 +215,13 @@ absl::StatusOr<RamLogicalChannel> MapChannel(RamKind from_kind,
 // possible.
 absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
                                     RamLogicalChannel logical_channel,
-                                    const RamConfig &from_config,
-                                    const RamConfig &to_config) {
+                                    const RamConfig& from_config,
+                                    const RamConfig& to_config,
+                                    Type* data_type) {
   Type* addr_type = fb->package()->GetBitsType(from_config.addr_width());
-  Type* data_type = fb->package()->GetBitsType(from_config.width);
-  Type* mask_type = fb->package()->GetBitsType(from_config.mask_width());
+  int64_t data_width = data_type->GetFlatBitCount();
+  Type* mask_type =
+      fb->package()->GetBitsType(from_config.mask_width(data_width));
   Type* token_type = fb->package()->GetTokenType();
 
   if (from_config.kind == RamKind::kAbstract &&
@@ -232,9 +237,8 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
 
         // Data can be anything on read, make a zero literal.
         XLS_ASSIGN_OR_RETURN(
-            auto* data, fb->MakeNode<Literal>(
-                            operand->loc(),
-                            Value(UBits(0, /*bit_count=*/to_config.width))));
+            auto* data,
+            fb->MakeNode<Literal>(operand->loc(), ZeroOfType(data_type)));
         // Make a 0 and 1 literal for we and we, respectively.
         XLS_ASSIGN_OR_RETURN(
             auto* we, fb->MakeNode<Literal>(operand->loc(),
@@ -316,10 +320,11 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
 absl::Status ReplaceSend(Proc* proc, Send* old_send,
                          RamLogicalChannel logical_channel,
                          const RamConfig& from_config,
-                         const RamConfig& to_config, int64_t new_channel_id) {
+                         const RamConfig& to_config, Type* data_type,
+                         int64_t new_channel_id) {
   XLS_ASSIGN_OR_RETURN(Node * new_payload,
                        RepackPayload(proc, old_send->data(), logical_channel,
-                                     from_config, to_config));
+                                     from_config, to_config, data_type));
   XLS_RETURN_IF_ERROR(
       old_send
           ->ReplaceUsesWithNew<Send>(old_send->token(), new_payload,
@@ -339,7 +344,7 @@ absl::Status ReplaceSend(Proc* proc, Send* old_send,
 absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
                             RamLogicalChannel logical_channel,
                             const RamConfig& from_config,
-                            const RamConfig& to_config,
+                            const RamConfig& to_config, Type* data_type,
                             int64_t new_channel_id) {
   Receive* new_receive = nullptr;
   if (from_config.kind == RamKind::kAbstract &&
@@ -384,7 +389,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
   }
   XLS_ASSIGN_OR_RETURN(Node * new_return_value,
                        RepackPayload(proc, new_receive, logical_channel,
-                                     from_config, to_config));
+                                     from_config, to_config, data_type));
 
   XLS_RETURN_IF_ERROR(old_receive->ReplaceUsesWith(new_return_value));
   XLS_RETURN_IF_ERROR(proc->RemoveNode(old_receive));
@@ -407,7 +412,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
 absl::Status ReplaceChannelReferences(
     Package* p,
     const absl::flat_hash_map<RamLogicalChannel, Channel*>& from_mapping,
-    const RamConfig& from_config,
+    const RamConfig& from_config, Type* data_type,
     const absl::flat_hash_map<RamLogicalChannel, Channel*>& to_mapping,
     const RamConfig& to_config) {
   // Make a reverse mapping from channel -> logical name.
@@ -443,7 +448,7 @@ absl::Status ReplaceChannelReferences(
             MapChannel(from_config.kind, logical_channel, to_config.kind));
         int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
         XLS_RETURN_IF_ERROR(ReplaceSend(proc.get(), old_send, logical_channel,
-                                        from_config, to_config,
+                                        from_config, to_config, data_type,
                                         new_channel_id));
       } else if (node->Is<Receive>()) {
         // If this receive operates on a channel in our mapping, find the new
@@ -462,13 +467,92 @@ absl::Status ReplaceChannelReferences(
             RamLogicalChannel new_logical_channel,
             MapChannel(from_config.kind, logical_channel, to_config.kind));
         int64_t new_channel_id = to_mapping.at(new_logical_channel)->id();
-        XLS_RETURN_IF_ERROR(ReplaceReceive(proc.get(), old_receive,
-                                           logical_channel, from_config,
-                                           to_config, new_channel_id));
+        XLS_RETURN_IF_ERROR(
+            ReplaceReceive(proc.get(), old_receive, logical_channel,
+                           from_config, to_config, data_type, new_channel_id));
       }
     }
   }
   return absl::OkStatus();
+}
+
+absl::StatusOr<std::optional<Type*>> DataTypeFromChannelType(
+    Type* channel_type, RamLogicalChannel logical_channel) {
+  switch (logical_channel) {
+    case RamLogicalChannel::kReadReq: {
+      return std::nullopt;
+    }
+    case RamLogicalChannel::kReadResp: {
+      if (!channel_type->IsTuple() ||
+          channel_type->AsTupleOrDie()->size() != 1) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Read resp must be tuple type with 1 element, got %s",
+            channel_type->ToString()));
+      }
+      // data is the only element
+      return channel_type->AsTupleOrDie()->element_type(0);
+    }
+    case RamLogicalChannel::kWriteReq: {
+      if (!channel_type->IsTuple() ||
+          channel_type->AsTupleOrDie()->size() != 3) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Write req must be tuple type with 3 elements, got %s",
+            channel_type->ToString()));
+      }
+      // data is the second element
+      return channel_type->AsTupleOrDie()->element_type(1);
+    }
+    case RamLogicalChannel::kWriteResp: {
+      return std::nullopt;
+    }
+    case RamLogicalChannel::kReq: {
+      if (!channel_type->IsTuple() ||
+          channel_type->AsTupleOrDie()->size() != 4) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Write req must be tuple type with 4 elements, got %s",
+            channel_type->ToString()));
+      }
+      // data is the second element
+      return channel_type->AsTupleOrDie()->element_type(1);
+    }
+    case RamLogicalChannel::kResp: {
+      if (!channel_type->IsTuple() ||
+          channel_type->AsTupleOrDie()->size() != 1) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Read resp must be tuple type with 1 element, got %s",
+            channel_type->ToString()));
+      }
+      // data is the only element
+      return channel_type->AsTupleOrDie()->element_type(0);
+    }
+  }
+}
+
+absl::StatusOr<Type*> DataTypeFromChannels(
+    const absl::flat_hash_map<RamLogicalChannel, Channel*>&
+        logical_to_channels) {
+  std::optional<Type*> data_type;
+
+  for (const auto& [logical_channel, channel] : logical_to_channels) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Type*> new_data_type,
+        DataTypeFromChannelType(channel->type(), logical_channel));
+    if (data_type.has_value()) {
+      if (new_data_type.has_value() &&
+          !data_type.value()->IsEqualTo(new_data_type.value())) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Multiple data types detected, %s!=%s.",
+            data_type.value()->ToString(), new_data_type.value()->ToString()));
+      }
+    } else {
+      data_type = new_data_type;
+    }
+  }
+
+  if (!data_type.has_value()) {
+    return absl::InvalidArgumentError("No data type found in channels.");
+  }
+  return data_type.value();
 }
 }  // namespace
 
@@ -533,12 +617,15 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(Package* p,
       old_logical_to_channels.insert({logical_channel, resolved_channel});
     }
 
+    XLS_ASSIGN_OR_RETURN(Type * data_type,
+                         DataTypeFromChannels(old_logical_to_channels));
+
     XLS_ASSIGN_OR_RETURN(
         auto new_logical_to_channels,
         GetChannelsForNewRam(p, rewrite.to_name_prefix, rewrite.to_config,
-                             rewrite.model_builder));
+                             data_type, rewrite.model_builder));
     XLS_RETURN_IF_ERROR(ReplaceChannelReferences(
-        p, old_logical_to_channels, rewrite.from_config,
+        p, old_logical_to_channels, rewrite.from_config, data_type,
         new_logical_to_channels, rewrite.to_config));
 
     // ReplaceChannelReferences() removes old sends and receives, but the old

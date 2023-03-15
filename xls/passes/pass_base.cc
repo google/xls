@@ -42,11 +42,11 @@ int64_t RamConfig::addr_width() const {
   return CeilOfLog2(static_cast<uint64_t>(depth));
 }
 
-int64_t RamConfig::mask_width() const {
+int64_t RamConfig::mask_width(int64_t data_width) const {
   if (!word_partition_size.has_value()) {
     return 0;
   }
-  return (width + word_partition_size.value() - 1) /
+  return (data_width + word_partition_size.value() - 1) /
          word_partition_size.value();
 }
 
@@ -66,7 +66,6 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
   XLS_ASSIGN_OR_RETURN(RamKind kind, RamKindFromProto(proto.kind()));
   return RamConfig{
       .kind = kind,
-      .width = proto.width(),
       .depth = proto.depth(),
       .word_partition_size = proto.has_word_partition_size()
                                  ? std::optional(proto.word_partition_size())
