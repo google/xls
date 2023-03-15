@@ -792,7 +792,7 @@ This will produce a cc_library that will execute the fn `bar` from the
 
 <pre>
 xls_ir_opt_ir(<a href="#xls_ir_opt_ir-name">name</a>, <a href="#xls_ir_opt_ir-src">src</a>, <a href="#xls_ir_opt_ir-opt_ir_args">opt_ir_args</a>, <a href="#xls_ir_opt_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_ir_opt_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>,
-              <a href="#xls_ir_opt_ir-kwargs">kwargs</a>)
+              <a href="#xls_ir_opt_ir-debug_srcs">debug_srcs</a>, <a href="#xls_ir_opt_ir-kwargs">kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule optimizing an IR file.
@@ -835,6 +835,7 @@ Examples:
 | <a id="xls_ir_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
 | <a id="xls_ir_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_ir_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_ir_opt_ir-debug_srcs"></a>debug_srcs |  List of additional source files for debugging info. Allows opt_main to correctly display lines from original source file (e.g. the .cc file before the xlscc pass) when an error occurs.   |  <code>[]</code> |
 | <a id="xls_ir_opt_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 

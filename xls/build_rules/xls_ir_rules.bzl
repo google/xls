@@ -230,8 +230,11 @@ def _optimize_ir(ctx, src):
     for rewrite in ctx.attr.ram_rewrites:
         ram_rewrite_files.extend(rewrite.files.to_list())
 
-    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src] + ram_rewrite_files)
+    debug_src_files = []
+    for debug_src in ctx.attr.debug_srcs:
+        debug_src_files.extend(debug_src.files.to_list())
 
+    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src] + ram_rewrite_files + debug_src_files)
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
@@ -675,6 +678,10 @@ xls_ir_opt_ir_attrs = dicts.add(
                   _OPT_IR_FILE_EXTENSION + " extension is used.",
         ),
         "ram_rewrites": attr.label_list(doc = "List of ram rewrite protos."),
+        "debug_srcs": attr.label_list(
+            doc = "List of additional source files for debugging info.",
+            allow_files = True,
+        ),
     },
 )
 

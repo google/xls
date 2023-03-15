@@ -124,6 +124,7 @@ def xls_ir_opt_ir_macro(
         opt_ir_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
+        debug_srcs = [],
         **kwargs):
     """A macro that instantiates a build rule optimizing an IR file.
 
@@ -166,6 +167,9 @@ def xls_ir_opt_ir_macro(
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
         from 'enable_generated_file_wrapper' function.
+      debug_srcs: List of additional source files for debugging info. Allows opt_main to correctly
+        display lines from original source file (e.g. the .cc file before the xlscc pass) when an
+        error occurs.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -184,6 +188,7 @@ def xls_ir_opt_ir_macro(
         src = src,
         opt_ir_args = opt_ir_args,
         outs = get_xls_ir_opt_ir_generated_files(kwargs),
+        debug_srcs = debug_srcs,
         **kwargs
     )
     enable_generated_file_wrapper(
