@@ -25,30 +25,12 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 
 namespace xls::dslx {
-
-// Bundles together options (common among the API routines below) used in
-// DSLX-to-IR conversion.
-struct ConvertOptions {
-  // Whether to emit positional metadata into the output IR.
-  //
-  // Stripping positions can be useful for less fragile string matching in
-  // development, e.g. tests.
-  bool emit_positions = true;
-
-  // Whether to emit fail!() operations as predicated assertion IR nodes.
-  bool emit_fail_as_assert = true;
-
-  // Should the generated IR be verified?
-  bool verify_ir = true;
-
-  // Should warnings be treated as errors?
-  bool warnings_as_errors = true;
-};
 
 // Converts the contents of a module to IR form.
 //
@@ -111,9 +93,6 @@ absl::Status ConvertOneFunctionIntoPackage(Module* module,
                                            const ParametricEnv* parametric_env,
                                            const ConvertOptions& options,
                                            Package* package);
-
-// Converts an interpreter value to an IR value.
-absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
 
 // Converts DSLX files at paths into a package.
 //

@@ -128,12 +128,54 @@ filegroup(
 )
 
 cc_library(
+    name = "convert_options",
+    hdrs = ["convert_options.h"],
+)
+
+cc_library(
+    name = "function_converter",
+    srcs = ["function_converter.cc"],
+    hdrs = ["function_converter.h"],
+    deps = [
+        ":convert_format_macro",
+        ":convert_options",
+        ":ir_conversion_utils",
+        ":proc_config_ir_converter",
+        "//xls/common:visitor",
+        "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:import_data",
+        "//xls/dslx:mangle",
+        "//xls/dslx/frontend:ast_utils",
+        "//xls/dslx/frontend:builtins_metadata",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+    ],
+)
+
+cc_test(
+    name = "function_converter_test",
+    srcs = ["function_converter_test.cc"],
+    deps = [
+        ":function_converter",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/ir",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "ir_converter",
     srcs = ["ir_converter.cc"],
     hdrs = ["ir_converter.h"],
     deps = [
         ":convert_format_macro",
+        ":convert_options",
         ":extract_conversion_order",
+        ":function_converter",
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
         "@com_google_absl//absl/container:btree",
