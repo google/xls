@@ -136,6 +136,9 @@ struct PassOptions {
   // List of RAM rewrites, generally lowering abstract RAMs into concrete
   // variants.
   std::vector<RamRewrite> ram_rewrites;
+
+  // Solver resource limit for mutual exclusion pass.
+  int64_t mutual_exclusion_z3_rlimit = -1;
 };
 
 // An object containing information about the invocation of a pass (single call

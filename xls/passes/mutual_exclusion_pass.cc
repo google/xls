@@ -798,8 +798,6 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 
   std::vector<std::pair<Node*, int64_t>> predicate_nodes = PredicateNodes(p, f);
 
-  Z3_global_param_set("rlimit", "5000");
-
   // Determine for each predicate whether it is always false using Z3.
   // Dead nodes are mutually exclusive with all other nodes, so this can reduce
   // the runtime  by doing only a linear amount of Z3 calls to remove
@@ -821,8 +819,6 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
   for (const auto& [node, index] : predicate_nodes) {
     XLS_VLOG(3) << "Predicate: " << node;
   }
-
-  Z3_global_param_set("rlimit", "5000");
 
   int64_t known_false = 0;
   int64_t known_true = 0;
@@ -899,6 +895,15 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 
 absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
+  // Sets limit on z3 "solver resources", so that the pass doesn't take too long
+  const int64_t z3_rlimit = (options.mutual_exclusion_z3_rlimit < 0)
+                                ? 5000
+                                : options.mutual_exclusion_z3_rlimit;
+
+  const std::string z3_rlimit_str = absl::StrCat(z3_rlimit);
+
+  Z3_global_param_set("rlimit", z3_rlimit_str.c_str());
+
   Predicates p;
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));
   XLS_RETURN_IF_ERROR(ComputeMutualExclusion(&p, f));
