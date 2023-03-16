@@ -5,7 +5,7 @@
 
 <!-- DO NOT REMOVE! Placeholder for TOC. -->
 
-<a id="#xls_cc_ir"></a>
+<a id="xls_cc_ir"></a>
 
 ## xls_cc_ir
 
@@ -49,7 +49,7 @@ Examples:
 | <a id="xls_cc_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#xls_cc_verilog"></a>
+<a id="xls_cc_verilog"></a>
 
 ## xls_cc_verilog
 

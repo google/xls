@@ -5,7 +5,7 @@
 
 <!-- DO NOT REMOVE! Placeholder for TOC. -->
 
-<a id="#check_sha256sum_frozen"></a>
+<a id="check_sha256sum_frozen"></a>
 
 ## check_sha256sum_frozen
 
@@ -91,7 +91,7 @@ Examples:
 | <a id="check_sha256sum_frozen-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
-<a id="#check_sha256sum_test"></a>
+<a id="check_sha256sum_test"></a>
 
 ## check_sha256sum_test
 
@@ -127,7 +127,7 @@ Examples:
 | <a id="check_sha256sum_test-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
-<a id="#proto_data"></a>
+<a id="proto_data"></a>
 
 ## proto_data
 
@@ -158,12 +158,12 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="proto_data-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="proto_data-proto_name"></a>proto_name |  The name of the message type in the .proto files that 'src' file represents.   | String | optional | "xlscc.HLSBlock" |
+| <a id="proto_data-proto_name"></a>proto_name |  The name of the message type in the .proto files that 'src' file represents.   | String | optional | <code>"xlscc.HLSBlock"</code> |
 | <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by a .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  |
 | <a id="proto_data-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
-<a id="#xls_benchmark_ir"></a>
+<a id="xls_benchmark_ir"></a>
 
 ## xls_benchmark_ir
 
@@ -206,12 +206,12 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_benchmark_ir-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
+| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
 | <a id="xls_benchmark_ir-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | "" |
+| <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
 
 
-<a id="#xls_benchmark_verilog"></a>
+<a id="xls_benchmark_verilog"></a>
 
 ## xls_benchmark_verilog
 
@@ -236,10 +236,10 @@ Example:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_benchmark_verilog-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
+| <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
 
 
-<a id="#xls_dslx_library"></a>
+<a id="xls_dslx_library"></a>
 
 ## xls_dslx_library
 
@@ -294,12 +294,12 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_library-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
-| <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
-| <a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors |  Whether warnings are errors within this library definition.   | Boolean | optional | False |
+| <a id="xls_dslx_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
+| <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
+| <a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors |  Whether warnings are errors within this library definition.   | Boolean | optional | <code>False</code> |
 
 
-<a id="#xls_dslx_opt_ir_test"></a>
+<a id="xls_dslx_opt_ir_test"></a>
 
 ## xls_dslx_opt_ir_test
 
@@ -341,17 +341,17 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
-| <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
-| <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
-| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
-| <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | "" |
-| <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
-| <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {"random_inputs": "100", "optimize_ir": "true"} |
-| <a id="xls_dslx_opt_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | "" |
+| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
+| <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
+| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | <code>""</code> |
+| <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
+| <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{"random_inputs": "100", "optimize_ir": "true"}</code> |
+| <a id="xls_dslx_opt_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
 
 
-<a id="#xls_dslx_test"></a>
+<a id="xls_dslx_test"></a>
 
 ## xls_dslx_test
 
@@ -399,13 +399,13 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
-| <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
-| <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
-| <a id="xls_dslx_test-srcs"></a>srcs |  Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
+| <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
+| <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
+| <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_dslx_test-srcs"></a>srcs |  Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
 
 
-<a id="#xls_eval_ir_test"></a>
+<a id="xls_eval_ir_test"></a>
 
 ## xls_eval_ir_test
 
@@ -448,14 +448,14 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_eval_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
-| <a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | "" |
-| <a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {"random_inputs": "100", "optimize_ir": "true"} |
+| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | <code>""</code> |
+| <a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{"random_inputs": "100", "optimize_ir": "true"}</code> |
 | <a id="xls_eval_ir_test-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_eval_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | "" |
+| <a id="xls_eval_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
 
 
-<a id="#xls_ir_equivalence_test"></a>
+<a id="xls_ir_equivalence_test"></a>
 
 ## xls_ir_equivalence_test
 
@@ -499,13 +499,13 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_ir_equivalence_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_ir_equivalence_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | {} |
+| <a id="xls_ir_equivalence_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
 | <a id="xls_ir_equivalence_test-src_0"></a>src_0 |  An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="xls_ir_equivalence_test-src_1"></a>src_1 |  An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_ir_equivalence_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | "" |
+| <a id="xls_ir_equivalence_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
 
 
-<a id="#cc_xls_ir_jit_wrapper"></a>
+<a id="cc_xls_ir_jit_wrapper"></a>
 
 ## cc_xls_ir_jit_wrapper
 
@@ -531,7 +531,7 @@ identical to this macro.
 | <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#get_mangled_ir_symbol"></a>
+<a id="get_mangled_ir_symbol"></a>
 
 ## get_mangled_ir_symbol
 
@@ -564,7 +564,7 @@ converted, we use their mangled names to refer to them in the IR namespace.
 The "mangled" symbol string.
 
 
-<a id="#xls_dslx_cpp_type_library"></a>
+<a id="xls_dslx_cpp_type_library"></a>
 
 ## xls_dslx_cpp_type_library
 
@@ -587,7 +587,7 @@ a cc_library with its target name identical to this macro.
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
 
 
-<a id="#xls_dslx_ir"></a>
+<a id="xls_dslx_ir"></a>
 
 ## xls_dslx_ir
 
@@ -633,7 +633,7 @@ An IR conversion with a top entity defined.
 | <a id="xls_dslx_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#xls_dslx_opt_ir"></a>
+<a id="xls_dslx_opt_ir"></a>
 
 ## xls_dslx_opt_ir
 
@@ -686,7 +686,7 @@ Examples:
 | <a id="xls_dslx_opt_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#xls_dslx_verilog"></a>
+<a id="xls_dslx_verilog"></a>
 
 ## xls_dslx_verilog
 
@@ -745,7 +745,7 @@ Examples:
 | <a id="xls_dslx_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#xls_ir_cc_library"></a>
+<a id="xls_ir_cc_library"></a>
 
 ## xls_ir_cc_library
 
@@ -786,7 +786,7 @@ This will produce a cc_library that will execute the fn `bar` from the
 | <a id="xls_ir_cc_library-namespaces"></a>namespaces |  A comma-separated list of namespaces into which the generated code should go.   |  <code>""</code> |
 
 
-<a id="#xls_ir_opt_ir"></a>
+<a id="xls_ir_opt_ir"></a>
 
 ## xls_ir_opt_ir
 
@@ -839,7 +839,7 @@ Examples:
 | <a id="xls_ir_opt_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
-<a id="#xls_ir_verilog"></a>
+<a id="xls_ir_verilog"></a>
 
 ## xls_ir_verilog
 
