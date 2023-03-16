@@ -121,6 +121,8 @@ class Span {
 
   Span CloneWithLimit(Pos limit) const { return Span(start_, limit); }
 
+  bool empty() const { return start_ == limit_; }
+
  private:
   Pos start_;
   Pos limit_;

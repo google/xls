@@ -31,6 +31,7 @@
 #include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
 
@@ -111,6 +112,18 @@ class ImportData {
   bool Contains(const ImportTokens& target) const {
     return modules_.find(target) != modules_.end();
   }
+
+  // When we're actively importing modules, this stack is populated to ensure we
+  // don't have cycles between files.
+  //
+  // If we try to add a span to the importer stack where the file is already
+  // active, we've detected a cycle, and so we return an error.
+  absl::Status AddToImporterStack(const Span& importer_span,
+                                  std::filesystem::path imported);
+
+  // This pops the entry from the import stack and verifies it's the latest
+  // entry, returning an error iff it is not.
+  absl::Status PopFromImporterStack(const Span& import_span);
 
   absl::StatusOr<ModuleInfo*> Get(const ImportTokens& subject);
 
@@ -210,6 +223,9 @@ class ImportData {
   std::string stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
+
+  // See comment on AddToImporterStack() above.
+  std::vector<ImportRecord> importer_stack_;
 };
 
 }  // namespace xls::dslx

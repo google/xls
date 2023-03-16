@@ -138,6 +138,7 @@ cc_library(
     srcs = ["errors.cc"],
     hdrs = ["errors.h"],
     deps = [
+        ":import_record",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
         "@com_google_absl//absl/status",
@@ -268,12 +269,23 @@ cc_test(
 )
 
 cc_library(
+    name = "import_record",
+    hdrs = ["import_record.h"],
+    deps = [
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_library(
     name = "import_data",
     srcs = ["import_data.cc"],
     hdrs = ["import_data.h"],
     deps = [
         ":default_dslx_stdlib_path",
+        ":errors",
+        ":import_record",
         ":interp_bindings",
+        "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "//xls/dslx/bytecode:bytecode_cache_interface",
         "//xls/dslx/frontend:ast",
@@ -304,6 +316,7 @@ cc_library(
         "//xls/dslx/frontend:parser",
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:type_info",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -465,6 +478,7 @@ cc_library(
         "//xls/dslx/frontend:scanner",
         "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/status:statusor",
     ],
 )

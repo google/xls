@@ -73,4 +73,28 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                       lhs.ToErrorString(), rhs.ToErrorString(), message));
 }
 
+absl::Status RecursiveImportErrorStatus(const Span& nested_import,
+                                        const Span& earlier_import,
+                                        absl::Span<const ImportRecord> cycle) {
+  std::string cycle_str = absl::StrJoin(
+      cycle, " imports\n    ", [](std::string* out, const ImportRecord& r) {
+        absl::StrAppend(out, std::string(r.imported));
+      });
+
+  // Display the entry translation unit specially.
+  std::string earlier_import_str;
+  if (earlier_import.empty()) {
+    earlier_import_str = absl::StrCat(earlier_import.filename(), " (entry)");
+  } else {
+    earlier_import_str = earlier_import.ToString();
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("RecursiveImportError: %s import cycle detected, import "
+                      "cycles are not allowed:\n  previous import @ %s\n  "
+                      "subsequent (nested) import @ %s\n  cycle:\n    %s",
+                      nested_import.ToString(), earlier_import_str,
+                      nested_import.ToString(), cycle_str));
+}
+
 }  // namespace xls::dslx
