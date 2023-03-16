@@ -2304,8 +2304,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   }
 
   if (this_expr != nullptr) {
-    MaskAssignmentsGuard guard_assignments(*this, add_this_return);
-    MaskMemoryWritesGuard guard_writes(*this, add_this_return);
+    MaskAssignmentsGuard guard_assignments(*this, /*engage=*/add_this_return);
+    MaskMemoryWritesGuard guard_writes(*this, /*engage=*/add_this_return);
+    MaskIOOtherThanMemoryWritesGuard guard_io(*this,
+                                              /*engage=*/call->isLValue());
 
     {
       // The Assign() statement below will take care of any assignments

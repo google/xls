@@ -142,6 +142,34 @@ TEST_F(TranslatorMemoryTest, MemoryWriteIOOp) {
          /*outputs=*/{IOOpTest("memory__write", memory_write_tuple, true)});
 }
 
+TEST_F(TranslatorMemoryTest, MemoryWriteStructIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Stuff {
+         unsigned short x;
+         unsigned short y;
+
+         Stuff() : x(0), y(0) { }
+         Stuff(int val) : x(val >> 16), y(val & 0b1111) { }
+         operator int()const {return x + y;}
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_memory<Stuff, 32>& memory) {
+         const int addr = in.read();
+         memory[addr] = Stuff(44);
+       })";
+
+  auto memory_write_tuple =
+      xls::Value::Tuple({xls::Value(xls::SBits(5, 5)),
+                         xls::Value::Tuple({xls::Value(xls::SBits(12, 16)),
+                                            xls::Value(xls::SBits(0, 16))})});
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("memory__write", memory_write_tuple, true)});
+}
+
 TEST_F(TranslatorMemoryTest, MemoryReadWriteIOOp) {
   const std::string content = R"(
        #include "/xls_builtin.h"
