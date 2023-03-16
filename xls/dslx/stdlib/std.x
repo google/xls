@@ -14,6 +14,44 @@
 
 // DSLX standard library routines.
 
+// TODO(tedhong): 2023-03-15 - Convert to a macro to support getting size of
+//                             arbitrary types.
+// Returns the number of bits (sizeof) of the type of the given bits value.
+pub fn sizeof_signed<N: u32>(x : sN[N]) -> u32 {
+  N
+}
+
+pub fn sizeof_unsigned<N: u32>(x : uN[N]) -> u32 {
+  N
+}
+
+#[test]
+fn sizeof_signed_test() {
+  let _ = assert_eq(u32:0, sizeof_signed(sN[0]:0));
+  let _ = assert_eq(u32:1, sizeof_signed(sN[1]:0));
+  let _ = assert_eq(u32:2, sizeof_signed(sN[2]:0));
+
+  //TODO(tedhong): 2023-03-15 - update frontend to support below.
+  //let _ = assert_eq(u32:0xffffffff, sizeof_signed(uN[0xffffffff]:0));
+}
+
+#[test]
+fn sizeof_unsigned_test() {
+  let _ = assert_eq(u32:0, sizeof_unsigned(uN[0]:0));
+  let _ = assert_eq(u32:1, sizeof_unsigned(uN[1]:0));
+  let _ = assert_eq(u32:2, sizeof_unsigned(uN[2]:0));
+
+  //TODO(tedhong): 2023-03-15 - update frontend to support below.
+  //let _ = assert_eq(u32:0xffffffff, sizeof_unsigned(uN[0xffffffff]:0));
+}
+
+#[test]
+fn use_sizeof_test() {
+  let x = uN[32]:0xffffffff;
+  let y : uN[sizeof_unsigned(x) + u32:2] = x as uN[sizeof_unsigned(x) + u32:2];
+  let _ = assert_eq(y, uN[34]:0xffffffff);
+}
+
 // Returns the maximum signed value contained in N bits.
 pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
   ((sN[N]:1 << N_MINUS_ONE) - sN[N]:1) as sN[N]

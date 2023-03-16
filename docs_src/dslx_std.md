@@ -6,6 +6,16 @@ This page documents the DSLX standard library.
 
 # `std.x`
 
+## `std::sizeof_?`
+
+```
+pub fn sizeof_unsigned<N: u32>(x : uN[N]) -> u32
+pub fn sizeof_signed<N: u32>(x : sN[N]) -> u32
+
+```
+
+Returns the number of bits (sizeof) of unsigned or signed bit value.
+
 ## `std::bounded_minus_1`
 
 ```dslx-snippet
