@@ -24,8 +24,16 @@ using ac_int = XlsInt<Width, Signed>;
 using uint32_t = unsigned int;
 using uint64_t = unsigned long long;  // NOLINT(runtime/int)
 
-// TODO(rigge): support arbitrary types for memories
-using memory_t = uint64_t;
+template <typename T>
+struct pair_t {
+  T first;
+  T second;
+
+  explicit pair_t() : first(), second() {}
+  explicit pair_t(T first, T second) : first(first), second(second) {}
+};
+
+using memory_t = pair_t<uint32_t>;
 using addr_t = ac_int<10, /*signed=*/false>;
 
 #pragma hls_top
@@ -41,18 +49,20 @@ void delay(__xls_channel<uint32_t>& in,
   const auto input_value = in.read();
   uint32_t output_value = 0;
 
+  if (!memory_initialized) {
+    prev_read = DEFAULT_OUTPUT_VALUE;
+    output_value = DEFAULT_OUTPUT_VALUE;
+  }
+
   if (reading) {
     prev_write = input_value;
     if (memory_initialized) {
       const memory_t read_value = memory[addr];
-      prev_read = read_value & 0xFFFFFFFFUL;
-      output_value = (read_value >> 32) & 0xFFFFFFFFUL;
-    } else {
-      prev_read = DEFAULT_OUTPUT_VALUE;
-      output_value = DEFAULT_OUTPUT_VALUE;
+      output_value = read_value.first;
+      prev_read = read_value.second;
     }
   } else {
-    memory[addr] = (static_cast<uint64_t>(prev_write) << 32) | input_value;
+    memory[addr] = memory_t(prev_write, input_value);
     output_value = prev_read;
   }
 
