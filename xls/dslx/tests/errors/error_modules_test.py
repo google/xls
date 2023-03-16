@@ -642,6 +642,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         ),
     )
 
+  def test_equals_rhs_undefined_nameref(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/equals_rhs_undefined_nameref.x'
+    )
+    self.assertIn('equals_rhs_undefined_nameref.x:16:13-16:14', stderr)
+    self.assertIn('ParseError: Cannot find a definition for name: "x"', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()
