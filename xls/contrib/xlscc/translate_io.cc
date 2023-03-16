@@ -300,9 +300,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           op.ret_value = op_condition;
           op.is_blocking = true;
         } else {  // memory read(addr)
-          if (call->getNumArgs() == 1) {
-            assign_ret_value_to = call->getArg(0);
-          } else {
+          if (call->getNumArgs() != 1) {
             return absl::UnimplementedError(
                 ErrorMessage(loc, "Memory read() should have one argument"));
           }

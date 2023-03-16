@@ -14,10 +14,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
+#include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/unit_test.h"
 
 namespace xlscc {
@@ -45,6 +45,58 @@ TEST_F(TranslatorMemoryTest, MemoryReadIOOp) {
       /*outputs=*/
       {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
        IOOpTest("out", 30, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryReadExplicitIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_memory<int, 32>& memory,
+                       __xls_channel<int>& out) {
+         const int addr = in.read();
+         const int val = memory.read(addr);
+         out.write(3*val);
+       })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 10, true)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
+       IOOpTest("out", 30, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryReadStructExplicitIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Stuff {
+         unsigned short x;
+         unsigned short y;
+
+         Stuff() : x(0), y(0) { }
+         Stuff(int val) : x(val >> 16), y(val & 0b1111) { }
+         operator int()const {return x + y;}
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_memory<Stuff, 32>& memory,
+                       __xls_channel<int>& out) {
+         const int addr = in.read();
+         const Stuff val = memory.read(addr);
+         out.write(3*val.y);
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 7, true),
+          IOOpTest("memory__read",
+                   xls::Value::Tuple({xls::Value(xls::UBits(10, 16)),
+                                      xls::Value(xls::UBits(5, 16))}),
+                   true)},
+         /*outputs=*/
+         {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
+          IOOpTest("out", 30, true)});
 }
 
 TEST_F(TranslatorMemoryTest, MemoryReadIOOpSubroutine) {
@@ -813,6 +865,66 @@ TEST_F(TranslatorMemoryTest, ReferenceToMemoryOp) {
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("eferences to side effecting operations")));
+}
+
+
+
+TEST_F(TranslatorMemoryTest, MemoryReadWriteOperatorTest) {
+  constexpr std::string_view content = R"(
+    #pragma hls_top
+    void foo(__xls_memory<int, 1024> & mem, __xls_channel<int> addr_in,
+             __xls_channel<int> out) {
+      const int addr = addr_in.read();
+      int value = mem[addr];
+      value = value * 2;
+      mem[addr] = value;
+      out.write(value);
+    }
+  )";
+  IOTest(
+      content,
+      /*inputs=*/
+      {
+          IOOpTest("addr_in", 5, true),
+          IOOpTest("mem__read", 10, true),
+      },
+      /*outputs=*/
+      {
+          IOOpTest("mem__read", xls::Value(xls::UBits(5, 10)),
+                   true),
+          IOOpTest("mem__write",
+                   xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
+                                      xls::Value(xls::UBits(10 * 2, 32))}),
+                   true),
+          IOOpTest("out", 20, true),
+      });
+}
+
+TEST_F(TranslatorMemoryTest, MemoryReadWriteFnTest) {
+  constexpr std::string_view content = R"(
+    #pragma hls_top
+    void foo(__xls_memory<int, 1024> & mem, __xls_channel<int> addr_in,
+             __xls_channel<int> out) {
+      const int addr = addr_in.read();
+      int value = mem.read(addr);
+      value = value * 2;
+      mem.write(addr, value);
+      out.write(value);
+    }
+  )";
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("addr_in", 5, true), IOOpTest("mem__read", 10, true)},
+         /*outputs=*/
+         {
+             IOOpTest("mem__read",
+                      xls::Value(xls::UBits(5, 10)), true),
+             IOOpTest("mem__write",
+                      xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
+                                         xls::Value(xls::UBits(10 * 2, 32))}),
+                      true),
+             IOOpTest("out", 10 * 2, true),
+         });
 }
 
 }  // namespace

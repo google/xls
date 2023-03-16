@@ -971,65 +971,6 @@ TEST_F(TranslatorIOTest, MuxTwoInputs) {
               xls::status_testing::StatusIs(absl::StatusCode::kOk));
 }
 
-TEST_F(TranslatorIOTest, MemoryReadWriteOperatorTest) {
-  constexpr std::string_view content = R"(
-    #pragma hls_top
-    void foo(__xls_memory<int, 1024> & mem, __xls_channel<int> addr_in,
-             __xls_channel<int> out) {
-      const int addr = addr_in.read();
-      int value = mem[addr];
-      value = value * 2;
-      mem[addr] = value;
-      out.write(value);
-    }
-  )";
-  IOTest(
-      content,
-      /*inputs=*/
-      {
-          IOOpTest("addr_in", 5, true),
-          IOOpTest("mem__read", 10, true),
-      },
-      /*outputs=*/
-      {
-          IOOpTest("mem", xls::Value(xls::UBits(5, 10)),
-                   true),
-          IOOpTest("mem__write",
-                   xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
-                                      xls::Value(xls::UBits(10 * 2, 32))}),
-                   true),
-          IOOpTest("out", 20, true),
-      });
-}
-
-TEST_F(TranslatorIOTest, MemoryReadWriteFnTest) {
-  constexpr std::string_view content = R"(
-    #pragma hls_top
-    void foo(__xls_memory<int, 1024> & mem, __xls_channel<int> addr_in,
-             __xls_channel<int> out) {
-      const int addr = addr_in.read();
-      int value = mem.read(addr);
-      value = value * 2;
-      mem.write(addr, value);
-      out.write(value);
-    }
-  )";
-  IOTest(content,
-         /*inputs=*/
-         {IOOpTest("addr_in", 5, true), IOOpTest("mem__read", 10, true)},
-         /*outputs=*/
-         {
-             IOOpTest("mem__read",
-                      xls::Value(xls::UBits(5, 10)), true),
-             IOOpTest("mem__write",
-                      // Shouldn't the first element be UBits(5, 10)?
-                      xls::Value::Tuple({xls::Value(xls::UBits(10, 10)),
-                                         xls::Value(xls::UBits(10 * 2, 32))}),
-                      true),
-             IOOpTest("out", 10 * 2, true),
-         });
-}
-
 }  // namespace
 
 }  // namespace xlscc
