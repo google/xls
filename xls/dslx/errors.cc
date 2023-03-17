@@ -65,14 +65,6 @@ absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {
                       node->GetNodeTypeName(), SpanToString(node->GetSpan())));
 }
 
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                std::string_view message) {
-  return absl::InvalidArgumentError(
-      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
-                      lhs.ToErrorString(), rhs.ToErrorString(), message));
-}
-
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
                                         absl::Span<const ImportRecord> cycle) {

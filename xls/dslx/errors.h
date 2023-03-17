@@ -46,16 +46,7 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
 // its type missing) and user (which found that its type was missing).
 absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
 
-// To be raised when a type mismatch is encountered.
-//
-// Note: prefix "Xls" is just to denote it's different from any C++ kind of type
-// error, this is in the DSL itself.
-//
-// TODO(leary): 2023-03-16 Rename to `DslxTypeErrorStatus`.
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                std::string_view message);
-
+// To be raised when a recursive import is detected.
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
                                         absl::Span<const ImportRecord> cycle);

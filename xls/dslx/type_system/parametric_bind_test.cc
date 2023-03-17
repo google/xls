@@ -44,7 +44,7 @@ TEST(ParametricBindTest, SampleConcreteDimBind) {
       /*type_info=*/nullptr, /*module=*/nullptr, /*deduce_function=*/nullptr,
       /*typecheck_function=*/nullptr, /*typecheck_module=*/nullptr,
       /*typecheck_invocation=*/nullptr, /*import_data=*/nullptr,
-      /*warnings=*/nullptr);
+      /*warnings=*/nullptr, /*parent=*/nullptr);
   ParametricBindContext ctx{fake_span, parametric_binding_types,
                             parametric_default_exprs, parametric_env,
                             deduce_ctx};
@@ -75,7 +75,7 @@ TEST(ParametricBindTest, SampleConcreteTypeBind) {
       /*type_info=*/nullptr, /*module=*/nullptr, /*deduce_function=*/nullptr,
       /*typecheck_function=*/nullptr, /*typecheck_module=*/nullptr,
       /*typecheck_invocation=*/nullptr, /*import_data=*/nullptr,
-      /*warnings=*/nullptr);
+      /*warnings=*/nullptr, /*parent=*/nullptr);
   ParametricBindContext ctx{fake_span, parametric_binding_types,
                             parametric_default_exprs, parametric_env,
                             deduce_ctx};

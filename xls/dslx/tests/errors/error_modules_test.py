@@ -649,6 +649,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('equals_rhs_undefined_nameref.x:16:13-16:14', stderr)
     self.assertIn('ParseError: Cannot find a definition for name: "x"', stderr)
 
+  def test_umin_type_mismatch(self):
+    stderr = self._run('xls/dslx/tests/errors/umin_type_mismatch.x')
+    self.assertIn('umin_type_mismatch.x:21:12-21:27', stderr)
+    self.assertIn('XlsTypeError: uN[N] vs uN[8]', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

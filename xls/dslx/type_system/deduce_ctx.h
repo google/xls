@@ -120,14 +120,14 @@ class DeduceCtx {
             TypecheckFunctionFn typecheck_function,
             TypecheckModuleFn typecheck_module,
             TypecheckInvocationFn typecheck_invocation, ImportData* import_data,
-            WarningCollector* warnings);
+            WarningCollector* warnings, DeduceCtx* parent);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.
   //
   // Note that the resulting DeduceCtx has an empty fn_stack.
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
-                                     Module* new_module) const;
+                                     Module* new_module);
 
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
@@ -209,6 +209,10 @@ class DeduceCtx {
 
   // Object used for collecting warnings flagged in the type checking process.
   WarningCollector* warnings_;
+
+  // If there is a "parent" deduce ctx, closer to the root of the typechecking
+  // process.
+  DeduceCtx* parent_;
 
   // True if we're in a context where we could process an unannotated number,
   // such as when deducing an array index.

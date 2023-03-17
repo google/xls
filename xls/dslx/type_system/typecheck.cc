@@ -43,6 +43,15 @@
 namespace xls::dslx {
 namespace {
 
+// To be raised when a type mismatch is encountered.
+absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
+                                const ConcreteType& rhs,
+                                std::string_view message) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
+                      lhs.ToErrorString(), rhs.ToErrorString(), message));
+}
+
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
 // when done, or expect a caller to pop it off for us. That is, this helps us
 // check fn_stack() invariants are as expected.
@@ -562,8 +571,10 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
   if (IsTypeMismatchStatus(orig)) {
     const std::optional<TypeMismatchErrorData>& data =
         ctx.type_mismatch_error_data();
-    XLS_RET_CHECK(data.has_value()) << "Internal error: type mismatch error "
-                                       "was not accompanied by detail data";
+    XLS_RET_CHECK(data.has_value())
+        << "Internal error: type mismatch error "
+           "was not accompanied by detail data; original status: "
+        << orig;
     return XlsTypeErrorStatus(data->error_span, *data->lhs, *data->rhs,
                               data->message);
   }
@@ -871,7 +882,7 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
                 /*typecheck_function=*/&CheckFunction,
                 /*typecheck_module=*/typecheck_module,
                 /*typecheck_invocation=*/&CheckInvocation, import_data,
-                warnings);
+                warnings, /*parent=*/nullptr);
   ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
 
   for (const ModuleMember& member : module->top()) {

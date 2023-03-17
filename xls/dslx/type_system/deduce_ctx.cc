@@ -33,7 +33,8 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
                      TypecheckFunctionFn typecheck_function,
                      TypecheckModuleFn typecheck_module,
                      TypecheckInvocationFn typecheck_invocation,
-                     ImportData* import_data, WarningCollector* warnings)
+                     ImportData* import_data, WarningCollector* warnings,
+                     DeduceCtx* parent)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(deduce_function)),
@@ -41,7 +42,8 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
       typecheck_module_(std::move(typecheck_module)),
       typecheck_invocation_(std::move(typecheck_invocation)),
       import_data_(import_data),
-      warnings_(warnings) {}
+      warnings_(warnings),
+      parent_(parent) {}
 
 absl::Status DeduceCtx::TypeMismatchError(Span mismatch_span,
                                           const ConcreteType& lhs,
@@ -49,7 +51,11 @@ absl::Status DeduceCtx::TypeMismatchError(Span mismatch_span,
                                           std::string message) {
   XLS_RET_CHECK(!type_mismatch_error_data_.has_value())
       << "internal error: nested type mismatch error";
-  type_mismatch_error_data_ = TypeMismatchErrorData{
+  DeduceCtx* top = this;
+  while (top->parent_ != nullptr) {
+    top = top->parent_;
+  }
+  top->type_mismatch_error_data_ = TypeMismatchErrorData{
       mismatch_span, lhs.CloneToUnique(), rhs.CloneToUnique(), message};
   return absl::InvalidArgumentError("DslxTypeMismatchError");
 }
@@ -65,10 +71,11 @@ ParametricExpression::Env ToParametricEnv(const ParametricEnv& parametric_env) {
 }
 
 std::unique_ptr<DeduceCtx> DeduceCtx::MakeCtx(TypeInfo* new_type_info,
-                                              Module* new_module) const {
-  return std::make_unique<DeduceCtx>(
-      new_type_info, new_module, deduce_function_, typecheck_function_,
-      typecheck_module_, typecheck_invocation_, import_data_, warnings_);
+                                              Module* new_module) {
+  return std::make_unique<DeduceCtx>(new_type_info, new_module,
+                                     deduce_function_, typecheck_function_,
+                                     typecheck_module_, typecheck_invocation_,
+                                     import_data_, warnings_, /*parent=*/this);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCtx::Deduce(
