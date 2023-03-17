@@ -15,7 +15,6 @@
 #ifndef XLS_PASSES_RAM_REWRITE_PASS_H_
 #define XLS_PASSES_RAM_REWRITE_PASS_H_
 
-#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -27,13 +26,13 @@ namespace xls {
 // represented as these enums.
 enum class RamLogicalChannel {
   // Abstract RAM
-  kReadReq,
-  kReadResp,
-  kWriteReq,
-  kWriteResp,
+  kAbstractReadReq,
+  kAbstractReadResp,
+  kAbstractWriteReq,
+  kAbstractWriteResp,
   // 1RW RAM
-  kReq,
-  kResp,
+  k1RWReq,
+  k1RWResp,
 };
 
 absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(

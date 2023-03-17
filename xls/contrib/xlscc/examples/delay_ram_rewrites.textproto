@@ -13,19 +13,19 @@ rewrites {
     word_partition_size: 64
   }
   from_channels_logical_to_physical: {
-    key: "read_req"
+    key: "abstract_read_req"
     value: "memory__read_request"
   }
   from_channels_logical_to_physical: {
-    key: "read_resp"
+    key: "abstract_read_resp"
     value: "memory__read_response"
   }
   from_channels_logical_to_physical: {
-    key: "write_req"
+    key: "abstract_write_req"
     value: "memory__write_request"
   }
   from_channels_logical_to_physical: {
-    key: "write_resp"
+    key: "abstract_write_resp"
     value: "memory__write_response"
   }
   to_name_prefix: "memory_"

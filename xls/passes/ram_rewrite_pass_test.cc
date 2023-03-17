@@ -193,10 +193,10 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
       .from_config = config_abstract,
       .from_channels_logical_to_physical =
           absl::flat_hash_map<std::string, std::string>{
-              {"read_req", "ram_abstract_read_req"},
-              {"read_resp", "ram_abstract_read_resp"},
-              {"write_req", "ram_abstract_write_req"},
-              {"write_resp", "ram_abstract_write_resp"},
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"abstract_write_resp", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",
@@ -250,10 +250,10 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
       .from_config = config_abstract,
       .from_channels_logical_to_physical =
           absl::flat_hash_map<std::string, std::string>{
-              {"read_req", "ram_abstract_read_req"},
-              {"read_resp", "ram_abstract_read_resp"},
-              {"write_req", "ram_abstract_write_req"},
-              {"write_resp", "ram_abstract_write_resp"},
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"abstract_write_resp", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",
@@ -327,10 +327,10 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
           .from_config = config_abstract,
           .from_channels_logical_to_physical =
               absl::flat_hash_map<std::string, std::string>{
-                  {"read_req", "ram_abstract0_read_req"},
-                  {"read_resp", "ram_abstract0_read_resp"},
-                  {"write_req", "ram_abstract0_write_req"},
-                  {"write_resp", "ram_abstract0_write_resp"},
+                  {"abstract_read_req", "ram_abstract0_read_req"},
+                  {"abstract_read_resp", "ram_abstract0_read_resp"},
+                  {"abstract_write_req", "ram_abstract0_write_req"},
+                  {"abstract_write_resp", "ram_abstract0_write_resp"},
               },
           .to_config = config_1rw,
           .to_name_prefix = "ram_1rw_0",
@@ -340,10 +340,10 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
           .from_config = config_abstract,
           .from_channels_logical_to_physical =
               absl::flat_hash_map<std::string, std::string>{
-                  {"read_req", "ram_abstract1_read_req"},
-                  {"read_resp", "ram_abstract1_read_resp"},
-                  {"write_req", "ram_abstract1_write_req"},
-                  {"write_resp", "ram_abstract1_write_resp"},
+                  {"abstract_read_req", "ram_abstract1_read_req"},
+                  {"abstract_read_resp", "ram_abstract1_read_resp"},
+                  {"abstract_write_req", "ram_abstract1_write_req"},
+                  {"abstract_write_resp", "ram_abstract1_write_resp"},
               },
           .to_config = config_1rw,
           .to_name_prefix = "ram_1rw_1",
@@ -403,10 +403,10 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
       .from_config = config_abstract,
       .from_channels_logical_to_physical =
           absl::flat_hash_map<std::string, std::string>{
-              {"read_req", "ram_abstract_read_req"},
-              {"read_resp", "ram_abstract_read_resp"},
-              {"write_req", "ram_abstract_write_req"},
-              {"write_resp", "ram_abstract_write_resp"},
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"abstract_write_resp", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",

@@ -90,19 +90,19 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
       Type* read_resp_type = p->GetTupleType({data_type});
       Type* write_req_type = p->GetTupleType({addr_type, data_type, mask_type});
       XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kReadReq],
+          channels[RamLogicalChannel::kAbstractReadReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
                                     ChannelOps::kSendOnly, read_req_type));
 
       XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kReadResp],
+          channels[RamLogicalChannel::kAbstractReadResp],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
                                     ChannelOps::kReceiveOnly, read_resp_type));
       XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kWriteReq],
+          channels[RamLogicalChannel::kAbstractWriteReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
                                     ChannelOps::kSendOnly, write_req_type));
-      XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteResp],
+      XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kAbstractWriteResp],
                            p->CreateStreamingChannel(
                                absl::StrCat(name_prefix, "_write_resp"),
                                ChannelOps::kReceiveOnly, p->GetTupleType({})));
@@ -115,11 +115,11 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
       Type* resp_type = p->GetTupleType({data_type});
 
       XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kReq],
+          channels[RamLogicalChannel::k1RWReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_req"),
                                     ChannelOps::kSendOnly, req_type));
       XLS_ASSIGN_OR_RETURN(
-          channels[RamLogicalChannel::kResp],
+          channels[RamLogicalChannel::k1RWResp],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_resp"),
                                     ChannelOps::kReceiveOnly, resp_type));
       break;
@@ -178,12 +178,13 @@ absl::StatusOr<RamLogicalChannel> MapChannel(RamKind from_kind,
       switch (to_kind) {
         case RamKind::k1RW: {
           switch (logical_channel) {
-            case RamLogicalChannel::kReadReq:
-            case RamLogicalChannel::kWriteReq:
-              return RamLogicalChannel::kReq;
-            case RamLogicalChannel::kReadResp:
-            case RamLogicalChannel::kWriteResp:
-              return RamLogicalChannel::kResp;
+            case RamLogicalChannel::kAbstractReadReq:
+            case RamLogicalChannel::kAbstractWriteReq:
+              return RamLogicalChannel::k1RWReq;
+            case RamLogicalChannel::kAbstractReadResp:
+              return RamLogicalChannel::k1RWResp;
+            case RamLogicalChannel::kAbstractWriteResp:
+              return RamLogicalChannel::k1RWResp;
             default:
               return absl::InvalidArgumentError(
                   absl::StrFormat("Invalid logical channel %s for RAM kind %s.",
@@ -227,7 +228,7 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
   if (from_config.kind == RamKind::kAbstract &&
       to_config.kind == RamKind::k1RW) {
     switch (logical_channel) {
-      case RamLogicalChannel::kReadReq: {
+      case RamLogicalChannel::kAbstractReadReq: {
         // Abstract read_req is (addr, mask).
         XLS_ASSIGN_OR_RETURN(
             auto addr_and_mask,
@@ -250,7 +251,7 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
         return fb->MakeNode<Tuple>(operand->loc(),
                                    std::vector<Node*>{addr, data, we, re});
       }
-      case RamLogicalChannel::kReadResp: {
+      case RamLogicalChannel::kAbstractReadResp: {
         // Abstract read_req is (tok, (data)), same for abstract and 1RW.
         // We'll extract the elements to check their type, but we aren't
         // actually repacking so we'll discard them when we're done.
@@ -266,7 +267,7 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
         // After we're sure the type is OK, simply return unaltered.
         return operand;
       }
-      case RamLogicalChannel::kWriteReq: {
+      case RamLogicalChannel::kAbstractWriteReq: {
         // Abstract write_req is (addr, data, mask). First, check operand's
         // type.
         XLS_ASSIGN_OR_RETURN(
@@ -284,7 +285,7 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
         return fb->MakeNode<Tuple>(operand->loc(),
                                    std::vector<Node*>{addr, data, we, re});
       }
-      case RamLogicalChannel::kWriteResp: {
+      case RamLogicalChannel::kAbstractWriteResp: {
         // Abstract write_resp is (tok, ()). First, check operand's type.
         XLS_ASSIGN_OR_RETURN(
             auto tok_and_data_tuple,
@@ -350,7 +351,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
   if (from_config.kind == RamKind::kAbstract &&
       to_config.kind == RamKind::k1RW) {
     switch (logical_channel) {
-      case RamLogicalChannel::kReadResp: {
+      case RamLogicalChannel::kAbstractReadResp: {
         XLS_ASSIGN_OR_RETURN(
             new_receive,
             proc->MakeNode<Receive>(old_receive->loc(), old_receive->token(),
@@ -358,7 +359,7 @@ absl::Status ReplaceReceive(Proc* proc, Receive* old_receive,
                                     old_receive->is_blocking()));
         break;
       }
-      case RamLogicalChannel::kWriteResp: {
+      case RamLogicalChannel::kAbstractWriteResp: {
         // For a 1RW write, we don't actually do the receive on response
         // channel. The codegen for 1RW SRAMs internally keeps track of whether
         // the request was a read or write and will only latch read response
@@ -479,43 +480,43 @@ absl::Status ReplaceChannelReferences(
 absl::StatusOr<std::optional<Type*>> DataTypeFromChannelType(
     Type* channel_type, RamLogicalChannel logical_channel) {
   switch (logical_channel) {
-    case RamLogicalChannel::kReadReq: {
+    case RamLogicalChannel::kAbstractReadReq: {
       return std::nullopt;
     }
-    case RamLogicalChannel::kReadResp: {
+    case RamLogicalChannel::kAbstractReadResp: {
       if (!channel_type->IsTuple() ||
           channel_type->AsTupleOrDie()->size() != 1) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Read resp must be tuple type with 1 element, got %s",
+            "Abstract read resp must be tuple type with 1 element, got %s",
             channel_type->ToString()));
       }
       // data is the only element
       return channel_type->AsTupleOrDie()->element_type(0);
     }
-    case RamLogicalChannel::kWriteReq: {
+    case RamLogicalChannel::kAbstractWriteReq: {
       if (!channel_type->IsTuple() ||
           channel_type->AsTupleOrDie()->size() != 3) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Write req must be tuple type with 3 elements, got %s",
+            "Abstract write req must be tuple type with 3 elements, got %s",
             channel_type->ToString()));
       }
       // data is the second element
       return channel_type->AsTupleOrDie()->element_type(1);
     }
-    case RamLogicalChannel::kWriteResp: {
+    case RamLogicalChannel::kAbstractWriteResp: {
       return std::nullopt;
     }
-    case RamLogicalChannel::kReq: {
+    case RamLogicalChannel::k1RWReq: {
       if (!channel_type->IsTuple() ||
           channel_type->AsTupleOrDie()->size() != 4) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Write req must be tuple type with 4 elements, got %s",
+            "1RW write req must be tuple type with 4 elements, got %s",
             channel_type->ToString()));
       }
       // data is the second element
       return channel_type->AsTupleOrDie()->element_type(1);
     }
-    case RamLogicalChannel::kResp: {
+    case RamLogicalChannel::k1RWResp: {
       if (!channel_type->IsTuple() ||
           channel_type->AsTupleOrDie()->size() != 1) {
         return absl::InvalidArgumentError(absl::StrFormat(
@@ -558,23 +559,23 @@ absl::StatusOr<Type*> DataTypeFromChannels(
 
 absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
     std::string_view name) {
-  if (name == "read_req") {
-    return RamLogicalChannel::kReadReq;
+  if (name == "abstract_read_req") {
+    return RamLogicalChannel::kAbstractReadReq;
   }
-  if (name == "read_resp") {
-    return RamLogicalChannel::kReadResp;
+  if (name == "abstract_read_resp") {
+    return RamLogicalChannel::kAbstractReadResp;
   }
-  if (name == "write_req") {
-    return RamLogicalChannel::kWriteReq;
+  if (name == "abstract_write_req") {
+    return RamLogicalChannel::kAbstractWriteReq;
   }
-  if (name == "write_resp") {
-    return RamLogicalChannel::kWriteResp;
+  if (name == "abstract_write_resp") {
+    return RamLogicalChannel::kAbstractWriteResp;
   }
-  if (name == "req") {
-    return RamLogicalChannel::kReq;
+  if (name == "1rw_req") {
+    return RamLogicalChannel::k1RWReq;
   }
-  if (name == "resp") {
-    return RamLogicalChannel::kResp;
+  if (name == "1rw_resp") {
+    return RamLogicalChannel::k1RWResp;
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Unrecognized logical channel name for ram: %s.", name));
@@ -582,18 +583,18 @@ absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
 
 std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel) {
   switch (logical_channel) {
-    case RamLogicalChannel::kReadReq:
-      return "read_req";
-    case RamLogicalChannel::kReadResp:
-      return "read_resp";
-    case RamLogicalChannel::kWriteReq:
-      return "write_req";
-    case RamLogicalChannel::kWriteResp:
-      return "write_resp";
-    case RamLogicalChannel::kReq:
-      return "req";
-    case RamLogicalChannel::kResp:
-      return "resp";
+    case RamLogicalChannel::kAbstractReadReq:
+      return "abstract_read_req";
+    case RamLogicalChannel::kAbstractReadResp:
+      return "abstract_read_resp";
+    case RamLogicalChannel::kAbstractWriteReq:
+      return "abstract_write_req";
+    case RamLogicalChannel::kAbstractWriteResp:
+      return "abstract_write_resp";
+    case RamLogicalChannel::k1RWReq:
+      return "1rw_req";
+    case RamLogicalChannel::k1RWResp:
+      return "1rw_resp";
   }
 }
 
