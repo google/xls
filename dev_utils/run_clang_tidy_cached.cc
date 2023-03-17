@@ -94,7 +94,7 @@ std::string CanonicalizeSourcePaths(const std::string& content) {
     std::string canonicalize_expr = "(^|\\n)(";  // fix names at start of line
     auto root =
         xls::InvokeSubprocess({"/bin/sh", "-c", "bazel info execution_root"});
-    if (root.ok()) {
+    if (root.ok() && !root->stdout.empty()) {
       root->stdout.pop_back();  // remove newline.
       canonicalize_expr += root->stdout + "/|";
     }
@@ -136,12 +136,11 @@ void ClangTidyProcessFiles(const fs::path& content_dir,
       }
       *cmd_in_file = work.first.string();
       auto run_result = xls::InvokeSubprocess(work_command);
-      // When clang-tidy reports a non-zero status code for some severe
-      // issues, we don't get clean stdout, but it is embedded in
-      // the status message (cs@, counting on you :)
-      const std::string output = CanonicalizeSourcePaths(
-          run_result.ok() ? run_result->stdout
-                          : std::string{run_result.status().message()});
+      if (!run_result.ok()) {
+        std::cerr << "clang-tidy invocation " << run_result.status() << "\n";
+        continue;
+      }
+      const std::string output = CanonicalizeSourcePaths(run_result->stdout);
       if (auto set_content_status =
               xls::SetFileContents(content_dir / ToHex(work.second), output);
           !set_content_status.ok()) {
@@ -186,6 +185,10 @@ int main(int argc, char* argv[]) {
   auto find_clang_tidy = xls::InvokeSubprocess(
       {"/bin/sh", "-c", std::string("command -v ") + clang_tidy_binary_name});
   if (!find_clang_tidy.ok()) {
+    std::cerr << find_clang_tidy.status() << "\n";
+    return EXIT_FAILURE;
+  }
+  if (find_clang_tidy->exit_status != 0 || find_clang_tidy->stdout.empty()) {
     std::cerr << "Can't find " << clang_tidy_binary_name << "\n";
     return EXIT_FAILURE;
   }
