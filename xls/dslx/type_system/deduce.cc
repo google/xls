@@ -347,7 +347,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(const Ternary* node,
   XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
   auto test_want = BitsType::MakeU1();
   if (*test_type != *test_want) {
-    return ctx->TypeMismatchError(node->span(), *test_type, *test_want,
+    return ctx->TypeMismatchError(node->span(), node->test(), *test_type,
+                                  nullptr, *test_want,
                                   "Test type for conditional expression is not "
                                   "\"bool\"");
   }
@@ -361,7 +362,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(const Ternary* node,
 
   if (*consequent_type != *alternate_type) {
     return ctx->TypeMismatchError(
-        node->span(), *consequent_type, *alternate_type,
+        node->span(), node->consequent(), *consequent_type, node->alternate(),
+        *alternate_type,
         "Ternary consequent type (in the 'then' clause) "
         "did not match alternative type (in the 'else' clause)");
   }
@@ -381,14 +383,15 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
   bool rhs_is_array = rhs_array != nullptr;
 
   if (lhs_is_array != rhs_is_array) {
-    return ctx->TypeMismatchError(node->span(), *lhs, *rhs,
+    return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
+                                  *rhs,
                                   "Attempting to concatenate array/non-array "
                                   "values together.");
   }
 
   if (lhs_is_array && lhs_array->element_type() != rhs_array->element_type()) {
     return ctx->TypeMismatchError(
-        node->span(), *lhs, *rhs,
+        node->span(), nullptr, *lhs, nullptr, *rhs,
         "Array concatenation requires element types to be the same.");
   }
 
@@ -511,7 +514,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
 
   if (*lhs != *rhs) {
     return ctx->TypeMismatchError(
-        node->span(), *lhs, *rhs,
+        node->span(), node->lhs(), *lhs, node->rhs(), *rhs,
         absl::StrFormat("Could not deduce type for "
                         "binary operation '%s'",
                         BinopKindFormat(node->binop_kind())));
@@ -595,7 +598,7 @@ DeduceEnumSansUnderlyingType(const EnumDef* node, DeduceCtx* ctx) {
     const ConcreteType& got = *deduced.at(i).second;
     if (target != got) {
       return ctx->TypeMismatchError(
-          deduced.at(i).first->GetSpan(), target, got,
+          deduced.at(i).first->GetSpan(), nullptr, target, nullptr, got,
           "Inconsistent member types in enum definition.");
     }
   }
@@ -648,7 +651,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
                            ctx->Deduce(member.value));
       if (*t != *bits_type) {
         return ctx->TypeMismatchError(
-            member.value->span(), *t, *bits_type,
+            member.value->span(), nullptr, *t, nullptr, *bits_type,
             "Enum-member type did not match the enum's underlying type.");
       }
     }
@@ -736,7 +739,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
                          DeduceAndResolve(node->type_annotation(), ctx));
     if (*rhs != *annotated) {
       return ctx->TypeMismatchError(
-          node->type_annotation()->span(), *annotated, *rhs,
+          node->type_annotation()->span(), nullptr, *annotated, nullptr, *rhs,
           "Annotated type did not match inferred type "
           "of right hand side expression.");
     }
@@ -801,7 +804,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
 
     if (*target_annotated_type != *annotated_type) {
       return ctx->TypeMismatchError(
-          node->span(), *annotated_type, *target_annotated_type,
+          node->span(), node->type_annotation(), *annotated_type, nullptr,
+          *target_annotated_type,
           "For-loop annotated type did not match inferred type.");
     }
   }
@@ -815,7 +819,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
                        DeduceAndResolve(node->body(), ctx));
 
   if (*init_type != *body_type) {
-    return ctx->TypeMismatchError(node->span(), *init_type, *body_type,
+    return ctx->TypeMismatchError(node->span(), node->init(), *init_type,
+                                  node->body(), *body_type,
                                   "For-loop init value type did not match "
                                   "for-loop body's result type.");
   }
@@ -863,7 +868,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(const Cast* node,
 
   if (!IsAcceptableCast(/*from=*/*expr, /*to=*/*type)) {
     return ctx->TypeMismatchError(
-        node->span(), *expr, *type,
+        node->span(), node->expr(), *expr, node->type_annotation(), *type,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToErrorString(), type->ToErrorString()));
   }
@@ -880,7 +885,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
                            ctx->Deduce(parametric->expr()));
       if (*expr_type != *parametric_binding_type) {
         return ctx->TypeMismatchError(
-            node->span(), *expr_type, *parametric_binding_type,
+            node->span(), parametric->expr(), *expr_type,
+            parametric->type_annotation(), *parametric_binding_type,
             "Annotated type of "
             "parametric value did not match inferred type.");
       }
@@ -913,7 +919,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
   for (int64_t i = 1; i < member_types.size(); ++i) {
     if (*member_types[0] != *member_types[i]) {
       return ctx->TypeMismatchError(
-          node->span(), *member_types[0], *member_types[i],
+          node->span(), nullptr, *member_types[0], nullptr, *member_types[i],
           "Array member did not have same type as other members.");
     }
   }
@@ -952,7 +958,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
                        Resolve(array_type->element_type(), ctx));
   if (*resolved_element_type != *member_types[0]) {
     return ctx->TypeMismatchError(
-        node->span(), *resolved_element_type, *member_types[0],
+        node->span(), nullptr, *resolved_element_type, nullptr,
+        *member_types[0],
         "Annotated element type did not match inferred "
         "element type.");
   }
@@ -968,7 +975,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
 
   if (array_type->size() != dim) {
     return ctx->TypeMismatchError(
-        node->span(), *array_type, *inferred,
+        node->span(), nullptr, *array_type, nullptr, *inferred,
         absl::StrFormat("Annotated array size %s does not match "
                         "inferred array size %d.",
                         array_type->size().ToString(), member_types.size()));
@@ -1326,7 +1333,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     XLS_ASSIGN_OR_RETURN(int64_t subject_bits, subject_ctd.GetAsInt64());
     if (width_bits > subject_bits) {
       return ctx->TypeMismatchError(
-          start->span(), subject_type, *width_type,
+          start->span(), nullptr, subject_type, nullptr, *width_type,
           absl::StrFormat("Slice type must have <= original number of bits; "
                           "attempted slice from %d to %d bits.",
                           subject_bits, width_bits));
@@ -1574,7 +1581,8 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
                            DeduceAndResolve(ToAstNode(leaf), ctx));
       if (*resolved_leaf_type != *resolved_rhs_type) {
         return ctx->TypeMismatchError(
-            name_def_tree->span(), *resolved_rhs_type, *resolved_leaf_type,
+            name_def_tree->span(), nullptr, *resolved_rhs_type, nullptr,
+            *resolved_leaf_type,
             absl::StrFormat(
                 "Conflicting types; pattern expects %s but got %s from value",
                 resolved_rhs_type->ToString(), resolved_leaf_type->ToString()));
@@ -1642,7 +1650,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(const Match* node,
   for (int64_t i = 1; i < arm_types.size(); ++i) {
     if (*arm_types[i] != *arm_types[0]) {
       return ctx->TypeMismatchError(
-          node->arms()[i]->span(), *arm_types[i], *arm_types[0],
+          node->arms()[i]->span(), nullptr, *arm_types[i], nullptr,
+          *arm_types[0],
           "This match arm did not have the same type as the "
           "preceding match arms.");
     }
@@ -1864,7 +1873,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
   XLS_RET_CHECK(splatted_type != nullptr);
   if (&struct_type->nominal_type() != &splatted_type->nominal_type()) {
     return ctx->TypeMismatchError(
-        node->span(), *struct_type, *splatted_type,
+        node->span(), nullptr, *struct_type, nullptr, *splatted_type,
         absl::StrFormat("Attempting to fill values in '%s' instantiation from "
                         "a value of type '%s'",
                         struct_type->nominal_type().identifier(),
@@ -1988,7 +1997,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
   auto u32_type = BitsType::MakeU32();
   if (*dim_type != *u32_type) {
     return ctx->TypeMismatchError(
-        dim_expr->span(), *dim_type, *u32_type,
+        dim_expr->span(), nullptr, *dim_type, nullptr, *u32_type,
         absl::StrFormat(
             "Dimension %s must be a `u32` (soon to be `usize`, see "
             "https://github.com/google/xls/issues/450 for details).",
@@ -2290,7 +2299,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(const Send* node,
                        DeduceAndResolve(node->payload(), ctx));
   if (channel_type->payload_type() != *payload_type) {
     return ctx->TypeMismatchError(
-        node->span(), channel_type->payload_type(), *payload_type,
+        node->span(), nullptr, channel_type->payload_type(), nullptr,
+        *payload_type,
         "Send node's type did not match inferred type "
         "of its payload.");
   }
@@ -2314,14 +2324,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(const SendIf* node,
                        DeduceAndResolve(node->payload(), ctx));
   if (channel_type->payload_type() != *payload_type) {
     return ctx->TypeMismatchError(
-        node->span(), channel_type->payload_type(), *payload_type,
+        node->span(), nullptr, channel_type->payload_type(), nullptr,
+        *payload_type,
         "SendIf node's type did not match inferred type "
         "of its payload.");
   }
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
   std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
   if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), *condition_type, *bool_type,
+    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
+                                  nullptr, *bool_type,
                                   "SendIf condition was not of bool type.");
   }
 
@@ -2335,7 +2347,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> end_type,
                        ctx->Deduce(node->end()));
   if (*start_type != *end_type) {
-    return ctx->TypeMismatchError(node->span(), *start_type, *end_type,
+    return ctx->TypeMismatchError(node->span(), nullptr, *start_type, nullptr,
+                                  *end_type,
                                   "Range start and end types didn't match.");
   }
 
@@ -2404,7 +2417,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
                        Deduce(node->default_value(), ctx));
   if (*default_value_type != ct->payload_type()) {
     return ctx->TypeMismatchError(
-        node->span(), *default_value_type, ct->payload_type(),
+        node->span(), nullptr, *default_value_type, nullptr, ct->payload_type(),
         "Default value type does not match channel type");
   }
 
@@ -2428,7 +2441,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
   std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
   if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), *condition_type, *bool_type,
+    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
+                                  nullptr, *bool_type,
                                   "RecvIf condition was not of bool type.");
   }
 
@@ -2440,7 +2454,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
                        Deduce(node->default_value(), ctx));
   if (*default_value_type != ct->payload_type()) {
     return ctx->TypeMismatchError(
-        node->span(), *default_value_type, ct->payload_type(),
+        node->span(), nullptr, *default_value_type, nullptr, ct->payload_type(),
         "Default value type does not match channel type");
   }
 
@@ -2462,7 +2476,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
   std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
   if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), *condition_type, *bool_type,
+    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
+                                  nullptr, *bool_type,
                                   "RecvIf condition was not of bool type.");
   }
 
@@ -2474,7 +2489,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
                        Deduce(node->default_value(), ctx));
   if (*default_value_type != ct->payload_type()) {
     return ctx->TypeMismatchError(
-        node->span(), *default_value_type, ct->payload_type(),
+        node->span(), nullptr, *default_value_type, nullptr, ct->payload_type(),
         "Default value type does not match channel type");
   }
 
@@ -2760,7 +2775,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   for (int i = 0; i < args.size(); i++) {
     if (*args[i].type != *ft->params()[i]) {
       return ctx->TypeMismatchError(
-          args[i].span, *ft->params()[i], *args[i].type,
+          args[i].span, nullptr, *ft->params()[i], nullptr, *args[i].type,
           "Mismatch between parameter and argument types.");
     }
   }

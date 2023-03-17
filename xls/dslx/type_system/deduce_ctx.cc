@@ -45,10 +45,9 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
       warnings_(warnings),
       parent_(parent) {}
 
-absl::Status DeduceCtx::TypeMismatchError(Span mismatch_span,
-                                          const ConcreteType& lhs,
-                                          const ConcreteType& rhs,
-                                          std::string message) {
+absl::Status DeduceCtx::TypeMismatchError(
+    Span mismatch_span, const AstNode* lhs_node, const ConcreteType& lhs,
+    const AstNode* rhs_node, const ConcreteType& rhs, std::string message) {
   XLS_RET_CHECK(!type_mismatch_error_data_.has_value())
       << "internal error: nested type mismatch error";
   DeduceCtx* top = this;
@@ -56,7 +55,8 @@ absl::Status DeduceCtx::TypeMismatchError(Span mismatch_span,
     top = top->parent_;
   }
   top->type_mismatch_error_data_ = TypeMismatchErrorData{
-      mismatch_span, lhs.CloneToUnique(), rhs.CloneToUnique(), message};
+      mismatch_span,       lhs_node, lhs.CloneToUnique(), rhs_node,
+      rhs.CloneToUnique(), message};
   return absl::InvalidArgumentError("DslxTypeMismatchError");
 }
 

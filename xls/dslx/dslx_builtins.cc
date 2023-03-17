@@ -77,7 +77,8 @@ class Checker {
       return *this;
     }
     if (lhs != rhs) {
-      status_ = deduce_ctx_.TypeMismatchError(span_, lhs, rhs, make_message());
+      status_ = deduce_ctx_.TypeMismatchError(span_, nullptr, lhs, nullptr, rhs,
+                                              make_message());
     }
     return *this;
   }
@@ -195,7 +196,8 @@ class Checker {
       return *this;
     }
     if (t != u) {
-      status_ = deduce_ctx_.TypeMismatchError(span_, t, u, make_msg());
+      status_ = deduce_ctx_.TypeMismatchError(span_, nullptr, t, nullptr, u,
+                                              make_msg());
     }
     return *this;
   }

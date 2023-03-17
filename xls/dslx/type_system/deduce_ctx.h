@@ -33,6 +33,7 @@
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_mismatch_error_data.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
@@ -103,15 +104,6 @@ using TypecheckInvocationFn = std::function<absl::StatusOr<TypeAndBindings>(
     DeduceCtx* ctx, const Invocation*,
     const absl::flat_hash_map<const Param*, InterpValue>&)>;
 
-// Holds structured data on a type mismatch error that occurred during the type
-// checking process.
-struct TypeMismatchErrorData {
-  Span error_span;
-  std::unique_ptr<ConcreteType> lhs;
-  std::unique_ptr<ConcreteType> rhs;
-  std::string message;
-};
-
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
 class DeduceCtx {
@@ -135,7 +127,22 @@ class DeduceCtx {
 
   // To report structured information on typechecking mismatches we record
   // metadata on the DeduceCtx object.
-  absl::Status TypeMismatchError(Span mismatch_span, const ConcreteType& lhs,
+  //
+  // Args:
+  //  mismatch_span: The span that is displayed as the "source of" the type
+  //    mismatch in the error message. We can currently only display a single
+  //    span as "the source".
+  //  lhs_node: Optional passing of the node that led to the "lhs" type, used
+  //    only for diagnostic-message-formation purposes.
+  //  lhs: Left hand side type that led to the mismatch.
+  //  rhs_node: Akin to lhs_node above.
+  //  rhs: Akin to lhs above.
+  //  message; Message to be displayed on what the type mismatch came from /
+  //    represents -- note this may end up supplemented by diagnostic
+  //    information for display.
+  absl::Status TypeMismatchError(Span mismatch_span, const AstNode* lhs_node,
+                                 const ConcreteType& lhs,
+                                 const AstNode* rhs_node,
                                  const ConcreteType& rhs, std::string message);
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }

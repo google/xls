@@ -37,20 +37,12 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/maybe_explain_error.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
-
-// To be raised when a type mismatch is encountered.
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                std::string_view message) {
-  return absl::InvalidArgumentError(
-      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
-                      lhs.ToErrorString(), rhs.ToErrorString(), message));
-}
 
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
 // when done, or expect a caller to pop it off for us. That is, this helps us
@@ -128,7 +120,8 @@ absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>> CheckFunctionParams(
                            ctx->Deduce(parametric->expr()));
       if (*expr_type != *parametric_binding_type) {
         return ctx->TypeMismatchError(
-            parametric->span(), *parametric_binding_type, *expr_type,
+            parametric->span(), parametric->type_annotation(),
+            *parametric_binding_type, parametric->expr(), *expr_type,
             "Annotated type of derived parametric value "
             "did not match inferred type.");
       }
@@ -445,9 +438,9 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_RET_CHECK(quickcheck_f_body_type.has_value());
     auto u1 = BitsType::MakeU1();
     if (*quickcheck_f_body_type.value() != *u1) {
-      return ctx->TypeMismatchError(f->span(), *quickcheck_f_body_type.value(),
-                                    *u1,
-                                    "Quickcheck functions must return a bool.");
+      return ctx->TypeMismatchError(
+          f->span(), f->body(), *quickcheck_f_body_type.value(), nullptr, *u1,
+          "Quickcheck functions must return a bool.");
     }
 
     XLS_VLOG(2) << "Finished typechecking quickcheck function: "
@@ -515,8 +508,8 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
                          parent_ctx->Deduce(value));
 
     if (*binding_type != *value_type) {
-      return ctx->TypeMismatchError(invocation->callee()->span(), *binding_type,
-                                    *value_type,
+      return ctx->TypeMismatchError(invocation->callee()->span(), nullptr,
+                                    *binding_type, value, *value_type,
                                     "Explicit parametric type mismatch.");
     }
 
@@ -575,8 +568,7 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
         << "Internal error: type mismatch error "
            "was not accompanied by detail data; original status: "
         << orig;
-    return XlsTypeErrorStatus(data->error_span, *data->lhs, *data->rhs,
-                              data->message);
+    return MaybeExplainError(data.value());
   }
 
   return orig;
@@ -633,18 +625,21 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   if (*return_type != *body_type) {
     if (f->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
-          f->body()->span(), *body_type, *return_type,
+          f->body()->span(), f->body(), *body_type, f->return_type(),
+          *return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (f->tag() == Function::Tag::kProcNext) {
       return ctx->TypeMismatchError(
-          f->body()->span(), *body_type, *return_type,
+          f->body()->span(), f->body(), *body_type, f->return_type(),
+          *return_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        f->body()->span(), *body_type, *return_type,
+        f->body()->span(), f->body(), *body_type, f->return_type(),
+        *return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         f->identifier()));
@@ -831,18 +826,21 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   if (*tab.type != *resolved_body_type) {
     if (callee_fn->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), *body_type, *tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
+          *tab.type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn->tag() == Function::Tag::kProcNext) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), *body_type, *tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
+          *tab.type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        callee_fn->body()->span(), *body_type, *tab.type,
+        callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
+        *tab.type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         callee_fn->identifier()));

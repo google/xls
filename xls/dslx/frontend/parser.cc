@@ -2454,6 +2454,8 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
                                 const_);
   if (const_) {
     name_def->set_definer(let);
+  } else if (name_def != nullptr) {
+    name_def->set_definer(rhs);
   }
   return let;
 }

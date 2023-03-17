@@ -654,6 +654,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('umin_type_mismatch.x:21:12-21:27', stderr)
     self.assertIn('XlsTypeError: uN[N] vs uN[8]', stderr)
 
+  def test_diag_block_with_trailing_semi(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/add_to_name_from_trailing_semi_block.x'
+    )
+    self.assertIn('add_to_name_from_trailing_semi_block.x:19:5-19:6', stderr)
+    self.assertIn(
+        'note that "x" was defined by a block with a trailing semicolon', stderr
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

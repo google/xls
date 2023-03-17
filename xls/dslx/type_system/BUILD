@@ -63,6 +63,7 @@ cc_library(
     deps = [
         ":concrete_type",
         ":type_and_bindings",
+        ":type_mismatch_error_data",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -172,12 +173,34 @@ cc_library(
 )
 
 cc_library(
+    name = "type_mismatch_error_data",
+    hdrs = ["type_mismatch_error_data.h"],
+    deps = [
+        ":concrete_type",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_library(
+    name = "maybe_explain_error",
+    srcs = ["maybe_explain_error.cc"],
+    hdrs = ["maybe_explain_error.h"],
+    deps = [
+        ":type_mismatch_error_data",
+        "@com_google_absl//absl/status",
+        "//xls/dslx:errors",
+    ],
+)
+
+cc_library(
     name = "typecheck",
     srcs = ["typecheck.cc"],
     hdrs = ["typecheck.h"],
     deps = [
         ":deduce",
         ":deduce_ctx",
+        ":maybe_explain_error",
         ":parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

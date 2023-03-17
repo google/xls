@@ -106,7 +106,8 @@ ParametricInstantiator::InstantiateOneArg(int64_t i,
     std::string message = absl::StrFormat(
         "Parameter %d and argument types are different kinds (%s vs %s).", i,
         param_type.GetDebugTypeName(), arg_type.GetDebugTypeName());
-    return ctx_->TypeMismatchError(span_, param_type, arg_type, message);
+    return ctx_->TypeMismatchError(span_, nullptr, param_type, nullptr,
+                                   arg_type, message);
   }
 
   XLS_VLOG(5) << absl::StreamFormat(
@@ -190,8 +191,8 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
             "%s = %s",
             name, seen.ToString(), name, expr->ToString(),
             result.value().ToString());
-        return ctx_->TypeMismatchError(span_, *rhs_type, *lhs_type,
-                                       std::move(message));
+        return ctx_->TypeMismatchError(span_, nullptr, *rhs_type, nullptr,
+                                       *lhs_type, std::move(message));
       }
     } else {
       parametric_env_.insert({name, result.value()});
@@ -233,7 +234,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
       // confusing to the user) we want to show what the mismatch was directly,
       // so we use the instantiated_param_type here.
       return ctx().TypeMismatchError(
-          args()[i].span, *instantiated_param_type, arg_type,
+          args()[i].span, nullptr, *instantiated_param_type, nullptr, arg_type,
           "Mismatch between parameter and argument types "
           "(after instantiation).");
     }
@@ -268,7 +269,7 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
                          InstantiateOneArg(i, member_type, arg_type));
     if (*instantiated_member_type != arg_type) {
       return ctx().TypeMismatchError(
-          args()[i].span, *instantiated_member_type, arg_type,
+          args()[i].span, nullptr, *instantiated_member_type, nullptr, arg_type,
           "Mismatch between member and argument types.");
     }
   }
