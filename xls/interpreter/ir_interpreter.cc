@@ -270,9 +270,8 @@ absl::Status IrInterpreter::HandleDecode(Decode* decode) {
   if (input_value < decode->BitCountOrDie()) {
     return SetBitsResult(decode, Bits::PowerOfTwo(/*set_bit_index=*/input_value,
                                                   decode->BitCountOrDie()));
-  } else {
-    return SetBitsResult(decode, Bits(decode->BitCountOrDie()));
   }
+  return SetBitsResult(decode, Bits(decode->BitCountOrDie()));
 }
 
 absl::Status IrInterpreter::HandleDynamicCountedFor(
@@ -358,26 +357,26 @@ absl::Status IrInterpreter::HandleEq(CompareOp* eq) {
 
 absl::Status IrInterpreter::HandleSGe(CompareOp* ge) {
   return SetUint64Result(
-      ge, bits_ops::SGreaterThanOrEqual(ResolveAsBits(ge->operand(0)),
-                                        ResolveAsBits(ge->operand(1))));
+      ge, static_cast<uint64_t>(bits_ops::SGreaterThanOrEqual(
+              ResolveAsBits(ge->operand(0)), ResolveAsBits(ge->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleSGt(CompareOp* gt) {
-  return SetUint64Result(gt,
-                         bits_ops::SGreaterThan(ResolveAsBits(gt->operand(0)),
-                                                ResolveAsBits(gt->operand(1))));
+  return SetUint64Result(
+      gt, static_cast<uint64_t>(bits_ops::SGreaterThan(
+              ResolveAsBits(gt->operand(0)), ResolveAsBits(gt->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleUGe(CompareOp* ge) {
   return SetUint64Result(
-      ge, bits_ops::UGreaterThanOrEqual(ResolveAsBits(ge->operand(0)),
-                                        ResolveAsBits(ge->operand(1))));
+      ge, static_cast<uint64_t>(bits_ops::UGreaterThanOrEqual(
+              ResolveAsBits(ge->operand(0)), ResolveAsBits(ge->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleUGt(CompareOp* gt) {
-  return SetUint64Result(gt,
-                         bits_ops::UGreaterThan(ResolveAsBits(gt->operand(0)),
-                                                ResolveAsBits(gt->operand(1))));
+  return SetUint64Result(
+      gt, static_cast<uint64_t>(bits_ops::UGreaterThan(
+              ResolveAsBits(gt->operand(0)), ResolveAsBits(gt->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleIdentity(UnOp* identity) {
@@ -565,26 +564,26 @@ absl::Status IrInterpreter::HandleLiteral(Literal* literal) {
 
 absl::Status IrInterpreter::HandleULe(CompareOp* le) {
   return SetUint64Result(
-      le, bits_ops::ULessThanOrEqual(ResolveAsBits(le->operand(0)),
-                                     ResolveAsBits(le->operand(1))));
+      le, static_cast<uint64_t>(bits_ops::ULessThanOrEqual(
+              ResolveAsBits(le->operand(0)), ResolveAsBits(le->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleSLt(CompareOp* lt) {
-  return SetUint64Result(lt,
-                         bits_ops::SLessThan(ResolveAsBits(lt->operand(0)),
-                                             ResolveAsBits(lt->operand(1))));
+  return SetUint64Result(
+      lt, static_cast<uint64_t>(bits_ops::SLessThan(
+              ResolveAsBits(lt->operand(0)), ResolveAsBits(lt->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleSLe(CompareOp* le) {
   return SetUint64Result(
-      le, bits_ops::SLessThanOrEqual(ResolveAsBits(le->operand(0)),
-                                     ResolveAsBits(le->operand(1))));
+      le, static_cast<uint64_t>(bits_ops::SLessThanOrEqual(
+              ResolveAsBits(le->operand(0)), ResolveAsBits(le->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleULt(CompareOp* lt) {
-  return SetUint64Result(lt,
-                         bits_ops::ULessThan(ResolveAsBits(lt->operand(0)),
-                                             ResolveAsBits(lt->operand(1))));
+  return SetUint64Result(
+      lt, static_cast<uint64_t>(bits_ops::ULessThan(
+              ResolveAsBits(lt->operand(0)), ResolveAsBits(lt->operand(1)))));
 }
 
 absl::Status IrInterpreter::HandleMap(Map* map) {
@@ -607,7 +606,8 @@ absl::Status IrInterpreter::HandleSMul(ArithOp* mul) {
                                ResolveAsBits(mul->operand(1)));
   if (result.bit_count() > mul_width) {
     return SetBitsResult(mul, result.Slice(0, mul_width));
-  } else if (result.bit_count() < mul_width) {
+  }
+  if (result.bit_count() < mul_width) {
     return SetBitsResult(mul, bits_ops::SignExtend(result, mul_width));
   }
   return SetBitsResult(mul, result);
@@ -619,7 +619,8 @@ absl::Status IrInterpreter::HandleUMul(ArithOp* mul) {
                                ResolveAsBits(mul->operand(1)));
   if (result.bit_count() > mul_width) {
     return SetBitsResult(mul, result.Slice(0, mul_width));
-  } else if (result.bit_count() < mul_width) {
+  }
+  if (result.bit_count() < mul_width) {
     return SetBitsResult(mul, bits_ops::ZeroExtend(result, mul_width));
   }
   return SetBitsResult(mul, result);
