@@ -29,7 +29,6 @@ namespace netlist {
 namespace {
 
 using google::protobuf::TextFormat;
-using google::protobuf::util::MessageDifferencer;
 using status_testing::IsOkAndHolds;
 
 TEST(CellLibraryTest, SerializeToProto) {

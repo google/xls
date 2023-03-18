@@ -49,7 +49,8 @@ absl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
   }
   if (input == "L/H") {
     return STATE_TABLE_SIGNAL_LOW_OR_HIGH;
-  } else if (input == "~R") {
+  }
+  if (input == "~R") {
     return STATE_TABLE_SIGNAL_NOT_RISING;
   } else if (input == "~F") {
     return STATE_TABLE_SIGNAL_NOT_FALLING;

@@ -472,10 +472,10 @@ class OpaqueBoolValue {
     return *this;
   }
   OpaqueBoolValue operator&(const OpaqueBoolValue& rhs) const {
-    return OpaqueBoolValue(value_ & rhs.value_);
+    return OpaqueBoolValue((value_ & static_cast<int>(rhs.value_) != 0));
   }
   OpaqueBoolValue operator|(const OpaqueBoolValue& rhs) const {
-    return OpaqueBoolValue(value_ | rhs.value_);
+    return OpaqueBoolValue((value_ | static_cast<int>(rhs.value_)) != 0);
   }
   OpaqueBoolValue operator^(const OpaqueBoolValue& rhs) const {
     return OpaqueBoolValue(value_ ^ rhs.value_);
