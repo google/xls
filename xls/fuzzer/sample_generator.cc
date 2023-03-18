@@ -240,7 +240,7 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
   return channel_names;
 }
 
-absl::StatusOr<Sample> GenerateFunctionSample(
+static absl::StatusOr<Sample> GenerateFunctionSample(
     dslx::Function* function, const TypecheckedModule& tm,
     const SampleOptions& sample_options, ValueGenerator* value_gen,
     const std::string& dslx_text) {
@@ -259,11 +259,10 @@ absl::StatusOr<Sample> GenerateFunctionSample(
   return Sample(dslx_text, sample_options, std::move(args_batch));
 }
 
-absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
-                                          const TypecheckedModule& tm,
-                                          const SampleOptions& sample_options,
-                                          ValueGenerator* value_gen,
-                                          const std::string& dslx_text) {
+static absl::StatusOr<Sample> GenerateProcSample(
+    dslx::Proc* proc, const TypecheckedModule& tm,
+    const SampleOptions& sample_options, ValueGenerator* value_gen,
+    const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types,
       GetInputChannelPayloadTypesOfProc(proc, tm));
