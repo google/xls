@@ -1,0 +1,24 @@
+name: Build Docker
+on:
+  workflow_dispatch:
+    branches:
+      - main
+jobs:
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PW }}
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          file: Dockerfile-ubuntu-22.04
+          tags: mlevental/xls:latest
