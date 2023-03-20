@@ -105,8 +105,9 @@ absl::StatusOr<Token> Scanner::Pop() {
       XLS_ASSIGN_OR_RETURN(next_char, PeekChar());
       if (IsBinOp(next_char)) {
         return Pop();
+      } else {
+        return Token::Simple(Token::Kind::kAnd, last_pos);
       }
-      return Token::Simple(Token::Kind::kAnd, last_pos);
     }
     case '&':
     case '*': {

@@ -217,10 +217,10 @@ int64_t Block::CountEntries(std::string_view target) const {
   int64_t count = 0;
   for (const BlockEntry& entry : entries) {
     if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
-      count += static_cast<int64_t>(kv->key == target);
+      count += kv->key == target;
     } else {
       const Block* block = std::get<std::unique_ptr<Block>>(entry).get();
-      count += static_cast<int64_t>(block->kind == target);
+      count += block->kind == target;
     }
   }
   return count;
@@ -335,8 +335,7 @@ absl::StatusOr<absl::InlinedVector<std::string, 4>> Parser::ParseValues(
         *end_pos = pos;
       }
       break;
-    }
-    if (!result.empty()) {
+    } else if (!result.empty()) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     }
     XLS_ASSIGN_OR_RETURN(std::string value, PopValueOrError());
