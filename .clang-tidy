@@ -39,6 +39,7 @@ Checks: >
   -google-readability-braces-around-statements,
   -google-readability-todo,
   performance-*,
+  -performance-noexcept-*,
   bugprone-*,
   -bugprone-branch-clone,
   -bugprone-easily-swappable-parameters,
