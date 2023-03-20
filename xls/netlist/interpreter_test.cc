@@ -13,14 +13,11 @@
 // limitations under the License.
 #include "xls/netlist/interpreter.h"
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/strings/ascii.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/optional.h"
-#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"
@@ -408,7 +405,7 @@ endmodule
 
 template <typename ValueT>
 static void TestXorUsing(
-    const std::string cell_definitions, std::function<bool(ValueT)> eval,
+    const std::string& cell_definitions, std::function<bool(ValueT)> eval,
     const xls::netlist::rtl::CellToOutputEvalFns<ValueT>& eval_fns,
     const ValueT kFalse, const ValueT kTrue, size_t num_threads = 0) {
   rtl::Scanner scanner(netlist_src);
@@ -472,21 +469,22 @@ class OpaqueBoolValue {
     return *this;
   }
   OpaqueBoolValue operator&(const OpaqueBoolValue& rhs) const {
-    return OpaqueBoolValue(value_ & rhs.value_);
+    return OpaqueBoolValue(value_ && rhs.value_);
   }
   OpaqueBoolValue operator|(const OpaqueBoolValue& rhs) const {
-    return OpaqueBoolValue(value_ | rhs.value_);
+    return OpaqueBoolValue(value_ || rhs.value_);
   }
   OpaqueBoolValue operator^(const OpaqueBoolValue& rhs) const {
-    return OpaqueBoolValue(value_ ^ rhs.value_);
+    int xor_result = value_ ^ rhs.value_;
+    return OpaqueBoolValue(xor_result != 0);
   }
-  OpaqueBoolValue operator!() const { return !value_; }
+  OpaqueBoolValue operator!() const { return OpaqueBoolValue(!value_); }
 
   bool get() const { return value_; }
   static OpaqueBoolValue Create(bool val) { return OpaqueBoolValue(val); }
 
  private:
-  OpaqueBoolValue(bool val) : value_(val) {}
+  explicit OpaqueBoolValue(bool val) : value_(val) {}
   bool value_;
 };
 
@@ -734,10 +732,12 @@ endmodule
     EXPECT_EQ(outputs[module->outputs()[0]], 0);
   };
 
-  eval(0, 0);
-  eval(0, 1);
-  eval(1, 0);
-  eval(1, 1);
+  constexpr bool b0 = false;
+  constexpr bool b1 = true;
+  eval(b0, b0);
+  eval(b0, b1);
+  eval(b1, b0);
+  eval(b1, b1);
 }
 
 TEST(InterpreterTest, ComplexWireAssigns) {
