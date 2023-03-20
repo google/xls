@@ -45,7 +45,8 @@ TEST(SubprocessTest, NonZeroExitWorks) {
                           /*stdout=*/"hey",
                           /*stderr=*/"hello",
                           /*exit_status=*/10,
-                          /*normal_termination=*/true)));
+                          /*normal_termination=*/true,
+                          /*timeout_expired=*/false)));
 }
 
 TEST(SubprocessTest, CrashingExitWorks) {
@@ -57,7 +58,8 @@ TEST(SubprocessTest, CrashingExitWorks) {
                           /*stdout=*/_,
                           /*stderr=*/"hello",
                           /*exit_status=*/_,
-                          /*normal_termination=*/false)));
+                          /*normal_termination=*/false,
+                          /*timeout_expired=*/false)));
 }
 
 TEST(SubprocessTest, WatchdogFastExitWorks) {
@@ -70,7 +72,8 @@ TEST(SubprocessTest, WatchdogFastExitWorks) {
                           /*stdout=*/"",
                           /*stderr=*/"",
                           /*exit_status=*/0,
-                          /*normal_termination=*/true)));
+                          /*normal_termination=*/true,
+                          /*timeout_expired=*/false)));
   EXPECT_LT(absl::ToInt64Milliseconds(duration), 10000);
 }
 
@@ -82,7 +85,8 @@ TEST(SubprocessTest, WatchdogWorks) {
                           /*stdout=*/"",
                           /*stderr=*/"",
                           /*exit_status=*/_,
-                          /*normal_termination=*/false)));
+                          /*normal_termination=*/false,
+                          /*timeout_expired=*/true)));
 }
 
 TEST(SubprocessTest, ErrorAsStatusFailingCommand) {

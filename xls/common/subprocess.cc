@@ -212,13 +212,14 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   //
   // Note that release_watchdog is the Condition trigger protected by the mutex
   // and signaling that the process has finished and the watchdog should exit.
+  std::atomic<bool> timeout_expired = false;
   bool release_watchdog = false;
   absl::Mutex watchdog_mutex;
   std::optional<xls::Thread> watchdog_thread;
   if (optional_timeout.has_value() &&
       *optional_timeout > absl::ZeroDuration()) {
     auto watchdog = [pid, timeout = optional_timeout.value(), &watchdog_mutex,
-                     &release_watchdog]() {
+                     &release_watchdog, &timeout_expired]() {
       absl::MutexLock lock(&watchdog_mutex);
       auto condition_lambda = [](void* release_val) {
         return *static_cast<bool*>(release_val);
@@ -227,6 +228,7 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
               absl::Condition(condition_lambda, &release_watchdog),
               timeout)) {
         // Timeout has lapsed, try to kill the subprocess.
+        timeout_expired.store(true);
         if (kill(pid, SIGKILL) == 0) {
           XLS_VLOG(1) << "Watchdog killed " << pid;
         }
@@ -258,7 +260,8 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   return SubprocessResult{.stdout = stdout_output,
                           .stderr = stderr_output,
                           .exit_status = WEXITSTATUS(wait_status),
-                          .normal_termination = WIFEXITED(wait_status)};
+                          .normal_termination = WIFEXITED(wait_status),
+                          .timeout_expired = timeout_expired.load()};
 }
 
 absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(

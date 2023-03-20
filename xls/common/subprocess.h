@@ -34,6 +34,16 @@ struct SubprocessResult {
   // The results of WIFEXITED for the subprocess.
   // https://pubs.opengroup.org/onlinepubs/9699919799/functions/wait.html
   bool normal_termination;
+
+  // Whether the timeout duration expired and we attempted to kill the
+  // subprocess on account of the timeout as a result.
+  //
+  // Note that the process *may or may not* have exited on account of us
+  // attempting to kill it after the timeout, e.g. there can be a race where it
+  // exits normally right as we're trying to send it the signal; however, this
+  // is an easy boolean to check to see if it clearly timed out and was likely
+  // killed on account of that fact.
+  bool timeout_expired;
 };
 std::ostream &operator<<(std::ostream &os, const SubprocessResult &other);
 
