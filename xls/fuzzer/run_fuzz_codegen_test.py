@@ -44,7 +44,7 @@ def _get_crasher_dir() -> Optional[str]:
   if 'TEST_UNDECLARED_OUTPUTS_DIR' in os.environ:
     crasher_dir = os.path.join(os.environ['TEST_UNDECLARED_OUTPUTS_DIR'],
                                'crashers')
-    os.mkdir(crasher_dir)
+    os.makedirs(crasher_dir, exist_ok=True)
     return crasher_dir
   return None
 

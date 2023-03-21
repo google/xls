@@ -21,6 +21,7 @@ from xls.common import runfiles
 from xls.common import test_base
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample_runner
+from xls.fuzzer.python import cpp_run_fuzz
 from xls.fuzzer.python import cpp_sample as sample
 
 # IR parser binary. Reads in a IR file and parses it. Raises an error on
@@ -46,7 +47,7 @@ class RunFuzzMinimizzerTest(test_base.TestCase):
     run_dir = self.create_tempdir(cleanup=success).full_path
     with self.assertRaises(sample_runner.SampleError):
       run_fuzz.run_sample(s, run_dir=run_dir)
-    minimized_ir_path = run_fuzz.minimize_ir(s, run_dir)
+    minimized_ir_path = cpp_run_fuzz.minimize_ir(s, run_dir)
     self.assertIsNotNone(minimized_ir_path)
     self.assertIn('ir_minimizer_test.sh', os.listdir(run_dir))
     # Validate the minimized IR.
@@ -72,7 +73,7 @@ class RunFuzzMinimizzerTest(test_base.TestCase):
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
-    self.assertIsNone(run_fuzz.minimize_ir(s, run_dir))
+    self.assertIsNone(cpp_run_fuzz.minimize_ir(s, run_dir))
     dir_contents = os.listdir(run_dir)
     self.assertIn('ir_minimizer_test.sh', dir_contents)
 
@@ -85,8 +86,9 @@ class RunFuzzMinimizzerTest(test_base.TestCase):
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
-    minimized_ir_path = run_fuzz.minimize_ir(
-        s, run_dir, inject_jit_result='bits[32]:0x0')
+    minimized_ir_path = cpp_run_fuzz.minimize_ir(
+        s, run_dir, inject_jit_result='bits[32]:0x0'
+    )
     self.assertIsNotNone(minimized_ir_path)
     with open(minimized_ir_path, 'r') as f:
       contents = f.read()

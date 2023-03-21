@@ -28,6 +28,7 @@ from xls.common import runfiles
 from xls.fuzzer import sample_runner
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
+from xls.fuzzer.python import cpp_run_fuzz
 from xls.fuzzer.python import cpp_sample as sample
 
 SAMPLE_RUNNER_MAIN_PATH = runfiles.get_path('xls/fuzzer/sample_runner_main')
@@ -143,117 +144,6 @@ def run_sample(smp: sample.Sample,
     _write_ir_summaries(run_dir, timing, summary_file)
 
 
-def minimize_ir(smp: sample.Sample,
-                run_dir: Text,
-                inject_jit_result: Optional[Text] = None,
-                timeout: Optional[datetime.timedelta] = None) -> Optional[Text]:
-  """Tries to minimize the IR of the given sample in the run directory.
-
-  Writes a test script into the run_directory for testing the IR for the
-  failure. Passes this test script to ir_minimizer_main to try to create a
-  minimal IR sample.
-
-  Args:
-    smp: The sample to try to minimize.
-    run_dir: The run directory the sample was run in.
-    inject_jit_result: For testing only. Value to produce as the JIT result.
-    timeout: Timeout for running the minimizer.
-
-  Returns:
-    The path to the minimized IR file (created in the run directory), or None if
-    minimization was not possible
-  """
-  if os.path.exists(os.path.join(run_dir, 'sample.ir')):
-    # First try to minimize using the sample runner binary as the minimization
-    # test.
-    ir_minimize_options = smp.options.replace(input_is_dslx=False)
-    _write_to_file(run_dir, 'ir_minimizer.options.json',
-                   ir_minimize_options.to_json())
-    # Generate the sample runner script. The script should return 0 (success) if
-    # the sample fails so invert the return code of the invocation of
-    # sample_runner_main with '!'.
-    args = [
-        SAMPLE_RUNNER_MAIN_PATH, '--logtostderr',
-        '--options_file=ir_minimizer.options.json', '--args_file=args.txt',
-        '--input_file=$1'
-    ]
-    _write_to_file(
-        run_dir,
-        'ir_minimizer_test.sh',
-        f'#!/bin/sh\n! {" ".join(args)}',
-        executable=True)
-    basename = os.path.basename(IR_MINIMIZER_MAIN_PATH)
-    stderr_path = os.path.join(run_dir, basename + '.stderr')
-    try:
-      with open(stderr_path, 'w') as f_stderr:
-        comp = subprocess.run([
-            IR_MINIMIZER_MAIN_PATH, '--logtostderr',
-            '--test_executable=ir_minimizer_test.sh', 'sample.ir'
-        ],
-                              cwd=run_dir,
-                              stdout=subprocess.PIPE,
-                              stderr=f_stderr,
-                              check=False,
-                              timeout=timeout.seconds if timeout else None)
-    except subprocess.TimeoutExpired:
-      return None
-    if comp.returncode == 0:
-      minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
-      with open(minimized_ir_path, 'wb') as f:
-        f.write(comp.stdout)
-      return minimized_ir_path
-
-    if smp.options.use_jit:
-      # Next try to minimize assuming the underlying cause was a JIT mismatch.
-      # The IR minimizer binary has special machinery for reducing these kinds
-      # of failures. The minimization occurs in two steps:
-      # (1) Find an input that results in a JIT vs interpreter mismatch (if any)
-      # (2) Run the minimization tool using this input as the test.
-      extra_args = ['--test_only_inject_jit_result=' +
-                    inject_jit_result] if inject_jit_result else []
-      basename = os.path.basename(FIND_FAILING_INPUT_MAIN)
-      stderr_path = os.path.join(run_dir, basename + '.stderr')
-      try:
-        with open(stderr_path, 'w') as f_stderr:
-          comp = subprocess.run(
-              [FIND_FAILING_INPUT_MAIN, '--input_file=args.txt', 'sample.ir'] +
-              extra_args,
-              cwd=run_dir,
-              stdout=subprocess.PIPE,
-              stderr=f_stderr,
-              check=False,
-              timeout=timeout.seconds if timeout else None)
-      except subprocess.TimeoutExpired:
-        return None
-      if comp.returncode == 0:
-        # A failing input for JIT vs interpreter was found
-        failed_input = comp.stdout.decode('utf-8')
-        basename = os.path.basename(IR_MINIMIZER_MAIN_PATH)
-        stderr_path = os.path.join(run_dir, basename + '_jit.stderr')
-        try:
-          with open(stderr_path, 'w') as f_stderr:
-            comp = subprocess.run(
-                [
-                    IR_MINIMIZER_MAIN_PATH, '--logtostderr', '--test_llvm_jit',
-                    '--use_optimization_pipeline', '--input=' + failed_input,
-                    'sample.ir'
-                ] + extra_args,
-                cwd=run_dir,
-                stdout=subprocess.PIPE,
-                stderr=f_stderr,
-                check=False,
-                timeout=timeout.seconds if timeout else None)
-        except subprocess.TimeoutExpired:
-          return None
-        if comp.returncode == 0:
-          minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
-          with open(minimized_ir_path, 'wb') as f:
-            f.write(comp.stdout)
-          return minimized_ir_path
-
-  return None
-
-
 def _save_crasher(run_dir: str, smp: sample.Sample,
                   exception: sample_runner.SampleError,
                   crasher_dir: str) -> str:
@@ -300,11 +190,13 @@ def generate_sample_and_run(
       sample_crasher_dir = _save_crasher(run_dir, smp, e, crasher_dir)
       if not e.is_timeout:
         logging.info('Attempting to minimize IR...')
-        ir_minimized = minimize_ir(
+        ir_minimized = cpp_run_fuzz.minimize_ir(
             smp,
             sample_crasher_dir,
             timeout=datetime.timedelta(seconds=sample_options.timeout_seconds)
-            if sample_options.timeout_seconds else None)
+            if sample_options.timeout_seconds
+            else None,
+        )
         if ir_minimized:
           logging.info('...minimization successful.')
         else:

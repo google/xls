@@ -62,3 +62,23 @@ xls_pybind_extension(
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
+
+xls_pybind_extension(
+    name = "cpp_run_fuzz",
+    srcs = [
+        "cpp_run_fuzz.cc",
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/status:statusor",
+        "@at_clifford_yosys//:json11",
+        "//xls/common/status:import_status_module",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value_helpers",
+        "//xls/fuzzer:ast_generator",
+        "//xls/fuzzer:cpp_run_fuzz",
+        "//xls/fuzzer:cpp_sample",
+        "@pybind11_abseil//pybind11_abseil:statusor_caster",
+    ],
+)

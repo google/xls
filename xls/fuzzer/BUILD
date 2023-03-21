@@ -48,6 +48,7 @@ py_library(
         "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_run_fuzz",
         "//xls/fuzzer/python:cpp_sample",
         "@com_google_absl_py//absl/logging",
     ],
@@ -67,6 +68,7 @@ py_test(
         ":sample_runner",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_run_fuzz",
         "//xls/fuzzer/python:cpp_sample",
     ],
 )
@@ -661,5 +663,19 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "cpp_run_fuzz",
+    srcs = ["cpp_run_fuzz.cc"],
+    hdrs = ["cpp_run_fuzz.h"],
+    deps = [
+        ":cpp_sample",
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging:log_lines",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
