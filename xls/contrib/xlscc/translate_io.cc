@@ -21,6 +21,7 @@
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/xlscc_logging.h"
 
 namespace xlscc {
 
@@ -159,6 +160,7 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     }
   }
   const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
+  XLSCC_CHECK(arg.getKind() == clang::TemplateArgument::ArgKind::Type, loc);
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
                        TranslateTypeFromClang(arg.getAsType(), loc));
 

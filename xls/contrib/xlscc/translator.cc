@@ -1564,6 +1564,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
           std::string(*rvalue.type()),
           std::string(*arr_type->GetElementType())));
     }
+    XLSCC_CHECK(rvalue.rvalue().valid(), loc);
     auto arr_rvalue =
         CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
                                          {idx_val.rvalue()}, loc),
@@ -3593,6 +3594,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
         return absl::UnimplementedError(ErrorMessage(
             loc, "Non-zero initializers must have exact element count"));
       }
+      XLSCC_CHECK(this_val.valid(), loc);
       element_vals.push_back(this_val);
     }
     XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
