@@ -638,8 +638,8 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_4_(aid): bits[i] = "         \
         "identity(a, pos=(loc)) }"                                             \
         : "=r"(ret.storage)                                                    \
-        : "i"(Result::width), "parama"(__IMPL<Result::width, ToSign>::Operate( \
-                                  as.storage, bs.storage)));                   \
+        : "i"(Result::width), "parama"(__IMPL<Result::width,                   \
+           Result::sign>::Operate(as.storage, bs.storage)));                   \
     return ret;                                                                \
   }                                                                            \
   template <int ToW, bool ToSign>                                              \
@@ -652,8 +652,8 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   BINARY_OP(-, "sub", minus);
 
   BINARY_OP_WITH_SIGN(*, MultiplyWithSign, mult);
-  BINARY_OP_WITH_SIGN(/, DivideWithSign, mult);
-  BINARY_OP_WITH_SIGN(%, ModuloWithSign, mult);
+  BINARY_OP_WITH_SIGN(/, DivideWithSign, div);
+  BINARY_OP_WITH_SIGN(%, ModuloWithSign, mod);
 
   BINARY_OP(|, "or", logic);
   BINARY_OP(&, "and", logic);
