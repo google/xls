@@ -25,7 +25,7 @@ rewrites {
     value: "memory__write_request"
   }
   from_channels_logical_to_physical: {
-    key: "abstract_write_resp"
+    key: "write_completion"
     value: "memory__write_response"
   }
   to_name_prefix: "memory_"

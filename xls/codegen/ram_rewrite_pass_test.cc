@@ -362,26 +362,68 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
   }
 }
 
+TEST_P(RamRewritePassTest, WriteCompletionRemoved) {
+  auto& param = std::get<0>(GetParam());
+  CodegenOptions codegen_options = GetCodegenOptions();
+  CodegenPassOptions pass_options{
+      .codegen_options = codegen_options,
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(param.ir_text));
+  XLS_ASSERT_OK_AND_ASSIGN(auto block,
+                           MakeBlock(package.get(), codegen_options));
+  auto pipeline = std::get<1>(GetParam());
+  CodegenPassUnit unit(block->package(), block);
+  PassResults results;
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed,
+                           pipeline->Run(&unit, pass_options, &results));
+
+  EXPECT_TRUE(changed);
+
+  for (const auto& config : codegen_options.ram_configurations()) {
+    if (config->ram_kind() == "1RW") {
+      auto* ram1rw_config = down_cast<Ram1RWConfiguration*>(config.get());
+      std::string_view wr_comp_name =
+          ram1rw_config->rw_port_configuration().write_completion_channel_name;
+      EXPECT_THAT(block->GetPorts(),
+                  Not(Contains(AnyOf(
+                      PortByName(absl::StrCat(wr_comp_name, "_ready")),
+                      PortByName(wr_comp_name),
+                      PortByName(absl::StrCat(wr_comp_name, "_valid"))))));
+    } else if (config->ram_kind() == "1R1W") {
+      auto* ram1r1w_config = down_cast<Ram1R1WConfiguration*>(config.get());
+      std::string_view wr_comp_name =
+          ram1r1w_config->w_port_configuration().write_completion_channel_name;
+      EXPECT_THAT(block->GetPorts(),
+                  Not(Contains(AnyOf(
+                      PortByName(absl::StrCat(wr_comp_name, "_ready")),
+                      PortByName(wr_comp_name),
+                      PortByName(absl::StrCat(wr_comp_name, "_valid"))))));
+    }
+  }
+}
+
 // Tests implicitly rely on rams being named ram0, ram1, and so on.
-constexpr std::string_view kSingle1RW[] = {"ram0:1RW:req:resp"};
+constexpr std::string_view kSingle1RW[] = {"ram0:1RW:req:resp:wr_comp"};
 
 constexpr std::string_view kThree1RW[] = {
-    std::string_view("ram0:1RW:req0:resp0"),
-    std::string_view("ram1:1RW:req1:resp1"),
-    std::string_view("ram2:1RW:req2:resp2"),
+    std::string_view("ram0:1RW:req0:resp0:wr_comp0"),
+    std::string_view("ram1:1RW:req1:resp1:wr_comp1"),
+    std::string_view("ram2:1RW:req2:resp2:wr_comp2"),
 };
 
-constexpr std::string_view kSingle1R1W[] = {"ram0:1R1W:rd_req:rd_resp:wr_req"};
+constexpr std::string_view kSingle1R1W[] = {
+    "ram0:1R1W:rd_req:rd_resp:wr_req:wr_comp"};
 
 constexpr std::string_view kThree1R1W[] = {
-    std::string_view("ram0:1R1W:rd_req0:rd_resp0:wr_req0"),
-    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1"),
-    std::string_view("ram2:1R1W:rd_req2:rd_resp2:wr_req2"),
+    std::string_view("ram0:1R1W:rd_req0:rd_resp0:wr_req0:wr_comp0"),
+    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1:wr_comp1"),
+    std::string_view("ram2:1R1W:rd_req2:rd_resp2:wr_req2:wr_comp2"),
 };
 
 constexpr std::string_view k1RWAnd1R1W[] = {
-    std::string_view("ram0:1RW:req0:resp0"),
-    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1"),
+    std::string_view("ram0:1RW:req0:resp0:wr_comp0"),
+    std::string_view("ram1:1R1W:rd_req1:rd_resp1:wr_req1:wr_comp1"),
 };
 
 constexpr RamChannelRewriteTestParam kTestParameters[] = {
@@ -390,6 +432,7 @@ constexpr RamChannelRewriteTestParam kTestParameters[] = {
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp((), id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
   true_lit: bits[1] = literal(value=1)
@@ -398,9 +441,11 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   send_token: token = send(__token, to_send, channel_id=0)
   rcv: (token, (bits[32])) = receive(send_token, channel_id=1)
   rcv_token: token = tuple_index(rcv, index=0)
+  wr_comp_rcv: (token, ()) = receive(rcv_token, channel_id=2)
+  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (rcv_token, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
         .pipeline_stages = 2,
@@ -411,6 +456,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
         .ir_text = R"(package  test
 chan req((bits[32], bits[32], bits[1], bits[1]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp((), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra0(bits[1], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra1(bits[1], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
@@ -426,8 +472,10 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   extra0_token: token = tuple_index(extra0_rcv, index=0)
   extra1_rcv: (token, bits[1]) = receive(extra0_token, channel_id=2)
   extra1_token: token = tuple_index(extra1_rcv, index=0)
+  wr_comp_rcv: (token, ()) = receive(extra1_token, channel_id=4)
+  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   next_state: bits[32] = add(__state, one_lit)
-  next (extra1_token, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
         .pipeline_stages = 4,
@@ -438,10 +486,13 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
         .ir_text = R"(package  test
 chan req0((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp0((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan req1((bits[32], bits[32], bits[1], bits[1]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp1((), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan req2((bits[32], bits[32], bits[1], bits[1]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp2((bits[32]), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp2((), id=8, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 proc my_proc(__token: token, __state: (), init={()}) {
   true_lit: bits[1] = literal(value=1)
@@ -465,7 +516,13 @@ proc my_proc(__token: token, __state: (), init={()}) {
   rcv2_token: token = tuple_index(rcv2, index=0)
   rcv2_tuple: (bits[32]) = tuple_index(rcv2, index=1)
   rcv2_data: bits[32] = tuple_index(rcv2_tuple, index=0)
-  after_all_token: token = after_all(rcv0_token, rcv1_token, rcv2_token)
+  wr_comp0_rcv: (token, ()) = receive(rcv2_token, channel_id=6)
+  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
+  wr_comp1_rcv: (token, ()) = receive(rcv2_token, channel_id=7)
+  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
+  wr_comp2_rcv: (token, ()) = receive(rcv2_token, channel_id=8)
+  wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
+  after_all_token: token = after_all(rcv0_token, rcv1_token, rcv2_token, wr_comp0_token, wr_comp1_token, wr_comp2_token)
   next_state: () = tuple()
   next (after_all_token, next_state)
 }
@@ -479,6 +536,7 @@ proc my_proc(__token: token, __state: (), init={()}) {
 chan rd_req((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp((), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send0: (bits[32]) = tuple(__state)
@@ -487,9 +545,11 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token: token = tuple_index(rcv, index=0)
   to_send1: (bits[32], bits[32]) = tuple(__state, __state)
   send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  wr_comp_rcv: (token, ()) = receive(send_token1, channel_id=3)
+  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (send_token1, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
         .pipeline_stages = 2,
@@ -501,6 +561,7 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
 chan rd_req((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra0(bits[1], id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan extra1(bits[1], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
@@ -515,9 +576,11 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   extra0_token: token = tuple_index(extra0_rcv, index=0)
   extra1_rcv: (token, bits[1]) = receive(extra0_token, channel_id=4)
   extra1_token: token = tuple_index(extra1_rcv, index=0)
+  wr_comp_rcv: (token, ()) = receive(extra1_token, channel_id=5)
+  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (extra1_token, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
         .pipeline_stages = 2,
@@ -529,12 +592,15 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
 chan rd_req0((bits[32]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req0((bits[32], bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp0((), id=9, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan rd_req1((bits[32]), id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp1((bits[32]), id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req1((bits[32], bits[32]), id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp1((), id=10, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan rd_req2((bits[32]), id=6, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp2((bits[32]), id=7, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req2((bits[32], bits[32]), id=8, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp2((), id=11, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
   to_send0: (bits[32]) = tuple(__state)
@@ -553,9 +619,15 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token2: token = tuple_index(rcv2, index=0)
   to_send3: (bits[32], bits[32]) = tuple(__state, __state)
   send_token5: token = send(rcv_token2, to_send2, channel_id=8)
+  wr_comp0_rcv: (token, ()) = receive(send_token5, channel_id=9)
+  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
+  wr_comp1_rcv: (token, ()) = receive(wr_comp0_token, channel_id=10)
+  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
+  wr_comp2_rcv: (token, ()) = receive(wr_comp1_token, channel_id=11)
+  wr_comp2_token: token = tuple_index(wr_comp2_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (send_token5, next_state)
+  next (wr_comp2_token, next_state)
 }
   )",
         .pipeline_stages = 20,
@@ -566,9 +638,11 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
         .ir_text = R"(package  test
 chan req0((bits[32], bits[32], bits[1], bits[1]), id=0, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan resp0((bits[32]), id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp0((), id=5, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan rd_req1((bits[32]), id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 chan rd_resp1((bits[32]), id=3, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 chan wr_req1((bits[32], bits[32]), id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan wr_comp1((), id=6, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
 
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
@@ -585,8 +659,12 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token1: token = tuple_index(rcv1, index=0)
   to_send2: (bits[32], bits[32]) = tuple(__state, __state)
   send_token2: token = send(rcv_token1, to_send2, channel_id=4)
+  wr_comp0_rcv: (token, ()) = receive(send_token2, channel_id=5)
+  wr_comp0_token: token = tuple_index(wr_comp0_rcv, index=0)
+  wr_comp1_rcv: (token, ()) = receive(wr_comp0_token, channel_id=6)
+  wr_comp1_token: token = tuple_index(wr_comp1_rcv, index=0)
   next_state: bits[32] = add(__state, one_lit)
-  next (send_token2, next_state)
+  next (wr_comp1_token, next_state)
 }
   )",
         .pipeline_stages = 4,
@@ -610,11 +688,11 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
                                              std::string_view ram_kind) {
   std::vector<std::unique_ptr<RamConfiguration>> ram_configurations;
   if (ram_kind == "1RW") {
-    ram_configurations.push_back(
-        std::make_unique<Ram1RWConfiguration>("ram", 1, "req", "resp"));
+    ram_configurations.push_back(std::make_unique<Ram1RWConfiguration>(
+        "ram", 1, "req", "resp", "wr_comp"));
   } else if (ram_kind == "1R1W") {
     ram_configurations.push_back(std::make_unique<Ram1R1WConfiguration>(
-        "ram", 1, "rd_req", "rd_resp", "wr_req"));
+        "ram", 1, "rd_req", "rd_resp", "wr_req", "wr_comp"));
   } else {
     return absl::InvalidArgumentError(
         absl::StrFormat("Unrecognized ram_kind %s.", ram_kind));
@@ -641,6 +719,9 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
   scheduling_options.add_constraint(
       IOConstraint("req", IODirection::kSend, "resp", IODirection::kReceive,
                    /*minimum_latency=*/1, /*maximum_latency=*/1));
+  scheduling_options.add_constraint(
+      IOConstraint("req", IODirection::kSend, "wr_comp", IODirection::kReceive,
+                   /*minimum_latency=*/1, /*maximum_latency=*/1));
   XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
@@ -654,8 +735,10 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
 struct TestProc1RWVars {
   std::optional<std::string_view> req_type = std::nullopt;
   std::optional<std::string_view> resp_type = std::nullopt;
+  std::optional<std::string_view> wr_comp_type = std::nullopt;
   std::optional<std::string_view> req_chan_params = std::nullopt;
   std::optional<std::string_view> resp_chan_params = std::nullopt;
+  std::optional<std::string_view> wr_comp_chan_params = std::nullopt;
   std::optional<std::string_view> send_value = std::nullopt;
 };
 
@@ -665,6 +748,7 @@ std::string MakeTestProc1RW(TestProc1RWVars vars) {
   package test
 chan req($req_type, id=0, $req_chan_params, metadata="""""")
 chan resp($resp_type, id=1, $resp_chan_params, metadata="""""")
+chan wr_comp($wr_comp_type, id=2, $wr_comp_chan_params, metadata="""""")
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
   true_lit: bits[1] = literal(value=1)
@@ -673,20 +757,26 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   send_token: token = send(__token, to_send, channel_id=0)
   rcv: (token, $resp_type) = receive(send_token, channel_id=1)
   rcv_token: token = tuple_index(rcv, index=0)
+  wr_comp_rcv: (token, $wr_comp_type) = receive(rcv_token, channel_id=2)
+  wr_comp_token: token = tuple_index(wr_comp_rcv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (rcv_token, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
       {
           {"$req_type",
            vars.req_type.value_or("(bits[32], bits[32], bits[1], bits[1])")},
           {"$resp_type", vars.resp_type.value_or("(bits[32])")},
+          {"$wr_comp_type", vars.wr_comp_type.value_or("()")},
           {"$req_chan_params",
            vars.req_chan_params.value_or(
                "kind=streaming, flow_control=ready_valid, ops=send_only")},
           {"$resp_chan_params",
            vars.resp_chan_params.value_or(
+               "kind=streaming, flow_control=ready_valid, ops=receive_only")},
+          {"$wr_comp_chan_params",
+           vars.wr_comp_chan_params.value_or(
                "kind=streaming, flow_control=ready_valid, ops=receive_only")},
           {"$send_value", vars.send_value.value_or(
                               "tuple(__state, __state, true_lit, false_lit)")},
@@ -697,9 +787,11 @@ struct TestProc1R1WVars {
   std::optional<std::string_view> rd_req_type = std::nullopt;
   std::optional<std::string_view> rd_resp_type = std::nullopt;
   std::optional<std::string_view> wr_req_type = std::nullopt;
+  std::optional<std::string_view> wr_comp_type = std::nullopt;
   std::optional<std::string_view> rd_req_chan_params = std::nullopt;
   std::optional<std::string_view> rd_resp_chan_params = std::nullopt;
   std::optional<std::string_view> wr_req_chan_params = std::nullopt;
+  std::optional<std::string_view> wr_comp_chan_params = std::nullopt;
   std::optional<std::string_view> rd_send_value = std::nullopt;
   std::optional<std::string_view> wr_send_value = std::nullopt;
 };
@@ -711,7 +803,8 @@ package test
 
 chan rd_req($rd_req_type, id=0, $rd_req_chan_params, metadata="""""")
 chan rd_resp($rd_resp_type, id=1, $rd_resp_chan_params, metadata="""""")
-chan wr_req($wr_req_type, id=2, $wr_req_chan_params,metadata="""""")
+chan wr_req($wr_req_type, id=2, $wr_req_chan_params, metadata="""""")
+chan wr_comp($wr_comp_type, id=3, $wr_comp_chan_params, metadata="""""")
 
 proc my_proc(__token: token, __state: bits[32], init={0}) {
   true_lit: bits[1] = literal(value=1)
@@ -722,15 +815,18 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
   rcv_token: token = tuple_index(rcv, index=0)
   to_send1: $wr_req_type = $wr_send_value
   send_token1: token = send(rcv_token, to_send1, channel_id=2)
+  wr_comp_recv: (token, $wr_comp_type) = receive(send_token1, channel_id=3)
+  wr_comp_token: token = tuple_index(wr_comp_recv, index=0)
   one_lit: bits[32] = literal(value=1)
   next_state: bits[32] = add(__state, one_lit)
-  next (send_token1, next_state)
+  next (wr_comp_token, next_state)
 }
   )",
       {
           {"$rd_req_type", vars.rd_req_type.value_or("(bits[32])")},
           {"$rd_resp_type", vars.rd_resp_type.value_or("(bits[32])")},
           {"$wr_req_type", vars.wr_req_type.value_or("(bits[32], bits[32])")},
+          {"$wr_comp_type", vars.wr_comp_type.value_or("()")},
           {"$rd_req_chan_params",
            vars.rd_req_chan_params.value_or(
                "kind=streaming, flow_control=ready_valid, ops=send_only")},
@@ -740,6 +836,9 @@ proc my_proc(__token: token, __state: bits[32], init={0}) {
           {"$wr_req_chan_params",
            vars.wr_req_chan_params.value_or(
                "kind=streaming, flow_control=ready_valid, ops=send_only")},
+          {"$wr_comp_chan_params",
+           vars.wr_comp_chan_params.value_or(
+               "kind=streaming, flow_control=ready_valid, ops=receive_only")},
           {"$rd_send_value", vars.rd_send_value.value_or("tuple(__state)")},
           {"$wr_send_value",
            vars.wr_send_value.value_or("tuple(__state, __state)")},

@@ -29,10 +29,13 @@ enum class RamLogicalChannel {
   kAbstractReadReq,
   kAbstractReadResp,
   kAbstractWriteReq,
-  kAbstractWriteResp,
   // 1RW RAM
   k1RWReq,
   k1RWResp,
+
+  // Special: used to signal write completion, is empty and should not be
+  // codegen'd as a real channel.
+  kWriteCompletion,
 };
 
 absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(

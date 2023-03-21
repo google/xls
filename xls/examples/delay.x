@@ -82,6 +82,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     data_out: chan<bits[DATA_WIDTH]> out;
     ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;
     ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in;
+    ram_wr_comp: chan<()> in;
 
     init {
         DelayState<DATA_WIDTH, DELAY> {
@@ -96,8 +97,9 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     config(data_in: chan<bits[DATA_WIDTH]> in,
            data_out: chan<bits[DATA_WIDTH]> out,
            ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out,
-           ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> out) {
-        (data_in, data_out, ram_req, ram_resp)
+           ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
+           ram_wr_comp: chan<()> in) {
+        (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
     next(tok: token, state: DelayState<DATA_WIDTH, DELAY, ADDR_WIDTH>) {
@@ -117,7 +119,10 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         let zero_resp = RamResp<DOUBLE_DATA_WIDTH> {
           data: bits[DOUBLE_DATA_WIDTH]:0
         };
-        let (tok, resp) = recv_if(tok, ram_resp, re, zero_resp);
+        let (read_tok, resp) = recv_if(tok, ram_resp, re, zero_resp);
+        let empty_tuple: () = ();
+        let (write_tok, _) = recv_if(tok, ram_wr_comp, we, empty_tuple);
+        let tok = join(read_tok, write_tok);
 
         let current_data = if state.init_done {
             if state.is_read_stage {
@@ -129,7 +134,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
             INIT_DATA
         };
 
-        let tok = send(tok, data_out, current_data);
+        let tok = send(read_tok, data_out, current_data);
 
         if state.is_read_stage {
             let next_data = resp.data[(DATA_WIDTH as s32):];
@@ -169,19 +174,21 @@ pub proc Delay<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     data_out: chan<bits[DATA_WIDTH]> out;
     ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out;
     ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in;
+    ram_wr_comp: chan<()> in;
 
     init { () }
 
     config(data_in: chan<bits[DATA_WIDTH]> in,
         data_out: chan<bits[DATA_WIDTH]> out,
         ram_req: chan<RamReq<ADDR_WIDTH, DOUBLE_DATA_WIDTH>> out,
-        ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> out) {
+        ram_resp: chan<RamResp<DOUBLE_DATA_WIDTH>> in,
+        ram_wr_comp: chan<()> in) {
         let (internal_data_p, internal_data_c) = chan<bits[DATA_WIDTH]>;
         spawn DelayInternal<DATA_WIDTH, DELAY, INIT_DATA, ADDR_WIDTH,
                             DOUBLE_DATA_WIDTH, HALF_FLOOR_DELAY>(
-            data_in, internal_data_c, ram_req, ram_resp);
+            data_in, internal_data_c, ram_req, ram_resp, ram_wr_comp);
         spawn Delay0or1<DATA_WIDTH, DELAY_IS_ODD, INIT_DATA>(internal_data_p, data_out);
-        (data_in, data_out, ram_req, ram_resp)
+        (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
     next (tok: token, state: ()) {
@@ -199,15 +206,17 @@ pub proc Delay32x2048_init3 {
     data_out: chan<u32> out;
     ram_req: chan<DelayRamReq32x2048> out;
     ram_resp: chan<DelayRamResp32x2048> in;
+    ram_wr_comp: chan<()> in;
 
     init { () }
 
     config(data_in: chan<u32> in, data_out: chan<u32> out,
            ram_req: chan<DelayRamReq32x2048> out,
-           ram_resp: chan<DelayRamResp32x2048> in) {
+           ram_resp: chan<DelayRamResp32x2048> in,
+           ram_wr_comp: chan<()> in) {
         spawn Delay<u32:32, u32:2048, u32:3>(
-            data_in, data_out, ram_req, ram_resp);
-        (data_in, data_out, ram_req, ram_resp)
+            data_in, data_out, ram_req, ram_resp, ram_wr_comp);
+        (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
     next(tok: token, state: ()) {
@@ -228,13 +237,14 @@ proc delay_smoke_test_even {
     config(terminator: chan<bool> out) {
         let (ram_req_p, ram_req_c) = chan<RamReq<u32:10, u32:64>>;
         let (ram_resp_p, ram_resp_c) = chan<RamResp<u32:64>>;
+        let (ram_wr_comp_p, ram_wr_comp_c) = chan<()>;
         spawn ram::SinglePortRamModel<u32:64, u32:1024>(
-            ram_req_p, ram_resp_c);
+            ram_req_p, ram_resp_c, ram_wr_comp_c);
 
         let (data_in_p, data_in_c) = chan<u32>;
         let (data_out_p, data_out_c) = chan<u32>;
         spawn Delay<u32:32, TEST0_DELAY, u32:3>(
-            data_in_p, data_out_c, ram_req_c, ram_resp_p);
+            data_in_p, data_out_c, ram_req_c, ram_resp_p, ram_wr_comp_p);
 
         (data_in_c, data_out_p, terminator)
     }
@@ -279,12 +289,14 @@ const TEST1_DELAY = u32:2047;
     config(terminator: chan<bool> out) {
         let (ram_req_p, ram_req_c) = chan<RamReq<u32:10, u32:64>>;
         let (ram_resp_p, ram_resp_c) = chan<RamResp<u32:64>>;
-        spawn ram::SinglePortRamModel<u32:64, u32:1024>(ram_req_p, ram_resp_c);
+        let (ram_wr_comp_p, ram_wr_comp_c) = chan<()>;
+        spawn ram::SinglePortRamModel<u32:64, u32:1024>(
+            ram_req_p, ram_resp_c, ram_wr_comp_c);
 
         let (data_in_p, data_in_c) = chan<u32>;
         let (data_out_p, data_out_c) = chan<u32>;
         spawn Delay<u32:32, TEST1_DELAY, u32:3>(
-            data_in_p, data_out_c, ram_req_c, ram_resp_p);
+            data_in_p, data_out_c, ram_req_c, ram_resp_p, ram_wr_comp_p);
         (data_in_c, data_out_p, terminator)
     }
 

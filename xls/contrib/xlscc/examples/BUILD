@@ -175,13 +175,15 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "pipeline",
         "delay_model": "unit",
-        "io_constraints": "{req}:send:{resp}:recv:1:1".format(
+        "io_constraints": "{req}:send:{resp}:recv:1:1,{req}:send:{wr_comp}:recv:1:1".format(
             req = "memory__req",
             resp = "memory__resp",
+            wr_comp = "memory__write_completion",
         ),
-        "ram_configurations": "ram:1RW:{req}:{resp}".format(
+        "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
             req = "memory__req",
             resp = "memory__resp",
+            wr_comp = "memory__write_completion",
         ),
         "reset": "rst",
         "reset_data_path": "true",

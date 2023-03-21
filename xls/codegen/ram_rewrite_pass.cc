@@ -14,12 +14,9 @@
 
 #include "xls/codegen/ram_rewrite_pass.h"
 
-#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <typeinfo>
-#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -43,8 +40,8 @@ absl::StatusOr<Channel*> GetStreamingChannel(Block* block,
                        block->package()->GetChannel(channel_name));
   XLS_RET_CHECK(channel->GetDataPortName().has_value());
   XLS_RET_CHECK(channel->GetValidPortName().has_value())
-      << "valid port not found- channels should be streaming with "
-         "ready/valid flow control.";
+      << "valid port not found- channel " << channel->name()
+      << " should be streaming with ready/valid flow control.";
   XLS_RET_CHECK(channel->GetReadyPortName().has_value())
       << "ready port not found- channels should be streaming with "
          "ready/valid flow control.";
@@ -67,6 +64,7 @@ struct RespBlockPorts {
 struct RamRWPortBlockPorts {
   ReqBlockPorts req_ports;
   RespBlockPorts resp_ports;
+  RespBlockPorts write_completion_ports;
 };
 
 struct RamRPortBlockPorts {
@@ -76,6 +74,7 @@ struct RamRPortBlockPorts {
 
 struct RamWPortBlockPorts {
   ReqBlockPorts req_ports;
+  RespBlockPorts write_completion_ports;
 };
 
 absl::Status CheckDataPortType(
@@ -170,6 +169,9 @@ absl::StatusOr<RamRWPortBlockPorts> GetRWBlockPorts(
   XLS_ASSIGN_OR_RETURN(
       ports.resp_ports,
       GetRespBlockPorts(block, port_config.response_channel_name));
+  XLS_ASSIGN_OR_RETURN(
+      ports.write_completion_ports,
+      GetRespBlockPorts(block, port_config.write_completion_channel_name));
   return ports;
 }
 
@@ -191,6 +193,9 @@ absl::StatusOr<RamWPortBlockPorts> GetWBlockPorts(
   XLS_ASSIGN_OR_RETURN(
       ports.req_ports,
       GetReqBlockPorts(block, port_config.request_channel_name));
+  XLS_ASSIGN_OR_RETURN(
+      ports.write_completion_ports,
+      GetRespBlockPorts(block, port_config.write_completion_channel_name));
   return ports;
 }
 
@@ -219,6 +224,42 @@ absl::Status UpdateModuleSignatureChannelsToRams(
                      .write_data_name = write_data->GetName()});
 
   XLS_ASSIGN_OR_RETURN(*signature, builder.Build());
+  return absl::OkStatus();
+}
+
+// The write completion channel exists to model the behavior of a write
+// completion and does not actually drive any bits. It is useful as a touchpoint
+// for scheduling constraints.
+// The ready signal is unneeded, the valid signal should be replaced with a true
+// literal, and the data usages should be replaced with empty tuple literals.
+absl::Status WriteCompletionRewrite(
+    Block* block, const RespBlockPorts& write_completion_ports,
+    std::string_view ram_name) {
+  // Data should be an empty tuple for write completion.
+  XLS_RETURN_IF_ERROR(CheckDataPortType(
+      write_completion_ports.resp_data->GetType(), "Write completion", {}, {}));
+
+  std::string data_name =
+      block->UniquifyNodeName(absl::StrCat(ram_name, "_write_completion_data"));
+
+  XLS_ASSIGN_OR_RETURN(xls::Literal * empty_tuple,
+                       block->MakeNodeWithName<xls::Literal>(
+                           write_completion_ports.resp_data->loc(),
+                           Value::Tuple({}), data_name));
+  XLS_RETURN_IF_ERROR(
+      write_completion_ports.resp_data->ReplaceUsesWith(empty_tuple));
+
+  XLS_ASSIGN_OR_RETURN(
+      xls::Literal * true_lit,
+      block->MakeNode<xls::Literal>(write_completion_ports.resp_valid->loc(),
+                                    Value(UBits(1, 1))));
+  XLS_RETURN_IF_ERROR(
+      write_completion_ports.resp_valid->ReplaceUsesWith(true_lit));
+
+  XLS_RETURN_IF_ERROR(block->RemoveNode(write_completion_ports.resp_data));
+  XLS_RETURN_IF_ERROR(block->RemoveNode(write_completion_ports.resp_valid));
+  XLS_RETURN_IF_ERROR(block->RemoveNode(write_completion_ports.resp_ready));
+
   return absl::OkStatus();
 }
 
@@ -376,6 +417,9 @@ absl::StatusOr<bool> Ram1RWRewrite(
   XLS_RETURN_IF_ERROR(block->RemoveNode(rw_block_ports.resp_ports.resp_valid));
   XLS_RETURN_IF_ERROR(block->RemoveNode(rw_block_ports.resp_ports.resp_ready));
   XLS_RETURN_IF_ERROR(block->RemoveNode(rw_block_ports.resp_ports.resp_data));
+
+  XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
+      block, rw_block_ports.write_completion_ports, ram_name));
 
   if (unit->signature.has_value()) {
     ModuleSignature* signature = &unit->signature.value();
@@ -552,6 +596,9 @@ absl::StatusOr<bool> Ram1R1WRewrite(
   XLS_RETURN_IF_ERROR(block->RemoveNode(w_block_ports.req_ports.req_data));
   XLS_RETURN_IF_ERROR(block->RemoveNode(w_block_ports.req_ports.req_valid));
   XLS_RETURN_IF_ERROR(block->RemoveNode(w_block_ports.req_ports.req_ready));
+
+  XLS_RETURN_IF_ERROR(WriteCompletionRewrite(
+      block, w_block_ports.write_completion_ports, ram_name));
 
   if (unit->signature.has_value()) {
     ModuleSignature* signature = &unit->signature.value();

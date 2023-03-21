@@ -26,6 +26,7 @@ namespace xls::verilog {
 struct RamRWPortConfiguration {
   std::string request_channel_name;
   std::string response_channel_name;
+  std::string write_completion_channel_name;
 };
 
 struct RamRPortConfiguration {
@@ -35,6 +36,7 @@ struct RamRPortConfiguration {
 
 struct RamWPortConfiguration {
   std::string request_channel_name;
+  std::string write_completion_channel_name;
 };
 
 // Abstract base class for a RAM configuration.
@@ -70,11 +72,14 @@ class Ram1RWConfiguration : public RamConfiguration {
  public:
   Ram1RWConfiguration(std::string_view ram_name, int64_t latency,
                       std::string_view request_name,
-                      std::string_view response_name)
+                      std::string_view response_name,
+                      std::string_view write_completion_name)
       : RamConfiguration(ram_name, latency, /*ram_kind=*/"1RW"),
         rw_port_configuration_(RamRWPortConfiguration{
             .request_channel_name = std::string{request_name},
-            .response_channel_name = std::string{response_name}}) {}
+            .response_channel_name = std::string{response_name},
+            .write_completion_channel_name = std::string{write_completion_name},
+        }) {}
 
   std::unique_ptr<RamConfiguration> Clone() const override;
 
@@ -92,7 +97,8 @@ class Ram1R1WConfiguration : public RamConfiguration {
   Ram1R1WConfiguration(std::string_view ram_name, int64_t latency,
                        std::string_view read_request_name,
                        std::string_view read_response_name,
-                       std::string_view write_request_name)
+                       std::string_view write_request_name,
+                       std::string_view write_completion_name)
       : RamConfiguration(ram_name, latency, /*ram_kind=*/"1R1W"),
         r_port_configuration_(RamRPortConfiguration{
             .request_channel_name = std::string{read_request_name},
@@ -100,7 +106,8 @@ class Ram1R1WConfiguration : public RamConfiguration {
         }),
         w_port_configuration_(RamWPortConfiguration{
             .request_channel_name = std::string{write_request_name},
-        }) {}
+            .write_completion_channel_name =
+                std::string{write_completion_name}}) {}
 
   std::unique_ptr<RamConfiguration> Clone() const override;
 

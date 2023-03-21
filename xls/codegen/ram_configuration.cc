@@ -28,9 +28,10 @@ Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
   // 1RW RAM has configuration (name, "1RW", request_channel_name,
   // response_channel_name[, latency]). If not specified, latency is assumed to
   // be 1.
-  if (fields.size() < 4 || fields.size() > 5) {
+  if (fields.size() < 5 || fields.size() > 6) {
     return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected arguments name:1RW:req_name:resp_name[:latency], got %d "
+        "Expected arguments "
+        "name:1RW:req_name:resp_name:write_comp_name[:latency], got %d "
         "fields instead.",
         fields.size()));
   }
@@ -41,15 +42,18 @@ Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
   std::string_view name = fields.at(0);
   std::string_view request_channel_name = fields.at(2);
   std::string_view response_channel_name = fields.at(3);
+  std::string_view write_completion_channel_name = fields.at(4);
   int64_t latency = 1;
-  if (fields.size() > 4) {
-    if (!absl::SimpleAtoi(fields.at(4), &latency)) {
+  if (fields.size() > 5) {
+    if (!absl::SimpleAtoi(fields.at(5), &latency)) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Latency must be an integer, got %s.", fields.at(4)));
+          absl::StrFormat("Latency must be an integer, got %s.", fields.at(5)));
     }
   }
   return std::make_unique<Ram1RWConfiguration>(
-      name, latency, request_channel_name, response_channel_name);
+      name, latency, /*request_name=*/request_channel_name,
+      /*response_name=*/response_channel_name,
+      /*write_completion_name=*/write_completion_channel_name);
 }
 
 // Parses a split configuration string of the form
@@ -61,13 +65,13 @@ Ram1R1WConfigurationParseSplitString(
   // 1R1W RAM has configuration (name, "1R1W", read_request_channel_name,
   // read_response_channel_name, write_request_channel_name[, latency]). If not
   // specified, latency is assumed to be 1.
-  if (fields.size() < 5 || fields.size() > 6) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected arguments "
-                        "name:1R1W:read_req_name:read_resp_name:write_req_name["
-                        ":latency], got %d "
-                        "fields instead.",
-                        fields.size()));
+  if (fields.size() < 6 || fields.size() > 7) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected arguments "
+        "name:1R1W:read_req_name:read_resp_name:write_req_name:write_comp_name["
+        ":latency], got %d "
+        "fields instead.",
+        fields.size()));
   }
   if (fields.at(1) != "1R1W") {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -77,17 +81,19 @@ Ram1R1WConfigurationParseSplitString(
   std::string_view read_request_channel_name = fields.at(2);
   std::string_view read_response_channel_name = fields.at(3);
   std::string_view write_request_channel_name = fields.at(4);
+  std::string_view write_completion_channel_name = fields.at(5);
   int64_t latency = 1;
-  if (fields.size() > 5) {
-    if (!absl::SimpleAtoi(fields.at(5), &latency)) {
+  if (fields.size() > 6) {
+    if (!absl::SimpleAtoi(fields.at(6), &latency)) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Latency must be an integer, got %s.", fields.at(4)));
+          absl::StrFormat("Latency must be an integer, got %s.", fields.at(6)));
     }
   }
   return std::make_unique<Ram1R1WConfiguration>(
       name, latency, /*read_request_name=*/read_request_channel_name,
       /*read_response_name=*/read_response_channel_name,
-      /*write_request_name=*/write_request_channel_name);
+      /*write_request_name=*/write_request_channel_name,
+      /*write_completion_channel_name=*/write_completion_channel_name);
 }
 
 // Ram configurations are in the format

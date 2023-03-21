@@ -498,9 +498,10 @@ xls_ir_verilog(
         # response recv, which is precisely 1 cycle.
         # See https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options
         # for more information about this option.
-        "io_constraints": "{req}:send:{resp}:recv:1:1".format(
+        "io_constraints": "{req}:send:{resp}:recv:1:1,{req}:send:{wr_comp}:recv:1:1".format(
             req = "delay__ram_req",
             resp = "delay__ram_resp",
+            wr_comp = "delay__ram_wr_comp",
         ),
         # Enable codegen pass that rewrites the req and resp channels to drive
         # an external RAM. The configuration below means that the pair of
@@ -508,9 +509,10 @@ xls_ir_verilog(
         # and output ports should be prefixed with `ram`, e.g. `ram_addr`.
         # See https://google.github.io/xls/codegen_options/#rams-experimental
         # for more information about this option.
-        "ram_configurations": "ram:1RW:{req}:{resp}".format(
+        "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
             req = "delay__ram_req",
             resp = "delay__ram_resp",
+            wr_comp = "delay__ram_wr_comp",
         ),
         "pipeline_stages": "2",
         "reset": "rst",

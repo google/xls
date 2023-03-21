@@ -196,7 +196,7 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
               {"abstract_read_req", "ram_abstract_read_req"},
               {"abstract_read_resp", "ram_abstract_read_resp"},
               {"abstract_write_req", "ram_abstract_write_req"},
-              {"abstract_write_resp", "ram_abstract_write_resp"},
+              {"write_completion", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",
@@ -204,12 +204,14 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
   }};
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
   EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_EQ(p->channels().size(), 2);
+  EXPECT_EQ(p->channels().size(), 3);
   EXPECT_THAT(
       p->GetChannel("ram_1rw_req").value(),
       m::ChannelWithType("(bits[10], (bits[32], bits[1]), bits[1], bits[1])"));
   EXPECT_THAT(p->GetChannel("ram_1rw_resp").value(),
               m::ChannelWithType("((bits[32], bits[1]))"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_write_completion").value(),
+              m::ChannelWithType("()"));
 }
 
 TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
@@ -253,7 +255,7 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
               {"abstract_read_req", "ram_abstract_read_req"},
               {"abstract_read_resp", "ram_abstract_read_resp"},
               {"abstract_write_req", "ram_abstract_write_req"},
-              {"abstract_write_resp", "ram_abstract_write_resp"},
+              {"write_completion", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",
@@ -261,11 +263,13 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
   }};
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
   EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_EQ(p->channels().size(), 2);
+  EXPECT_EQ(p->channels().size(), 3);
   EXPECT_THAT(p->GetChannel("ram_1rw_req").value(),
               m::ChannelWithType("(bits[10], bits[32], bits[1], bits[1])"));
   EXPECT_THAT(p->GetChannel("ram_1rw_resp").value(),
               m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_write_completion").value(),
+              m::ChannelWithType("()"));
 }
 
 TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
@@ -330,7 +334,7 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
                   {"abstract_read_req", "ram_abstract0_read_req"},
                   {"abstract_read_resp", "ram_abstract0_read_resp"},
                   {"abstract_write_req", "ram_abstract0_write_req"},
-                  {"abstract_write_resp", "ram_abstract0_write_resp"},
+                  {"write_completion", "ram_abstract0_write_resp"},
               },
           .to_config = config_1rw,
           .to_name_prefix = "ram_1rw_0",
@@ -343,7 +347,7 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
                   {"abstract_read_req", "ram_abstract1_read_req"},
                   {"abstract_read_resp", "ram_abstract1_read_resp"},
                   {"abstract_write_req", "ram_abstract1_write_req"},
-                  {"abstract_write_resp", "ram_abstract1_write_resp"},
+                  {"write_completion", "ram_abstract1_write_resp"},
               },
           .to_config = config_1rw,
           .to_name_prefix = "ram_1rw_1",
@@ -351,15 +355,19 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
       }};
   EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
   EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_EQ(p->channels().size(), 4);
+  EXPECT_EQ(p->channels().size(), 6);
   EXPECT_THAT(p->GetChannel("ram_1rw_0_req").value(),
               m::ChannelWithType("(bits[10], bits[32], bits[1], bits[1])"));
   EXPECT_THAT(p->GetChannel("ram_1rw_0_resp").value(),
               m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_0_write_completion").value(),
+              m::ChannelWithType("()"));
   EXPECT_THAT(p->GetChannel("ram_1rw_1_req").value(),
               m::ChannelWithType("(bits[10], bits[32], bits[1], bits[1])"));
   EXPECT_THAT(p->GetChannel("ram_1rw_1_resp").value(),
               m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_1_write_completion").value(),
+              m::ChannelWithType("()"));
 }
 
 TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
@@ -406,7 +414,7 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
               {"abstract_read_req", "ram_abstract_read_req"},
               {"abstract_read_resp", "ram_abstract_read_resp"},
               {"abstract_write_req", "ram_abstract_write_req"},
-              {"abstract_write_resp", "ram_abstract_write_resp"},
+              {"write_completion", "ram_abstract_write_resp"},
           },
       .to_config = config_1rw,
       .to_name_prefix = "ram_1rw",

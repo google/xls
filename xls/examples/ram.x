@@ -416,14 +416,16 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
  ADDR_WIDTH:u32={std::clog2(SIZE)}> {
   req_chan: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
   resp_chan : chan<SinglePortRamResp<DATA_WIDTH>> out;
+  wr_comp_chan: chan<()> out;
 
   init {
       bits[DATA_WIDTH][SIZE]: [bits[DATA_WIDTH]: 0, ...]
   }
 
   config(req: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
-         resp: chan<SinglePortRamResp<DATA_WIDTH>> out) {
-    (req, resp)
+         resp: chan<SinglePortRamResp<DATA_WIDTH>> out,
+         wr_comp: chan<()> out) {
+    (req, resp, wr_comp)
   }
 
   next(tok: token, state: bits[DATA_WIDTH][SIZE]) {
@@ -440,7 +442,8 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
         state,
       )
     };
-    let tok = send_if(tok, resp_chan, request.re, response);
+    let resp_tok = send_if(tok, resp_chan, request.re, response);
+    let wr_comp_tok = send_if(tok, wr_comp_chan, request.we, ());
     new_state
   }
 }
@@ -451,6 +454,7 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
 proc SinglePortRamModelTest {
   req_out: chan<SinglePortRamReq<u32:10, u32:32>> out;
   resp_in: chan<SinglePortRamResp<u32:32>> in;
+  wr_comp_in: chan<()> in;
   terminator: chan<bool> out;
 
   init { () }
@@ -458,11 +462,12 @@ proc SinglePortRamModelTest {
   config(terminator: chan<bool> out) {
     let (req_p, req_c) = chan<SinglePortRamReq<u32:10, u32:32>>;
     let (resp_p, resp_c) = chan<SinglePortRamResp<u32:32>>;
+    let (wr_comp_p, wr_comp_c) = chan<()>;
     spawn SinglePortRamModel<
       u32:32,  // DATA_WIDTH
       u32:1024 // SIZE
-    >(req_c, resp_p);
-    (req_p, resp_c, terminator)
+    >(req_c, resp_p, wr_comp_p);
+    (req_p, resp_c, wr_comp_c, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -478,6 +483,7 @@ proc SinglePortRamModelTest {
             we: true,
             re: false,
         });
+        let (tok, _) = recv(tok, wr_comp_in);
         tok
       } (tok);
 
