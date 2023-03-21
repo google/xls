@@ -49,18 +49,13 @@ struct Pipe {
       : exit(std::move(exit)), entrance(std::move(entrance)) {}
 
   // Opens a Unix pipe with a C++ friendly interface.
-  static absl::StatusOr<Pipe> Open(bool buffered) {
+  static absl::StatusOr<Pipe> Open() {
     int descriptors[2];
     if (pipe(descriptors) != 0 ||
         fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) != 0||
         fcntl(descriptors[1], F_SETFD, FD_CLOEXEC) != 0) {
       return absl::InternalError(
           absl::StrCat("Failed to initialize pipe:", Strerror(errno)));
-    }
-    if (!buffered && (fcntl(descriptors[0], F_SETFD, FNDELAY) != 0 ||
-                      fcntl(descriptors[1], F_SETFD, FNDELAY) != 0)) {
-      return absl::InternalError(
-          absl::StrCat("Could not set pipe to FNDELAY:", Strerror(errno)));
     }
     return Pipe(FileDescriptor(descriptors[0]), FileDescriptor(descriptors[1]));
   }
@@ -190,8 +185,8 @@ absl::StatusOr<SubprocessResult> InvokeSubprocess(
   }
   argv_pointers.push_back(nullptr);
 
-  XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open(/*buffered=*/true));
-  XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open(/*buffered=*/false));
+  XLS_ASSIGN_OR_RETURN(auto stdout_pipe, Pipe::Open());
+  XLS_ASSIGN_OR_RETURN(auto stderr_pipe, Pipe::Open());
 
   pid_t pid = fork();
   if (pid == -1) {
