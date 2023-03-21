@@ -75,7 +75,8 @@ bool MatchUint(const Type& type, std::string* enclosing_type) {
   if (bit_count <= 8) {
     *enclosing_type = "uint8_t";
     return true;
-  } else if (bit_count <= 16) {
+  }
+  if (bit_count <= 16) {
     *enclosing_type = "uint16_t";
     return true;
   } else if (bit_count <= 32) {
@@ -136,7 +137,8 @@ bool MatchDouble(const Type& type) {
 std::string PackedTypeString(const Type& type) {
   if (type.IsBits()) {
     return absl::StrCat("xls::PackedBitsView<", type.GetFlatBitCount(), ">");
-  } else if (type.IsArray()) {
+  }
+  if (type.IsArray()) {
     const ArrayType* array_type = type.AsArrayOrDie();
     std::string element_type_str =
         PackedTypeString(*array_type->element_type());
@@ -194,7 +196,8 @@ std::optional<std::string> MatchTypeSpecialization(const Type& type) {
     // Bits objects are an ordered of bits and have no notion of signedness so
     // they are best represented as unsigned integer data types in C/C++.
     return type_string;
-  } else if (MatchFloat(type)) {
+  }
+  if (MatchFloat(type)) {
     return "float";
   } else if (MatchDouble(type)) {
     return "double";
@@ -211,7 +214,8 @@ std::optional<std::string> CreateConversion(std::string_view name,
   std::string type_string;
   if (MatchUint(type, &type_string)) {
     return ConvertUint(name, type);
-  } else if (MatchFloat(type)) {
+  }
+  if (MatchFloat(type)) {
     return ConvertFloat(name);
   } else if (MatchDouble(type)) {
     return ConvertDouble(name);
