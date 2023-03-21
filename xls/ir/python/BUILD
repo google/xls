@@ -27,6 +27,7 @@ xls_pybind_extension(
     name = "bits",
     srcs = ["bits.cc"],
     deps = [
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:import_status_module",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",

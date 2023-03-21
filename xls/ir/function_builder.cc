@@ -98,6 +98,8 @@ absl::Status BuilderBase::SetAsTop() {
 }
 
 BValue BuilderBase::SetError(std::string_view msg, const SourceInfo& loc) {
+  XLS_VLOG(3) << absl::StreamFormat("BuilderBase::SetError; msg: %s; loc: %s",
+                                    msg, loc.ToString());
   error_pending_ = true;
   error_msg_ = std::string(msg);
   error_loc_ = loc;

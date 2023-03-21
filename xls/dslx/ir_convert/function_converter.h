@@ -160,7 +160,7 @@ class FunctionConverter {
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
-  static std::string ToString(const IrValue& value);
+  static std::string IrValueToString(const IrValue& value);
 
   void SetFunctionBuilder(std::unique_ptr<BuilderBase> builder);
 

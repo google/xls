@@ -1703,14 +1703,13 @@ absl::Status BytecodeInterpreter::RunBuiltinSignex(const Bytecode& bytecode) {
          const InterpValue& type_value) -> absl::StatusOr<InterpValue> {
         XLS_ASSIGN_OR_RETURN(int64_t old_bit_count, value.GetBitCount());
         XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, type_value.GetBitCount());
-        if (old_bit_count > new_bit_count) {
-          return absl::InternalError(absl::StrCat(
-              "Old bit count must be less than or equal to the new: ",
-              old_bit_count, " vs. ", new_bit_count, "."));
-        }
         XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-
-        return InterpValue::MakeBits(value.IsSigned(),
+        if (new_bit_count < old_bit_count) {
+          return InterpValue::MakeBits(
+              type_value.IsSigned(),
+              bits.Slice(/*start=*/0, /*width=*/new_bit_count));
+        }
+        return InterpValue::MakeBits(type_value.IsSigned(),
                                      bits_ops::SignExtend(bits, new_bit_count));
       });
 }

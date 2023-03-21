@@ -339,13 +339,9 @@ xls_dslx_test(
     },
 )
 
-# Note: no meaningful function to convert.
-xls_dslx_test(
-    name = "signex_builtin_dslx_test",
-    srcs = ["signex_builtin.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
+dslx_lang_test(
+    name = "signex_builtin",
+    dslx_deps = [":mod_imported_typedef_dslx"],
 )
 
 xls_dslx_test(

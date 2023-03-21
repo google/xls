@@ -21,8 +21,6 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/node_hash_map.h"
-#include "absl/container/node_hash_set.h"
 #include "absl/strings/match.h"
 #include "xls/common/test_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -339,8 +337,12 @@ class AstGenerator {
 
   // Generates an invocation of the one_hot_sel builtin.
   absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Context* ctx);
+
   // Generates an invocation of the priority_sel builtin.
   absl::StatusOr<TypedExpr> GeneratePrioritySelectBuiltin(Context* ctx);
+
+  // Generates an invocation of the signex builtin.
+  absl::StatusOr<TypedExpr> GenerateSignExtendBuiltin(Context* ctx);
 
   // Returns a binary concatenation of two arrays from ctx.
   //

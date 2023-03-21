@@ -14,6 +14,7 @@
 
 #include "xls/ir/bits.h"
 
+#include "absl/strings/str_format.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11_abseil/statusor_caster.h"

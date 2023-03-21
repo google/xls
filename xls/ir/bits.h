@@ -21,10 +21,7 @@
 #include <numeric>
 #include <string>
 
-#include "absl/base/casts.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"

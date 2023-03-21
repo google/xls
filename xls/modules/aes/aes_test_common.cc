@@ -17,6 +17,7 @@
 
 #include <filesystem>
 
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

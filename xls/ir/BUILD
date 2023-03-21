@@ -180,6 +180,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
         "@rapidcheck",
     ],
@@ -570,10 +571,10 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
@@ -851,6 +852,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -895,6 +897,7 @@ cc_library(
         "//xls/common/logging",
         "@boringssl//:crypto",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 

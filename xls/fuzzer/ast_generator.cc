@@ -1101,6 +1101,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
   return TypedExpr{invocation, rhs.type};
 }
 
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSignExtendBuiltin(
+    Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
+  return TypedExpr{
+      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("signex"),
+                                std::vector<Expr*>{lhs.expr, rhs.expr}),
+      rhs.type};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
   auto* lhs_array_type = dynamic_cast<ArrayTypeAnnotation*>(lhs.type);
@@ -1834,6 +1844,7 @@ enum OpChoice {
   kOneHotSelectBuiltin,
   kPartialProduct,
   kPrioritySelectBuiltin,
+  kSignExtendBuiltin,
   kShiftOp,
   kTupleOrIndex,
   kUnop,
@@ -1895,6 +1906,8 @@ int OpProbability(OpChoice op) {
     case kPartialProduct:
       return 1;
     case kPrioritySelectBuiltin:
+      return 1;
+    case kSignExtendBuiltin:
       return 1;
     case kShiftOp:
       return 3;
@@ -2027,6 +2040,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kPrioritySelectBuiltin:
         generated = GeneratePrioritySelectBuiltin(ctx);
+        break;
+      case kSignExtendBuiltin:
+        generated = GenerateSignExtendBuiltin(ctx);
         break;
       case kNumber:
         generated = GenerateNumberWithType();

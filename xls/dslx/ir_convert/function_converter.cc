@@ -289,7 +289,8 @@ absl::Status FunctionConverter::Visit(const AstNode* node) {
   return visitor.Visit(node);
 }
 
-/* static */ std::string FunctionConverter::ToString(const IrValue& value) {
+/* static */ std::string FunctionConverter::IrValueToString(
+    const IrValue& value) {
   if (std::holds_alternative<BValue>(value)) {
     return absl::StrFormat("%p", std::get<BValue>(value).node());
   }
@@ -348,7 +349,7 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
   XLS_VLOG(6) << absl::StreamFormat(
       "Aliased node '%s' (%s) to be same as '%s' (%s): %s", to->ToString(),
       to->GetNodeTypeName(), from->ToString(), from->GetNodeTypeName(),
-      ToString(value));
+      IrValueToString(value));
   node_to_ir_[to] = std::move(value);
   if (const auto* name_def = dynamic_cast<const NameDef*>(to)) {
     // Name the aliased node based on the identifier in the NameDef.
@@ -371,9 +372,10 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
     const std::function<absl::StatusOr<BValue>(const SourceInfo&)>& ir_func) {
   SourceInfo loc = ToSourceInfo(node->GetSpan());
   XLS_ASSIGN_OR_RETURN(BValue result, ir_func(loc));
-  XLS_VLOG(6) << absl::StreamFormat(
-      "Define node '%s' (%s) to be %s @ %s", node->ToString(),
-      node->GetNodeTypeName(), ToString(result), SpanToString(node->GetSpan()));
+  XLS_VLOG(6) << absl::StreamFormat("Define node '%s' (%s) to be %s @ %s",
+                                    node->ToString(), node->GetNodeTypeName(),
+                                    IrValueToString(result),
+                                    SpanToString(node->GetSpan()));
   SetNodeToIr(node, result);
   return result;
 }
@@ -409,7 +411,8 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
   }
   const IrValue& ir_value = it->second;
   XLS_VLOG(6) << absl::StreamFormat("Using node '%s' (%p) as IR value %s.",
-                                    node->ToString(), node, ToString(ir_value));
+                                    node->ToString(), node,
+                                    IrValueToString(ir_value));
   if (std::holds_alternative<BValue>(ir_value)) {
     return std::get<BValue>(ir_value);
   }
@@ -419,7 +422,8 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
 
 void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
   XLS_VLOG(6) << absl::StreamFormat("Setting node '%s' (%p) to IR value %s.",
-                                    node->ToString(), node, ToString(value));
+                                    node->ToString(), node,
+                                    IrValueToString(value));
   node_to_ir_[node] = std::move(value);
 }
 
@@ -2603,19 +2607,28 @@ absl::Status FunctionConverter::HandleBuiltinRev(const Invocation* node) {
 }
 
 absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
+  XLS_VLOG(5) << "FunctionConverter::HandleBuiltinSignex: " << node->ToString();
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
 
-  // Remember - it's the _type_ of the RHS of a signex that gives the new bit
-  // count, not the value!
-  auto* bit_count = dynamic_cast<Number*>(node->args()[1]);
-  XLS_RET_CHECK_NE(bit_count, nullptr);
-  XLS_RET_CHECK(bit_count->type_annotation());
-  auto* type_annotation =
-      dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type_annotation());
-  int64_t new_bit_count = type_annotation->GetBitCount();
+  std::optional<const ConcreteType*> maybe_lhs_type =
+      current_type_info_->GetItem(node->args()[0]);
+  XLS_RET_CHECK(maybe_lhs_type.has_value());
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim lhs_total_bit_count,
+                       maybe_lhs_type.value()->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count, lhs_total_bit_count.GetAsInt64());
+
+  std::optional<const ConcreteType*> maybe_rhs_type =
+      current_type_info_->GetItem(node->args()[1]);
+  XLS_RET_CHECK(maybe_rhs_type.has_value());
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim rhs_total_bit_count,
+                       maybe_rhs_type.value()->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, rhs_total_bit_count.GetAsInt64());
 
   Def(node, [&](const SourceInfo& loc) {
+    if (new_bit_count < old_bit_count) {
+      return function_builder_->BitSlice(arg, 0, new_bit_count, loc);
+    }
     return function_builder_->SignExtend(arg, new_bit_count, loc);
   });
   return absl::OkStatus();
