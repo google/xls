@@ -14,6 +14,8 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
+#include <sstream>
+
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/ir/bits_ops.h"
@@ -98,6 +100,9 @@ class ConditionSet {
   // arbitrarily picking one of the conflicting conditions and transforming
   // based on it is fine.
   void AddCondition(const Condition& condition) {
+    XLS_VLOG(3) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
+                                      condition.node->GetName(),
+                                      condition.value, this->ToString());
     XLS_CHECK(!condition.node->Is<Literal>());
     conditions_.insert(condition);
     // The conditions are ordering in topological sort order (based on
@@ -193,6 +198,26 @@ class ConditionMap {
     return edge_conditions_.at(key);
   }
 
+  std::string ToString() const {
+    std::stringstream os;
+    os << "Node conditions:\n";
+    for (const auto& [node, cond_set] : node_conditions_) {
+      if (!cond_set.conditions().empty()) {
+        os << absl::StrFormat("[%s]: %s", node->ToString(), cond_set.ToString())
+           << "\n";
+      }
+    }
+    os << "Edge conditions:\n";
+    for (const auto& [key, cond_set] : edge_conditions_) {
+      if (!cond_set.conditions().empty()) {
+        os << absl::StrFormat("[%s, %i]: %s", std::get<0>(key)->ToString(),
+                              std::get<1>(key), cond_set.ToString())
+           << "\n";
+      }
+    }
+    return os.str();
+  }
+
  private:
   // Index of each node in the function base in a topological sort.
   absl::flat_hash_map<Node*, int64_t> topo_index_;
@@ -211,8 +236,8 @@ class ConditionMap {
 // value can be implied. Returns abls::nullopt otherwise. `query_engine` can be
 // null in which case BDD's are not used in the implication analysis.
 std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
-                                      Node* node,
-                                      const QueryEngine* query_engine) {
+                                     Node* node,
+                                     const QueryEngine* query_engine) {
   for (const Condition& condition : condition_set.conditions()) {
     if (condition.node == node) {
       XLS_VLOG(3) << absl::StreamFormat("%s trivially implies %s==%d",
@@ -274,7 +299,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   for (Node* node : ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
 
-    if (OpIsSideEffecting(node->op())) {
+    if (OpIsSideEffecting(node->op()) && !node->Is<Send>()) {
       // Inputs to side-effecting operations should not change so don't assume
       // any conditions for this node or it's predecessors.
       continue;
@@ -308,14 +333,33 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         for (int64_t case_no = 0; case_no < select->cases().size(); ++case_no) {
           ConditionSet edge_set = set;
           edge_set.AddCondition(Condition{select->selector(), case_no});
-          XLS_VLOG(3) << absl::StreamFormat("ConditionSet for (%s, %d) : %s",
-                                            node->GetName(), case_no + 1,
-                                            edge_set.ToString());
           condition_map.SetEdgeConditionSet(node, case_no + 1,
                                             std::move(edge_set));
         }
       }
     }
+    if (node->Is<Send>()) {
+      Send* send = node->As<Send>();
+
+      if (!send->predicate().has_value()) {
+        continue;
+      }
+
+      Node* predicate = send->predicate().value();
+
+      if (predicate->Is<Literal>()) {
+        continue;
+      }
+
+      ConditionSet& node_set = condition_map.GetNodeConditionSet(send->data());
+      node_set.AddCondition(Condition{predicate, /*value=*/1});
+
+      ConditionSet edge_set = set;
+      edge_set.AddCondition(Condition{predicate, /*value=*/1});
+      condition_map.SetEdgeConditionSet(node, /*operand_no=*/1,
+                                        std::move(edge_set));
+    }
+
     XLS_VLOG(3) << absl::StreamFormat("Conditions for %s : %s", node->GetName(),
                                       set.ToString());
 

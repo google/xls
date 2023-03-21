@@ -142,6 +142,9 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<UselessIORemovalPass>();
   top->Add<DeadCodeEliminationPass>();
 
+  // Run ConditionalSpecializationPass before TokenDependencyPass to remove
+  // false data dependencies
+  top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
   top->Add<TokenDependencyPass>();
   top->Add<ProcInliningPass>();
 

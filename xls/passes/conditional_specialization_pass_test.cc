@@ -40,6 +40,11 @@ class ConditionalSpecializationPassTest : public IrTestBase {
                           f, PassOptions(), &results));
     return changed;
   }
+  absl::StatusOr<bool> Run(Package* p, bool use_bdd = true) {
+    PassResults results;
+    return ConditionalSpecializationPass(use_bdd).Run(p, PassOptions(),
+                                                      &results);
+  }
 };
 
 TEST_F(ConditionalSpecializationPassTest, SpecializeSelectSimple) {
@@ -539,6 +544,69 @@ TEST_F(ConditionalSpecializationPassTest, ImpliedSelectorValueWithOtherUses) {
   EXPECT_THAT(f->return_value()->operand(1),
               m::Select(m::Or(m::Param("r"), m::Param("s")),
                         /*cases=*/{m::Param("a"), m::Param("b")}));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SendNoChangeLiteralPred) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+      chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+        literal.2: bits[1] = literal(value=1, id=2)
+        literal.5: bits[32] = literal(value=400, id=5)
+        eq.3: bits[1] = eq(value, literal.5, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        send.1: token = send(tkn, sel.4, predicate=literal.2, channel_id=1, id=1)
+        next (send.1, value)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SendNoChangeUnprovable) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+      chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+        literal.2: bits[1] = literal(value=1, id=2)
+        literal.5: bits[32] = literal(value=400, id=5)
+        literal.6: bits[32] = literal(value=55, id=6)
+        eq.3: bits[1] = eq(value, literal.5, id=3)
+        ugt.4: bits[1] = ugt(value, literal.6, id=4)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        send.1: token = send(tkn, sel.4, predicate=ugt.4, channel_id=1, id=1)
+        next (send.1, value)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_F(ConditionalSpecializationPassTest, SendChange) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> p,
+                           ParsePackageNoVerify(R"(
+      package my_package
+      chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+      top proc Delay_proc(tkn: token, value: bits[32], init={1}) {
+        literal.2: bits[1] = literal(value=1, id=2)
+        literal.5: bits[32] = literal(value=400, id=5)
+        eq.3: bits[1] = eq(value, literal.5, id=3)
+        sel.4: bits[32] = sel(eq.3, cases=[literal.5, value], id=4)
+        send.1: token = send(tkn, sel.4, predicate=eq.3, channel_id=1, id=1)
+        next (send.1, value)
+      }
+    )"));
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * f, p->GetProc("Delay_proc"));
+  Node* next_token = f->NextToken();
+  ASSERT_TRUE(next_token->Is<Send>());
+  Send* send = next_token->As<Send>();
+
+  EXPECT_THAT(send->data(), m::Param("value"));
 }
 
 }  // namespace
