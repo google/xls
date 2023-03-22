@@ -260,8 +260,8 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
       for (const TimedDataFlit& timed_data_flit : sink->GetReceivedTraffic()) {
         entry_name =
             absl::StrFormat("Sink:%s:VC:%d:TimedRouteInfo", nc_name, vc);
-        info.AppendTimedRouteInfo(
-            entry_name, std::move(timed_data_flit.metadata.timed_route_info));
+        info.AppendTimedRouteInfo(entry_name,
+                                  timed_data_flit.metadata.timed_route_info);
       }
     }
   }
