@@ -106,8 +106,17 @@ class RecvsFirstSendsLastConstraint {
   RecvsFirstSendsLastConstraint() = default;
 };
 
-using SchedulingConstraint = std::variant<IOConstraint, NodeInCycleConstraint,
-                                          RecvsFirstSendsLastConstraint>;
+// When this is present, state backedges will be forced to span over a single
+// cycle. Not providing this is useful for implementing II > 1, but otherwise
+// this should almost always be provided.
+class BackedgeConstraint {
+ public:
+  BackedgeConstraint() = default;
+};
+
+using SchedulingConstraint =
+    std::variant<IOConstraint, NodeInCycleConstraint,
+                 RecvsFirstSendsLastConstraint, BackedgeConstraint>;
 
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. See
@@ -116,7 +125,7 @@ class SchedulingOptions {
  public:
   explicit SchedulingOptions(
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
-      : strategy_(strategy) {}
+      : strategy_(strategy), constraints_({BackedgeConstraint()}) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
@@ -172,6 +181,10 @@ class SchedulingOptions {
   // Add a constraint to the set of scheduling constraints.
   SchedulingOptions& add_constraint(const SchedulingConstraint& constraint) {
     constraints_.push_back(constraint);
+    return *this;
+  }
+  SchedulingOptions& clear_constraints() {
+    constraints_.clear();
     return *this;
   }
   absl::Span<const SchedulingConstraint> constraints() const {

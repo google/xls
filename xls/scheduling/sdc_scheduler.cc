@@ -434,6 +434,9 @@ absl::Status ConstraintBuilder::AddTimingConstraints() {
 
 absl::Status ConstraintBuilder::AddSchedulingConstraint(
     const SchedulingConstraint& constraint) {
+  if (std::holds_alternative<BackedgeConstraint>(constraint)) {
+    return AddBackedgeConstraints();
+  }
   if (std::holds_alternative<IOConstraint>(constraint)) {
     return AddIOConstraint(std::get<IOConstraint>(constraint));
   }
@@ -601,7 +604,6 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
   }
 
   XLS_RETURN_IF_ERROR(builder.AddTimingConstraints());
-  XLS_RETURN_IF_ERROR(builder.AddBackedgeConstraints());
 
   if (!check_feasibility) {
     XLS_RETURN_IF_ERROR(builder.AddObjective());

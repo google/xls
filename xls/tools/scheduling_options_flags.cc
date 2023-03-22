@@ -136,6 +136,7 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
   if (absl::GetFlag(FLAGS_receives_first_sends_last)) {
     scheduling_options.add_constraint(RecvsFirstSendsLastConstraint());
   }
+  scheduling_options.add_constraint(BackedgeConstraint());
 
   if (p != nullptr) {
     for (const SchedulingConstraint& c : scheduling_options.constraints()) {
