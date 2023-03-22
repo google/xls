@@ -136,12 +136,53 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
 
 using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
+// Find all nodes that the given node transitively depends on.
+absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
+  std::vector<Node*> stack;
+  stack.push_back(root);
+  absl::flat_hash_set<Node*> discovered;
+  while (!stack.empty()) {
+    Node* popped = stack.back();
+    stack.pop_back();
+    if (!discovered.contains(popped)) {
+      discovered.insert(popped);
+      for (Node* child : popped->operands()) {
+        stack.push_back(child);
+      }
+    }
+  }
+  return discovered;
+}
+
+// Find the largest connected subgraph of the given token DAG, such that it is
+// a rooted DAG whose root is the given node, and all nodes in the subgraph
+// satisfy the given predicate.
+absl::flat_hash_set<Node*> LargestConnectedSubgraph(
+    Node* root, const TokenDAG& dag, std::function<bool(Node*)> predicate) {
+  std::vector<Node*> stack;
+  stack.push_back(root);
+  absl::flat_hash_set<Node*> discovered;
+  while (!stack.empty()) {
+    Node* popped = stack.back();
+    stack.pop_back();
+    if (predicate(popped) && !discovered.contains(popped)) {
+      discovered.insert(popped);
+      if (dag.contains(popped)) {
+        for (Node* child : dag.at(popped)) {
+          stack.push_back(child);
+        }
+      }
+    }
+  }
+  return discovered;
+}
+
 // Computes a symmetric relation that decides whether two side-effectful nodes
 // can be merged. The principle is as follows:
 //
 // 1. A connected subgraph consisting of all the same kind of effect (sends on
 //    all the same channel; receives on all the same channel) of the token DAG
-//    can be merged. This is not yet implemented.
+//    can be merged.
 // 2. Nodes of the same type that are unrelated in the transitive token
 //    dependency relation can be merged.
 absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
@@ -154,48 +195,61 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
     }
   }
 
-  auto dfs = [&](Node* root, const NodeRelation& dag) {
-    std::vector<Node*> stack;
-    stack.push_back(root);
-    absl::flat_hash_set<Node*> discovered;
-    while (!stack.empty()) {
-      Node* popped = stack.back();
-      stack.pop_back();
-      if (!discovered.contains(popped)) {
-        discovered.insert(popped);
-        if (dag.contains(popped)) {
-          for (Node* child : dag.at(popped)) {
-            stack.push_back(child);
-          }
-        }
-      }
+  auto get_channel_id = [](Node* node) -> int64_t {
+    if (node->Is<Receive>()) {
+      return node->As<Receive>()->channel_id();
     }
-    return discovered;
+    if (node->Is<Send>()) {
+      return node->As<Send>()->channel_id();
+    }
+    return -1;
   };
 
-  NodeRelation data_deps;
-  for (Node* node : f->nodes()) {
-    for (Node* child : node->operands()) {
-      data_deps[node].insert(child);
+  auto get_predicate = [](Node* node) -> std::optional<Node*> {
+    std::optional<Node*> predicate;
+    if (node->Is<Send>()) {
+      predicate = node->As<Send>()->predicate();
     }
-  }
+    if (node->Is<Receive>()) {
+      predicate = node->As<Receive>()->predicate();
+    }
+    return predicate;
+  };
 
+  NodeRelation result;
   NodeRelation transitive_closure = TransitiveClosure<Node*>(token_dag);
-
-  // If a receive uses data from another receive in its predicate, they cannot
-  // be merged.
-  for (Node* effectful_node : token_nodes) {
-    if (effectful_node->Is<Receive>()) {
-      for (Node* other_node : dfs(effectful_node, data_deps)) {
-        if (other_node->Is<Receive>()) {
-          transitive_closure[effectful_node].insert(other_node);
+  for (Node* node : ReverseTopoSort(f)) {
+    if (node->Is<Send>() || node->Is<Receive>()) {
+      absl::flat_hash_set<Node*> subgraph =
+          LargestConnectedSubgraph(node, token_dag, [&](Node* n) -> bool {
+            return n->op() == node->op() &&
+                   get_channel_id(n) == get_channel_id(node);
+          });
+      for (Node* x : subgraph) {
+        for (Node* y : subgraph) {
+          // Ensure that x and y are not data-dependent on each other (but they
+          // can be token-dependent). The only way for two sends or two receives
+          // to have a data dependency is through the predicate.
+          if (std::optional<Node*> pred_x = get_predicate(x)) {
+            absl::flat_hash_set<Node*> dependencies_of_pred_x =
+                DependenciesOf(pred_x.value());
+            if (dependencies_of_pred_x.contains(y)) {
+              continue;
+            }
+          }
+          if (std::optional<Node*> pred_y = get_predicate(y)) {
+            absl::flat_hash_set<Node*> dependencies_of_pred_y =
+                DependenciesOf(pred_y.value());
+            if (dependencies_of_pred_y.contains(x)) {
+              continue;
+            }
+          }
+          result[x].insert(y);
+          result[y].insert(x);
         }
       }
     }
   }
-
-  NodeRelation result;
-
   for (Node* x : token_nodes) {
     for (Node* y : token_nodes) {
       if (!(transitive_closure.contains(x) &&
