@@ -250,8 +250,8 @@ void ModuleTestbenchThread::CheckCanReadSignal(std::string_view name) {
 
 absl::Status ModuleTestbenchThread::CheckOutput(
     std::string_view stdout_str,
-    const absl::flat_hash_map<InstanceSignalName, std::variant<Bits, IsX>>&
-        parsed_values) const {
+    const absl::flat_hash_map<InstanceSignalName, BitsOrX>& parsed_values)
+    const {
   // Write out module signal values to pointers passed in via Capture
   // calls.
   for (const auto& pair : captures_) {
@@ -586,8 +586,7 @@ absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
 
   // Scan the simulator output and pick out the OUTPUT lines holding the value
   // of module signal.
-  absl::flat_hash_map<ModuleTestbenchThread::InstanceSignalName,
-                      std::variant<Bits, ModuleTestbenchThread::IsX>>
+  absl::flat_hash_map<ModuleTestbenchThread::InstanceSignalName, BitsOrX>
       parsed_values;
 
   // Example output lines for a bits value:
@@ -615,7 +614,7 @@ absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
     XLS_RET_CHECK(absl::SimpleAtoi(instance_str, &instance));
     if (absl::StrContains(output_value, "x") ||
         absl::StrContains(output_value, "X")) {
-      parsed_values[{instance, output_name}] = ModuleTestbenchThread::IsX();
+      parsed_values[{instance, output_name}] = IsX();
     } else {
       XLS_ASSIGN_OR_RETURN(
           Bits value, ParseUnsignedNumberWithoutPrefix(output_value,

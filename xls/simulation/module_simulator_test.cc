@@ -18,9 +18,10 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/simulation/verilog_simulators.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -32,6 +33,35 @@ using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Pair;
+
+// Returns a test module which can be used to monitor the ready/valid interface
+// of a streaming channel.
+absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
+  const std::string kModulePath = "xls/simulation/input_channel_monitor.v";
+  XLS_ASSIGN_OR_RETURN(std::string runfile_path,
+                       GetXlsRunfilePath(kModulePath));
+  XLS_ASSIGN_OR_RETURN(std::string verilog_text, GetFileContents(runfile_path));
+  ModuleSignatureBuilder b("input_channel_monitor");
+  b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
+  b.WithCombinationalInterface();
+  b.AddDataInputAsBits("input_data", 8);
+  b.AddDataOutputAsBits("input_ready", 1);
+  b.AddDataInputAsBits("input_valid", 1);
+  b.AddStreamingChannel("input", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/std::nullopt,
+                        "input_data", "input_valid", "input_ready");
+
+  b.AddDataOutputAsBits("monitor_data", 9);
+  b.AddDataInputAsBits("monitor_ready", 1);
+  b.AddDataOutputAsBits("monitor_valid", 1);
+  b.AddStreamingChannel("monitor", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/std::nullopt,
+                        "monitor_data", "monitor_valid", "monitor_ready");
+  XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
+  return ModuleGeneratorResult{.verilog_text = verilog_text,
+                               .verilog_line_map = VerilogLineMap(),
+                               .signature = signature};
+}
 
 // A test for ModuleSimulator which uses bare Verilog.
 class ModuleSimulatorTest : public VerilogTestBase {
@@ -476,6 +506,119 @@ endmodule
         simulator.RunInputSeriesProc(input_values, output_channel_counts),
         IsOkAndHolds(result_values));
   }
+}
+
+TEST_P(ModuleSimulatorTest, TestNoValidHoldOff) {
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+                           GetInputChannelMonitorModule());
+  ModuleSimulator simulator =
+      NewModuleSimulator(module.verilog_text, module.signature);
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["monitor"] = 3;
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["input"] = {UBits(0xab, 8), UBits(0xcd, 8), UBits(0xef, 8)};
+
+  auto valid_data = [](bool valid, uint8_t data) {
+    return UBits((static_cast<uint64_t>(valid) << 8) + data, 9);
+  };
+  absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+  result_values["monitor"] = {valid_data(true, 0xab), valid_data(true, 0xcd),
+                              valid_data(true, 0xef)};
+
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts),
+              IsOkAndHolds(result_values));
+}
+
+TEST_P(ModuleSimulatorTest, TestValidHoldoffWithoutDrivenValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+                           GetInputChannelMonitorModule());
+  ModuleSimulator simulator =
+      NewModuleSimulator(module.verilog_text, module.signature);
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["monitor"] = 6;
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["input"] = {UBits(0xab, 8), UBits(0xcd, 8), UBits(0xef, 8)};
+
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {}},
+      ValidHoldoff{.cycles = 0, .driven_values = {}},
+      ValidHoldoff{.cycles = 1, .driven_values = {}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"input", valid_holdoffs}}};
+
+  auto valid_data = [](bool valid, uint8_t data) {
+    return UBits((static_cast<uint64_t>(valid) << 8) + data, 9);
+  };
+  absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+  result_values["monitor"] = {valid_data(false, 0),   valid_data(false, 0),
+                              valid_data(true, 0xab), valid_data(true, 0xcd),
+                              valid_data(false, 0),   valid_data(true, 0xef)};
+
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
+                                           ready_valid_holdoffs),
+              IsOkAndHolds(result_values));
+}
+
+TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenValues) {
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+                           GetInputChannelMonitorModule());
+  ModuleSimulator simulator =
+      NewModuleSimulator(module.verilog_text, module.signature);
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["monitor"] = 6;
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["input"] = {UBits(0xab, 8), UBits(0xcd, 8), UBits(0xef, 8)};
+
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2,
+                   .driven_values = {UBits(0x11, 8), UBits(0x22, 8)}},
+      ValidHoldoff{.cycles = 0, .driven_values = {}},
+      ValidHoldoff{.cycles = 1, .driven_values = {UBits(0x33, 8)}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"input", valid_holdoffs}}};
+
+  auto valid_data = [](bool valid, uint8_t data) {
+    return UBits((static_cast<uint64_t>(valid) << 8) + data, 9);
+  };
+  absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+  result_values["monitor"] = {valid_data(false, 0x11), valid_data(false, 0x22),
+                              valid_data(true, 0xab),  valid_data(true, 0xcd),
+                              valid_data(false, 0x33), valid_data(true, 0xef)};
+
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
+                                           ready_valid_holdoffs),
+              IsOkAndHolds(result_values));
+}
+
+TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenX) {
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleGeneratorResult module,
+                           GetInputChannelMonitorModule());
+  ModuleSimulator simulator =
+      NewModuleSimulator(module.verilog_text, module.signature);
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["monitor"] = 6;
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["input"] = {UBits(0xab, 8), UBits(0xcd, 8), UBits(0xef, 8)};
+
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), UBits(0x22, 8)}},
+      ValidHoldoff{.cycles = 0, .driven_values = {}},
+      ValidHoldoff{.cycles = 1, .driven_values = {UBits(0x33, 8)}},
+  };
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"input", valid_holdoffs}}};
+
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
+                                           ready_valid_holdoffs),
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Output monitor_data, instance #0 holds X "
+                                 "value in Verilog simulator output")));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorTestInstantiation, ModuleSimulatorTest,

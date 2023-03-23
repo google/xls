@@ -38,6 +38,15 @@
 namespace xls {
 namespace verilog {
 
+// Sentinel type for indicating an "X value, in lieu of some real bits value.
+struct IsX {};
+
+// Sentinel type for indicating an "not X" value, in lieu of some real bits
+// value.
+struct IsNotX {};
+
+using BitsOrX = std::variant<Bits, IsX>;
+
 struct ModuleTestbenchData {
   // The design-under-test module name.
   std::string_view dut_module_name;
@@ -147,9 +156,6 @@ class ModuleTestbenchThread {
   // because an input changed).
   ModuleTestbenchThread& ExpectTrace(std::string_view trace_message);
 
-  // Sentinel type for indicating an "X value, in lieu of some real bits value.
-  struct IsX {};
-
   // A pair of instance number and signal name used as a key for associating a
   // output display statement with a particular Capture or ExpectEq.
   using InstanceSignalName = std::pair<int64_t, std::string>;
@@ -157,8 +163,8 @@ class ModuleTestbenchThread {
   // Checks the stdout of a simulation run against expectations.
   absl::Status CheckOutput(
       std::string_view stdout_str,
-      const absl::flat_hash_map<InstanceSignalName, std::variant<Bits, IsX>>&
-          parsed_values) const;
+      const absl::flat_hash_map<InstanceSignalName, BitsOrX>& parsed_values)
+      const;
 
   // Emit the thread contents into the verilog file with the contents specified.
   void EmitInto(StructuredProcedure* procedure,
@@ -206,10 +212,6 @@ class ModuleTestbenchThread {
     std::string signal_name;
   };
 
-  // Sentinel type for indicating an "not X" value, in lieu of some real bits
-  // value.
-  struct IsNotX {};
-
   // Waits for a signal to equal a certain value.
   struct WaitForSignal {
     std::string signal_name;
@@ -219,7 +221,7 @@ class ModuleTestbenchThread {
   // Waits for a signal event to equal a certain value.
   struct WaitForSignalEvent {
     std::string signal_name;
-    std::variant<Bits, IsX> value;
+    BitsOrX value;
     bool is_comparison_equal;
   };
 
@@ -245,7 +247,7 @@ class ModuleTestbenchThread {
   // A map containing the expected values passed in to each ExpectEq call. Use
   // std::map for stable iteration order.
   struct Expectation {
-    std::variant<Bits, IsX> expected;
+    BitsOrX expected;
     xabsl::SourceLocation loc;
   };
   std::map<InstanceSignalName, Expectation> expectations_;
