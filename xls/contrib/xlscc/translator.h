@@ -1330,6 +1330,10 @@ class Translator {
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
                                        bool mask = false);
+
+  absl::StatusOr<xls::BValue> AddConditionToIOReturn(
+      const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
+
   absl::Status CreateChannelParam(
       const clang::NamedDecl* channel_name,
       const std::shared_ptr<CChannelType>& channel_type,

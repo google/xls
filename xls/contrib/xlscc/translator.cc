@@ -2959,7 +2959,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       // Might be masked
       if (caller_op != nullptr) {
-        caller_op->ret_value = unpacked_returns.front();
+        XLS_ASSIGN_OR_RETURN(
+            caller_op->ret_value,
+            AddConditionToIOReturn(/*op=*/*caller_op, unpacked_returns.front(),
+                                   loc));
       }
 
       unpacked_returns.pop_front();

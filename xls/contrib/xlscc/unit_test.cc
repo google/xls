@@ -490,9 +490,9 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
         XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, cond_val.bits().ToUint64());
         if (val1 == 1u) {
           const IOOpTest addr_op = outputs.front();
-          outputs.pop_front();
           ASSERT_EQ(elements[0], addr_op.value);
         }
+        outputs.pop_front();
       }
 
       ASSERT_TRUE(cond_val.IsBits());

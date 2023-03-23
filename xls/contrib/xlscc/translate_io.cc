@@ -423,4 +423,53 @@ IOChannel* Translator::AddChannel(const clang::NamedDecl* decl,
   return ret;
 }
 
+absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
+    const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc) {
+  xls::BValue op_condition;
+
+  switch (op.op) {
+    case OpType::kRecv:
+      op_condition = retval;
+      break;
+    case OpType::kSend:
+    case OpType::kWrite:
+    case OpType::kRead:
+      op_condition = context().fb->TupleIndex(retval, /*idx=*/1, loc);
+      break;
+    default:
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+  }
+
+  XLS_CHECK(op_condition.valid());
+
+  op_condition =
+      context().fb->And(op_condition, context().full_condition_bval(loc), loc);
+
+  // Short circuit the op condition if possible
+  XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition, loc));
+
+  xls::BValue new_retval;
+
+  switch (op.op) {
+    case OpType::kRecv:
+      new_retval = op_condition;
+      break;
+    case OpType::kSend:
+    case OpType::kWrite:
+    case OpType::kRead: {
+      xls::BValue data = context().fb->TupleIndex(retval, /*idx=*/0, loc);
+      new_retval = context().fb->Tuple({data, op_condition}, loc);
+      break;
+    }
+    default:
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+  }
+
+  XLS_CHECK(new_retval.valid());
+
+  return new_retval;
+}
+
 }  // namespace xlscc

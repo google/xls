@@ -489,6 +489,202 @@ TEST_F(TranslatorIOTest, OperatorSubroutine) {
           testing::HasSubstr("IO ops in operator calls are not supported")));
 }
 
+TEST_F(TranslatorIOTest, SubroutineConditional) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         if(v > 10) {
+           out.write(v);
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         sub_send(v, out);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditional2) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         out.write(v);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         if(v > 10) {
+          sub_send(v, out);
+         }
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditional3) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         if(v > 3) {
+           out.write(v);
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         if(v < 10) {
+          sub_send(v, out);
+         }
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true)},
+         /*outputs=*/
+         {IOOpTest("out", 1, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 8, true)},
+         /*outputs=*/
+         {IOOpTest("out", 8, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, false)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalReceive) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_receive(int v, int& out, __xls_channel<int>& in) {
+         if(v > 3) {
+          out = in.read();
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_channel<int>& in_test,
+                       __xls_channel<int>& out) {
+         int v = in.read();
+         int ret = 1000;
+         if(v < 10) {
+          sub_receive(v, ret, in_test);
+         }
+         out.write(ret);
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("in_test", 123, false)},
+         /*outputs=*/
+         {IOOpTest("out", 1000, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 8, true), IOOpTest("in_test", 123, true)},
+         /*outputs=*/
+         {IOOpTest("out", 123, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true), IOOpTest("in_test", 123, false)},
+         /*outputs=*/
+         {IOOpTest("out", 1000, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalMemoryRead) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+
+       #include "/xls_builtin.h"
+       void sub_read(int v, int& out, __xls_memory<int, 32>& memory) {
+         if(v > 3) {
+          out = memory[5];
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_memory<int, 32>& memory,
+                       __xls_channel<int>& out) {
+         int v = in.read();
+         int ret = 1000;
+         if(v < 10) {
+          sub_read(v, ret, memory);
+         }
+         out.write(ret);
+       })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("memory__read", 30, false)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), false),
+       IOOpTest("out", 1000, true)});
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 30, true)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), true),
+       IOOpTest("out", 30, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 55, true), IOOpTest("memory__read", 30, false)},
+         /*outputs=*/
+         {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), false),
+          IOOpTest("out", 1000, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalMemoryWrite) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+
+       #include "/xls_builtin.h"
+       void sub_write(int v, __xls_memory<int, 32>& memory) {
+         if(v > 3) {
+          memory[5] = v;
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_memory<int, 32>& memory) {
+         int v = in.read();
+         if(v < 10) {
+          sub_write(v, memory);
+         }
+       })";
+
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 1, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, false)});
+  }
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, true)});
+  }
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 55, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, false)});
+  }
+}
+
 TEST_F(TranslatorIOTest, SaveChannel) {
   const std::string content = R"(
        #include "/xls_builtin.h"
