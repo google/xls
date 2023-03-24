@@ -1,0 +1,30 @@
+# proto-file: xls/ir/ram_rewrite.proto
+# proto-message: RamRewrites
+
+rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    depth: 1024
+  }
+  to_config {
+    kind: RAM_1R1W
+    depth: 1024
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_read_req"
+    value: "memory__read_request"
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_read_resp"
+    value: "memory__read_response"
+  }
+  from_channels_logical_to_physical: {
+    key: "abstract_write_req"
+    value: "memory__write_request"
+  }
+  from_channels_logical_to_physical: {
+    key: "write_completion"
+    value: "memory__write_response"
+  }
+  to_name_prefix: "memory_"
+}
