@@ -306,17 +306,17 @@ proc RamModelWriteReadMaskedWriteReadTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_p, read_req_c) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_p, read_resp_c) = chan<ReadResp<u32:32>>;
-    let (write_req_p, write_req_c) = chan<WriteReq<u32:8, u32:32, u32:32>>;
-    let (write_resp_p, write_resp_c) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
+    let (write_req_s, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (write_resp_s, write_resp_r) = chan<WriteResp>;
     spawn RamModel<
       u32:32,  // DATA_WIDTH
       u32:256, // SIZE
       u32:1    // WORD_PARTITION_SIZE
     >(
-      read_req_c, read_resp_p, write_req_c, write_resp_p);
-    (read_req_p, read_resp_c, write_req_p, write_resp_c, terminator,)
+      read_req_r, read_resp_s, write_req_r, write_resp_s);
+    (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator,)
   }
 
   next(tok: token, state: ()) {
@@ -376,10 +376,10 @@ proc RamModelInitializationTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_p, read_req_c) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_p, read_resp_c) = chan<ReadResp<u32:32>>;
-    let (_, write_req_c) = chan<WriteReq<u32:8, u32:32, u32:32>>;
-    let (write_resp_p, _) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
+    let (_, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (write_resp_s, _) = chan<WriteResp>;
     spawn RamModel<
       u32:32,   // DATA_WIDTH
       u32:256,  // SIZE
@@ -388,8 +388,8 @@ proc RamModelInitializationTest {
       // SIMULTANEOUS_READ_WRITE_BEHAVIOR
       true     // INITIALIZED
     >(
-      read_req_c, read_resp_p, write_req_c, write_resp_p);
-    (read_req_p, read_resp_c, terminator,)
+      read_req_r, read_resp_s, write_req_r, write_resp_s);
+    (read_req_s, read_resp_r, terminator,)
   }
 
   next(tok: token, state: ()) {
@@ -473,15 +473,15 @@ proc SinglePortRamModelTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (req_p, req_c) = chan<SinglePortRamReq<u32:10, u32:32, u32:0>>;
-    let (resp_p, resp_c) = chan<SinglePortRamResp<u32:32>>;
-    let (wr_comp_p, wr_comp_c) = chan<()>;
+    let (req_s, req_r) = chan<SinglePortRamReq<u32:10, u32:32, u32:0>>;
+    let (resp_s, resp_r) = chan<SinglePortRamResp<u32:32>>;
+    let (wr_comp_s, wr_comp_r) = chan<()>;
     spawn SinglePortRamModel<
       u32:32,   // DATA_WIDTH
       u32:1024, // SIZE
       u32:0     // WORD_PARTITION_SIZE
-    >(req_c, resp_p, wr_comp_p);
-    (req_p, resp_c, wr_comp_c, terminator)
+    >(req_r, resp_s, wr_comp_s);
+    (req_s, resp_r, wr_comp_r, terminator)
   }
 
   next(tok: token, state: ()) {

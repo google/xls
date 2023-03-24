@@ -280,7 +280,7 @@ pub proc ghash {
 // GCM implementation.
 #[test_proc]
 proc ghash_test {
-	command_out: chan<Command> out;
+    command_out: chan<Command> out;
     data_out: chan<Block> out;
     tag_in: chan<Block> in;
     terminator: chan<bool> out;
@@ -288,12 +288,12 @@ proc ghash_test {
     init { () }
 
     config(terminator: chan<bool> out) {
-		let (command_in, command_out) = chan<Command>;
-        let (data_in, data_out) = chan<Block>;
-        let (tag_in, tag_out) = chan<Block>;
+        let (command_s, command_r) = chan<Command>;
+        let (data_s, data_r) = chan<Block>;
+        let (tag_s, tag_r) = chan<Block>;
 
-        spawn ghash(command_in, data_in, tag_out);
-        (command_out, data_out, tag_in, terminator,)
+        spawn ghash(command_r, data_r, tag_s);
+        (command_s, data_s, tag_r, terminator)
     }
 
     next(tok: token, state: ()) {

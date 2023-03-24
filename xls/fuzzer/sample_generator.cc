@@ -210,8 +210,7 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
     if (channel_type == nullptr) {
       continue;
     }
-    if (channel_type->direction() !=
-        dslx::ChannelTypeAnnotation::Direction::kIn) {
+    if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
     dslx::TypeAnnotation* payload_type = channel_type->payload();
@@ -231,8 +230,7 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
     if (channel_type == nullptr) {
       continue;
     }
-    if (channel_type->direction() !=
-        dslx::ChannelTypeAnnotation::Direction::kIn) {
+    if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
     channel_names.push_back(member->identifier());

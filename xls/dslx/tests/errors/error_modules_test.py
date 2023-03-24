@@ -663,6 +663,14 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         'note that "x" was defined by a block with a trailing semicolon', stderr
     )
 
+  def test_proc_recv_if_reversed(self):
+    """Tests a proc with recv_if with reversed arguments."""
+    stderr = self._run(
+        'xls/dslx/tests/errors/proc_recv_if_reversed.x'
+    )
+    self.assertIn('proc_recv_if_reversed.x:28:33-28:38', stderr)
+    self.assertIn(' uN[1] recv_if requires a channel argument', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

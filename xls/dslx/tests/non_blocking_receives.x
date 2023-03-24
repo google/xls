@@ -67,13 +67,13 @@ proc test_main {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (in0_p, in0_c) = chan<u32>;
-    let (in1_p, in1_c) = chan<u32>;
-    let (out0_p, out0_c) = chan<u32>;
+    let (in0_s, in0_r) = chan<u32>;
+    let (in1_s, in1_r) = chan<u32>;
+    let (out0_s, out0_r) = chan<u32>;
 
-    spawn proc_main(in0_c, in1_c, out0_p);
+    spawn proc_main(in0_r, in1_r, out0_s);
 
-    (terminator, in0_c, in1_c, out0_c)
+    (terminator, in0_s, in1_s, out0_r)
   }
 
   next(tok: token, state: ()) {

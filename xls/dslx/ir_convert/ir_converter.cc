@@ -33,7 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -43,31 +42,23 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/visitor.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
-#include "xls/dslx/frontend/ast_utils.h"
-#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/function_converter.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
-#include "xls/dslx/make_value_format_descriptor.h"
-#include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
-#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 
@@ -212,7 +203,7 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
       ConcreteType* ct = maybe_type.value();
       XLS_ASSIGN_OR_RETURN(
           Type * ir_type, TypeToIr(package_data.package, *ct, ParametricEnv()));
-      ChannelOps op = channel_type->direction() == ChannelTypeAnnotation::kIn
+      ChannelOps op = channel_type->direction() == ChannelDirection::kIn
                           ? ChannelOps::kReceiveOnly
                           : ChannelOps::kSendOnly;
       std::string channel_name =
@@ -226,8 +217,6 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
   return absl::OkStatus();
 }
 
-}  // namespace
-
 // Converts the functions in the call graph in a specified order.
 //
 // Args:
@@ -235,10 +224,10 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
 //   import_data: Contains type information used in conversion.
 //   options: Conversion option flags.
 //   package: output of function
-static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
-                                     ImportData* import_data,
-                                     const ConvertOptions& options,
-                                     PackageData& package_data) {
+absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
+                              ImportData* import_data,
+                              const ConvertOptions& options,
+                              PackageData& package_data) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, "\n\t",
@@ -316,6 +305,8 @@ static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
   }
   return absl::OkStatus();
 }
+
+}  // namespace
 
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,

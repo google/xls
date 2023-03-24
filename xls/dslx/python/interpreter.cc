@@ -78,8 +78,6 @@ absl::StatusOr<std::vector<InterpValue>> RunFunctionBatched(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
                        BytecodeEmitter::Emit(&import_data, tm.type_info, f,
                                              /*caller_bindings=*/{}));
-  XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       tm.type_info->GetItemAs<FunctionType>(f));
   std::vector<InterpValue> results;
   results.reserve(args_batch.size());
   for (const std::vector<InterpValue>& args : args_batch) {
@@ -114,7 +112,7 @@ ConvertChannelValues(
           "Only channels are supported as parameters to the config function of "
           "a proc");
     }
-    if (channel_type->direction() != ChannelTypeAnnotation::kIn) {
+    if (channel_type->direction() != ChannelDirection::kIn) {
       continue;
     }
     converted_channel_values.insert(
@@ -182,9 +180,9 @@ RunProc(
           "Only channels are supported as parameters to the config function of "
           "a proc");
     }
-    if (channel_type->direction() == ChannelTypeAnnotation::kIn) {
+    if (channel_type->direction() == ChannelDirection::kIn) {
       config_args.push_back(input_channel_values.at(param->identifier()));
-    } else if (channel_type->direction() == ChannelTypeAnnotation::kOut) {
+    } else if (channel_type->direction() == ChannelDirection::kOut) {
       config_args.push_back(InterpValue::MakeChannel());
       out_chan_indexes.push_back(index);
       out_ir_channel_names.push_back(absl::StrCat(

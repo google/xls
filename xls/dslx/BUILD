@@ -622,3 +622,8 @@ cc_library(
         "//xls/dslx/type_system:concrete_type",
     ],
 )
+
+cc_library(
+    name = "channel_direction",
+    hdrs = ["channel_direction.h"],
+)

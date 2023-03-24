@@ -167,6 +167,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
+        "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",

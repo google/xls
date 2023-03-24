@@ -298,7 +298,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   }
   BuiltinTypeAnnotation* payload_type =
       dynamic_cast<BuiltinTypeAnnotation*>(channel_type->payload());
-  if (channel_type->direction() != ChannelTypeAnnotation::kOut ||
+  if (channel_type->direction() != ChannelDirection::kOut ||
       payload_type == nullptr || payload_type->GetBitCount() != 1) {
     return TypeInferenceErrorStatus(
         proc->config()->span(), nullptr,

@@ -305,6 +305,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:channel_direction",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_strings",

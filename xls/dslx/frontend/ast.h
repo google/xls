@@ -46,6 +46,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_strings.h"
@@ -705,13 +706,8 @@ class Expr : public AstNode {
 // can convert `dims_` to a set of AstNodes.
 class ChannelTypeAnnotation : public TypeAnnotation {
  public:
-  enum Direction {
-    kIn,
-    kOut,
-  };
-
   // If this is a scalar channel, then `dims` will be nullopt.
-  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
+  ChannelTypeAnnotation(Module* owner, Span span, ChannelDirection direction,
                         TypeAnnotation* payload,
                         std::optional<std::vector<Expr*>> dims);
 
@@ -737,7 +733,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 
   std::string ToString() const override;
 
-  Direction direction() const { return direction_; }
+  ChannelDirection direction() const { return direction_; }
   TypeAnnotation* payload() const { return payload_; }
 
   // A ChannelTypeAnnotation needs to keep its own dims (rather than being
@@ -749,7 +745,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   std::optional<std::vector<Expr*>> dims() const { return dims_; }
 
  private:
-  Direction direction_;
+  ChannelDirection direction_;
   TypeAnnotation* payload_;
   std::optional<std::vector<Expr*>> dims_;
 };
@@ -3071,7 +3067,7 @@ class ConstRef : public NameRef {
 };
 
 // A channel declaration, e.g., let (p, c) = chan<u32>.
-//                                           ^^^^^^^^^ this part.
+// ------------------------------------------^^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,

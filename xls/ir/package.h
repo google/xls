@@ -256,6 +256,8 @@ class Package {
   absl::Status RemoveChannel(Channel* channel);
 
  private:
+  std::vector<std::string> GetChannelNames() const;
+
   // Adds the given channel to the package.
   absl::Status AddChannel(std::unique_ptr<Channel> channel);
 

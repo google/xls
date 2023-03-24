@@ -52,10 +52,13 @@ ConcreteType::~ConcreteType() = default;
   return true;
 }
 
-/* static */ std::vector<std::unique_ptr<ConcreteType>> ConcreteType::Clone(
+/* static */ std::vector<std::unique_ptr<ConcreteType>> ConcreteType::CloneSpan(
     absl::Span<const std::unique_ptr<ConcreteType>> ts) {
   std::vector<std::unique_ptr<ConcreteType>> result;
+  result.reserve(ts.size());
   for (const auto& t : ts) {
+    XLS_CHECK(t != nullptr);
+    XLS_VLOG(10) << "CloneSpan; cloning: " << t->ToString();
     result.push_back(t->CloneToUnique());
   }
   return result;
@@ -441,7 +444,13 @@ bool StructType::operator==(const ConcreteType& other) const {
 // -- TupleType
 
 TupleType::TupleType(std::vector<std::unique_ptr<ConcreteType>> members)
-    : members_(std::move(members)) {}
+    : members_(std::move(members)) {
+#ifndef NDEBUG
+  for (const auto& member : members) {
+    XLS_DCHECK(member != nullptr);
+  }
+#endif
+}
 
 bool TupleType::operator==(const ConcreteType& other) const {
   if (auto* t = dynamic_cast<const TupleType*>(&other)) {
@@ -486,6 +495,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> TupleType::MapSize(
     new_members.push_back(std::move(mapped));
   }
   return std::make_unique<TupleType>(std::move(new_members));
+}
+
+std::unique_ptr<ConcreteType> TupleType::CloneToUnique() const {
+  return std::make_unique<TupleType>(CloneSpan(members_));
 }
 
 std::string TupleType::ToString() const {
@@ -638,11 +651,15 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
   return sum;
 }
 
-ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type)
-    : payload_type_(std::move(payload_type)) {}
+ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type,
+                         ChannelDirection direction)
+    : payload_type_(std::move(payload_type)), direction_(direction) {
+  XLS_CHECK(payload_type_ != nullptr);
+}
 
 std::string ChannelType::ToString() const {
-  return absl::StrFormat("chan(%s)", payload_type_->ToString());
+  return absl::StrFormat("chan(%s, dir=%s)", payload_type_->ToString(),
+                         direction_ == ChannelDirection::kIn ? "in" : "out");
 }
 
 std::vector<ConcreteTypeDim> ChannelType::GetAllDims() const {
@@ -656,12 +673,12 @@ absl::StatusOr<ConcreteTypeDim> ChannelType::GetTotalBitCount() const {
 absl::StatusOr<std::unique_ptr<ConcreteType>> ChannelType::MapSize(
     const MapFn& f) const {
   XLS_ASSIGN_OR_RETURN(auto new_payload, payload_type_->MapSize(f));
-  return std::make_unique<ChannelType>(std::move(new_payload));
+  return std::make_unique<ChannelType>(std::move(new_payload), direction_);
 }
 
 bool ChannelType::operator==(const ConcreteType& other) const {
   if (auto* o = dynamic_cast<const ChannelType*>(&other)) {
-    return *payload_type_ == *o->payload_type_;
+    return *payload_type_ == *o->payload_type_ && direction_ == o->direction_;
   }
   return false;
 }
@@ -669,7 +686,8 @@ bool ChannelType::operator==(const ConcreteType& other) const {
 bool ChannelType::HasEnum() const { return payload_type_->HasEnum(); }
 
 std::unique_ptr<ConcreteType> ChannelType::CloneToUnique() const {
-  return std::make_unique<ChannelType>(payload_type_->CloneToUnique());
+  return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),
+                                       direction_);
 }
 
 absl::StatusOr<bool> IsSigned(const ConcreteType& c) {

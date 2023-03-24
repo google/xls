@@ -30,6 +30,7 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
@@ -38,6 +39,20 @@
 
 namespace xls::dslx {
 namespace {
+
+absl::StatusOr<TypecheckedModule> ParseAndTypecheckOrPrintError(
+    std::string_view program, ImportData* import_data) {
+  // Parse/typecheck and print a helpful error.
+  absl::StatusOr<TypecheckedModule> tm_or =
+      ParseAndTypecheck(program, "test.x", "test", import_data);
+  if (!tm_or.ok()) {
+    TryPrintError(tm_or.status(),
+                  [&](std::string_view) -> absl::StatusOr<std::string> {
+                    return std::string{program};
+                  });
+  }
+  return tm_or;
+}
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
@@ -64,9 +79,8 @@ static absl::StatusOr<InterpValue> Interpret(
     std::vector<InterpValue> args = {},
     const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions()) {
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSIGN_OR_RETURN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(program, "test.x", "test", &import_data));
+  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
+                       ParseAndTypecheckOrPrintError(program, &import_data));
 
   XLS_ASSIGN_OR_RETURN(Function * f,
                        tm.module->GetMemberOrError<Function>(entry));
@@ -863,9 +877,8 @@ fn cast_bits_to_enum() -> MyEnum {
 })";
 
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, tm.module->GetMemberOrError<Function>("cast_bits_to_enum"));
@@ -1445,14 +1458,13 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_in, input_out) = chan<u32>;
-    let (output_in, output_out) = chan<u32>;
-    spawn incrementer(input_in, output_out);
-    (input_out, output_in, terminator)
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u32>;
+    spawn incrementer(input_c, output_p);
+    (input_p, output_c, terminator)
   }
 
   next(tok: token, state: ()) {
-
     let tok = send(tok, data_out, u32:42);
     let (tok, result) = recv(tok, data_in);
 
@@ -1465,9 +1477,8 @@ proc tester_proc {
 })";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            tm.module->GetTestProc("tester_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1531,10 +1542,10 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_in, input_out) = chan<u32>;
-    let (output_in, output_out) = chan<u32>;
-    spawn incrementer(input_in, output_out);
-    (input_out, output_in, terminator)
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u32>;
+    spawn incrementer(input_c, output_p);
+    (input_p, output_c, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -1546,9 +1557,8 @@ proc tester_proc {
 })";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            tm.module->GetTestProc("tester_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1611,10 +1621,10 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_in, input_out) = chan<Foo>;
-    let (output_in, output_out) = chan<Foo>;
-    spawn incrementer(input_in, output_out);
-    (input_out, output_in, terminator)
+    let (input_p, input_c) = chan<Foo>;
+    let (output_p, output_c) = chan<Foo>;
+    spawn incrementer(input_c, output_p);
+    (input_p, output_c, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -1631,9 +1641,8 @@ proc tester_proc {
 })";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            tm.module->GetTestProc("tester_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1698,10 +1707,10 @@ proc tester_proc {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_in, input_out) = chan<u32>[1];
-    let (output_in, output_out) = chan<u32>[1];
-    spawn incrementer(input_in[0], output_out[0]);
-    (input_out, output_in, terminator)
+    let (input_p, input_c) = chan<u32>[1];
+    let (output_p, output_c) = chan<u32>[1];
+    spawn incrementer(input_c[0], output_p[0]);
+    (input_p, output_c, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -1718,9 +1727,9 @@ proc tester_proc {
 })";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
+
   XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
                            tm.module->GetTestProc("tester_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(

@@ -211,7 +211,7 @@ class ConcreteType {
   const ArrayType& AsArray() const;
 
  protected:
-  static std::vector<std::unique_ptr<ConcreteType>> Clone(
+  static std::vector<std::unique_ptr<ConcreteType>> CloneSpan(
       absl::Span<const std::unique_ptr<ConcreteType>> ts);
 
   static bool Equal(absl::Span<const std::unique_ptr<ConcreteType>> a,
@@ -285,7 +285,7 @@ class StructType : public ConcreteType {
   bool HasEnum() const override;
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return std::make_unique<StructType>(Clone(members_), struct_def_);
+    return std::make_unique<StructType>(CloneSpan(members_), struct_def_);
   }
 
   // For user-level error reporting, we also note the name of the struct
@@ -345,9 +345,7 @@ class TupleType : public ConcreteType {
 
   bool HasEnum() const override;
 
-  std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return std::make_unique<TupleType>(Clone(members_));
-  }
+  std::unique_ptr<ConcreteType> CloneToUnique() const override;
 
   bool empty() const;
   int64_t size() const;
@@ -576,11 +574,12 @@ class FunctionType : public ConcreteType {
   std::unique_ptr<ConcreteType> return_type_;
 };
 
-// Represents the type of a channel, which effectively just wraps its payload
-// type.
+// Represents the type of a channel (half-duplex), which effectively just wraps
+// its payload type and has an associated direction.
 class ChannelType : public ConcreteType {
  public:
-  explicit ChannelType(std::unique_ptr<ConcreteType> payload_type);
+  ChannelType(std::unique_ptr<ConcreteType> payload_type,
+              ChannelDirection direction);
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
     return v.HandleChannel(*this);
@@ -596,9 +595,11 @@ class ChannelType : public ConcreteType {
   std::unique_ptr<ConcreteType> CloneToUnique() const override;
 
   const ConcreteType& payload_type() const { return *payload_type_; }
+  ChannelDirection direction() const { return direction_; }
 
  private:
   std::unique_ptr<ConcreteType> payload_type_;
+  ChannelDirection direction_;
 };
 
 // Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,

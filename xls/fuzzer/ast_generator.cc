@@ -281,7 +281,7 @@ enum class ChannelOpType {
 };
 
 struct ChannelOpInfo {
-  ChannelTypeAnnotation::Direction channel_direction;
+  ChannelDirection channel_direction;
   bool requires_payload;
   bool requires_predicate;
   bool requires_default_value;
@@ -290,35 +290,30 @@ struct ChannelOpInfo {
 ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
   switch (chan_op) {
     case ChannelOpType::kRecv:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = false,
-          .requires_default_value = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = false,
+                           .requires_default_value = false};
     case ChannelOpType::kRecvNonBlocking:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = false,
-          .requires_default_value = true};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = false,
+                           .requires_default_value = true};
     case ChannelOpType::kRecvIf:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = true,
-          .requires_default_value = true};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = true,
+                           .requires_default_value = true};
     case ChannelOpType::kSend:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
-          .requires_payload = true,
-          .requires_predicate = false,
-          .requires_default_value = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kOut,
+                           .requires_payload = true,
+                           .requires_predicate = false,
+                           .requires_default_value = false};
     case ChannelOpType::kSendIf:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
-          .requires_payload = true,
-          .requires_predicate = true,
-          .requires_default_value = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kOut,
+                           .requires_payload = true,
+                           .requires_predicate = true,
+                           .requires_default_value = false};
   }
 
   XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
@@ -460,7 +455,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
 
 class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
  public:
-  FindTokenTypeVisitor() : token_found_(false) {}
+  FindTokenTypeVisitor() = default;
 
   bool GetTokenFound() const { return token_found_; }
 
@@ -532,7 +527,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
-  bool token_found_;
+  bool token_found_ = false;
 };
 
 /* static */ absl::StatusOr<bool> AstGenerator::ContainsToken(
@@ -851,7 +846,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
+  const absl::btree_set<BinopKind>& bin_ops = GetBinopSameTypeKinds();
   BinopKind op = RandomSetChoice(bin_ops);
   if (op == BinopKind::kDiv) {
     return GenerateSynthesizableDiv(ctx);

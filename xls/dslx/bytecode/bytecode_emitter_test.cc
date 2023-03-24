@@ -1219,7 +1219,7 @@ proc Foo {
   init { () }
   config() {
     let (p, c) = chan<u32>;
-    (p, u32:100)
+    (c, u32:100)
   }
 
   next(tok: token, state: ()) {
@@ -1245,7 +1245,7 @@ proc Foo {
       "expand_tuple @ test.x:7:9-7:15",
       "store 0 @ test.x:7:10-7:11",
       "store 1 @ test.x:7:13-7:14",
-      "load 0 @ test.x:8:6-8:7",
+      "load 1 @ test.x:8:6-8:7",
       "literal u32:100 @ test.x:8:13-8:16",
       "create_tuple 2 @ test.x:8:5-8:17"};
 

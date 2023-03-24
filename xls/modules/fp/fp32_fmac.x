@@ -34,34 +34,34 @@ proc fp32_fmac {
 
 #[test_proc]
 proc smoke_test {
-    input_a_p: chan<F32> out;
-    input_b_p: chan<F32> out;
-    reset_p: chan<bool> out;
-    output_c: chan<F32> in;
+    input_a_s: chan<F32> out;
+    input_b_s: chan<F32> out;
+    reset_s: chan<bool> out;
+    output_r: chan<F32> in;
     terminator: chan<bool> out;
 
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (input_a_p, input_a_c) = chan<F32>;
-        let (input_b_p, input_b_c) = chan<F32>;
-        let (reset_p, reset_c) = chan<bool>;
-        let (output_p, output_c) = chan<F32>;
-        spawn fp32_fmac(input_a_c, input_b_c, reset_c, output_p);
-        (input_a_p, input_b_p, reset_p, output_c, terminator)
+        let (input_a_s, input_a_r) = chan<F32>;
+        let (input_b_s, input_b_r) = chan<F32>;
+        let (reset_s, reset_r) = chan<bool>;
+        let (output_s, output_r) = chan<F32>;
+        spawn fp32_fmac(input_a_r, input_b_r, reset_r, output_s);
+        (input_a_s, input_b_s, reset_s, output_r, terminator)
     }
 
     next(tok: token, state: ()) {
-        let tok = send(tok, input_a_p, F32_ZERO);
-        let tok = send(tok, input_b_p, F32_ZERO);
-        let tok = send(tok, reset_p, false);
-        let (tok, result) = recv(tok, output_c);
+        let tok = send(tok, input_a_s, F32_ZERO);
+        let tok = send(tok, input_b_s, F32_ZERO);
+        let tok = send(tok, reset_s, false);
+        let (tok, result) = recv(tok, output_r);
         let _ = assert_eq(result, F32_ZERO);
 
-        let tok = send(tok, input_a_p, F32_ONE);
-        let tok = send(tok, input_b_p, F32_ZERO);
-        let tok = send(tok, reset_p, false);
-        let (tok, result) = recv(tok, output_c);
+        let tok = send(tok, input_a_s, F32_ONE);
+        let tok = send(tok, input_b_s, F32_ZERO);
+        let tok = send(tok, reset_s, false);
+        let (tok, result) = recv(tok, output_r);
         let _ = assert_eq(result, F32_ZERO);
 
         let tok = send(tok, terminator, true);

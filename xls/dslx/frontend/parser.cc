@@ -586,10 +586,9 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
                 "Expected channel direction (\"in\" or \"out\"); got %s.",
                 tok.ToString()));
       }
-      ChannelTypeAnnotation::Direction direction =
-          tok.GetKeyword() == Keyword::kIn
-              ? ChannelTypeAnnotation::Direction::kIn
-              : ChannelTypeAnnotation::Direction::kOut;
+      ChannelDirection direction = tok.GetKeyword() == Keyword::kIn
+                                       ? ChannelDirection::kIn
+                                       : ChannelDirection::kOut;
 
       Span span(start_pos, GetPos());
       TypeAnnotation* type =

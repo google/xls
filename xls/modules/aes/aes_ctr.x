@@ -147,11 +147,11 @@ proc aes_ctr_test_128 {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_in, command_out) = chan<Command>;
-        let (ptxt_in, ptxt_out) = chan<Block>;
-        let (ctxt_in, ctxt_out) = chan<Block>;
-        spawn aes_ctr(command_in, ptxt_in, ctxt_out);
-        (terminator, command_out, ptxt_out, ctxt_in)
+        let (command_s, command_r) = chan<Command>;
+        let (ptxt_s, ptxt_r) = chan<Block>;
+        let (ctxt_s, ctxt_r) = chan<Block>;
+        spawn aes_ctr(command_r, ptxt_r, ctxt_s);
+        (terminator, command_s, ptxt_s, ctxt_r)
     }
 
     next(tok: token, state: ()) {

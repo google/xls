@@ -900,11 +900,20 @@ absl::Status Package::AddChannel(std::unique_ptr<Channel> channel) {
 
 absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
   if (channels_.find(id) == channels_.end()) {
-    return absl::NotFoundError(
-        absl::StrFormat("No channel with id %d (package has %d channels).", id,
-                        channels_.size()));
+    return absl::NotFoundError(absl::StrFormat(
+        "No channel with id %d (package has %d channels: %s).", id,
+        channels_.size(), absl::StrJoin(GetChannelNames(), ", ")));
   }
   return channels_.at(id).get();
+}
+
+std::vector<std::string> Package::GetChannelNames() const {
+  std::vector<std::string> names;
+  names.reserve(channels().size());
+  for (Channel* ch : channels()) {
+    names.push_back(ch->name());
+  }
+  return names;
 }
 
 absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
@@ -913,9 +922,9 @@ absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
       return ch;
     }
   }
-  return absl::NotFoundError(
-      absl::StrFormat("No channel with name '%s' (package has %d channels).",
-                      name, channels().size()));
+  return absl::NotFoundError(absl::StrFormat(
+      "No channel with name '%s' (package has %d channels: %s).", name,
+      channels().size(), absl::StrJoin(GetChannelNames(), ", ")));
 }
 
 absl::StatusOr<FunctionBase*> FindTop(Package* p,

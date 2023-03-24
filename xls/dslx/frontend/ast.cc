@@ -1973,8 +1973,8 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
 // -- class ChannelTypeAnnotation
 
 ChannelTypeAnnotation::ChannelTypeAnnotation(
-    Module* owner, Span span, Direction direction, TypeAnnotation* payload,
-    std::optional<std::vector<Expr*>> dims)
+    Module* owner, Span span, ChannelDirection direction,
+    TypeAnnotation* payload, std::optional<std::vector<Expr*>> dims)
     : TypeAnnotation(owner, std::move(span)),
       direction_(direction),
       payload_(payload),
@@ -1991,7 +1991,7 @@ std::string ChannelTypeAnnotation::ToString() const {
   }
   return absl::StrFormat("chan<%s>%s %s", payload_->ToString(),
                          absl::StrJoin(dims, ""),
-                         direction_ == Direction::kIn ? "in" : "out");
+                         direction_ == ChannelDirection::kIn ? "in" : "out");
 }
 
 // -- class TupleTypeAnnotation

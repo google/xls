@@ -12,31 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc producer {
-    p: chan<u32> out;
+    s: chan<u32> out;
 
     init { true }
 
-    config(p: chan<u32> out) {
-        (p,)
+    config(s: chan<u32> out) {
+        (s,)
     }
 
     next(tok: token, do_send: bool) {
-        let tok = send_if(tok, p, do_send, ((do_send) as u32));
+        let tok = send_if(tok, s, do_send, ((do_send) as u32));
         !do_send
     }
 }
 
 proc consumer {
-    c: chan<u32> in;
+    r: chan<u32> in;
 
     init { true }
 
-    config(c: chan<u32> in) {
-        (c,)
+    config(r: chan<u32> in) {
+        (r,)
     }
 
     next(tok: token, do_recv: bool) {
-        let (tok, foo) = recv_if(tok, c, do_recv, u32:42);
+        let (tok, foo) = recv_if(tok, r, do_recv, u32:42);
         !do_recv
     }
 }
@@ -44,9 +44,9 @@ proc consumer {
 proc main {
     init { () }
     config() {
-        let (p, c) = chan<u32>;
-        spawn producer(p);
-        spawn consumer(c);
+        let (s, r) = chan<u32>;
+        spawn producer(s);
+        spawn consumer(r);
         ()
     }
     next(tok: token, state: ()) { () }
@@ -61,13 +61,13 @@ proc test_main {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (data0_p, data0_c) = chan<u32>;
-        let (data1_p, data1_c) = chan<u32>;
+        let (data0_s, data0_r) = chan<u32>;
+        let (data1_s, data1_r) = chan<u32>;
 
-        spawn producer(data0_p);
-        spawn consumer(data1_c);
+        spawn producer(data0_s);
+        spawn consumer(data1_r);
 
-        (terminator, data0_c, data1_p)
+        (terminator, data0_r, data1_s)
     }
 
     next(tok: token, state: ()) {
