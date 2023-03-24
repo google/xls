@@ -59,7 +59,8 @@ bool IsComparisonBinopKind(const Expr* e) {
   return GetBinopComparisonKinds().contains(binop->binop_kind());
 }
 
-ExprRestrictions MakeRestrictions(std::vector<ExprRestriction> restrictions) {
+ExprRestrictions MakeRestrictions(
+    const std::vector<ExprRestriction>& restrictions) {
   uint64_t value = 0;
   for (ExprRestriction restriction : restrictions) {
     value |= static_cast<uint64_t>(restriction);
@@ -1315,12 +1316,14 @@ absl::StatusOr<XlsTuple*> Parser::ParseTupleRemainder(const Pos& start_pos,
   auto parse_expression = [this, bindings]() -> absl::StatusOr<Expr*> {
     return ParseExpression(bindings);
   };
+  bool saw_trailing_comma = false;
   XLS_ASSIGN_OR_RETURN(
       std::vector<Expr*> es,
-      ParseCommaSeq<Expr*>(parse_expression, TokenKind::kCParen));
+      ParseCommaSeq<Expr*>(parse_expression, TokenKind::kCParen, nullptr,
+                           &saw_trailing_comma));
   es.insert(es.begin(), first);
   Span span(start_pos, GetPos());
-  return module_->Make<XlsTuple>(span, std::move(es));
+  return module_->Make<XlsTuple>(span, std::move(es), saw_trailing_comma);
 }
 
 absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
@@ -1471,7 +1474,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings,
     if (next_is_cparen) {  // Empty tuple.
       XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
       Span span(start_pos, GetPos());
-      lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{});
+      lhs = module_->Make<XlsTuple>(span, std::vector<Expr*>{},
+                                    /*has_trailing_comma=*/false);
     } else {
       XLS_ASSIGN_OR_RETURN(lhs, ParseExpression(outer_bindings));
       XLS_ASSIGN_OR_RETURN(bool peek_is_comma, PeekTokenIs(TokenKind::kComma));
@@ -1847,7 +1851,8 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kCBrace) {
       Span span(GetPos(), GetPos());
-      body = module_->Make<XlsTuple>(span, std::vector<Expr*>());
+      body = module_->Make<XlsTuple>(span, std::vector<Expr*>{},
+                                     /*has_trailing_comma=*/false);
     } else {
       XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
     }
@@ -2443,7 +2448,8 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (peek->kind() == TokenKind::kCBrace) {
     Span span(GetPos(), GetPos());
-    body = module_->Make<XlsTuple>(span, std::vector<Expr*>());
+    body = module_->Make<XlsTuple>(span, std::vector<Expr*>{},
+                                   /*has_trailing_comma=*/false);
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseExpression(&new_bindings));
   }

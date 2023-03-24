@@ -244,8 +244,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   }
 
   ctx->set_in_typeless_number_ctx(true);
-  auto cleanup =
-      absl::MakeCleanup([ctx]() { ctx->set_in_typeless_number_ctx(false); });
+  absl::Cleanup cleanup = [ctx]() { ctx->set_in_typeless_number_ctx(false); };
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
                        ctx->Deduce(node->index()));
   std::move(cleanup).Cancel();
@@ -282,6 +281,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeAlias(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
     const XlsTuple* node, DeduceCtx* ctx) {
+  // Give a warning if the tuple is on a single line, is more than one element,
+  // but has a trailing comma.
+  //
+  // Note: warning diagnostics and type checking are currently fused together,
+  // but this is a pure post-parsing warning -- currently type checking the pass
+  // that has a warning collector available.
+  if (node->span().start().lineno() == node->span().limit().lineno() &&
+      node->members().size() > 1 && node->has_trailing_comma()) {
+    ctx->warnings()->Add(
+        node->span(),
+        absl::StrFormat("Tuple expression (with >1 element) is on a single "
+                        "line, but has a trailing comma."));
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> members;
   for (Expr* e : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> m, ctx->Deduce(e));

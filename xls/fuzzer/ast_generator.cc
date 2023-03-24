@@ -611,7 +611,8 @@ absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
           tuple_values[index],
           GenerateExprOfType(ctx, tuple_type->members()[index]));
     }
-    return module_->Make<XlsTuple>(fake_span_, tuple_values);
+    return module_->Make<XlsTuple>(fake_span_, tuple_values,
+                                   /*has_trailing_comma=*/false);
   }
   if (IsArray(type)) {
     auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
@@ -1360,7 +1361,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
   }
 
   auto [exprs, types] = Unzip(typed_exprs);
-  auto* tuple = module_->Make<XlsTuple>(fake_span_, exprs);
+  auto* tuple =
+      module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false);
   return TypedExpr{tuple, MakeTupleType(types)};
 }
 
@@ -1370,7 +1372,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     Context* ctx) {
   if (proc_properties_.state_types.empty()) {
     // Return an empty tuple.
-    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>()),
+    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
+                                             /*has_trailing_comma=*/false),
                      MakeTupleType(std::vector<TypeAnnotation*>())};
   }
   // A state is present, therefore the return value for a proc's next function
@@ -1433,8 +1436,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_bit_count));
 
   auto [exprs, types] = Unzip(members);
-  return TypedExpr{module_->Make<XlsTuple>(fake_span_, exprs),
-                   MakeTupleType(types)};
+  return TypedExpr{
+      module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false),
+      MakeTupleType(types)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
@@ -2298,7 +2302,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   }
   TupleTypeAnnotation* ret_tuple_type =
       module_->Make<TupleTypeAnnotation>(fake_span_, tuple_member_types);
-  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members);
+  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members,
+                                                /*has_trailing_comma=*/false);
   Statement* ret_stmt = module_->Make<Statement>(ret_tuple);
   Block* block = module_->Make<Block>(
       fake_span_, std::vector<Statement*>{ret_stmt}, /*trailing_semi=*/false);

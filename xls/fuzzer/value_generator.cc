@@ -320,7 +320,8 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
                            GenerateDslxConstant(module, member_type));
       members.push_back(member);
     }
-    return module->Make<dslx::XlsTuple>(fake_span, members);
+    return module->Make<dslx::XlsTuple>(fake_span, members,
+                                        /*has_trailing_comma=*/false);
   }
 
   auto* typeref_type = dynamic_cast<dslx::TypeRefTypeAnnotation*>(type);

@@ -64,10 +64,10 @@ class ParserTest : public ::testing::Test {
   // Note: given expression text should have no free variables other than those
   // in "predefine": those are defined a builtin name definitions (like the DSLX
   // builtins are).
-  absl::StatusOr<Expr*> ParseExpr(std::string expr_text,
+  absl::StatusOr<Expr*> ParseExpr(std::string_view expr_text,
                                   absl::Span<const std::string> predefine = {},
                                   bool populate_dslx_builtins = false) {
-    scanner_.emplace(kFilename, expr_text);
+    scanner_.emplace(kFilename, std::string{expr_text});
     parser_.emplace("test", &*scanner_);
     Bindings b;
 
@@ -86,13 +86,13 @@ class ParserTest : public ::testing::Test {
     if (!expr_or.ok()) {
       TryPrintError(expr_or.status(),
                     [&](std::string_view path) -> absl::StatusOr<std::string> {
-                      return expr_text;
+                      return std::string{expr_text};
                     });
     }
     return expr_or;
   }
 
-  void RoundTripExpr(std::string expr_text,
+  void RoundTripExpr(std::string_view expr_text,
                      absl::Span<const std::string> predefine = {},
                      bool populate_dslx_builtins = false,
                      std::optional<std::string> target = std::nullopt,
@@ -192,6 +192,18 @@ TEST_F(ParserTest, ParseErrorSpan) {
   ASSERT_THAT(expr_or, StatusIs(absl::StatusCode::kInvalidArgument,
                                 "ParseError: fake.x:1:1-1:2 Expected start of "
                                 "an expression; got: +"));
+}
+
+TEST_F(ParserTest, EmptyTupleWithComma) {
+  const char* kFakeFilename = "fake.x";
+  Scanner scanner(kFakeFilename, "(,)");
+  Parser parser("test_module", &scanner);
+  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(/*bindings=*/nullptr);
+  ASSERT_THAT(
+      expr_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               testing::HasSubstr(
+                   "fake.x:1:2-1:3 Expected start of an expression; got: ,")));
 }
 
 TEST_F(ParserTest, ParseLetExpression) {
@@ -1026,7 +1038,7 @@ TEST_F(ParserTest, Match) {
   u32:42 => u32:64,
   _ => u32:42,
 })",
-                {"x"});
+                /*predefine=*/{"x"});
 }
 
 TEST_F(ParserTest, MatchFreevars) {

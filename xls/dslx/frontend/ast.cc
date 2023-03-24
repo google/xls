@@ -2079,8 +2079,10 @@ std::string XlsTuple::ToString() const {
       absl::StrAppend(&result, ", ");
     }
   }
-  if (members_.size() == 1) {
-    absl::StrAppend(&result, ",");  // Singleton tuple.
+  if (members_.size() == 1 || has_trailing_comma()) {
+    // Singleton tuple requires a trailing comma to avoid being parsed as a
+    // parenthesized expression.
+    absl::StrAppend(&result, ",");
   }
   absl::StrAppend(&result, ")");
   return result;

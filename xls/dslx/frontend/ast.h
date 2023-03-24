@@ -2671,8 +2671,11 @@ class TupleIndex : public Expr {
 // Represents an XLS tuple expression.
 class XlsTuple : public Expr {
  public:
-  XlsTuple(Module* owner, Span span, std::vector<Expr*> members)
-      : Expr(owner, std::move(span)), members_(members) {}
+  XlsTuple(Module* owner, Span span, std::vector<Expr*> members,
+           bool has_trailing_comma)
+      : Expr(owner, std::move(span)),
+        members_(std::move(members)),
+        has_trailing_comma_(has_trailing_comma) {}
 
   ~XlsTuple() override;
 
@@ -2689,6 +2692,7 @@ class XlsTuple : public Expr {
   absl::Span<Expr* const> members() const { return members_; }
   int64_t size() const { return members_.size(); }
   bool empty() const { return members_.empty(); }
+  bool has_trailing_comma() const { return has_trailing_comma_; }
 
   std::string ToString() const override;
 
@@ -2698,6 +2702,7 @@ class XlsTuple : public Expr {
 
  private:
   std::vector<Expr*> members_;
+  bool has_trailing_comma_;
 };
 
 // Represents a for-loop expression.

@@ -500,6 +500,27 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         want_err_retcode=True,
     )
 
+  def test_trailing_comma_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/trailing_comma_warning.x',
+        warnings_as_errors=False,
+        want_err_retcode=False,
+    )
+    self.assertIn('trailing_comma_warning.x:16:5-16:22', stderr)
+    self.assertIn(
+        (
+            'Tuple expression (with >1 element) is on a single line, but has a'
+            ' trailing comma.'
+        ),
+        stderr,
+    )
+
+    self._run(
+        'xls/dslx/tests/errors/trailing_comma_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True,
+    )
+
   def test_unterminated_proc(self):
     stderr = self._run('xls/dslx/tests/errors/unterminated_proc.x')
     self.assertIn('unterminated_proc.x:23:1-23:1', stderr)

@@ -887,7 +887,8 @@ class AstCloner : public AstNodeVisitor {
       members.push_back(down_cast<Expr*>(old_to_new_.at(member)));
     }
 
-    old_to_new_[n] = module_->Make<XlsTuple>(n->span(), members);
+    old_to_new_[n] =
+        module_->Make<XlsTuple>(n->span(), members, n->has_trailing_comma());
     return absl::OkStatus();
   }
 

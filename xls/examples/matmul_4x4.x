@@ -124,7 +124,7 @@ proc test_proc {
     let (activations_out, activations_in) = chan<F32>[4];
     let (results_out, results_in) = chan<F32>[4];
     spawn matmul<u32:4, u32:4>(activations_in, results_out);
-    (activations_out, results_in, terminator,)
+    (activations_out, results_in, terminator)
   }
 
   next(tok: token, state: ()) {

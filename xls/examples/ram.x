@@ -316,7 +316,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
       u32:1    // WORD_PARTITION_SIZE
     >(
       read_req_r, read_resp_s, write_req_r, write_resp_s);
-    (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator,)
+    (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -389,7 +389,7 @@ proc RamModelInitializationTest {
       true     // INITIALIZED
     >(
       read_req_r, read_resp_s, write_req_r, write_resp_s);
-    (read_req_s, read_resp_r, terminator,)
+    (read_req_s, read_resp_r, terminator)
   }
 
   next(tok: token, state: ()) {

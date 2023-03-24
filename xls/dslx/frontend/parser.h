@@ -161,7 +161,7 @@ class Parser : public TokenParser {
   absl::StatusOr<std::vector<T>> ParseCommaSeq(
       const std::function<absl::StatusOr<T>()>& fparse,
       std::variant<TokenKind, Keyword> terminator,
-      Pos* terminator_limit = nullptr) {
+      Pos* terminator_limit = nullptr, bool* saw_trailing_comma = nullptr) {
     auto try_pop_terminator = [&]() -> absl::StatusOr<bool> {
       if (std::holds_alternative<TokenKind>(terminator)) {
         return TryDropToken(std::get<TokenKind>(terminator), terminator_limit);
@@ -180,6 +180,7 @@ class Parser : public TokenParser {
 
     std::vector<T> parsed;
     bool must_end = false;
+    bool saw_trailing_comma_local = false;
     while (true) {
       XLS_ASSIGN_OR_RETURN(bool popped_terminator, try_pop_terminator());
       if (popped_terminator) {
@@ -193,6 +194,10 @@ class Parser : public TokenParser {
       parsed.push_back(elem);
       XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
       must_end = !dropped_comma;
+      saw_trailing_comma_local = dropped_comma;
+    }
+    if (saw_trailing_comma != nullptr) {  // Populate outparam.
+      *saw_trailing_comma = saw_trailing_comma_local;
     }
     return parsed;
   }
