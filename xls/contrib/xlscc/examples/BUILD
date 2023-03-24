@@ -243,7 +243,7 @@ xls_ir_verilog(
 verilog_library(
     name = "delay1rw",
     srcs = [":delay1rw.sv"],
-    tags = ["XLSCC"],
+    tags = ["XLSCC_1RW"],
 )
 
 verilog_library(
