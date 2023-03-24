@@ -1507,7 +1507,9 @@ class Function : public AstNode {
   }
   std::string_view GetNodeTypeName() const override { return "Function"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
+
   std::string ToString() const override;
+
   // Returns a string representation of this function with the given identifier
   // and without parametrics. Used for printing Proc component functions, i.e.,
   // config and next.

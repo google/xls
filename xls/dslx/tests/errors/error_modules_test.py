@@ -692,6 +692,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('proc_recv_if_reversed.x:28:33-28:38', stderr)
     self.assertIn(' uN[1] recv_if requires a channel argument', stderr)
 
+  def test_spawn_wrong_argc(self):
+    stderr = self._run('xls/dslx/tests/errors/spawn_wrong_argc.x')
+    self.assertIn('spawn_wrong_argc.x:35:5-35:29', stderr)
+    self.assertIn('spawn had wrong argument count; want: 0 got: 2', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -2599,8 +2599,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
 
   // For each [constexpr] arg, mark the associated Param as constexpr.
   absl::flat_hash_map<const Param*, InterpValue> constexpr_env;
-  XLS_RET_CHECK_EQ(node->config()->args().size(),
-                   proc->config()->params().size());
+  size_t argc = node->config()->args().size();
+  size_t paramc = proc->config()->params().size();
+  if (argc != paramc) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("spawn had wrong argument count; want: %d got: %d",
+                        paramc, argc));
+  }
   for (int i = 0; i < node->config()->args().size(); i++) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,

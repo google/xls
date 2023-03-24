@@ -1694,7 +1694,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
            const std::vector<Param*>& members, Function* config, Function* next,
            Function* init, bool is_public)
     : AstNode(owner),
-      span_(span),
+      span_(std::move(span)),
       name_def_(name_def),
       config_name_def_(config_name_def),
       next_name_def_(next_name_def),
