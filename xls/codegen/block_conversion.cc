@@ -1460,8 +1460,10 @@ static absl::Status AddOneShotLogicToRVNodes(
 
   // Now set up the has_sent register
   //  txfr = valid and ready -- data has been transferred to output
-  //  load = all_active_outputs_ready -- pipeline stage is now being loaded
-  //                                     with new inputs.
+  //  load = all_active_outputs_ready && valid
+  //    -- pipeline stage is now being loaded with new inputs.
+  //    -- Not that && valid is not strictly needed but added to remove a case
+  //       where x-propagation is a bit pessimistic.
   //
   // if load
   //   has_been_sent <= 0
@@ -1471,19 +1473,29 @@ static absl::Status AddOneShotLogicToRVNodes(
   // this can be implemented with
   //   load_enable = load + triggered
   //   data = !load
+  name =
+      absl::StrFormat("__%s_valid_and_all_active_outputs_ready", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_and_all_active_outputs_ready,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc,
+          std::vector<Node*>({from_valid, all_active_outputs_ready}), Op::kAnd,
+          name));
+
   name = absl::StrFormat("__%s_has_been_sent_reg_load_en", name_prefix);
   XLS_ASSIGN_OR_RETURN(
       Node * load_enable,
       block->MakeNodeWithName<NaryOp>(
           /*loc=*/loc,
-          std::vector<Node*>({valid_and_ready_txfr, all_active_outputs_ready}),
+          std::vector<Node*>(
+              {valid_and_ready_txfr, valid_and_all_active_outputs_ready}),
           Op::kOr, name));
 
   name = absl::StrFormat("__%s_not_stage_load", name_prefix);
   XLS_ASSIGN_OR_RETURN(
       Node * not_stage_load,
-      block->MakeNodeWithName<UnOp>(/*loc=*/loc, all_active_outputs_ready,
-                                    Op::kNot, name));
+      block->MakeNodeWithName<UnOp>(
+          /*loc=*/loc, valid_and_all_active_outputs_ready, Op::kNot, name));
 
   XLS_RETURN_IF_ERROR(
       has_been_sent_reg_write->ReplaceOperandNumber(0, not_stage_load));

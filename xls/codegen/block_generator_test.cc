@@ -14,9 +14,13 @@
 
 #include "xls/codegen/block_generator.h"
 
+#include "xls/codegen/block_conversion.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
+#include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/block.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
@@ -944,6 +948,93 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
 INSTANTIATE_TEST_SUITE_P(BlockGeneratorTestInstantiation, BlockGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
                          ParameterizedTestName<BlockGeneratorTest>);
+
+TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out0,
+      package.CreateStreamingChannel("out0", ChannelOps::kSendOnly, u32, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out1,
+      package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32, {},
+                                     std::nullopt, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  BValue recv = pb.Receive(in);
+
+  BValue two_five = pb.Literal(UBits(25, 32));
+  BValue one_five = pb.Literal(UBits(15, 32));
+
+  BValue lt_two_five = pb.ULt(recv, two_five);
+  BValue gt_one_five = pb.UGt(recv, one_five);
+
+  pb.SendIf(out0, lt_two_five, recv);
+  pb.SendIf(out1, gt_one_five, recv);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *estimator,
+                            SchedulingOptions().pipeline_stages(1)));
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(true).clock_name("clk");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+  options.use_system_verilog(UseSystemVerilog());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+
+  XLS_VLOG(3) << "Verilog:";
+  XLS_VLOG_LINES(3, verilog);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, block));
+
+  ModuleSimulator simulator = NewModuleSimulator(verilog, sig);
+
+  // Setup input
+  absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+  input_values["in"] = {UBits(0, 32), UBits(20, 32), UBits(30, 32)};
+
+  std::vector<ValidHoldoff> valid_holdoffs = {
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+      ValidHoldoff{.cycles = 2, .driven_values = {IsX(), IsX()}},
+  };
+
+  auto ready_valid_holdoffs =
+      ReadyValidHoldoffs{.valid_holdoffs = {{"in", valid_holdoffs}}};
+
+  // Expected output values
+  absl::flat_hash_map<std::string, int64_t> output_channel_counts;
+  output_channel_counts["out0"] = 2;
+  output_channel_counts["out1"] = 2;
+
+  absl::flat_hash_map<std::string, std::vector<Bits>> expected_output_values;
+  expected_output_values["out0"] = {UBits(0, 32), UBits(20, 32)};
+  expected_output_values["out1"] = {UBits(20, 32), UBits(30, 32)};
+
+  EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
+                                           ready_valid_holdoffs),
+              status_testing::IsOkAndHolds(expected_output_values));
+}
 
 }  // namespace
 }  // namespace verilog
