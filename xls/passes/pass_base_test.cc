@@ -48,8 +48,7 @@ TEST(RamDatastructuresTest, MaskWidthCorrect) {
   RamConfig config{.kind = RamKind::kAbstract,
                    .depth = 2,
                    .word_partition_size = std::nullopt};
-  // TODO(rigge): This should be 0 once masks are supported in codegen
-  EXPECT_EQ(config.mask_width(data_width), 1);
+  EXPECT_EQ(config.mask_width(data_width), std::nullopt);
   config.word_partition_size = 1;
   EXPECT_EQ(config.mask_width(data_width), 32);
   config.word_partition_size = 2;
@@ -59,8 +58,7 @@ TEST(RamDatastructuresTest, MaskWidthCorrect) {
 
   data_width = 7;
   config.word_partition_size = std::nullopt;
-  // TODO(rigge): This should be 0 once masks are supported in codegen
-  EXPECT_EQ(config.mask_width(data_width), 1);
+  EXPECT_EQ(config.mask_width(data_width), std::nullopt);
   config.word_partition_size = 1;
   EXPECT_EQ(config.mask_width(data_width), 7);
   config.word_partition_size = 2;

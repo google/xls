@@ -231,15 +231,15 @@ TEST_F(TranslatorMemoryTest, MemoryReadProc) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
 
   ProcTest(content, block_spec, inputs, outputs);
@@ -282,12 +282,12 @@ TEST_F(TranslatorMemoryTest, MemoryWriteProc) {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),    // addr
           xls::Value(xls::SBits(127, 16)),  // value
-          xls::Value(xls::UBits(1, 1))      // mask
+          xls::Value::Tuple({})             // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(14, 5)),   // addr
           xls::Value(xls::SBits(15, 16)),  // value
-          xls::Value(xls::UBits(1, 1))     // mask
+          xls::Value::Tuple({})            // mask
       })};
 
   ProcTest(content, block_spec, inputs, outputs);
@@ -325,31 +325,31 @@ TEST_F(TranslatorMemoryTest, MemoryReadWriteProc) {
   outputs["barstore__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(11, 6)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(14, 6)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(17, 6)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   outputs["barstore__write_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(10, 6)),    // addr
           xls::Value(xls::SBits(105, 16)),  // value
-          xls::Value(xls::UBits(1, 1))      // mask
+          xls::Value::Tuple({})             // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 6)),   // addr
           xls::Value(xls::SBits(55, 16)),  // value
-          xls::Value(xls::UBits(1, 1))     // mask
+          xls::Value::Tuple({})            // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(16, 6)),   // addr
           xls::Value(xls::SBits(17, 16)),  // value
-          xls::Value(xls::UBits(1, 1))     // mask
+          xls::Value::Tuple({})            // mask
       })};
 
   ProcTest(content, block_spec, inputs, outputs);
@@ -400,27 +400,27 @@ TEST_F(TranslatorMemoryTest, MemoryReadInPipelinedLoop) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(14, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(15, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(14, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(15, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
 
   ProcTest(content, block_spec, inputs, outputs);
@@ -452,15 +452,15 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemory) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -522,15 +522,15 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -592,15 +592,15 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine2) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -663,15 +663,15 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine3) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -733,17 +733,17 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemorySubroutine4) {
       xls::Value::Tuple({
           xls::Value(xls::UBits(3, 5)),     // addr
           xls::Value(xls::SBits(100, 16)),  // value
-          xls::Value(xls::UBits(1, 1))      // mask
+          xls::Value::Tuple({})             // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(8, 5)),     // addr
           xls::Value(xls::SBits(101, 16)),  // value
-          xls::Value(xls::UBits(1, 1))      // mask
+          xls::Value::Tuple({})             // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(15, 5)),    // addr
           xls::Value(xls::SBits(102, 16)),  // value
-          xls::Value(xls::UBits(1, 1))      // mask
+          xls::Value::Tuple({})             // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -810,15 +810,15 @@ TEST_F(TranslatorMemoryTest, IOProcClassMemoryPipelinedLoop) {
   outputs["foo_store__read_request"] = {
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       }),
       xls::Value::Tuple({
           xls::Value(xls::UBits(13, 5)),  // addr
-          xls::Value(xls::UBits(1, 1))    // mask
+          xls::Value::Tuple({})           // mask
       })};
   ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
            /* min_ticks = */ 3);
@@ -895,8 +895,6 @@ TEST_F(TranslatorMemoryTest, ReferenceToMemoryOp) {
           testing::HasSubstr("eferences to side effecting operations")));
 }
 
-
-
 TEST_F(TranslatorMemoryTest, MemoryReadWriteOperatorTest) {
   constexpr std::string_view content = R"(
     #pragma hls_top
@@ -909,23 +907,21 @@ TEST_F(TranslatorMemoryTest, MemoryReadWriteOperatorTest) {
       out.write(value);
     }
   )";
-  IOTest(
-      content,
-      /*inputs=*/
-      {
-          IOOpTest("addr_in", 5, true),
-          IOOpTest("mem__read", 10, true),
-      },
-      /*outputs=*/
-      {
-          IOOpTest("mem__read", xls::Value(xls::UBits(5, 10)),
-                   true),
-          IOOpTest("mem__write",
-                   xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
-                                      xls::Value(xls::UBits(10 * 2, 32))}),
-                   true),
-          IOOpTest("out", 20, true),
-      });
+  IOTest(content,
+         /*inputs=*/
+         {
+             IOOpTest("addr_in", 5, true),
+             IOOpTest("mem__read", 10, true),
+         },
+         /*outputs=*/
+         {
+             IOOpTest("mem__read", xls::Value(xls::UBits(5, 10)), true),
+             IOOpTest("mem__write",
+                      xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
+                                         xls::Value(xls::UBits(10 * 2, 32))}),
+                      true),
+             IOOpTest("out", 20, true),
+         });
 }
 
 TEST_F(TranslatorMemoryTest, MemoryReadWriteFnTest) {
@@ -945,8 +941,7 @@ TEST_F(TranslatorMemoryTest, MemoryReadWriteFnTest) {
          {IOOpTest("addr_in", 5, true), IOOpTest("mem__read", 10, true)},
          /*outputs=*/
          {
-             IOOpTest("mem__read",
-                      xls::Value(xls::UBits(5, 10)), true),
+             IOOpTest("mem__read", xls::Value(xls::UBits(5, 10)), true),
              IOOpTest("mem__write",
                       xls::Value::Tuple({xls::Value(xls::UBits(5, 10)),
                                          xls::Value(xls::UBits(10 * 2, 32))}),

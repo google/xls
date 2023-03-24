@@ -767,6 +767,12 @@ int64_t CChannelType::GetMemoryAddressWidth() const {
   return MemoryAddressWidth(memory_size_);
 }
 
+std::optional<int64_t> CChannelType::GetMemoryMaskWidth() const {
+  // TODO(google/xls#861): support masked memory operations.
+  // Setting mask width to nullopt elides the mask ports.
+  return std::nullopt;
+}
+
 std::shared_ptr<CType> CChannelType::MemoryAddressType(int64_t memory_size) {
   return std::make_shared<CIntType>(MemoryAddressWidth(memory_size), false);
 }
@@ -779,7 +785,10 @@ int64_t CChannelType::MemoryAddressWidth(int64_t memory_size) {
 absl::StatusOr<xls::Type*> CChannelType::GetReadRequestType(
     xls::Package* package, xls::Type* item_type) const {
   xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
-  xls::Type* mask_type = package->GetBitsType(1);
+  xls::Type* mask_type =
+      GetMemoryMaskWidth().has_value()
+          ? package->GetBitsType(GetMemoryMaskWidth().value())
+          : static_cast<xls::Type*>(package->GetTupleType({}));
   return package->GetTupleType({addr_type, mask_type});
 }
 
@@ -791,7 +800,10 @@ absl::StatusOr<xls::Type*> CChannelType::GetReadResponseType(
 absl::StatusOr<xls::Type*> CChannelType::GetWriteRequestType(
     xls::Package* package, xls::Type* item_type) const {
   xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
-  xls::Type* mask_type = package->GetBitsType(1);
+  xls::Type* mask_type =
+      GetMemoryMaskWidth().has_value()
+          ? package->GetBitsType(GetMemoryMaskWidth().value())
+          : static_cast<xls::Type*>(package->GetTupleType({}));
 
   return package->GetTupleType({addr_type, item_type, mask_type});
 }

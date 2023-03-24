@@ -42,11 +42,12 @@ int64_t RamConfig::addr_width() const {
   return CeilOfLog2(static_cast<uint64_t>(depth));
 }
 
-int64_t RamConfig::mask_width(int64_t data_width) const {
+std::optional<int64_t> RamConfig::mask_width(int64_t data_width) const {
   if (!word_partition_size.has_value()) {
-    // TODO(rigge): This should be 0 once masks are supported in codegen
-    return 1;
+    return std::nullopt;
   }
+
+  XLS_CHECK_GT(word_partition_size.value(), 0);
   return (data_width + word_partition_size.value() - 1) /
          word_partition_size.value();
 }

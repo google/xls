@@ -5,12 +5,10 @@ rewrites {
   from_config {
     kind: RAM_ABSTRACT
     depth: 1024
-    word_partition_size: 64
   }
   to_config {
     kind: RAM_1RW
     depth: 1024
-    word_partition_size: 64
   }
   from_channels_logical_to_physical: {
     key: "abstract_read_req"

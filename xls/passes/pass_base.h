@@ -15,11 +15,9 @@
 #ifndef XLS_PASSES_PASS_BASE_H_
 #define XLS_PASSES_PASS_BASE_H_
 
-#include <cstdio>
 #include <filesystem>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -70,7 +68,7 @@ struct RamConfig {
   int64_t addr_width() const;
   // Computed mask width: if word_partition_size is nullopt, 0, else
   // ceil(width/word_partition_size).
-  int64_t mask_width(int64_t data_width) const;
+  std::optional<int64_t> mask_width(int64_t data_width) const;
 
   static absl::StatusOr<RamConfig> FromProto(const RamConfigProto& proto);
 };

@@ -75,6 +75,8 @@ message RamRWRequestProto {
   optional PortProto read_enable = 3;
   optional PortProto write_enable = 4;
   optional PortProto write_data = 5;
+  optional PortProto write_mask = 6;
+  optional PortProto read_mask = 7;
 }
 
 // A RW RAM port has a response side consisting of read data.
@@ -99,6 +101,7 @@ message RamRRequestProto {
   optional string name = 1;
   optional PortProto address = 2;
   optional PortProto enable = 3;
+  optional PortProto mask = 4;
 }
 
 // A "read" RAM port has a response side with read data.
@@ -113,6 +116,7 @@ message RamWRequestProto {
   optional PortProto address = 2;
   optional PortProto data = 3;
   optional PortProto enable = 4;
+  optional PortProto mask = 5;
 }
 
 // A "read" RAM port consists of a R request and R response.

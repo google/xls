@@ -93,9 +93,8 @@ class ModuleSignatureBuilder {
 
   // Add a streaming channel to the interface
   ModuleSignatureBuilder& AddStreamingChannel(
-      std::string_view name, ChannelOps supported_ops,
-      FlowControl flow_control, std::optional<int64_t> fifo_depth,
-      std::string_view port_name,
+      std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
+      std::optional<int64_t> fifo_depth, std::string_view port_name,
       std::optional<std::string_view> valid_port_name =
           std::optional<std::string_view>(),
       std::optional<std::string_view> ready_port_name =
@@ -111,11 +110,15 @@ class ModuleSignatureBuilder {
     std::string_view resp_name;
     int64_t address_width;
     int64_t data_width;
+    int64_t read_mask_width;
+    int64_t write_mask_width;
     std::string_view address_name;
     std::string_view read_enable_name;
     std::string_view write_enable_name;
     std::string_view read_data_name;
     std::string_view write_data_name;
+    std::string_view write_mask_name;
+    std::string_view read_mask_name;
   };
   ModuleSignatureBuilder& AddRam1RW(const Ram1RWArgs& args);
 
@@ -128,11 +131,15 @@ class ModuleSignatureBuilder {
     std::string_view wr_req_name;
     int64_t address_width;
     int64_t data_width;
+    int64_t read_mask_width;
+    int64_t write_mask_width;
     std::string_view read_address_name;
     std::string_view read_data_name;
+    std::string_view read_mask_name;
     std::string_view read_enable_name;
     std::string_view write_address_name;
     std::string_view write_data_name;
+    std::string_view write_mask_name;
     std::string_view write_enable_name;
   };
   ModuleSignatureBuilder& AddRam1R1W(const Ram1R1WArgs& args);

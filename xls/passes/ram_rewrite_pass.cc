@@ -43,9 +43,9 @@ absl::StatusOr<std::array<Node*, N>> ExtractTupleElements(
     std::string_view tuple_name,
     const std::array<const std::string_view, N>& element_names = {}) {
   if (!node->GetType()->IsTuple()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected node %s to have tuple type, but got type %s.",
-                        node->ToString(), node->GetType()->ToString()));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected node %s in %s to have tuple type, but got type %s.",
+        node->ToString(), tuple_name, node->GetType()->ToString()));
   }
   TupleType* node_type = node->GetType()->AsTupleOrDie();
 
@@ -56,8 +56,8 @@ absl::StatusOr<std::array<Node*, N>> ExtractTupleElements(
       if (!expected_element_types[idx].value()->IsEqualTo(
               node_type->element_type(idx))) {
         return absl::InvalidArgumentError(absl::StrFormat(
-            "Expected %s (tuple element %d of %d) to have type %s, got %s.",
-            element_names[idx], idx, expected_element_types.size(),
+            "Expected %s (tuple %s element %d of %d) to have type %s, got %s.",
+            element_names[idx], tuple_name, idx, expected_element_types.size(),
             expected_element_types[idx].value()->ToString(),
             node_type->element_type(idx)->ToString()));
       }
@@ -68,9 +68,7 @@ absl::StatusOr<std::array<Node*, N>> ExtractTupleElements(
   }
   return elements;
 }
-}  // namespace
 
-namespace {
 // Makes channels for config ram_config with the given name prefix.
 absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
     Package* p, std::string_view name_prefix, const RamConfig& ram_config,
@@ -79,10 +77,9 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
 
   int64_t addr_width = ram_config.addr_width();
   int64_t data_width = data_type->GetFlatBitCount();
-  int64_t mask_width = ram_config.mask_width(data_width);
 
   Type* addr_type = p->GetBitsType(addr_width);
-  Type* mask_type = p->GetBitsType(mask_width);
+  Type* mask_type = GetMaskType(p, ram_config.mask_width(data_width));
 
   switch (ram_config.kind) {
     case RamKind::kAbstract: {
@@ -110,8 +107,8 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
     }
     case RamKind::k1RW: {
       Type* bool_type = p->GetBitsType(1);
-      Type* req_type =
-          p->GetTupleType({addr_type, data_type, bool_type, bool_type});
+      Type* req_type = p->GetTupleType(
+          {addr_type, data_type, mask_type, mask_type, bool_type, bool_type});
       Type* resp_type = p->GetTupleType({data_type});
       Type* empty_tuple_type = p->GetTupleType({});
 
@@ -228,7 +225,7 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
   Type* addr_type = fb->package()->GetBitsType(from_config.addr_width());
   int64_t data_width = data_type->GetFlatBitCount();
   Type* mask_type =
-      fb->package()->GetBitsType(from_config.mask_width(data_width));
+      GetMaskType(fb->package(), from_config.mask_width(data_width));
   Type* token_type = fb->package()->GetTokenType();
 
   if (from_config.kind == RamKind::kAbstract &&
@@ -237,15 +234,19 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
       case RamLogicalChannel::kAbstractReadReq: {
         // Abstract read_req is (addr, mask).
         XLS_ASSIGN_OR_RETURN(
-            auto addr_and_mask,
+            auto addr_and_read_mask,
             ExtractTupleElements<2>(operand, {addr_type, mask_type}, "read_req",
                                     {"addr", "mask"}));
-        auto& [addr, mask] = addr_and_mask;
+        auto& [addr, read_mask] = addr_and_read_mask;
 
         // Data can be anything on read, make a zero literal.
         XLS_ASSIGN_OR_RETURN(
             auto* data,
             fb->MakeNode<Literal>(operand->loc(), ZeroOfType(data_type)));
+        // Write mask is unused on read req, make a zero literal.
+        XLS_ASSIGN_OR_RETURN(
+            auto* write_mask,
+            fb->MakeNode<Literal>(operand->loc(), ZeroOfType(mask_type)));
         // Make a 0 and 1 literal for we and we, respectively.
         XLS_ASSIGN_OR_RETURN(
             auto* we, fb->MakeNode<Literal>(operand->loc(),
@@ -254,8 +255,9 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
             auto* re, fb->MakeNode<Literal>(operand->loc(),
                                             Value(UBits(1, /*bit_count=*/1))));
         // TODO(rigge): update when 1RW supports mask.
-        return fb->MakeNode<Tuple>(operand->loc(),
-                                   std::vector<Node*>{addr, data, we, re});
+        return fb->MakeNode<Tuple>(
+            operand->loc(),
+            std::vector<Node*>{addr, data, write_mask, read_mask, we, re});
       }
       case RamLogicalChannel::kAbstractReadResp: {
         // Abstract read_req is (tok, (data)), same for abstract and 1RW.
@@ -277,10 +279,14 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
         // Abstract write_req is (addr, data, mask). First, check operand's
         // type.
         XLS_ASSIGN_OR_RETURN(
-            auto addr_data_and_mask,
+            auto addr_data_and_write_mask,
             ExtractTupleElements<3>(operand, {addr_type, data_type, mask_type},
                                     "write_req", {"addr", "data", "mask"}));
-        auto& [addr, data, mask] = addr_data_and_mask;
+        auto& [addr, data, write_mask] = addr_data_and_write_mask;
+        // Read mask is unused on read req, make a zero literal.
+        XLS_ASSIGN_OR_RETURN(
+            auto* read_mask,
+            fb->MakeNode<Literal>(operand->loc(), ZeroOfType(mask_type)));
         XLS_ASSIGN_OR_RETURN(
             auto* we, fb->MakeNode<Literal>(operand->loc(),
                                             Value(UBits(1, /*bit_count=*/1))));
@@ -288,8 +294,9 @@ absl::StatusOr<Node*> RepackPayload(FunctionBase* fb, Node* operand,
             auto* re, fb->MakeNode<Literal>(operand->loc(),
                                             Value(UBits(0, /*bit_count=*/1))));
         // TODO(rigge): update when 1RW supports mask.
-        return fb->MakeNode<Tuple>(operand->loc(),
-                                   std::vector<Node*>{addr, data, we, re});
+        return fb->MakeNode<Tuple>(
+            operand->loc(),
+            std::vector<Node*>{addr, data, write_mask, read_mask, we, re});
       }
       case RamLogicalChannel::kWriteCompletion: {
         // write_completion is (tok, ()). First, check operand's type.
@@ -591,6 +598,13 @@ std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel) {
     case RamLogicalChannel::kWriteCompletion:
       return "write_completion";
   }
+}
+
+Type* GetMaskType(Package* package, std::optional<int64_t> mask_width) {
+  if (mask_width.has_value()) {
+    return package->GetBitsType(mask_width.value());
+  }
+  return package->GetTupleType({});
 }
 
 absl::StatusOr<bool> RamRewritePass::RunInternal(Package* p,

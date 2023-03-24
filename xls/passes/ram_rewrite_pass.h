@@ -42,6 +42,11 @@ absl::StatusOr<RamLogicalChannel> RamLogicalChannelFromName(
     std::string_view name);
 std::string_view RamLogicalChannelName(RamLogicalChannel logical_channel);
 
+// If mask_width is defined, return bits[mask_width]. Otherwise, there are no
+// masks, which we represent with an empty tuple. The empty tuple will be
+// removed in codegen.
+Type* GetMaskType(Package* package, std::optional<int64_t> mask_width);
+
 // Pass that rewrites RAMs of one type to a new type. Generally this will be
 // some kind of lowering from more abstract to concrete RAMs.
 class RamRewritePass : public Pass {

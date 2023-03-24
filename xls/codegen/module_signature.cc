@@ -26,7 +26,6 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
 
@@ -236,6 +235,20 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
   read_data_proto->set_direction(DIRECTION_INPUT);
   read_data_proto->set_width(args.data_width);
 
+  if (args.write_mask_width > 0) {
+    auto* write_mask_proto = req->mutable_write_mask();
+    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_width(args.write_mask_width);
+  }
+
+  if (args.read_mask_width > 0) {
+    auto* read_mask_proto = req->mutable_read_mask();
+    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_width(args.read_mask_width);
+  }
+
   return *this;
 }
 
@@ -272,6 +285,13 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   rd_data_proto->set_direction(DIRECTION_INPUT);
   rd_data_proto->set_width(args.data_width);
 
+  if (args.read_mask_width > 0) {
+    auto* read_mask_proto = w_req->mutable_mask();
+    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_width(args.read_mask_width);
+  }
+
   auto* wr_address_proto = w_req->mutable_address();
   wr_address_proto->set_name(ToProtoString(args.write_address_name));
   wr_address_proto->set_direction(DIRECTION_OUTPUT);
@@ -281,6 +301,13 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
   wr_data_proto->set_name(ToProtoString(args.write_data_name));
   wr_data_proto->set_direction(DIRECTION_OUTPUT);
   wr_data_proto->set_width(args.data_width);
+
+  if (args.write_mask_width > 0) {
+    auto* write_mask_proto = w_req->mutable_mask();
+    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_width(args.write_mask_width);
+  }
 
   auto* wr_enable_proto = w_req->mutable_enable();
   wr_enable_proto->set_name(ToProtoString(args.write_enable_name));

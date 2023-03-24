@@ -1137,6 +1137,7 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

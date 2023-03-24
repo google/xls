@@ -497,7 +497,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue addr = pb.TupleIndex(read_tup, 0, op_loc);
       xls::BValue condition = pb.TupleIndex(read_tup, 1, op_loc);
 
-      xls::BValue mask = pb.Literal(xls::UBits(1, 1), op_loc);
+      // TODO(google/xls#861): supported masked memory operations.
+      xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
       xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
       new_token = pb.SendIf(bundle.read_request, before_token, condition,
                             send_tuple_with_mask, op_loc);
@@ -533,7 +534,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       // This has (addr, value, mask)
       xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
       xls::BValue value = pb.TupleIndex(send_tuple, 1, op_loc);
-      xls::BValue mask = pb.Literal(xls::UBits(1, 1), op_loc);
+      // TODO(google/xls#861): supported masked memory operations.
+      xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
       xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
       new_token = pb.SendIf(bundle.write_request, before_token, condition,
                             send_tuple_with_mask, op_loc);

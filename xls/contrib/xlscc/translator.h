@@ -383,6 +383,7 @@ class CChannelType : public CType {
   OpType GetOpType() const;
   int64_t GetMemorySize() const;
   int64_t GetMemoryAddressWidth() const;
+  std::optional<int64_t> GetMemoryMaskWidth() const;
   static std::shared_ptr<CType> MemoryAddressType(int64_t memory_size);
   static int64_t MemoryAddressWidth(int64_t memory_size);
 
