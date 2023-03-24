@@ -58,6 +58,8 @@ absl::StatusOr<RamKind> RamKindFromProto(RamKindProto proto) {
       return RamKind::kAbstract;
     case RamKindProto::RAM_1RW:
       return RamKind::k1RW;
+    case RamKindProto::RAM_1R1W:
+      return RamKind::k1R1W;
     default:
       return absl::InvalidArgumentError("Invalid RamKind");
   }

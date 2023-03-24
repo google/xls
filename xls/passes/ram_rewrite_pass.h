@@ -32,6 +32,10 @@ enum class RamLogicalChannel {
   // 1RW RAM
   k1RWReq,
   k1RWResp,
+  // 1R1W RAM
+  k1R1WReadReq,
+  k1R1WReadResp,
+  k1R1WWriteReq,
 
   // Special: used to signal write completion, is empty and should not be
   // codegen'd as a real channel.

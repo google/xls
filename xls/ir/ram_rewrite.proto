@@ -20,6 +20,7 @@ enum RamKindProto {
   RAM_INVALID = 0;
   RAM_ABSTRACT = 1;
   RAM_1RW = 2;
+  RAM_1R1W = 3;
 }
 
 message RamConfigProto {

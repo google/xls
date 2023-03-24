@@ -14,6 +14,8 @@
 
 #include "xls/passes/ram_rewrite_pass.h"
 
+#include <array>
+#include <optional>
 #include <string>
 
 #include "gtest/gtest.h"
@@ -59,53 +61,49 @@ class RamRewritePassTest : public IrTestBase {
         /*package=*/p, /*should_verify=*/true);
   }
 
-  absl::StatusOr<absl::flat_hash_map<std::string, Channel*>> MakeRam(
+  absl::StatusOr<std::array<Channel*, 4>> MakeAbstractRam(
       Package* p, const RamConfig& config, std::string_view name_prefix,
       Type* data_type) {
-    absl::flat_hash_map<std::string, Channel*> channels;
+    std::array<Channel*, 4> channels;
     int64_t data_width = data_type->GetFlatBitCount();
-    switch (config.kind) {
-      case RamKind::kAbstract: {
-        Type* addr_type = p->GetBitsType(config.addr_width());
-        Type* mask_type = GetMaskType(p, config.mask_width(data_width));
-
-        Type* read_req_type =
-            p->GetTupleType(std::vector<Type*>{addr_type, mask_type});
-        Type* read_resp_type = p->GetTupleType(std::vector<Type*>{data_type});
-        Type* write_req_type = p->GetTupleType(
-            std::vector<Type*>{addr_type, data_type, mask_type});
-        Type* write_resp_type = p->GetTupleType(std::vector<Type*>{});
-
-        XLS_ASSIGN_OR_RETURN(
-            Channel * read_req,
-            p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
-                                      ChannelOps::kSendOnly, read_req_type));
-        channels["read_req"] = read_req;
-
-        XLS_ASSIGN_OR_RETURN(Channel * read_resp,
-                             p->CreateStreamingChannel(
-                                 absl::StrCat(name_prefix, "_read_resp"),
-                                 ChannelOps::kReceiveOnly, read_resp_type));
-        channels["read_resp"] = read_resp;
-
-        XLS_ASSIGN_OR_RETURN(
-            Channel * write_req,
-            p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
-                                      ChannelOps::kSendOnly, write_req_type));
-        channels["write_req"] = write_req;
-
-        XLS_ASSIGN_OR_RETURN(Channel * write_resp,
-                             p->CreateStreamingChannel(
-                                 absl::StrCat(name_prefix, "_write_resp"),
-                                 ChannelOps::kReceiveOnly, write_resp_type));
-        channels["write_resp"] = write_resp;
-        return channels;
-      }
-      default: {
-        return absl::UnimplementedError(absl::StrFormat(
-            "Unimplemented RAM kind %s.", RamKindToString(config.kind)));
-      }
+    if (config.kind != RamKind::kAbstract) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "RAM must be abstract kind, got %s.", RamKindToString(config.kind)));
     }
+    Type* addr_type = p->GetBitsType(config.addr_width());
+    Type* mask_type = GetMaskType(p, config.mask_width(data_width));
+
+    Type* read_req_type =
+        p->GetTupleType(std::vector<Type*>{addr_type, mask_type});
+    Type* read_resp_type = p->GetTupleType(std::vector<Type*>{data_type});
+    Type* write_req_type =
+        p->GetTupleType(std::vector<Type*>{addr_type, data_type, mask_type});
+    Type* write_resp_type = p->GetTupleType(std::vector<Type*>{});
+
+    XLS_ASSIGN_OR_RETURN(
+        Channel * read_req,
+        p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
+                                  ChannelOps::kSendOnly, read_req_type));
+    channels[0] = read_req;
+
+    XLS_ASSIGN_OR_RETURN(
+        Channel * read_resp,
+        p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
+                                  ChannelOps::kReceiveOnly, read_resp_type));
+    channels[1] = read_resp;
+
+    XLS_ASSIGN_OR_RETURN(
+        Channel * write_req,
+        p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
+                                  ChannelOps::kSendOnly, write_req_type));
+    channels[2] = write_req;
+
+    XLS_ASSIGN_OR_RETURN(
+        Channel * write_resp,
+        p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_resp"),
+                                  ChannelOps::kReceiveOnly, write_resp_type));
+    channels[3] = write_resp;
+    return channels;
   }
 };
 
@@ -116,18 +114,11 @@ TEST_F(RamRewritePassTest, NoRamRewrites) {
                    .depth = 1024,
                    .word_partition_size = std::nullopt,
                    .initial_value = std::nullopt};
-  XLS_ASSERT_OK(
-      MakeRam(p.get(), config, "ram", /*data_type=*/p->GetBitsType(32))
-          .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_read_req,
-                           p->GetChannel("ram_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_read_resp,
-                           p->GetChannel("ram_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_write_req,
-                           p->GetChannel("ram_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_write_resp,
-                           p->GetChannel("ram_write_resp"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto abstract_ram_channels,
+                           MakeAbstractRam(p.get(), config, "ram",
+                                           /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_read_req, ram_read_resp, ram_write_req, ram_write_resp] =
+      abstract_ram_channels;
 
   pb->Send(ram_read_req,
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
@@ -152,6 +143,58 @@ TEST_F(RamRewritePassTest, NoRamRewrites) {
               m::ChannelWithType("()"));
 }
 
+TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1rw = config_abstract;
+  config_1rw.kind = RamKind::k1RW;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
+
+  pb->Send(ram_abstract_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract_read_resp);
+  pb->Send(ram_abstract_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{RamRewrite{
+      .from_config = config_abstract,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>{
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"write_completion", "ram_abstract_write_resp"},
+          },
+      .to_config = config_1rw,
+      .to_name_prefix = "ram_1rw",
+      .model_builder = std::nullopt,
+  }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 3);
+  EXPECT_THAT(
+      p->GetChannel("ram_1rw_req").value(),
+      m::ChannelWithType("(bits[10], bits[32], (), (), bits[1], bits[1])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_write_completion").value(),
+              m::ChannelWithType("()"));
+}
+
 TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
   auto p = std::make_unique<Package>(TestName());
   auto pb = MakeProcBuilder(p.get(), "p");
@@ -161,20 +204,14 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
                             .initial_value = std::nullopt};
   RamConfig config_1rw = config_abstract;
   config_1rw.kind = RamKind::k1RW;
-  XLS_ASSERT_OK(
-      MakeRam(p.get(), config_abstract, "ram_abstract",
-              /*data_type=*/
-              p->GetTupleType({p->GetBitsType(32), p->GetBitsType(1)}))
-          .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_req,
-                           p->GetChannel("ram_abstract_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_resp,
-                           p->GetChannel("ram_abstract_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_req,
-                           p->GetChannel("ram_abstract_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_resp,
-                           p->GetChannel("ram_abstract_write_resp"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(
+          p.get(), config_abstract, "ram_abstract",
+          /*data_type=*/
+          p->GetTupleType({p->GetBitsType(32), p->GetBitsType(1)})));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
 
   pb->Send(ram_abstract_read_req, pb->Literal(Value::Tuple({
                                       Value(UBits(0, 10)),  // addr
@@ -217,64 +254,6 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteDataIsTuple) {
               m::ChannelWithType("()"));
 }
 
-TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewrite) {
-  auto p = std::make_unique<Package>(TestName());
-  auto pb = MakeProcBuilder(p.get(), "p");
-  RamConfig config_abstract{.kind = RamKind::kAbstract,
-                            .depth = 1024,
-                            .word_partition_size = std::nullopt,
-                            .initial_value = std::nullopt};
-  RamConfig config_1rw = config_abstract;
-  config_1rw.kind = RamKind::k1RW;
-  XLS_ASSERT_OK(MakeRam(p.get(), config_abstract, "ram_abstract",
-                        /*data_type=*/p->GetBitsType(32))
-                    .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_req,
-                           p->GetChannel("ram_abstract_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_resp,
-                           p->GetChannel("ram_abstract_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_req,
-                           p->GetChannel("ram_abstract_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_resp,
-                           p->GetChannel("ram_abstract_write_resp"));
-
-  pb->Send(ram_abstract_read_req,
-           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
-  pb->Receive(ram_abstract_read_resp);
-  pb->Send(ram_abstract_write_req,
-           pb->Literal(Value::Tuple(
-               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
-  pb->Receive(ram_abstract_write_resp);
-
-  XLS_ASSERT_OK(pb->Build({}).status());
-  XLS_ASSERT_OK(p->SetTopByName("p"));
-
-  std::vector<RamRewrite> ram_rewrites{RamRewrite{
-      .from_config = config_abstract,
-      .from_channels_logical_to_physical =
-          absl::flat_hash_map<std::string, std::string>{
-              {"abstract_read_req", "ram_abstract_read_req"},
-              {"abstract_read_resp", "ram_abstract_read_resp"},
-              {"abstract_write_req", "ram_abstract_write_req"},
-              {"write_completion", "ram_abstract_write_resp"},
-          },
-      .to_config = config_1rw,
-      .to_name_prefix = "ram_1rw",
-      .model_builder = std::nullopt,
-  }};
-  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
-  EXPECT_EQ(p->procs().size(), 1);
-  EXPECT_EQ(p->channels().size(), 3);
-  EXPECT_THAT(
-      p->GetChannel("ram_1rw_req").value(),
-      m::ChannelWithType("(bits[10], bits[32], (), (), bits[1], bits[1])"));
-  EXPECT_THAT(p->GetChannel("ram_1rw_resp").value(),
-              m::ChannelWithType("(bits[32])"));
-  EXPECT_THAT(p->GetChannel("ram_1rw_write_completion").value(),
-              m::ChannelWithType("()"));
-}
-
 TEST_F(RamRewritePassTest, SingleAbstractTo1RWWithMaskRewrite) {
   auto p = std::make_unique<Package>(TestName());
   auto pb = MakeProcBuilder(p.get(), "p");
@@ -284,18 +263,12 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWWithMaskRewrite) {
                             .initial_value = std::nullopt};
   RamConfig config_1rw = config_abstract;
   config_1rw.kind = RamKind::k1RW;
-  XLS_ASSERT_OK(MakeRam(p.get(), config_abstract, "ram_abstract",
-                        /*data_type=*/p->GetBitsType(32))
-                    .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_req,
-                           p->GetChannel("ram_abstract_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_resp,
-                           p->GetChannel("ram_abstract_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_req,
-                           p->GetChannel("ram_abstract_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_resp,
-                           p->GetChannel("ram_abstract_write_resp"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
 
   pb->Send(
       ram_abstract_read_req,
@@ -343,29 +316,20 @@ TEST_F(RamRewritePassTest, MultipleAbstractTo1RWRewrite) {
                             .initial_value = std::nullopt};
   RamConfig config_1rw = config_abstract;
   config_1rw.kind = RamKind::k1RW;
-  XLS_ASSERT_OK(MakeRam(p.get(), config_abstract, "ram_abstract0",
-                        /*data_type=*/p->GetBitsType(32))
-                    .status());
-  XLS_ASSERT_OK(MakeRam(p.get(), config_abstract, "ram_abstract1",
-                        /*data_type=*/p->GetBitsType(32))
-                    .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract0_read_req,
-                           p->GetChannel("ram_abstract0_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract0_read_resp,
-                           p->GetChannel("ram_abstract0_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract0_write_req,
-                           p->GetChannel("ram_abstract0_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract0_write_resp,
-                           p->GetChannel("ram_abstract0_write_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract1_read_req,
-                           p->GetChannel("ram_abstract1_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract1_read_resp,
-                           p->GetChannel("ram_abstract1_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract1_write_req,
-                           p->GetChannel("ram_abstract1_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract1_write_resp,
-                           p->GetChannel("ram_abstract1_write_resp"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract0_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract0",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract0_read_req, ram_abstract0_read_resp,
+         ram_abstract0_write_req, ram_abstract0_write_resp] =
+      abstract0_ram_channels;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract1_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract1_read_req, ram_abstract1_read_resp,
+         ram_abstract1_write_req, ram_abstract1_write_resp] =
+      abstract1_ram_channels;
 
   pb->Send(ram_abstract0_read_req,
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
@@ -441,18 +405,12 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
                             .initial_value = std::nullopt};
   RamConfig config_1rw = config_abstract;
   config_1rw.kind = RamKind::k1RW;
-  XLS_ASSERT_OK(MakeRam(p.get(), config_abstract, "ram_abstract",
-                        /*data_type=*/p->GetBitsType(32))
-                    .status());
-
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_req,
-                           p->GetChannel("ram_abstract_read_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_read_resp,
-                           p->GetChannel("ram_abstract_read_resp"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_req,
-                           p->GetChannel("ram_abstract_write_req"));
-  XLS_ASSERT_OK_AND_ASSIGN(Channel * ram_abstract_write_resp,
-                           p->GetChannel("ram_abstract_write_resp"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
 
   pb->Send(ram_abstract_read_req,
            pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
@@ -487,6 +445,353 @@ TEST_F(RamRewritePassTest, SingleAbstractTo1RWRewriteWithWidthMismatch) {
                HasSubstr(
                    "Expected addr (tuple read_req element 0 of 2) to have type "
                    "bits[12], got bits[10]")));
+}
+
+TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewrite) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1r1w = config_abstract;
+  config_1r1w.kind = RamKind::k1R1W;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
+
+  pb->Send(ram_abstract_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract_read_resp);
+  pb->Send(ram_abstract_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{RamRewrite{
+      .from_config = config_abstract,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>{
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"write_completion", "ram_abstract_write_resp"},
+          },
+      .to_config = config_1r1w,
+      .to_name_prefix = "ram_1r1w",
+      .model_builder = std::nullopt,
+  }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 4);
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_req").value(),
+              m::ChannelWithType("(bits[10], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_req").value(),
+              m::ChannelWithType("(bits[10], bits[32], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_completion").value(),
+              m::ChannelWithType("()"));
+}
+
+TEST_F(RamRewritePassTest, SingleAbstractTo1R1WRewriteDataIsTuple) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1r1w = config_abstract;
+  config_1r1w.kind = RamKind::k1R1W;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(
+          p.get(), config_abstract, "ram_abstract",
+          /*data_type=*/
+          p->GetTupleType({p->GetBitsType(32), p->GetBitsType(32)})));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
+
+  pb->Send(ram_abstract_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract_read_resp);
+  pb->Send(ram_abstract_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)),
+                Value::Tuple({Value(UBits(0, 32)), Value(UBits(0, 32))}),
+                Value::Tuple({})})));
+  pb->Receive(ram_abstract_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{RamRewrite{
+      .from_config = config_abstract,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>{
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"write_completion", "ram_abstract_write_resp"},
+          },
+      .to_config = config_1r1w,
+      .to_name_prefix = "ram_1r1w",
+      .model_builder = std::nullopt,
+  }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 4);
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_req").value(),
+              m::ChannelWithType("(bits[10], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_resp").value(),
+              m::ChannelWithType("((bits[32], bits[32]))"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_req").value(),
+              m::ChannelWithType("(bits[10], (bits[32], bits[32]), ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_completion").value(),
+              m::ChannelWithType("()"));
+}
+
+TEST_F(RamRewritePassTest, SingleAbstractTo1R1WWithMaskRewrite) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = 8,
+                            .initial_value = std::nullopt};
+  RamConfig config_1r1w = config_abstract;
+  config_1r1w.kind = RamKind::k1R1W;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract_read_req, ram_abstract_read_resp, ram_abstract_write_req,
+         ram_abstract_write_resp] = abstract_ram_channels;
+
+  pb->Send(
+      ram_abstract_read_req,
+      pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0xf, 4))})));
+  pb->Receive(ram_abstract_read_resp);
+  pb->Send(ram_abstract_write_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value(UBits(0, 32)),
+                                     Value(UBits(0xf, 4))})));
+  pb->Receive(ram_abstract_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{RamRewrite{
+      .from_config = config_abstract,
+      .from_channels_logical_to_physical =
+          absl::flat_hash_map<std::string, std::string>{
+              {"abstract_read_req", "ram_abstract_read_req"},
+              {"abstract_read_resp", "ram_abstract_read_resp"},
+              {"abstract_write_req", "ram_abstract_write_req"},
+              {"write_completion", "ram_abstract_write_resp"},
+          },
+      .to_config = config_1r1w,
+      .to_name_prefix = "ram_1r1w",
+      .model_builder = std::nullopt,
+  }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 4);
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_req").value(),
+              m::ChannelWithType("(bits[10], bits[4])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_read_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_req").value(),
+              m::ChannelWithType("(bits[10], bits[32], bits[4])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_write_completion").value(),
+              m::ChannelWithType("()"));
+}
+
+TEST_F(RamRewritePassTest, MultipleAbstractTo1R1WRewrite) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1r1w = config_abstract;
+  config_1r1w.kind = RamKind::k1R1W;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract0_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract0",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract0_read_req, ram_abstract0_read_resp,
+         ram_abstract0_write_req, ram_abstract0_write_resp] =
+      abstract0_ram_channels;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract1_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract1_read_req, ram_abstract1_read_resp,
+         ram_abstract1_write_req, ram_abstract1_write_resp] =
+      abstract1_ram_channels;
+
+  pb->Send(ram_abstract0_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract0_read_resp);
+  pb->Send(ram_abstract0_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract0_write_resp);
+
+  pb->Send(ram_abstract1_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract1_read_resp);
+  pb->Send(ram_abstract1_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract1_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{
+      RamRewrite{
+          .from_config = config_abstract,
+          .from_channels_logical_to_physical =
+              absl::flat_hash_map<std::string, std::string>{
+                  {"abstract_read_req", "ram_abstract0_read_req"},
+                  {"abstract_read_resp", "ram_abstract0_read_resp"},
+                  {"abstract_write_req", "ram_abstract0_write_req"},
+                  {"write_completion", "ram_abstract0_write_resp"},
+              },
+          .to_config = config_1r1w,
+          .to_name_prefix = "ram_1r1w_0",
+          .model_builder = std::nullopt,
+      },
+      RamRewrite{
+          .from_config = config_abstract,
+          .from_channels_logical_to_physical =
+              absl::flat_hash_map<std::string, std::string>{
+                  {"abstract_read_req", "ram_abstract1_read_req"},
+                  {"abstract_read_resp", "ram_abstract1_read_resp"},
+                  {"abstract_write_req", "ram_abstract1_write_req"},
+                  {"write_completion", "ram_abstract1_write_resp"},
+              },
+          .to_config = config_1r1w,
+          .to_name_prefix = "ram_1r1w_1",
+          .model_builder = std::nullopt,
+      }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 8);
+  EXPECT_THAT(p->GetChannel("ram_1r1w_0_read_req").value(),
+              m::ChannelWithType("(bits[10], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_0_read_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_0_write_req").value(),
+              m::ChannelWithType("(bits[10], bits[32], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_0_write_completion").value(),
+              m::ChannelWithType("()"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_read_req").value(),
+              m::ChannelWithType("(bits[10], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_read_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_write_req").value(),
+              m::ChannelWithType("(bits[10], bits[32], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_write_completion").value(),
+              m::ChannelWithType("()"));
+}
+
+TEST_F(RamRewritePassTest, MultipleAbstractTo1RWAnd1R1WRewrite) {
+  auto p = std::make_unique<Package>(TestName());
+  auto pb = MakeProcBuilder(p.get(), "p");
+  RamConfig config_abstract{.kind = RamKind::kAbstract,
+                            .depth = 1024,
+                            .word_partition_size = std::nullopt,
+                            .initial_value = std::nullopt};
+  RamConfig config_1rw = config_abstract;
+  config_1rw.kind = RamKind::k1RW;
+  RamConfig config_1r1w = config_abstract;
+  config_1r1w.kind = RamKind::k1R1W;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract0_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract0",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract0_read_req, ram_abstract0_read_resp,
+         ram_abstract0_write_req, ram_abstract0_write_resp] =
+      abstract0_ram_channels;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto abstract1_ram_channels,
+      MakeAbstractRam(p.get(), config_abstract, "ram_abstract1",
+                      /*data_type=*/p->GetBitsType(32)));
+  auto& [ram_abstract1_read_req, ram_abstract1_read_resp,
+         ram_abstract1_write_req, ram_abstract1_write_resp] =
+      abstract1_ram_channels;
+
+  pb->Send(ram_abstract0_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract0_read_resp);
+  pb->Send(ram_abstract0_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract0_write_resp);
+
+  pb->Send(ram_abstract1_read_req,
+           pb->Literal(Value::Tuple({Value(UBits(0, 10)), Value::Tuple({})})));
+  pb->Receive(ram_abstract1_read_resp);
+  pb->Send(ram_abstract1_write_req,
+           pb->Literal(Value::Tuple(
+               {Value(UBits(0, 10)), Value(UBits(0, 32)), Value::Tuple({})})));
+  pb->Receive(ram_abstract1_write_resp);
+
+  XLS_ASSERT_OK(pb->Build({}).status());
+  XLS_ASSERT_OK(p->SetTopByName("p"));
+
+  std::vector<RamRewrite> ram_rewrites{
+      RamRewrite{
+          .from_config = config_abstract,
+          .from_channels_logical_to_physical =
+              absl::flat_hash_map<std::string, std::string>{
+                  {"abstract_read_req", "ram_abstract0_read_req"},
+                  {"abstract_read_resp", "ram_abstract0_read_resp"},
+                  {"abstract_write_req", "ram_abstract0_write_req"},
+                  {"write_completion", "ram_abstract0_write_resp"},
+              },
+          .to_config = config_1rw,
+          .to_name_prefix = "ram_1rw_0",
+          .model_builder = std::nullopt,
+      },
+      RamRewrite{
+          .from_config = config_abstract,
+          .from_channels_logical_to_physical =
+              absl::flat_hash_map<std::string, std::string>{
+                  {"abstract_read_req", "ram_abstract1_read_req"},
+                  {"abstract_read_resp", "ram_abstract1_read_resp"},
+                  {"abstract_write_req", "ram_abstract1_write_req"},
+                  {"write_completion", "ram_abstract1_write_resp"},
+              },
+          .to_config = config_1r1w,
+          .to_name_prefix = "ram_1r1w_1",
+          .model_builder = std::nullopt,
+      }};
+  EXPECT_THAT(Run(p.get(), ram_rewrites), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(p->channels().size(), 7);
+  EXPECT_THAT(
+      p->GetChannel("ram_1rw_0_req").value(),
+      m::ChannelWithType("(bits[10], bits[32], (), (), bits[1], bits[1])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_0_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1rw_0_write_completion").value(),
+              m::ChannelWithType("()"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_read_req").value(),
+              m::ChannelWithType("(bits[10], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_read_resp").value(),
+              m::ChannelWithType("(bits[32])"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_write_req").value(),
+              m::ChannelWithType("(bits[10], bits[32], ())"));
+  EXPECT_THAT(p->GetChannel("ram_1r1w_1_write_completion").value(),
+              m::ChannelWithType("()"));
 }
 }  // namespace
 }  // namespace xls
