@@ -663,8 +663,8 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
 }
 
 // Evaluates a Number AST node to an InterpValue.
-absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
-                                           const ConcreteType* type) {
+static absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
+                                                  const ConcreteType* type) {
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
   const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
