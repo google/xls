@@ -18,6 +18,7 @@
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/function_builder.h"
 
 using std::shared_ptr;
 using std::string;
@@ -151,39 +152,21 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
       XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
     }
 
+    {
+      // We use the relative condition so that returns also stop unrolling
+      XLS_ASSIGN_OR_RETURN(bool condition_must_be_false,
+                           BitMustBe(false, context().relative_condition,
+                                     solver, z3_translator_parent->ctx(), loc));
+      if (condition_must_be_false) {
+        break;
+      }
+    }
+
     // Generate body
     {
       PushContextGuard for_body_guard(*this, loc);
       context().propagate_break_up = true;
       context().propagate_continue_up = false;
-
-      // Check condition first
-      if (context().relative_break_condition.valid() && !always_this_iter) {
-        // Simplify break logic in easy ways;
-        // Z3 fails to solve some cases without this.
-        XLS_RETURN_IF_ERROR(
-            ShortCircuitBVal(context().relative_break_condition, loc));
-
-        // Use Z3 to check if another loop iteration is possible.
-        xls::BValue not_break =
-            context().fb->Not(context().relative_break_condition);
-
-        XLS_ASSIGN_OR_RETURN(
-            std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator,
-            xls::solvers::z3::IrTranslator::CreateAndTranslate(
-                /*ctx=*/z3_translator_parent->ctx(),
-                /*source=*/not_break.node(),
-                /*allow_unsupported=*/false));
-
-        XLS_ASSIGN_OR_RETURN(
-            Z3_lbool result,
-            IsBitSatisfiable(not_break.node(), solver, *z3_translator));
-
-        // No combination of variables can satisfy !break condition.
-        if (result == Z3_L_FALSE) {
-          break;
-        }
-      }
 
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
     }
@@ -198,8 +181,9 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
     const double iter_seconds = iter_end - iter_start;
 
     if (iter_seconds > 0.1 && iter_seconds > slowest_iter) {
-      XLS_LOG(WARNING) << ErrorMessage(
-          loc, "Slow loop unrolling iteration %i: %fms", nIters, iter_seconds);
+      XLS_LOG(WARNING) << ErrorMessage(loc,
+                                       "Slow loop unrolling iteration %i: %fms",
+                                       nIters, iter_seconds * 1000.0);
       slowest_iter = iter_seconds;
     }
   }
@@ -452,8 +436,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
 
       auto channel_type = std::make_shared<CChannelType>(
-          inner_channel->item_type,
-          inner_channel->memory_size);
+          inner_channel->item_type, inner_channel->memory_size);
 
       auto lvalue = std::make_shared<LValue>(inner_channel);
       XLS_RETURN_IF_ERROR(

@@ -38,12 +38,14 @@ class XlsccTestBase : public xls::IrTestBase {
   void Run(const absl::flat_hash_map<std::string, uint64_t>& args,
            uint64_t expected, std::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
-           std::vector<std::string_view> clang_argv = {});
+           std::vector<std::string_view> clang_argv = {},
+           int64_t max_unroll_iters = 0);
 
   void Run(const absl::flat_hash_map<std::string, xls::Value>& args,
            xls::Value expected, std::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
-           std::vector<std::string_view> clang_argv = {});
+           std::vector<std::string_view> clang_argv = {},
+           int64_t max_unroll_iters = 0);
 
   void RunWithStatics(
       const absl::flat_hash_map<std::string, xls::Value>& args,
@@ -56,14 +58,16 @@ class XlsccTestBase : public xls::IrTestBase {
                         bool io_test_mode = false,
                         bool error_on_init_interval = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
-                        bool fail_xlscc_check = false);
+                        bool fail_xlscc_check = false,
+                        int64_t max_unroll_iters = 0);
 
   absl::Status ScanFile(std::string_view cpp_src,
                         std::vector<std::string_view> clang_argv = {},
                         bool io_test_mode = false,
                         bool error_on_init_interval = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
-                        bool fail_xlscc_check = false);
+                        bool fail_xlscc_check = false,
+                        int64_t max_unroll_iters = 0);
 
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
@@ -77,11 +81,13 @@ class XlsccTestBase : public xls::IrTestBase {
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false,
+      int64_t max_unroll_iters = 0);
 
   absl::StatusOr<std::string> SourceToIr(
       std::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false,
+      int64_t max_unroll_iters = 0);
 
   struct IOOpTest {
     IOOpTest(std::string name, int value, bool condition)

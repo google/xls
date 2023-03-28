@@ -39,7 +39,8 @@ const int determinism_test_repeat_count = 3;
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         uint64_t expected, std::string_view cpp_source,
                         xabsl::SourceLocation loc,
-                        std::vector<std::string_view> clang_argv) {
+                        std::vector<std::string_view> clang_argv,
+                        int64_t max_unroll_iters) {
   if (XLS_VLOG_IS_ON(1)) {
     std::ostringstream input_str;
     for (const auto& [key, val] : args) {
@@ -50,18 +51,20 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                 << std::endl;
   }
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
-                           SourceToIr(cpp_source, nullptr, clang_argv));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, SourceToIr(cpp_source, nullptr, clang_argv,
+                                 /*io_test_mode=*/false, max_unroll_iters));
   RunAndExpectEq(args, expected, ir, false, false, loc);
 }
 
 void XlsccTestBase::Run(
     const absl::flat_hash_map<std::string, xls::Value>& args,
     xls::Value expected, std::string_view cpp_source, xabsl::SourceLocation loc,
-    std::vector<std::string_view> clang_argv) {
+    std::vector<std::string_view> clang_argv, int64_t max_unroll_iters) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
-                           SourceToIr(cpp_source, nullptr, clang_argv));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, SourceToIr(cpp_source, nullptr, clang_argv,
+                                 /*io_test_mode=*/false, max_unroll_iters));
   RunAndExpectEq(args, expected, ir, false, false, loc);
 }
 
@@ -142,20 +145,20 @@ std::string ErrorMessage(const xls::SourceInfo& loc,
   return result;
 }
 
-absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
-                                     std::vector<std::string_view> clang_argv,
-                                     bool io_test_mode,
-                                     bool error_on_init_interval,
-                                     xls::SourceLocation loc,
-                                     bool fail_xlscc_check) {
+absl::Status XlsccTestBase::ScanFile(
+    xls::TempFile& temp, std::vector<std::string_view> clang_argv,
+    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
+    bool fail_xlscc_check, int64_t max_unroll_iters) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(ScanTempFileWithContent(temp, clang_argv, parser.get()));
   // When loop unrolling is failing, it tends to run slowly.
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
   // the test run in a reasonable time.
-  translator_.reset(new xlscc::Translator(error_on_init_interval, 100, 100, -1,
-                                          std::move(parser)));
+  translator_.reset(new xlscc::Translator(
+      error_on_init_interval,
+      /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
+      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
@@ -166,16 +169,14 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   return absl::OkStatus();
 }
 
-absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
-                                     std::vector<std::string_view> clang_argv,
-                                     bool io_test_mode,
-                                     bool error_on_init_interval,
-                                     xls::SourceLocation loc,
-                                     bool fail_xlscc_check) {
+absl::Status XlsccTestBase::ScanFile(
+    std::string_view cpp_src, std::vector<std::string_view> clang_argv,
+    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
+    bool fail_xlscc_check, int64_t max_unroll_iters) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
   return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval, loc,
-                  fail_xlscc_check);
+                  fail_xlscc_check, max_unroll_iters);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
@@ -207,21 +208,25 @@ absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     std::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode) {
+    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    int64_t max_unroll_iters) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return SourceToIr(temp, pfunc, clang_argv, io_test_mode);
+  return SourceToIr(temp, pfunc, clang_argv, io_test_mode, max_unroll_iters);
 }
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     xls::TempFile& temp, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode) {
+    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    int64_t max_unroll_iters) {
   std::list<std::string> ir_texts;
   std::string ret_text;
 
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
-    XLS_RETURN_IF_ERROR(
-        ScanFile(temp, clang_argv, /* io_test_mode= */ io_test_mode));
+    XLS_RETURN_IF_ERROR(ScanFile(temp, clang_argv, io_test_mode,
+                                 /*error_on_init_interval=*/false,
+                                 /*loc=*/xls::SourceLocation(),
+                                 /*fail_xlscc_check=*/false, max_unroll_iters));
     package_.reset(new xls::Package("my_package"));
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));

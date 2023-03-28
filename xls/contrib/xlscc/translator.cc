@@ -4210,28 +4210,81 @@ std::string Debug_VariablesChangedBetween(const TranslationContext& before,
   return ostr.str();
 }
 
-absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
-    xls::Node* node, Z3_solver& solver,
+absl::StatusOr<Z3_lbool> Translator::CheckAssumptions(
+    absl::Span<xls::Node*> positive_nodes,
+    absl::Span<xls::Node*> negative_nodes, Z3_solver& solver,
     xls::solvers::z3::IrTranslator& z3_translator) {
-  XLS_CHECK_EQ(node->BitCountOrDie(), 1);
-
   Z3_context ctx = z3_translator.ctx();
   xls::solvers::z3::ScopedErrorHandler seh(ctx);
 
-  Z3_ast z3_node = z3_translator.GetTranslation(node);
+  std::vector<Z3_ast> z3_nodes_asserted;
+  for (xls::Node* node : positive_nodes) {
+    XLS_CHECK_EQ(node->BitCountOrDie(), 1);
+    Z3_ast z3_node = z3_translator.GetTranslation(node);
+    z3_nodes_asserted.push_back(
+        xls::solvers::z3::BitVectorToBoolean(ctx, z3_node));
+  }
+  for (xls::Node* node : negative_nodes) {
+    XLS_CHECK_EQ(node->BitCountOrDie(), 1);
+    Z3_ast z3_node = z3_translator.GetTranslation(node);
+    Z3_ast z3_node_not = Z3_mk_bvnot(z3_translator.ctx(), z3_node);
+    z3_nodes_asserted.push_back(
+        xls::solvers::z3::BitVectorToBoolean(ctx, z3_node_not));
+  }
 
   if (z3_rlimit_ >= 0) {
     std::string rlimit_str = std::to_string(z3_rlimit_);
     Z3_global_param_set("rlimit", rlimit_str.c_str());
   }
 
-  Z3_ast asserted = xls::solvers::z3::BitVectorToBoolean(ctx, z3_node);
-  Z3_lbool satisfiable = Z3_solver_check_assumptions(ctx, solver, 1, &asserted);
+  Z3_lbool satisfiable = Z3_solver_check_assumptions(
+      ctx, solver, static_cast<unsigned int>(z3_nodes_asserted.size()),
+      z3_nodes_asserted.data());
 
   if (seh.status().ok()) {
     return satisfiable;
   }
   return seh.status();
+}
+
+absl::StatusOr<bool> Translator::BitMustBe(bool assert_value, xls::BValue& bval,
+                                           Z3_solver& solver, Z3_context ctx,
+                                           const xls::SourceInfo& loc) {
+  // Invalid is interpreted as literal 1
+  if (!bval.valid()) {
+    return assert_value;
+  }
+
+  // Simplify break logic in easy ways;
+  // Z3 fails to solve some cases without this.
+
+  XLS_RETURN_IF_ERROR(ShortCircuitBVal(bval, loc));
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator,
+      xls::solvers::z3::IrTranslator::CreateAndTranslate(
+          /*ctx=*/ctx,
+          /*source=*/bval.node(),
+          /*allow_unsupported=*/false));
+
+  absl::Span<xls::Node*> positive_assumptions, negative_assumptions;
+  xls::Node* assumptions[] = {bval.node()};
+
+  if (assert_value) {
+    positive_assumptions = absl::Span<xls::Node*>();
+    negative_assumptions = absl::Span<xls::Node*>(assumptions);
+  } else {
+    positive_assumptions = absl::Span<xls::Node*>(assumptions);
+    negative_assumptions = absl::Span<xls::Node*>();
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      Z3_lbool result,
+      CheckAssumptions(positive_assumptions, negative_assumptions, solver,
+                       *z3_translator));
+
+  // No combination of variables can satisfy !break condition.
+  return result == Z3_L_FALSE;
 }
 
 void GeneratedFunction::SortNamesDeterministically(

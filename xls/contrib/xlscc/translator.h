@@ -1516,9 +1516,16 @@ class Translator {
   absl::StatusOr<int64_t> EvaluateBValInt64(xls::BValue bval,
                                             const xls::SourceInfo& loc,
                                             bool do_check = true);
-  absl::StatusOr<Z3_lbool> IsBitSatisfiable(
-      xls::Node* node, Z3_solver& solver,
+  absl::StatusOr<Z3_lbool> CheckAssumptions(
+      absl::Span<xls::Node*> positive_nodes,
+      absl::Span<xls::Node*> negative_nodes, Z3_solver& solver,
       xls::solvers::z3::IrTranslator& z3_translator);
+
+  // bval can be invalid, in which case it is interpreted as 1
+  // Short circuits the BValue
+  absl::StatusOr<bool> BitMustBe(bool assert_value, xls::BValue& bval,
+                                 Z3_solver& solver, Z3_context ctx,
+                                 const xls::SourceInfo& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue,
                                                      const xls::SourceInfo& loc,

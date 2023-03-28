@@ -1179,6 +1179,55 @@ TEST_F(TranslatorLogicTest, ForUnrollLabel) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorLogicTest, ForUnrollAssignAfterBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          if(a > 60) {
+            break;
+          }
+          ++i;
+        }
+        return (i*10) + a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 101, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollAssignAfterReturn) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          if(a > 60) {
+            return (i*10) + a;
+          }
+          ++i;
+        }
+        return 1000;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 101, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollNoIncrementOnBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=0;
+        #pragma hls_unroll yes
+        for(;i<10;++i) {
+          if(i==4) {
+            break;
+          }
+        }
+        return i;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 4, content);
+}
+
 TEST_F(TranslatorLogicTest, WhileUnroll) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {
@@ -1871,6 +1920,72 @@ TEST_F(TranslatorLogicTest, ReturnFromFor3) {
          return 0;
        })";
   Run({{"a", 140}, {"b", 55}}, 525, content);
+}
+
+TEST_F(TranslatorLogicTest, ReturnFromForStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+        if(i==1) {
+    			return 1000;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
+}
+
+TEST_F(TranslatorLogicTest, ReturnFromForInSwitchStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        switch(i) {
+          case 1:
+      			return 1000;
+          default:
+            ret += b;
+            break;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
+}
+
+TEST_F(TranslatorLogicTest, BreakFromForStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+        if(i==1) {
+          ret = 1000;
+          break;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
 }
 
 TEST_F(TranslatorLogicTest, ConditionalReturnStmt) {
