@@ -14,6 +14,7 @@
 
 # pytype binary and test
 # cc_proto_library is used in this file
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -1280,6 +1281,51 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
+proto_library(
+    name = "design_stats_proto",
+    srcs = ["design_stats.proto"],
+)
+
+xls_py_proto_library(
+    name = "design_stats_py_pb2",
+    srcs = ["design_stats.proto"],
+    internal_deps = [":design_stats_proto"],
+    deps = [],
+)
+
+py_binary(
+    name = "gather_design_stats",
+    srcs = ["gather_design_stats.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":design_stats_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "//xls/common:gfile",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "gather_design_stats_test",
+    srcs = ["gather_design_stats_test.py"],
+    data = [
+        "testdata/find_index_5ps_model_unit_expected.textproto",
+        "testdata/find_index_5ps_model_unit_verilog_sta_by_stage_sta.log",
+        "testdata/find_index_5ps_model_unit_verilog_synth_by_stage_yosys_output.log.gz",
+        ":gather_design_stats",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
         "//xls/common:runfiles",
         "//xls/common:test_base",
     ],

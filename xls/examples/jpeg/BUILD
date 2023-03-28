@@ -20,6 +20,7 @@ load(
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_verilog",
+    "xls_synthesis_metrics",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
@@ -122,6 +123,14 @@ run_opensta(
     name = "idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
     sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
     synth_target = ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+)
+
+xls_synthesis_metrics(
+    name = "idct_chen_13000ps_model_sky130_post_synth_metrics",
+    srcs = [
+        ":idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
+        ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+    ],
 )
 
 xls_dslx_test(

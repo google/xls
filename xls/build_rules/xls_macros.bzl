@@ -397,3 +397,38 @@ def xls_dslx_cpp_type_library(
             "//xls/public:value",
         ],
     )
+
+def xls_synthesis_metrics(
+        name,
+        srcs,
+        **kwargs):
+    """Gather per-pipeline-stage metrics from log files.
+
+    Gather per-stage post-synth metrics from the provided logs
+    (from Yosys or OpenSTA) and save them in a "DesignStats" textproto.
+    Recognized metrics from Yosys log:
+      Total cell area (um^2).
+      Logic levels
+      Cell count
+      Flop count
+    Recognized metrics from OpenSTA log:
+      Critical path delay (ps)
+      Critical path start point
+      Critical path end point
+
+    Args:
+        name: Output "DesignStats" textproto will be <name>.textproto
+        srcs: Targets from which log files will be scanned.
+              For post-synth, use "synthesize_rtl" and "run_opensta" targets.
+        **kwargs: Accepts add'l keyword arguments. Passed to native.genrule().
+    """
+    native.genrule(
+        name = name,
+        srcs = srcs,
+        outs = [name + ".textproto"],
+        cmd = "$(location //xls/tools:gather_design_stats) " +
+              "--out $@ " +
+              " ".join(["$(locations {}) ".format(s) for s in srcs]),
+        tools = ["//xls/tools:gather_design_stats"],
+        **kwargs
+    )

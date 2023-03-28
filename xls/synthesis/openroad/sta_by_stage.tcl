@@ -19,6 +19,12 @@ redirect_file_begin $sta_log
 read_liberty $liberty
 
 #
+# Force ps for time units regardless of Liberty default
+#
+set_cmd_units -time ps
+report_units
+
+#
 # Longest path overall
 #
 puts "Total design"

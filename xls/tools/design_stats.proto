@@ -1,0 +1,35 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+message PpaInfo {
+    optional float area_um2 = 1;
+    optional int32 levels = 2;
+    optional int32 flops = 3;
+    optional int32 cells = 4;
+    optional float crit_path_delay_ps = 5;
+    optional string crit_path_start = 6;
+    optional string crit_path_end = 7;
+}
+
+message DesignStats {
+    optional string design = 1;
+    optional int32 repo_cl = 2;
+    optional string flow_identifier = 3;
+    optional PpaInfo overall = 4;
+    repeated PpaInfo per_stage = 5;
+}

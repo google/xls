@@ -882,3 +882,36 @@ Example:
 | <a id="xls_ir_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
+<a id="xls_synthesis_metrics"></a>
+
+## xls_synthesis_metrics
+
+<pre>
+xls_synthesis_metrics(<a href="#xls_synthesis_metrics-name">name</a>, <a href="#xls_synthesis_metrics-srcs">srcs</a>, <a href="#xls_synthesis_metrics-kwargs">kwargs</a>)
+</pre>
+
+Gather per-pipeline-stage metrics from log files.
+
+Gather per-stage post-synth metrics from the provided logs
+(from Yosys or OpenSTA) and save them in a "DesignStats" textproto.
+Recognized metrics from Yosys log:
+  Total cell area (um^2).
+  Logic levels
+  Cell count
+  Flop count
+Recognized metrics from OpenSTA log:
+  Critical path delay (ps)
+  Critical path start point
+  Critical path end point
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_synthesis_metrics-name"></a>name |  Output "DesignStats" textproto will be &lt;name&gt;.textproto   |  none |
+| <a id="xls_synthesis_metrics-srcs"></a>srcs |  Targets from which log files will be scanned. For post-synth, use "synthesize_rtl" and "run_opensta" targets.   |  none |
+| <a id="xls_synthesis_metrics-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
+
+
