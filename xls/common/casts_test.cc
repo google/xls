@@ -40,9 +40,8 @@ class Derived : public Base {};
 Base* NewBase(bool is_derived) {
   if (is_derived) {
     return new Derived;
-  } else {
-    return new Base;
   }
+  return new Base;
 }
 
 // Tests pointer form of down_cast().
