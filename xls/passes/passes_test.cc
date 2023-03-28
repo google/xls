@@ -106,6 +106,7 @@ TEST(PassesTest, AddPasses) {
   EXPECT_THAT(pass_mgr.Run(p.get(), PassOptions(), &results),
               IsOkAndHolds(false));
   std::vector<std::string> invocation_names;
+  invocation_names.reserve(results.invocations.size());
   for (const PassInvocation& invocation : results.invocations) {
     invocation_names.push_back(invocation.pass_name);
   }

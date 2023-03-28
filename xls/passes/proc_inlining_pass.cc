@@ -579,7 +579,7 @@ class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
     // an element of the output might come from any operand data source.
     LeafTypeTree<std::vector<Receive*>> ltt(node->GetType(),
                                             FlattenOperandVectors(node));
-    return SetValue(node, std::move(ltt));
+    return SetValue(node, ltt);
   }
 
   absl::Status HandleReceive(Receive* receive) override {
@@ -589,7 +589,7 @@ class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
                                             {receive->As<Receive>()});
     // The token element is not considered a data dependency.
     ltt.Get({0}).clear();
-    return SetValue(receive, std::move(ltt));
+    return SetValue(receive, ltt);
   }
 
   std::vector<Receive*> FlattenOperandVectors(Node* node) {

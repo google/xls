@@ -451,6 +451,7 @@ fn main(index: bits[128]) -> bits[128] {
   std::vector<std::string> literals;
   int num_characters = 128 / 4;
   // Create the literal strings ("aaaa....aaaa" and so on).
+  literals.reserve(kNumLiterals);
   for (int i = 0; i < kNumLiterals; i++) {
     literals.push_back(std::string(num_characters, 'a' + i));
   }

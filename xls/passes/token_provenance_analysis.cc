@@ -53,7 +53,7 @@ class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
           "Node type contains token type even though it shouldn't: %s",
           node->ToString()));
     }
-    return SetValue(node, std::move(ltt));
+    return SetValue(node, ltt);
   }
 };
 
