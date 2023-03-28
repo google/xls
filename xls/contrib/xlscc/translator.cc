@@ -952,6 +952,16 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
                          clang_op, std::string(result_type)));
     }
   }
+  if (result_type.Is<CEnumType>()) {
+    switch (clang_op) {
+      case clang::BinaryOperatorKind::BO_Assign:
+        return xls::Op::kIdentity;
+      default:
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented binary operator %i for result %s",
+                         clang_op, std::string(result_type)));
+    }
+  }
   if (result_type.Is<CBoolType>()) {
     if (left_type.Is<CIntType>()) {
       auto input_int_type = left_type.As<CIntType>();
@@ -4506,9 +4516,20 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     }
   } else if (auto enum_type = clang::dyn_cast<const clang::EnumType>(type)) {
     clang::EnumDecl* decl = enum_type->getDecl();
-    int64_t width = decl->getNumPositiveBits() + decl->getNumNegativeBits();
+    int width = decl->getNumPositiveBits() + decl->getNumNegativeBits();
     bool is_signed = decl->getNumNegativeBits() > 0;
-    return shared_ptr<CType>(new CIntType(width, is_signed));
+    absl::btree_map<std::string, int64_t> variants_by_name;
+    for (auto variant : decl->decls()) {
+      auto variant_decl =
+          clang::dyn_cast<const clang::EnumConstantDecl>(variant);
+      auto value = variant_decl->getInitVal();
+      variants_by_name.insert(
+          {variant_decl->getNameAsString(), value.getExtValue()});
+    }
+
+    return shared_ptr<CType>(new CEnumType(decl->getNameAsString(), width,
+                                           is_signed,
+                                           std::move(variants_by_name)));
   } else if (type->getTypeClass() ==
              clang::Type::TypeClass::TemplateSpecialization) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()

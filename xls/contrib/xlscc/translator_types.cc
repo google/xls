@@ -16,10 +16,12 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 
 using std::shared_ptr;
@@ -186,6 +188,85 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
   } else {
     XLS_ASSIGN_OR_RETURN(uint64_t unsigned_value, value.bits().ToUint64());
     output->mutable_as_int()->set_unsigned_value(unsigned_value);
+  }
+  return absl::OkStatus();
+}
+
+CEnumType::~CEnumType() = default;
+
+CEnumType::CEnumType(std::string name, int width, bool is_signed,
+                     absl::btree_map<std::string, int64_t> variants_by_name)
+    : CIntType(width, is_signed),
+      name_(std ::move(name)),
+      variants_by_name_(std::move(variants_by_name)) {
+  for (const auto& variant : variants_by_name_) {
+    if (!variants_by_value_.contains(variant.second)) {
+      variants_by_value_.insert({variant.second, std::vector<std::string>()});
+    }
+    variants_by_value_[variant.second].push_back(variant.first);
+  }
+}
+
+xls::Type* CEnumType::GetXLSType(xls::Package* package) const {
+  return package->GetBitsType(width_);
+}
+
+bool CEnumType::operator==(const CType& o) const {
+  if (!o.Is<CEnumType>()) {
+    return false;
+  }
+  const auto* o_derived = o.As<CEnumType>();
+  if (width_ != o_derived->width_) {
+    return false;
+  }
+  return is_signed_ == o_derived->is_signed_;
+}
+
+int CEnumType::GetBitWidth() const { return width_; }
+
+bool CEnumType::StoredAsXLSBits() const { return true; }
+
+CEnumType::operator std::string() const {
+  return absl::StrFormat("enum[%d]", width_);
+}
+
+absl::Status CEnumType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  output->mutable_as_enum()->set_name(name_);
+  output->mutable_as_enum()->set_width(width_);
+  output->mutable_as_enum()->set_is_signed(is_signed_);
+  absl::btree_map<int64_t, xlscc_metadata::EnumVariant*> proto_variants;
+  for (const auto& [variant_name, variant_value] : variants_by_name_) {
+    if (!proto_variants.contains(variant_value)) {
+      auto proto_variant = output->mutable_as_enum()->add_variants();
+      proto_variant->set_value(variant_value);
+      proto_variants.insert({variant_value, proto_variant});
+    }
+    proto_variants[variant_value]->add_name(variant_name);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status CEnumType::GetMetadataValue(Translator& translator,
+                                         const ConstValue const_value,
+                                         xlscc_metadata::Value* output) const {
+  auto value = const_value.rvalue();
+  XLS_CHECK(value.IsBits());
+  if (is_signed()) {
+    XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
+    auto variant = variants_by_value_.find(signed_value);
+    output->mutable_as_enum()->mutable_variant()->set_value(variant->first);
+    for (const auto& variant_name : variant->second) {
+      output->mutable_as_enum()->mutable_variant()->add_name(variant_name);
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(uint64_t unsigned_value, value.bits().ToUint64());
+    auto variant = variants_by_value_.find(unsigned_value);
+    output->mutable_as_enum()->mutable_variant()->set_value(variant->first);
+    for (const auto& variant_name : variant->second) {
+      output->mutable_as_enum()->mutable_variant()->add_name(variant_name);
+    }
   }
   return absl::OkStatus();
 }

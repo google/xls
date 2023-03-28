@@ -4146,8 +4146,8 @@ TEST_F(TranslatorLogicTest, EnumSingleZeroVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 1;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4158,8 +4158,8 @@ TEST_F(TranslatorLogicTest, EnumSinglePositiveVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 3;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4170,8 +4170,8 @@ TEST_F(TranslatorLogicTest, EnumSingleNegativeVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 8;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4183,8 +4183,8 @@ TEST_F(TranslatorLogicTest, EnumMinNegativeVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 32;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4195,8 +4195,8 @@ TEST_F(TranslatorLogicTest, EnumMaxPositiveVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 31;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4207,8 +4207,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumbered) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 2;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4219,8 +4219,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedAboveZero4Bit) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 4;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4231,8 +4231,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedAboveZero5Bit) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 5;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -4243,8 +4243,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedNegative) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 5;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }

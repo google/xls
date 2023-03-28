@@ -20,7 +20,9 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -85,7 +87,7 @@ class CType {
 
   template <typename Derived>
   bool Is() const {
-    return typeid(*this) == typeid(Derived);
+    return dynamic_cast<const Derived*>(this) != nullptr;
   }
 
   inline std::string debug_string() const { return std::string(*this); }
@@ -154,7 +156,7 @@ class CIntType : public CType {
   inline bool is_signed() const { return is_signed_; }
   inline bool is_declared_as_char() const { return is_declared_as_char_; }
 
- private:
+ protected:
   const int width_;
   const bool is_signed_;
   // We use this field to tell "char" declarations from explcitly-qualified
@@ -164,6 +166,36 @@ class CIntType : public CType {
   // every other integer type.  The field is strictly for generating metadata;
   // it is not IR generation.
   const bool is_declared_as_char_;
+};
+
+// C++ enum or enum class
+class CEnumType : public CIntType {
+ public:
+  ~CEnumType() override;
+  CEnumType(std::string name, int width, bool is_signed,
+            absl::btree_map<std::string, int64_t> variants_by_name);
+
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  bool operator==(const CType& o) const override;
+
+  xls::Type* GetXLSType(xls::Package* package) const override;
+  bool StoredAsXLSBits() const override;
+
+  inline int width() const { return width_; }
+  inline bool is_signed() const { return is_signed_; }
+
+ private:
+  std::string name_;
+  absl::btree_map<std::string, int64_t> variants_by_name_;
+  absl::btree_map<int64_t, std::vector<std::string>> variants_by_value_;
 };
 
 // C++ bool
