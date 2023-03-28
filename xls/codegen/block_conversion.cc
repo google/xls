@@ -64,11 +64,13 @@ static absl::Status MaybeAddResetPort(Block* block,
 // options in CodegenOptions.
 static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
     const PipelineSchedule& schedule, const CodegenOptions& options) {
-  // All params must be scheduled in cycle 0.
+  // All function params must be scheduled in cycle 0.
   ScheduleCycleMap cycle_map;
-  for (Param* param : schedule.function_base()->params()) {
-    XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
-    cycle_map[param] = 0;
+  if (schedule.function_base()->IsFunction()) {
+    for (Param* param : schedule.function_base()->params()) {
+      XLS_RET_CHECK_EQ(schedule.cycle(param), 0);
+      cycle_map[param] = 0;
+    }
   }
 
   // If `flop_inputs` is true, adjust the cycle of all remaining nodes by one.

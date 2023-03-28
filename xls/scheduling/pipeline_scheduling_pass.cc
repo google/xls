@@ -36,20 +36,19 @@ absl::StatusOr<bool> PipelineSchedulingPass::RunInternal(
     }
   }
 
+  FunctionBase* f = nullptr;
   if (unit->schedule.has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        unit->schedule,
-        PipelineSchedule::Run(unit->schedule.value().function_base(),
-                              *options.delay_estimator, scheduling_options));
+    f = unit->schedule.value().function_base();
   } else {
     std::optional<FunctionBase*> top = unit->ir->GetTop();
     XLS_RET_CHECK(top.has_value())
         << "Package " << unit->name() << " needs a top function/proc.";
-    XLS_ASSIGN_OR_RETURN(
-        unit->schedule,
-        PipelineSchedule::Run(top.value(), *options.delay_estimator,
-                              scheduling_options));
+    f = top.value();
   }
+
+  XLS_ASSIGN_OR_RETURN(
+      unit->schedule,
+      PipelineSchedule::Run(f, *options.delay_estimator, scheduling_options));
 
   absl::flat_hash_map<Node*, int64_t> schedule_cycle_map_after;
   for (int64_t c = 0; c < unit->schedule.value().length(); ++c) {

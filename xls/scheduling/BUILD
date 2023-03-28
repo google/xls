@@ -256,6 +256,7 @@ cc_library(
     hdrs = ["scheduling_pass_pipeline.h"],
     deps = [
         ":pipeline_scheduling_pass",
+        ":proc_clumping_pass",
         ":scheduling_checker",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
@@ -302,6 +303,41 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/passes:pass_base",
+    ],
+)
+
+cc_library(
+    name = "proc_clumping_pass",
+    srcs = ["proc_clumping_pass.cc"],
+    hdrs = ["proc_clumping_pass.h"],
+    deps = [
+        ":scheduling_pass",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits_ops",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_test(
+    name = "proc_clumping_pass_test",
+    srcs = ["proc_clumping_pass_test.cc"],
+    deps = [
+        ":pipeline_scheduling_pass",
+        ":proc_clumping_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimators",
+        "//xls/interpreter:interpreter_proc_runtime",
+        "//xls/interpreter:proc_runtime",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -363,6 +363,23 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     schedule_length = options.pipeline_stages().value();
   }
 
+  int64_t ii = 1;
+  if (f->GetInitiationInterval().has_value()) {
+    ii = f->GetInitiationInterval().value();
+  }
+  XLS_RET_CHECK_GT(ii, 0) << "Invalid initiation interval: " << ii;
+  XLS_RET_CHECK_EQ(schedule_length % ii, 0)
+      << "Schedule length was not divisible by initiation interval: "
+      << "schedule length = " << schedule_length << ", ii = " << ii;
+  schedule_length /= ii;
+  clock_period_ps *= ii;
+
+  if (ii > 1) {
+    XLS_ASSIGN_OR_RETURN(
+        bounds, ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
+                                schedule_length, input_delay_added));
+  }
+
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MIN_CUT) {
     XLS_ASSIGN_OR_RETURN(
@@ -397,7 +414,7 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     }
   }
 
-  auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
+  auto schedule = PipelineSchedule(f, cycle_map, schedule_length);
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
       schedule.VerifyTiming(clock_period_ps, input_delay_added));
