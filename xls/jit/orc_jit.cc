@@ -333,9 +333,9 @@ absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<llvm::JITTargetAddress> OrcJit::LoadSymbol(
+absl::StatusOr<llvm::orc::ExecutorAddr> OrcJit::LoadSymbol(
     std::string_view function_name) {
-  llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
+  llvm::Expected<llvm::orc::ExecutorSymbolDef> symbol =
       execution_session_.lookup(&dylib_, function_name);
   if (!symbol) {
     return absl::InternalError(
