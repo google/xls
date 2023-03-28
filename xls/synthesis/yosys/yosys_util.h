@@ -1,4 +1,3 @@
-// Copyright 2020 Google LLC
 //
 // Copyright 2021 The XLS Authors
 //

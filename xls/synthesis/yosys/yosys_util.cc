@@ -1,4 +1,3 @@
-// Copyright 2020 Google LLC
 //
 // Copyright 2021 The XLS Authors
 //
@@ -131,7 +130,7 @@ absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
     // And we want to extract 116.71 and 8568.43 and -96.67
 
   
-  if (RE2::PartialMatch(line, R"(op_clk period_min = (\d+.\d+) fmax = (\d+.\d+))",
+  if (RE2::PartialMatch(line, R"(op_clk period_min = (\d+\.\d+) fmax = (\d+\.\d+))",
                           &clk_period_ps, &freq_mhz)) {
     XLS_RET_CHECK(absl::SimpleAtof(clk_period_ps, &stats.period_ps));
     stats.max_frequency_hz = (int64_t) 1e12 / stats.period_ps;  // use clk in ps for accuracy

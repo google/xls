@@ -84,46 +84,10 @@ def save_checkpoint(model: delay_model_pb2.DelayModel, checkpoint_path: str):
       f.write(text_format.MessageToString(model))
 
 
-def _synth(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
-           verilog_text: str,
-           top_module_name: str) -> synthesis_pb2.CompileResponse:
-  """Bisects the space of frequencies and sends requests to the server."""
-  high = FLAGS.max_freq_mhz
-  low = FLAGS.min_freq_mhz
-  epsilon = 10
-
-  best_result = synthesis_pb2.CompileResponse()
-  while high - low > epsilon:
-    current = (high + low) / 2
-    request = synthesis_pb2.CompileRequest()
-    request.target_frequency_hz = int(current * 10e6)
-    request.module_text = verilog_text
-    request.top_module_name = top_module_name
-    logging.vlog(3, '--- Request')
-    logging.vlog(3, request)
-    response = stub.Compile(request)
-    if response.slack_ps >= 0:
-      logging.info('PASS at %dMHz (slack %d).',
-                   current, response.slack_ps)
-      low = current
-      if current > best_result.max_frequency_hz:
-        best_result = response
-    else:
-      logging.info('FAIL at %dMHz (slack %d).',
-                   current, response.slack_ps)
-      high = current
-
-  best_result.max_frequency_hz = int(current * 10e6)
-  return best_result
-
-
-
-
 def _search_for_fmax_and_synth(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
               verilog_text: str,
               top_module_name: str) -> synthesis_pb2.CompileResponse:
   best_result = synthesis_pb2.CompileResponse()
-
   """Bisects the space of frequencies and sends requests to the server."""
   high_hz = FLAGS.max_freq_mhz * 1e6
   low_hz = FLAGS.min_freq_mhz * 1e6
@@ -179,8 +143,7 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 
   bit_count_strs = []
   for bit_count in operand_bit_counts:
-    operand = delay_model_pb2.Operation.Operand(
-        bit_count=bit_count, element_count=0)
+    operand = delay_model_pb2.Operation.Operand(bit_count=bit_count, element_count=0)
     bit_count_strs.append(str(operand))
   key = ', '.join([str(result_bit_count)] + bit_count_strs)
   if key in data_points[op]:
@@ -218,9 +181,8 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 
 
 def _run_unary_bitwise(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub ) -> None:
   """Characterize unary bitwise ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -232,16 +194,13 @@ def _run_unary_bitwise(
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(
-        op, op_type, (op_type,))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type,))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,(bit_count,))
 
 
 def _run_variadic_bitwise(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Characterize variadic bitwise ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -257,16 +216,13 @@ def _run_variadic_bitwise(
   combs = itertools.product(widths, arity)
   for bit_count, arity in combs:
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type,) * arity)
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package(op, op_type,(op_type,) * arity)
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
 def _run_arithmetic_unary(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Characterize unary ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -278,16 +234,13 @@ def _run_arithmetic_unary(
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(
-        op, op_type, (op_type,))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package( op, op_type, (op_type,))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
 def _run_arithmetic_binary(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Characterize arithmetic ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -299,16 +252,13 @@ def _run_arithmetic_binary(
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type, op_type))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
 def _run_comparison(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Characterize comparison ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -321,15 +271,14 @@ def _run_comparison(
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
     ret_type = 'bits[1]'
-    ir_text = op_module_generator.generate_ir_package(op, ret_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package(op, ret_type, (op_type, op_type))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
-def _run_shift(op: str, model: delay_model_pb2.DelayModel,
-               data_points: Dict[str, Set[str]],
-               stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+def _run_shift(
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+
   """Characterize shift ops."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -342,16 +291,13 @@ def _run_shift(op: str, model: delay_model_pb2.DelayModel,
   # Compute samples
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type,
-                                                      (op_type, op_type))
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type, op_type))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
 def _run_extension(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   """Characterize extension ops (sign- and zero-)."""
   # Add op_model to protobuf message
   add_op_model = model.op_models.add(op=op)
@@ -369,19 +315,15 @@ def _run_extension(
     ret_type = f'bits[{new_bit_count}]'
     ir_text = op_module_generator.generate_ir_package(
         op, ret_type, (op_type,), attributes=[('new_bit_count', new_bit_count)])
-    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count,
-                   (bit_count,))
+    _synthesize_ir(stub, model, data_points, ir_text, op, bit_count, (bit_count,))
 
 
 def _run_miscellaneous(
-        op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str,
-                                                                      Set[str]],
-        stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
+    op: str, model: delay_model_pb2.DelayModel, data_points: Dict[str, Set[str]],
+    stub: synthesis_service_pb2_grpc.SynthesisServiceStub) -> None:
   del op, model, data_points, stub
   pass
 
-
-# OPS_RUNNERS = [(ARITHMETIC_BINARY, _run_arithmetic_binary)]
 
 OPS_RUNNERS = [(UNARY_BITWISE, _run_unary_bitwise),
                (VARIADIC_BITWISE, _run_variadic_bitwise),

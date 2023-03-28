@@ -37,9 +37,9 @@ class WorkerConfig:
   yosys_bin: str
   client_bin: str
   server_bin: str
-  synthesis_libraries = []
-  sta_bin: str
-  sta_libraries = []
+  synthesis_libraries: List[str] = []
+  sta_libraries: List[str] = []
+  
   port: int
   server_extra_args = []
   client_args = []
@@ -47,8 +47,8 @@ class WorkerConfig:
 
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('bazel_bin_path', 'None', 'Root directory of bazel-bin')
-flags.DEFINE_string('openroad_path', 'None',
+flags.DEFINE_string('bazel_bin_path', 'valueNone', 'Root directory of bazel-bin')
+flags.DEFINE_string('openroad_path', 'valueNone',
                     'Root directory of OpenROAD-flow-scripts')
 flags.DEFINE_bool(
     'debug', False, 'Enable verbose debugging info for client and server')
