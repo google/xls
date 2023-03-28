@@ -936,7 +936,9 @@ class Translator {
   // If none was found, an error is returned
   absl::StatusOr<std::string> GetEntryFunctionName() const;
 
-  absl::Status SelectTop(std::string_view top_function_name);
+  // See CCParser::SelectTop()
+  absl::Status SelectTop(std::string_view top_function_name,
+                         std::string_view top_class_name = "");
 
   // Generates IR as an XLS function, that is, a pure function without
   //  IO / state / side effects.

@@ -138,8 +138,8 @@ absl::Status CCParser::ScanFile(
   // Therefore, ToolInvocation::Run() is executed on another thread,
   //  and the ASTFrontendAction::EndSourceFileAction() blocks it
   //  until ~CCParser(), preserving the AST.
-  libtool_thread_ = absl::WrapUnique(
-      new LibToolThread(source_filename, command_line_args, *this));
+  libtool_thread_ = absl::WrapUnique(new LibToolThread(
+      source_filename, top_class_name_, command_line_args, *this));
 
   libtool_wait_for_parse_ = std::make_unique<absl::BlockingCounter>(1);
   libtool_wait_for_destruct_ = std::make_unique<absl::BlockingCounter>(1);
@@ -248,7 +248,7 @@ static size_t match_pragma(std::string_view pragma_string,
 absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
   std::ifstream fin(std::string(filename).c_str());
   if (!fin.good()) {
-    if (filename != "/xls_builtin.h") {
+    if (!(filename.empty() || filename[0] == '/')) {
       return absl::NotFoundError(absl::StrFormat(
           "Unable to open file to scan for pragmas: %s\n", filename));
     }
@@ -396,9 +396,11 @@ absl::StatusOr<const clang::VarDecl*> CCParser::GetXlsccOnReset() const {
 }
 
 LibToolThread::LibToolThread(std::string_view source_filename,
+                             std::string_view top_class_name,
                              absl::Span<std::string_view> command_line_args,
                              CCParser& parser)
     : source_filename_(source_filename),
+      top_class_name_(top_class_name),
       command_line_args_(command_line_args),
       parser_(parser) {}
 
@@ -492,11 +494,32 @@ bool __xlscc_on_reset = false;
 #endif//__XLS_BUILTIN_H
           )"));
 
-  const std::string top_src = absl::StrFormat(R"(
+  // Inject an instantiation to make Clang parse the constructor bodies
+  std::string top_class_inst_injection = top_class_name_.empty()
+                                             ? ""
+                                             : absl::StrFormat(R"(
+namespace {
+// Avoid unused variable warnings
+void __xlscc_top_class_instance_ref2();
+void __xlscc_top_class_instance_ref() {
+  %s inst;
+  (void)inst;
+  __xlscc_top_class_instance_ref2();
+}
+void __xlscc_top_class_instance_ref2() {
+  __xlscc_top_class_instance_ref();
+}
+
+}  // namespace
+)", top_class_name_);
+
+  const std::string top_src =
+      absl::StrFormat(R"(
 #include "/xls_builtin.h"
 #include "%s"
+%s
           )",
-                                              source_filename_);
+                      source_filename_, top_class_inst_injection);
 
   mem_fs->addFile("/xls_top.cc", 0,
                   llvm::MemoryBuffer::getMemBuffer(top_src.c_str()));
@@ -536,8 +559,10 @@ absl::StatusOr<std::string> CCParser::GetEntryFunctionName() const {
   return top_function_->getNameAsString();
 }
 
-absl::Status CCParser::SelectTop(std::string_view top_function_name) {
+absl::Status CCParser::SelectTop(std::string_view top_function_name,
+                                 std::string_view top_class_name) {
   top_function_name_ = top_function_name;
+  top_class_name_ = top_class_name;
   return absl::OkStatus();
 }
 

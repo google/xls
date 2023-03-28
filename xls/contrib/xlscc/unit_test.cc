@@ -148,9 +148,12 @@ std::string ErrorMessage(const xls::SourceInfo& loc,
 absl::Status XlsccTestBase::ScanFile(
     xls::TempFile& temp, std::vector<std::string_view> clang_argv,
     bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
-    bool fail_xlscc_check, int64_t max_unroll_iters) {
+    bool fail_xlscc_check, int64_t max_unroll_iters,
+    const char* top_class_name) {
   auto parser = std::make_unique<xlscc::CCParser>();
-  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(temp, clang_argv, parser.get()));
+  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(
+      temp, clang_argv, parser.get(), /*top_name=*/"my_package",
+      /*top_class_name=*/top_class_name));
   // When loop unrolling is failing, it tends to run slowly.
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
@@ -172,24 +175,28 @@ absl::Status XlsccTestBase::ScanFile(
 absl::Status XlsccTestBase::ScanFile(
     std::string_view cpp_src, std::vector<std::string_view> clang_argv,
     bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
-    bool fail_xlscc_check, int64_t max_unroll_iters) {
+    bool fail_xlscc_check, int64_t max_unroll_iters,
+    const char* top_class_name) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
   return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval, loc,
-                  fail_xlscc_check, max_unroll_iters);
+                  fail_xlscc_check, max_unroll_iters, top_class_name);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     std::string_view cpp_src, std::vector<std::string_view> argv,
-    xlscc::CCParser* translator, const char* top_name) {
+    xlscc::CCParser* translator, const char* top_name,
+    const char* top_class_name) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanTempFileWithContent(temp, argv, translator, /*top_name=*/top_name);
+  return ScanTempFileWithContent(temp, argv, translator, top_name,
+                                 top_class_name);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     xls::TempFile& temp, std::vector<std::string_view> argv,
-    xlscc::CCParser* translator, const char* top_name) {
+    xlscc::CCParser* translator, const char* top_name,
+    const char* top_class_name) {
   std::string ps = temp.path();
 
   absl::Status ret;
@@ -197,7 +204,7 @@ absl::Status XlsccTestBase::ScanFile(
   argv.push_back("-Wall");
   argv.push_back("-Wno-unknown-pragmas");
   if (top_name != nullptr) {
-    XLS_RETURN_IF_ERROR(translator->SelectTop(top_name));
+    XLS_RETURN_IF_ERROR(translator->SelectTop(top_name, top_class_name));
   }
   XLS_RETURN_IF_ERROR(translator->ScanFile(
       temp.path().c_str(), argv.empty()
@@ -252,7 +259,8 @@ void XlsccTestBase::ProcTest(
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         outputs_by_channel,
-    const int min_ticks, const int max_ticks, int top_level_init_interval) {
+    const int min_ticks, const int max_ticks, int top_level_init_interval,
+    const char* top_class_name) {
   std::list<std::string> ir_texts;
   std::string package_text;
 
@@ -261,7 +269,16 @@ void XlsccTestBase::ProcTest(
   XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
                            xls::TempFile::CreateWithContent(content, ".cc"));
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
-    XLS_ASSERT_OK(ScanFile(temp));
+    XLS_ASSERT_OK(ScanFile(temp,
+                           /*clang_argv=*/{},
+                           /*io_test_mode=*/false,
+                           /*error_on_init_interval=*/false,
+                           xls::SourceLocation(),
+                           /*fail_xlscc_check=*/false,
+                           /*max_unroll_iters=*/0,
+
+                           /*top_class_name=*/top_class_name));
+
     package_.reset(new xls::Package("my_package"));
     if (block_spec.has_value()) {
       block_spec_ = block_spec.value();

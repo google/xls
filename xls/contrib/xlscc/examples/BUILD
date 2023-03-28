@@ -81,7 +81,8 @@ xls_cc_ir(
 xls_cc_ir(
     name = "block_from_class_ir",
     src = "block_from_class.cc",
-    block_from_class = "block_from_class.pbtxt",
+    block_from_class = "MyBlock",
+    block_pb_out = "block_from_class.pbtxt",
     ir_file = "block_from_class.ir",
 )
 

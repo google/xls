@@ -53,9 +53,9 @@ ABSL_FLAG(std::string, block_pb, "",
 
 ABSL_FLAG(bool, block_pb_text, false, "Input HLSBlock protobuf as textproto?");
 
-ABSL_FLAG(bool, block_from_class, false,
-          "Generate HLSBlock from top class? In this case block_pb is an "
-          "output, if specified");
+ABSL_FLAG(std::string, block_from_class, "",
+          "Specifies the name of a top class from which to generate the "
+          "HLSBlock. This class must contain the top method. ");
 
 ABSL_FLAG(std::string, top, "", "Top function name");
 
@@ -107,7 +107,9 @@ absl::Status Run(std::string_view cpp_path) {
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 
-  const bool block_from_class = absl::GetFlag(FLAGS_block_from_class);
+  const std::string block_from_class_name =
+      absl::GetFlag(FLAGS_block_from_class);
+  const bool block_from_class = !block_from_class_name.empty();
 
   HLSBlock block;
   if (!block_from_class) {
@@ -126,7 +128,8 @@ absl::Status Run(std::string_view cpp_path) {
   const std::string top_function_name = absl::GetFlag(FLAGS_top);
 
   if (!top_function_name.empty()) {
-    XLS_RETURN_IF_ERROR(translator.SelectTop(top_function_name));
+    XLS_RETURN_IF_ERROR(
+        translator.SelectTop(top_function_name, block_from_class_name));
   }
 
   std::vector<std::string> clang_argvs;

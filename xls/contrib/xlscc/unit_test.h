@@ -59,7 +59,8 @@ class XlsccTestBase : public xls::IrTestBase {
                         bool error_on_init_interval = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
                         bool fail_xlscc_check = false,
-                        int64_t max_unroll_iters = 0);
+                        int64_t max_unroll_iters = 0,
+                        const char* top_class_name = "");
 
   absl::Status ScanFile(std::string_view cpp_src,
                         std::vector<std::string_view> clang_argv = {},
@@ -67,17 +68,20 @@ class XlsccTestBase : public xls::IrTestBase {
                         bool error_on_init_interval = false,
                         xls::SourceLocation loc = xls::SourceLocation(),
                         bool fail_xlscc_check = false,
-                        int64_t max_unroll_iters = 0);
+                        int64_t max_unroll_iters = 0,
+                        const char* top_class_name = "");
 
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
   static absl::Status ScanTempFileWithContent(
       xls::TempFile& temp, std::vector<std::string_view> argv,
-      xlscc::CCParser* translator, const char* top_name = "my_package");
+      xlscc::CCParser* translator, const char* top_name = "my_package",
+      const char* top_class_name = "");
 
   static absl::Status ScanTempFileWithContent(
       std::string_view cpp_src, std::vector<std::string_view> argv,
-      xlscc::CCParser* translator, const char* top_name = "my_package");
+      xlscc::CCParser* translator, const char* top_name = "my_package",
+      const char* top_class_name = "");
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
@@ -108,7 +112,8 @@ class XlsccTestBase : public xls::IrTestBase {
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
                     outputs_by_channel,
                 const int min_ticks = 1, const int max_ticks = 100,
-                int top_level_init_interval = 0);
+                int top_level_init_interval = 0,
+                const char* top_class_name = "");
 
   void IOTest(std::string_view content, std::list<IOOpTest> inputs,
               std::list<IOOpTest> outputs,

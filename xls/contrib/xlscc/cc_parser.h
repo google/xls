@@ -65,6 +65,7 @@ class LibToolFrontendAction;
 class LibToolThread {
  public:
   LibToolThread(std::string_view source_filename,
+                std::string_view top_class_name,
                 absl::Span<std::string_view> command_line_args,
                 CCParser& parser);
 
@@ -76,6 +77,7 @@ class LibToolThread {
 
   std::optional<xls::Thread> thread_;
   std::string_view source_filename_;
+  std::string_view top_class_name_;
   absl::Span<std::string_view> command_line_args_;
   CCParser& parser_;
 };
@@ -91,10 +93,12 @@ class CCParser {
   ~CCParser();
 
   // Selects a top, or entry, function by name
+  // If top_class_name is specified, then an instantiation is injected.
   // Either this must be called before ScanFile, or a #pragma hls_top
   // must be present in the file(s) being scanned, in order for
   // GetTopFunction() to return a valid pointer
-  absl::Status SelectTop(std::string_view top_function_name);
+  absl::Status SelectTop(std::string_view top_function_name,
+                         std::string_view top_class_name = "");
 
   // This function uses Clang to parse a source file and then walks its
   //  AST to discover global constructs. It will also scan the file
@@ -156,6 +160,7 @@ class CCParser {
 
   const clang::FunctionDecl* top_function_ = nullptr;
   std::string_view top_function_name_ = "";
+  std::string_view top_class_name_ = "";
   const clang::VarDecl* xlscc_on_reset_ = nullptr;
 
   // For source location

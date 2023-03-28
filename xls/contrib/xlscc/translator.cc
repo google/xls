@@ -4691,9 +4691,10 @@ absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
   return parser_->GetEntryFunctionName();
 }
 
-absl::Status Translator::SelectTop(std::string_view top_function_name) {
+absl::Status Translator::SelectTop(std::string_view top_function_name,
+                                   std::string_view top_class_name) {
   XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->SelectTop(top_function_name);
+  return parser_->SelectTop(top_function_name, top_class_name);
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(

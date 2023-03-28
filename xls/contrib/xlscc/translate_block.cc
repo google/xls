@@ -613,7 +613,7 @@ absl::StatusOr<xls::Value> Translator::GenerateTopClassInitValue(
     // Can be nullptr
     const clang::CXXRecordDecl* this_decl, const xls::SourceInfo& body_loc) {
   for (const clang::CXXConstructorDecl* ctor : this_decl->ctors()) {
-    if (!ctor->isTrivial()) {
+    if (!(ctor->isTrivial() || ctor->isDefaultConstructor())) {
       ctor->dump();
       return absl::UnimplementedError(ErrorMessage(
           body_loc, "Non-trivial constructors in top class not yet supported"));

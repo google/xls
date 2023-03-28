@@ -57,6 +57,7 @@ _INC_FILE_EXTENSION = ".inc"
 _IR_FILE_EXTENSION = ".ir"
 _PROTOBIN_FILE_EXTENSION = ".protobin"
 _BINARYPB_FILE_EXTENSION = ".binarypb"
+_PROTOTEXT_FILE_EXTENSION = ".pbtxt"
 _DEFAULT_XLSCC_ARGS = {
     "top": "Run",
 }
@@ -159,7 +160,8 @@ def _xls_cc_ir_impl(ctx):
     """
     XLSCC_FLAGS = (
         "module_name",
-        "block_pb",
+        "block",
+        "block_pb_out",
         "top",
         "package",
         "clang_args_file",
@@ -199,13 +201,14 @@ def _xls_cc_ir_impl(ctx):
     )
     ir_file = ctx.actions.declare_file(ir_filename)
     outputs = [ir_file]
-    block_pb_out_filename = getattr(ctx.attr, "block_from_class")
+    block_pb_out_filename = getattr(ctx.attr, "block_pb_out")
+    block_from_class_name = getattr(ctx.attr, "block_from_class")
     block_from_class_flag = ""
-    if block_pb_out_filename:
+    if block_from_class_name:
         block_pb_file = ctx.actions.declare_file(block_pb_out_filename.name)
         outputs.append(block_pb_file)
         block_pb = block_pb_file.path
-        block_from_class_flag = "--block_from_class"
+        block_from_class_flag = "--block_from_class {}".format(block_from_class_name)
     else:
         block_pb = ctx.file.block.path
 
@@ -243,6 +246,7 @@ _xls_cc_ir_attrs = {
         doc = "Protobuf describing top-level block interface. A single " +
               "source file must be provided. The file " + "must have a '" +
               _PROTOBIN_FILE_EXTENSION + "' or a '" +
+              _PROTOTEXT_FILE_EXTENSION + "' or a '" +
               _BINARYPB_FILE_EXTENSION + "' extension. To create this " +
               "protobuf automatically from your C++ source file, use " +
               "'block_from_class' instead. Exactly one of 'block' or " +
@@ -251,9 +255,14 @@ _xls_cc_ir_attrs = {
         allow_single_file = [
             _PROTOBIN_FILE_EXTENSION,
             _BINARYPB_FILE_EXTENSION,
+            _PROTOTEXT_FILE_EXTENSION,
         ],
     ),
-    "block_from_class": attr.output(
+    "block_pb_out": attr.output(
+        doc = "Output protobuf describing top-level block interface.",
+        mandatory = False,
+    ),
+    "block_from_class": attr.string(
         doc = "Filename of the generated top-level block interface protobuf, " +
               "created from a C++ class. To manually specify this protobuf, " +
               "use 'block' instead. Exactly one of 'block' or " +
@@ -348,6 +357,7 @@ def xls_cc_ir_macro(
         name,
         src,
         block = None,
+        block_pb_out = None,
         block_from_class = None,
         src_deps = [],
         xlscc_args = {},
@@ -381,6 +391,8 @@ def xls_cc_ir_macro(
         or a '.binarypb' extension. To create this protobuf automatically from
         your C++ source file, use 'block_from_class' instead. Exactly one of
         'block' or 'block_from_class' should be specified.
+      block_pb_out: Protobuf describing top-level block interface, same as block,
+        but an output used with block-from-class.
       block_from_class: Filename of the generated top-level block interface
         protobuf created from a C++ class. To manually specify this protobuf,
         use 'block' instead. Exactly one of 'block' or 'block_from_class'
@@ -399,6 +411,7 @@ def xls_cc_ir_macro(
     string_type_check("name", name)
     string_type_check("src", src)
     string_type_check("block", block, True)
+    string_type_check("block_pb_out", block, True)
     string_type_check("block_from_class", block_from_class, True)
     list_type_check("src_deps", src_deps)
     dictionary_type_check("xlscc_args", xlscc_args)
@@ -419,6 +432,7 @@ def xls_cc_ir_macro(
         src = src,
         block = block,
         block_from_class = block_from_class,
+        block_pb_out = block_pb_out,
         src_deps = src_deps,
         xlscc_args = xlscc_args,
         outs = _get_xls_cc_ir_generated_files(kwargs),
@@ -546,7 +560,7 @@ def xls_cc_verilog_macro(
         file must be provided. The file must have a '.cc' extension.
       block: Protobuf describing top-level block interface. A single source file
         single source file must be provided. The file must have a '.protobin'
-        or a '.binarypb' extension.
+        , '.pbtxt', or a '.binarypb' extension.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
       src_deps: Additional source files for the rule. The file must have a

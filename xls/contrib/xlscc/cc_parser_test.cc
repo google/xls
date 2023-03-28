@@ -416,4 +416,25 @@ TEST_F(CCParserTest, MemoryWrite) {
   ASSERT_NE(top_ptr, nullptr);
 }
 
+TEST_F(CCParserTest, TopClass) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    class ABlock {
+     public:
+      #pragma hls_top
+      int foo(int a, int b) {
+        const int foo = a + b;
+        return foo;
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser,
+                                        /*top_name=*/"my_package",
+                                        /*top_class_name=*/"ABlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  EXPECT_NE(top_ptr, nullptr);
+}
+
 }  // namespace
