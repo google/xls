@@ -1296,6 +1296,8 @@ py_binary(
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
+    ],
+)
 
 proto_library(
     name = "design_stats_proto",
