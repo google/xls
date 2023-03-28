@@ -55,45 +55,81 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
                                     const ConcreteType& concrete_type,
                                     const ParametricEnv& bindings) {
   XLS_VLOG(5) << "Converting concrete type to IR: " << concrete_type;
-  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(
-        xls::Type * element_type,
-        TypeToIr(package, array_type->element_type(), bindings));
-    XLS_ASSIGN_OR_RETURN(int64_t element_count,
-                         ResolveDimToInt(array_type->size(), bindings));
-    xls::Type* result = package->GetArrayType(element_count, element_type);
-    XLS_VLOG(5) << "Converted type to IR; concrete type: " << concrete_type
-                << " ir: " << result->ToString()
-                << " element_count: " << element_count;
-    return result;
-  }
-  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                         ResolveDimToInt(bits_type->size(), bindings));
-    return package->GetBitsType(bit_count);
-  }
-  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, enum_type->size().GetAsInt64());
-    return package->GetBitsType(bit_count);
-  }
-  if (dynamic_cast<const TokenType*>(&concrete_type) != nullptr) {
-    return package->GetTokenType();
-  }
-  std::vector<xls::Type*> members;
-  if (auto* struct_type = dynamic_cast<const StructType*>(&concrete_type)) {
-    for (const std::unique_ptr<ConcreteType>& m : struct_type->members()) {
-      XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(package, *m, bindings));
-      members.push_back(type);
+
+  struct Visitor : public ConcreteTypeVisitor {
+   public:
+    Visitor(const ParametricEnv& bindings, Package* package)
+        : bindings_(bindings), package_(package) {}
+
+    absl::Status HandleArray(const ArrayType& t) override {
+      XLS_ASSIGN_OR_RETURN(xls::Type * element_type,
+                           TypeToIr(package_, t.element_type(), bindings_));
+      XLS_ASSIGN_OR_RETURN(int64_t element_count,
+                           ResolveDimToInt(t.size(), bindings_));
+      xls::Type* result = package_->GetArrayType(element_count, element_type);
+      XLS_VLOG(5) << "Converted type to IR; concrete type: " << t
+                  << " ir: " << result->ToString()
+                  << " element_count: " << element_count;
+      retval_ = result;
+      return absl::OkStatus();
     }
-    return package->GetTupleType(members);
-  }
-  auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type);
-  XLS_RET_CHECK(tuple_type != nullptr) << concrete_type;
-  for (const std::unique_ptr<ConcreteType>& m : tuple_type->members()) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * type, TypeToIr(package, *m, bindings));
-    members.push_back(type);
-  }
-  return package->GetTupleType(members);
+    absl::Status HandleBits(const BitsType& t) override {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                           ResolveDimToInt(t.size(), bindings_));
+      retval_ = package_->GetBitsType(bit_count);
+      return absl::OkStatus();
+    }
+    absl::Status HandleEnum(const EnumType& t) override {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_count, t.size().GetAsInt64());
+      retval_ = package_->GetBitsType(bit_count);
+      return absl::OkStatus();
+    }
+    absl::Status HandleToken(const TokenType& t) override {
+      retval_ = package_->GetTokenType();
+      return absl::OkStatus();
+    }
+    absl::Status HandleStruct(const StructType& t) override {
+      std::vector<xls::Type*> members;
+      members.reserve(t.members().size());
+      for (const std::unique_ptr<ConcreteType>& m : t.members()) {
+        XLS_ASSIGN_OR_RETURN(xls::Type * type,
+                             TypeToIr(package_, *m, bindings_));
+        members.push_back(type);
+      }
+      retval_ = package_->GetTupleType(members);
+      return absl::OkStatus();
+    }
+    absl::Status HandleTuple(const TupleType& t) override {
+      std::vector<xls::Type*> members;
+      members.reserve(t.members().size());
+      for (const std::unique_ptr<ConcreteType>& m : t.members()) {
+        XLS_ASSIGN_OR_RETURN(xls::Type * type,
+                             TypeToIr(package_, *m, bindings_));
+        members.push_back(type);
+      }
+      retval_ = package_->GetTupleType(members);
+      return absl::OkStatus();
+    }
+    absl::Status HandleFunction(const FunctionType& t) override {
+      return absl::UnimplementedError(
+          "Cannot convert function type to XLS IR type: " + t.ToString());
+    }
+    absl::Status HandleChannel(const ChannelType& t) override {
+      return absl::UnimplementedError(
+          "Cannot convert channel type to XLS IR type: " + t.ToString());
+    }
+
+    xls::Type* retval() const { return retval_; }
+
+   private:
+    const ParametricEnv& bindings_;
+    Package* package_;
+    xls::Type* retval_ = nullptr;
+  };
+
+  Visitor v(bindings, package);
+  XLS_RETURN_IF_ERROR(concrete_type.Accept(v));
+  return v.retval();
 }
 
 }  // namespace xls::dslx
