@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 
 using std::shared_ptr;
@@ -25,7 +30,7 @@ using std::vector;
 
 namespace xlscc {
 
-CType::~CType() {}
+CType::~CType() = default;
 
 bool CType::operator!=(const CType& o) const { return !(*this == o); }
 
@@ -58,7 +63,7 @@ absl::Status CType::GetMetadataValue(Translator& translator,
       "GetMetadataValue unsupported in CType base class");
 }
 
-CVoidType::~CVoidType() {}
+CVoidType::~CVoidType() = default;
 
 int CVoidType::GetBitWidth() const {
   XLS_CHECK(false);
@@ -84,7 +89,7 @@ bool CVoidType::operator==(const CType& o) const { return o.Is<CVoidType>(); }
 
 CBitsType::CBitsType(int width) : width_(width) {}
 
-CBitsType::~CBitsType() {}
+CBitsType::~CBitsType() = default;
 
 int CBitsType::GetBitWidth() const { return width_; }
 
@@ -118,7 +123,7 @@ bool CBitsType::operator==(const CType& o) const {
   return width_ == o_derived->width_;
 }
 
-CIntType::~CIntType() {}
+CIntType::~CIntType() = default;
 
 CIntType::CIntType(int width, bool is_signed, bool is_declared_as_char)
     : width_(width),
@@ -157,8 +162,7 @@ CIntType::operator std::string() const {
   if (width_ == 8) {
     return pre + (is_declared_as_char() ? "char" : "int8_t");
   }
-  XLS_CHECK(0);
-  return "Unsupported";
+  return absl::StrFormat("native_int[%d]", width_);
 }
 
 absl::Status CIntType::GetMetadata(
@@ -188,7 +192,86 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
   return absl::OkStatus();
 }
 
-CBoolType::~CBoolType() {}
+CEnumType::~CEnumType() = default;
+
+CEnumType::CEnumType(std::string name, int width, bool is_signed,
+                     absl::btree_map<std::string, int64_t> variants_by_name)
+    : CIntType(width, is_signed),
+      name_(std ::move(name)),
+      variants_by_name_(std::move(variants_by_name)) {
+  for (const auto& variant : variants_by_name_) {
+    if (!variants_by_value_.contains(variant.second)) {
+      variants_by_value_.insert({variant.second, std::vector<std::string>()});
+    }
+    variants_by_value_[variant.second].push_back(variant.first);
+  }
+}
+
+xls::Type* CEnumType::GetXLSType(xls::Package* package) const {
+  return package->GetBitsType(width_);
+}
+
+bool CEnumType::operator==(const CType& o) const {
+  if (!o.Is<CEnumType>()) {
+    return false;
+  }
+  const auto* o_derived = o.As<CEnumType>();
+  if (width_ != o_derived->width_) {
+    return false;
+  }
+  return is_signed_ == o_derived->is_signed_;
+}
+
+int CEnumType::GetBitWidth() const { return width_; }
+
+bool CEnumType::StoredAsXLSBits() const { return true; }
+
+CEnumType::operator std::string() const {
+  return absl::StrFormat("enum[%d]", width_);
+}
+
+absl::Status CEnumType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  output->mutable_as_enum()->set_name(name_);
+  output->mutable_as_enum()->set_width(width_);
+  output->mutable_as_enum()->set_is_signed(is_signed_);
+  absl::btree_map<int64_t, xlscc_metadata::EnumVariant*> proto_variants;
+  for (const auto& [variant_name, variant_value] : variants_by_name_) {
+    if (!proto_variants.contains(variant_value)) {
+      auto proto_variant = output->mutable_as_enum()->add_variants();
+      proto_variant->set_value(variant_value);
+      proto_variants.insert({variant_value, proto_variant});
+    }
+    proto_variants[variant_value]->add_name(variant_name);
+  }
+  return absl::OkStatus();
+}
+
+absl::Status CEnumType::GetMetadataValue(Translator& translator,
+                                         const ConstValue const_value,
+                                         xlscc_metadata::Value* output) const {
+  auto value = const_value.rvalue();
+  XLS_CHECK(value.IsBits());
+  if (is_signed()) {
+    XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
+    auto variant = variants_by_value_.find(signed_value);
+    output->mutable_as_enum()->mutable_variant()->set_value(variant->first);
+    for (const auto& variant_name : variant->second) {
+      output->mutable_as_enum()->mutable_variant()->add_name(variant_name);
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(uint64_t unsigned_value, value.bits().ToUint64());
+    auto variant = variants_by_value_.find(unsigned_value);
+    output->mutable_as_enum()->mutable_variant()->set_value(variant->first);
+    for (const auto& variant_name : variant->second) {
+      output->mutable_as_enum()->mutable_variant()->add_name(variant_name);
+    }
+  }
+  return absl::OkStatus();
+}
+
+CBoolType::~CBoolType() = default;
 
 int CBoolType::GetBitWidth() const { return 1; }
 
@@ -478,6 +561,19 @@ std::shared_ptr<CField> CStructType::get_field(
   return found->second;
 }
 
+absl::StatusOr<int64_t> CStructType::count_lvalue_compounds(
+    Translator& translator) const {
+  int64_t ret = 0;
+  for (const auto& field : fields_) {
+    XLS_ASSIGN_OR_RETURN(bool field_has_lval,
+                         field->type()->ContainsLValues(translator));
+    if (field_has_lval) {
+      ++ret;
+    }
+  }
+  return ret;
+}
+
 CInternalTuple::CInternalTuple(std::vector<std::shared_ptr<CType>> fields)
     : fields_(fields) {}
 
@@ -691,14 +787,22 @@ absl::Status CReferenceType::GetMetadataValue(
       "Can't generate externally useful metadata for references");
 }
 
-CChannelType::CChannelType(std::shared_ptr<CType> item_type, OpType op_type)
-    : item_type_(item_type), op_type_(op_type) {}
+CChannelType::CChannelType(std::shared_ptr<CType> item_type,  // OpType op_type,
+                           int64_t memory_size)
+    : item_type_(item_type),
+      op_type_(OpType::kNull),
+      memory_size_(memory_size) {}
+
+CChannelType::CChannelType(std::shared_ptr<CType> item_type,
+                           int64_t memory_size, OpType op_type)
+    : item_type_(item_type), op_type_(op_type), memory_size_(memory_size) {}
 
 bool CChannelType::operator==(const CType& o) const {
   if (!o.Is<CChannelType>()) return false;
   const auto* o_derived = o.As<CChannelType>();
   return *item_type_ == *o_derived->item_type_ &&
-         op_type_ == o_derived->op_type_;
+         op_type_ == o_derived->op_type_ &&
+         memory_size_ == o_derived->memory_size_;
 }
 
 int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
@@ -706,6 +810,9 @@ int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
 std::shared_ptr<CType> CChannelType::GetItemType() const { return item_type_; }
 
 CChannelType::operator std::string() const {
+  if (op_type_ == OpType::kRead || op_type_ == OpType::kWrite) {
+    return absl::StrFormat("memory<%s,%i>", string(*item_type_), memory_size_);
+  }
   return absl::StrFormat("channel<%s,%s>", string(*item_type_),
                          (op_type_ == OpType::kRecv)
                              ? "recv"
@@ -734,5 +841,57 @@ absl::StatusOr<bool> CChannelType::ContainsLValues(
 }
 
 OpType CChannelType::GetOpType() const { return op_type_; }
+
+int64_t CChannelType::GetMemorySize() const { return memory_size_; }
+
+int64_t CChannelType::GetMemoryAddressWidth() const {
+  return MemoryAddressWidth(memory_size_);
+}
+
+std::optional<int64_t> CChannelType::GetMemoryMaskWidth() const {
+  // TODO(google/xls#861): support masked memory operations.
+  // Setting mask width to nullopt elides the mask ports.
+  return std::nullopt;
+}
+
+std::shared_ptr<CType> CChannelType::MemoryAddressType(int64_t memory_size) {
+  return std::make_shared<CIntType>(MemoryAddressWidth(memory_size), false);
+}
+
+int64_t CChannelType::MemoryAddressWidth(int64_t memory_size) {
+  XLS_CHECK_GT(memory_size, 0);
+  return std::ceil(std::log2(memory_size));
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetReadRequestType(
+    xls::Package* package, xls::Type* item_type) const {
+  xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
+  xls::Type* mask_type =
+      GetMemoryMaskWidth().has_value()
+          ? package->GetBitsType(GetMemoryMaskWidth().value())
+          : static_cast<xls::Type*>(package->GetTupleType({}));
+  return package->GetTupleType({addr_type, mask_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetReadResponseType(
+    xls::Package* package, xls::Type* item_type) const {
+  return package->GetTupleType({item_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetWriteRequestType(
+    xls::Package* package, xls::Type* item_type) const {
+  xls::Type* addr_type = package->GetBitsType(GetMemoryAddressWidth());
+  xls::Type* mask_type =
+      GetMemoryMaskWidth().has_value()
+          ? package->GetBitsType(GetMemoryMaskWidth().value())
+          : static_cast<xls::Type*>(package->GetTupleType({}));
+
+  return package->GetTupleType({addr_type, item_type, mask_type});
+}
+
+absl::StatusOr<xls::Type*> CChannelType::GetWriteResponseType(
+    xls::Package* package, xls::Type* item_type) const {
+  return package->GetTupleType({});
+}
 
 }  //  namespace xlscc

@@ -30,7 +30,7 @@ class DeadFunctionEliminationPass : public Pass {
  public:
   explicit DeadFunctionEliminationPass()
       : Pass("dfe", "Dead Function Elimination") {}
-  ~DeadFunctionEliminationPass() override {}
+  ~DeadFunctionEliminationPass() override = default;
 
  protected:
   // Iterate all nodes and mark and eliminate unreachable functions.

@@ -21,6 +21,15 @@ package(
 )
 
 cc_library(
+    name = "call_graph",
+    hdrs = ["call_graph.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
     name = "ir",
     hdrs = ["ir.h"],
     deps = [

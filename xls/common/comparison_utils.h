@@ -110,7 +110,9 @@ namespace xls {
 template <typename T,
           typename std::enable_if<std::is_integral_v<T>, T>::type* = nullptr>
 std::string Compare(std::string_view element_name, T expected, T computed) {
-  if (computed == expected) return "";
+  if (computed == expected) {
+    return "";
+  }
   return absl::StrFormat("Element %s differ: expected (%s), got (%s).\n",
                          element_name, ToString(expected), ToString(computed));
 }

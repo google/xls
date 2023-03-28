@@ -1,5 +1,6 @@
 # XLS libraries ported from Go math library.
 
+load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -11,7 +12,13 @@ load(
 )
 
 package(
+    default_applicable_licenses = [":license"],
     default_visibility = ["//xls:xls_internal"],
+)
+
+license(
+    name = "license",
+    package_name = "xls_go_math",
 )
 
 licenses(["notice"])

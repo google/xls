@@ -48,7 +48,9 @@ cc_library(
         ":proc_inlining_pass",
         ":proc_state_flattening_pass",
         ":proc_state_optimization_pass",
+        ":ram_rewrite_pass",
         ":reassociation_pass",
+        ":receive_default_value_simplification_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
         ":strength_reduction_pass",
@@ -212,7 +214,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:call_graph",
     ],
 )
 
@@ -389,6 +390,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
     ],
 )
 
@@ -745,6 +747,7 @@ cc_library(
 
 cc_library(
     name = "pass_base",
+    srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
         "@com_google_absl//absl/status",
@@ -752,11 +755,26 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "//xls/common:math_util",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ram_rewrite_cc_proto",
+    ],
+)
+
+cc_test(
+    name = "pass_base_test",
+    srcs = ["pass_base_test.cc"],
+    deps = [
+        ":pass_base",
+        "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:ram_rewrite_cc_proto",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -885,12 +903,11 @@ cc_library(
     hdrs = ["table_switch_pass.h"],
     deps = [
         ":passes",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
     ],
 )
 
@@ -900,15 +917,13 @@ cc_library(
     hdrs = ["array_simplification_pass.h"],
     deps = [
         ":passes",
-        ":range_query_engine",
         ":ternary_query_engine",
-        ":union_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
         "//xls/ir:type",
-        "//xls/ir:value_helpers",
     ],
 )
 
@@ -1088,6 +1103,47 @@ cc_library(
 )
 
 cc_library(
+    name = "ram_rewrite_pass",
+    srcs = ["ram_rewrite_pass.cc"],
+    hdrs = ["ram_rewrite_pass.h"],
+    deps = [
+        ":pass_base",
+        ":passes",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:type",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_test(
+    name = "ram_rewrite_pass_test",
+    srcs = ["ram_rewrite_pass_test.cc"],
+    deps = [
+        ":pass_base",
+        ":ram_rewrite_pass",
+        ":standard_pipeline",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "dataflow_visitor",
     hdrs = ["dataflow_visitor.h"],
     deps = [
@@ -1097,6 +1153,39 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "receive_default_value_simplification_pass",
+    srcs = ["receive_default_value_simplification_pass.cc"],
+    hdrs = ["receive_default_value_simplification_pass.h"],
+    deps = [
+        ":pass_base",
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
+cc_test(
+    name = "receive_default_value_simplification_pass_test",
+    srcs = ["receive_default_value_simplification_pass_test.cc"],
+    deps = [
+        ":receive_default_value_simplification_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value_helpers",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -1456,8 +1545,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",

@@ -14,9 +14,11 @@
 
 #include "xls/ir/proc.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/value_helpers.h"
 
@@ -220,7 +222,9 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
 
 absl::StatusOr<Proc*> Proc::Clone(
     std::string_view new_name, Package* target_package,
-    absl::flat_hash_map<int64_t, int64_t> channel_remapping) const {
+    absl::flat_hash_map<int64_t, int64_t> channel_remapping,
+    absl::flat_hash_map<const FunctionBase*, FunctionBase*> call_remapping)
+    const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   if (target_package == nullptr) {
     target_package = package();
@@ -235,43 +239,112 @@ absl::StatusOr<Proc*> Proc::Clone(
     original_to_clone[GetStateParam(i)] = cloned_param;
   }
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
-    if (node->Is<Param>()) {
-      continue;
-    }
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {
       cloned_operands.push_back(original_to_clone.at(operand));
     }
 
-    if (node->Is<Receive>()) {
-      Receive* src = node->As<Receive>();
-      int64_t channel_id = channel_remapping.contains(src->channel_id())
-                               ? channel_remapping.at(src->channel_id())
-                               : src->channel_id();
-      XLS_ASSIGN_OR_RETURN(original_to_clone[node],
-                           cloned_proc->MakeNodeWithName<Receive>(
-                               src->loc(), cloned_operands[0],
-                               cloned_operands.size() == 2
-                                   ? std::optional<Node*>(cloned_operands[1])
-                                   : absl::nullopt,
-                               channel_id, src->is_blocking(), src->GetName()));
-    } else if (node->Is<Send>()) {
-      Send* src = node->As<Send>();
-      int64_t channel_id = channel_remapping.contains(src->channel_id())
-                               ? channel_remapping.at(src->channel_id())
-                               : src->channel_id();
-      XLS_ASSIGN_OR_RETURN(
-          original_to_clone[node],
-          cloned_proc->MakeNodeWithName<Send>(
-              src->loc(), cloned_operands[0], cloned_operands[1],
-              cloned_operands.size() == 3
-                  ? std::optional<Node*>(cloned_operands[2])
-                  : absl::nullopt,
-              channel_id, src->GetName()));
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          original_to_clone[node],
-          node->CloneInNewFunction(cloned_operands, cloned_proc));
+    switch (node->op()) {
+      case Op::kParam: {
+        continue;
+      }
+      case Op::kReceive: {
+        Receive* src = node->As<Receive>();
+        int64_t channel_id = channel_remapping.contains(src->channel_id())
+                                 ? channel_remapping.at(src->channel_id())
+                                 : src->channel_id();
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_proc->MakeNodeWithName<Receive>(
+                src->loc(), cloned_operands[0],
+                cloned_operands.size() == 2
+                    ? std::optional<Node*>(cloned_operands[1])
+                    : std::nullopt,
+                channel_id, src->is_blocking(), src->GetName()));
+        break;
+      }
+      case Op::kSend: {
+        Send* src = node->As<Send>();
+        int64_t channel_id = channel_remapping.contains(src->channel_id())
+                                 ? channel_remapping.at(src->channel_id())
+                                 : src->channel_id();
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_proc->MakeNodeWithName<Send>(
+                src->loc(), cloned_operands[0], cloned_operands[1],
+                cloned_operands.size() == 3
+                    ? std::optional<Node*>(cloned_operands[2])
+                    : std::nullopt,
+                channel_id, src->GetName()));
+        break;
+      }
+      // Remap CountedFor body.
+      case Op::kCountedFor: {
+        CountedFor* src = node->As<CountedFor>();
+        auto remapped_call = call_remapping.find(src->body());
+        if (remapped_call == call_remapping.end()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Could not find mapping for CountedFor target %s.",
+              src->GetName()));
+        }
+        Function* body = dynamic_cast<Function*>(remapped_call->second);
+        if (body == nullptr) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "CountedFor target was not mapped to a function."));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_proc->MakeNodeWithName<CountedFor>(
+                src->loc(), cloned_operands[0],
+                absl::Span<Node*>(cloned_operands).subspan(1),
+                src->trip_count(), src->stride(), body, src->GetName()));
+        break;
+      }
+      // Remap Map to_apply.
+      case Op::kMap: {
+        Map* src = node->As<Map>();
+        auto remapped_call = call_remapping.find(src->to_apply());
+        if (remapped_call == call_remapping.end()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Could not find mapping for Map target %s.", src->GetName()));
+        }
+        Function* to_apply = dynamic_cast<Function*>(remapped_call->second);
+        if (to_apply == nullptr) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Map target was not mapped to a function."));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_proc->MakeNodeWithName<Map>(src->loc(), cloned_operands[0],
+                                               to_apply, src->GetName()));
+        break;
+      }
+      // Remap Invoke to_apply.
+      case Op::kInvoke: {
+        Invoke* src = node->As<Invoke>();
+        auto remapped_call = call_remapping.find(src->to_apply());
+        if (remapped_call == call_remapping.end()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Could not find mapping for Invoke target %s.", src->GetName()));
+        }
+        Function* to_apply = dynamic_cast<Function*>(remapped_call->second);
+        if (to_apply == nullptr) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Invoke target was not mapped to a function."));
+        }
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            cloned_proc->MakeNodeWithName<Invoke>(src->loc(), cloned_operands,
+                                                  to_apply, src->GetName()));
+        break;
+      }
+      // Default clone.
+      default: {
+        XLS_ASSIGN_OR_RETURN(
+            original_to_clone[node],
+            node->CloneInNewFunction(cloned_operands, cloned_proc));
+        break;
+      }
     }
   }
   XLS_RETURN_IF_ERROR(

@@ -515,29 +515,30 @@ IntegrationFunction::DeUnifyIntegrationNodesWithGlobalMuxSelect(Node* node) {
 
     XLS_RETURN_IF_ERROR(function()->RemoveNode(node));
     return nullptr;
-
-    // Reset last updated cases.
-  } else {
-    Node* reset_value =
-        mux->cases().at(*metadata.occupied_case_indexes.begin());
-    absl::flat_hash_map<int64_t, Node*> case_updates;
-    for (int64_t updated_idx : metadata.last_case_indexes_added) {
-      case_updates[updated_idx] = reset_value;
-    }
-    XLS_ASSIGN_OR_RETURN(Node * new_mux, ReplaceMuxCases(node, case_updates));
-
-    // Update bookkeeping.
-    GlobalMuxMetadata& new_metadata = global_mux_to_metadata_[new_mux];
-    new_metadata = metadata;
-    // Note: DeUnifyIntegrationNodes shouldn't be called repeatedly on
-    // a mux, so we don't need to recover any updates past the update
-    // that was just reversed. So simply clearing last_case_indexes_added
-    // is okay.
-    new_metadata.last_case_indexes_added.clear();
-    global_mux_to_metadata_.erase(node);
-
-    return new_mux;
   }
+  // Reset last updated cases.
+  Node* reset_value =
+      mux->cases().at(*metadata.occupied_case_indexes.begin());
+  absl::flat_hash_map<int64_t, Node*> case_updates;
+  for (int64_t updated_idx : metadata.last_case_indexes_added) {
+    case_updates[updated_idx] = reset_value;
+  }
+  XLS_ASSIGN_OR_RETURN(Node * new_mux, ReplaceMuxCases(node, case_updates));
+
+  // Update bookkeeping. We make a copy of `metadata` in `old_metadata` because
+  // `global_mux_to_metadata_[new_mux]` can cause a rehash and invalidate the
+  // `metadata` reference.
+  GlobalMuxMetadata old_metadata = metadata;
+  GlobalMuxMetadata& new_metadata = global_mux_to_metadata_[new_mux];
+  new_metadata = std::move(old_metadata);
+  // Note: DeUnifyIntegrationNodes shouldn't be called repeatedly on
+  // a mux, so we don't need to recover any updates past the update
+  // that was just reversed. So simply clearing last_case_indexes_added
+  // is okay.
+  new_metadata.last_case_indexes_added.clear();
+  global_mux_to_metadata_.erase(node);
+
+  return new_mux;
 }
 
 bool IntegrationFunction::HasMapping(const Node* node) const {
@@ -642,7 +643,7 @@ absl::StatusOr<std::optional<int64_t>> IntegrationFunction::GetMergeNodesCost(
                        MergeNodesBackend(node_a, node_b));
   // Can't merge nodes.
   if (!merge_result.can_merge) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Score.

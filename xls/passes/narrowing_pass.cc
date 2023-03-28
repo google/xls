@@ -800,9 +800,9 @@ absl::StatusOr<bool> MaybeNarrowPartialMultiply(
 
 }  // namespace
 
-void RangeAnalysisLog(FunctionBase* f,
-                      const TernaryQueryEngine& ternary_query_engine,
-                      const RangeQueryEngine& range_query_engine) {
+static void RangeAnalysisLog(FunctionBase* f,
+                             const TernaryQueryEngine& ternary_query_engine,
+                             const RangeQueryEngine& range_query_engine) {
   int64_t bits_saved = 0;
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> parents_map;
 
@@ -879,7 +879,7 @@ void RangeAnalysisLog(FunctionBase* f,
   }
 }
 
-absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(
+static absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(
     Node* node, const QueryEngine& query_engine) {
   LeafTypeTree<IntervalSet> intervals = query_engine.GetIntervals(node);
   for (Type* leaf_type : intervals.leaf_types()) {

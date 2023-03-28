@@ -43,7 +43,7 @@ class BddQueryEngine : public QueryEngine {
   // evaluated). See BddFunction for details.
   explicit BddQueryEngine(int64_t path_limit = 0,
                           std::optional<std::function<bool(const Node*)>>
-                              node_filter = absl::nullopt)
+                              node_filter = std::nullopt)
       : path_limit_(path_limit), node_filter_(node_filter) {}
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;

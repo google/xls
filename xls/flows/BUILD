@@ -13,6 +13,7 @@
 # limitations under the License.
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -30,13 +31,13 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/jit:function_jit",

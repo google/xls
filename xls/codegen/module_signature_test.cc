@@ -366,7 +366,7 @@ TEST(ModuleSignatureTest, FromProtoAndAddOutputPort) {
   EXPECT_EQ(signature.data_outputs()[2].width(), 10);
 }
 
-TEST(ModuleSignatureTest, RamPortInterfaceRW) {
+TEST(ModuleSignatureTest, RamPortInterface1RW) {
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
@@ -376,14 +376,18 @@ TEST(ModuleSignatureTest, RamPortInterfaceRW) {
   b.AddDataOutputAsBits("ram_req_re", 1);
   b.AddDataOutputAsBits("ram_req_we", 1);
 
-  b.AddRamRWPort(/*ram_name=*/"ram", /*req_name=*/"ram_req",
-                 /*resp_name=*/"ram_resp",
-                 /*address_width=*/24, /*data_width=*/32,
-                 /*address_name=*/"ram_req_addr",
-                 /*read_enable_name=*/"ram_req_re",
-                 /*write_enable_name=*/"ram_req_we",
-                 /*read_data_name=*/"ram_resp_rd_data",
-                 /*write_data_name=*/"ram_req_wr_data");
+  b.AddRam1RW({
+      .ram_name = "ram",
+      .req_name = "ram_req",
+      .resp_name = "ram_resp",
+      .address_width = 24,
+      .data_width = 32,
+      .address_name = "ram_req_addr",
+      .read_enable_name = "ram_req_re",
+      .write_enable_name = "ram_req_we",
+      .read_data_name = "ram_resp_rd_data",
+      .write_data_name = "ram_req_wr_data",
+  });
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -481,6 +485,106 @@ TEST(ModuleSignatureTest, RamPortInterfaceRW) {
                 .write_data()
                 .direction(),
             DirectionProto::DIRECTION_OUTPUT);
+}
+
+TEST(ModuleSignatureTest, RamPortInterface1R1W) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataOutputAsBits("ram_req_rd_addr", 24);
+  b.AddDataInputAsBits("ram_resp_rd_data", 32);
+  b.AddDataOutputAsBits("ram_req_rd_en", 1);
+  b.AddDataOutputAsBits("ram_req_wr_addr", 24);
+  b.AddDataOutputAsBits("ram_req_wr_data", 32);
+  b.AddDataOutputAsBits("ram_req_wr_en", 1);
+
+  b.AddRam1R1W({
+      .ram_name = "ram",
+      .rd_req_name = "ram_rd_req",
+      .rd_resp_name = "ram_rd_resp",
+      .wr_req_name = "ram_wr_req",
+      .address_width = 24,
+      .data_width = 32,
+      .read_address_name = "ram_rd_addr",
+      .read_data_name = "ram_rd_data",
+      .read_enable_name = "ram_rd_en",
+      .write_address_name = "ram_wr_addr",
+      .write_data_name = "ram_wr_data",
+      .write_enable_name = "ram_wr_en",
+  });
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  EXPECT_EQ(signature.rams().size(), 1);
+  EXPECT_EQ(signature.rams().at(0).name(), "ram");
+  EXPECT_EQ(signature.rams().at(0).ram_oneof_case(),
+            RamProto::RamOneofCase::kRam1R1W);
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().request().name(),
+            "ram_rd_req");
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().response().name(),
+            "ram_rd_resp");
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().name(),
+            "ram_wr_req");
+
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().request().address().name(),
+      "ram_rd_addr");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().request().address().width(),
+      24);
+  EXPECT_EQ(signature.rams()
+                .at(0)
+                .ram_1r1w()
+                .r_port()
+                .request()
+                .address()
+                .direction(),
+            DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().request().enable().name(),
+      "ram_rd_en");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().request().enable().width(), 1);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().request().enable().direction(),
+      DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().enable().name(),
+      "ram_wr_en");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().enable().width(), 1);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().enable().direction(),
+      DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().r_port().response().data().name(),
+            "ram_rd_data");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().response().data().width(), 32);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().r_port().response().data().direction(),
+      DirectionProto::DIRECTION_INPUT);
+
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().address().name(),
+      "ram_wr_addr");
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().address().width(),
+      24);
+  EXPECT_EQ(signature.rams()
+                .at(0)
+                .ram_1r1w()
+                .w_port()
+                .request()
+                .address()
+                .direction(),
+            DirectionProto::DIRECTION_OUTPUT);
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().data().name(),
+            "ram_wr_data");
+  EXPECT_EQ(signature.rams().at(0).ram_1r1w().w_port().request().data().width(),
+            32);
+  EXPECT_EQ(
+      signature.rams().at(0).ram_1r1w().w_port().request().data().direction(),
+      DirectionProto::DIRECTION_OUTPUT);
 }
 
 }  // namespace

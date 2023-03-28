@@ -14,8 +14,7 @@
 
 #include "xls/passes/union_query_engine.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,7 +44,7 @@ namespace {
 
 class FakeQueryEngine : public QueryEngine {
  public:
-  FakeQueryEngine() {}
+  FakeQueryEngine() = default;
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
     return ReachedFixpoint::Unchanged;
@@ -89,7 +88,7 @@ class FakeQueryEngine : public QueryEngine {
     if (implied_node_values_.contains({vec, node})) {
       return implied_node_values_.at({vec, node});
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   bool KnownEquals(const TreeBitLocation& a,

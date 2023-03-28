@@ -12,11 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdlib>
+#include <filesystem>  // NOLINT
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 namespace {

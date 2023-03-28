@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Note: for changing permissions of files within a filesystem, use
+// std::filesystem::permissions directly.
+
 #ifndef XLS_COMMON_FILE_FILESYSTEM_H_
 #define XLS_COMMON_FILE_FILESYSTEM_H_
 

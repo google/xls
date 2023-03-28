@@ -26,7 +26,7 @@ class PortLegalizationPass : public CodegenPass {
  public:
   PortLegalizationPass()
       : CodegenPass("port_legalization", "Legalize input/output ports") {}
-  ~PortLegalizationPass() override {}
+  ~PortLegalizationPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

@@ -40,12 +40,12 @@ ABSL_FLAG(std::string, var_name, "",
 
 namespace xls {
 
-absl::Status RealMain(const std::string& source_root_path,
-                      const std::string& proto_def_path,
-                      const std::string& proto_name,
-                      const std::string& textproto_path,
-                      const std::string& var_name,
-                      const std::string& output_path) {
+static absl::Status RealMain(const std::string& source_root_path,
+                             const std::string& proto_def_path,
+                             const std::string& proto_name,
+                             const std::string& textproto_path,
+                             const std::string& var_name,
+                             const std::string& output_path) {
   XLS_ASSIGN_OR_RETURN(std::string textproto, GetFileContents(textproto_path));
   XLS_ASSIGN_OR_RETURN(auto module,
                        ProtoToDslx(source_root_path, proto_def_path, proto_name,

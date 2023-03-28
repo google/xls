@@ -269,7 +269,7 @@ absl::StatusOr<Module> CreateModule(
     XLS_ASSIGN_OR_RETURN(
         Cell temp_cell,
         Cell::Create(entry, absl::StrCat(module_name, "_", i), child_params,
-                     absl::nullopt, /*dummy_net=*/nullptr));
+                     std::nullopt, /*dummy_net=*/nullptr));
     XLS_ASSIGN_OR_RETURN(Cell * cell, module.AddCell(temp_cell));
     for (auto& pair : child_params) {
       pair.second->NoteConnectedCell(cell);
@@ -310,7 +310,7 @@ absl::StatusOr<Module> CreateModule(
   XLS_ASSIGN_OR_RETURN(
       Cell temp_cell,
       Cell::Create(entry, absl::StrCat(module_name, "_", cell_name),
-                   parent_params, absl::nullopt, /*dummy_net=*/nullptr));
+                   parent_params, std::nullopt, /*dummy_net=*/nullptr));
   XLS_ASSIGN_OR_RETURN(Cell * cell, module.AddCell(temp_cell));
   for (auto& pair : parent_params) {
     pair.second->NoteConnectedCell(cell);
@@ -381,7 +381,7 @@ class NetlistTranslatorTest : public ::testing::Test {
       : config_(nullptr),
         ctx_(nullptr),
         cell_library_(netlist::MakeFakeCellLibrary().value()) {}
-  ~NetlistTranslatorTest() {
+  ~NetlistTranslatorTest() override {
     if (ctx_) {
       Z3_del_context(ctx_);
     }

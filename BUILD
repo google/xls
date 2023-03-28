@@ -27,4 +27,17 @@
 # See https://google.github.io/xls/build_system/#whirlwind-intro-to-bazel for
 # more tutorial information.
 
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_applicable_licenses = ["//xls:license"],
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+license(
+    name = "license",
+    package_name = "xls",
+)
+
 exports_files(["LICENSE", "mkdocs.yml"])

@@ -20,10 +20,32 @@
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/value.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {
 namespace verilog {
+
+// Data structure describing the holdoff behavior of the valid signal for an
+// input to a ready/valid channel. This enables deasserting the valid signal for
+// a specified number of cycles between inputs.
+struct ValidHoldoff {
+  // Number of cycles to deassert valid.
+  int64_t cycles;
+  // Optional values to drive on the data lines when valid is deasserted. If
+  // non-empty, the vector must have `cycles` elements. If empty, zero is driven
+  // on the data lines when valid is deasserted.
+  std::vector<BitsOrX> driven_values;
+};
+
+// Data structure describing the holdoff behavior of the ready and valid signals
+// of all ready/valid channels of a module.
+struct ReadyValidHoldoffs {
+  // Indexed by channel name. Each vector element describes the valid holdoff
+  // behavior for a single input on the channel.
+  absl::flat_hash_map<std::string, std::vector<ValidHoldoff>> valid_holdoffs;
+  // TODO(meheff): Add ready holdoff.
+};
 
 // Abstraction for simulating a module described by a SignatureProto using a
 // testbench run under the Verilog simulator.
@@ -71,14 +93,15 @@ class ModuleSimulator {
   absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Bits>>>
   RunInputSeriesProc(
       const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
-      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts)
-      const;
+      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+      std::optional<ReadyValidHoldoffs> holdoffs = std::nullopt) const;
   // Overload of the above function that accepts Values rather than Bits.
   absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
-  RunInputSeriesProc(const absl::flat_hash_map<std::string, std::vector<Value>>&
-                         channel_inputs,
-                     const absl::flat_hash_map<std::string, int64_t>&
-                         output_channel_counts) const;
+  RunInputSeriesProc(
+      const absl::flat_hash_map<std::string, std::vector<Value>>&
+          channel_inputs,
+      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+      std::optional<ReadyValidHoldoffs> holdoffs = std::nullopt) const;
 
   // Runs a function with arguments as a Span.
   absl::StatusOr<Value> RunFunction(absl::Span<const Value> inputs) const;

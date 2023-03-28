@@ -14,27 +14,32 @@
 
 #include "xls/common/subprocess.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <filesystem>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>  // NOLINT
 #include <utility>
+#include <vector>
 
 #include "absl/container/fixed_array.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "xls/common/file/file_descriptor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/strerror.h"
+#include "xls/common/thread.h"
 
 namespace xls {
 namespace {
@@ -52,7 +57,6 @@ struct Pipe {
       return absl::InternalError(
           absl::StrCat("Failed to initialize pipe:", Strerror(errno)));
     }
-
     return Pipe(FileDescriptor(descriptors[0]), FileDescriptor(descriptors[1]));
   }
 
@@ -61,11 +65,11 @@ struct Pipe {
 };
 
 void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
-                                  const std::filesystem::path& cwd,
+                                  std::optional<std::filesystem::path> cwd,
                                   const Pipe& stdout_pipe,
                                   const Pipe& stderr_pipe) {
-  if (!cwd.empty()) {
-    if (chdir(cwd.c_str()) != 0) {
+  if (cwd.has_value()) {
+    if (chdir(cwd->c_str()) != 0) {
       XLS_LOG(ERROR) << "chdir failed: " << Strerror(errno);
       _exit(127);
     }
@@ -84,11 +88,14 @@ void PrepareAndExecInChildProcess(const std::vector<const char*>& argv_pointers,
 }
 
 // Takes a list of file descriptor data streams and reads them into a list of
-// strings, one for each provided file descriptor. Uses poll.
-absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
-    absl::Span<FileDescriptor*> fds) {
+// strings, one for each provided file descriptor.
+//
+// The 'result' vector is populated with all the data that was read in from the
+// fd's regardless to the status that is returned. Non-OK status will still
+// populate what it can into 'result'.
+absl::Status ReadFileDescriptors(absl::Span<FileDescriptor*> fds,
+                                 std::vector<std::string>& result) {
   absl::FixedArray<char> buffer(4096);
-  std::vector<std::string> result;
   result.resize(fds.size());
   std::vector<pollfd> poll_list;
   poll_list.resize(fds.size());
@@ -96,7 +103,7 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
     poll_list[i].fd = fds[i]->get();
     poll_list[i].events = POLLIN;
   }
-  int descriptors_left = fds.size();
+  size_t descriptors_left = fds.size();
 
   auto close_fd_by_index = [&](int idx) {
     poll_list[idx].fd = -1;
@@ -126,7 +133,7 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
       // connection, but there may be data waiting to be read. read() will
       // return 0 bytes when we consume all the data, so just ignore that error.
       if ((poll_list[i].revents & (POLLHUP | POLLIN)) != 0) {
-        int bytes = read(poll_list[i].fd, buffer.data(), buffer.size());
+        size_t bytes = read(poll_list[i].fd, buffer.data(), buffer.size());
         if (bytes == 0) {
           // All data is read.
           close_fd_by_index(i);
@@ -139,27 +146,28 @@ absl::StatusOr<std::vector<std::string>> ReadFileDescriptors(
     }
   }
 
-  return std::move(result);
+  return absl::OkStatus();
 }
 
-// Waits for a process to finish. Returns its exit status code.
+// Waits for a process to finish. Returns the wait_status.
 absl::StatusOr<int> WaitForPid(pid_t pid) {
   int wait_status;
   while (waitpid(pid, &wait_status, 0) == -1) {
     if (errno == EINTR) {
       continue;
-    } else {
-      return absl::InternalError(
-          absl::StrCat("waitpid failed: ", Strerror(errno)));
     }
+    return absl::InternalError(
+         absl::StrCat("waitpid failed: ", Strerror(errno)));
   }
-  return WEXITSTATUS(wait_status);
+  return wait_status;
 }
 
 }  // namespace
 
-absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
-    absl::Span<const std::string> argv, const std::filesystem::path& cwd) {
+absl::StatusOr<SubprocessResult> InvokeSubprocess(
+    absl::Span<const std::string> argv,
+    std::optional<std::filesystem::path> cwd,
+    std::optional<absl::Duration> optional_timeout) {
   if (argv.empty()) {
     return absl::InvalidArgumentError("Cannot invoke empty argv list.");
   }
@@ -167,8 +175,8 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
 
   XLS_VLOG(1) << absl::StreamFormat(
       "Running %s; argv: [ %s ], cwd: %s", bin_name, absl::StrJoin(argv, " "),
-      cwd.string().empty() ? std::filesystem::current_path().string()
-                           : cwd.string());
+      cwd.has_value() ? cwd->string()
+                      : std::filesystem::current_path().string());
 
   std::vector<const char*> argv_pointers;
   argv_pointers.reserve(argv.size() + 1);
@@ -184,32 +192,99 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeSubprocess(
   if (pid == -1) {
     return absl::InternalError(
         absl::StrCat("Failed to fork: ", Strerror(errno)));
-  } else if (pid == 0) {
+  }
+  if (pid == 0) {
     PrepareAndExecInChildProcess(argv_pointers, cwd, stdout_pipe, stderr_pipe);
   }
   // This is the parent process.
   stdout_pipe.entrance.Close();
   stderr_pipe.entrance.Close();
 
+  // Order is important here. The optional<Thread> must appear after the mutex
+  // because the thread's destructor calls Join() and because the thread has
+  // references to the mutex. We are depending on destructor invocation being
+  // the reverse order of construction.
+  //
+  // Note that release_watchdog is the Condition trigger protected by the mutex
+  // and signaling that the process has finished and the watchdog should exit.
+  std::atomic<bool> timeout_expired = false;
+  bool release_watchdog = false;
+  absl::Mutex watchdog_mutex;
+  std::optional<xls::Thread> watchdog_thread;
+  if (optional_timeout.has_value() &&
+      *optional_timeout > absl::ZeroDuration()) {
+    auto watchdog = [pid, timeout = optional_timeout.value(), &watchdog_mutex,
+                     &release_watchdog, &timeout_expired]() {
+      absl::MutexLock lock(&watchdog_mutex);
+      auto condition_lambda = [](void* release_val) {
+        return *static_cast<bool*>(release_val);
+      };
+      if (!watchdog_mutex.AwaitWithTimeout(
+              absl::Condition(condition_lambda, &release_watchdog),
+              timeout)) {
+        // Timeout has lapsed, try to kill the subprocess.
+        timeout_expired.store(true);
+        if (kill(pid, SIGKILL) == 0) {
+          XLS_VLOG(1) << "Watchdog killed " << pid;
+        }
+      }
+    };
+    watchdog_thread.emplace(watchdog);
+  }
+
   // Read from the output streams of the subprocess.
   FileDescriptor* fds[] = {&stdout_pipe.exit, &stderr_pipe.exit};
-  XLS_ASSIGN_OR_RETURN(auto output_strings, ReadFileDescriptors(fds));
+  std::vector<std::string> output_strings;
+  absl::Status read_status = ReadFileDescriptors(fds, output_strings);
+  if (!read_status.ok()) {
+    XLS_VLOG(1) << "ReadFileDescriptors non-ok status: " << read_status;
+  }
   const auto& stdout_output = output_strings[0];
   const auto& stderr_output = output_strings[1];
 
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stdout:\n ", stdout_output));
   XLS_VLOG_LINES(2, absl::StrCat(bin_name, " stderr:\n ", stderr_output));
 
-  // Wait for the subprocess to finish.
-  XLS_ASSIGN_OR_RETURN(int exit_status, WaitForPid(pid));
-  if (exit_status != 0) {
-    return absl::InternalError(
-        absl::StrFormat("Failed to execute %s; stdout: \"\"\"%s\"\"\"; "
-                        "stderr: \"\"\"%s\"\"\"; exit code: %d",
-                        bin_name, stdout_output, stderr_output, exit_status));
+  XLS_ASSIGN_OR_RETURN(int wait_status, WaitForPid(pid));
+
+  if (watchdog_thread != std::nullopt) {
+    absl::MutexLock lock(&watchdog_mutex);
+    release_watchdog = true;
   }
 
-  return std::make_pair(stdout_output, stderr_output);
+  return SubprocessResult{.stdout = stdout_output,
+                          .stderr = stderr_output,
+                          .exit_status = WEXITSTATUS(wait_status),
+                          .normal_termination = WIFEXITED(wait_status),
+                          .timeout_expired = timeout_expired.load()};
+}
+
+absl::StatusOr<std::pair<std::string, std::string>> SubprocessResultToStrings(
+    absl::StatusOr<SubprocessResult> result) {
+  if (result.ok()) {
+    return std::make_pair(result->stdout, result->stderr);
+  }
+  return result.status();
+}
+
+absl::StatusOr<SubprocessResult> SubprocessErrorAsStatus(
+    absl::StatusOr<SubprocessResult> result_or_status) {
+  if (!result_or_status.ok() || (result_or_status->exit_status == 0 &&
+                                 result_or_status->normal_termination)) {
+    return result_or_status;
+  }
+
+  return absl::InternalError(absl::StrFormat(
+      "Subprocess exit_code: %d normal_termination: %d stdout: %s stderr: %s",
+      result_or_status->exit_status, result_or_status->normal_termination,
+      result_or_status->stdout, result_or_status->stderr));
+}
+
+std::ostream& operator<<(std::ostream& os, const SubprocessResult& other) {
+  os << "exit_status:" << other.exit_status
+     << " normal_termination:" << other.normal_termination
+     << "\nstdout:" << other.stdout << "\nstderr:" << other.stderr << std::endl;
+  return os;
 }
 
 }  // namespace xls

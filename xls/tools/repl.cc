@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
-#include <string.h>
-
+#include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -51,18 +51,18 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/command_line_utils.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
-#include "xls/dslx/parser.h"
-#include "xls/dslx/scanner.h"
-#include "xls/dslx/type_info.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/type_system/typecheck.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/passes/standard_pipeline.h"
@@ -84,8 +84,8 @@ namespace {
 // Not actually a trie yet, but could be reimplemented with one.
 class Trie {
  public:
-  Trie() {}
-  Trie(std::vector<std::string> all) {
+  Trie() = default;
+  Trie(std::initializer_list<std::string_view> all) {
     for (const auto& string : all) {
       this->Insert(string);
     }
@@ -93,7 +93,7 @@ class Trie {
 
   // Insert the given string into the trie.
   void Insert(std::string_view string) {
-    strings_.push_back(std::string(string));
+    strings_.emplace_back(string);
   }
 
   // Returns all strings that are suffixes of the given query string.
@@ -130,7 +130,7 @@ struct Command {
 };
 
 // Parse a command, given a string like `":type identifier"`.
-// Returns `absl::nullopt` only if the command could not be parsed.
+// Returns `std::nullopt` only if the command could not be parsed.
 std::optional<Command> ParseCommand(std::string_view str) {
   std::string_view stripped_str = absl::StripAsciiWhitespace(str);
   auto munch_prefix = [&str](std::string s) {
@@ -161,7 +161,7 @@ std::optional<Command> ParseCommand(std::string_view str) {
     result.arguments.push_back(absl::StripAsciiWhitespace(str));
   } else {
     XLS_VLOG(1) << "Unknown command prefix: \"" << stripped_str << "\"";
-    return absl::nullopt;
+    return std::nullopt;
   }
   return result;
 }
@@ -476,8 +476,8 @@ absl::Status RealMain(std::string_view dslx_path,
   std::cout << "Welcome to XLS. Type :help for help.\n";
 
   globals->dslx_path = dslx_path;
-  globals->command_trie = {{":help", ":quit", ":reload", ":reset", ":ir",
-                            ":verilog", ":llvm", ":type "}};
+  globals->command_trie = Trie{{":help", ":quit", ":reload", ":reset", ":ir",
+                                ":verilog", ":llvm", ":type "}};
 
   XLS_RETURN_IF_ERROR(CommandReload());
 

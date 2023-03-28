@@ -15,7 +15,7 @@
 #ifndef __MATH_H__
 #define __MATH_H__
 
-#include <assert.h>
+#include <cassert>
 
 double floor(double x) { assert(!"Unimplemented"); return 0.0; }
 float floorf(float x) { assert(!"Unimplemented"); return 0.0f; }

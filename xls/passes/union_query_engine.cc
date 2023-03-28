@@ -138,7 +138,7 @@ std::optional<Bits> UnionQueryEngine::ImpliedNodeValue(
       return i;
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace xls

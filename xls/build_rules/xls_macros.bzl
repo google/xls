@@ -108,7 +108,7 @@ def _xls_dslx_verilog_macro(
       dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'top'
+        //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
@@ -228,7 +228,7 @@ def xls_dslx_verilog_build_and_test(
       dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'top'
+        //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
@@ -310,7 +310,7 @@ def xls_dslx_opt_ir_macro(
       dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'top'
+        //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
@@ -396,4 +396,39 @@ def xls_dslx_cpp_type_library(
             "@com_google_absl//absl/types:span",
             "//xls/public:value",
         ],
+    )
+
+def xls_synthesis_metrics(
+        name,
+        srcs,
+        **kwargs):
+    """Gather per-pipeline-stage metrics from log files.
+
+    Gather per-stage post-synth metrics from the provided logs
+    (from Yosys or OpenSTA) and save them in a "DesignStats" textproto.
+    Recognized metrics from Yosys log:
+      Total cell area (um^2).
+      Logic levels
+      Cell count
+      Flop count
+    Recognized metrics from OpenSTA log:
+      Critical path delay (ps)
+      Critical path start point
+      Critical path end point
+
+    Args:
+        name: Output "DesignStats" textproto will be <name>.textproto
+        srcs: Targets from which log files will be scanned.
+              For post-synth, use "synthesize_rtl" and "run_opensta" targets.
+        **kwargs: Accepts add'l keyword arguments. Passed to native.genrule().
+    """
+    native.genrule(
+        name = name,
+        srcs = srcs,
+        outs = [name + ".textproto"],
+        cmd = "$(location //xls/tools:gather_design_stats) " +
+              "--out $@ " +
+              " ".join(["$(locations {}) ".format(s) for s in srcs]),
+        tools = ["//xls/tools:gather_design_stats"],
+        **kwargs
     )

@@ -85,6 +85,7 @@ cc_library(
 cc_test(
     name = "module_simulator_test",
     srcs = ["module_simulator_test.cc"],
+    data = ["input_channel_monitor.v"],
     deps = [
         ":module_simulator",
         ":verilog_simulators",
@@ -92,6 +93,8 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/codegen:module_signature",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest",

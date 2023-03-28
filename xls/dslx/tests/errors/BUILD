@@ -17,6 +17,7 @@
 # pytype tests are present in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     licenses = ["notice"],  # Apache 2.0
 )
 
@@ -29,6 +30,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "@com_google_absl_py//absl/logging",
         "//xls/common:runfiles",
         "//xls/common:test_base",
     ],

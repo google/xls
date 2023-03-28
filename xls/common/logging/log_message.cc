@@ -52,7 +52,9 @@ std::atomic_flag seen_fatal = ATOMIC_FLAG_INIT;
 // Copies into `dst` as many bytes of `src` as will fit, then truncates the
 // copied bytes from the front of `dst` and returns the number of bytes written.
 size_t AppendTruncated(std::string_view src, absl::Span<char>* dst) {
-  if (src.size() > dst->size()) src = src.substr(0, dst->size());
+  if (src.size() > dst->size()) {
+    src = src.substr(0, dst->size());
+  }
   memcpy(dst->data(), src.data(), src.size());
   dst->remove_prefix(src.size());
   return src.size();
@@ -222,8 +224,9 @@ LogMessage& LogMessage::ToSinkOnly(LogSink* sink) {
 void LogMessage::Flush() {
   if (data_->has_been_flushed ||
       data_->entry.log_severity() <
-          static_cast<absl::LogSeverity>(absl::GetFlag(FLAGS_minloglevel)))
+          static_cast<absl::LogSeverity>(absl::GetFlag(FLAGS_minloglevel))) {
     return;
+  }
 
   if (data_->is_perror) {
     stream() << ": " << Strerror(errno_saver_()) << " [" << errno_saver_()
@@ -256,7 +259,9 @@ void LogMessage::Flush() {
 void LogMessage::LogToSinks() const
     ABSL_LOCKS_EXCLUDED(global_sinks_mutex,
                         sink_send_mutex) ABSL_NO_THREAD_SAFETY_ANALYSIS {
-  if (!data_->extra_sinks_only) global_sinks_mutex.ReaderLock();
+  if (!data_->extra_sinks_only) {
+    global_sinks_mutex.ReaderLock();
+  }
   if (!data_->extra_sinks.empty() ||
       (!data_->extra_sinks_only && global_sinks && !global_sinks->empty())) {
     {
@@ -279,7 +284,9 @@ void LogMessage::LogToSinks() const
       }
     }
   }
-  if (!data_->extra_sinks_only) global_sinks_mutex.ReaderUnlock();
+  if (!data_->extra_sinks_only) {
+    global_sinks_mutex.ReaderUnlock();
+  }
 }
 
 void LogMessage::Fail() {
@@ -345,10 +352,14 @@ size_t HashSiteForLogBacktraceAt(std::string_view file, int line) {
 void LogMessage::LogBacktraceIfNeeded() {
   const size_t flag_hash =
       log_backtrace_at_hash.load(std::memory_order_relaxed);
-  if (!flag_hash) return;
+  if (!flag_hash) {
+    return;
+  }
   const size_t site_hash = HashSiteForLogBacktraceAt(
       data_->entry.source_basename(), data_->entry.source_line());
-  if (site_hash != flag_hash) return;
+  if (site_hash != flag_hash) {
+    return;
+  }
   stream_ << " (stacktrace:\n";
   stream_ << GetSymbolizedStackTraceAsString(/*max_depth=*/50,
                                              /*skip_count=*/1);
@@ -374,8 +385,9 @@ void LogMessage::PrepareToDieIfFatal() {
     fatal_message_remaining.remove_suffix(2);
     size_t chars_written = AppendTruncated(message, &fatal_message_remaining);
     // Append a '\n' unless the message already ends with one.
-    if (!chars_written || fatal_message[chars_written - 1] != '\n')
+    if (!chars_written || fatal_message[chars_written - 1] != '\n') {
       fatal_message[chars_written++] = '\n';
+    }
     fatal_message[chars_written] = '\0';
     fatal_time = data_->entry.timestamp();
   }
@@ -501,15 +513,18 @@ LogMessageQuietlyFatal::~LogMessageQuietlyFatal() {
 void AddLogSink(LogSink* sink)
     ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
   absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
-  if (!logging_internal::global_sinks)
+  if (!logging_internal::global_sinks) {
     logging_internal::global_sinks = new std::vector<LogSink*>();
+  }
   logging_internal::global_sinks->push_back(sink);
 }
 
 void RemoveLogSink(LogSink* sink)
     ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
   absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
-  if (!logging_internal::global_sinks) return;
+  if (!logging_internal::global_sinks) {
+    return;
+  }
   for (auto iter = logging_internal::global_sinks->begin();
        iter != logging_internal::global_sinks->end(); ++iter) {
     if (*iter == sink) {

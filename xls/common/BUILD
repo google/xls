@@ -17,6 +17,7 @@
 # pytype test and library
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -174,14 +175,17 @@ cc_library(
     name = "subprocess",
     srcs = ["subprocess.cc"],
     hdrs = ["subprocess.h"],
-    visibility = ["//xls:xls_utility_users"],
     deps = [
         ":strerror",
+        ":thread",
         "@com_google_absl//absl/container:fixed_array",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "//xls/common/file:file_descriptor",
         "//xls/common/logging",
@@ -196,6 +200,8 @@ cc_test(
     deps = [
         ":subprocess",
         ":xls_gunit_main",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],

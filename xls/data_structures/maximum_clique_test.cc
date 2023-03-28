@@ -138,7 +138,7 @@ TEST(MaximumCliqueTest, Big) {
 
   absl::btree_map<V, absl::btree_set<V>> graph;
 
-  std::mt19937 gen;
+  std::mt19937_64 gen;
   std::bernoulli_distribution coin(0.5);
   for (const V& x : nodes) {
     for (const V& y : nodes) {

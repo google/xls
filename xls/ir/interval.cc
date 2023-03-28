@@ -110,7 +110,7 @@ std::optional<Interval> Interval::Intersect(const Interval& lhs,
   XLS_CHECK(!lhs.IsImproper());
   XLS_CHECK(!rhs.IsImproper());
   if (!Interval::Overlaps(lhs, rhs)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   Bits lower = lhs.LowerBound();
   if (bits_ops::UGreaterThan(rhs.LowerBound(), lower)) {
@@ -222,11 +222,11 @@ std::optional<int64_t> Interval::Size() const {
   if (size_status.ok()) {
     uint64_t size = *size_status;
     if (size > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     return static_cast<int64_t>(size);
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 bool Interval::IsImproper() const {
@@ -247,7 +247,7 @@ bool Interval::IsPrecise() const {
 
 std::optional<Bits> Interval::GetPreciseValue() const {
   if (!IsPrecise()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return lower_bound_;
 }
@@ -302,8 +302,8 @@ std::string Interval::ToString() const {
                          upper_bound_.ToString(pref, false));
 }
 
-Interval Interval::Random(uint32_t seed, int64_t bit_count) {
-  std::mt19937 gen(seed);
+Interval Interval::Random(uint64_t seed, int64_t bit_count) {
+  std::mt19937_64 gen(seed);
   std::uniform_int_distribution<int32_t> distrib(0, 255);
   int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
   std::vector<uint8_t> start_bytes(num_bytes);

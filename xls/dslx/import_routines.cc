@@ -14,14 +14,28 @@
 
 #include "xls/dslx/import_routines.h"
 
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_split.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/config/xls_config.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/parser.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 
@@ -57,7 +71,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
       XLS_VLOG(3) << "Found existing file for import path: " << full_path;
       return full_path;
     }
-    return absl::nullopt;
+    return std::nullopt;
   };
   // Helper that tries to see if the path/parent_path are present
   auto try_paths = [&try_path, subject_path,
@@ -71,7 +85,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
         return *result;
       }
     }
-    return absl::nullopt;
+    return std::nullopt;
   };
 
   XLS_VLOG(3) << "Attempting CWD-relative import path.";
@@ -126,6 +140,7 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
                                      const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
+    XLS_VLOG(3) << "DoImport (cached) subject: " << subject.ToString();
     return import_data->Get(subject);
   }
 
@@ -135,6 +150,11 @@ absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
       std::filesystem::path found_path,
       FindExistingPath(subject, import_data->stdlib_path(),
                        import_data->additional_search_paths(), import_span));
+
+  XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(import_span, found_path));
+  auto clenaup = absl::MakeCleanup(
+      [&] { XLS_CHECK_OK(import_data->PopFromImporterStack(import_span)); });
+
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(found_path));
 
   absl::Span<std::string const> pieces = subject.pieces();

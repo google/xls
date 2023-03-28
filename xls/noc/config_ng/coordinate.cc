@@ -87,7 +87,7 @@ std::optional<InlineBitmap> Coordinate::GetDifferentDimensionLocationsWith(
     }
     return rtn;
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::optional<int64_t> Coordinate::GetNumDifferentDimensionLocationsWith(
@@ -102,7 +102,7 @@ std::optional<int64_t> Coordinate::GetNumDifferentDimensionLocationsWith(
     }
     return number_differences;
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
@@ -115,13 +115,13 @@ std::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
     for (int64_t index = 0; index < dimensions.bit_count(); index++) {
       if (dimensions.Get(index)) {
         if (dimension_index >= 0) {
-          return absl::nullopt;
+          return std::nullopt;
         }
         dimension_index = index;
       }
     }
   }
-  return dimension_index == -1 ? absl::nullopt
+  return dimension_index == -1 ? std::nullopt
                                : std::optional(dimension_index);
 }
 

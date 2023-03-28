@@ -20,7 +20,87 @@
 
 namespace xls::verilog {
 namespace {
+// Parses a split configuration string of the form
+// "(ram_name, "1RW", request_channel_name, response_channel_name[,
+// latency])".
+absl::StatusOr<std::unique_ptr<Ram1RWConfiguration>>
+Ram1RWConfigurationParseSplitString(absl::Span<const std::string_view> fields) {
+  // 1RW RAM has configuration (name, "1RW", request_channel_name,
+  // response_channel_name[, latency]). If not specified, latency is assumed to
+  // be 1.
+  if (fields.size() < 5 || fields.size() > 6) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected arguments "
+        "name:1RW:req_name:resp_name:write_comp_name[:latency], got %d "
+        "fields instead.",
+        fields.size()));
+  }
+  if (fields.at(1) != "1RW") {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected to see RAM kind 1RW, got %s.", fields.at(1)));
+  }
+  std::string_view name = fields.at(0);
+  std::string_view request_channel_name = fields.at(2);
+  std::string_view response_channel_name = fields.at(3);
+  std::string_view write_completion_channel_name = fields.at(4);
+  int64_t latency = 1;
+  if (fields.size() > 5) {
+    if (!absl::SimpleAtoi(fields.at(5), &latency)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Latency must be an integer, got %s.", fields.at(5)));
+    }
+  }
+  return std::make_unique<Ram1RWConfiguration>(
+      name, latency, /*request_name=*/request_channel_name,
+      /*response_name=*/response_channel_name,
+      /*write_completion_name=*/write_completion_channel_name);
+}
 
+// Parses a split configuration string of the form
+// "(ram_name, "1R1W", read_request_channel_name, read_response_channel_name,
+// write_request_channel_name[, latency])".
+absl::StatusOr<std::unique_ptr<Ram1R1WConfiguration>>
+Ram1R1WConfigurationParseSplitString(
+    absl::Span<const std::string_view> fields) {
+  // 1R1W RAM has configuration (name, "1R1W", read_request_channel_name,
+  // read_response_channel_name, write_request_channel_name[, latency]). If not
+  // specified, latency is assumed to be 1.
+  if (fields.size() < 6 || fields.size() > 7) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected arguments "
+        "name:1R1W:read_req_name:read_resp_name:write_req_name:write_comp_name["
+        ":latency], got %d "
+        "fields instead.",
+        fields.size()));
+  }
+  if (fields.at(1) != "1R1W") {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected to see RAM kind 1R1W, got %s.", fields.at(1)));
+  }
+  std::string_view name = fields.at(0);
+  std::string_view read_request_channel_name = fields.at(2);
+  std::string_view read_response_channel_name = fields.at(3);
+  std::string_view write_request_channel_name = fields.at(4);
+  std::string_view write_completion_channel_name = fields.at(5);
+  int64_t latency = 1;
+  if (fields.size() > 6) {
+    if (!absl::SimpleAtoi(fields.at(6), &latency)) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Latency must be an integer, got %s.", fields.at(6)));
+    }
+  }
+  return std::make_unique<Ram1R1WConfiguration>(
+      name, latency, /*read_request_name=*/read_request_channel_name,
+      /*read_response_name=*/read_response_channel_name,
+      /*write_request_name=*/write_request_channel_name,
+      /*write_completion_channel_name=*/write_completion_channel_name);
+}
+
+// Ram configurations are in the format
+// ram_name:ram_kind[:ram_specific_configuration]. ParseString() splits the
+// configuration string on ":" and calls a ram_configuration_parser_t function
+// for the desired kind. These functions take a span of string_views and produce
+// a RamConfiguration.
 using ram_configuration_parser_t =
     std::function<absl::StatusOr<std::unique_ptr<RamConfiguration>>(
         absl::Span<const std::string_view>)>;
@@ -29,7 +109,8 @@ absl::flat_hash_map<std::string, ram_configuration_parser_t>*
 GetRamConfigurationParserMap() {
   static auto* singleton =
       new absl::flat_hash_map<std::string, ram_configuration_parser_t>{
-          {"1RW", Ram1RWConfiguration::ParseSplitString},
+          {"1RW", Ram1RWConfigurationParseSplitString},
+          {"1R1W", Ram1R1WConfigurationParseSplitString},
       };
   return singleton;
 }
@@ -67,38 +148,12 @@ absl::StatusOr<std::unique_ptr<RamConfiguration>> RamConfiguration::ParseString(
   return (*configuration_parser)(split_str);
 }
 
-absl::StatusOr<std::unique_ptr<Ram1RWConfiguration>>
-Ram1RWConfiguration::ParseSplitString(
-    absl::Span<const std::string_view> fields) {
-  // 1RW RAM has configuration (name, "1RW", request_channel_name,
-  // response_channel_name[, latency]). If not specified, latency is assumed to
-  // be 1.
-  if (fields.size() < 4 || fields.size() > 5) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected arguments name:1RW:req_name:resp_name[:latency], got %d "
-        "fields instead.",
-        fields.size()));
-  }
-  if (fields.at(1) != "1RW") {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected to see RAM kind 1RW, got %s.", fields.at(1)));
-  }
-  std::string_view name = fields.at(0);
-  std::string_view request_channel_name = fields.at(2);
-  std::string_view response_channel_name = fields.at(3);
-  int64_t latency = 1;
-  if (fields.size() > 4) {
-    if (!absl::SimpleAtoi(fields.at(4), &latency)) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Latency must be an integer, got %s.", fields.at(4)));
-    }
-  }
-  return std::make_unique<Ram1RWConfiguration>(
-      name, latency, request_channel_name, response_channel_name);
-}
-
 std::unique_ptr<RamConfiguration> Ram1RWConfiguration::Clone() const {
   return std::make_unique<Ram1RWConfiguration>(*this);
+}
+
+std::unique_ptr<RamConfiguration> Ram1R1WConfiguration::Clone() const {
+  return std::make_unique<Ram1R1WConfiguration>(*this);
 }
 
 }  // namespace xls::verilog

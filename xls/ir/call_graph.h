@@ -23,14 +23,6 @@
 
 namespace xls {
 
-// Returns the function called directly by the given node. Nodes which call
-// functions include: map, invoke, etc. If the node does not call a function
-// std::nullopt is returned.
-std::optional<Function*> CalledFunction(Node* node);
-
-// Returns the functions called directly by the nodes of the given FunctionBase.
-std::vector<Function*> CalledFunctions(FunctionBase* f);
-
 // Returns the functions called transitively by the given FunctionBase. Called
 // functions are returned before callee FunctionBases in the returned order. The
 // final element in the returned vector is `function_base`.

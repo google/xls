@@ -167,8 +167,8 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
-  EXPECT_EQ(NumberOfOp(proc, Op::kSend), 2);
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
@@ -283,8 +283,8 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
-  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
-  EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 1);
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
@@ -312,6 +312,34 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
        after_all.10: token = after_all(tuple_index.3, tuple_index.7)
        send.11: token = send(after_all.10, add.9, channel_id=0)
        next (send.11, not.1)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  EXPECT_THAT(Run(proc), IsOkAndHolds(false));
+  EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
+}
+
+TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithDataDep) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[1], id=0, kind=streaming, ops=send_receive,
+       flow_control=ready_valid, metadata="""""")
+
+     top proc main(__token: token, __state: bits[1], init={0}) {
+       not.1: bits[1] = not(__state)
+       receive.2: (token, bits[1]) = receive(__token, predicate=__state, channel_id=0)
+       tuple_index.3: token = tuple_index(receive.2, index=0)
+       tuple_index.4: bits[1] = tuple_index(receive.2, index=1)
+       and.11: bits[1] = and(not.1, tuple_index.4)
+       receive.5: (token, bits[1]) = receive(tuple_index.3, predicate=and.11, channel_id=0)
+       tuple_index.6: token = tuple_index(receive.5, index=0)
+       tuple_index.7: bits[1] = tuple_index(receive.5, index=1)
+       add.8: bits[1] = add(tuple_index.4, tuple_index.7)
+       after_all.9: token = after_all(tuple_index.3, tuple_index.6)
+       send.10: token = send(after_all.9, add.8, channel_id=0)
+       next (send.10, not.1)
      }
   )"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());

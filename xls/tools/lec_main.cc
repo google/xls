@@ -14,7 +14,7 @@
 
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
-#include <signal.h>
+#include <csignal>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"
@@ -45,7 +45,7 @@ ABSL_FLAG(std::string, cell_lib_path, "",
           "Either this or cell_proto_path should be set.");
 ABSL_FLAG(std::string, cell_proto_path, "",
           "Path to the preprocessed cell library proto. "
-          "This is a whole bunch faster than specifiying an unprocessed "
+          "This is a whole bunch faster than specifying an unprocessed "
           "cell library and should be favored.\n"
           "Either this or --cell_lib_path should be set.");
 ABSL_FLAG(std::string, constraints_file, "",
@@ -259,7 +259,7 @@ absl::Status RealMain(
     XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::CreateForStage(
                                   std::move(lec_params), schedule, stage));
   } else {
-    XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::Create(std::move(lec_params)));
+    XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::Create(lec_params));
   }
 
   std::unique_ptr<Package> constraints_pkg;
@@ -269,7 +269,9 @@ absl::Status RealMain(
     std::vector<std::string> args;
     args.push_back(ir_converter_path);
     args.push_back(std::string(constraints_file));
-    XLS_ASSIGN_OR_RETURN(auto stdout_and_stderr, InvokeSubprocess(args));
+    XLS_ASSIGN_OR_RETURN(auto stdout_and_stderr,
+                         SubprocessResultToStrings(
+                             SubprocessErrorAsStatus(InvokeSubprocess(args))));
 
     XLS_ASSIGN_OR_RETURN(constraints_pkg,
                          Parser::ParsePackage(stdout_and_stderr.first));

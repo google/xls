@@ -14,8 +14,13 @@
 
 #include "xls/dslx/interp_bindings.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {

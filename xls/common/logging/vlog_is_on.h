@@ -160,7 +160,7 @@ inline bool VLogEnabled(std::atomic<int32_t>* site, int32_t level,
 // pushed onto callers of `IsEnabled()`.
 class VLogSite {
  public:
-  constexpr VLogSite() {}
+  constexpr VLogSite() = default;
 
   // Since this is a caching location, copying it doesn't make sense.  The copy
   // should get a brand new kDefaultSite.

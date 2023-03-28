@@ -190,25 +190,26 @@ proc aes_gcm {
     }
 
     config(command_in: chan<Command> in,
-           data_in: chan<Block> in,
-           data_out: chan<Block> out) {
-        let (ctr_cmd_in, ctr_cmd_out) = chan<aes_ctr::Command>;
-        let (ctr_input_in, ctr_input_out) = chan<Block>;
-        let (ctr_result_in, ctr_result_out) = chan<Block>;
-        spawn aes_ctr::aes_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out);
+           data_r: chan<Block> in,
+           data_s: chan<Block> out) {
+        let (ctr_cmd_s, ctr_cmd_r) = chan<aes_ctr::Command>;
+        let (ctr_input_s, ctr_input_r) = chan<Block>;
+        let (ctr_result_s, ctr_result_r) = chan<Block>;
+        spawn aes_ctr::aes_ctr(ctr_cmd_r, ctr_input_r, ctr_result_s);
 
-        let (ghash_cmd_in, ghash_cmd_out) = chan<ghash::Command>;
-        let (ghash_input_in, ghash_input_out) = chan<Block>;
-        let (ghash_tag_in, ghash_tag_out) = chan<Block>;
-        spawn ghash::ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out);
+        let (ghash_cmd_s, ghash_cmd_r) = chan<ghash::Command>;
+        let (ghash_input_s, ghash_input_r) = chan<Block>;
+        let (ghash_tag_s, ghash_tag_r) = chan<Block>;
+        spawn ghash::ghash(ghash_cmd_r, ghash_input_r, ghash_tag_s);
 
-        (command_in, data_in, data_out,
-         ctr_cmd_out, ctr_input_out, ctr_result_in,
-         ghash_cmd_out, ghash_input_out, ghash_tag_in)
+        (command_in, data_r, data_s,
+         ctr_cmd_s, ctr_input_s, ctr_result_r,
+         ghash_cmd_s, ghash_input_s, ghash_tag_r)
     }
 
     next(tok: token, state: State) {
-        let (tok, command) = recv_if(tok, command_in, state.step == Step::IDLE);
+        let (tok, command) = recv_if(
+            tok, command_in, state.step == Step::IDLE, zero!<Command>());
         let ctr_command = get_ctr_command(command);
         let ghash_command = get_ghash_command(command);
 
@@ -223,7 +224,8 @@ proc aes_gcm {
         // Send the block we read to the appropriate place: if it's an AAD block,
         // it goes to GHASH. If it's a msg block, it goes to CTR.
         let (tok, input_block) = recv_if(
-            tok, data_in, state.step == Step::READ_AAD || state.step == Step::READ_MSG);
+            tok, data_in, state.step == Step::READ_AAD || state.step == Step::READ_MSG,
+            zero!<Block>());
         let aad_blocks_left =
             if state.step == Step::READ_AAD {
                 if state.aad_blocks_left <= u32:1 { u32:0 } else { state.aad_blocks_left - u32:1 }
@@ -242,7 +244,8 @@ proc aes_gcm {
 
         // We could slightly better performance if we delayed reading from CTR by one "tick"
         // after sending it data, but it's unclear if it'd be worth the complexity.
-        let (tok, ctr_block) = recv_if(tok, ctr_result_in, state.step == Step::READ_MSG);
+        let (tok, ctr_block) =
+             recv_if(tok, ctr_result_in, state.step == Step::READ_MSG, zero!<Block>());
         // Ciphertext always goes to GHASH.
         let ghash_block = if state.command.encrypt { ctr_block } else { input_block };
         let tok0 = send_if(tok, ghash_input_out, state.step == Step::READ_MSG, ghash_block);
@@ -250,7 +253,8 @@ proc aes_gcm {
         let tok = join(tok0, tok1);
 
         // Once we've read all outputs from CTR, we just need to read the last block from GHASH.
-        let (tok, tag) = recv_if(tok, ghash_tag_in, state.step == Step::HASH_LENGTHS);
+        let (tok, tag) = recv_if(
+            tok, ghash_tag_in, state.step == Step::HASH_LENGTHS, zero!<Block>());
 
         // Finally, XOR the GHASH'ed tag with counter 1.
         let ctr_block = create_ctr_block(state.command.iv);
@@ -293,11 +297,11 @@ proc aes_gcm_test_smoke_128 {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_in, command_out) = chan<Command>;
-        let (input_in, input_out) = chan<Block>;
-        let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out);
-        (command_out, input_out, result_in, terminator)
+        let (command_s, command_r) = chan<Command>;
+        let (input_s, input_r) = chan<Block>;
+        let (result_s, result_r) = chan<Block>;
+        spawn aes_gcm(command_r, input_r, result_s);
+        (command_s, input_s, result_r, terminator)
     }
 
     next(tok: token, state: ()) {
@@ -361,11 +365,11 @@ proc aes_gcm_multi_block_gcm {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_in, command_out) = chan<Command>;
-        let (input_in, input_out) = chan<Block>;
-        let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out);
-        (command_out, input_out, result_in, terminator)
+        let (command_s, command_r) = chan<Command>;
+        let (input_s, input_r) = chan<Block>;
+        let (result_s, result_r) = chan<Block>;
+        spawn aes_gcm(command_r, input_r, result_s);
+        (command_s, input_s, result_r, terminator)
     }
 
     next(tok: token, state: ()) {
@@ -483,11 +487,11 @@ proc aes_128_gcm_zero_block_commands {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_in, command_out) = chan<Command>;
-        let (input_in, input_out) = chan<Block>;
-        let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out);
-        (command_out, input_out, result_in, terminator)
+        let (command_s, command_r) = chan<Command>;
+        let (input_s, input_r) = chan<Block>;
+        let (result_s, result_r) = chan<Block>;
+        spawn aes_gcm(command_r, input_r, result_s);
+        (command_s, input_s, result_r, terminator)
     }
 
     next(tok: token, state: ()) {
@@ -610,11 +614,11 @@ proc sample_generator_test {
     init { () }
 
     config(terminator: chan<bool> out) {
-        let (command_in, command_out) = chan<Command>;
-        let (input_in, input_out) = chan<Block>;
-        let (result_in, result_out) = chan<Block>;
-        spawn aes_gcm(command_in, input_in, result_out);
-        (command_out, input_out, result_in, terminator)
+        let (command_s, command_r) = chan<Command>;
+        let (input_s, input_r) = chan<Block>;
+        let (result_s, result_r) = chan<Block>;
+        spawn aes_gcm(command_r, input_r, result_s);
+        (command_s, input_s, result_r, terminator)
     }
 
     next(tok: token, state: ()) {

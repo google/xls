@@ -55,7 +55,7 @@ absl::flat_hash_map<T, T> FixedPointOfSPO(
 class CsePass : public FunctionBasePass {
  public:
   CsePass() : FunctionBasePass("cse", "Common subexpression elimination") {}
-  ~CsePass() override {}
+  ~CsePass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

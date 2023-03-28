@@ -23,10 +23,10 @@ fn main() -> MyU128 {
 
 #[test]
 fn test_builtin_max_values() {
-  let _ = assert_eq(u1:0x1, u1::MAX);
-  let _ = assert_eq(u2:0x3, u2::MAX);
-  let _ = assert_eq(u3:0x7, u3::MAX);
-  let _ = assert_eq(u4:0xf, u4::MAX);
+  let _ = assert_eq(u1:0x1,  u1::MAX);
+  let _ = assert_eq(u2:0x3,  u2::MAX);
+  let _ = assert_eq(u3:0x7,  u3::MAX);
+  let _ = assert_eq(u4:0xf,  u4::MAX);
   let _ = assert_eq(u5:0x1f, u5::MAX);
   let _ = assert_eq(u6:0x3f, u6::MAX);
   let _ = assert_eq(u7:0x7f, u7::MAX);
@@ -35,6 +35,21 @@ fn test_builtin_max_values() {
   let _ = assert_eq(u32:0xffff_ffff, u32::MAX);
   let _ = assert_eq(u32:0xffff_ffff, noiti::my_type::MAX);
   let _ = assert_eq(u64:0xffff_ffff_ffff_ffff, u64::MAX);
+
+  // signed types
+  let _ = assert_eq(s1:0b0,    s1::MAX);
+  let _ = assert_eq(s2:0b01,   s2::MAX);
+  let _ = assert_eq(s3:0b011,  s3::MAX);
+  let _ = assert_eq(s4:0b0111, s4::MAX);
+  let _ = assert_eq(s5:0xf,    s5::MAX);
+  let _ = assert_eq(s6:0x1f,   s6::MAX);
+  let _ = assert_eq(s7:0x3f,   s7::MAX);
+  let _ = assert_eq(s8:0x7f,   s8::MAX);
+  let _ = assert_eq(s16:0x7fff, s16::MAX);
+  let _ = assert_eq(s32:0x7fff_ffff, s32::MAX);
+  let _ = assert_eq(s32:0x7fff_ffff, noiti::my_signed_type::MAX);
+  let _ = assert_eq(s64:0x7fff_ffff_ffff_ffff, s64::MAX);
+
   // TODO(https://github.com/google/xls/issues/711): the following syntax is not
   // permitted at the moment, an alias is required.
   //

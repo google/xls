@@ -52,7 +52,8 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
   args_vec.push_back(
       std::string(absl::StripSuffix(iverilog_path.string(), "iverilog-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
-  return InvokeSubprocess(args_vec);
+  return SubprocessResultToStrings(
+      SubprocessErrorAsStatus(InvokeSubprocess(args_vec)));
 }
 
 absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
@@ -65,7 +66,8 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
   args_vec.push_back(
       std::string(absl::StripSuffix(iverilog_path.string(), "vvp-bin")));
   args_vec.insert(args_vec.end(), args.begin(), args.end());
-  return InvokeSubprocess(args_vec);
+  return SubprocessResultToStrings(
+      SubprocessErrorAsStatus(InvokeSubprocess(args_vec)));
 }
 
 class IcarusVerilogSimulator : public VerilogSimulator {

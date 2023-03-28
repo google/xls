@@ -11,21 +11,34 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/dslx/constexpr_evaluator.h"
 
-#include <variant>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/dslx/ast_utils.h"
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/bytecode_emitter.h"
-#include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type_zero_value.h"
 
 namespace xls::dslx {
 namespace {
@@ -47,7 +60,12 @@ class NameRefCollector : public ExprVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleBlock(const Block* expr) override {
-    return expr->body()->AcceptExpr(this);
+    for (const Statement* s : expr->statements()) {
+      if (std::holds_alternative<Expr*>(s->wrapped())) {
+        XLS_RETURN_IF_ERROR(std::get<Expr*>(s->wrapped())->AcceptExpr(this));
+      }
+    }
+    return absl::OkStatus();
   }
   absl::Status HandleBinop(const Binop* expr) override {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
@@ -77,6 +95,9 @@ class NameRefCollector : public ExprVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleZeroMacro(const ZeroMacro* expr) override {
     return absl::OkStatus();
   }
   absl::Status HandleIndex(const Index* expr) override {
@@ -132,13 +153,16 @@ class NameRefCollector : public ExprVisitor {
   }
   absl::Status HandleRecvIf(const RecvIf* expr) override {
     XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
     XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
+    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleSend(const Send* expr) override {
@@ -243,9 +267,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 }  // namespace
 
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
-    ImportData* import_data, TypeInfo* type_info,
-    const SymbolicBindings& bindings, const Expr* expr,
-    const ConcreteType* concrete_type) {
+    ImportData* import_data, TypeInfo* type_info, const ParametricEnv& bindings,
+    const Expr* expr, const ConcreteType* concrete_type) {
   if (type_info->IsKnownConstExpr(expr) ||
       type_info->IsKnownNonConstExpr(expr)) {
     return absl::OkStatus();
@@ -255,9 +278,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 }
 
 /* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
-    ImportData* import_data, TypeInfo* type_info,
-    const SymbolicBindings& bindings, const Expr* expr,
-    const ConcreteType* concrete_type) {
+    ImportData* import_data, TypeInfo* type_info, const ParametricEnv& bindings,
+    const Expr* expr, const ConcreteType* concrete_type) {
   XLS_RETURN_IF_ERROR(Evaluate(import_data, type_info, bindings, expr));
   if (type_info->IsKnownConstExpr(expr)) {
     return type_info->GetConstExpr(expr);
@@ -292,6 +314,27 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
   return InterpretExpr(expr);
+}
+
+absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
+  ExprOrType type_reference = expr->type();
+  std::optional<ConcreteType*> maybe_type =
+      type_info_->GetItem(ToAstNode(type_reference));
+  if (!maybe_type.has_value()) {
+    std::optional<Span> span = ToAstNode(type_reference)->GetSpan();
+    std::string span_str = span.has_value() ? span->ToString() : "<none>";
+    return absl::InternalError(
+        absl::StrFormat("Could not find type for \"%s\" @ %s",
+                        ToAstNode(type_reference)->ToString(), span_str));
+  }
+
+  // At this point type inference should have checked that this type was
+  // zero-able.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue value,
+      MakeZeroValue(*maybe_type.value(), *import_data_, expr->span()));
+  type_info_->NoteConstExpr(expr, value);
+  return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
@@ -338,10 +381,29 @@ absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
-  XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
-  if (type_info_->IsKnownConstExpr(expr->body())) {
-    type_info_->NoteConstExpr(expr,
-                              type_info_->GetConstExpr(expr->body()).value());
+  bool all_statements_constexpr = true;
+  Expr* last_expr = nullptr;
+  for (Statement* stmt : expr->statements()) {
+    if (!std::holds_alternative<Expr*>(stmt->wrapped())) {
+      continue;
+    }
+    Expr* body_expr = std::get<Expr*>(stmt->wrapped());
+    XLS_RETURN_IF_ERROR(body_expr->AcceptExpr(this));
+    if (type_info_->IsKnownConstExpr(body_expr)) {
+      last_expr = body_expr;
+      type_info_->NoteConstExpr(body_expr,
+                                type_info_->GetConstExpr(body_expr).value());
+    } else {
+      all_statements_constexpr = false;
+    }
+  }
+  if (all_statements_constexpr) {
+    if (expr->trailing_semi()) {
+      type_info_->NoteConstExpr(expr, InterpValue::MakeUnit());
+    } else {
+      type_info_->NoteConstExpr(expr,
+                                type_info_->GetConstExpr(last_expr).value());
+    }
   }
   return absl::OkStatus();
 }
@@ -601,8 +663,8 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
 }
 
 // Evaluates a Number AST node to an InterpValue.
-absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
-                                           const ConcreteType* type) {
+static absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
+                                                  const ConcreteType* type) {
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
   const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
@@ -762,7 +824,7 @@ absl::Status ConstexprEvaluator::InterpretExpr(
 
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
-    const SymbolicBindings& symbolic_bindings,
+    const ParametricEnv& parametric_env,
     absl::flat_hash_set<const NameDef*> bypass_env) {
   XLS_CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
@@ -773,7 +835,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   absl::flat_hash_map<std::string, InterpValue> env;
   absl::flat_hash_map<std::string, InterpValue> values;
 
-  for (auto [id, value] : symbolic_bindings.ToMap()) {
+  for (auto [id, value] : parametric_env.ToMap()) {
     env.insert({id, value});
   }
 
@@ -797,7 +859,7 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     }
 
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        import_data, type_info, symbolic_bindings, target_ref, nullptr));
+        import_data, type_info, parametric_env, target_ref, nullptr));
     absl::StatusOr<InterpValue> const_expr =
         type_info->GetConstExpr(target_ref);
     if (const_expr.ok()) {

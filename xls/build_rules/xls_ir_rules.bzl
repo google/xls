@@ -132,10 +132,18 @@ def _convert_to_ir(ctx, src):
         "warnings_as_errors",
     )
 
+    # With runs outside a monorepo, the execution root for the workspace of
+    # the binary can be different with the execroot, requiring to change
+    # the dslx stdlib search path accordingly.
+    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
+    wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
+    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+
     ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
         ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
-        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
+        ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
+        wsroot_dslx_path
     )
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
@@ -193,6 +201,7 @@ def _optimize_ir(ctx, src):
         "run_only_passes",
         "skip_passes",
         "opt_level",
+        "mutual_exclusion_z3_rlimit",
         "convert_array_index_to_select",
         "inline_procs",
     )
@@ -201,7 +210,11 @@ def _optimize_ir(ctx, src):
 
     if ctx.attr.top:
         opt_ir_args.setdefault("top", ctx.attr.top)
+
     my_args = args_to_string(opt_ir_args)
+    if ctx.attr.ram_rewrites:
+        ram_rewrites = "--ram_rewrites_pb=" + ",".join([",".join([file.path for file in ram_rewrite.files.to_list()]) for ram_rewrite in ctx.attr.ram_rewrites])
+        my_args += " " + ram_rewrites
 
     opt_ir_filename = get_output_filename_value(
         ctx,
@@ -214,8 +227,15 @@ def _optimize_ir(ctx, src):
     opt_ir_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).opt_ir_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src])
+    ram_rewrite_files = []
+    for rewrite in ctx.attr.ram_rewrites:
+        ram_rewrite_files.extend(rewrite.files.to_list())
 
+    debug_src_files = []
+    for debug_src in ctx.attr.debug_srcs:
+        debug_src_files.extend(debug_src.files.to_list())
+
+    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src] + ram_rewrite_files + debug_src_files)
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
@@ -515,13 +535,13 @@ xls_dslx_ir_attrs = dicts.add(
     {
         "dslx_top": attr.string(
             doc = "Defines the 'top' argument of the" +
-                  "//xls/dslx/ir_converter_main.cc application.",
+                  "//xls/dslx/ir_convert:ir_converter_main application.",
             mandatory = True,
         ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool. For details on the " +
                   "arguments, refer to the ir_converter_main application at " +
-                  "//xls/dslx/ir_converter_main.cc. Note the " +
+                  "//xls/dslx/ir_convert/ir_converter_main.cc. Note the " +
                   "'top' argument is not assigned using this attribute.",
         ),
         "ir_file": attr.output(
@@ -598,7 +618,7 @@ xls_dslx_ir = rule(
 
 Example:
 
-An IR conversion with an top entity defined.
+An IR conversion with a top entity defined.
 
     ```
     # Assume a xls_dslx_library target bc_dslx is present.
@@ -658,6 +678,11 @@ xls_ir_opt_ir_attrs = dicts.add(
                   "the target name of the bazel rule followed by an " +
                   _OPT_IR_FILE_EXTENSION + " extension is used.",
         ),
+        "ram_rewrites": attr.label_list(doc = "List of ram rewrite protos.", allow_files = True),
+        "debug_srcs": attr.label_list(
+            doc = "List of additional source files for debugging info.",
+            allow_files = True,
+        ),
     },
 )
 
@@ -706,7 +731,7 @@ Examples:
     )
     ```
 
-1. Optimizing an IR file with an top entity defined.
+1. Optimizing an IR file with a top entity defined.
 
     ```
     xls_ir_opt_ir(
@@ -746,7 +771,7 @@ def _xls_ir_equivalence_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",
@@ -852,7 +877,7 @@ def _xls_eval_ir_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",
@@ -950,7 +975,7 @@ def _xls_benchmark_ir_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             cmd,
             "exit 0",

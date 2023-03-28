@@ -116,6 +116,21 @@ message IntType {
   optional bool is_synthetic = 4;
 }
 
+// If multiple enum variants map to the same value, each will be repeated here
+// in the name field.
+message EnumVariant {
+  repeated string name = 1;
+  optional int64 value = 2;
+}
+
+// C++ enum or enum class
+message EnumType {
+  optional string name = 1;
+  optional int32 width = 2;
+  optional bool is_signed = 3;
+  repeated EnumVariant variants = 4;
+}
+
 // Placeholder for bool
 message BoolType {}
 
@@ -153,6 +168,7 @@ message Type {
   optional SourceLocationRange declaration_location = 8;
   optional InternalTupleType as_tuple = 9;
   optional ChannelType as_channel = 10;
+  optional EnumType as_enum = 11;
 }
 
 // A field in a structure
@@ -184,6 +200,7 @@ message Value {
   optional StructTypeValue as_struct = 5;
   optional InstanceTypeValue as_inst = 6;
   optional InternalTupleValue as_tuple = 7;
+  optional EnumTypeValue as_enum = 8;
 }
 
 // Any integral type: char, short, int, long with the given
@@ -191,6 +208,11 @@ message Value {
 message IntTypeValue {
   optional int64 signed_value = 1;
   optional uint64 unsigned_value = 2;
+}
+
+// C++ enum or enum class value
+message EnumTypeValue {
+  optional EnumVariant variant = 1;
 }
 
 //

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn derived_parametric_main<FOO: u32, BAR: u32, DERIVED:u32 = FOO + BAR>(input: u32) -> u32 {
+fn derived_parametric_main<FOO: u32, BAR: u32, DERIVED:u32 = {FOO + BAR}>(input: u32) -> u32 {
   for(idx, acc): (u32, u32) in u32:0..DERIVED {
     for(idx, acc): (u32, u32) in u32:0..DERIVED {
       for(idx, acc): (u32, u32) in u32:0..DERIVED {

@@ -18,6 +18,7 @@
 load("//xls/delay_model:build_defs.bzl", "delay_model")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )

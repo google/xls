@@ -38,7 +38,7 @@ TEST(CellLibraryTest, SerializeToProto) {
   pins["Z"] = "W";
   XLS_ASSERT_OK(cell_library.AddEntry(
       CellLibraryEntry(CellKind::kInverter, "INV",
-                       std::vector<std::string>{"A"}, pins, absl::nullopt)));
+                       std::vector<std::string>{"A"}, pins, std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(CellLibraryProto proto, cell_library.ToProto());
   std::string expected_proto_text = R"(entries {
   kind: INVERTER

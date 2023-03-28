@@ -23,6 +23,7 @@ load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -103,8 +104,10 @@ cc_library(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:bits",
         "//xls/ir:ir_test_base",
+        "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -124,7 +127,10 @@ cc_library(
         "translator.cc",
         "translator_types.cc",
     ],
-    hdrs = ["translator.h"],
+    hdrs = [
+        "translator.h",
+        "xlscc_logging.h",
+    ],
     deps = [
         ":cc_parser",
         ":hls_block_cc_proto",
@@ -146,6 +152,8 @@ cc_library(
         "//xls/solvers:z3_ir_translator",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -243,6 +251,20 @@ cc_test(
         "//xls/ir:value",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+        "@com_google_protobuf//:protobuf",
+    ],
+)
+
+cc_test(
+    name = "translator_memory_test",
+    srcs = ["translator_memory_test.cc"],
+    shard_count = 32,
+    deps = [
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest",
         "@com_google_protobuf//:protobuf",
     ],

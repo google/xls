@@ -14,8 +14,11 @@
 
 #include "xls/dslx/interp_value.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls::dslx {
@@ -164,6 +167,78 @@ TEST(InterpValueTest, TestPredicates) {
   // Ditto, all-one-bits is not true, has to be single bit.
   EXPECT_FALSE(InterpValue::MakeU32(-1U).IsTrue());
   EXPECT_FALSE(InterpValue::MakeU32(1).IsTrue());
+}
+
+TEST(InterpValueTest, FormatNilTupleWrongElementCount) {
+  auto tuple = InterpValue::MakeTuple({});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
+  StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
+  ASSERT_THAT(tuple.ToFormattedString(fmt_desc),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Number of tuple elements (0)")));
+}
+
+TEST(InterpValueTest, FormatFlatStructViaDescriptor) {
+  auto uf = InterpValue::MakeUBits(/*bit_count=*/4, 0xf);
+  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, -1);
+  auto tuple = InterpValue::MakeTuple({uf, sf});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "y", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kSignedDecimal)});
+  StructFormatDescriptor fmt_desc{"MyStruct", std::move(elements)};
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s, tuple.ToFormattedString(fmt_desc));
+  EXPECT_EQ(s, R"(MyStruct {
+  x: 0xf,
+  y: -1
+})");
+}
+
+TEST(InterpValueTest, FormatNestedStructViaDescriptor) {
+  auto uf = InterpValue::MakeUBits(/*bit_count=*/4, 0xf);
+  auto sf = InterpValue::MakeSBits(/*bit_count=*/4, -1);
+  auto inner = InterpValue::MakeTuple({uf, sf});
+
+  std::vector<StructFormatDescriptor::Element> elements;
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "x",
+      std::make_unique<LeafValueFormatDescriptor>(FormatPreference::kHex)});
+  elements.emplace_back(StructFormatDescriptor::Element{
+      "y", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kSignedDecimal)});
+  auto inner_fmt_desc = std::make_unique<StructFormatDescriptor>(
+      "InnerStruct", std::move(elements));
+
+  auto outer = InterpValue::MakeTuple(
+      {inner, InterpValue::MakeUBits(/*bit_count=*/32, 42)});
+
+  std::vector<StructFormatDescriptor::Element> outer_elements;
+  outer_elements.push_back(StructFormatDescriptor::Element{
+      .field_name = "a", .fmt = std::move(inner_fmt_desc)});
+  outer_elements.push_back(StructFormatDescriptor::Element{
+      "b", std::make_unique<LeafValueFormatDescriptor>(
+               FormatPreference::kUnsignedDecimal)});
+  StructFormatDescriptor outer_fmt_desc{"OuterStruct",
+                                        std::move(outer_elements)};
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string s,
+                           outer.ToFormattedString(outer_fmt_desc));
+  EXPECT_EQ(s, R"(OuterStruct {
+  a: InnerStruct {
+    x: 0xf,
+    y: -1
+  },
+  b: 42
+})");
 }
 
 }  // namespace

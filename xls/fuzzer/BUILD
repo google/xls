@@ -20,6 +20,7 @@ load("//xls/fuzzer:build_defs.bzl", "generate_crasher_regression_tests")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -47,6 +48,7 @@ py_library(
         "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_run_fuzz",
         "//xls/fuzzer/python:cpp_sample",
         "@com_google_absl_py//absl/logging",
     ],
@@ -66,6 +68,7 @@ py_test(
         ":sample_runner",
         "//xls/common:runfiles",
         "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_run_fuzz",
         "//xls/fuzzer/python:cpp_sample",
     ],
 )
@@ -212,7 +215,7 @@ py_library(
     name = "sample_runner",
     srcs = ["sample_runner.py"],
     data = [
-        "//xls/dslx:ir_converter_main",
+        "//xls/dslx/ir_convert:ir_converter_main",
         "//xls/tools:codegen_main",
         "//xls/tools:eval_ir_main",
         "//xls/tools:eval_proc_main",
@@ -261,9 +264,6 @@ generate_crasher_regression_tests(
         "crashers/crasher_2022-10-19_a3a3.x",
         "crashers/crasher_2022-10-19_5531.x",
         "crashers/crasher_2022-12-17_35b3.x",
-        # TODO(meheff): 2022/12/20 Test 3ad6 is fixed by updating LLVM. Remove this
-        # when LLVM is updated.
-        "crashers/crasher_2022-05-31_3ad6.x",
     ],
     prefix = package_name(),
     tags = {
@@ -488,8 +488,8 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
-        "//xls/dslx:scanner",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:scanner",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/container:btree",
@@ -529,18 +529,45 @@ cc_library(
         ":value_generator",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
-        "//xls/dslx:ast",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
         "//xls/ir:bits_ops",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "dslx_mutator",
+    srcs = ["dslx_mutator.cc"],
+    hdrs = ["dslx_mutator.h"],
+    deps = [
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:scanner",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:bit_gen_ref",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "dslx_mutator_test",
+    srcs = ["dslx_mutator_test.cc"],
+    deps = [
+        ":dslx_mutator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/random:mock_distributions",
+        "@com_google_absl//absl/status",
+        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -562,7 +589,7 @@ cc_test(
         ":value_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:concrete_type",
+        "//xls/dslx/type_system:concrete_type",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -613,9 +640,9 @@ cc_library(
     deps = [
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
-        "//xls/dslx:ast",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
@@ -633,8 +660,22 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
-        "//xls/dslx:concrete_type",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "cpp_run_fuzz",
+    srcs = ["cpp_run_fuzz.cc"],
+    hdrs = ["cpp_run_fuzz.h"],
+    deps = [
+        ":cpp_sample",
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging:log_lines",
+        "@com_google_absl//absl/status:statusor",
     ],
 )

@@ -20,7 +20,9 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -85,8 +87,10 @@ class CType {
 
   template <typename Derived>
   bool Is() const {
-    return typeid(*this) == typeid(Derived);
+    return dynamic_cast<const Derived*>(this) != nullptr;
   }
+
+  inline std::string debug_string() const { return std::string(*this); }
 };
 
 // C/C++ void
@@ -152,7 +156,7 @@ class CIntType : public CType {
   inline bool is_signed() const { return is_signed_; }
   inline bool is_declared_as_char() const { return is_declared_as_char_; }
 
- private:
+ protected:
   const int width_;
   const bool is_signed_;
   // We use this field to tell "char" declarations from explcitly-qualified
@@ -162,6 +166,36 @@ class CIntType : public CType {
   // every other integer type.  The field is strictly for generating metadata;
   // it is not IR generation.
   const bool is_declared_as_char_;
+};
+
+// C++ enum or enum class
+class CEnumType : public CIntType {
+ public:
+  ~CEnumType() override;
+  CEnumType(std::string name, int width, bool is_signed,
+            absl::btree_map<std::string, int64_t> variants_by_name);
+
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  bool operator==(const CType& o) const override;
+
+  xls::Type* GetXLSType(xls::Package* package) const override;
+  bool StoredAsXLSBits() const override;
+
+  inline int width() const { return width_; }
+  inline bool is_signed() const { return is_signed_; }
+
+ private:
+  std::string name_;
+  absl::btree_map<std::string, int64_t> variants_by_name_;
+  absl::btree_map<int64_t, std::vector<std::string>> variants_by_value_;
 };
 
 // C++ bool
@@ -228,6 +262,7 @@ class CStructType : public CType {
   // Get the full CField struct by name.
   // returns nullptr if the field is not found
   std::shared_ptr<CField> get_field(const clang::NamedDecl* name) const;
+  absl::StatusOr<int64_t> count_lvalue_compounds(Translator& translator) const;
 
  private:
   bool no_tuple_flag_;
@@ -239,7 +274,7 @@ class CStructType : public CType {
 
 class CInternalTuple : public CType {
  public:
-  CInternalTuple(std::vector<std::shared_ptr<CType>> fields);
+  explicit CInternalTuple(std::vector<std::shared_ptr<CType>> fields);
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -318,7 +353,7 @@ class CArrayType : public CType {
 // Pointer in C/C++
 class CPointerType : public CType {
  public:
-  CPointerType(std::shared_ptr<CType> pointee_type);
+  explicit CPointerType(std::shared_ptr<CType> pointee_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -339,7 +374,7 @@ class CPointerType : public CType {
 // Reference in C/C++
 class CReferenceType : public CType {
  public:
-  CReferenceType(std::shared_ptr<CType> pointee_type);
+  explicit CReferenceType(std::shared_ptr<CType> pointee_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -357,13 +392,15 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
-enum class OpType { kNull = 0, kSend, kRecv };
-enum class InterfaceType { kNull = 0, kDirect, kFIFO };
+enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite };
+enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory };
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
  public:
-  CChannelType(std::shared_ptr<CType> item_type, OpType op_type);
+  CChannelType(std::shared_ptr<CType> item_type, int64_t memory_size);
+  CChannelType(std::shared_ptr<CType> item_type, int64_t memory_size,
+               OpType op_type);
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -376,12 +413,27 @@ class CChannelType : public CType {
 
   std::shared_ptr<CType> GetItemType() const;
   OpType GetOpType() const;
+  int64_t GetMemorySize() const;
+  int64_t GetMemoryAddressWidth() const;
+  std::optional<int64_t> GetMemoryMaskWidth() const;
+  static std::shared_ptr<CType> MemoryAddressType(int64_t memory_size);
+  static int64_t MemoryAddressWidth(int64_t memory_size);
+
+  absl::StatusOr<xls::Type*> GetReadRequestType(xls::Package* package,
+                                                xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetReadResponseType(xls::Package* package,
+                                                 xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetWriteRequestType(xls::Package* package,
+                                                 xls::Type* item_type) const;
+  absl::StatusOr<xls::Type*> GetWriteResponseType(xls::Package* package,
+                                                  xls::Type* item_type) const;
 
   absl::StatusOr<bool> ContainsLValues(Translator& translator) const override;
 
  private:
   std::shared_ptr<CType> item_type_;
   OpType op_type_;
+  int64_t memory_size_;
 };
 
 struct IOChannel;
@@ -393,10 +445,10 @@ struct IOChannel;
 class LValue {
  public:
   LValue() : is_null_(true) {}
-  LValue(const clang::Expr* leaf) : leaf_(leaf) {
+  explicit LValue(const clang::Expr* leaf) : leaf_(leaf) {
     XLS_CHECK_NE(leaf_, nullptr);
   }
-  LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
+  explicit LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
@@ -406,8 +458,8 @@ class LValue {
     XLS_CHECK_NE(lvalue_true_.get(), nullptr);
     XLS_CHECK_NE(lvalue_false_.get(), nullptr);
   }
-  LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
-             compound_by_index)
+  explicit LValue(const absl::flat_hash_map<int64_t, std::shared_ptr<LValue>>&
+                      compound_by_index)
       : compound_by_index_(compound_by_index) {
     absl::flat_hash_set<int64_t> to_erase;
     for (const auto& [idx, lval] : compound_by_index_) {
@@ -454,12 +506,12 @@ class LValue {
                              lvalue_true()->debug_string(),
                              lvalue_false()->debug_string());
     }
-    std::string ret;
+    std::string ret = "(";
     for (const auto& [idx, lval] : get_compounds()) {
       ret += absl::StrFormat("[%i]: %s ", idx,
                              lval ? lval->debug_string() : "(null)");
     }
-    return ret;
+    return ret + ")";
   }
 
  private:
@@ -483,11 +535,12 @@ class LValue {
 //  is used.
 class CValue {
  public:
-  CValue() {}
+  CValue() = default;
   CValue(xls::BValue rvalue, std::shared_ptr<CType> type,
          bool disable_type_check = false,
          std::shared_ptr<LValue> lvalue = nullptr)
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
+    XLS_CHECK_NE(type_.get(), nullptr);
     if (!disable_type_check) {
       XLS_CHECK(!type_->StoredAsXLSBits() ||
                 rvalue.BitCountOrDie() == type_->GetBitWidth());
@@ -526,9 +579,10 @@ class CValue {
   std::shared_ptr<CType> type() const { return type_; }
   std::shared_ptr<LValue> lvalue() const { return lvalue_; }
   std::string debug_string() const {
-    return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
-                           (type_ != nullptr) ? std::string(*type_) : "(null)",
-                           lvalue_.get());
+    return absl::StrFormat(
+        "(rval=%s, type=%s, lval=%s)", rvalue_.ToString(),
+        (type_ != nullptr) ? std::string(*type_) : "(null)",
+        lvalue_ ? lvalue_->debug_string().c_str() : "(null)");
   }
   bool operator==(const CValue& o) const {
     if (rvalue_.node() != o.rvalue_.node()) {
@@ -589,8 +643,8 @@ struct IOChannel {
   std::string unique_name;
   // Type of item the channel transfers
   std::shared_ptr<CType> item_type;
-  // Direction of the port (in/out)
-  OpType channel_op_type = OpType::kNull;
+  // Memory size (if applicable)
+  int64_t memory_size = -1;
   // The total number of IO ops on the channel within the function
   // (IO ops are conditional, so this is the maximum in a real invocation)
   int total_ops = 0;
@@ -601,12 +655,12 @@ struct IOChannel {
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
-  OpType op;
+  OpType op = OpType::kNull;
 
   IOChannel* channel = nullptr;
 
   // For calls to subroutines with IO inside
-  const IOOp* sub_op;
+  const IOOp* sub_op = nullptr;
 
   // Input __xls_channel parameters take tuple types containing a value for
   //  each read() op. This is the index of this op in the tuple.
@@ -845,7 +899,15 @@ struct TranslationContext {
   // Don't create side-effects when exploring.
   bool mask_side_effects = false;
   bool any_side_effects_requested = false;
+  bool any_writes_generated = false;
+  bool any_io_ops_requested = false;
+
+  bool mask_io_other_than_memory_writes = false;
+  bool mask_memory_writes = false;
 };
+
+std::string Debug_VariablesChangedBetween(const TranslationContext& before,
+                                          const TranslationContext& after);
 
 class Translator {
   void debug_prints(const TranslationContext& context);
@@ -854,7 +916,7 @@ class Translator {
   // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
-      int64_t warn_unroll_iters = 100,
+      int64_t warn_unroll_iters = 100, int64_t z3_rlimit = -1,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -982,13 +1044,66 @@ class Translator {
 
   // This guard makes assignments no-ops, for a period determined by RAII.
   struct MaskAssignmentsGuard {
-    explicit MaskAssignmentsGuard(Translator& translator)
+    explicit MaskAssignmentsGuard(Translator& translator, bool engage = true)
         : translator(translator),
-          prev_val(translator.context().mask_side_effects) {
-      translator.context().mask_assignments = true;
+          prev_val(translator.context().mask_assignments) {
+      if (engage) {
+        translator.context().mask_assignments = true;
+      }
     }
     ~MaskAssignmentsGuard() {
       translator.context().mask_assignments = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  // This guard makes all side effects, including assignments, no-ops, for a
+  // period determined by RAII.
+  struct MaskSideEffectsGuard {
+    explicit MaskSideEffectsGuard(Translator& translator, bool engage = true)
+        : translator(translator),
+          prev_val(translator.context().mask_side_effects) {
+      if (engage) {
+        translator.context().mask_side_effects = true;
+      }
+    }
+    ~MaskSideEffectsGuard() {
+      translator.context().mask_side_effects = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  struct MaskIOOtherThanMemoryWritesGuard {
+    explicit MaskIOOtherThanMemoryWritesGuard(Translator& translator,
+                                              bool engage = true)
+        : translator(translator),
+          prev_val(translator.context().mask_io_other_than_memory_writes) {
+      if (engage) {
+        translator.context().mask_io_other_than_memory_writes = true;
+      }
+    }
+    ~MaskIOOtherThanMemoryWritesGuard() {
+      translator.context().mask_io_other_than_memory_writes = prev_val;
+    }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  struct MaskMemoryWritesGuard {
+    explicit MaskMemoryWritesGuard(Translator& translator, bool engage = true)
+        : translator(translator),
+          prev_val(translator.context().mask_memory_writes) {
+      if (engage) {
+        translator.context().mask_memory_writes = true;
+      }
+    }
+    ~MaskMemoryWritesGuard() {
+      translator.context().mask_memory_writes = prev_val;
     }
 
     Translator& translator;
@@ -1012,6 +1127,8 @@ class Translator {
   const int64_t max_unroll_iters_;
   // The maximum number of iterations before loop unrolling prints a warning.
   const int64_t warn_unroll_iters_;
+  // The rlimit to set for z3 when unrolling loops
+  const int64_t z3_rlimit_;
 
   // Generate an error when an init interval > supported is requested?
   const bool error_on_init_interval_;
@@ -1077,9 +1194,29 @@ class Translator {
   xls::Package* package_ = nullptr;
   int default_init_interval_ = 0;
 
+  struct ChannelBundle {
+    xls::Channel* regular = nullptr;
+
+    xls::Channel* read_request = nullptr;
+    xls::Channel* read_response = nullptr;
+    xls::Channel* write_request = nullptr;
+    xls::Channel* write_response = nullptr;
+
+    inline bool operator==(const ChannelBundle& o) const {
+      return regular == o.regular && read_request == o.read_request &&
+             read_response == o.read_response &&
+             write_request == o.write_request &&
+             write_response == o.write_response;
+    }
+
+    inline bool operator!=(const ChannelBundle& o) const {
+      return !(*this == o);
+    }
+  };
+
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
-  absl::flat_hash_map<const clang::NamedDecl*, xls::Channel*>
+  absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
       external_channels_by_decl_;
 
   // Used as a stack, but need to peek 2nd to top
@@ -1152,7 +1289,7 @@ class Translator {
     GeneratedFunction* xls_func;
     std::vector<xls::BValue> args;
     // Not used for direct-ins
-    absl::flat_hash_map<IOChannel*, xls::Channel*>
+    absl::flat_hash_map<IOChannel*, ChannelBundle>
         xls_channel_by_function_channel;
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
@@ -1169,6 +1306,7 @@ class Translator {
     std::shared_ptr<CChannelType> channel_type;
     InterfaceType interface_type;
     bool extra_return = false;
+    bool is_input = false;
   };
 
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
@@ -1186,7 +1324,7 @@ class Translator {
 
   // Creates xls::Channels in the package
   absl::Status GenerateExternalChannels(
-      const HLSBlock& block, const std::list<ExternalChannelInfo>& top_decls,
+      const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::Value> GenerateTopClassInitValue(
@@ -1216,14 +1354,19 @@ class Translator {
   };
   // Checks if an expression is an IO op, and if so, generates the value
   //  to replace it in IR generation.
-  absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
-                                           const xls::SourceInfo& loc);
+  absl::StatusOr<IOOpReturn> InterceptIOOp(
+      const clang::Expr* expr, const xls::SourceInfo& loc,
+      const CValue assignment_value = CValue());
 
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
                                        bool mask = false);
+
+  absl::StatusOr<xls::BValue> AddConditionToIOReturn(
+      const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
+
   absl::Status CreateChannelParam(
       const clang::NamedDecl* channel_name,
       const std::shared_ptr<CChannelType>& channel_type,
@@ -1405,9 +1548,16 @@ class Translator {
   absl::StatusOr<int64_t> EvaluateBValInt64(xls::BValue bval,
                                             const xls::SourceInfo& loc,
                                             bool do_check = true);
-  absl::StatusOr<Z3_lbool> IsBitSatisfiable(
-      xls::Node* node, Z3_solver& solver,
+  absl::StatusOr<Z3_lbool> CheckAssumptions(
+      absl::Span<xls::Node*> positive_nodes,
+      absl::Span<xls::Node*> negative_nodes, Z3_solver& solver,
       xls::solvers::z3::IrTranslator& z3_translator);
+
+  // bval can be invalid, in which case it is interpreted as 1
+  // Short circuits the BValue
+  absl::StatusOr<bool> BitMustBe(bool assert_value, xls::BValue& bval,
+                                 Z3_solver& solver, Z3_context ctx,
+                                 const xls::SourceInfo& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue,
                                                      const xls::SourceInfo& loc,

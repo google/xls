@@ -353,10 +353,10 @@ class AbstractModule {
   //     wire [7:0] x;
   //     wire y;
   //
-  // This method will return Range{7,0} for wire "x", and absl::nullopt for wire
+  // This method will return Range{7,0} for wire "x", and std::nullopt for wire
   // "y".  Note that the wire name needs to be given without a subscript (e.g.,
   // "y[0]" or "x[1]" are not valid inputs.  If the wire-name lookup fails, the
-  // method returns (the enclosing) absl::nullopt.
+  // method returns (the enclosing) std::nullopt.
   std::optional<std::optional<Range>> GetWireRange(std::string_view name);
 
   // Returns the bit offset of a given input net in the parameter list.  For
@@ -462,7 +462,7 @@ class AbstractModule {
   struct Port : public Wire {
     // We don't know the port width then declaring the port order; we set the
     // width later, when encounteing the individual port declaration.
-    explicit Port(std::string name) : Wire(name, absl::nullopt) {}
+    explicit Port(std::string name) : Wire(name, std::nullopt) {}
     bool is_output_ = false;
     bool is_declared_ = false;
   };
@@ -545,7 +545,7 @@ AbstractModule<EvalT>::AsCellLibraryEntry() const {
       output_pins[output->name()] = "";
     }
     cell_library_entry_.emplace(AbstractCellLibraryEntry<EvalT>(
-        CellKind::kOther, name_, input_names, output_pins, absl::nullopt));
+        CellKind::kOther, name_, input_names, output_pins, std::nullopt));
   }
   return &cell_library_entry_.value();
 }
@@ -669,7 +669,7 @@ std::optional<std::optional<Range>> AbstractModule<EvalT>::GetWireRange(
       return wire->range_;
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 template <typename EvalT>
@@ -701,7 +701,7 @@ std::optional<std::optional<Range>> AbstractModule<EvalT>::GetPortRange(
       return port->range_;
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 template <typename EvalT>
@@ -840,14 +840,14 @@ AbstractNetlist<EvalT>::MaybeGetModule(const std::string& module_name) const {
       return module.get();
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 template <typename EvalT>
 absl::StatusOr<const AbstractModule<EvalT>*> AbstractNetlist<EvalT>::GetModule(
     const std::string& module_name) const {
   auto found = MaybeGetModule(module_name);
-  if (found == absl::nullopt) {
+  if (found == std::nullopt) {
     return absl::NotFoundError(
         absl::StrFormat("Module %s not found in netlist.", module_name));
   }

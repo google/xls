@@ -34,8 +34,8 @@ TEST(Ternary, Difference) {
   EXPECT_EQ(*StringToTernaryVector("0b11XXXXXXX1"),
             ternary_ops::Difference(*StringToTernaryVector("0b1101X1X001"),
                                     *StringToTernaryVector("0bXX01X1X00X")));
-  // Test that conflict (in the last bit) leads to `absl::nullopt`.
-  EXPECT_EQ(absl::nullopt,
+  // Test that conflict (in the last bit) leads to `std::nullopt`.
+  EXPECT_EQ(std::nullopt,
             ternary_ops::Difference(*StringToTernaryVector("0b1101X1X001"),
                                     *StringToTernaryVector("0bXX01X1X000")));
   // It's okay if there are unknown bits in lhs that are known in rhs.

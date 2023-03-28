@@ -31,7 +31,7 @@ namespace xls {
 // function (implications, equality, etc).
 class TernaryQueryEngine : public QueryEngine {
  public:
-  TernaryQueryEngine() {}
+  TernaryQueryEngine() = default;
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
@@ -71,7 +71,7 @@ class TernaryQueryEngine : public QueryEngine {
   std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
  private:

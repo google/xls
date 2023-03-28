@@ -72,7 +72,7 @@ static void BM_NativeLayoutToValue(benchmark::State& state) {
 BENCHMARK(BM_ValueToNativeLayout)->DenseRange(0, kNumTypes - 1);
 BENCHMARK(BM_NativeLayoutToValue)->DenseRange(0, kNumTypes - 1);
 
-BENCHMARK_MAIN();
-
 }  // namespace
 }  // namespace xls
+
+BENCHMARK_MAIN();

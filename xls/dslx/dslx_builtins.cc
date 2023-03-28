@@ -14,11 +14,26 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/concrete_type.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -38,8 +53,12 @@ using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
 // "what if the len wasn't two?!"
 class Checker {
  public:
-  Checker(ArgTypes arg_types, std::string_view name, const Span& span)
-      : arg_types_(arg_types), name_(name), span_(span) {}
+  Checker(ArgTypes arg_types, std::string_view name, const Span& span,
+          DeduceCtx& deduce_ctx)
+      : arg_types_(arg_types),
+        name_(name),
+        span_(span),
+        deduce_ctx_(deduce_ctx) {}
 
   Checker& Len(int64_t target) {
     if (!status_.ok()) {
@@ -58,7 +77,8 @@ class Checker {
       return *this;
     }
     if (lhs != rhs) {
-      status_ = XlsTypeErrorStatus(span_, lhs, rhs, make_message());
+      status_ = deduce_ctx_.TypeMismatchError(span_, nullptr, lhs, nullptr, rhs,
+                                              make_message());
     }
     return *this;
   }
@@ -176,7 +196,8 @@ class Checker {
       return *this;
     }
     if (t != u) {
-      status_ = XlsTypeErrorStatus(span_, t, u, make_msg());
+      status_ = deduce_ctx_.TypeMismatchError(span_, nullptr, t, nullptr, u,
+                                              make_msg());
     }
     return *this;
   }
@@ -201,6 +222,7 @@ class Checker {
   std::string_view name_;
   const Span& span_;
   absl::Status status_;
+  DeduceCtx& deduce_ctx_;
 };
 
 }  // namespace
@@ -214,14 +236,14 @@ static void PopulateSignatureToLambdaMap(
   map["(T) -> T"] = [](const SignatureData& data,
                        DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     XLS_RETURN_IF_ERROR(
-        Checker(data.arg_types, data.name, data.span).Len(1).status());
+        Checker(data.arg_types, data.name, data.span, *ctx).Len(1).status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .ArgsSameType(0, 1)
@@ -238,7 +260,7 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a0;
     const ArrayType* a2;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(3)
                        .IsArray(0, &a0)
                        .IsUN(1)
@@ -259,7 +281,7 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
     const BitsType* b;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsBits(0, &b)
                        .IsArray(1, &a);
@@ -282,7 +304,7 @@ static void PopulateSignatureToLambdaMap(
   };
   map["(T, T) -> T"] = [](const SignatureData& data,
                           DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
@@ -291,7 +313,7 @@ static void PopulateSignatureToLambdaMap(
   };
   map["(T, T) -> ()"] = [](const SignatureData& data,
                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
@@ -301,7 +323,7 @@ static void PopulateSignatureToLambdaMap(
   map["(const uN[N], const uN[N]) -> uN[N][R]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .ArgsSameType(0, 1)
@@ -327,7 +349,7 @@ static void PopulateSignatureToLambdaMap(
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(3)
                        .IsArray(0, &a)
                        .IsUN(1);
@@ -344,7 +366,7 @@ static void PopulateSignatureToLambdaMap(
   map["(xN[M], xN[N]) -> xN[N]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsBits(0)
                             .IsBits(1)
@@ -355,7 +377,7 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[M], uN[N]) -> ()"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .IsUN(1)
@@ -366,7 +388,7 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[M], uN[N]) -> uN[M+N]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .IsUN(1)
@@ -384,7 +406,7 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[N], uN[U], uN[V]) -> uN[V]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsUN(0)
                             .IsUN(1)
@@ -396,7 +418,7 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[N], uN[U], uN[V]) -> uN[N]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsUN(0)
                             .IsUN(1)
@@ -408,29 +430,45 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[N]) -> uN[N]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(1)
+                            .IsUN(0)
+                            .status());
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
+  };
+  map["(T[N]) -> T[N]"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(1)
+                            .IsArray(0)
+                            .status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> u1"] = [](const SignatureData& data,
                             DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(data.arg_types, data.name, data.span).Len(1).IsUN(0).status());
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(1)
+                            .IsUN(0)
+                            .status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
   map["(u1, T) -> T"] = [](const SignatureData& data,
                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(
-        Checker(data.arg_types, data.name, data.span).Len(2).IsU1(0).status());
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
+                            .Len(2)
+                            .IsU1(0)
+                            .status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(u1, T, T) -> T"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsU1(0)
                             .ArgsSameType(1, 2)
@@ -441,7 +479,7 @@ static void PopulateSignatureToLambdaMap(
   map["(uN[N], u1) -> uN[N+1]"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .IsU1(1)
@@ -459,7 +497,7 @@ static void PopulateSignatureToLambdaMap(
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a;
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(1)
                             .IsArray(0, &a)
                             .status());
@@ -479,7 +517,7 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* a = nullptr;
     const FunctionType* f = nullptr;
-    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span)
+    XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsArray(0, &a)
                             .IsFn(1, /*argc=*/1, &f)
@@ -490,10 +528,9 @@ static void PopulateSignatureToLambdaMap(
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
-    std::optional<absl::Span<const ParametricConstraint>>
-        mapped_parametric_bindings;
+    absl::Span<const ParametricConstraint> mapped_parametric_bindings;
     if (data.parametric_bindings.has_value()) {
-      mapped_parametric_bindings.emplace(data.parametric_bindings.value());
+      mapped_parametric_bindings = data.parametric_bindings.value();
     }
 
     // Note that InstantiateFunction will check that the mapped function type
@@ -503,19 +540,20 @@ static void PopulateSignatureToLambdaMap(
         TypeAndBindings tab,
         InstantiateFunction(
             data.span, *f, mapped_fn_args, ctx,
-            /*parametric_constraints=*/mapped_parametric_bindings));
+            /*parametric_constraints=*/mapped_parametric_bindings,
+            /*explicit_bindings=*/{}));
     auto return_type =
         std::make_unique<ArrayType>(std::move(tab.type), a->size());
     return TypeAndBindings{
         std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
                                        std::move(return_type)),
-        tab.symbolic_bindings};
+        tab.parametric_env};
   };
   map["(u8[N], u1) -> ()"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* array_type;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsArray(0, &array_type)
                        .IsU1(1);
@@ -531,7 +569,7 @@ static void PopulateSignatureToLambdaMap(
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const ArrayType* array_type;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsArray(0, &array_type);
     checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
@@ -547,7 +585,7 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const BitsType* lhs_type;
     const BitsType* rhs_type;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsBits(0, &lhs_type)
                        .IsBits(1, &rhs_type);
@@ -579,7 +617,7 @@ static void PopulateSignatureToLambdaMap(
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const BitsType* lhs_type;
     const BitsType* rhs_type;
-    auto checker = Checker(data.arg_types, data.name, data.span)
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsBits(0, &lhs_type)
                        .IsBits(1, &rhs_type);
@@ -638,7 +676,10 @@ absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
   }
   const std::string& signature = it->second.signature;
   XLS_VLOG(5) << builtin_name << " => " << signature;
-  return GetSignatureToLambdaMap().at(signature);
+  const auto& lambda_map = GetSignatureToLambdaMap();
+  auto it2 = lambda_map.find(signature);
+  XLS_CHECK(it2 != lambda_map.end()) << signature;
+  return it2->second;
 }
 
 }  // namespace xls::dslx

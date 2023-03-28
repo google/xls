@@ -22,7 +22,7 @@ pub fn foo(a: bits[4]) -> Generic<u32:4, u32:8> {
   Generic<u32:4, u32:8>{ a: a, b: bits[8]:0 }
 }
 
-pub fn indirect_foo<X: u32, Y: u32 = (X * X) as u32>(a: bits[4]) -> Generic<{X as u32}, u32:8> {
+pub fn indirect_foo<X: u32, Y: u32 = {(X * X) as u32}>(a: bits[4]) -> Generic<{X as u32}, u32:8> {
   Generic<{X as u32}, u32:8>{ a: a as bits[X], b: bits[8]:32 }
 }
 

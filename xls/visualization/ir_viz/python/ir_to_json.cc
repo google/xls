@@ -85,8 +85,8 @@ PYBIND11_MODULE(ir_to_json, m) {
   ImportStatusModule();
 
   m.def("ir_to_json", &IrToJsonWrapper, py::arg("ir_text"),
-        py::arg("delay_model_name"), py::arg("pipeline_stages") = absl::nullopt,
-        py::arg("entry") = absl::nullopt);
+        py::arg("delay_model_name"), py::arg("pipeline_stages") = std::nullopt,
+        py::arg("entry") = std::nullopt);
 }
 
 }  // namespace xls

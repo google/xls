@@ -484,8 +484,12 @@ inline StatusBuilder& StatusBuilder::operator=(const StatusBuilder& sb) {
 }
 
 inline StatusBuilder& StatusBuilder::SetPrepend() & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
 
   rep_->message_join_style = MessageJoinStyle::kPrepend;
   return *this;
@@ -495,8 +499,12 @@ inline StatusBuilder&& StatusBuilder::SetPrepend() && {
 }
 
 inline StatusBuilder& StatusBuilder::SetAppend() & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->message_join_style = MessageJoinStyle::kAppend;
   return *this;
 }
@@ -516,8 +524,12 @@ inline StatusBuilder&& StatusBuilder::SetNoLogging() && {
 }
 
 inline StatusBuilder& StatusBuilder::Log(absl::LogSeverity level) & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->logging_mode = Rep::LoggingMode::kLog;
   rep_->log_severity = level;
   return *this;
@@ -528,9 +540,15 @@ inline StatusBuilder&& StatusBuilder::Log(absl::LogSeverity level) && {
 
 inline StatusBuilder& StatusBuilder::LogEveryN(absl::LogSeverity level,
                                                int n) & {
-  if (status_.ok()) return *this;
-  if (n < 1) return Log(level);
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (n < 1) {
+    return Log(level);
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->logging_mode = Rep::LoggingMode::kLogEveryN;
   rep_->log_severity = level;
   rep_->n = n;
@@ -543,9 +561,15 @@ inline StatusBuilder&& StatusBuilder::LogEveryN(absl::LogSeverity level,
 
 inline StatusBuilder& StatusBuilder::LogEvery(absl::LogSeverity level,
                                               absl::Duration period) & {
-  if (status_.ok()) return *this;
-  if (period <= absl::ZeroDuration()) return Log(level);
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (period <= absl::ZeroDuration()) {
+    return Log(level);
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->logging_mode = Rep::LoggingMode::kLogEveryPeriod;
   rep_->log_severity = level;
   rep_->period = period;
@@ -557,8 +581,12 @@ inline StatusBuilder&& StatusBuilder::LogEvery(absl::LogSeverity level,
 }
 
 inline StatusBuilder& StatusBuilder::VLog(int verbose_level) & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->logging_mode = Rep::LoggingMode::kVLog;
   rep_->verbose_level = verbose_level;
   return *this;
@@ -568,7 +596,9 @@ inline StatusBuilder&& StatusBuilder::VLog(int verbose_level) && {
 }
 
 inline StatusBuilder& StatusBuilder::EmitStackTrace() & {
-  if (status_.ok()) return *this;
+  if (status_.ok()) {
+    return *this;
+  }
   if (rep_ == nullptr) {
     rep_ = std::make_unique<Rep>();
     // Default to INFO logging, otherwise nothing would be emitted.
@@ -583,8 +613,12 @@ inline StatusBuilder&& StatusBuilder::EmitStackTrace() && {
 }
 
 inline StatusBuilder& StatusBuilder::AlsoOutputToSink(xls::LogSink* sink) & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->sink = sink;
   return *this;
 }
@@ -594,8 +628,12 @@ inline StatusBuilder&& StatusBuilder::AlsoOutputToSink(xls::LogSink* sink) && {
 
 template <typename T>
 StatusBuilder& StatusBuilder::operator<<(const T& value) & {
-  if (status_.ok()) return *this;
-  if (rep_ == nullptr) rep_ = std::make_unique<Rep>();
+  if (status_.ok()) {
+    return *this;
+  }
+  if (rep_ == nullptr) {
+    rep_ = std::make_unique<Rep>();
+  }
   rep_->stream << value;
   return *this;
 }
@@ -617,11 +655,15 @@ inline bool StatusBuilder::ok() const { return status_.ok(); }
 inline absl::StatusCode StatusBuilder::code() const { return status_.code(); }
 
 inline StatusBuilder::operator absl::Status() const& {
-  if (rep_ == nullptr) return status_;
+  if (rep_ == nullptr) {
+    return status_;
+  }
   return StatusBuilder(*this).CreateStatusAndConditionallyLog();
 }
 inline StatusBuilder::operator absl::Status() && {
-  if (rep_ == nullptr) return std::move(status_);
+  if (rep_ == nullptr) {
+    return std::move(status_);
+  }
   return std::move(*this).CreateStatusAndConditionallyLog();
 }
 

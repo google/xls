@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/xlscc/translator.h"
-
 #include <cstdio>
 #include <memory>
 #include <ostream>
@@ -31,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
@@ -273,6 +272,137 @@ TEST_F(TranslatorLogicTest, IncrementInArrayIndex2) {
        })";
 
   Run({{"a", 11}}, 12, content);
+}
+
+TEST_F(TranslatorLogicTest, IncrementInArrayIndex3) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         int arr[4];
+         arr[a] = arr[a++];
+         return a;
+       })";
+
+  Run({{"a", 11}}, 12, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference) {
+  const std::string content = R"(
+    struct Blah {
+      int val() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference2) {
+  const std::string content = R"(
+    struct Blah {
+      operator int() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b);
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference3) {
+  const std::string content = R"(
+    struct Blah {
+      Blah val() {
+        return *this;
+      }
+      operator int() {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ThisExprWithCallByReference4) {
+  const std::string content = R"(
+    struct Blah {
+      int val()const {
+        return 2;
+      }
+    };
+
+    Blah byref(bool& a1) {
+      a1 = true;
+      return Blah();
+    }
+
+    int my_package(long long a) {
+      bool b = false;
+      int ls = byref(b).val();
+      return a + (b ? ls : -1);
+    })";
+  Run({{"a", 100}}, 102, content);
+}
+
+TEST_F(TranslatorLogicTest, ByReferenceSubExpr) {
+  const std::string content = R"(
+
+    int byref(int offset, int& out) {
+      out = out + offset;
+      return offset;
+    }
+
+    int my_package(long long a) {
+      int vals[3] = {1,2,3};
+      int idx = 1;
+      (void)byref(5, vals[idx++]);
+      return vals[1] + idx;
+    })";
+  Run({{"a", 100}}, 2 + 5 + 2, content);
+}
+
+TEST_F(TranslatorLogicTest, ArrayParamAssign) {
+  const std::string content = R"(
+    void addto(int v[6]) {
+      v[3] += 3;
+    }
+
+    int my_package(bool configured) {
+      (void)configured;
+      int brr[6] = {10,20,30,40,50,60};
+      addto(brr);
+      return brr[3];
+    })";
+
+  Run({{"configured", 0}}, 40 + 3, content);
 }
 
 TEST_F(TranslatorLogicTest, Array2D) {
@@ -556,6 +686,22 @@ TEST_F(TranslatorLogicTest, UnsequencedAssign) {
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
                                     testing::HasSubstr("parse")));
+}
+
+TEST_F(TranslatorLogicTest, TestXlsccCheck) {
+  const std::string content = R"(
+      int my_package(int a) {
+        return a+a;
+      })";
+
+  EXPECT_DEATH(
+      {
+        auto ret = ScanFile(
+            content, {}, false, false,
+            xls::SourceLocation(xls::Fileno(0), xls::Lineno(1), xls::Colno(1)),
+            true);
+      },
+      testing::HasSubstr("0,1,1"));
 }
 
 #if UNSEQUENCED_TESTS
@@ -1031,6 +1177,55 @@ TEST_F(TranslatorLogicTest, ForUnrollLabel) {
         return a;
       })";
   Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollAssignAfterBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          if(a > 60) {
+            break;
+          }
+          ++i;
+        }
+        return (i*10) + a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 101, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollAssignAfterReturn) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          if(a > 60) {
+            return (i*10) + a;
+          }
+          ++i;
+        }
+        return 1000;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 101, content);
+}
+
+TEST_F(TranslatorLogicTest, ForUnrollNoIncrementOnBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=0;
+        #pragma hls_unroll yes
+        for(;i<10;++i) {
+          if(i==4) {
+            break;
+          }
+        }
+        return i;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 4, content);
 }
 
 TEST_F(TranslatorLogicTest, WhileUnroll) {
@@ -1727,6 +1922,72 @@ TEST_F(TranslatorLogicTest, ReturnFromFor3) {
   Run({{"a", 140}, {"b", 55}}, 525, content);
 }
 
+TEST_F(TranslatorLogicTest, ReturnFromForStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+        if(i==1) {
+    			return 1000;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
+}
+
+TEST_F(TranslatorLogicTest, ReturnFromForInSwitchStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        switch(i) {
+          case 1:
+      			return 1000;
+          default:
+            ret += b;
+            break;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
+}
+
+TEST_F(TranslatorLogicTest, BreakFromForStopsUnrolling) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+        if(i==1) {
+          ret = 1000;
+          break;
+        }
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 1000, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/3);
+}
+
 TEST_F(TranslatorLogicTest, ConditionalReturnStmt) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {
@@ -1859,7 +2120,7 @@ TEST_F(TranslatorLogicTest, CapitalizeFirstLetter) {
       xls::Value(xls::Value::TupleOwned({xls::Value(xls::UBits(1, 1))}));
 
   const char* input = "hello world";
-  std::string output = "";
+  std::string output;
   for (; *input != 0u; ++input) {
     const char inc = *input;
     XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
@@ -3885,8 +4146,8 @@ TEST_F(TranslatorLogicTest, EnumSingleZeroVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 1;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3897,8 +4158,8 @@ TEST_F(TranslatorLogicTest, EnumSinglePositiveVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 3;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3909,8 +4170,8 @@ TEST_F(TranslatorLogicTest, EnumSingleNegativeVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 8;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3922,8 +4183,8 @@ TEST_F(TranslatorLogicTest, EnumMinNegativeVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 32;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3934,8 +4195,8 @@ TEST_F(TranslatorLogicTest, EnumMaxPositiveVariant) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 31;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3946,8 +4207,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumbered) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 2;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3958,8 +4219,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedAboveZero4Bit) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 4;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3970,8 +4231,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedAboveZero5Bit) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 5;
   bool expected_sign = false;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }
@@ -3982,8 +4243,8 @@ TEST_F(TranslatorLogicTest, EnumAutoNumberedNegative) {
   XLS_ASSERT_OK_AND_ASSIGN(auto meta, translator_->GenerateMetadata());
   int expected_width = 5;
   bool expected_sign = true;
-  int actual_width = meta.top_func_proto().return_type().as_int().width();
-  bool actual_sign = meta.top_func_proto().return_type().as_int().is_signed();
+  int actual_width = meta.top_func_proto().return_type().as_enum().width();
+  bool actual_sign = meta.top_func_proto().return_type().as_enum().is_signed();
   ASSERT_EQ(expected_width, actual_width);
   ASSERT_EQ(expected_sign, actual_sign);
 }

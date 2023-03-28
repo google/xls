@@ -49,7 +49,7 @@ TEST_F(AnalyzeCriticalPathTest, TrivialFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,
-      AnalyzeCriticalPath(f, /*clock_period_ps=*/absl::nullopt,
+      AnalyzeCriticalPath(f, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
 
   ASSERT_EQ(cp.size(), 3);
@@ -82,7 +82,7 @@ TEST_F(AnalyzeCriticalPathTest, MultipathFunction) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,
-      AnalyzeCriticalPath(f, /*clock_period_ps=*/absl::nullopt,
+      AnalyzeCriticalPath(f, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
 
   ASSERT_EQ(cp.size(), 4);
@@ -111,7 +111,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,
-      AnalyzeCriticalPath(proc, /*clock_period_ps=*/absl::nullopt,
+      AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
 
   ASSERT_EQ(cp.size(), 3);
@@ -143,7 +143,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,
-      AnalyzeCriticalPath(proc, /*clock_period_ps=*/absl::nullopt,
+      AnalyzeCriticalPath(proc, /*clock_period_ps=*/std::nullopt,
                           *delay_estimator_));
   ASSERT_EQ(cp.size(), 6);
   EXPECT_EQ(cp[0].node, send.node());

@@ -27,10 +27,10 @@ class ConditionalSpecializationPass : public FunctionBasePass {
  public:
   // If `use_bdd` is true, then binary decision diagrams (BDDs) are used for
   // stronger analysis at the cost of slower transformation.
-  ConditionalSpecializationPass(bool use_bdd)
+  explicit ConditionalSpecializationPass(bool use_bdd)
       : FunctionBasePass("cond_spec", "Conditional specialization"),
         use_bdd_(use_bdd) {}
-  ~ConditionalSpecializationPass() override {}
+  ~ConditionalSpecializationPass() override = default;
 
  protected:
   bool use_bdd_;

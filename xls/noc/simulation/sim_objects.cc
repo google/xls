@@ -440,11 +440,10 @@ absl::Status SimNetworkInterfaceSrc::SendFlitAtTime(TimedDataFlit flit) {
   if (vc_index < data_to_send_.size()) {
     data_to_send_[vc_index].push(flit);
     return absl::OkStatus();
-  } else {
-    return absl::OutOfRangeError(
-        absl::StrFormat("Unable to send flit to vc index %d, max %d", vc_index,
-                        data_to_send_.size()));
   }
+  return absl::OutOfRangeError(
+      absl::StrFormat("Unable to send flit to vc index %d, max %d", vc_index,
+                      data_to_send_.size()));
 }
 
 absl::Status SimNetworkInterfaceSink::InitializeImpl(NocSimulator& simulator) {
@@ -593,9 +592,8 @@ bool SimLink::TryReversePropagation(NocSimulator& simulator) {
   if (num_propagated == vc_count) {
     reverse_propagated_cycle_ = simulator.GetCurrentCycle();
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
@@ -642,11 +640,10 @@ bool SimNetworkInterfaceSrc::TryForwardPropagation(NocSimulator& simulator) {
             "... ni-src sending data %s vc %d credit now %d",
             sink.forward_channels.flit, vc, credit_[vc]);
         break;
-      } else {
-        XLS_VLOG(2) << absl::StreamFormat(
-            "... ni-src unable to send data %s vc %d credit %d",
-            sink.forward_channels.flit, vc, credit_[vc]);
       }
+      XLS_VLOG(2) << absl::StreamFormat(
+          "... ni-src unable to send data %s vc %d credit %d",
+          sink.forward_channels.flit, vc, credit_[vc]);
     }
   }
 
@@ -702,9 +699,8 @@ bool SimNetworkInterfaceSrc::TryReversePropagation(NocSimulator& simulator) {
 
     reverse_propagated_cycle_ = current_cycle;
     return true;
-  } else {
-    return false;
   }
+  return false;
 }
 
 absl::StatusOr<SimInputBufferedVCRouter::PortIndexAndVCIndex>
@@ -981,11 +977,10 @@ bool SimInputBufferedVCRouter::TryReversePropagation(NocSimulator& simulator) {
     XLS_VLOG(2) << absl::StreamFormat(
         "... router %x finished reverse propagation", GetId().AsUInt64());
     return true;
-  } else {
-    XLS_VLOG(2) << absl::StreamFormat(
-        "... router %x did not finish reverse propagation", GetId().AsUInt64());
-    return false;
   }
+  XLS_VLOG(2) << absl::StreamFormat(
+      "... router %x did not finish reverse propagation", GetId().AsUInt64());
+  return false;
 }
 
 bool SimNetworkInterfaceSink::TryForwardPropagation(NocSimulator& simulator) {

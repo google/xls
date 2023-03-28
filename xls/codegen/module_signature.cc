@@ -25,7 +25,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/package.h"
 
@@ -39,8 +39,9 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
   return *this;
 }
 
-ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(
-    std::string_view name, bool asynchronous, bool active_low) {
+ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(std::string_view name,
+                                                          bool asynchronous,
+                                                          bool active_low) {
   XLS_CHECK(!proto_.has_reset());
   ResetProto* reset = proto_.mutable_reset();
   reset->set_name(ToProtoString(name));
@@ -195,14 +196,10 @@ absl::Status ModuleSignatureBuilder::RemoveStreamingChannel(
   return absl::OkStatus();
 }
 
-ModuleSignatureBuilder& ModuleSignatureBuilder::AddRamRWPort(
-    std::string_view ram_name, std::string_view req_name,
-    std::string_view resp_name, int64_t address_width, int64_t data_width,
-    std::string_view address_name, std::string_view read_enable_name,
-    std::string_view write_enable_name, std::string_view read_data_name,
-    std::string_view write_data_name) {
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1RW(
+    const Ram1RWArgs& args) {
   RamProto* ram = proto_.add_rams();
-  ram->set_name(ToProtoString(ram_name));
+  ram->set_name(ToProtoString(args.ram_name));
 
   Ram1RWProto* ram_1rw = ram->mutable_ram_1rw();
   RamRWPortProto* rw_port = ram_1rw->mutable_rw_port();
@@ -210,33 +207,112 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddRamRWPort(
   RamRWRequestProto* req = rw_port->mutable_request();
   RamRWResponseProto* resp = rw_port->mutable_response();
 
-  req->set_name(ToProtoString(req_name));
-  resp->set_name(ToProtoString(resp_name));
+  req->set_name(ToProtoString(args.req_name));
+  resp->set_name(ToProtoString(args.resp_name));
 
   auto* address_proto = req->mutable_address();
-  address_proto->set_name(ToProtoString(address_name));
+  address_proto->set_name(ToProtoString(args.address_name));
   address_proto->set_direction(DIRECTION_OUTPUT);
-  address_proto->set_width(address_width);
+  address_proto->set_width(args.address_width);
 
   auto* read_enable_proto = req->mutable_read_enable();
-  read_enable_proto->set_name(ToProtoString(read_enable_name));
+  read_enable_proto->set_name(ToProtoString(args.read_enable_name));
   read_enable_proto->set_direction(DIRECTION_OUTPUT);
   read_enable_proto->set_width(1);
 
   auto* write_enable_proto = req->mutable_write_enable();
-  write_enable_proto->set_name(ToProtoString(write_enable_name));
+  write_enable_proto->set_name(ToProtoString(args.write_enable_name));
   write_enable_proto->set_direction(DIRECTION_OUTPUT);
   write_enable_proto->set_width(1);
 
   auto* write_data_proto = req->mutable_write_data();
-  write_data_proto->set_name(ToProtoString(write_data_name));
+  write_data_proto->set_name(ToProtoString(args.write_data_name));
   write_data_proto->set_direction(DIRECTION_OUTPUT);
-  write_data_proto->set_width(data_width);
+  write_data_proto->set_width(args.data_width);
 
   auto* read_data_proto = resp->mutable_read_data();
-  read_data_proto->set_name(ToProtoString(read_data_name));
+  read_data_proto->set_name(ToProtoString(args.read_data_name));
   read_data_proto->set_direction(DIRECTION_INPUT);
-  read_data_proto->set_width(data_width);
+  read_data_proto->set_width(args.data_width);
+
+  if (args.write_mask_width > 0) {
+    auto* write_mask_proto = req->mutable_write_mask();
+    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_width(args.write_mask_width);
+  }
+
+  if (args.read_mask_width > 0) {
+    auto* read_mask_proto = req->mutable_read_mask();
+    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_width(args.read_mask_width);
+  }
+
+  return *this;
+}
+
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddRam1R1W(
+    const Ram1R1WArgs& args) {
+  RamProto* ram = proto_.add_rams();
+  ram->set_name(ToProtoString(args.ram_name));
+
+  Ram1R1WProto* ram_1r1w = ram->mutable_ram_1r1w();
+
+  RamRPortProto* r_port = ram_1r1w->mutable_r_port();
+  RamWPortProto* w_port = ram_1r1w->mutable_w_port();
+
+  RamRRequestProto* r_req = r_port->mutable_request();
+  RamRResponseProto* r_resp = r_port->mutable_response();
+  RamWRequestProto* w_req = w_port->mutable_request();
+
+  r_req->set_name(ToProtoString(args.rd_req_name));
+  r_resp->set_name(ToProtoString(args.rd_resp_name));
+  w_req->set_name(ToProtoString(args.wr_req_name));
+
+  auto* rd_address_proto = r_req->mutable_address();
+  rd_address_proto->set_name(ToProtoString(args.read_address_name));
+  rd_address_proto->set_direction(DIRECTION_OUTPUT);
+  rd_address_proto->set_width(args.address_width);
+
+  auto* rd_enable_proto = r_req->mutable_enable();
+  rd_enable_proto->set_name(ToProtoString(args.read_enable_name));
+  rd_enable_proto->set_direction(DIRECTION_OUTPUT);
+  rd_enable_proto->set_width(1);
+
+  auto* rd_data_proto = r_resp->mutable_data();
+  rd_data_proto->set_name(ToProtoString(args.read_data_name));
+  rd_data_proto->set_direction(DIRECTION_INPUT);
+  rd_data_proto->set_width(args.data_width);
+
+  if (args.read_mask_width > 0) {
+    auto* read_mask_proto = w_req->mutable_mask();
+    read_mask_proto->set_name(ToProtoString(args.read_mask_name));
+    read_mask_proto->set_direction(DIRECTION_OUTPUT);
+    read_mask_proto->set_width(args.read_mask_width);
+  }
+
+  auto* wr_address_proto = w_req->mutable_address();
+  wr_address_proto->set_name(ToProtoString(args.write_address_name));
+  wr_address_proto->set_direction(DIRECTION_OUTPUT);
+  wr_address_proto->set_width(args.address_width);
+
+  auto* wr_data_proto = w_req->mutable_data();
+  wr_data_proto->set_name(ToProtoString(args.write_data_name));
+  wr_data_proto->set_direction(DIRECTION_OUTPUT);
+  wr_data_proto->set_width(args.data_width);
+
+  if (args.write_mask_width > 0) {
+    auto* write_mask_proto = w_req->mutable_mask();
+    write_mask_proto->set_name(ToProtoString(args.write_mask_name));
+    write_mask_proto->set_direction(DIRECTION_OUTPUT);
+    write_mask_proto->set_width(args.write_mask_width);
+  }
+
+  auto* wr_enable_proto = w_req->mutable_enable();
+  wr_enable_proto->set_name(ToProtoString(args.write_enable_name));
+  wr_enable_proto->set_direction(DIRECTION_OUTPUT);
+  wr_enable_proto->set_width(1);
 
   return *this;
 }

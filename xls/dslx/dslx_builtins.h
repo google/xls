@@ -17,17 +17,22 @@
 #ifndef XLS_DSLX_DSLX_BUILTINS_H_
 #define XLS_DSLX_DSLX_BUILTINS_H_
 
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/builtins_metadata.h"
-#include "xls/dslx/parametric_instantiator.h"
-#include "xls/dslx/type_and_bindings.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/type_and_bindings.h"
 
 namespace xls::dslx {
 
@@ -66,7 +71,7 @@ using SignatureFn = std::function<absl::StatusOr<TypeAndBindings>(
 // The returned function is then invoked (conceptually) as:
 //
 //     fsignature = get_fsignature(builtin_name)
-//     fn_type, symbolic_bindings = fsignature(arg_types, builtin_name,
+//     fn_type, parametric_env = fsignature(arg_types, builtin_name,
 //                                             invocation_span)
 //
 // Where the second line provides the argument types presented to the builtin.

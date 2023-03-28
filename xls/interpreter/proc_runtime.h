@@ -55,7 +55,7 @@ class ProcRuntime {
   // before returning an error.
   absl::StatusOr<int64_t> TickUntilOutput(
       absl::flat_hash_map<Channel*, int64_t> output_counts,
-      std::optional<int64_t> max_ticks = absl::nullopt);
+      std::optional<int64_t> max_ticks = std::nullopt);
 
   // Tick until all procs are blocked on receive operations. `max_ticks` is the
   // maximum number of ticks of the proc network before returning an
@@ -63,7 +63,7 @@ class ProcRuntime {
   // no inputs. `max_ticks` is the maximum number of ticks of the proc network
   // before returning an error.
   absl::StatusOr<int64_t> TickUntilBlocked(
-      std::optional<int64_t> max_ticks = absl::nullopt);
+      std::optional<int64_t> max_ticks = std::nullopt);
 
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 

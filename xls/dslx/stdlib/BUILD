@@ -22,6 +22,7 @@ load(
 )
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -134,8 +135,10 @@ cc_test(
     deps = [
         ":float32_from_int32_wrapper",
         ":float32_to_int32_wrapper",
+        "@com_google_absl//absl/base",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",

@@ -1,0 +1,11 @@
+package test_module
+
+file_number 0 "test_module.x"
+
+fn __test_module__f() -> bits[8][2] {
+  ret FOO: bits[8][2] = literal(value=[1, 2], id=1, pos=[(0,0,18)])
+}
+
+fn __test_module__g() -> bits[8][2] {
+  ret FOO: bits[8][2] = literal(value=[1, 2], id=2, pos=[(0,0,18)])
+}

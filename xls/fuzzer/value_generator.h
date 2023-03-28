@@ -19,15 +19,15 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls {
 
 // Contains logic to generate random values for use by fuzzer components.
 class ValueGenerator {
  public:
-  explicit ValueGenerator(std::mt19937 rng) : rng_(std::move(rng)) {}
+  explicit ValueGenerator(std::mt19937_64 rng) : rng_(std::move(rng)) {}
 
   // Returns a random boolean value.
   bool RandomBool();
@@ -80,7 +80,7 @@ class ValueGenerator {
   absl::StatusOr<dslx::Expr*> GenerateDslxConstant(dslx::Module* module,
                                                    dslx::TypeAnnotation* type);
 
-  std::mt19937& rng() { return rng_; }
+  std::mt19937_64& rng() { return rng_; }
 
  private:
   absl::StatusOr<dslx::InterpValue> GenerateUnbiasedValue(
@@ -93,7 +93,7 @@ class ValueGenerator {
   // series of NameRefs) whose values are Numbers.
   absl::StatusOr<int64_t> GetArraySize(const dslx::Expr* dim);
 
-  std::mt19937 rng_;
+  std::mt19937_64 rng_;
 };
 
 }  // namespace xls

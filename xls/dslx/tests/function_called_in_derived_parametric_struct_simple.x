@@ -14,7 +14,7 @@
 
 fn double(x: u32) -> u32 { x * u32:2 }
 
-struct MyParametric<A: u32, B: u32 = double(A)> {
+struct MyParametric<A: u32, B: u32 = {double(A)}> {
   x: bits[A],
   y: bits[B]
 }

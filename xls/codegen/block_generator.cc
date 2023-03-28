@@ -395,7 +395,7 @@ class BlockGenerator {
   // Emits the logic for the given nodes. This includes declaring and wires/regs
   // defined by the nodes.
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
-                         std::optional<int64_t> stage = absl::nullopt) {
+                         std::optional<int64_t> stage = std::nullopt) {
     for (Node* node : nodes) {
       XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
 

@@ -14,8 +14,7 @@
 
 #include "xls/passes/dataflow_visitor.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <memory>
 #include <string>
 

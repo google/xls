@@ -34,19 +34,12 @@ int64_t CeilOfLog2(uint64_t value) {
     return 0;
   }
   int64_t floor = FloorOfLog2(value);
-  if ((value & (value - 1)) == 0) {
-    // Power of two.
-    return floor;
-  } else {
-    return floor + 1;
-  }
+  return ((value & (value - 1)) == 0) ? floor  // power of two
+                                      : floor + 1;
 }
 
 int64_t FloorOfLog2(uint64_t value) {
-  if (value == 0) {
-    return 0;
-  }
-  return 63 - Clz(value);
+  return (value == 0) ? 0 : 63 - Clz(value);
 }
 
 bool MixedRadixIterate(absl::Span<const int64_t> radix,

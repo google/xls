@@ -14,21 +14,43 @@
 
 #include "xls/dslx/run_routines.h"
 
-#include <random>
+#include <unistd.h>
 
-#include "xls/dslx/bindings.h"
-#include "xls/dslx/bytecode_cache.h"
-#include "xls/dslx/bytecode_emitter.h"
-#include "xls/dslx/bytecode_interpreter.h"
+#include <cstdint>
+#include <ctime>
+#include <filesystem>  // NOLINT
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <random>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/meta/type_traits.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
+#include "xls/dslx/bytecode/bytecode_cache.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/interp_value_helpers.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/type_system/typecheck.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 
@@ -39,21 +61,22 @@ namespace {
 constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
 
-absl::Status RunTestFunction(
-    ImportData* import_data, TypeInfo* type_info, Module* module,
-    TestFunction* tf, BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook) {
+absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
+                             Module* module, TestFunction* tf,
+                             const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), absl::nullopt));
+      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), std::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
-                                        post_fn_eval_hook)
+                                        options)
       .status();
 }
 
 absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
-                         Module* module, TestProc* tp) {
+                         Module* module, TestProc* tp,
+                         const BytecodeInterpreterOptions& options) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
 
@@ -64,14 +87,36 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
   XLS_ASSIGN_OR_RETURN(InterpValue terminator,
                        ti->GetConstExpr(tp->proc()->config()->params()[0]));
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-      import_data, ti, tp->proc(), terminator, &proc_instances));
+      import_data, ti, tp->proc(), terminator, &proc_instances, options));
 
   std::shared_ptr<InterpValue::Channel> term_chan =
       terminator.GetChannelOrDie();
+  int64_t tick_count = 0;
   while (term_chan->empty()) {
-    for (auto& p : proc_instances) {
-      XLS_RETURN_IF_ERROR(p.Run());
+    bool progress_made = false;
+    if (options.max_ticks().has_value() &&
+        tick_count > options.max_ticks().value()) {
+      return absl::DeadlineExceededError(
+          absl::StrFormat("Exceeded limit of %d proc ticks before terminating",
+                          options.max_ticks().value()));
     }
+
+    std::vector<std::string> blocked_channels;
+    for (auto& p : proc_instances) {
+      XLS_ASSIGN_OR_RETURN(ProcRunResult run_result, p.Run());
+      if (run_result.execution_state == ProcExecutionState::kBlockedOnReceive) {
+        XLS_RET_CHECK(run_result.blocked_channel_name.has_value());
+        blocked_channels.push_back(run_result.blocked_channel_name.value());
+      }
+      progress_made |= run_result.progress_made;
+    }
+
+    if (!progress_made) {
+      return absl::DeadlineExceededError(
+          absl::StrFormat("Procs are deadlocked. Blocked channels: %s",
+                          absl::StrJoin(blocked_channels, ", ")));
+    }
+    ++tick_count;
   }
 
   InterpValue ret_val = term_chan->front();
@@ -98,10 +143,12 @@ absl::StatusOr<FunctionJit*> RunComparator::GetOrCompileJitFunction(
   return result;
 }
 
-absl::Status RunComparator::RunComparison(
-    Package* ir_package, bool requires_implicit_token, const dslx::Function* f,
-    absl::Span<InterpValue const> args,
-    const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
+absl::Status RunComparator::RunComparison(Package* ir_package,
+                                          bool requires_implicit_token,
+                                          const dslx::Function* f,
+                                          absl::Span<InterpValue const> args,
+                                          const ParametricEnv* parametric_env,
+                                          const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
 
   XLS_ASSIGN_OR_RETURN(
@@ -109,7 +156,7 @@ absl::Status RunComparator::RunComparison(
       MangleDslxName(f->owner()->name(), f->identifier(),
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
-                     f->GetFreeParametricKeySet(), symbolic_bindings));
+                     f->GetFreeParametricKeySet(), parametric_env));
 
   auto get_result = ir_package->GetFunction(ir_name);
 
@@ -339,8 +386,8 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     failed += 1;
   };
 
-  ImportData import_data(
-      CreateImportData(options.stdlib_path, options.dslx_paths));
+  auto import_data = CreateImportData(options.stdlib_path, options.dslx_paths);
+
   absl::StatusOr<TypecheckedModule> tm_or =
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
@@ -372,7 +419,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   // If JIT comparisons are "on", we register a post-evaluation hook to compare
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
-  BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook;
+  PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
     absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
         ConvertModuleToPackage(entry_module, &import_data,
@@ -388,16 +435,16 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     post_fn_eval_hook = [&ir_package, &import_data, &options](
                             const Function* f,
                             absl::Span<const InterpValue> args,
-                            const SymbolicBindings* symbolic_bindings,
+                            const ParametricEnv* parametric_env,
                             const InterpValue& got) -> absl::Status {
       std::optional<bool> requires_implicit_token =
           import_data.GetRootTypeInfoForNode(f)
               .value()
               ->GetRequiresImplicitToken(f);
       XLS_RET_CHECK(requires_implicit_token.has_value());
-      return options.run_comparator->RunComparison(
-          ir_package.get(), *requires_implicit_token, f, args,
-          symbolic_bindings, got);
+      return options.run_comparator->RunComparison(ir_package.get(),
+                                                   *requires_implicit_token, f,
+                                                   args, parametric_env, got);
     };
   }
 
@@ -412,14 +459,19 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
+    BytecodeInterpreterOptions interpreter_options;
+    interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
+        .trace_hook(InfoLoggingTraceHook)
+        .trace_channels(options.trace_channels)
+        .max_ticks(options.max_ticks);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,
-                               entry_module, tf, post_fn_eval_hook);
+                               entry_module, tf, interpreter_options);
     } else {
       XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module->GetTestProc(test_name));
-      status =
-          RunTestProc(&import_data, tm_or.value().type_info, entry_module, tp);
+      status = RunTestProc(&import_data, tm_or.value().type_info, entry_module,
+                           tp, interpreter_options);
     }
 
     if (status.ok()) {

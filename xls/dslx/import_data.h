@@ -15,14 +15,25 @@
 #ifndef XLS_DSLX_IMPORT_DATA_H_
 #define XLS_DSLX_IMPORT_DATA_H_
 
-#include <filesystem>
+#include <cstdint>
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
-#include "xls/dslx/ast.h"
-#include "xls/dslx/bytecode_cache_interface.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -102,6 +113,18 @@ class ImportData {
     return modules_.find(target) != modules_.end();
   }
 
+  // When we're actively importing modules, this stack is populated to ensure we
+  // don't have cycles between files.
+  //
+  // If we try to add a span to the importer stack where the file is already
+  // active, we've detected a cycle, and so we return an error.
+  absl::Status AddToImporterStack(const Span& importer_span,
+                                  std::filesystem::path imported);
+
+  // This pops the entry from the import stack and verifies it's the latest
+  // entry, returning an error iff it is not.
+  absl::Status PopFromImporterStack(const Span& import_span);
+
   absl::StatusOr<ModuleInfo*> Get(const ImportTokens& subject);
 
   absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
@@ -113,6 +136,8 @@ class ImportData {
   // node. (Note that type information lives in a tree configuration where
   // parametric specializations live under the root, see TypeInfo.)
   absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(const AstNode* node);
+  absl::StatusOr<const TypeInfo*> GetRootTypeInfoForNode(
+      const AstNode* node) const;
   absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
 
   // The "top level bindings" for a given module are the values that get
@@ -198,6 +223,9 @@ class ImportData {
   std::string stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
+
+  // See comment on AddToImporterStack() above.
+  std::vector<ImportRecord> importer_stack_;
 };
 
 }  // namespace xls::dslx

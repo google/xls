@@ -28,7 +28,7 @@ using ::testing::HasSubstr;
 
 class VerifierTest : public IrTestBase {
  protected:
-  VerifierTest() {}
+  VerifierTest() = default;
 };
 
 TEST_F(VerifierTest, WellFormedPackage) {

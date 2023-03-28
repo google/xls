@@ -371,9 +371,13 @@ absl::Status ChannelSource::SetBlockInputs(
     }
   }
 
-  // If stalling, send a zero value with valid bit set to zero.
+  // If stalling, randomly send all ones or zeros with valid bit set to zero.
   XLS_ASSIGN_OR_RETURN(const InputPort* port, block_->GetInputPort(data_name_));
-  inputs[data_name_] = ZeroOfType(port->GetType());
+
+  bool send_one_during_stall = std::bernoulli_distribution(0.5)(random_engine);
+
+  inputs[data_name_] = send_one_during_stall ? AllOnesOfType(port->GetType())
+                                             : ZeroOfType(port->GetType());
   inputs[valid_name_] = Value(UBits(0, 1));
 
   return absl::OkStatus();

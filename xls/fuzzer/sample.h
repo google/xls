@@ -106,6 +106,12 @@ class SampleOptions {
     return !((*this) == other);
   }
 
+  SampleOptions ReplaceInputIsDslx(bool enabled) const {
+    auto clone = *this;
+    clone.set_input_is_dslx(enabled);
+    return clone;
+  }
+
  private:
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   bool input_is_dslx_ = true;

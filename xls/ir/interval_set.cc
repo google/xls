@@ -97,7 +97,7 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
   std::optional<Bits> lower = LowerBound();
   std::optional<Bits> upper = UpperBound();
   if (!lower.has_value() || !upper.has_value()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return Interval(lower.value(), upper.value());
 }
@@ -249,7 +249,7 @@ std::optional<int64_t> IntervalSet::Size() const {
     if (auto size = interval.Size()) {
       total_size += size.value();
     } else {
-      return absl::nullopt;
+      return std::nullopt;
     }
   }
   return total_size;
@@ -316,7 +316,7 @@ bool IntervalSet::IsPrecise() const {
 std::optional<Bits> IntervalSet::GetPreciseValue() const {
   XLS_CHECK(is_normalized_);
   if (!IsPrecise()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   XLS_CHECK_EQ(intervals_.size(), 1);
   return intervals_.front().GetPreciseValue();
@@ -349,9 +349,9 @@ std::string IntervalSet::ToString() const {
   return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
 }
 
-IntervalSet IntervalSet::Random(uint32_t seed, int64_t bit_count,
+IntervalSet IntervalSet::Random(uint64_t seed, int64_t bit_count,
                                 int64_t max_intervals) {
-  std::mt19937 gen(seed);
+  std::mt19937_64 gen(seed);
   std::uniform_int_distribution<int64_t> distrib(0, max_intervals);
   int64_t num_intervals = distrib(gen);
   IntervalSet result(bit_count);

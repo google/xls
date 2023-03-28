@@ -76,7 +76,7 @@ absl::StatusOr<Token> Scanner::ScanIdentifier() {
 // Scans a number token.
 absl::StatusOr<Token> Scanner::ScanNumber() {
   const Pos start_pos = cs_->GetPos();
-  XLS_CHECK(std::isdigit(cs_->PeekCharOrDie()));
+  XLS_CHECK(std::isdigit(cs_->PeekCharOrDie()) != 0);
   absl::InlinedVector<char, 16> chars;
   while (!cs_->AtEof()) {
     if (IsNumberRest(cs_->PeekCharOrDie())) {

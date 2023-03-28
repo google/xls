@@ -13,13 +13,21 @@
 // limitations under the License.
 #include "xls/dslx/interp_value_helpers.h"
 
-#include "gmock/gmock.h"
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/concrete_type.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/pos.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -44,7 +52,7 @@ TEST(InterpValueHelpersTest, CastBitsToArray) {
 TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
   constexpr int kBitCount = 13;
   constexpr int kNumMembers = 16;
-  Module module("my_test_module");
+  Module module("my_test_module", /*fs_path=*/std::nullopt);
 
   std::vector<EnumMember> members;
   std::vector<InterpValue> member_values;
@@ -122,7 +130,7 @@ TEST(InterpValueHelpersTest, CreateZeroBitsAndArrayValues) {
 TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   const Span kFakeSpan = Span::Fake();
 
-  Module module("test");
+  Module module("test", /*fs_path=*/std::nullopt);
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "x", nullptr),

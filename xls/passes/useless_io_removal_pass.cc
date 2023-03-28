@@ -87,7 +87,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
           XLS_ASSIGN_OR_RETURN(
               replacement,
               proc->MakeNode<Send>(node->loc(), send->token(), send->data(),
-                                   /*predicate=*/absl::nullopt,
+                                   /*predicate=*/std::nullopt,
                                    send->channel_id()));
         }
       } else if (node->Is<Receive>()) {
@@ -111,7 +111,7 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
           XLS_ASSIGN_OR_RETURN(
               replacement, proc->MakeNode<Receive>(
                                node->loc(), receive->token(),
-                               /*predicate=*/absl::nullopt,
+                               /*predicate=*/std::nullopt,
                                receive->channel_id(), receive->is_blocking()));
         }
       }

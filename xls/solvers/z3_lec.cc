@@ -47,7 +47,7 @@ bool CheckingSingleStage(std::optional<PipelineSchedule> schedule,
 absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
   auto lec = absl::WrapUnique<Lec>(new Lec(params.ir_function, params.netlist,
                                            params.netlist_module_name,
-                                           absl::nullopt, 0));
+                                           std::nullopt, 0));
   XLS_RETURN_IF_ERROR(lec->Init());
   return lec;
 }
@@ -330,7 +330,7 @@ absl::flat_hash_map<std::string, Z3_ast> Lec::FlattenNetlistInputs() {
       // cells and use their outputs.
       std::string name;
       if (bits.size() == 1) {
-        name = NodeToNetlistName(node, absl::nullopt);
+        name = NodeToNetlistName(node, std::nullopt);
       } else {
         name = NodeToNetlistName(node, i);
       }

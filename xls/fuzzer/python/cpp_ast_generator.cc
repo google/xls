@@ -24,7 +24,7 @@
 #include "pybind11_abseil/statusor_caster.h"
 #include "xls/common/status/import_status_module.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample_generator.h"
 #include "xls/fuzzer/value_generator.h"
@@ -39,7 +39,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
 
   py::class_<ValueGenerator>(m, "ValueGenerator")
       .def(py::init(
-          [](int64_t seed) { return ValueGenerator{std::mt19937(seed)}; }))
+          [](int64_t seed) { return ValueGenerator{std::mt19937_64(seed)}; }))
       .def("random", &ValueGenerator::RandomDouble)
       .def("randrange", py::overload_cast<int64_t>(&ValueGenerator::RandRange))
       .def("randrange_biased_towards_zero",
@@ -71,12 +71,12 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
              }
              return options;
            }),
-           py::arg("emit_loops") = absl::nullopt,
-           py::arg("max_width_bits_types") = absl::nullopt,
-           py::arg("max_width_aggregate_types") = absl::nullopt,
-           py::arg("emit_gate") = absl::nullopt,
-           py::arg("generate_proc") = absl::nullopt,
-           py::arg("emit_stateless_proc") = absl::nullopt)
+           py::arg("emit_loops") = std::nullopt,
+           py::arg("max_width_bits_types") = std::nullopt,
+           py::arg("max_width_aggregate_types") = std::nullopt,
+           py::arg("emit_gate") = std::nullopt,
+           py::arg("generate_proc") = std::nullopt,
+           py::arg("emit_stateless_proc") = std::nullopt)
       // Pickling is required by the multiprocess fuzzer which pickles options
       // to send to the separate worker process.
       .def(py::pickle(

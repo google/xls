@@ -30,7 +30,7 @@ namespace xls {
 // Flattens this arbitrarily-typed Value to a bits type containing the same
 // total number of bits. Tuples are flattened by concatenating all of the leaf
 // elements. The zero-th tuple element ends up in the highest-indexed bits in
-// the resulting vector. Similarly, in a flattened array the zero-th element
+// the resulting vector. However, for a flattened array the last element
 // ends up in the highest index bits. This is in line with the behavior of
 // Verilog concatenate operation.
 Bits FlattenValueToBits(const Value& value);

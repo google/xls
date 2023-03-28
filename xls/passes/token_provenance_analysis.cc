@@ -14,9 +14,8 @@
 
 #include "xls/passes/token_provenance_analysis.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -54,7 +53,7 @@ class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
           "Node type contains token type even though it shouldn't: %s",
           node->ToString()));
     }
-    return SetValue(node, std::move(ltt));
+    return SetValue(node, ltt);
   }
 };
 

@@ -21,12 +21,10 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/node_hash_map.h"
-#include "absl/container/node_hash_set.h"
 #include "absl/strings/match.h"
 #include "xls/common/test_macros.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/scanner.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/scanner.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/format_preference.h"
 
@@ -81,7 +79,7 @@ struct AstGeneratorOptions {
 
 // Type that generates a random module for use in fuzz testing; i.e.
 //
-//    std::mt19937 rng;
+//    std::mt19937_64 rng;
 //    AstGenerator g(AstGeneratorOptions(), &rng);
 //    auto [f, module] = g.GenerateFunctionInModule().value();
 //
@@ -175,14 +173,14 @@ class AstGenerator {
   // Generates a proc with name "name".
   absl::Status GenerateProcInModule(std::string name);
 
-  // Generate an DSLX function with the given name. call_depth is the current
+  // Generate a DSLX function with the given name. call_depth is the current
   // depth of the call stack (if any) calling this function to be
   // generated. param_types, if given, defines the number and types of the
   // parameters.
   absl::StatusOr<Function*> GenerateFunction(
       std::string name, int64_t call_depth = 0,
       std::optional<absl::Span<TypeAnnotation* const>> param_types =
-          absl::nullopt);
+          std::nullopt);
 
   // Generate the proc's config function with the given name and proc parameters
   // (proc members).
@@ -197,7 +195,7 @@ class AstGenerator {
   absl::StatusOr<Function*> GenerateProcInitFunction(
       std::string_view name, TypeAnnotation* return_type);
 
-  // Generate an DSLX proc with the given name.
+  // Generate a DSLX proc with the given name.
   absl::StatusOr<Proc*> GenerateProc(std::string name);
 
   // Chooses a value from the environment that satisfies the predicate "take",
@@ -205,11 +203,20 @@ class AstGenerator {
   std::optional<TypedExpr> ChooseEnvValueOptional(
       Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
 
+  // As above, but takes a type to compare for equality.
+  std::optional<TypedExpr> ChooseEnvValueOptional(Env* env,
+                                                  const TypeAnnotation* type) {
+    return ChooseEnvValueOptional(env, [type](const TypedExpr& e) {
+      return e.type->ToString() == type->ToString();
+    });
+  }
+
   absl::StatusOr<TypedExpr> ChooseEnvValue(
       Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
 
   // As above, but takes a type to compare for equality.
-  absl::StatusOr<TypedExpr> ChooseEnvValue(Env* env, TypeAnnotation* type) {
+  absl::StatusOr<TypedExpr> ChooseEnvValue(Env* env,
+                                           const TypeAnnotation* type) {
     return ChooseEnvValue(env, [type](const TypedExpr& e) {
       return e.type->ToString() == type->ToString();
     });
@@ -219,9 +226,16 @@ class AstGenerator {
   std::vector<TypedExpr> GatherAllValues(
       Env* env, std::function<bool(const TypedExpr&)> take);
 
+  // As above, but takes a type to compare for equality.
+  std::vector<TypedExpr> GatherAllValues(Env* env, const TypeAnnotation* type) {
+    return GatherAllValues(env, [type](const TypedExpr& e) {
+      return e.type->ToString() == type->ToString();
+    });
+  }
+
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
-      Env* env, std::optional<int64_t> bit_count = absl::nullopt) {
+      Env* env, std::optional<int64_t> bit_count = std::nullopt) {
     auto is_bits = [&](const TypedExpr& e) -> bool {
       return IsBits(e.type) &&
              (bit_count.has_value() ? GetTypeBitCount(e.type) == bit_count
@@ -245,7 +259,7 @@ class AstGenerator {
   // returned values will have the same type potentially by coercing a value to
   // match the type of the other by truncation or zero-extension.
   absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
-      Env* env, std::optional<int64_t> bit_count = absl::nullopt);
+      Env* env, std::optional<int64_t> bit_count = std::nullopt);
 
   absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
@@ -323,8 +337,12 @@ class AstGenerator {
 
   // Generates an invocation of the one_hot_sel builtin.
   absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Context* ctx);
+
   // Generates an invocation of the priority_sel builtin.
   absl::StatusOr<TypedExpr> GeneratePrioritySelectBuiltin(Context* ctx);
+
+  // Generates an invocation of the signex builtin.
+  absl::StatusOr<TypedExpr> GenerateSignExtendBuiltin(Context* ctx);
 
   // Returns a binary concatenation of two arrays from ctx.
   //
@@ -390,7 +408,7 @@ class AstGenerator {
 
   // Generates a number AST node with its associated type.
   TypedExpr GenerateNumberWithType(
-      std::optional<BitsAndSignedness> bas = absl::nullopt);
+      std::optional<BitsAndSignedness> bas = std::nullopt);
 
   // Generates String AST node with a string literal of 'char_count'.
   String* GenerateString(int64_t char_count);
@@ -437,9 +455,9 @@ class AstGenerator {
   // Generates an Eq or Neq comparison on tuples.
   absl::StatusOr<TypedExpr> GenerateCompareTuple(Context* ctx);
 
-  // Generates a value with type 'type'. The value is represented as an
-  // xls::dslx::Expr.
-  absl::StatusOr<Expr*> GenerateValue(Context* ctx, const TypeAnnotation* type);
+  // Generates an expression with type 'type'.
+  absl::StatusOr<Expr*> GenerateExprOfType(Context* ctx,
+                                           const TypeAnnotation* type);
 
   // Generate a MatchArmPattern with type 'type'. The pattern is represented as
   // an xls::dslx::NameDefTree.
@@ -467,18 +485,18 @@ class AstGenerator {
 
   // Creates and returns a type ref for the given type.
   //
-  // As part of this process, an ast.TypeDef is created and added to the set of
-  // currently active set.
+  // As part of this process, a TypeAlias is created and added to the
+  // currently-active set.
   TypeRefTypeAnnotation* MakeTypeRefTypeAnnotation(TypeAnnotation* type) {
     std::string type_name = GenSym();
     NameDef* name_def = MakeNameDef(type_name);
-    auto* type_def =
-        module_->Make<TypeDef>(fake_span_, name_def, type, /*is_public=*/false);
-    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_name, type_def);
-    type_defs_.push_back(type_def);
+    auto* type_alias = module_->Make<TypeAlias>(fake_span_, name_def, type,
+                                                /*is_public=*/false);
+    auto* type_ref = module_->Make<TypeRef>(fake_span_, type_alias);
+    type_aliases_.push_back(type_alias);
     type_bit_counts_[type_ref->ToString()] = GetTypeBitCount(type);
     return module_->Make<TypeRefTypeAnnotation>(
-        fake_span_, type_ref, /*parametrics=*/std::vector<Expr*>{});
+        fake_span_, type_ref, /*parametrics=*/std::vector<ExprOrType>{});
   }
 
   // Generates a logical binary operation (e.g. and, xor, or).
@@ -509,7 +527,7 @@ class AstGenerator {
   }
 
   // Creates a number AST node with value 'value' of type 'type' represented in
-  // a randomly choosen format between binary, decimal, hex and, when possible,
+  // a randomly chosen format between binary, decimal, hex and, when possible,
   // a "character" number. Note that these function expect a builtin type or a
   // one-dimensional array of builtin types.
   Number* GenerateNumber(int64_t value, TypeAnnotation* type);
@@ -571,7 +589,7 @@ class AstGenerator {
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
   ConstRef* GetOrCreateConstRef(
-      int64_t value, std::optional<int64_t> want_width = absl::nullopt);
+      int64_t value, std::optional<int64_t> want_width = std::nullopt);
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {
@@ -630,7 +648,7 @@ class AstGenerator {
   std::vector<Function*> functions_;
 
   // Types defined during module generation.
-  std::vector<TypeDef*> type_defs_;
+  std::vector<TypeAlias*> type_aliases_;
 
   // Widths of the aggregate types, indexed by TypeAnnotation::ToString().
   absl::flat_hash_map<std::string, int64_t> type_bit_counts_;

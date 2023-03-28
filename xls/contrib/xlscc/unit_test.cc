@@ -25,9 +25,11 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value_helpers.h"
 
 using testing::Optional;
@@ -37,7 +39,8 @@ const int determinism_test_repeat_count = 3;
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         uint64_t expected, std::string_view cpp_source,
                         xabsl::SourceLocation loc,
-                        std::vector<std::string_view> clang_argv) {
+                        std::vector<std::string_view> clang_argv,
+                        int64_t max_unroll_iters) {
   if (XLS_VLOG_IS_ON(1)) {
     std::ostringstream input_str;
     for (const auto& [key, val] : args) {
@@ -48,18 +51,20 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                 << std::endl;
   }
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
-                           SourceToIr(cpp_source, nullptr, clang_argv));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, SourceToIr(cpp_source, nullptr, clang_argv,
+                                 /*io_test_mode=*/false, max_unroll_iters));
   RunAndExpectEq(args, expected, ir, false, false, loc);
 }
 
 void XlsccTestBase::Run(
     const absl::flat_hash_map<std::string, xls::Value>& args,
     xls::Value expected, std::string_view cpp_source, xabsl::SourceLocation loc,
-    std::vector<std::string_view> clang_argv) {
+    std::vector<std::string_view> clang_argv, int64_t max_unroll_iters) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
-                           SourceToIr(cpp_source, nullptr, clang_argv));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string ir, SourceToIr(cpp_source, nullptr, clang_argv,
+                                 /*io_test_mode=*/false, max_unroll_iters));
   RunAndExpectEq(args, expected, ir, false, false, loc);
 }
 
@@ -129,31 +134,49 @@ void XlsccTestBase::RunWithStatics(
   }
 }
 
-absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
-                                     std::vector<std::string_view> clang_argv,
-                                     bool io_test_mode,
-                                     bool error_on_init_interval) {
+template <typename... Args>
+std::string ErrorMessage(const xls::SourceInfo& loc,
+                         const absl::FormatSpec<Args...>& format,
+                         const Args&... args) {
+  std::string result = absl::StrFormat(format, args...);
+  for (const xls::SourceLocation& location : loc.locations) {
+    absl::StrAppend(&result, "\n", location.ToString());
+  }
+  return result;
+}
+
+absl::Status XlsccTestBase::ScanFile(
+    xls::TempFile& temp, std::vector<std::string_view> clang_argv,
+    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
+    bool fail_xlscc_check, int64_t max_unroll_iters) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(ScanTempFileWithContent(temp, clang_argv, parser.get()));
   // When loop unrolling is failing, it tends to run slowly.
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
   // the test run in a reasonable time.
-  translator_.reset(new xlscc::Translator(error_on_init_interval, 100, 100,
-                                          std::move(parser)));
+  translator_.reset(new xlscc::Translator(
+      error_on_init_interval,
+      /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
+      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
+  }
+  if (fail_xlscc_check) {
+    auto source_info = xls::SourceInfo(loc);
+    XLSCC_CHECK(false, source_info);
   }
   return absl::OkStatus();
 }
 
-absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
-                                     std::vector<std::string_view> clang_argv,
-                                     bool io_test_mode,
-                                     bool error_on_init_interval) {
+absl::Status XlsccTestBase::ScanFile(
+    std::string_view cpp_src, std::vector<std::string_view> clang_argv,
+    bool io_test_mode, bool error_on_init_interval, xls::SourceLocation loc,
+    bool fail_xlscc_check, int64_t max_unroll_iters) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval);
+  return ScanFile(temp, clang_argv, io_test_mode, error_on_init_interval, loc,
+                  fail_xlscc_check, max_unroll_iters);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
@@ -185,21 +208,25 @@ absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     std::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode) {
+    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    int64_t max_unroll_iters) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return SourceToIr(temp, pfunc, clang_argv, io_test_mode);
+  return SourceToIr(temp, pfunc, clang_argv, io_test_mode, max_unroll_iters);
 }
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     xls::TempFile& temp, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode) {
+    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    int64_t max_unroll_iters) {
   std::list<std::string> ir_texts;
   std::string ret_text;
 
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
-    XLS_RETURN_IF_ERROR(
-        ScanFile(temp, clang_argv, /* io_test_mode= */ io_test_mode));
+    XLS_RETURN_IF_ERROR(ScanFile(temp, clang_argv, io_test_mode,
+                                 /*error_on_init_interval=*/false,
+                                 /*loc=*/xls::SourceLocation(),
+                                 /*fail_xlscc_check=*/false, max_unroll_iters));
     package_.reset(new xls::Package("my_package"));
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));
@@ -287,6 +314,8 @@ void XlsccTestBase::ProcTest(
 
   int tick = 1;
   for (; tick < max_ticks; ++tick) {
+    XLS_LOG(INFO) << "Before tick " << tick;
+
     XLS_ASSERT_OK(interpreter->Tick());
 
     XLS_LOG(INFO) << "State after tick " << tick;
@@ -357,4 +386,153 @@ XlsccTestBase::GenerateMetadata() {
 
 absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
   return block_spec_;
+}
+
+void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
+                           std::list<IOOpTest> outputs,
+                           absl::flat_hash_map<std::string, xls::Value> args) {
+  xlscc::GeneratedFunction* func;
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
+
+  int64_t io_ops_values = 0;
+  for (const xlscc::IOOp& op : func->io_ops) {
+    if (op.op == xlscc::OpType::kRead) {
+      io_ops_values += 2;
+    } else {
+      ++io_ops_values;
+    }
+  }
+
+  const int total_test_ops = inputs.size() + outputs.size();
+  ASSERT_EQ(io_ops_values, total_test_ops);
+
+  std::list<IOOpTest> input_ops_orig = inputs;
+  for (const xlscc::IOOp& op : func->io_ops) {
+    const std::string ch_name = op.channel->unique_name;
+
+    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
+      const std::string arg_name =
+          absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
+
+      const IOOpTest test_op = inputs.front();
+      inputs.pop_front();
+
+      std::string expected_name = ch_name;
+      if (op.op == xlscc::OpType::kRead) {
+        expected_name += "__read";
+      }
+      XLS_CHECK_EQ(expected_name, test_op.name);
+
+      const xls::Value& new_val = test_op.value;
+
+      if (!args.contains(arg_name)) {
+        args[arg_name] = new_val;
+        continue;
+      }
+
+      if (args[arg_name].IsBits()) {
+        args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
+      } else {
+        XLS_CHECK(args[arg_name].IsTuple());
+        const xls::Value prev_val = args[arg_name];
+        XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
+                                 prev_val.GetElements());
+        values.push_back(new_val);
+        args[arg_name] = xls::Value::Tuple(values);
+      }
+    }
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Value actual,
+      DropInterpreterEvents(xls::InterpretFunctionKwargs(entry, args)));
+
+  std::vector<xls::Value> returns;
+
+  if (total_test_ops > 1) {
+    ASSERT_TRUE(actual.IsTuple());
+    XLS_ASSERT_OK_AND_ASSIGN(returns, actual.GetElements());
+  } else {
+    returns.push_back(actual);
+  }
+
+  // Every op at least returns a condition
+  ASSERT_EQ(returns.size(), func->io_ops.size());
+
+  inputs = input_ops_orig;
+
+  int op_idx = 0;
+  for (const xlscc::IOOp& op : func->io_ops) {
+    const std::string ch_name = op.channel->unique_name;
+
+    if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
+      const IOOpTest test_op = inputs.front();
+      inputs.pop_front();
+
+      std::string expected_name = ch_name;
+      if (op.op == xlscc::OpType::kRead) {
+        expected_name += "__read";
+      }
+      XLS_CHECK_EQ(expected_name, test_op.name);
+
+      xls::Value cond_val;
+
+      if (op.op == xlscc::OpType::kRecv) {
+        cond_val = returns[op_idx];
+      } else {
+        ASSERT_TRUE(returns[op_idx].IsTuple());
+        XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
+                                 returns[op_idx].GetElements());
+        ASSERT_EQ(elements.size(), 2);
+        cond_val = elements[1];
+        // Check address value if condition is true
+        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, cond_val.bits().ToUint64());
+        if (val1 == 1u) {
+          const IOOpTest addr_op = outputs.front();
+          ASSERT_EQ(elements[0], addr_op.value);
+        }
+        outputs.pop_front();
+      }
+
+      ASSERT_TRUE(cond_val.IsBits());
+      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val, cond_val.bits().ToUint64());
+      ASSERT_EQ(val, test_op.condition ? 1 : 0);
+
+    } else if (op.op == xlscc::OpType::kSend ||
+               op.op == xlscc::OpType::kWrite) {
+      const IOOpTest test_op = outputs.front();
+      outputs.pop_front();
+
+      std::string expected_name = ch_name;
+      if (op.op == xlscc::OpType::kWrite) {
+        expected_name += "__write";
+      }
+
+      XLS_CHECK_EQ(expected_name, test_op.name);
+
+      ASSERT_TRUE(returns[op_idx].IsTuple());
+      XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
+                               returns[op_idx].GetElements());
+      ASSERT_EQ(elements.size(), 2);
+      ASSERT_TRUE(elements[1].IsBits());
+      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
+      ASSERT_EQ(val1, test_op.condition ? 1 : 0);
+      // Don't check data if it wasn't sent
+      if (val1 != 0u) {
+        ASSERT_EQ(elements[0], test_op.value);
+      }
+    } else {
+      FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);
+    }
+    ++op_idx;
+  }
+
+  ASSERT_EQ(inputs.size(), 0);
+  ASSERT_EQ(outputs.size(), 0);
 }

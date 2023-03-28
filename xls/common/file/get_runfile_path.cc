@@ -34,12 +34,37 @@ using ::bazel::tools::cpp::runfiles::Runfiles;
 static absl::Mutex mutex(absl::kConstInit);
 static Runfiles* runfiles;
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <sys/syslimits.h>
+#endif  /* __APPLE__ */
+
+absl::StatusOr<std::filesystem::path> GetSelfExecutablePath() {
+#if __linux__
+  return GetRealPath("/proc/self/exe");
+#elif __APPLE__
+  char path[PATH_MAX+1];
+  uint32_t size = PATH_MAX;
+  if (_NSGetExecutablePath(path, &size) == 0) {
+    return std::filesystem::path(path);
+  }
+  return absl::InvalidArgumentError("Self path could not fit into buffer");
+#else
+#error "Unknown platform"
+#endif
+}
+
 absl::StatusOr<Runfiles*> GetRunfiles(
-    const std::string& argv0 = "/proc/self/exe") {
+    std::optional<std::string_view> argv0 = std::nullopt) {
   absl::MutexLock lock(&mutex);
   if (runfiles == nullptr) {
     // Need to dereference the path, in case it's a link (as with the default).
-    XLS_ASSIGN_OR_RETURN(auto path, GetRealPath(argv0));
+    std::filesystem::path path;
+    if (argv0.has_value()) {
+      XLS_ASSIGN_OR_RETURN(path, GetRealPath(std::string(argv0.value())));
+    } else {
+      XLS_ASSIGN_OR_RETURN(path, GetSelfExecutablePath());
+    }
 
     std::string error;
     runfiles = Runfiles::Create(path.string(), &error);

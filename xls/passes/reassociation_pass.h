@@ -28,7 +28,7 @@ namespace xls {
 class ReassociationPass : public FunctionBasePass {
  public:
   ReassociationPass() : FunctionBasePass("reassociation", "Reassociation") {}
-  ~ReassociationPass() override {}
+  ~ReassociationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

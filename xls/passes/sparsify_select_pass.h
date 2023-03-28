@@ -29,7 +29,7 @@ class SparsifySelectPass : public FunctionBasePass {
  public:
   SparsifySelectPass()
       : FunctionBasePass("sparsify_select", "Sparsify Select") {}
-  ~SparsifySelectPass() override {}
+  ~SparsifySelectPass() override = default;
 
  protected:
   // Sparsify selects using range analysis.

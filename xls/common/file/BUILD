@@ -17,6 +17,7 @@
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -45,6 +46,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:error_code_to_status",
         "//xls/common/status:ret_check",

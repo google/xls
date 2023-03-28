@@ -58,7 +58,7 @@ inline NullStream& operator<<(NullStream& str,
 // and expression-defined severity use `NullStreamMaybeFatal` above.
 class NullStreamFatal : public NullStream {
  public:
-  NullStreamFatal() {}
+  NullStreamFatal() = default;
   ABSL_ATTRIBUTE_NORETURN ~NullStreamFatal() { _exit(1); }
 };
 

@@ -14,6 +14,18 @@
 
 #include "xls/dslx/mangle.h"
 
+#include <iterator>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "xls/common/status/ret_check.h"
 
@@ -54,25 +66,25 @@ std::string MangleInterpValue(const InterpValue& value) {
 absl::StatusOr<std::string> MangleDslxName(
     std::string_view module_name, std::string_view function_name,
     CallingConvention convention, const absl::btree_set<std::string>& free_keys,
-    const SymbolicBindings* symbolic_bindings) {
-  absl::btree_set<std::string> symbolic_bindings_keys;
-  std::vector<std::string> symbolic_bindings_values;
-  if (symbolic_bindings != nullptr) {
-    for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
-      symbolic_bindings_keys.insert(item.identifier);
+    const ParametricEnv* parametric_env) {
+  absl::btree_set<std::string> parametric_env_keys;
+  std::vector<std::string> parametric_env_values;
+  if (parametric_env != nullptr) {
+    for (const ParametricEnvItem& item : parametric_env->bindings()) {
+      parametric_env_keys.insert(item.identifier);
       const InterpValue& value = item.value;
-      symbolic_bindings_values.push_back(MangleInterpValue(value));
+      parametric_env_values.push_back(MangleInterpValue(value));
     }
   }
   absl::btree_set<std::string> difference;
-  absl::c_set_difference(free_keys, symbolic_bindings_keys,
+  absl::c_set_difference(free_keys, parametric_env_keys,
                          std::inserter(difference, difference.begin()));
   if (!difference.empty()) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("Not enough symbolic bindings to convert function "
+        absl::StrFormat("Not enough parametric bindings to convert function "
                         "'%s'; need {%s} got {%s}",
                         function_name, absl::StrJoin(free_keys, ", "),
-                        absl::StrJoin(symbolic_bindings_keys, ", ")));
+                        absl::StrJoin(parametric_env_keys, ", ")));
   }
 
   std::string convention_str;
@@ -83,8 +95,8 @@ absl::StatusOr<std::string> MangleDslxName(
   std::string module_name_str = absl::StrReplaceAll(module_name, {{".", "_"}});
 
   std::string suffix;
-  if (!symbolic_bindings_values.empty()) {
-    suffix = absl::StrCat("__", absl::StrJoin(symbolic_bindings_values, "_"));
+  if (!parametric_env_values.empty()) {
+    suffix = absl::StrCat("__", absl::StrJoin(parametric_env_values, "_"));
   }
   std::string mangled_name = absl::StrFormat(
       "__%s%s__%s%s", convention_str, module_name_str, function_name, suffix);

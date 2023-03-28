@@ -163,7 +163,7 @@ proc main {
     let x3: token = join(x0);
     let x4: bool = (x1)[:];
     let x5: bool = (x2) >= (x2);
-    let x7: (token, u3, bool) = recv_non_blocking(x3, x6);
+    let x7: (token, u3, bool) = recv_non_blocking(x3, x6, u3:0);
     let x8: token = x7.0;
     let x9: u3 = x7.1;
     let x10: bool = x7.2;
@@ -171,7 +171,7 @@ proc main {
     let x12: token = join(x3, x8);
     let x13: bool = rev(x2);
     let x14: bool = (x13) * (((x9) as bool));
-    let x16: (token, u47) = recv_if(x3, x15, x14);
+    let x16: (token, u47) = recv_if(x3, x15, x14, u47:0);
     let x17: token = x16.0;
     let x18: u47 = x16.1;
     let x19: bool = x7.2;

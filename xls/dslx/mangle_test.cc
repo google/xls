@@ -14,6 +14,10 @@
 
 #include "xls/dslx/mangle.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
@@ -38,18 +42,18 @@ TEST(MangleTest, SimpleModuleFunction) {
 TEST(MangleTest, SingleFreeKey) {
   std::vector<std::pair<std::string, InterpValue>> bindings = {
       {"x", InterpValue::MakeU32(42)}};
-  SymbolicBindings symbolic_bindings(bindings);
+  ParametricEnv parametric_env(bindings);
   EXPECT_THAT(MangleDslxName("my_mod", "p", CallingConvention::kTypical, {"x"},
-                             &symbolic_bindings),
+                             &parametric_env),
               IsOkAndHolds("__my_mod__p__42"));
 }
 
 TEST(MangleTest, TwoFreeKeys) {
   std::vector<std::pair<std::string, InterpValue>> bindings = {
       {"x", InterpValue::MakeU32(42)}, {"y", InterpValue::MakeU32(64)}};
-  SymbolicBindings symbolic_bindings(bindings);
+  ParametricEnv parametric_env(bindings);
   EXPECT_THAT(MangleDslxName("my_mod", "p", CallingConvention::kTypical,
-                             {"x", "y"}, &symbolic_bindings),
+                             {"x", "y"}, &parametric_env),
               IsOkAndHolds("__my_mod__p__42_64"));
 }
 

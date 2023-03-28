@@ -38,7 +38,7 @@ type F32 = float32::F32;
 
 // Computes an approximation of 1.0 / sqrt(x). NUM_REFINEMENTS can be increased
 // to tradeoff more hardware resources for more accuracy.
-pub fn fp32_fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = u32:1>(x: F32) -> F32 {
+pub fn fp32_fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> F32 {
   const zero_point_five = F32 {sign: u1:0,
                                bexp: u8:0x7e,
                                fraction:  u23:0};

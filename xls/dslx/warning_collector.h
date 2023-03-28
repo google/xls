@@ -16,9 +16,10 @@
 #define XLS_DSLX_WARNING_COLLECTOR_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 

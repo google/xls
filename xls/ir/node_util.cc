@@ -178,4 +178,12 @@ absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node) {
   return node->package()->GetChannel(channel_id);
 }
 
+bool IsBinarySelect(Node* node) {
+  if (!node->Is<Select>()) {
+    return false;
+  }
+  Select* sel = node->As<Select>();
+  return sel->cases().size() == 2 && !sel->default_value().has_value();
+}
+
 }  // namespace xls

@@ -25,7 +25,7 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/dynamic_message.h"
 #include "google/protobuf/message.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls {
 namespace internal {
@@ -45,7 +45,7 @@ class ProtoToDslxManager {
  public:
   // Constructs an instance that will add DSLX definitions to the
   // previously constructed DSLX module.
-  ProtoToDslxManager(dslx::Module* module);
+  explicit ProtoToDslxManager(dslx::Module* module);
 
   ~ProtoToDslxManager();
 
@@ -72,7 +72,7 @@ class ProtoToDslxManager {
 };
 
 // ProtoToDslx accepts a proto schema and textproto instantiating such, and
-// converts those definitions into a cooresponding DSLX file.
+// converts those definitions into a corresponding DSLX file.
 // Args:
 //   source_root: The path to the root directory containing the input schema
 //       _as_well_as_ any .proto files referenced therein (e.g. that are

@@ -100,7 +100,7 @@ class ProcInliningPassTest : public IrTestBase {
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>&
           expected_outputs,
-      std::optional<int64_t> expected_ticks = absl::nullopt,
+      std::optional<int64_t> expected_ticks = std::nullopt,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     testing::ScopedTrace trace(loc.file_name(), loc.line(),
                                "EvalAndExpect failed");
@@ -2547,6 +2547,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         int64_t token_count =
             std::uniform_int_distribution<int>(1, tokens.size())(engine);
         std::vector<BValue> token_predecessors;
+        token_predecessors.reserve(token_count);
         for (int i = 0; i < token_count; i++) {
           token_predecessors.push_back(tokens[i]);
         }

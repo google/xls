@@ -53,8 +53,8 @@ constexpr int kTagBytes = kTagBits / 8;
 
 constexpr std::string_view kIrPath = "xls/modules/aes/aes_gcm.ir";
 constexpr std::string_view kCmdChannelName = "aes_gcm__command_in";
-constexpr std::string_view kDataInChannelName = "aes_gcm__data_in";
-constexpr std::string_view kDataOutChannelName = "aes_gcm__data_out";
+constexpr std::string_view kDataInChannelName = "aes_gcm__data_r";
+constexpr std::string_view kDataOutChannelName = "aes_gcm__data_s";
 
 struct JitData {
   std::unique_ptr<Package> package;

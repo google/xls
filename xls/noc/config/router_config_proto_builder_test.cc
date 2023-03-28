@@ -86,7 +86,7 @@ TEST(RouterConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
   port_builder.WithVirtualChannel(kNonDefault);
   builder.SetDefaultVirtualChannelsForInputPort(kVirtualChannels);
   builder.WithInputPort("Test");
-  builder.SetDefaultVirtualChannelsForInputPort(absl::nullopt);
+  builder.SetDefaultVirtualChannelsForInputPort(std::nullopt);
   port_builder = builder.WithInputPort("Test");
   port_builder.WithVirtualChannel(kNonDefault);
 
@@ -112,7 +112,7 @@ TEST(RouterConfigBuilderTest, VirtualChannelsOutputPortDefaultFields) {
   port_builder.WithVirtualChannel(kNonDefault);
   builder.SetDefaultVirtualChannelsForOutputPort(kVirtualChannels);
   builder.WithOutputPort("Test");
-  builder.SetDefaultVirtualChannelsForOutputPort(absl::nullopt);
+  builder.SetDefaultVirtualChannelsForOutputPort(std::nullopt);
   port_builder = builder.WithOutputPort("Test");
   port_builder.WithVirtualChannel(kNonDefault);
 

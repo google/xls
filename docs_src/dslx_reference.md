@@ -149,7 +149,7 @@ fn double(n: u32) -> u32 {
   n * u32:2
 }
 
-fn self_append<A: u32, B: u32 = double(A)>(x: bits[A]) -> bits[B] {
+fn self_append<A: u32, B: u32 = {double(A)}>(x: bits[A]) -> bits[B] {
   x++x
 }
 
@@ -161,7 +161,8 @@ fn main() -> bits[10] {
 In `self_append(bits[5]:1)`, we see that `A = 5` based off of formal argument
 instantiation. Using that value, we can evaluate `B = double(A=5)`. This derived
 expression is analogous to C++'s constexpr – a simple expression that can be
-evaluated at that point in compilation.
+evaluated at that point in compilation. Note that the expression must be wrapped
+in `{}` curly braces.
 
 See
 [advanced understanding](#advanced-understanding-parametricity-constraints-and-unification)
@@ -238,8 +239,6 @@ The most fundamental type in DSLX is a variable length bit type denoted as
 `bits[n]`, where `n` is a constant. For example:
 
 ```
-bits[0]   // possible, but, don't do that
-
 bits[1]   // a single bit
 uN[1]     // explicitly noting single bit is unsigned
 u1        // convenient shorthand for bits[1]
@@ -249,6 +248,8 @@ u8        // convenient shorthand for bits[8]
 bits[32]  // a 32-bit datatype
 u32       // convenient shorthand for bits[32]
 bits[256] // a 256-bit datatype
+
+bits[0]   // possible, but, don't do that
 ```
 
 DSLX introduces aliases for commonly used types, such as `u8` for an 8-wide bit
@@ -259,9 +260,6 @@ Signed integers are specified via `s*` and `sN[*]`. Similarly to unsigned
 numbers, the `s*` shorthands are defined up to `s64`. For example:
 
 ```
-sN[0]
-s0
-
 sN[1]
 s1
 
@@ -269,10 +267,26 @@ sN[64]
 s64
 
 sN[256]
+
+sN[0]
+s0
 ```
 
 Signed numbers differ in their behavior from unsigned numbers primarily via
 operations like comparisons, (variable width) multiplications, and divisions.
+
+#### Bit Type Attributes
+
+Bit types have helpful type-level attributes that provide limit values, similar
+to `std::numeric_limits` in C++. For example:
+
+```dslx-snippet
+u3::MAX   // u3:0b111 the "fill with ones" value
+s3::MAX   // s3:0b011 the "maximum signed" value
+
+u3::ZERO  // u3:0b000 the "fill with zeros" value
+s3::ZERO  // s3:0b000 the "fill with zeros" value
+```
 
 #### Character Constants
 
@@ -566,7 +580,7 @@ section.
 ```dslx
 fn double(n: u32) -> u32 { n * u32:2 }
 
-struct Point<N: u32, M: u32 = double(N)> {
+struct Point<N: u32, M: u32 = {double(N)}> {
   x: bits[N],
   y: bits[M],
 }
@@ -839,12 +853,13 @@ have pre-defined special-syntax-rule names.)
 
 In DSLX code, the "environment" where names are bound (sometimes also referred
 to as a symbol table) is called the
-[`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/bindings.h) -- it maps
-identifiers to the AST node that defines the name (`{string: AstNode}`), which
-can be combined with a mapping from AST node to its deduced type (`{AstNode:
-ConcreteType}`) to resolve the type of an identifier in the program. `Let` is
-one of the key nodes that populates these `Bindings`, but anything that creates
-a bound name does as well (e.g. parameters, for loop induction variables, etc.).
+[`Bindings`](https://github.com/google/xls/tree/main/xls/dslx/frontend/bindings.h) -- it
+maps identifiers to the AST node that defines the name (`{string: AstNode}`),
+which can be combined with a mapping from AST node to its deduced type
+(`{AstNode: ConcreteType}`) to resolve the type of an identifier in the program.
+`Let` is one of the key nodes that populates these `Bindings`, but anything that
+creates a bound name does as well (e.g. parameters, for loop induction
+variables, etc.).
 
 #### Operator Example
 
@@ -1327,13 +1342,10 @@ However, `let` expressions are lexically scoped. In above example, the value `3`
 is bound to `a` only during the combined let expression sequence. There is no
 other type of scoping in DSLX.
 
-### Ternary If Expression
+### If Expression
 
-Note: ternary expression syntax is expected to change to mimic Rust's, see
-[#318](https://github.com/google/xls/issues/318).
-
-DSLX offers a ternary `if` expression, which is very similar to the Rust ternary
-`if` expression. Blueprint:
+DSLX offers an `if` expression, which is very similar to the Rust `if`
+expression. Blueprint:
 
 ```
 if condition { consequent } else { alternate }
@@ -1348,6 +1360,21 @@ condition ? consequent : alternate
 Note: both the `if` and `else` are *required* to be present, as with the `?:`
 operator, unlike a C++ `if` statement. This is because it is an *expression*
 that *produces* a result value, not a *statement* that causes a mutating effect.
+
+Furthermore, you can have multiple branches via `else if`:
+
+```
+if condition0 { consequent0 } else if condition1 { consequent1 } else { alternate }
+```
+
+which corresponds to the C/C++:
+
+```
+condition0 ? consequent0 : (contition1 ? consequent1 : alternate)
+```
+
+Note: a `match` expression can often be a better choice than having a long
+`if/else if/.../else` chain.
 
 For example, in the FP adder module (modules/fp32_add_2.x), there is code like
 the following:
@@ -1479,10 +1506,10 @@ DSLX adopts the
 [Rust rules](https://doc.rust-lang.org/1.30.0/book/first-edition/casting-between-types.html)
 for semantics of numeric casts:
 
-*   Casting from larger bit-widths to smaller bit-widths will truncate (to the
-    LSbs).
-    *   This means that truncating signed values does not preserve the previous
-        value of the sign bit.
+*   Casting from **larger bit-widths to smaller bit-widths** will truncate (to
+    the LSbs).
+    *   This means that **truncating signed values does not preserve the
+        previous value of the sign bit**.
 *   Casting from a smaller bit-width to a larger bit-width will zero-extend if
     the source is unsigned, sign-extend if the source is signed.
 *   Casting from a bit-width to its own bit-width, between signed/unsigned, is a
@@ -1831,6 +1858,22 @@ name of the function must be referred to directly.
 Note: Novel higher order functions (e.g. if a user wanted to write their own
 `map`) cannot currently be written in user-level DSL code.
 
+### `array_rev`
+
+`array_rev` reverses the elements of an array.
+
+```dslx
+#[test]
+fn test_array_rev() {
+  let _ = assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
+  let _ = assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
+  let _ = assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
+  let _ = assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
+  let _ = assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
+  ()
+}
+```
+
 ### `clz`, `ctz`
 
 DSLX provides the common "count leading zeroes" and "count trailing zeroes"
@@ -2000,7 +2043,49 @@ omitted.
 `assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
 recommended to use it within `test` constructs (interpretation) only.
 
-### trace_fmt!
+### `zero!<T>`
+
+DSLX has a macro for easy creation of zero values, even from aggregate types.
+Invoke the macro with the type parameter as follows:
+
+```dslx
+struct MyPoint {
+  x: u32,
+  y: u32,
+}
+
+enum MyEnum : u2 {
+  ZERO = u2:0,
+  ONE = u2:1,
+}
+
+#[test]
+fn test_zero_macro() {
+  let _ = assert_eq(zero!<u32>(), u32:0);
+  let _ = assert_eq(zero!<MyPoint>(), MyPoint{x: u32:0, y: u32:0});
+  let _ = assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
+  ()
+}
+```
+
+The `zero!<T>` macro can also be used with the struct update syntax to
+initialize a subset of fields to zero. In the example below all fields except
+`foo` are initialized to zero in the struct returned by `f`.
+
+```dslx
+struct MyStruct {
+  foo: u1,
+  bar: u2,
+  baz: u3,
+  bat: u4,
+}
+
+fn f() -> MyStruct {
+  MyStruct{foo: u1:1, ..zero!<MyStruct>()}
+}
+```
+
+### `trace_fmt!`
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
 dumping of current values to stdout. For example:
@@ -2044,7 +2129,7 @@ Note: `trace!` currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- `trace_fmt!` is more powerful.
 
-### fail!
+### `fail!`
 
 NOTE: this section describes work-in-progress functionality, currently `fail!`
 will only trigger in DSL interpretation (it is discarded in IR conversion).
@@ -2173,7 +2258,7 @@ Unless otherwise specified in the implementation's build configs, functions
 called by unit tests are also converted to XLS IR and run through the
 toolchain's LLVM JIT. The resulting values from the DSLX interpreter and the
 LLVM JIT are compared against each other to assert equality. This is to ensure
-DSLX implementations are IR-convertable and that IR translation is correct.
+DSLX implementations are IR-convertible and that IR translation is correct.
 
 ### QuickCheck
 

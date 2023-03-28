@@ -15,45 +15,45 @@
 // Another proc "smoke test": this one just spawns two procs.
 
 proc doubler {
-  c: chan<u32> in;
-  p: chan<u32> out;
+  r: chan<u32> in;
+  s: chan<u32> out;
 
   init { () }
 
-  config(c: chan<u32> in, p: chan<u32> out) {
-    (c, p)
+  config(r: chan<u32> in, s: chan<u32> out) {
+    (r, s)
   }
 
   next(tok: token, state: ()) {
-    let (tok, input) = recv(tok, c);
-    let tok = send(tok, p, input * u32:2);
+    let (tok, input) = recv(tok, r);
+    let tok = send(tok, s, input * u32:2);
     ()
   }
 }
 
 proc strange_mather {
-  c: chan<u32> in;
-  p: chan<u32> out;
-  doubler_input_p: chan<u32> out;
-  doubler_output_c: chan<u32> in;
+  r: chan<u32> in;
+  s: chan<u32> out;
+  doubler_input_s: chan<u32> out;
+  doubler_output_r: chan<u32> in;
   factor: u32;
 
   init { u32:0 }
 
-  config(c: chan<u32> in, p: chan<u32> out, factor: u32) {
-    let (doubler_input_c, doubler_input_p) = chan<u32>;
-    let (doubler_output_c, doubler_output_p) = chan<u32>;
-    spawn doubler(doubler_input_c, doubler_output_p);
-    (c, p, doubler_input_p, doubler_output_c, factor)
+  config(r: chan<u32> in, s: chan<u32> out, factor: u32) {
+    let (doubler_input_s, doubler_input_r) = chan<u32>;
+    let (doubler_output_s, doubler_output_r) = chan<u32>;
+    spawn doubler(doubler_input_r, doubler_output_s);
+    (r, s, doubler_input_s, doubler_output_r, factor)
   }
 
   next(tok: token, acc: u32) {
-    let (tok, input) = recv(tok, c);
+    let (tok, input) = recv(tok, r);
 
-    let tok = send(tok, doubler_input_p, input);
-    let (tok, double_input) = recv(tok, doubler_output_c);
+    let tok = send(tok, doubler_input_s, input);
+    let (tok, double_input) = recv(tok, doubler_output_r);
 
-    let tok = send(tok, p, acc);
+    let tok = send(tok, s, acc);
     acc * factor + double_input
   }
 }
@@ -61,31 +61,31 @@ proc strange_mather {
 #[test_proc]
 proc test_proc {
   terminator: chan<bool> out;
-  p: chan<u32> out;
-  c: chan<u32> in;
+  s: chan<u32> out;
+  r: chan<u32> in;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u32>;
-    spawn strange_mather(input_c, output_p, u32:2);
-    (terminator, input_p, output_c)
+    let (input_s, input_r) = chan<u32>;
+    let (output_s, output_r) = chan<u32>;
+    spawn strange_mather(input_r, output_s, u32:2);
+    (terminator, input_s, output_r)
   }
 
   next(tok: token, state: ()) {
-    let tok = send(tok, p, u32:1);
-    let (tok, res) = recv(tok, c);
+    let tok = send(tok, s, u32:1);
+    let (tok, res) = recv(tok, r);
     let _ = assert_eq(res, u32:0);
     let _ = trace!(res);
 
-    let tok = send(tok, p, u32:1);
-    let (tok, res) = recv(tok, c);
+    let tok = send(tok, s, u32:1);
+    let (tok, res) = recv(tok, r);
     let _ = assert_eq(res, u32:2);
     let _ = trace!(res);
 
-    let tok = send(tok, p, u32:1);
-    let (tok, res) = recv(tok, c);
+    let tok = send(tok, s, u32:1);
+    let (tok, res) = recv(tok, r);
     let _ = assert_eq(res, u32:6);
     let _ = trace!(res);
 

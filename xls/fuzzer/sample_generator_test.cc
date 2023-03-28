@@ -17,7 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/concrete_type.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/fuzzer/value_generator.h"
 
 namespace xls {
@@ -26,7 +26,7 @@ namespace {
 using ::xls::status_testing::IsOkAndHolds;
 
 TEST(SampleGeneratorTest, GenerateBasicSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   sample_options.set_calls_per_sample(3);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -42,7 +42,7 @@ TEST(SampleGeneratorTest, GenerateBasicSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateCodegenSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   sample_options.set_codegen(true);
   sample_options.set_simulate(true);
@@ -61,14 +61,16 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
 }
 
 TEST(SampleGeneratorTest, GenerateChannelArgument) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   std::vector<std::unique_ptr<dslx::ConcreteType>> param_types;
   param_types.push_back(
       std::make_unique<dslx::ChannelType>(std::make_unique<dslx::BitsType>(
-          /*signed=*/true,
-          /*size=*/4)));
+                                              /*signed=*/true,
+                                              /*size=*/4),
+                                          dslx::ChannelDirection::kOut));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
+  param_type_ptrs.reserve(param_types.size());
   for (auto& t : param_types) {
     param_type_ptrs.push_back(t.get());
   }
@@ -81,7 +83,7 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
 }
 
 TEST(SampleGeneratorTest, GenerateBasicProcSample) {
-  ValueGenerator value_gen(std::mt19937{});
+  ValueGenerator value_gen(std::mt19937_64{});
   SampleOptions sample_options;
   constexpr int64_t kProcTicks = 3;
   sample_options.set_calls_per_sample(0);

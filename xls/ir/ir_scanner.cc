@@ -65,6 +65,8 @@ std::string LexicalTokenTypeToString(LexicalTokenType token_type) {
       return "quoted string";
     case LexicalTokenType::kRightArrow:
       return "->";
+    case LexicalTokenType::kHash:
+      return "#";
   }
   return absl::StrCat("LexicalTokenType(", static_cast<int>(token_type), ")");
 }
@@ -164,7 +166,7 @@ class Tokenizer {
   absl::StatusOr<std::optional<std::string_view>> MatchQuotedString(
       std::string_view quote, bool allow_multiline) {
     if (!MatchSubstring(quote)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     int64_t start_colno = colno();
     int64_t start_lineno = lineno();
@@ -248,9 +250,9 @@ class Tokenizer {
         continue;
       }
 
-      if (isalpha(current()) || current() == '_') {
+      if (isalpha(current()) != 0 || current() == '_') {
         std::string_view value = CaptureWhile([](char c) {
-          return isalpha(c) || c == '_' || c == '.' || isdigit(c);
+          return isalpha(c) != 0 || c == '_' || c == '.' || isdigit(c) != 0;
         });
         tokens.push_back(
             Token::MakeIdentOrKeyword(value, start_lineno, start_colno));
@@ -330,6 +332,9 @@ class Tokenizer {
         case '<':
           token_type = LexicalTokenType::kLt;
           break;
+        case '#':
+          token_type = LexicalTokenType::kHash;
+          break;
         default:
           std::string char_str = absl::ascii_iscntrl(current())
                                      ? absl::StrFormat("\\x%02x", current())
@@ -354,7 +359,7 @@ class Tokenizer {
     if (index_ + 1 < str_.size()) {
       return str_[index_ + 1];
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns the current index in the string.

@@ -28,7 +28,7 @@ class ProcStateOptimizationPass : public ProcPass {
  public:
   ProcStateOptimizationPass()
       : ProcPass("proc_state_opt", "Proc State Optimization") {}
-  ~ProcStateOptimizationPass() override {}
+  ~ProcStateOptimizationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,

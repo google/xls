@@ -43,8 +43,8 @@ class ModuleBuilder {
  public:
   ModuleBuilder(std::string_view name, VerilogFile* file,
                 CodegenOptions options,
-                std::optional<std::string_view> clk_name = absl::nullopt,
-                std::optional<ResetProto> rst = absl::nullopt);
+                std::optional<std::string_view> clk_name = std::nullopt,
+                std::optional<ResetProto> rst = std::nullopt);
 
   // Returns the underlying module being constructed.
   Module* module() { return module_; }
@@ -78,7 +78,7 @@ class ModuleBuilder {
   // considered.
   bool CanEmitAsInlineExpression(Node* node,
                                  std::optional<absl::Span<Node* const>>
-                                     users_of_expression = absl::nullopt);
+                                     users_of_expression = std::nullopt);
 
   // Returns the given node as a Verilog expression. 'inputs' contains the
   // operand expressions for the node.

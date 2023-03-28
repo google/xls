@@ -16,7 +16,7 @@ fn double(n: u32) -> u32 {
   n * u32:2
 }
 
-fn self_append<A: u32, B: u32 = double(A)>(x: uN[A]) -> uN[B] {
+fn self_append<A: u32, B: u32 = {double(A)}>(x: uN[A]) -> uN[B] {
   x++x
 }
 

@@ -105,11 +105,11 @@ expression that can calculate the correct bias adjustment: `(sN[SIGNED_EXP_SZ]:1
 This is a bit unwieldy in practice, so we can wrap it in a function:
 
 ```dslx
-fn bias_scaler<N: u32, WIDE_N: u32 = N + u32:1>() -> sN[WIDE_N] {
+fn bias_scaler<N: u32, WIDE_N: u32 = {N + u32:1}>() -> sN[WIDE_N] {
   (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
 }
 
-fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>(
     exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
   exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
 }
@@ -194,19 +194,19 @@ pub struct float<EXP_SZ: u32, FRACTION_SZ: u32> {
   fraction: uN[FRACTION_SZ],
 }
 
-fn bias_scaler<N: u32, WIDE_N: u32 = N + u32:1>() -> sN[WIDE_N] {
+fn bias_scaler<N: u32, WIDE_N: u32 = {N + u32:1}>() -> sN[WIDE_N] {
   (sN[WIDE_N]:1 << (N - u32:1)) - sN[WIDE_N]:1
 }
 
-fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = EXP_SZ + u32:1>(
+fn unbias_exponent<EXP_SZ: u32, SIGNED_EXP_SZ: u32 = {EXP_SZ + u32:1}>(
     exp: uN[EXP_SZ]) -> sN[SIGNED_EXP_SZ] {
   exp as sN[SIGNED_EXP_SZ] - bias_scaler<EXP_SZ>()
 }
 
 pub fn float_to_int<
     EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ: u32,
-    WIDE_EXP_SZ: u32 = EXP_SZ + u32:1,
-    WIDE_FRACTION_SZ: u32 = FRACTION_SZ + u32:1>(
+    WIDE_EXP_SZ: u32 = {EXP_SZ + u32:1},
+    WIDE_FRACTION_SZ: u32 = {FRACTION_SZ + u32:1}>(
     x: float<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
   let exp = unbias_exponent(x.bexp);
 

@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+
 // Tests for the float32 specialization of the APFloat library.
 #include <cmath>
+#include <ios>
 #include <limits>
+#include <memory>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/float32_from_int32_wrapper.h"
 #include "xls/dslx/stdlib/float32_to_int32_wrapper.h"

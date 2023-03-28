@@ -47,7 +47,7 @@ std::optional<RangeEquivalence> ReduceEquivalence(
                    [&](const RangeEquivalence& c) {
                      return c.node == equivalences[0].node;
                    })) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   IntervalSet result = equivalences[0].range;
   for (int64_t i = 1; i < equivalences.size(); ++i) {
@@ -89,14 +89,14 @@ IntervalSet MakeUGtRange(const Bits& limit) {
   return result;
 }
 
-// Returns a range equivalence for node `node` or absl::nullopt if one cannot be
+// Returns a range equivalence for node `node` or std::nullopt if one cannot be
 // determined.
 std::optional<RangeEquivalence> ComputeRangeEquivalence(
     Node* node,
     const absl::flat_hash_map<Node*, RangeEquivalence>& equivalences) {
   if (!node->GetType()->IsBits() || node->BitCountOrDie() != 1 ||
       (OpIsCompare(node->op()) && !node->operand(0)->GetType()->IsBits())) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // A compare operation with a literal operand trivially has a range
@@ -142,7 +142,7 @@ std::optional<RangeEquivalence> ComputeRangeEquivalence(
                                ? MakeUGtRange(literal_operand->value().bits())
                                : MakeULtRange(literal_operand->value().bits())};
       default:
-        return absl::nullopt;
+        return std::nullopt;
     }
   }
 
@@ -151,7 +151,7 @@ std::optional<RangeEquivalence> ComputeRangeEquivalence(
   std::vector<RangeEquivalence> operand_equivalences;
   for (Node* operand : node->operands()) {
     if (!equivalences.contains(operand)) {
-      return absl::nullopt;
+      return std::nullopt;
     }
     operand_equivalences.push_back(equivalences.at(operand));
   }
@@ -177,35 +177,35 @@ std::optional<RangeEquivalence> ComputeRangeEquivalence(
       break;
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // If the given range corresponds to values over which ULt(x, C) holds then
 // return the constant `C`.
 std::optional<Bits> GetULtInterval(const IntervalSet& range) {
   if (range.NumberOfIntervals() != 1) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const Interval& interval = range.Intervals().front();
   if (interval.LowerBound().IsZero() && !interval.UpperBound().IsAllOnes()) {
     return bits_ops::Add(interval.UpperBound(),
                          UBits(1, interval.UpperBound().bit_count()));
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // If the given range corresponds to values over which UGt(x, C) holds then
 // return the constant `C`.
 std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
   if (range.NumberOfIntervals() != 1) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   const Interval& interval = range.Intervals().front();
   if (!interval.LowerBound().IsZero() && interval.UpperBound().IsAllOnes()) {
     return bits_ops::Sub(interval.LowerBound(),
                          UBits(1, interval.LowerBound().bit_count()));
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace

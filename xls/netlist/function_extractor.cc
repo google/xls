@@ -194,7 +194,7 @@ absl::Status ExtractFromPin(const cell_lib::Block& pin,
     }
   }
 
-  if (is_output == absl::nullopt) {
+  if (is_output == std::nullopt) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Pin %s has no direction entry!", name));
   }

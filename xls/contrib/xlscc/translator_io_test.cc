@@ -36,121 +36,11 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
-using xls::status_testing::IsOkAndHolds;
-
 namespace xlscc {
 namespace {
 
-using xls::status_testing::IsOkAndHolds;
-
 class TranslatorIOTest : public XlsccTestBase {
  public:
-  void IOTest(std::string content, std::list<IOOpTest> inputs,
-              std::list<IOOpTest> outputs,
-              absl::flat_hash_map<std::string, xls::Value> args = {}) {
-    xlscc::GeneratedFunction* func;
-    XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
-                             SourceToIr(content, &func, /* clang_argv= */ {},
-                                        /* io_test_mode= */ true));
-
-    XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
-                             package_->GetTopAsFunction());
-
-    const int total_test_ops = inputs.size() + outputs.size();
-    ASSERT_EQ(func->io_ops.size(), total_test_ops);
-
-    std::list<IOOpTest> input_ops_orig = inputs;
-    for (const xlscc::IOOp& op : func->io_ops) {
-      const std::string ch_name = op.channel->unique_name;
-
-      if (op.op == xlscc::OpType::kRecv) {
-        const std::string arg_name =
-            absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
-
-        const IOOpTest test_op = inputs.front();
-        inputs.pop_front();
-
-        XLS_CHECK_EQ(ch_name, test_op.name);
-
-        const xls::Value& new_val = test_op.value;
-
-        if (!args.contains(arg_name)) {
-          args[arg_name] = new_val;
-          continue;
-        }
-
-        if (args[arg_name].IsBits()) {
-          args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
-        } else {
-          XLS_CHECK(args[arg_name].IsTuple());
-          const xls::Value prev_val = args[arg_name];
-          XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
-                                   prev_val.GetElements());
-          values.push_back(new_val);
-          args[arg_name] = xls::Value::Tuple(values);
-        }
-      }
-    }
-
-    XLS_ASSERT_OK_AND_ASSIGN(
-        xls::Value actual,
-        DropInterpreterEvents(xls::InterpretFunctionKwargs(entry, args)));
-
-    std::vector<xls::Value> returns;
-
-    if (total_test_ops > 1) {
-      ASSERT_TRUE(actual.IsTuple());
-      XLS_ASSERT_OK_AND_ASSIGN(returns, actual.GetElements());
-    } else {
-      returns.push_back(actual);
-    }
-
-    ASSERT_EQ(returns.size(), total_test_ops);
-
-    inputs = input_ops_orig;
-
-    int op_idx = 0;
-    for (const xlscc::IOOp& op : func->io_ops) {
-      const std::string ch_name = op.channel->unique_name;
-
-      if (op.op == xlscc::OpType::kRecv) {
-        const IOOpTest test_op = inputs.front();
-        inputs.pop_front();
-
-        XLS_CHECK(ch_name == test_op.name);
-
-        ASSERT_TRUE(returns[op_idx].IsBits());
-        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val,
-                                 returns[op_idx].bits().ToUint64());
-        ASSERT_EQ(val, test_op.condition ? 1 : 0);
-
-      } else if (op.op == xlscc::OpType::kSend) {
-        const IOOpTest test_op = outputs.front();
-        outputs.pop_front();
-
-        XLS_CHECK(ch_name == test_op.name);
-
-        ASSERT_TRUE(returns[op_idx].IsTuple());
-        XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
-                                 returns[op_idx].GetElements());
-        ASSERT_EQ(elements.size(), 2);
-        ASSERT_TRUE(elements[1].IsBits());
-        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
-        ASSERT_EQ(val1, test_op.condition ? 1 : 0);
-        // Don't check data if it wasn't sent
-        if (val1 != 0u) {
-          ASSERT_EQ(elements[0], test_op.value);
-        }
-      } else {
-        FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);
-      }
-      ++op_idx;
-    }
-
-    ASSERT_EQ(inputs.size(), 0);
-    ASSERT_EQ(outputs.size(), 0);
-  }
 };
 
 TEST_F(TranslatorIOTest, Basic) {
@@ -599,6 +489,202 @@ TEST_F(TranslatorIOTest, OperatorSubroutine) {
           testing::HasSubstr("IO ops in operator calls are not supported")));
 }
 
+TEST_F(TranslatorIOTest, SubroutineConditional) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         if(v > 10) {
+           out.write(v);
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         sub_send(v, out);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditional2) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         out.write(v);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         if(v > 10) {
+          sub_send(v, out);
+         }
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/
+         {IOOpTest("out", 5, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditional3) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_send(int v, __xls_channel<int>& out) {
+         if(v > 3) {
+           out.write(v);
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int v = in.read();
+         if(v < 10) {
+          sub_send(v, out);
+         }
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true)},
+         /*outputs=*/
+         {IOOpTest("out", 1, false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 8, true)},
+         /*outputs=*/
+         {IOOpTest("out", 8, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true)},
+         /*outputs=*/
+         {IOOpTest("out", 55, false)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalReceive) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void sub_receive(int v, int& out, __xls_channel<int>& in) {
+         if(v > 3) {
+          out = in.read();
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_channel<int>& in_test,
+                       __xls_channel<int>& out) {
+         int v = in.read();
+         int ret = 1000;
+         if(v < 10) {
+          sub_receive(v, ret, in_test);
+         }
+         out.write(ret);
+       })";
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("in_test", 123, false)},
+         /*outputs=*/
+         {IOOpTest("out", 1000, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 8, true), IOOpTest("in_test", 123, true)},
+         /*outputs=*/
+         {IOOpTest("out", 123, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 55, true), IOOpTest("in_test", 123, false)},
+         /*outputs=*/
+         {IOOpTest("out", 1000, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalMemoryRead) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+
+       #include "/xls_builtin.h"
+       void sub_read(int v, int& out, __xls_memory<int, 32>& memory) {
+         if(v > 3) {
+          out = memory[5];
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_memory<int, 32>& memory,
+                       __xls_channel<int>& out) {
+         int v = in.read();
+         int ret = 1000;
+         if(v < 10) {
+          sub_read(v, ret, memory);
+         }
+         out.write(ret);
+       })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("memory__read", 30, false)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), false),
+       IOOpTest("out", 1000, true)});
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 30, true)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), true),
+       IOOpTest("out", 30, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", 55, true), IOOpTest("memory__read", 30, false)},
+         /*outputs=*/
+         {IOOpTest("memory__read", xls::Value(xls::UBits(5, 5)), false),
+          IOOpTest("out", 1000, true)});
+}
+
+TEST_F(TranslatorIOTest, SubroutineConditionalMemoryWrite) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+
+       #include "/xls_builtin.h"
+       void sub_write(int v, __xls_memory<int, 32>& memory) {
+         if(v > 3) {
+          memory[5] = v;
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in, __xls_memory<int, 32>& memory) {
+         int v = in.read();
+         if(v < 10) {
+          sub_write(v, memory);
+         }
+       })";
+
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 1, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, false)});
+  }
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, true)});
+  }
+  {
+    auto memory_write_tuple = xls::Value::Tuple(
+        {xls::Value(xls::SBits(5, 5)), xls::Value(xls::SBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 55, true)},
+           /*outputs=*/
+           {IOOpTest("memory__write", memory_write_tuple, false)});
+  }
+}
+
 TEST_F(TranslatorIOTest, SaveChannel) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -626,16 +712,12 @@ TEST_F(TranslatorIOTest, MixedOps) {
          const int x = in.read();
 
          in.write(x);
-         out.write(x);
+         out.write(x+1);
        })";
 
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Channels should be either input or output")));
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 111, true)},
+         /*outputs=*/{IOOpTest("in", 111, true), IOOpTest("out", 112, true)});
 }
 
 TEST_F(TranslatorIOTest, Unrolled) {

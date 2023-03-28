@@ -135,7 +135,7 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   if (!IsTracked(node) || !node->GetType()->IsBits()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Create a Bdd node for the predicate_bit_values.
@@ -151,7 +151,7 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
   // what node value it implies. That is, !predicate || node_bit
   // evaluates to true for both node_bit == 1 and == 0.
   if (bdd_predicate_bit == bdd().zero()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   auto implied_true_or_false = [&](int node_idx, bool node_bit_true) {
@@ -171,7 +171,7 @@ std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     } else if (implied_true_or_false(node_idx, false)) {
       bit_rope.push_back(false);
     } else {
-      return absl::nullopt;
+      return std::nullopt;
     }
   }
 

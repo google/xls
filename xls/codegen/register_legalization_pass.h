@@ -27,7 +27,7 @@ class RegisterLegalizationPass : public CodegenPass {
  public:
   RegisterLegalizationPass()
       : CodegenPass("register_legalization", "Legalize registers") {}
-  ~RegisterLegalizationPass() override {}
+  ~RegisterLegalizationPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

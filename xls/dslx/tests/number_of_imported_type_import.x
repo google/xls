@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Simply declares a type for use in number_of_imported_type.x.
+// Simply declares types for use in number_of_imported_type.x.
 
 pub type my_type = bits[32];
+pub type my_signed_type = sN[32];

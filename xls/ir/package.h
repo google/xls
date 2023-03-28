@@ -106,6 +106,17 @@ class Package {
   Proc* AddProc(std::unique_ptr<Proc> proc);
   Block* AddBlock(std::unique_ptr<Block> block);
 
+  struct PackageMergeResult {
+    // other package -> this package name mapping (channels, procs, functions,
+    // and blocks)
+    absl::flat_hash_map<std::string, std::string> name_updates;
+    // other package -> this package channel id mapping
+    absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
+  };
+  // Add another package to this package. Ownership is transferred to this
+  // package.
+  absl::StatusOr<PackageMergeResult> AddPackage(std::unique_ptr<Package> other);
+
   // Get a function, proc, or block by name. Returns an error if no such
   // construct of the indicated kind exists with that name.
   absl::StatusOr<Function*> GetFunction(std::string_view func_name) const;
@@ -145,7 +156,7 @@ class Package {
 
   // Translates a SourceLocation object into a human readable debug identifier
   // of the form: "<source_file_path>:<line_number>".
-  std::string SourceLocationToString(const SourceLocation loc);
+  std::string SourceLocationToString(const SourceLocation& loc);
 
   // Retrieves the next node ID to assign to a node in the package and
   // increments the next node counter. For use in node construction.
@@ -217,15 +228,15 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
-      std::optional<int64_t> fifo_depth = absl::nullopt,
+      std::optional<int64_t> fifo_depth = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      std::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = std::nullopt);
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       std::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      std::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = std::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }
@@ -245,6 +256,8 @@ class Package {
   absl::Status RemoveChannel(Channel* channel);
 
  private:
+  std::vector<std::string> GetChannelNames() const;
+
   // Adds the given channel to the package.
   absl::Status AddChannel(std::unique_ptr<Channel> channel);
 

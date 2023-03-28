@@ -14,7 +14,16 @@
 
 #include "xls/dslx/interp_value.h"
 
-#include "absl/base/casts.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"

@@ -14,6 +14,20 @@
 
 #include "xls/dslx/interp_bindings.h"
 
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/optional.h"
+#include "absl/types/variant.h"
+
 namespace xls::dslx {
 
 /* static */ InterpBindings InterpBindings::CloneWith(
@@ -28,8 +42,8 @@ namespace xls::dslx {
   if (std::holds_alternative<InterpValue>(e)) {
     return "Value";
   }
-  if (std::holds_alternative<TypeDef*>(e)) {
-    return "TypeDef";
+  if (std::holds_alternative<TypeAlias*>(e)) {
+    return "TypeAlias";
   }
   if (std::holds_alternative<EnumDef*>(e)) {
     return "EnumDef";
@@ -113,8 +127,8 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
   if (std::holds_alternative<EnumDef*>(entry.value())) {
     return std::get<EnumDef*>(entry.value())->type_annotation();
   }
-  if (std::holds_alternative<TypeDef*>(entry.value())) {
-    return std::get<TypeDef*>(entry.value())->type_annotation();
+  if (std::holds_alternative<TypeAlias*>(entry.value())) {
+    return std::get<TypeAlias*>(entry.value())->type_annotation();
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Attempted to resolve a type but identifier \"%s\" was bound to a %s",
@@ -129,8 +143,8 @@ InterpBindings::ResolveTypeDefinition(std::string_view identifier) const {
         "Could not resolve type definition for identifier: \"%s\"",
         identifier));
   }
-  if (std::holds_alternative<TypeDef*>(entry.value())) {
-    return std::get<TypeDef*>(entry.value())->type_annotation();
+  if (std::holds_alternative<TypeAlias*>(entry.value())) {
+    return std::get<TypeAlias*>(entry.value())->type_annotation();
   }
   if (std::holds_alternative<EnumDef*>(entry.value())) {
     return std::get<EnumDef*>(entry.value());
@@ -167,7 +181,7 @@ std::optional<InterpBindings::Entry> InterpBindings::ResolveEntry(
     return parent_->ResolveEntry(identifier);
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace xls::dslx

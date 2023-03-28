@@ -19,7 +19,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 
 namespace xls {
 
@@ -157,7 +157,7 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
                         n->loc(), a, k, is_clamp_high ? Op::kUGt : Op::kULt));
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Select>(cmp, /*cases=*/std::vector<Node*>({a, k}),
-                                      /*default_value=*/absl::nullopt)
+                                      /*default_value=*/std::nullopt)
             .status());
     return true;
   }
@@ -172,7 +172,7 @@ absl::StatusOr<bool> MaybeCanonicalizeClamp(Node* n) {
 // Being able to rely on the shape of such nodes greatly simplifies
 // the implementation of transformation passes, as only one pattern needs
 // to be matched, instead of two.
-absl::StatusOr<bool> CanonicalizeNode(Node* n) {
+static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   FunctionBase* f = n->function_base();
 
   // Always move kLiteral to right for commutative operators.
@@ -271,6 +271,45 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
     XLS_RETURN_IF_ERROR(
         n->ReplaceUsesWithNew<Concat>(concat_operands).status());
     return true;
+  }
+
+  // For a two-way select with an inverted selector, the NOT can be
+  // removed and the cases interchanged.
+  //
+  //   p = ...
+  //   not_p = not(p)
+  //   sel = sel(not_p, cases=[a, b])
+  //
+  // becomes:
+  //
+  //   sel = sel(p, case=[b, a])
+  if (IsBinarySelect(n) &&
+      n->As<Select>()->selector()->op() == Op::kNot) {
+    Select* sel = n->As<Select>();
+    XLS_RETURN_IF_ERROR(
+        sel->ReplaceUsesWithNew<Select>(
+               sel->selector()->operand(0),
+               /*cases=*/std::vector<Node*>{sel->get_case(1), sel->get_case(0)},
+               /*default_value=*/std::nullopt)
+            .status());
+    return true;
+  }
+
+  // Replace a select with a default which only handles a single value of the
+  // selector with a select without a default.
+  if (n->Is<Select>()) {
+    Select* sel = n->As<Select>();
+    if (sel->default_value().has_value() &&
+        (sel->cases().size() + 1) ==
+            (1ULL << sel->selector()->BitCountOrDie())) {
+      std::vector<Node*> new_cases(sel->cases().begin(), sel->cases().end());
+      new_cases.push_back(*sel->default_value());
+      XLS_RETURN_IF_ERROR(
+          n->ReplaceUsesWithNew<Select>(sel->selector(), new_cases,
+                                           /*default_value=*/std::nullopt)
+              .status());
+      return true;
+    }
   }
 
   return false;

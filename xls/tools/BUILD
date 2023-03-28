@@ -14,6 +14,7 @@
 
 # pytype binary and test
 # cc_proto_library is used in this file
+load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -209,7 +210,7 @@ cc_binary(
     name = "lec_main",
     srcs = ["lec_main.cc"],
     data = [
-        "//xls/dslx:ir_converter_main",
+        "//xls/dslx/ir_convert:ir_converter_main",
     ],
     deps = [
         "@com_google_absl//absl/base",
@@ -301,7 +302,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/dslx:ast",
+        "//xls/dslx/frontend:ast",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -537,13 +538,13 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/dslx:bytecode_emitter",
-        "//xls/dslx:bytecode_interpreter",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/bytecode:bytecode_emitter",
+        "//xls/dslx/bytecode:bytecode_interpreter",
     ],
 )
 
@@ -565,9 +566,9 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir:ir_parser",
@@ -645,6 +646,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -656,6 +658,7 @@ cc_library(
         ":device_rpc_strategy",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common:math_util",
         "//xls/common:strerror",
         "//xls/common/file:filesystem",
@@ -694,10 +697,12 @@ cc_library(
     hdrs = ["opt.h"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/dslx:ir_converter",
+        "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/passes",
@@ -717,10 +722,9 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/ir:ram_rewrite_cc_proto",
         "//xls/passes",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:pass_base",
     ],
 )
 
@@ -1173,18 +1177,18 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
-        "//xls/dslx:ast",
         "//xls/dslx:command_line_utils",
-        "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:import_data",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
-        "//xls/dslx:parser",
-        "//xls/dslx:scanner",
-        "//xls/dslx:type_info",
-        "//xls/dslx:typecheck",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:parser",
+        "//xls/dslx/frontend:scanner",
+        "//xls/dslx/ir_convert:ir_converter",
+        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type_info",
+        "//xls/dslx/type_system:typecheck",
         "//xls/ir",
         "//xls/passes:standard_pipeline",
         "//xls/scheduling:pipeline_schedule",
@@ -1229,6 +1233,7 @@ cc_binary(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:hls_block_cc_proto",
+        "//xls/ir:ram_rewrite_cc_proto",
     ],
 )
 
@@ -1291,5 +1296,48 @@ py_binary(
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
+
+proto_library(
+    name = "design_stats_proto",
+    srcs = ["design_stats.proto"],
+)
+
+xls_py_proto_library(
+    name = "design_stats_py_pb2",
+    srcs = ["design_stats.proto"],
+    internal_deps = [":design_stats_proto"],
+    deps = [],
+)
+
+py_binary(
+    name = "gather_design_stats",
+    srcs = ["gather_design_stats.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":design_stats_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "//xls/common:gfile",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "gather_design_stats_test",
+    srcs = ["gather_design_stats_test.py"],
+    data = [
+        "testdata/find_index_5ps_model_unit_expected.textproto",
+        "testdata/find_index_5ps_model_unit_verilog_sta_by_stage_sta.log",
+        "testdata/find_index_5ps_model_unit_verilog_synth_by_stage_yosys_output.log.gz",
+        ":gather_design_stats",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
     ],
 )

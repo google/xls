@@ -14,15 +14,16 @@
 #ifndef XLS_DSLX_CPP_TRANSPILER_H_
 #define XLS_DSLX_CPP_TRANSPILER_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

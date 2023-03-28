@@ -29,7 +29,7 @@ namespace xls::verilog {
 // Options describing how codegen should be performed.
 class CodegenOptions {
  public:
-  explicit CodegenOptions() {}
+  explicit CodegenOptions() = default;
 
   CodegenOptions(const CodegenOptions& options);
   CodegenOptions& operator=(const CodegenOptions& options);

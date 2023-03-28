@@ -117,7 +117,7 @@ class NetworkTopologyView final : public NetworkView {
   absl::Status ConnectComponentToReceivePort(NetworkComponent& component,
                                              int64_t recv_port_count);
 
-  ~NetworkTopologyView() = default;
+  ~NetworkTopologyView() override = default;
 };
 
 }  // namespace xls::noc

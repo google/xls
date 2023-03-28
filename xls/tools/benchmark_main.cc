@@ -292,7 +292,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
-  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/absl::nullopt};
+  SchedulingUnit<> scheduling_unit = {package, /*schedule=*/std::nullopt};
 
   absl::Time start = absl::Now();
   XLS_RETURN_IF_ERROR(
@@ -332,10 +332,10 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   int64_t total_flops = 0;
   int64_t total_duplicates = 0;
   int64_t total_constants = 0;
-  std::vector<int64_t> flops_per_stage(schedule.length() + 1);
-  std::vector<int64_t> duplicates_per_stage(schedule.length() + 1);
-  std::vector<int64_t> constants_per_stage(schedule.length() + 1);
-  for (int64_t i = 0; i <= schedule.length(); ++i) {
+  std::vector<int64_t> flops_per_stage(schedule.length());
+  std::vector<int64_t> duplicates_per_stage(schedule.length());
+  std::vector<int64_t> constants_per_stage(schedule.length());
+  for (int64_t i = 0; i < schedule.length(); ++i) {
     absl::flat_hash_map<BddNodeIndex, std::pair<Node*, int64_t>> bdd_nodes;
     for (Node* node : schedule.GetLiveOutOfCycle(i)) {
       flops_per_stage[i] += node->GetType()->GetFlatBitCount();
@@ -368,22 +368,27 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
     }
     total_flops += flops_per_stage[i];
   }
+
   XLS_ASSIGN_OR_RETURN(std::vector<int64_t> delay_per_stage,
                        GetDelayPerStageInPs(f, schedule, delay_estimator));
+
+  // TODO(tedhong) 2023-03-06 - Add functionality to report I/O flop count.
   std::cout << "Pipeline:\n";
-  for (int64_t i = 0; i <= schedule.length(); ++i) {
+  for (int64_t i = 0; i < schedule.length(); ++i) {
     std::string stage_str = absl::StrFormat(
         "  [Stage %2d] flops: %4d (%4d dups, %4d constant)\n", i,
         flops_per_stage[i], duplicates_per_stage[i], constants_per_stage[i]);
-    std::cout << stage_str;
-    if (i != schedule.length()) {
-      // Horizontally offset the information about the logic in the stage from
-      // the information about stage registers to make it easier to scan the
-      // information vertically without register and logic info intermixing.
-      std::cout << std::string(stage_str.size(), ' ');
-      std::cout << absl::StreamFormat("nodes: %4d, delay: %4dps\n",
-                                      schedule.nodes_in_cycle(i + 1).size(),
-                                      delay_per_stage[i + 1]);
+
+    // Horizontally offset the information about the logic in the stage from
+    // the information about stage registers to make it easier to scan the
+    // information vertically without register and logic info intermixing.
+    std::cout << std::string(stage_str.size(), ' ');
+    std::cout << absl::StreamFormat("nodes: %4d, delay: %4dps\n",
+                                    schedule.nodes_in_cycle(i).size(),
+                                    delay_per_stage[i]);
+
+    if (i + 1 != schedule.length()) {
+      std::cout << stage_str;
     }
   }
   std::cout << absl::StreamFormat(

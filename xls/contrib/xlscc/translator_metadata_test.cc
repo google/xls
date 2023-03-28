@@ -1451,6 +1451,98 @@ TEST_F(TranslatorMetadataTest, StaticBits) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMetadataTest, EnumMember) {
+  const std::string content = R"(
+    enum MyEnum {
+      A = -1,
+      B = 7,
+      C = 100,
+      D = 100,
+    };
+    class MyBlock {
+      MyEnum x = MyEnum::C;
+      #pragma hls_top
+      void Run() {
+        (void)x;
+      }
+    };
+    )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+
+  const std::string ref_meta_str = R"(
+    structs          {
+      as_struct {
+        name {
+          as_inst {
+            name {
+              name: "MyBlock"
+              fully_qualified_name: "MyBlock"
+            }
+          }
+        }
+        fields {
+          name: "x"
+          type {
+            as_enum {
+              name: "MyEnum"
+              width: 8
+              is_signed: true
+              variants {
+                name: "A"
+                value: -1
+              }
+              variants {
+                name: "B"
+                value: 7
+              }
+              variants {
+                name: "C"
+                name: "D"
+                value: 100
+              }
+            }
+          }
+        }
+        no_tuple: false
+      }
+    }
+    top_func_proto {
+      name {
+        name: "Run"
+        fully_qualified_name: "MyBlock::Run"
+        xls_name: "Run"
+      }
+      return_type {
+        as_void {
+        }
+      }
+      this_type {
+        as_inst {
+          name {
+            name: "MyBlock"
+            fully_qualified_name: "MyBlock"
+          }
+        }
+      }
+      is_const: false
+      is_method: true
+    }
+  )";
+  xlscc_metadata::MetadataOutput ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  standardizeMetadata(&meta);
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 }  // namespace
 
 }  // namespace xlscc

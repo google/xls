@@ -66,7 +66,7 @@ enum SimultaneousReadWriteBehavior : u2 {
 }
 
 // Flatten an array into a word.
-fn flatten<N:u32, M:u32, TOTAL:u32=N*M>(value: uN[N][M]) -> uN[TOTAL] {
+fn flatten<N:u32, M:u32, TOTAL:u32={N*M}>(value: uN[N][M]) -> uN[TOTAL] {
   value as uN[TOTAL]
 }
 
@@ -76,7 +76,7 @@ fn flatten<N:u32, M:u32, TOTAL:u32=N*M>(value: uN[N][M]) -> uN[TOTAL] {
 // the mask. When masking data bits, it is useful to expand the mask from 1 bit
 // per partition to one bit bit per data bit.
 fn expand_mask<DATA_WIDTH:u32, NUM_PARTITIONS:u32,
- EXPANSION_FACTOR:u32=std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)>(
+ EXPANSION_FACTOR:u32={std::ceil_div(DATA_WIDTH, NUM_PARTITIONS)}>(
   partition_mask:uN[NUM_PARTITIONS]) -> uN[DATA_WIDTH] {
   for (idx, data_mask): (u32, uN[DATA_WIDTH]) in range(u32:0, NUM_PARTITIONS) {
     let data_mask_segment =
@@ -158,10 +158,13 @@ fn write_word_test() {
   );
 }
 
-fn bits_to_bool_array<N:u32>(x:uN[N]) -> bool[N] {
-  for (idx, partial): (u32, bool[N]) in range(u32:0, N) {
-    update(partial, idx, x[idx+:bool])
-  }(bool[N]:[false,...])
+// Function to compute num partitions (e.g. mask width) for a data_width-wide
+// word divided into word_partition_size-chunks.
+fn num_partitions(word_partition_size: u32, data_width: u32) -> u32 {
+  match word_partition_size {
+    u32:0 => u32:0,
+    _ => (word_partition_size + data_width - u32:1) / word_partition_size,
+  }
 }
 
 // Model of an abstract RAM. The RAM has channel pairs for supported operations,
@@ -189,13 +192,12 @@ fn bits_to_bool_array<N:u32>(x:uN[N]) -> bool[N] {
 //  ASSERT_VALID_READ: if true, add assertion that read operations are only
 //   performed on values that a previous write has set. This is meant to model
 //   asserting that a user doesn't read X from an unitialized SRAM.
-proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32=u32:1,
+proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
   SIMULTANEOUS_READ_WRITE_BEHAVIOR:SimultaneousReadWriteBehavior=
-   SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
-  INITIALIZED:bool=false,
-  ASSERT_VALID_READ:bool=true, ADDR_WIDTH:u32 = std::clog2(SIZE),
-  NUM_PARTITIONS:u32=
-  (DATA_WIDTH + WORD_PARTITION_SIZE - u32:1)/WORD_PARTITION_SIZE> {
+   {SimultaneousReadWriteBehavior::READ_BEFORE_WRITE},
+  INITIALIZED:bool={false},
+  ASSERT_VALID_READ:bool={true}, ADDR_WIDTH:u32 = {std::clog2(SIZE)},
+  NUM_PARTITIONS:u32={num_partitions(WORD_PARTITION_SIZE, DATA_WIDTH)}> {
 
   read_req: chan<ReadReq<ADDR_WIDTH, NUM_PARTITIONS>> in;
   read_resp: chan<ReadResp<DATA_WIDTH>> out;
@@ -230,15 +232,26 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32=u32:1,
     let (mem, mem_initialized) = state;
 
     // Perform nonblocking receives on each request channel.
-    let (tok, read_req, read_req_valid) = recv_non_blocking(tok, read_req);
-    let (tok, write_req, write_req_valid) = recv_non_blocking(tok, write_req);
+    let zero_read_req = ReadReq<ADDR_WIDTH, NUM_PARTITIONS> {
+      addr:bits[ADDR_WIDTH]:0,
+      mask:bits[NUM_PARTITIONS]:0,
+    };
+    let (tok, read_req, read_req_valid) =
+      recv_non_blocking(tok, read_req, zero_read_req);
+    let zero_write_req = WriteReq<ADDR_WIDTH, NUM_PARTITIONS> {
+      addr:bits[ADDR_WIDTH]:0,
+      data:bits[DATA_WIDTH]:0,
+      mask:bits[NUM_PARTITIONS]:0,
+    };
+    let (tok, write_req, write_req_valid) =
+      recv_non_blocking(tok, write_req, zero_write_req);
 
     // Assert memory being read is initialized by checking that all partitions
     // have been initialized.
     let _ = if read_req_valid && ASSERT_VALID_READ {
       assert_eq(
         mem_initialized[read_req.addr],
-        bits_to_bool_array(read_req.mask))
+        std::convert_to_bools_lsb0(read_req.mask))
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(
@@ -293,17 +306,17 @@ proc RamModelWriteReadMaskedWriteReadTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_p, read_req_c) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_p, read_resp_c) = chan<ReadResp<u32:32>>;
-    let (write_req_p, write_req_c) = chan<WriteReq<u32:8, u32:32, u32:32>>;
-    let (write_resp_p, write_resp_c) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
+    let (write_req_s, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (write_resp_s, write_resp_r) = chan<WriteResp>;
     spawn RamModel<
       u32:32,  // DATA_WIDTH
       u32:256, // SIZE
       u32:1    // WORD_PARTITION_SIZE
     >(
-      read_req_c, read_resp_p, write_req_c, write_resp_p);
-    (read_req_p, read_resp_c, write_req_p, write_resp_c, terminator,)
+      read_req_r, read_resp_s, write_req_r, write_resp_s);
+    (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -363,10 +376,10 @@ proc RamModelInitializationTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_p, read_req_c) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_p, read_resp_c) = chan<ReadResp<u32:32>>;
-    let (_, write_req_c) = chan<WriteReq<u32:8, u32:32, u32:32>>;
-    let (write_resp_p, _) = chan<WriteResp>;
+    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
+    let (_, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (write_resp_s, _) = chan<WriteResp>;
     spawn RamModel<
       u32:32,   // DATA_WIDTH
       u32:256,  // SIZE
@@ -375,8 +388,8 @@ proc RamModelInitializationTest {
       // SIMULTANEOUS_READ_WRITE_BEHAVIOR
       true     // INITIALIZED
     >(
-      read_req_c, read_resp_p, write_req_c, write_resp_p);
-    (read_req_p, read_resp_c, terminator,)
+      read_req_r, read_resp_s, write_req_r, write_resp_s);
+    (read_req_s, read_resp_r, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -394,9 +407,12 @@ proc RamModelInitializationTest {
 }
 
 // Single-port RAM request
-pub struct SinglePortRamReq<ADDR_WIDTH:u32, DATA_WIDTH:u32> {
+pub struct SinglePortRamReq<ADDR_WIDTH:u32, DATA_WIDTH:u32, NUM_PARTITIONS:u32> {
   addr: bits[ADDR_WIDTH],
   data: bits[DATA_WIDTH],
+  // TODO(google/xls#861): represent masks when we have type generics.
+  write_mask: (),
+  read_mask: (),
   we: bool,
   re: bool,
 }
@@ -408,17 +424,21 @@ pub struct SinglePortRamResp<DATA_WIDTH:u32> {
 
 // Models a single-port RAM.
 proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
- ADDR_WIDTH:u32=std::clog2(SIZE)> {
-  req_chan: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH>> in;
+ WORD_PARTITION_SIZE:u32={u32:0},
+ ADDR_WIDTH:u32={std::clog2(SIZE)},
+ NUM_PARTITIONS:u32={num_partitions(WORD_PARTITION_SIZE, DATA_WIDTH)}> {
+  req_chan: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in;
   resp_chan : chan<SinglePortRamResp<DATA_WIDTH>> out;
+  wr_comp_chan: chan<()> out;
 
   init {
       bits[DATA_WIDTH][SIZE]: [bits[DATA_WIDTH]: 0, ...]
   }
 
-  config(req: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH>> in,
-         resp: chan<SinglePortRamResp<DATA_WIDTH>> out) {
-    (req, resp)
+  config(req: chan<SinglePortRamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS>> in,
+         resp: chan<SinglePortRamResp<DATA_WIDTH>> out,
+         wr_comp: chan<()> out) {
+    (req, resp, wr_comp)
   }
 
   next(tok: token, state: bits[DATA_WIDTH][SIZE]) {
@@ -435,7 +455,8 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
         state,
       )
     };
-    let tok = send_if(tok, resp_chan, request.re, response);
+    let resp_tok = send_if(tok, resp_chan, request.re, response);
+    let wr_comp_tok = send_if(tok, wr_comp_chan, request.we, ());
     new_state
   }
 }
@@ -444,20 +465,23 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
 // afterwards and checking that you got what you wrote.
 #[test_proc]
 proc SinglePortRamModelTest {
-  req_out: chan<SinglePortRamReq<u32:10, u32:32>> out;
+  req_out: chan<SinglePortRamReq<u32:10, u32:32, u32:0>> out;
   resp_in: chan<SinglePortRamResp<u32:32>> in;
+  wr_comp_in: chan<()> in;
   terminator: chan<bool> out;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (req_p, req_c) = chan<SinglePortRamReq<u32:10, u32:32>>;
-    let (resp_p, resp_c) = chan<SinglePortRamResp<u32:32>>;
+    let (req_s, req_r) = chan<SinglePortRamReq<u32:10, u32:32, u32:0>>;
+    let (resp_s, resp_r) = chan<SinglePortRamResp<u32:32>>;
+    let (wr_comp_s, wr_comp_r) = chan<()>;
     spawn SinglePortRamModel<
-      u32:32,  // DATA_WIDTH
-      u32:1024 // SIZE
-    >(req_c, resp_p);
-    (req_p, resp_c, terminator)
+      u32:32,   // DATA_WIDTH
+      u32:1024, // SIZE
+      u32:0     // WORD_PARTITION_SIZE
+    >(req_r, resp_s, wr_comp_s);
+    (req_s, resp_r, wr_comp_r, terminator)
   }
 
   next(tok: token, state: ()) {
@@ -470,9 +494,12 @@ proc SinglePortRamModelTest {
         let tok = send(tok, req_out, SinglePortRamReq {
             addr: addr as uN[10],
             data: (addr + offset) as uN[32],
+            write_mask: (),
+            read_mask: (),
             we: true,
             re: false,
         });
+        let (tok, _) = recv(tok, wr_comp_in);
         tok
       } (tok);
 
@@ -481,6 +508,8 @@ proc SinglePortRamModelTest {
         let tok = send(tok, req_out, SinglePortRamReq {
           addr: addr as uN[10],
           data: uN[32]: 0,
+          write_mask: (),
+          read_mask: (),
           we: false,
           re: true,
         });

@@ -95,7 +95,7 @@ class ProcJit : public ProcEvaluator {
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
       Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr);
 
-  virtual ~ProcJit() = default;
+  ~ProcJit() override = default;
 
   std::unique_ptr<ProcContinuation> NewContinuation() const override;
   absl::StatusOr<TickResult> Tick(

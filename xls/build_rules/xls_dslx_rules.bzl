@@ -104,6 +104,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         "compare",
         "dslx_path",
         "warnings_as_errors",
+        "max_ticks",
     )
 
     dslx_test_args = dict(_dslx_test_args)
@@ -271,6 +272,14 @@ def _xls_dslx_library_impl(ctx):
     # Parse and type check the DSLX source files.
     dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
     dummy_file = ctx.actions.declare_file(ctx.attr.name + ".dummy")
+
+    # With runs outside a monorepo, the execution root for the workspace of
+    # the binary can be different with the execroot, requiring to change
+    # the dslx stdlib search path accordingly.
+    # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
+    wsroot = get_xls_toolchain_info(ctx).dslx_interpreter_tool.label.workspace_root
+    wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+
     ctx.actions.run_shell(
         outputs = [dummy_file],
         # The DSLX interpreter executable is a tool needed by the action.
@@ -288,7 +297,8 @@ def _xls_dslx_library_impl(ctx):
             "for file in $FILES; do",
             "{} $file --compare=none --execute=false --dslx_path={}{}".format(
                 dslx_interpreter_tool.path,
-                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
+                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
+                wsroot_dslx_path,
                 " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",
             ),
             "if [ $? -ne 0 ]; then",
@@ -418,7 +428,7 @@ def _xls_dslx_test_impl(ctx):
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
-            "#!/bin/bash",
+            "#!/usr/bin/env bash",
             "set -e",
             "\n".join(cmds),
             "exit 0",

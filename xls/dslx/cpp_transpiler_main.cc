@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
+#include <string>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -49,11 +52,11 @@ At present, only a single module file is supported (i.e., no colon refs to other
 modules).
 )";
 
-absl::Status RealMain(const std::filesystem::path& module_path,
-                      const std::filesystem::path& dslx_stdlib_path,
-                      std::string_view output_header_path,
-                      std::string_view output_source_path,
-                      std::string_view namespaces) {
+static absl::Status RealMain(const std::filesystem::path& module_path,
+                             const std::filesystem::path& dslx_stdlib_path,
+                             std::string_view output_header_path,
+                             std::string_view output_source_path,
+                             std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
   ImportData import_data(

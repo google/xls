@@ -24,7 +24,7 @@ fn local_clog2<N: u32>(x: bits[N]) -> bits[N] {
 }
 
 fn dot_product_local<BITCOUNT: u32, LENGTH: u32,
-    IDX_BITS: u32 = local_clog2<u32:32>(LENGTH) + u32:1>
+    IDX_BITS: u32 = {local_clog2<u32:32>(LENGTH) + u32:1}>
   (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT]{
   let _ = trace!(BITCOUNT);
   let _ = trace!(LENGTH);
@@ -51,7 +51,7 @@ fn parametric_call_local_parametric() {
 import std
 
 fn dot_product_modref<BITCOUNT: u32, LENGTH: u32,
-    IDX_BITS: u32 = std::clog2<u32:32>(LENGTH) + u32:1>
+    IDX_BITS: u32 = {std::clog2<u32:32>(LENGTH) + u32:1}>
   (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT]{
   let _ = trace!(IDX_BITS);
 

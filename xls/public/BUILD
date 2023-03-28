@@ -26,7 +26,7 @@ cc_library(
     srcs = ["runtime_build_actions.cc"],
     hdrs = ["runtime_build_actions.h"],
     data = [
-        "//xls/dslx:ir_converter_main",
+        "//xls/dslx/ir_convert:ir_converter_main",
         "//xls/tools:opt_main",
     ],
     deps = [
@@ -35,9 +35,9 @@ cc_library(
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/passes",
         "//xls/tools:opt",
         "//xls/tools:proto_to_dslx",

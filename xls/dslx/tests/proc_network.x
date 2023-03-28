@@ -11,36 +11,38 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 proc second_level_proc {
-  input_c: chan<u32> in;
-  output_p: chan<u32> out;
+  input_r: chan<u32> in;
+  output_s: chan<u32> out;
+
   init { () }
 
-  config(input_c: chan<u32> in, output_p: chan<u32> out) {
-    (input_c, output_p)
+  config(input_r: chan<u32> in, output_s: chan<u32> out) {
+    (input_r, output_s)
   }
 
   next(tok: token, state: ()) { () }
 }
 
 proc first_level_proc {
-  input_p0: chan<u32> out;
-  input_p1: chan<u32> out;
-  output_c0: chan<u32> in;
-  output_c1: chan<u32> in;
+  input_s0: chan<u32> out;
+  input_s1: chan<u32> out;
+  output_r0: chan<u32> in;
+  output_r1: chan<u32> in;
 
   init { () }
 
   config() {
-    let (input_p0, input_c0) = chan<u32>;
-    let (output_p0, output_c0) = chan<u32>;
-    spawn second_level_proc(input_c0, output_p0);
+    let (input_s0, input_r0) = chan<u32>;
+    let (output_s0, output_r0) = chan<u32>;
+    spawn second_level_proc(input_r0, output_s0);
 
-    let (input_p1, input_c1) = chan<u32>;
-    let (output_p1, output_c1) = chan<u32>;
-    spawn second_level_proc(input_c1, output_p1);
+    let (input_s1, input_r1) = chan<u32>;
+    let (output_s1, output_r1) = chan<u32>;
+    spawn second_level_proc(input_r1, output_s1);
 
-    (input_p0, input_p1, output_p0, output_p1)
+    (input_s0, input_s1, output_r0, output_r1)
   }
 
   next(tok: token, state: ()) { () }

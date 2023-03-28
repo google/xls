@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stdlib.h>
-
 #include <cmath>
+#include <cstdlib>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"

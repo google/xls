@@ -181,7 +181,7 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
   }
   proto.set_id(function_ids.at(function));
   absl::StatusOr<std::vector<CriticalPathEntry>> critical_path =
-      AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
+      AnalyzeCriticalPath(function, /*clock_period_ps=*/std::nullopt,
                           delay_estimator);
   absl::flat_hash_map<Node*, CriticalPathEntry*> node_to_critical_path_entry;
   if (critical_path.ok()) {
@@ -329,7 +329,7 @@ static absl::Status WrapNodeUseInSpan(
   std::string use_id = GetNodeUniqueId(use, function_ids);
   XLS_RETURN_IF_ERROR(WrapTextInSpan(
       def->GetName(),
-      /*dom_id=*/absl::nullopt,
+      /*dom_id=*/std::nullopt,
       /*classes=*/
       {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", def_id),
        absl::StrFormat("ir-edge-%s-%s", def_id, use_id)},
@@ -348,7 +348,7 @@ static absl::Status WrapNextNodeInSpan(
   std::string next_id = GetNodeUniqueId(next, function_ids);
   XLS_RETURN_IF_ERROR(WrapTextInSpan(
       next->GetName(),
-      /*dom_id=*/absl::nullopt,
+      /*dom_id=*/std::nullopt,
       /*classes=*/
       {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", next_id)},
       /*data=*/
@@ -451,7 +451,7 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
                              package->GetFunction(callee_name));
         XLS_RETURN_IF_ERROR(
             WrapFunctionNameInSpan(callee_name, function_ids.at(callee),
-                                   /*dom_id=*/absl::nullopt, &line));
+                                   /*dom_id=*/std::nullopt, &line));
       }
 
       lines.push_back(std::string{line});

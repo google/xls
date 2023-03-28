@@ -38,7 +38,7 @@ namespace xls {
 // single-bit AND/OR/NOT-based ones.
 class BitEvaluator : public AbstractEvaluator<Node*, BitEvaluator> {
  public:
-  BitEvaluator(FunctionBuilder* builder)
+  explicit BitEvaluator(FunctionBuilder* builder)
       : builder_(builder),
         one_(builder->Literal(UBits(1, 1))),
         zero_(builder->Literal(UBits(0, 1))) {}

@@ -94,7 +94,8 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
   absl::StatusOr<std::pair<std::string, std::string>> RunSubprocess(
       absl::Span<const std::string> args) {
     absl::StatusOr<std::pair<std::string, std::string>> stdout_stderr_status =
-        InvokeSubprocess(args);
+        SubprocessResultToStrings(
+            SubprocessErrorAsStatus(InvokeSubprocess(args)));
     if (!stdout_stderr_status.ok()) {
       XLS_LOG(ERROR) << stdout_stderr_status.status();
       const int64_t kMaxMessageSize = 1024;

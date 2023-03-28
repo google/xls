@@ -54,7 +54,7 @@ class Token {
   static Token Simple(Kind kind, int64_t pos);
 
   Token(Kind kind, int64_t pos,
-        std::optional<std::string> payload = absl::nullopt)
+        std::optional<std::string> payload = std::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   Kind kind() { return kind_; }
@@ -72,7 +72,7 @@ class Token {
 // an intervening Pop() will always return the same token.
 class Scanner {
  public:
-  Scanner(std::string function);
+  explicit Scanner(std::string function);
   absl::StatusOr<Token> Pop();
   absl::StatusOr<Token> Peek();
 
@@ -156,7 +156,7 @@ class Parser {
   static absl::StatusOr<Ast> ParseFunction(std::string function);
 
  private:
-  Parser(std::string function);
+  explicit Parser(std::string function);
 
   // Parsers for each syntactic element in a function, here ordered from highest
   // to lowest precedence.

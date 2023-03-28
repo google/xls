@@ -14,9 +14,16 @@
 #ifndef XLS_DSLX_INTERP_VALUE_HELPERS_H_
 #define XLS_DSLX_INTERP_VALUE_HELPERS_H_
 
+#include <cstdint>
+#include <optional>
+#include <string_view>
+#include <vector>
+
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/dslx/concrete_type.h"
+#include "absl/types/span.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 

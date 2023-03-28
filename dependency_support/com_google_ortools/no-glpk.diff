@@ -1,0 +1,11 @@
+--- ortools/linear_solver/BUILD.bazel
++++ ortools/linear_solver/BUILD.bazel
+@@ -137,7 +137,7 @@ cc_library(
+         "//ortools/util:fp_utils",
+         "//ortools/util:lazy_mutable_copy",
+     ] + select({
+-        ":with_glpk": ["@glpk//:glpk"],
++        #":with_glpk": ["@glpk//:glpk"],
+         "//conditions:default": [],
+     }),
+ )

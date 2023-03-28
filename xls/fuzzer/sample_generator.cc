@@ -27,8 +27,8 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -55,12 +55,13 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
 
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
-  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) {
+  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) override {
     has_nb_recv_ = true;
     return absl::OkStatus();
   }
 
-  absl::Status HandleRecvIfNonBlocking(const dslx::RecvIfNonBlocking* n) {
+  absl::Status HandleRecvIfNonBlocking(
+      const dslx::RecvIfNonBlocking* n) override {
     has_nb_recv_ = true;
     return absl::OkStatus();
   }
@@ -209,8 +210,7 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
     if (channel_type == nullptr) {
       continue;
     }
-    if (channel_type->direction() !=
-        dslx::ChannelTypeAnnotation::Direction::kIn) {
+    if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
     dslx::TypeAnnotation* payload_type = channel_type->payload();
@@ -230,8 +230,7 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
     if (channel_type == nullptr) {
       continue;
     }
-    if (channel_type->direction() !=
-        dslx::ChannelTypeAnnotation::Direction::kIn) {
+    if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
     channel_names.push_back(member->identifier());
@@ -239,7 +238,7 @@ static std::vector<std::string> GetInputChannelNamesOfProc(dslx::Proc* proc) {
   return channel_names;
 }
 
-absl::StatusOr<Sample> GenerateFunctionSample(
+static absl::StatusOr<Sample> GenerateFunctionSample(
     dslx::Function* function, const TypecheckedModule& tm,
     const SampleOptions& sample_options, ValueGenerator* value_gen,
     const std::string& dslx_text) {
@@ -255,15 +254,13 @@ absl::StatusOr<Sample> GenerateFunctionSample(
     args_batch.push_back(std::move(args));
   }
 
-  return Sample(std::move(dslx_text), std::move(sample_options),
-                std::move(args_batch));
+  return Sample(dslx_text, sample_options, std::move(args_batch));
 }
 
-absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
-                                          const TypecheckedModule& tm,
-                                          const SampleOptions& sample_options,
-                                          ValueGenerator* value_gen,
-                                          const std::string& dslx_text) {
+static absl::StatusOr<Sample> GenerateProcSample(
+    dslx::Proc* proc, const TypecheckedModule& tm,
+    const SampleOptions& sample_options, ValueGenerator* value_gen,
+    const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<ConcreteType>> input_channel_payload_types,
       GetInputChannelPayloadTypesOfProc(proc, tm));
@@ -286,8 +283,8 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
         absl::StrCat(proc->owner()->name(), "__", input_channel_names[index]);
   }
 
-  return Sample(std::move(dslx_text), std::move(sample_options),
-                std::move(channel_values_batch), std::move(ir_channel_names));
+  return Sample(dslx_text, sample_options, std::move(channel_values_batch),
+                std::move(ir_channel_names));
 }
 
 absl::StatusOr<Sample> GenerateSample(

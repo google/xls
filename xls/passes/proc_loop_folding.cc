@@ -222,7 +222,7 @@ absl::StatusOr<std::vector<Node*>> RollIntoProcPass::SelectBetween(
     std::vector<Node*> select_choices = {on_false.at(i), on_true.at(i)};
     XLS_ASSIGN_OR_RETURN(auto select_invariant,
                          proc->MakeNode<Select>(countedfor->loc(), selector,
-                                                select_choices, absl::nullopt));
+                                                select_choices, std::nullopt));
     selects[i] = select_invariant;
     // on_true contains the original invariant nodes, whose uses will need to
     // be replaced by the newly created Select.
@@ -294,7 +294,7 @@ absl::StatusOr<Node*> RollIntoProcPass::ReplaceReceiveWithConditionalReceive(
       proc->MakeNode<Select>(
           original_receive->loc(), receive_condition,
           std::vector<Node*>{on_condition_false, new_receive_value},
-          absl::nullopt));
+          std::nullopt));
   XLS_ASSIGN_OR_RETURN(
       auto receive_select_token,
       proc->MakeNode<AfterAll>(
@@ -460,7 +460,7 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
                        proc->MakeNode<Select>(countedfor_loc,
                                               is_final_iteration,
                                               next_induction_value_nodes,
-                                              absl::nullopt));
+                                              std::nullopt));
 
   // Increment the trip counter by 1 each time.
   XLS_ASSIGN_OR_RETURN(auto trip_count_incr,
@@ -475,7 +475,7 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
                        proc->MakeNode<Select>(countedfor_loc,
                                               is_final_iteration,
                                               next_loop_trip_count,
-                                              absl::nullopt));
+                                              std::nullopt));
 
   // Create the next loop accumulator value.
   std::vector<Node*> next_loop_carry_sel = {countedfor_return, initial_value};
@@ -483,7 +483,7 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
                        proc->MakeNode<Select>(countedfor_loc,
                                               is_final_iteration,
                                               next_loop_carry_sel,
-                                              absl::nullopt));
+                                              std::nullopt));
 
   // Create the "ReceiveIf" node.
   XLS_ASSIGN_OR_RETURN(
@@ -520,7 +520,7 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(auto select_original_proc_state,
                        proc->MakeNode<Select>(countedfor_loc,
                                               is_first_iteration,
-                                              invariant_nodes, absl::nullopt));
+                                              invariant_nodes, std::nullopt));
   next_state_tuple.push_back(select_original_proc_state);
   next_state_tuple.push_back(next_loop_trip_counter);
   next_state_tuple.push_back(next_loop_induction_value);

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn foo<A: u32, B: u32, C: u32 = if A > B { A } else { B }>(x: bits[A], y: bits[B]) -> bits[C] {
+fn foo<A: u32, B: u32, C: u32 = {if A > B { A } else { B }}>(x: bits[A], y: bits[B]) -> bits[C] {
   let use_a = if A > B { u1:1 } else { u1:0 };
   if use_a {
     ((x + (y as bits[A])) as bits[C])
@@ -61,5 +61,5 @@ fn caller() -> u32{
   let x = u32:16;
   let y = callee<u32:32>(x);
   let z = callee<{(u32:32 > u32:16) as u32 + u32:4}>(x as u5) as u32;
-  callee<{ (X > (Y) > (Z) > (W)) as u32 + u32:15 }>(u15:8) as u32
+  callee<{((X>Y)<(Z>W)) as u32 + u32:15}>(u15:8) as u32
 }

@@ -32,8 +32,7 @@ namespace xls {
 // backed by exactly one ChannelQueue. ChannelQueues are thread-safe.
 class ChannelQueue {
  public:
-  ChannelQueue(Channel* channel)
-      : channel_(channel) {}
+  explicit ChannelQueue(Channel* channel) : channel_(channel) {}
 
   // Channel queues should not be copyable. There should be no reason to as
   // there is a one-to-one correspondence between channels (which are not

@@ -28,7 +28,7 @@ class SelectSimplificationPass : public FunctionBasePass {
   explicit SelectSimplificationPass(int64_t opt_level = kMaxOptLevel)
       : FunctionBasePass("select_simp", "Select Simplification"),
         opt_level_(opt_level) {}
-  ~SelectSimplificationPass() override {}
+  ~SelectSimplificationPass() override = default;
 
  protected:
   int64_t opt_level_;

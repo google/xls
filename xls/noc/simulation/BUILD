@@ -227,12 +227,12 @@ cc_library(
     name = "flit",
     hdrs = ["flit.h"],
     deps = [
+        ":common",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "//xls/noc/simulation:common",
     ],
 )
 

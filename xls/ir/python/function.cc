@@ -23,11 +23,11 @@ namespace py = pybind11;
 namespace xls {
 
 // Wrapper of method defined on FunctionBase for use by Function* objects.
-std::string GetFunctionName(Function* f) { return f->name(); }
+static std::string GetFunctionName(Function* f) { return f->name(); }
 
 // Functions for accessing parameter type information.
-int64_t GetParamCount(Function* f) { return f->params().size(); }
-int64_t GetParamBitCount(Function* f, int64_t i) {
+static int64_t GetParamCount(Function* f) { return f->params().size(); }
+static int64_t GetParamBitCount(Function* f, int64_t i) {
   return f->param(i)->GetType()->GetFlatBitCount();
 }
 

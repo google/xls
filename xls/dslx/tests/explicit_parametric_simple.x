@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn add_one<E:u32, F:u32, G:u32 = E+F>(lhs: bits[E]) -> bits[G] {
+fn add_one<E:u32, F:u32, G:u32 = {E+F}>(lhs: bits[E]) -> bits[G] {
   (lhs as uN[F] + uN[F]:1) as uN[G]
 }
 

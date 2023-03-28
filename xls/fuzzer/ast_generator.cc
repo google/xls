@@ -30,7 +30,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/fuzzer/value_generator.h"
 
 namespace xls::dslx {
@@ -63,8 +63,8 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
       }
     }
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
-    return IsUBits(def->type_annotation());
+  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
+    return IsUBits(alias->type_annotation());
   }
   return false;
 }
@@ -127,8 +127,8 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
   if (auto* array = dynamic_cast<const ArrayTypeAnnotation*>(t)) {
     return ElemIsBitVectorType(array);
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(t)) {
-    return IsBits(def->type_annotation());
+  if (auto* alias = dynamic_cast<const TypeAlias*>(t)) {
+    return IsBits(alias->type_annotation());
   }
   return false;
 }
@@ -281,38 +281,39 @@ enum class ChannelOpType {
 };
 
 struct ChannelOpInfo {
-  ChannelTypeAnnotation::Direction channel_direction;
+  ChannelDirection channel_direction;
   bool requires_payload;
   bool requires_predicate;
+  bool requires_default_value;
 };
 
 ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
   switch (chan_op) {
     case ChannelOpType::kRecv:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = false,
+                           .requires_default_value = false};
     case ChannelOpType::kRecvNonBlocking:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = false,
+                           .requires_default_value = true};
     case ChannelOpType::kRecvIf:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
-          .requires_payload = false,
-          .requires_predicate = true};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kIn,
+                           .requires_payload = false,
+                           .requires_predicate = true,
+                           .requires_default_value = true};
     case ChannelOpType::kSend:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
-          .requires_payload = true,
-          .requires_predicate = false};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kOut,
+                           .requires_payload = true,
+                           .requires_predicate = false,
+                           .requires_default_value = false};
     case ChannelOpType::kSendIf:
-      return ChannelOpInfo{
-          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
-          .requires_payload = true,
-          .requires_predicate = true};
+      return ChannelOpInfo{.channel_direction = ChannelDirection::kOut,
+                           .requires_payload = true,
+                           .requires_predicate = true,
+                           .requires_default_value = false};
   }
 
   XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
@@ -321,11 +322,6 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
 }  // namespace
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
-  // Lambda that chooses a boolean value for a predicate.
-  auto choose_predicate = [this](const TypedExpr& e) -> bool {
-    TypeAnnotation* t = e.type;
-    return IsUBits(t) && GetTypeBitCount(t) == 1;
-  };
   // Equal distribution for channel ops.
   ChannelOpType chan_op_type = RandomChoice<ChannelOpType>(
       {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
@@ -335,6 +331,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // If needed, generate a predicate.
   std::optional<TypedExpr> predicate;
   if (chan_op_info.requires_predicate) {
+    auto choose_predicate = [this](const TypedExpr& e) -> bool {
+      TypeAnnotation* t = e.type;
+      return IsUBits(t) && GetTypeBitCount(t) == 1;
+    };
     predicate = ChooseEnvValueOptional(&ctx->env, /*take=*/choose_predicate);
     if (!predicate.has_value()) {
       // If there's no natural environment value to use as the predicate,
@@ -361,6 +361,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // Generate an arbitrary type for the channel.
   TypeAnnotation* channel_type =
       GenerateType(0, max_width_bits_types, max_width_aggregate_types);
+
+  // If needed, generate a default value.
+  std::optional<TypedExpr> default_value;
+  if (chan_op_info.requires_default_value) {
+    // TODO(meheff): 2023/03/10 Use ChooseEnvValueOptional with randomly
+    // generated constant as backup. Will require the ability to generate a
+    // random constant of arbitrary type.
+    XLS_ASSIGN_OR_RETURN(default_value,
+                         ChooseEnvValue(&ctx->env, channel_type));
+  }
 
   // If needed, choose a payload from the environment.
   std::optional<TypedExpr> payload;
@@ -396,12 +406,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
           MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kRecvNonBlocking:
       return TypedExpr{
-          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr),
+          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr,
+                                         default_value.value().expr),
           MakeTupleType(
               {token.type, channel_type, MakeTypeAnnotation(false, 1)})};
     case ChannelOpType::kRecvIf:
       return TypedExpr{module_->Make<RecvIf>(fake_span_, token_name_ref,
-                                             chan_expr, predicate.value().expr),
+                                             chan_expr, predicate.value().expr,
+                                             default_value.value().expr),
                        MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kSend:
       return TypedExpr{module_->Make<Send>(fake_span_, token_name_ref,
@@ -443,7 +455,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
 
 class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
  public:
-  FindTokenTypeVisitor() : token_found_(false) {}
+  FindTokenTypeVisitor() = default;
 
   bool GetTokenFound() const { return token_found_; }
 
@@ -478,8 +490,8 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
 
   absl::Status HandleTypeRef(const TypeRef* type_ref) override {
     const TypeDefinition& type_def = type_ref->type_definition();
-    if (std::holds_alternative<TypeDef*>(type_def)) {
-      return std::get<TypeDef*>(type_def)->Accept(this);
+    if (std::holds_alternative<TypeAlias*>(type_def)) {
+      return std::get<TypeAlias*>(type_def)->Accept(this);
     }
     if (std::holds_alternative<StructDef*>(type_def)) {
       return std::get<StructDef*>(type_def)->Accept(this);
@@ -491,8 +503,8 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     return std::get<ColonRef*>(type_def)->Accept(this);
   }
 
-  absl::Status HandleTypeDef(const TypeDef* type_def) override {
-    return type_def->type_annotation()->Accept(this);
+  absl::Status HandleTypeAlias(const TypeAlias* type_alias) override {
+    return type_alias->type_annotation()->Accept(this);
   }
 
   absl::Status HandleStructDef(const StructDef* struct_def) override {
@@ -515,7 +527,7 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
-  bool token_found_;
+  bool token_found_ = false;
 };
 
 /* static */ absl::StatusOr<bool> AstGenerator::ContainsToken(
@@ -584,25 +596,36 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
                    MakeTypeAnnotation(false, 1)};
 }
 
-// TODO(vmirian) 12-15-2022 Generate non-number expressions.
-absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
-                                                  const TypeAnnotation* type) {
+absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
+    Context* ctx, const TypeAnnotation* type) {
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, tuple_type);
+    // Twenty percent of the time, generate a reference if one exists.
+    if (!candidates.empty() && RandomFloat() < 0.20) {
+      return candidates[RandRange(candidates.size())].expr;
+    }
     std::vector<Expr*> tuple_values(tuple_type->size(), nullptr);
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
-      XLS_ASSIGN_OR_RETURN(tuple_values[index],
-                           GenerateValue(ctx, tuple_type->members()[index]));
+      XLS_ASSIGN_OR_RETURN(
+          tuple_values[index],
+          GenerateExprOfType(ctx, tuple_type->members()[index]));
     }
-    return module_->Make<XlsTuple>(fake_span_, tuple_values);
+    return module_->Make<XlsTuple>(fake_span_, tuple_values,
+                                   /*has_trailing_comma=*/false);
   }
   if (IsArray(type)) {
     auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+    std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, array_type);
+    // Twenty percent of the time, generate a reference if one exists.
+    if (!candidates.empty() && RandomFloat() < 0.20) {
+      return candidates[RandRange(candidates.size())].expr;
+    }
     int64_t array_size = GetArraySize(array_type);
     std::vector<Expr*> array_values(array_size, nullptr);
     for (int64_t index = 0; index < array_size; ++index) {
       XLS_ASSIGN_OR_RETURN(array_values[index],
-                           GenerateValue(ctx, array_type->element_type()));
+                           GenerateExprOfType(ctx, array_type->element_type()));
     }
     return module_->Make<Array>(fake_span_, array_values,
                                 /*has_ellipsis=*/false);
@@ -610,11 +633,16 @@ absl::StatusOr<Expr*> AstGenerator::GenerateValue(Context* ctx,
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
     const TypeDefinition& type_def = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
-    TypeDef* def = std::get<TypeDef*>(type_def);
-    return GenerateValue(ctx, def->type_annotation());
+    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_def));
+    TypeAlias* alias = std::get<TypeAlias*>(type_def);
+    return GenerateExprOfType(ctx, alias->type_annotation());
   }
   XLS_CHECK(IsBits(type));
+  std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
+  // Twenty percent of the time, generate a reference if one exists.
+  if (!candidates.empty() && RandomFloat() < 0.20) {
+    return candidates[RandRange(candidates.size())].expr;
+  }
   TypedExpr type_expr = GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   return type_expr.expr;
@@ -656,10 +684,10 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
   }
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
-    const TypeDefinition& type_def = type_ref->type_definition();
-    XLS_CHECK(std::holds_alternative<TypeDef*>(type_def));
-    TypeDef* def = std::get<TypeDef*>(type_def);
-    return GenerateMatchArmPattern(ctx, def->type_annotation());
+    const TypeDefinition& type_definition = type_ref->type_definition();
+    XLS_CHECK(std::holds_alternative<TypeAlias*>(type_definition));
+    TypeAlias* alias = std::get<TypeAlias*>(type_definition);
+    return GenerateMatchArmPattern(ctx, alias->type_annotation());
   }
   XLS_CHECK(IsBits(type));
   // Five percent of the time, generate a wildcardpattern.
@@ -711,12 +739,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
     if (match_arm_patterns.empty()) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Expr * ret, GenerateValue(ctx, match_return_type));
+    XLS_ASSIGN_OR_RETURN(Expr * ret,
+                         GenerateExprOfType(ctx, match_return_type));
     match_arms.push_back(
         module_->Make<MatchArm>(fake_span_, match_arm_patterns, ret));
   }
   // Add wildcard pattern as last match arm.
-  XLS_ASSIGN_OR_RETURN(Expr * wc_return, GenerateValue(ctx, match_return_type));
+  XLS_ASSIGN_OR_RETURN(Expr * wc_return,
+                       GenerateExprOfType(ctx, match_return_type));
   WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
   NameDefTree* wc_pattern = module_->Make<NameDefTree>(fake_span_, wc);
   match_arms.push_back(module_->Make<MatchArm>(
@@ -807,7 +837,9 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
                                  /*body=*/sum, /*is_const=*/false);
-  auto* block = module_->Make<Block>(fake_span_, let);
+  auto* body_stmt = module_->Make<Statement>(let);
+  auto* block = module_->Make<Block>(
+      fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
   return TypedExpr{block, lhs_cast.type};
 }
 
@@ -815,7 +847,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(&ctx->env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
+  const absl::btree_set<BinopKind>& bin_ops = GetBinopSameTypeKinds();
   BinopKind op = RandomSetChoice(bin_ops);
   if (op == BinopKind::kDiv) {
     return GenerateSynthesizableDiv(ctx);
@@ -933,8 +965,8 @@ int64_t AstGenerator::GetTypeBitCount(const TypeAnnotation* type) {
     }
     return total;
   }
-  if (auto* def = dynamic_cast<const TypeDef*>(type)) {
-    return GetTypeBitCount(def->type_annotation());
+  if (auto* type_alias = dynamic_cast<const TypeAlias*>(type)) {
+    return GetTypeBitCount(type_alias->type_annotation());
   }
 
   return type_bit_counts_.at(type_str);
@@ -1063,6 +1095,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("priority_sel"),
                                 std::vector<Expr*>{lhs.expr, cases_array});
   return TypedExpr{invocation, rhs.type};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSignExtendBuiltin(
+    Context* ctx) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
+  return TypedExpr{
+      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("signex"),
+                                std::vector<Expr*>{lhs.expr, rhs.expr}),
+      rhs.type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
@@ -1319,7 +1361,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
   }
 
   auto [exprs, types] = Unzip(typed_exprs);
-  auto* tuple = module_->Make<XlsTuple>(fake_span_, exprs);
+  auto* tuple =
+      module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false);
   return TypedExpr{tuple, MakeTupleType(types)};
 }
 
@@ -1329,7 +1372,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     Context* ctx) {
   if (proc_properties_.state_types.empty()) {
     // Return an empty tuple.
-    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>()),
+    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
+                                             /*has_trailing_comma=*/false),
                      MakeTupleType(std::vector<TypeAnnotation*>())};
   }
   // A state is present, therefore the return value for a proc's next function
@@ -1357,7 +1401,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
   if (RandomBool()) {
     tree_type = MakeTupleType({ivar_type, e.type});
   }
-  Block* block = module_->Make<Block>(fake_span_, body);
+
+  Statement* body_stmt = module_->Make<Statement>(body);
+  Block* block = module_->Make<Block>(
+      fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
                                  block, /*init=*/e.expr);
   return TypedExpr{for_, e.type};
@@ -1389,8 +1436,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_bit_count));
 
   auto [exprs, types] = Unzip(members);
-  return TypedExpr{module_->Make<XlsTuple>(fake_span_, exprs),
-                   MakeTupleType(types)};
+  return TypedExpr{
+      module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false),
+      MakeTupleType(types)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
@@ -1533,7 +1581,7 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
     }
   }
   if (choices.empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   int64_t index = RandRange(choices.size());
   return *choices[index];
@@ -1630,11 +1678,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     bool should_have_start = RandomBool();
     start = should_have_start
                 ? absl::make_optional(RandRange(start_low, bit_count + 1))
-                : absl::nullopt;
+                : std::nullopt;
     bool should_have_limit = RandomBool();
     limit = should_have_limit
                 ? absl::make_optional(RandRange(-bit_count - 1, bit_count + 1))
-                : absl::nullopt;
+                : std::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
     if (width > 0) {  // Make sure we produce non-zero-width things.
       break;
@@ -1795,6 +1843,7 @@ enum OpChoice {
   kOneHotSelectBuiltin,
   kPartialProduct,
   kPrioritySelectBuiltin,
+  kSignExtendBuiltin,
   kShiftOp,
   kTupleOrIndex,
   kUnop,
@@ -1856,6 +1905,8 @@ int OpProbability(OpChoice op) {
     case kPartialProduct:
       return 1;
     case kPrioritySelectBuiltin:
+      return 1;
+    case kSignExtendBuiltin:
       return 1;
     case kShiftOp:
       return 3;
@@ -1989,6 +2040,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
       case kPrioritySelectBuiltin:
         generated = GeneratePrioritySelectBuiltin(ctx);
         break;
+      case kSignExtendBuiltin:
+        generated = GenerateSignExtendBuiltin(ctx);
+        break;
       case kNumber:
         generated = GenerateNumberWithType();
         break;
@@ -2111,11 +2165,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
     XLS_LOG(FATAL) << "Invalid kind: " << kind;
   };
 
-  std::vector<UnopBuiltin> choices = {kClz, kCtz, kRev};
-  // Since one_hot adds a bit, only use it when we have head room beneath
-  // max_width_bits_types to add another bit.
+  std::vector<UnopBuiltin> choices = {kRev};
+  // Since one_hot, clz, and ctz adds a bit, only use it when we have head room
+  // beneath max_width_bits_types to add another bit.
   if (GetTypeBitCount(arg.type) < options_.max_width_bits_types) {
     choices.push_back(kOneHot);
+    choices.push_back(kClz);
+    choices.push_back(kCtz);
   }
 
   Invocation* invocation = nullptr;
@@ -2203,7 +2259,10 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
                        GenerateBody(call_depth, params, &context));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
-  Block* block = module_->Make<Block>(fake_span_, retval.expr);
+  Statement* retval_statement = module_->Make<Statement>(retval.expr);
+  Block* block = module_->Make<Block>(fake_span_,
+                                      std::vector<Statement*>{retval_statement},
+                                      /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/parametric_bindings,
@@ -2220,7 +2279,7 @@ absl::Status AstGenerator::GenerateFunctionInModule(std::string name) {
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
-  for (auto& item : type_defs_) {
+  for (auto& item : type_aliases_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   for (auto& item : functions_) {
@@ -2243,8 +2302,11 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   }
   TupleTypeAnnotation* ret_tuple_type =
       module_->Make<TupleTypeAnnotation>(fake_span_, tuple_member_types);
-  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members);
-  Block* block = module_->Make<Block>(fake_span_, ret_tuple);
+  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members,
+                                                /*has_trailing_comma=*/false);
+  Statement* ret_stmt = module_->Make<Statement>(ret_tuple);
+  Block* block = module_->Make<Block>(
+      fake_span_, std::vector<Statement*>{ret_stmt}, /*trailing_semi=*/false);
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Function* f = module_->Make<Function>(
@@ -2283,7 +2345,10 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
-  Block* block = module_->Make<Block>(fake_span_, retval.expr);
+  Statement* retval_stmt = module_->Make<Statement>(retval.expr);
+  Block* block =
+      module_->Make<Block>(fake_span_, std::vector<Statement*>{retval_stmt},
+                           /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
@@ -2302,7 +2367,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
 
   XLS_ASSIGN_OR_RETURN(Expr * init_constant, value_gen_->GenerateDslxConstant(
                                                  module_.get(), return_type));
-  Block* b = module_->Make<Block>(fake_span_, init_constant);
+  Statement* s = module_->Make<Statement>(init_constant);
+  Block* b = module_->Make<Block>(fake_span_, std::vector<Statement*>{s},
+                                  /*trailing_semi=*/false);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
@@ -2344,7 +2411,7 @@ absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
-  for (auto& item : type_defs_) {
+  for (auto& item : type_aliases_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   for (auto& item : functions_) {
@@ -2356,7 +2423,7 @@ absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
 
 absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
     std::string top_entity_name, std::string module_name) {
-  module_ = std::make_unique<Module>(module_name);
+  module_ = std::make_unique<Module>(module_name, /*fs_path=*/std::nullopt);
   if (options_.generate_proc) {
     XLS_RETURN_IF_ERROR(GenerateProcInModule(top_entity_name));
   } else {

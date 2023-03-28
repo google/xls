@@ -320,7 +320,8 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
                            GenerateDslxConstant(module, member_type));
       members.push_back(member);
     }
-    return module->Make<dslx::XlsTuple>(fake_span, members);
+    return module->Make<dslx::XlsTuple>(fake_span, members,
+                                        /*has_trailing_comma=*/false);
   }
 
   auto* typeref_type = dynamic_cast<dslx::TypeRefTypeAnnotation*>(type);
@@ -328,8 +329,8 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
   auto* typeref = typeref_type->type_ref();
   return std::visit(
       Visitor{
-          [&](dslx::TypeDef* type_def) -> absl::StatusOr<Expr*> {
-            return GenerateDslxConstant(module, type_def->type_annotation());
+          [&](dslx::TypeAlias* type_alias) -> absl::StatusOr<Expr*> {
+            return GenerateDslxConstant(module, type_alias->type_annotation());
           },
           [&](dslx::StructDef* struct_def) -> absl::StatusOr<Expr*> {
             std::vector<std::pair<std::string, Expr*>> members;

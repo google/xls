@@ -76,7 +76,7 @@ struct ClampExpr {
 };
 std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
   if (!n->Is<Select>()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   Select* select = n->As<Select>();
   Node* cmp = select->selector();

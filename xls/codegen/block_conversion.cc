@@ -163,7 +163,7 @@ static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
     XLS_RETURN_IF_ERROR(block
                             ->MakeNode<RegisterWrite>(
                                 /*loc=*/SourceInfo(), pipelined_valids[stage],
-                                /*load_enable=*/absl::nullopt,
+                                /*load_enable=*/std::nullopt,
                                 /*reset=*/block->GetResetPort(), valid_reg)
                             .status());
     XLS_ASSIGN_OR_RETURN(pipelined_valids[stage + 1],
@@ -220,7 +220,7 @@ static absl::Status MakePipelineStagesForValidIO(
       XLS_RETURN_IF_ERROR(block
                               ->MakeNode<RegisterWrite>(
                                   /*loc=*/SourceInfo(), stage_done[stage],
-                                  /*load_enable=*/absl::nullopt,
+                                  /*load_enable=*/std::nullopt,
                                   /*reset=*/block->GetResetPort(), valid_reg)
                               .status());
 
@@ -236,14 +236,14 @@ static absl::Status MakePipelineStagesForValidIO(
 // Returns or makes a node that is 1 when the block is under reset,
 // if said reset signal exists.
 //
-//   - If no reset exists, absl::nullopt is returned
+//   - If no reset exists, std::nullopt is returned
 //   - Active low reset signals are inverted.
 //
 // See also MakeOrWithResetNode()
 static absl::StatusOr<std::optional<Node*>> MaybeGetOrMakeResetNode(
     const std::optional<xls::Reset>& reset_behavior, Block* block) {
   if (!block->GetResetPort().has_value()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   Node* reset_node = block->GetResetPort().value();
@@ -619,7 +619,7 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
                                     /*loc=*/SourceInfo(),
                                     pipeline_reg.reg_write->data(),
                                     /*load_enable=*/load_enable,
-                                    /*reset=*/absl::nullopt, pipeline_reg.reg)
+                                    /*reset=*/std::nullopt, pipeline_reg.reg)
                                 .status());
         XLS_RETURN_IF_ERROR(block->RemoveNode(pipeline_reg.reg_write));
       }
@@ -1036,7 +1036,7 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
           /*loc=*/from_data->loc(),
           /*selector=*/data_valid_skid_reg_read,
           /*cases=*/std::vector<Node*>{data_reg_read, data_skid_reg_read},
-          /*default_value=*/absl::nullopt,
+          /*default_value=*/std::nullopt,
           /*name=*/absl::StrCat(name_prefix, "_select")));
   XLS_RETURN_IF_ERROR(data_skid_reg_read->ReplaceUsesWith(to_data));
 
@@ -1173,11 +1173,11 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
 
   XLS_ASSIGN_OR_RETURN(RegisterRead * data_reg_read,
                        AddRegisterAfterNode(name_prefix, reset_behavior,
-                                            absl::nullopt, from_data, block));
+                                            std::nullopt, from_data, block));
   XLS_ASSIGN_OR_RETURN(
       RegisterRead * valid_reg_read,
       AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid"), reset_behavior,
-                           absl::nullopt, from_valid, block));
+                           std::nullopt, from_valid, block));
 
   // 2. Construct and update the ready signal.
   Node* from_rdy_src = from_rdy->operand(0);
@@ -1369,7 +1369,7 @@ static absl::Status AddInputOutputFlops(
 
       XLS_RETURN_IF_ERROR(AddRegisterAfterNode(port->GetName(),
                                                options.ResetBehavior(),
-                                               absl::nullopt, port, block)
+                                               std::nullopt, port, block)
                               .status());
 
       handled_io_nodes.insert(port);
@@ -1386,7 +1386,7 @@ static absl::Status AddInputOutputFlops(
 
       XLS_RETURN_IF_ERROR(
           AddRegisterAfterNode(port->GetName(), options.ResetBehavior(),
-                               absl::nullopt, port->operand(0), block)
+                               std::nullopt, port->operand(0), block)
               .status());
 
       handled_io_nodes.insert(port);
@@ -1460,8 +1460,10 @@ static absl::Status AddOneShotLogicToRVNodes(
 
   // Now set up the has_sent register
   //  txfr = valid and ready -- data has been transferred to output
-  //  load = all_active_outputs_ready -- pipeline stage is now being loaded
-  //                                     with new inputs.
+  //  load = all_active_outputs_ready && valid
+  //    -- pipeline stage is now being loaded with new inputs.
+  //    -- Not that && valid is not strictly needed but added to remove a case
+  //       where x-propagation is a bit pessimistic.
   //
   // if load
   //   has_been_sent <= 0
@@ -1471,19 +1473,29 @@ static absl::Status AddOneShotLogicToRVNodes(
   // this can be implemented with
   //   load_enable = load + triggered
   //   data = !load
+  name =
+      absl::StrFormat("__%s_valid_and_all_active_outputs_ready", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_and_all_active_outputs_ready,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc,
+          std::vector<Node*>({from_valid, all_active_outputs_ready}), Op::kAnd,
+          name));
+
   name = absl::StrFormat("__%s_has_been_sent_reg_load_en", name_prefix);
   XLS_ASSIGN_OR_RETURN(
       Node * load_enable,
       block->MakeNodeWithName<NaryOp>(
           /*loc=*/loc,
-          std::vector<Node*>({valid_and_ready_txfr, all_active_outputs_ready}),
+          std::vector<Node*>(
+              {valid_and_ready_txfr, valid_and_all_active_outputs_ready}),
           Op::kOr, name));
 
   name = absl::StrFormat("__%s_not_stage_load", name_prefix);
   XLS_ASSIGN_OR_RETURN(
       Node * not_stage_load,
-      block->MakeNodeWithName<UnOp>(/*loc=*/loc, all_active_outputs_ready,
-                                    Op::kNot, name));
+      block->MakeNodeWithName<UnOp>(
+          /*loc=*/loc, valid_and_all_active_outputs_ready, Op::kNot, name));
 
   XLS_RETURN_IF_ERROR(
       has_been_sent_reg_write->ReplaceOperandNumber(0, not_stage_load));
@@ -2211,8 +2223,8 @@ class CloneNodesIntoBlockHandler {
       XLS_ASSIGN_OR_RETURN(state_register.reg_write(),
                            block_->MakeNode<RegisterWrite>(
                                next_state->loc(), next_state,
-                               /*load_enable=*/absl::nullopt,
-                               /*reset=*/absl::nullopt, state_register.reg()));
+                               /*load_enable=*/std::nullopt,
+                               /*reset=*/std::nullopt, state_register.reg()));
     }
 
     return absl::OkStatus();
@@ -2238,8 +2250,8 @@ class CloneNodesIntoBlockHandler {
     XLS_ASSIGN_OR_RETURN(
         RegisterWrite * reg_write,
         block_->MakeNode<RegisterWrite>(node->loc(), node,
-                                        /*load_enable=*/absl::nullopt,
-                                        /*reset=*/absl::nullopt, reg));
+                                        /*load_enable=*/std::nullopt,
+                                        /*reset=*/std::nullopt, reg));
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
@@ -2456,7 +2468,7 @@ absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
           /*loc=*/from_data->loc(),
           /*selector=*/data_valid_skid_reg_read,
           /*cases=*/std::vector<Node*>{from_data, data_skid_reg_read},
-          /*default_value=*/absl::nullopt,
+          /*default_value=*/std::nullopt,
           /*name=*/absl::StrCat(name_prefix, "_select")));
   XLS_RETURN_IF_ERROR(data_skid_reg_read->ReplaceUsesWith(to_data));
 

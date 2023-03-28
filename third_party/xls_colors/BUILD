@@ -1,5 +1,6 @@
 # XLS color library ported from https://www.vagrearg.org/content/hsvrgb
 
+load("@rules_license//rules:license.bzl", "license")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "xls_benchmark_ir",
@@ -9,7 +10,13 @@ load(
 )
 
 package(
+    default_applicable_licenses = [":license"],
     default_visibility = ["//xls:xls_internal"],
+)
+
+license(
+    name = "license",
+    package_name = "xls_colors",
 )
 
 licenses(["notice"])
@@ -39,8 +46,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
-        "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/ir_convert:ir_converter",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",

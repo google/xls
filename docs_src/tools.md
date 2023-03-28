@@ -144,7 +144,7 @@ and even imported identifiers can be accessed with `:type foo::bar`.
 
 ## [`simulate_module_main`](https://github.com/google/xls/tree/main/xls/tools/simulate_module_main.cc)
 
-Runs an Verilog block emitted by XLS through a Verilog simulator. Requires both
+Runs a Verilog block emitted by XLS through a Verilog simulator. Requires both
 the Verilog text and the module signature which includes metadata about the
 block.
 
@@ -208,6 +208,42 @@ against the post-synthesis netlist.
 
 Performs terminal-based color code highlighting of a DSL file.
 
-## [`dslx/typecheck_main`](https://github.com/google/xls/tree/main/xls/dslx/typecheck_main.cc)
+## [`dslx/type_system/typecheck_main`](https://github.com/google/xls/tree/main/xls/dslx/type_system/typecheck_main.cc)
 
 Dumps type information that has been deduced for a given DSL file.
+
+## Development Tools
+
+### clang-tidy
+
+For C++ development, you might need a compilation database to have good support
+in your IDE. You can create the `compile_commands.json` by running this script.
+
+```
+dev_utils/make-compilation-db.sh
+```
+
+To run clang-tidy and create a report of things that might be worthwhile
+fixing, use the following script:
+
+```
+dev_utils/run-clang-tidy-cached.sh
+```
+
+(Note, this will be pretty slow on the first run, but it caches results and
+will only reprocess changed files in subsequent runs).
+
+The output of the clang-tidy runs shows up in the `xls_clang-tidy.out` file
+which is formatted just like an output from a compiler. So to quickly work with
+these, you can use `cat xls_clang-tidy.out` as your 'compiler invocation' in
+your IDE (e.g. `M-x compile` in emacs) and step through next-error locations as
+usual.
+
+### Golden Comparison Files
+
+To re-generate golden reference files (for all test targets that use golden
+reference file comparisons), run:
+
+```
+dev_utils/rebuild_golden_files.sh
+```

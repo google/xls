@@ -4,7 +4,7 @@
 
 # **XLS**: Accelerated HW Synthesis
 
-<!-- nav --> <!-- CI badge -->
+<!-- GitHub banner -->
 
 ## What is XLS?
 
@@ -42,6 +42,19 @@ supported Google product. Expect bugs and sharp edges. Please help by trying it
 out, running through [some tutorials](https://google.github.io/xls/tutorials/),
 [reporting bugs](https://github.com/google/xls/issues), and letting us know
 what you think!
+
+## Install Using Conda
+
+```bash
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -p conda-env/ -b
+source conda-env/bin/activate
+conda install --yes -c litex-hub xls
+interpreter_main --version
+ir_converter_main --version
+opt_main --version
+codegen_main --version
+```
 
 ## Building From Source
 
@@ -83,6 +96,10 @@ bazel 5.2.0
 ~/xls$ # To build everything, including the C++ frontend:
 ~/xls$ bazel test -c opt -- //xls/...
 ```
+
+The build needs Python3 to be available. If your python3 binary is at an
+unusual location, you can tell `bazel` by providing a command line flag
+`--repo_env PYTHON_BIN_PATH=/path/to/python3` for `bazel` to find `python3`.
 
 Reference build/test environment setups are also provided via `Dockerfile`s:
 

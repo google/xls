@@ -276,7 +276,7 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
 bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   Function* as_func = dynamic_cast<Function*>(function_base_);
 
-  if (c == length() - 1) {
+  if (c >= length() - 1) {
     return false;
   }
 
@@ -375,10 +375,11 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
         SDCScheduler(f, schedule_length, clock_period_ps, input_delay_added,
                      &bounds, options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::RANDOM) {
+    std::mt19937_64 gen(options.seed().value_or(0));
+
     for (Node* node : TopoSort(f)) {
       int64_t lower_bound = bounds.lb(node);
       int64_t upper_bound = bounds.ub(node);
-      std::mt19937 gen(options.seed().value_or(0));
       std::uniform_int_distribution<int64_t> distrib(lower_bound, upper_bound);
       int64_t cycle = distrib(gen);
       XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));

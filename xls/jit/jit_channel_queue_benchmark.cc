@@ -80,7 +80,7 @@ BENCHMARK(BM_QueueWriteThenRead<ThreadUnsafeJitChannelQueue>)
     ->ArgPair(2048, 1)
     ->ArgPair(2048, 128);
 
-BENCHMARK_MAIN();
-
 }  // namespace
 }  // namespace xls
+
+BENCHMARK_MAIN();

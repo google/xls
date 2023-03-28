@@ -116,7 +116,7 @@ TEST(IntervalTest, ConvexHull) {
 
 TEST(IntervalSet, Intersect) {
   EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(40, 50)),
-            absl::nullopt);
+            std::nullopt);
   EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(30, 40)),
             SimpleInterval(30, 30));
   EXPECT_EQ(Interval::Intersect(SimpleInterval(20, 30), SimpleInterval(25, 40)),
@@ -124,7 +124,7 @@ TEST(IntervalSet, Intersect) {
   EXPECT_EQ(Interval::Intersect(SimpleInterval(25, 30), SimpleInterval(20, 40)),
             SimpleInterval(25, 30));
   EXPECT_EQ(Interval::Intersect(SimpleInterval(40, 50), SimpleInterval(20, 30)),
-            absl::nullopt);
+            std::nullopt);
   EXPECT_EQ(Interval::Intersect(SimpleInterval(30, 40), SimpleInterval(20, 30)),
             SimpleInterval(30, 30));
   EXPECT_EQ(Interval::Intersect(SimpleInterval(25, 40), SimpleInterval(20, 30)),
@@ -214,9 +214,9 @@ TEST(IntervalTest, Size) {
   EXPECT_EQ(Interval(two_to_the_64, two_to_the_64).Size(), 1);
   EXPECT_EQ(Interval(two_to_the_65, two_to_the_65).Size(), 1);
 
-  EXPECT_EQ(Interval(two_to_the_63, two_to_the_64).Size(), absl::nullopt);
+  EXPECT_EQ(Interval(two_to_the_63, two_to_the_64).Size(), std::nullopt);
   EXPECT_EQ(Interval(two_to_the_63, bits_ops::Sub(two_to_the_64, one)).Size(),
-            absl::nullopt);
+            std::nullopt);
   EXPECT_EQ(Interval(two_to_the_63, bits_ops::Sub(two_to_the_64, two)).Size(),
             std::numeric_limits<int64_t>::max());
 
@@ -245,7 +245,7 @@ TEST(IntervalTest, IsPrecise) {
 
   Interval interval2 = Interval(Bits::PowerOfTwo(2, 6), Bits::PowerOfTwo(3, 6));
   EXPECT_FALSE(interval2.IsPrecise());
-  EXPECT_EQ(interval2.GetPreciseValue(), absl::nullopt);
+  EXPECT_EQ(interval2.GetPreciseValue(), std::nullopt);
 
   EXPECT_FALSE(
       Interval(Bits::PowerOfTwo(3, 6), Bits::PowerOfTwo(2, 6)).IsPrecise());

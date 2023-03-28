@@ -14,3 +14,5 @@
 
 const MY_CONST = u32:42;
 pub type MyBits = bits[MY_CONST];
+
+pub const MY_PUBLIC_CONST = u32:42;

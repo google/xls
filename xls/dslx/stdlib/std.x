@@ -14,8 +14,46 @@
 
 // DSLX standard library routines.
 
+// TODO(tedhong): 2023-03-15 - Convert to a macro to support getting size of
+//                             arbitrary types.
+// Returns the number of bits (sizeof) of the type of the given bits value.
+pub fn sizeof_signed<N: u32>(x : sN[N]) -> u32 {
+  N
+}
+
+pub fn sizeof_unsigned<N: u32>(x : uN[N]) -> u32 {
+  N
+}
+
+#[test]
+fn sizeof_signed_test() {
+  let _ = assert_eq(u32:0, sizeof_signed(sN[0]:0));
+  let _ = assert_eq(u32:1, sizeof_signed(sN[1]:0));
+  let _ = assert_eq(u32:2, sizeof_signed(sN[2]:0));
+
+  //TODO(tedhong): 2023-03-15 - update frontend to support below.
+  //let _ = assert_eq(u32:0xffffffff, sizeof_signed(uN[0xffffffff]:0));
+}
+
+#[test]
+fn sizeof_unsigned_test() {
+  let _ = assert_eq(u32:0, sizeof_unsigned(uN[0]:0));
+  let _ = assert_eq(u32:1, sizeof_unsigned(uN[1]:0));
+  let _ = assert_eq(u32:2, sizeof_unsigned(uN[2]:0));
+
+  //TODO(tedhong): 2023-03-15 - update frontend to support below.
+  //let _ = assert_eq(u32:0xffffffff, sizeof_unsigned(uN[0xffffffff]:0));
+}
+
+#[test]
+fn use_sizeof_test() {
+  let x = uN[32]:0xffffffff;
+  let y : uN[sizeof_unsigned(x) + u32:2] = x as uN[sizeof_unsigned(x) + u32:2];
+  let _ = assert_eq(y, uN[34]:0xffffffff);
+}
+
 // Returns the maximum signed value contained in N bits.
-pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
+pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
   ((sN[N]:1 << N_MINUS_ONE) - sN[N]:1) as sN[N]
 }
 
@@ -29,7 +67,7 @@ fn signed_max_value_test() {
 }
 
 // Returns the minimum signed value contained in N bits.
-pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
+pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
   (uN[N]:1 << N_MINUS_ONE) as sN[N]
 }
 
@@ -42,7 +80,7 @@ fn signed_min_value_test() {
 }
 
 // Returns the maximum unsigned value contained in N bits.
-pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = N + u32:1>() -> uN[N] {
+pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = {N + u32:1}>() -> uN[N] {
     ((uN[N_PLUS_ONE]:1 << N) - uN[N_PLUS_ONE]:1) as uN[N]
 }
 
@@ -56,12 +94,12 @@ fn unsigned_max_value_test() {
 }
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn umul<N: u32, M: u32, R: u32 = N + M>(x: uN[N], y: uN[M]) -> uN[R] {
+pub fn umul<N: u32, M: u32, R: u32 = {N + M}>(x: uN[N], y: uN[M]) -> uN[R] {
   (x as uN[R]) * (y as uN[R])
 }
 
 // Returns signed mul of x (N bits) and y (M bits) as an N+M bit value.
-pub fn smul<N: u32, M: u32, R: u32 = N + M>(x: sN[N], y: sN[M]) -> sN[R] {
+pub fn smul<N: u32, M: u32, R: u32 = {N + M}>(x: sN[N], y: sN[M]) -> sN[R] {
   (x as sN[R]) * (y as sN[R])
 }
 
@@ -82,7 +120,7 @@ fn umul_test() {
 
 // Calculate x / y one bit at a time. This is an alternative to using
 // the division operator '/' which may not synthesize nicely.
-pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
+pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N] {
 
   let init_shift_amount = ((N as uN[N])-uN[N]:1);
   let x = x as uN[DN];
@@ -164,22 +202,55 @@ pub fn abs<BITS: u32>(x: sN[BITS]) -> sN[BITS] {
 }
 
 // Converts an array of N bools to a bits[N] value.
-pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N] {
+//
+// The bool at index 0 in the array because the MSb (most significant bit) in
+// the result.
+pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N] {
   for (i, accum): (u32, uN[N]) in range(u32:0, N) {
    accum | (x[i] as uN[N]) << ((N-i-u32:1) as uN[N])
   }(uN[N]:0)
 }
 
 #[test]
-fn convert_to_bits_test() {
-  let _ = assert_eq(u3:0b000, convert_to_bits(bool[3]:[false, false, false]));
-  let _ = assert_eq(u3:0b001, convert_to_bits(bool[3]:[false, false, true]));
-  let _ = assert_eq(u3:0b010, convert_to_bits(bool[3]:[false, true, false]));
-  let _ = assert_eq(u3:0b011, convert_to_bits(bool[3]:[false, true, true]));
-  let _ = assert_eq(u3:0b100, convert_to_bits(bool[3]:[true, false, false]));
-  let _ = assert_eq(u3:0b110, convert_to_bits(bool[3]:[true, true, false]));
-  let _ = assert_eq(u3:0b111, convert_to_bits(bool[3]:[true, true, true]));
+fn convert_to_bits_msb0_test() {
+  let _ = assert_eq(u3:0b000, convert_to_bits_msb0(bool[3]:[false, false, false]));
+  let _ = assert_eq(u3:0b001, convert_to_bits_msb0(bool[3]:[false, false, true]));
+  let _ = assert_eq(u3:0b010, convert_to_bits_msb0(bool[3]:[false, true, false]));
+  let _ = assert_eq(u3:0b011, convert_to_bits_msb0(bool[3]:[false, true, true]));
+  let _ = assert_eq(u3:0b100, convert_to_bits_msb0(bool[3]:[true, false, false]));
+  let _ = assert_eq(u3:0b110, convert_to_bits_msb0(bool[3]:[true, true, false]));
+  let _ = assert_eq(u3:0b111, convert_to_bits_msb0(bool[3]:[true, true, true]));
   ()
+}
+
+// Converts a bits[N] values to an array of N bools.
+//
+// This variant puts the LSb (least significant bit) of the word at index 0 in
+// the resulting array.
+pub fn convert_to_bools_lsb0<N:u32>(x: uN[N]) -> bool[N] {
+  for (idx, partial): (u32, bool[N]) in range(u32:0, N) {
+    update(partial, idx, x[idx+:bool])
+  }(bool[N]:[false,...])
+}
+
+#[test]
+fn convert_to_bools_lsb0_test() {
+  let _ = assert_eq(convert_to_bools_lsb0(u1:1), bool[1]:[true]);
+  let _ = assert_eq(convert_to_bools_lsb0(u2:0b01), bool[2]:[true, false]);
+  let _ = assert_eq(convert_to_bools_lsb0(u2:0b10), bool[2]:[false, true]);
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b000), bool[3]:[false, false, false]);
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b001), bool[3]:[true, false, false] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b010), bool[3]:[false, true, false] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b011), bool[3]:[true, true, false]  );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b100), bool[3]:[false, false, true] );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b110), bool[3]:[false, true, true]  );
+  let _ = assert_eq(convert_to_bools_lsb0(u3:0b111), bool[3]:[true, true, true]   );
+  ()
+}
+
+#[quickcheck]
+fn convert_to_from_bools(x: u4) -> bool {
+  convert_to_bits_msb0(array_rev(convert_to_bools_lsb0(x))) == x
 }
 
 // Returns (found, index) given array and the element to find within the array.
@@ -196,7 +267,7 @@ pub fn find_index<BITS: u32, ELEMS: u32>(
     update(accum, i, array[i] == x)
   }((bool[ELEMS]:[false, ...]));
 
-  let x: uN[ELEMS] = convert_to_bits(bools);
+  let x: uN[ELEMS] = convert_to_bits_msb0(bools);
   let index = clz(x);
   let found: bool = or_reduce(x);
   (found, if found { index as u32 } else { u32:0 })
@@ -212,7 +283,7 @@ fn find_index_test() {
 }
 
 // Concatenates 3 values of arbitrary bitwidths to a single value.
-pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(
+pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = {X + Y + Z}>(
     x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
   x ++ y ++ z
 }
@@ -516,6 +587,7 @@ fn test_spow() {
   ()
 }
 
+// Count the number of bits that are 1.
 pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
   let (x, acc) = for (i, (x, acc)): (u32, (bits[N], bits[N])) in range(u32:0, N) {
     let acc = if (x & bits[N]:1) as u1 { acc + bits[N]:1 } else { acc };

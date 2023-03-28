@@ -442,6 +442,43 @@ TEST_F(TranslatorPointerTest, NestedSelect) {
   Run({{"c1", 1}, {"c2", 1}}, 20, content);
 }
 
+TEST_F(TranslatorPointerTest, IncrementInPointerSelect) {
+  const std::string content = R"(
+    void addto(int v[2]) {
+      #pragma hls_unroll yes
+      for(int i=0;i<2;++i) {
+        v[i] += 3;
+      }
+    }
+    int my_package(int a) {
+      int arr[4] = {1,2,3,4};
+      int* p = (a++) ? &arr[2] : &arr[0];
+      addto(p);
+      return a + arr[0];
+    })";
+
+  Run({{"a", 4}}, 4 + 1 + 1, content);
+  Run({{"a", 0}}, 0 + 1 + 1 + 3, content);
+}
+
+TEST_F(TranslatorPointerTest, IncrementInPointerSelect2) {
+  const std::string content = R"(
+    void addto(int v[2]) {
+      #pragma hls_unroll yes
+      for(int i=0;i<2;++i) {
+        v[i] += 3;
+      }
+    }
+    int my_package(int a) {
+      int arr[4] = {1,2,3,4};
+      addto((a++) ? &arr[2] : &arr[0]);
+      return a + arr[0];
+    })";
+
+  Run({{"a", 4}}, 4 + 1 + 1, content);
+  Run({{"a", 0}}, 0 + 1 + 1 + 3, content);
+}
+
 TEST_F(TranslatorPointerTest, ArraySliceAssignTernary2) {
   const std::string content = R"(
     void addto(int v[2]) {
@@ -602,6 +639,7 @@ TEST_F(TranslatorPointerTest, Aliasing) {
   // then all lvalues are updated. Therefore, the &arr[1] overwrites the &arr[0]
   // This does not match the behavior of clang. This could be solved using
   // multiple invokes, as is done for IO. However, I think it would be best to
+
   // just error-out via the unsequenced assignment detection mechanism.
   // https://github.com/google/xls/issues/572
   Run({}, 1 + 2 + 2 + 5, content);
@@ -904,6 +942,30 @@ TEST_F(TranslatorPointerTest, ReferenceReturnThis) {
   Run({}, 55 + 11 + 5 + 7, content);
 }
 
+TEST_F(TranslatorPointerTest, ReferenceReturnThis2) {
+  const std::string content = R"(
+    struct MyPtr {
+      int val;
+
+      MyPtr& operator+=(int x) {
+        val += x;
+        return *this;
+      }
+      int getit()const {
+        return val;
+      }
+    };
+
+    int my_package() {
+      MyPtr my = {.val = 55};
+      MyPtr& ref = (my += 11);
+      (void)ref.getit();
+      return ref.getit();
+    })";
+
+  Run({}, 55 + 11, content);
+}
+
 TEST_F(TranslatorPointerTest, ReferenceMemberAccess) {
   const std::string content = R"(
     struct MyPtr {
@@ -1054,30 +1116,13 @@ TEST_F(TranslatorPointerTest, ReferenceReturnWithIO) {
       out.write(my.val);
     })";
 
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in1 = block_spec.add_channels();
-    ch_in1->set_name("in");
-    ch_in1->set_is_input(true);
-    ch_in1->set_type(FIFO);
-
-    HLSChannel* ch_out1 = block_spec.add_channels();
-    ch_out1->set_name("out");
-    ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
-  }
-
-  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-  inputs["in"] = {xls::Value(xls::SBits(10, 32))};
-
-  {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(55 + 10 + 1, 32))};
-
-    ProcTest(content, block_spec, inputs, outputs);
-  }
+  ASSERT_THAT(
+      SourceToIr(content, /*pfunc=*/nullptr, /*clang_argv=*/{},
+                 /*io_test_mode=*/true)
+          .status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("eferences to side effecting operations")));
 }
 
 TEST_F(TranslatorPointerTest, PipelinedLoopUsingReference) {

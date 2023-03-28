@@ -14,7 +14,7 @@
 
 #include "xls/common/casts.h"
 
-#include <stddef.h>
+#include <cstddef>
 
 #include "gtest/gtest.h"
 #include "absl/base/casts.h"
@@ -31,17 +31,17 @@ class Base {
   // It's important to have at least one virtual function in the base
   // class; otherwise down_cast, which uses dynamic_cast in a debug
   // build, won't work with it.
-  virtual ~Base() {}
+  virtual ~Base() = default;
 };
 
 // A class derived from Base.
 class Derived : public Base {};
 
 Base* NewBase(bool is_derived) {
-  if (is_derived)
+  if (is_derived) {
     return new Derived;
-  else
-    return new Base;
+  }
+  return new Base;
 }
 
 // Tests pointer form of down_cast().

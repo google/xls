@@ -32,7 +32,7 @@ class CanonicalizationPass : public FunctionBasePass {
  public:
   explicit CanonicalizationPass()
       : FunctionBasePass("canon", "Canonicalization") {}
-  ~CanonicalizationPass() override {}
+  ~CanonicalizationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

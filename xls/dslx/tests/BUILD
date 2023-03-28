@@ -27,6 +27,7 @@ load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -40,12 +41,20 @@ bzl_library(
     ],
 )
 
+dslx_lang_test(name = "two_plus_two")
+
+dslx_lang_test(name = "zero_macro")
+
 dslx_lang_test(name = "tuple_with_array_member")
 
 dslx_lang_test(
     name = "array_of_imported_struct",
     dslx_deps = [":mod_imported_dslx"],
 )
+
+dslx_lang_test(name = "local_type_alias")
+
+dslx_lang_test(name = "block_with_trailing_semi")
 
 dslx_lang_test(
     name = "binops",
@@ -67,6 +76,11 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "builtin_type_max",
+    dslx_deps = [":number_of_imported_type_import_dslx"],
+)
+
+dslx_lang_test(
+    name = "builtin_type_zero",
     dslx_deps = [":number_of_imported_type_import_dslx"],
 )
 
@@ -139,6 +153,8 @@ dslx_lang_test(name = "match_const")
 
 dslx_lang_test(name = "match_multi")
 
+dslx_lang_test(name = "elseif_sample")
+
 xls_dslx_library(
     name = "number_of_imported_type_import_dslx",
     srcs = ["number_of_imported_type_import.x"],
@@ -198,6 +214,11 @@ xls_dslx_test(
     name = "trace_fmt_hello_test",
     srcs = ["trace_fmt_hello.x"],
     dslx_test_args = {"compare": "interpreter"},
+)
+
+xls_dslx_test(
+    name = "trace_fmt_struct",
+    srcs = ["trace_fmt_struct.x"],
 )
 
 dslx_lang_test(name = "array_of_typedef_in_tuple")
@@ -318,13 +339,14 @@ xls_dslx_test(
     },
 )
 
-# Note: no meaningful function to convert.
+dslx_lang_test(
+    name = "signex_builtin",
+    dslx_deps = [":mod_imported_typedef_dslx"],
+)
+
 xls_dslx_test(
-    name = "signex_builtin_dslx_test",
-    srcs = ["signex_builtin.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
+    name = "builtin_array_rev_dslx_test",
+    srcs = ["builtin_array_rev.x"],
 )
 
 # Note: no meaningful function to convert.
@@ -602,6 +624,11 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "zero_macro_imported_enum",
+    dslx_deps = [":mod_simple_enum_dslx"],
+)
+
+dslx_lang_test(
     name = "mod_enum_fully_qualified_match_importer",
     dslx_deps = [":mod_simple_enum_dslx"],
     # TODO(rspringer): 2021-06-29 We can't lower fail!/assert to Z3, so we
@@ -872,6 +899,12 @@ xls_ir_opt_ir(
     name = "non_blocking_receive_if_opt_ir",
     src = ":non_blocking_receive_if_ir.ir",
     top = "__non_blocking_receive_if__Main_0_next",
+)
+
+dslx_lang_test(
+    name = "non_blocking_receive_if_2",
+    convert_to_ir = False,
+    dslx_entry = "Tester",
 )
 
 exports_files([

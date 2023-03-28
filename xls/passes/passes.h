@@ -15,8 +15,7 @@
 #ifndef XLS_PASSES_PASSES_H_
 #define XLS_PASSES_PASSES_H_
 
-#include <stdio.h>
-
+#include <cstdio>
 #include <memory>
 #include <set>
 #include <string>

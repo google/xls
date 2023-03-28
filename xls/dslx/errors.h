@@ -16,8 +16,9 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "xls/dslx/concrete_type.h"
-#include "xls/dslx/pos.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_record.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 // Specialized error types that can be encountered during DSLX evaluation.
 
@@ -45,10 +46,10 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
 // its type missing) and user (which found that its type was missing).
 absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
 
-// To be raised when a type mismatch is encountered.
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                std::string_view message);
+// To be raised when a recursive import is detected.
+absl::Status RecursiveImportErrorStatus(const Span& nested_import,
+                                        const Span& earlier_import,
+                                        absl::Span<const ImportRecord> cycle);
 
 }  // namespace xls::dslx
 

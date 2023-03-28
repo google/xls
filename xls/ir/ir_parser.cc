@@ -437,7 +437,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(std::optional<Type*> type) {
         XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in array literal"));
       }
-      std::optional<Type*> element_type = absl::nullopt;
+      std::optional<Type*> element_type = std::nullopt;
       if (type.has_value()) {
         element_type = type.value()->AsArrayOrDie()->element_type();
       }
@@ -459,7 +459,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(std::optional<Type*> type) {
         XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma,
                                                       "',' in tuple literal"));
       }
-      std::optional<Type*> element_type = absl::nullopt;
+      std::optional<Type*> element_type = std::nullopt;
       if (type.has_value()) {
         element_type =
             type.value()->AsTupleOrDie()->element_type(values.size());
@@ -598,11 +598,11 @@ struct SplitName {
 std::optional<SplitName> SplitNodeName(std::string_view name) {
   std::vector<std::string_view> pieces = absl::StrSplit(name, '.');
   if (pieces.empty()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   int64_t result;
   if (!absl::SimpleAtoi(pieces.back(), &result)) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   pieces.pop_back();
   return SplitName{.op_name = absl::StrJoin(pieces, "."), .node_id = result};
@@ -1640,7 +1640,13 @@ absl::StatusOr<std::string> Parser::ParsePackageName() {
   return package_name.value();
 }
 
-absl::Status Parser::ParseFileNumber(Package* package) {
+absl::Status Parser::ParseFileNumber(Package* package,
+                                     const DeclAttributes& attributes) {
+  if (!attributes.empty()) {
+    return absl::InvalidArgumentError(
+        "Attributes are not supported on file number declarations.");
+  }
+
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
@@ -1660,10 +1666,12 @@ absl::Status Parser::ParseFileNumber(Package* package) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
+absl::StatusOr<Function*> Parser::ParseFunction(
+    Package* package, const DeclAttributes& attributes) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");
   }
+
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("fn"));
 
   absl::flat_hash_map<std::string, BValue> name_to_value;
@@ -1689,10 +1697,24 @@ absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   // TODO(leary): 2019-02-19 Could be an empty function body, need to decide
   // what to do for those. Accept that the return value can be null and handle
   // everywhere?
-  return fb->BuildWithReturnValue(return_value);
+  XLS_ASSIGN_OR_RETURN(Function * result,
+                       fb->BuildWithReturnValue(return_value));
+
+  for (const auto& [attribute, literal] : attributes) {
+    if (attribute == "initiation_interval") {
+      XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
+      result->SetInitiationInterval(ii);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for function: %s", attribute));
+    }
+  }
+
+  return result;
 }
 
-absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
+absl::StatusOr<Proc*> Parser::ParseProc(Package* package,
+                                        const DeclAttributes& attributes) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse proc; at EOF.");
   }
@@ -1708,10 +1730,29 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   XLS_RET_CHECK(std::holds_alternative<ProcNext>(body_result));
   ProcNext proc_next = std::get<ProcNext>(body_result);
 
-  return pb->Build(proc_next.next_token, proc_next.next_state);
+  XLS_ASSIGN_OR_RETURN(Proc * result,
+                       pb->Build(proc_next.next_token, proc_next.next_state));
+
+  for (const auto& [attribute, literal] : attributes) {
+    if (attribute == "initiation_interval") {
+      XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
+      result->SetInitiationInterval(ii);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid attribute for proc: %s", attribute));
+    }
+  }
+
+  return result;
 }
 
-absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
+absl::StatusOr<Block*> Parser::ParseBlock(Package* package,
+                                          const DeclAttributes& attributes) {
+  if (!attributes.empty()) {
+    return absl::InvalidArgumentError(
+        "Attributes are not supported on blocks.");
+  }
+
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse block; at EOF.");
   }
@@ -1790,7 +1831,13 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
   return block;
 }
 
-absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
+absl::StatusOr<Channel*> Parser::ParseChannel(
+    Package* package, const DeclAttributes& attributes) {
+  if (!attributes.empty()) {
+    return absl::InvalidArgumentError(
+        "Attributes are not supported on channel declarations.");
+  }
+
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse channel; at EOF.");
   }
@@ -1971,6 +2018,30 @@ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
   return package->GetFunctionType(parameter_types, return_type);
 }
 
+absl::StatusOr<DeclAttributes> Parser::MaybeParseAttributes() {
+  absl::flat_hash_map<std::string, Token> attributes;
+  while (!AtEof() && scanner_.PeekTokenIs(LexicalTokenType::kHash)) {
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kHash));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
+    XLS_ASSIGN_OR_RETURN(Token attribute_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    XLS_ASSIGN_OR_RETURN(Token literal,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
+    attributes.emplace(attribute_name.value(), literal);
+  }
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Illegal attribute at end of file");
+  }
+  return attributes;
+}
+
 /* static */ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(
     std::string_view input_string, Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
@@ -1996,12 +2067,13 @@ static absl::Status VerifyAndSwapError(Package* package) {
 }
 
 /* static */
-absl::StatusOr<Function*> Parser::ParseFunction(std::string_view input_string,
-                                                Package* package,
-                                                bool verify_function_only) {
+absl::StatusOr<Function*> Parser::ParseFunction(
+    std::string_view input_string, Package* package, bool verify_function_only,
+    const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Function * function, p.ParseFunction(package));
+  XLS_ASSIGN_OR_RETURN(Function * function,
+                       p.ParseFunction(package, attributes));
 
   if (verify_function_only) {
     XLS_RETURN_IF_ERROR(VerifyFunction(function));
@@ -2016,10 +2088,11 @@ absl::StatusOr<Function*> Parser::ParseFunction(std::string_view input_string,
 
 /* static */
 absl::StatusOr<Proc*> Parser::ParseProc(std::string_view input_string,
-                                        Package* package) {
+                                        Package* package,
+                                        const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package));
+  XLS_ASSIGN_OR_RETURN(Proc * proc, p.ParseProc(package, attributes));
 
   // Verify the whole package because the addition of the proc may break
   // package-scoped invariants (eg, duplicate proc name).
@@ -2029,10 +2102,11 @@ absl::StatusOr<Proc*> Parser::ParseProc(std::string_view input_string,
 
 /* static */
 absl::StatusOr<Block*> Parser::ParseBlock(std::string_view input_string,
-                                          Package* package) {
+                                          Package* package,
+                                          const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  XLS_ASSIGN_OR_RETURN(Block * proc, p.ParseBlock(package));
+  XLS_ASSIGN_OR_RETURN(Block * proc, p.ParseBlock(package, attributes));
 
   // Verify the whole package because the addition of the block may break
   // package-scoped invariants (eg, duplicate block name).
@@ -2041,11 +2115,12 @@ absl::StatusOr<Block*> Parser::ParseBlock(std::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Channel*> Parser::ParseChannel(std::string_view input_string,
-                                              Package* package) {
+absl::StatusOr<Channel*> Parser::ParseChannel(
+    std::string_view input_string, Package* package,
+    const DeclAttributes& attributes) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  return p.ParseChannel(package);
+  return p.ParseChannel(package, attributes);
 }
 
 /* static */
@@ -2087,7 +2162,7 @@ absl::StatusOr<Value> Parser::ParseValue(std::string_view input_string,
 absl::StatusOr<Value> Parser::ParseTypedValue(std::string_view input_string) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
-  return p.ParseValueInternal(/*expected_type=*/absl::nullopt);
+  return p.ParseValueInternal(/*expected_type=*/std::nullopt);
 }
 
 }  // namespace xls

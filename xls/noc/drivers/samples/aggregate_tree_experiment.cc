@@ -30,9 +30,9 @@ namespace {
 
 class SimpleVCExperimentBuilder : public ExperimentBuilderBase {
  protected:
-  virtual absl::StatusOr<ExperimentConfig> BuildExperimentConfig() override;
-  virtual absl::StatusOr<ExperimentSweeps> BuildExperimentSweeps() override;
-  virtual absl::StatusOr<ExperimentRunner> BuildExperimentRunner() override;
+  absl::StatusOr<ExperimentConfig> BuildExperimentConfig() override;
+  absl::StatusOr<ExperimentSweeps> BuildExperimentSweeps() override;
+  absl::StatusOr<ExperimentRunner> BuildExperimentRunner() override;
 };
 
 absl::StatusOr<ExperimentConfig>

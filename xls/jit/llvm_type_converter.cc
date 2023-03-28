@@ -91,7 +91,8 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
     llvm::Type* type, const Value& value) const {
   if (type->isIntegerTy()) {
     return ToIntegralConstant(type, value);
-  } else if (type->isStructTy()) {
+  }
+  if (type->isStructTy()) {
     std::vector<llvm::Constant*> llvm_elements;
     for (int i = 0; i < type->getStructNumElements(); ++i) {
       XLS_ASSIGN_OR_RETURN(

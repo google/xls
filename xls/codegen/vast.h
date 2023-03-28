@@ -101,7 +101,7 @@ struct PartialLineSpans {
 // accepts a `LineInfo*` can safely accept a `nullptr`.
 class LineInfo {
  public:
-  LineInfo() {}
+  LineInfo() = default;
 
   // Start recording a region in which the given node is active.
   // CHECK fails if called multiple times with no intervening `End` calls.
@@ -1823,12 +1823,10 @@ class VerilogFile {
   // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
   // 64-bit literal to hold the value.
   verilog::Literal* MaybePlainLiteral(int64_t value, const SourceInfo& loc) {
-    if (value >= std::numeric_limits<int32_t>::min() &&
-        value <= std::numeric_limits<int32_t>::max()) {
-      return PlainLiteral(value, loc);
-    } else {
-      return Literal(SBits(value, 64), loc);
-    }
+    return (value >= std::numeric_limits<int32_t>::min() &&
+            value <= std::numeric_limits<int32_t>::max())
+               ? PlainLiteral(value, loc)
+               : Literal(SBits(value, 64), loc);
   }
 
   FileType file_type_;

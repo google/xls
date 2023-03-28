@@ -21,10 +21,9 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/ir_parser.h"
-#include "xls/ir/package.h"
+#include "xls/ir/ram_rewrite.pb.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/passes.h"
-#include "xls/passes/standard_pipeline.h"
 #include "xls/tools/opt.h"
 
 const char kUsage[] = R"(
@@ -62,8 +61,13 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
+ABSL_FLAG(
+    int64_t, mutual_exclusion_z3_rlimit, -1,
+    absl::StrFormat("Resource limit for solver in mutual exclusion pass"));
 ABSL_FLAG(bool, inline_procs, false,
-          "Whether to inline all procs by calling the proc inlining pass. ");
+          "Whether to inline all procs by calling the proc inlining pass.");
+ABSL_FLAG(std::string, ram_rewrites_pb, "",
+          "Path to protobuf describing ram rewrites.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::tools {
@@ -73,29 +77,30 @@ absl::Status RealMain(std::string_view input_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
-  XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
+  int64_t opt_level = absl::GetFlag(FLAGS_opt_level);
+  int64_t mutual_exclusion_z3_rlimit =
+      absl::GetFlag(FLAGS_mutual_exclusion_z3_rlimit);
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> run_only_passes =
       absl::GetFlag(FLAGS_run_only_passes);
+  std::vector<std::string> skip_passes = absl::GetFlag(FLAGS_skip_passes);
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
-  const OptOptions options = {
-      .opt_level = absl::GetFlag(FLAGS_opt_level),
-      .top = top,
-      .ir_dump_path = ir_dump_path,
-      .run_only_passes = run_only_passes.empty()
-                             ? absl::nullopt
-                             : absl::make_optional(std::move(run_only_passes)),
-      .skip_passes = absl::GetFlag(FLAGS_skip_passes),
-      .convert_array_index_to_select =
-          (convert_array_index_to_select < 0)
-              ? std::nullopt
-              : std::make_optional(convert_array_index_to_select),
-      .inline_procs = absl::GetFlag(FLAGS_inline_procs),
-  };
-  XLS_ASSIGN_OR_RETURN(std::string opt_ir,
-                       tools::OptimizeIrForTop(ir, options));
+  bool inline_procs = absl::GetFlag(FLAGS_inline_procs);
+  std::string ram_rewrites_pb = absl::GetFlag(FLAGS_ram_rewrites_pb);
+  XLS_ASSIGN_OR_RETURN(
+      std::string opt_ir,
+      tools::OptimizeIrForTop(
+          /*input_path=*/input_path, /*opt_level=*/opt_level,
+          /*mutual_exclusion_z3_rlimit=*/mutual_exclusion_z3_rlimit,
+          /*top=*/top,
+          /*ir_dump_path=*/ir_dump_path,
+          /*run_only_passes=*/run_only_passes,
+          /*skip_passes=*/skip_passes,
+          /*convert_array_index_to_select=*/convert_array_index_to_select,
+          /*inline_procs=*/inline_procs,
+          /*ram_rewrites_pb=*/ram_rewrites_pb));
   std::cout << opt_ir;
   return absl::OkStatus();
 }

@@ -14,11 +14,11 @@
 
 proc parametric<N: u32, M: u32> {
   c: chan<uN[M]> in;
-  p: chan<uN[M]> out;
+  s: chan<uN[M]> out;
 
   init { () }
 
-  config(c: chan<uN[M]> in, p: chan<uN[M]> out) {
+  config(c: chan<uN[M]> in, s: chan<uN[M]> out) {
     (c, p)
   }
 
@@ -33,14 +33,14 @@ proc parametric<N: u32, M: u32> {
 #[test_proc]
 proc test_proc {
   terminator: chan<bool> out;
-  output_c: chan<u37> in;
-  input_p: chan<u37> out;
+  output_r: chan<u37> in;
+  input_s: chan<u37> out;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (input_p, input_c) = chan<u37>;
-    let (output_p, output_c) = chan<u37>;
+    let (input_s, input_r) = chan<u37>;
+    let (output_s, output_r) = chan<u37>;
     spawn parametric<u32:32, u32:37>(input_c, output_p)();
     (terminator, output_c, input_p)
   }

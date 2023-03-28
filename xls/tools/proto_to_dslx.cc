@@ -26,7 +26,7 @@
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls {
 namespace internal {
@@ -144,7 +144,7 @@ bool IsFieldSigned(FieldDescriptor::Type type) {
 // "repeated".
 uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
                        const FieldDescriptor& fd,
-                       std::optional<int> index = absl::nullopt) {
+                       std::optional<int> index = std::nullopt) {
   switch (fd.type()) {
     case FieldDescriptor::Type::TYPE_BOOL:
       if (index) {
@@ -513,9 +513,9 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       // Message/struct or enum.
       std::string type_name = std::get<std::string>(element.type);
       auto* type_ref = module->Make<dslx::TypeRef>(
-          span, type_name, name_to_record->at(type_name)->dslx_typedef);
+          span, name_to_record->at(type_name)->dslx_typedef);
       type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
-          span, type_ref, std::vector<dslx::Expr*>());
+          span, type_ref, std::vector<dslx::ExprOrType>{});
     } else {
       // Anything else that's supported, i.e., a number.
       FieldDescriptor::Type field_type =
@@ -714,9 +714,9 @@ absl::Status EmitStructData(
     std::string type_name =
         GetParentPrefixedName(top_package, fd->message_type());
     auto* type_ref = module->Make<dslx::TypeRef>(
-        span, type_name, name_to_record.at(type_name)->dslx_typedef);
+        span, name_to_record.at(type_name)->dslx_typedef);
     auto* typeref_type = module->Make<dslx::TypeRefTypeAnnotation>(
-        span, type_ref, std::vector<dslx::Expr*>());
+        span, type_ref, std::vector<dslx::ExprOrType>{});
     return EmitArray(
         module, message, fd, reflection, message_record, &array_elements,
         [module, typeref_type]() {
@@ -922,7 +922,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
                        ConstructProtoViaText(text_proto, message_name,
                                              descriptor_pool, &factory));
 
-  auto module = std::make_unique<dslx::Module>("the_module");
+  auto module =
+      std::make_unique<dslx::Module>("the_module", /*fs_path=*/std::nullopt);
 
   ProtoToDslxManager proto_to_dslx(module.get());
   XLS_RETURN_IF_ERROR(proto_to_dslx.AddProtoInstantiationToDslxModule(
@@ -936,7 +937,7 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
 ProtoToDslxManager::ProtoToDslxManager(dslx::Module* module)
     : module_(module) {}
 
-ProtoToDslxManager::~ProtoToDslxManager() {}
+ProtoToDslxManager::~ProtoToDslxManager() = default;
 
 absl::Status ProtoToDslxManager::AddProtoInstantiationToDslxModule(
     std::string_view binding_name, const Message& message) {

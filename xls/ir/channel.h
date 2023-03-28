@@ -100,7 +100,7 @@ class Channel {
     if (metadata_.block_ports().has_block_name()) {
       return metadata_.block_ports().block_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of data port this channel is associated with.
@@ -111,7 +111,7 @@ class Channel {
     if (metadata_.block_ports().has_data_port_name()) {
       return metadata_.block_ports().data_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of valid port this channel is associated with.
@@ -122,7 +122,7 @@ class Channel {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().valid_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Returns / sets name of ready port this channel is associated with.
@@ -133,7 +133,7 @@ class Channel {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().ready_port_name();
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   ChannelKind kind() const { return kind_; }
@@ -181,7 +181,7 @@ class StreamingChannel : public Channel {
         fifo_depth_(fifo_depth),
         flow_control_(flow_control) {}
 
-  virtual bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const override {
     if (GetFlowControl() == FlowControl::kReadyValid) {
       return GetBlockName().has_value() && GetDataPortName().has_value() &&
              GetReadyPortName().has_value() && GetValidPortName().has_value();
@@ -196,7 +196,7 @@ class StreamingChannel : public Channel {
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
- public:
+ private:
   std::optional<int64_t> fifo_depth_;
   FlowControl flow_control_;
 };
@@ -212,7 +212,7 @@ class SingleValueChannel : public Channel {
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
                 /*initial_values=*/{}, metadata) {}
 
-  virtual bool HasCompletedBlockPortNames() const override {
+  bool HasCompletedBlockPortNames() const override {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 };

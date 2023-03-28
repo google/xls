@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 
-#include "absl/base/casts.h"
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"

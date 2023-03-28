@@ -18,11 +18,13 @@
 // issues between InterpData and BytecodeEmitter, we need an interstitial
 // library here.
 
+#include <filesystem>  // NOLINT
 #include <memory>
+#include <string>
 
 #include "absl/types/span.h"
-#include "xls/dslx/bytecode.h"
-#include "xls/dslx/bytecode_cache.h"
+#include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/import_data.h"
 
 namespace xls::dslx {

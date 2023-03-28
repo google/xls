@@ -15,9 +15,23 @@
 #ifndef XLS_DSLX_INTERP_VALUE_H_
 #define XLS_DSLX_INTERP_VALUE_H_
 
+#include <cstdint>
 #include <deque>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
-#include "xls/dslx/ast.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/value_format_descriptor.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
@@ -26,6 +40,7 @@ namespace xls::dslx {
 #define XLS_DSLX_BUILTIN_EACH(X)         \
   X("add_with_carry", kAddWithCarry)     \
   X("and_reduce", kAndReduce)            \
+  X("array_rev", kArrayRev)              \
   X("assert_eq", kAssertEq)              \
   X("assert_lt", kAssertLt)              \
   X("bit_slice", kBitSlice)              \
@@ -115,6 +130,7 @@ class InterpValue {
   static InterpValue MakeUBits(int64_t bit_count, int64_t value);
   static InterpValue MakeSBits(int64_t bit_count, int64_t value);
 
+  static InterpValue MakeZeroValue(bool is_signed, int64_t bit_count);
   static InterpValue MakeMaxValue(bool is_signed, int64_t bit_count);
 
   static InterpValue MakeUnit() { return MakeTuple({}); }
@@ -288,6 +304,9 @@ class InterpValue {
       FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
 
+  absl::StatusOr<std::string> ToFormattedString(
+      const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
+
   InterpValueTag tag() const { return tag_; }
 
   absl::StatusOr<const std::vector<InterpValue>*> GetValues() const {
@@ -327,7 +346,7 @@ class InterpValue {
       return std::get<EnumData>(payload_);
     }
 
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   // Note: different from IsBits() which is checking whether the tag is sbits or
@@ -369,6 +388,28 @@ class InterpValue {
 
  private:
   friend struct InterpValuePickler;
+
+  // Formats this tuple value using the given struct format description.
+  //
+  // Returns an error status if the struct descriptor does not correspond to the
+  // tuple structure appropriately.
+  //
+  // Precondition: IsTuple()
+  absl::StatusOr<std::string> ToStructString(
+      const StructFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for tuple values (that are not participating in a struct
+  // type).
+  absl::StatusOr<std::string> ToTupleString(
+      const TupleFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for array values.
+  absl::StatusOr<std::string> ToArrayString(
+      const ArrayFormatDescriptor& fmt_desc, int64_t indentation) const;
+
+  // As above but for enum values.
+  absl::StatusOr<std::string> ToEnumString(
+      const EnumFormatDescriptor& fmt_desc) const;
 
   // Note: currently InterpValues are not scoped to a lifetime, so we use a
   // shared_ptr for referring to token data for identity purposes.

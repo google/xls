@@ -33,7 +33,7 @@ absl::Status MalformedInputError(std::string s) {
 
 absl::StatusOr<std::optional<uint8_t>> SpanPopper::operator()() {
   if (i_ >= bytes_.size()) {
-    return absl::nullopt;
+    return std::nullopt;
   }
   return bytes_[i_++];
 }
@@ -122,7 +122,7 @@ absl::StatusOr<std::optional<uint8_t>> ByteStream::PeekEof() {
 absl::Status ByteStream::Drop() {
   XLS_RETURN_IF_ERROR(Peek().status());
   XLS_RET_CHECK(lookahead_.has_value());
-  lookahead_ = absl::nullopt;
+  lookahead_ = std::nullopt;
   popped_index_ += 1;
   return absl::OkStatus();
 }

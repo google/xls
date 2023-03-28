@@ -173,6 +173,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUMul(ArithOp* mul) override;
   absl::Status HandleUMulp(PartialProductOp* mul) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
+  absl::Status HandleInvoke(Invoke* invoke) override;
 
   FunctionBase* xls_function() { return xls_function_; }
 

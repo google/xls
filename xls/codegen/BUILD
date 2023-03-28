@@ -16,6 +16,7 @@
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -230,12 +231,10 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "//xls/common:proto_adaptor_utils",
         "//xls/common/logging",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
@@ -713,11 +712,15 @@ cc_test(
         "testdata/block_generator_test_*",
     ]),
     deps = [
+        ":block_conversion",
         ":block_generator",
         ":op_override_impls",
         ":signature_generator",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:channel_cc_proto",
@@ -938,15 +941,14 @@ cc_library(
     deps = [
         ":block_conversion",
         ":codegen_pass",
+        ":ram_configuration",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
-        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:type",
     ],
 )
 
@@ -957,13 +959,17 @@ cc_test(
         ":block_conversion",
         ":codegen_options",
         ":codegen_pass_pipeline",
+        ":ram_configuration",
         ":ram_rewrite_pass",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:casts",
         "//xls/common:visitor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",

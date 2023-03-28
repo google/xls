@@ -1,0 +1,13 @@
+0:0-0:29: FUNCTION :: `fn f(x: token) -> token {
+  x
+}` :: (token) -> token
+0:3-0:4: NAME_DEF :: `f` :: (token) -> token
+0:5-0:6: NAME_DEF :: `x` :: token
+0:5-0:13: PARAM :: `x: token` :: token
+0:8-0:13: TYPE_ANNOTATION :: `token` :: token
+0:18-0:23: TYPE_ANNOTATION :: `token` :: token
+0:24-0:29: BLOCK :: `{
+  x
+}` :: token
+0:26-0:27: NAME_REF :: `x` :: token
+0:26-0:27: STATEMENT :: `x` :: token

@@ -145,7 +145,7 @@ absl::StatusOr<Token> Scanner::Peek() {
 
 bool Scanner::IsIdentifierStart(char next_char) {
   // Pin names are [a-z][A-Z][0-9]+
-  return std::isalpha(next_char) || next_char == '"' || next_char == '_';
+  return std::isalpha(next_char) != 0|| next_char == '"' || next_char == '_';
 }
 
 absl::StatusOr<Token> Scanner::ScanIdentifier() {
@@ -159,8 +159,8 @@ absl::StatusOr<Token> Scanner::ScanIdentifier() {
 
   std::string identifier;
   // Identifiers as defined in section 5.6 of the SystemVerilog standard.
-  while (!Eof() &&
-         (std::isalnum(next_char) || next_char == '_' || next_char == '$')) {
+  while (!Eof() && (std::isalnum(next_char) != 0 || next_char == '_' ||
+                    next_char == '$')) {
     identifier.push_back(next_char);
     XLS_RETURN_IF_ERROR(DropChar());
     if (!Eof()) {

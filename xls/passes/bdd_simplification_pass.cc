@@ -298,7 +298,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           node->ReplaceUsesWithNew<Select>(
                   /*selector=*/bit0_selector,
                   std::vector<Node*>{ohs->get_case(1), ohs->get_case(0)},
-                  /*default_value*/ absl::nullopt)
+                  /*default_value*/ std::nullopt)
               .status());
     }
     return true;

@@ -424,11 +424,7 @@ Bits Negate(const Bits& bits) {
 }
 
 Bits Abs(const Bits& bits) {
-  if (bits.GetFromMsb(0)) {
-    return Negate(bits);
-  } else {
-    return bits;
-  }
+  return (bits.GetFromMsb(0)) ? Negate(bits) : bits;
 }
 
 Bits ShiftLeftLogical(const Bits& bits, int64_t shift_amount) {

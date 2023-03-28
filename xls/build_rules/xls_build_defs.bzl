@@ -54,6 +54,7 @@ load(
     _xls_dslx_cpp_type_library = "xls_dslx_cpp_type_library",
     _xls_dslx_opt_ir_macro = "xls_dslx_opt_ir_macro",
     _xls_dslx_verilog_build_and_test = "xls_dslx_verilog_build_and_test",
+    _xls_synthesis_metrics = "xls_synthesis_metrics",
 )
 load(
     "//xls/build_rules:xls_rules.bzl",
@@ -95,3 +96,4 @@ xls_benchmark_verilog = _xls_benchmark_verilog
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
 xls_dslx_verilog = _xls_dslx_verilog_build_and_test
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library
+xls_synthesis_metrics = _xls_synthesis_metrics

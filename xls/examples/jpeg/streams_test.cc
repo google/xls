@@ -29,14 +29,14 @@ using testing::HasSubstr;
 using Popper = std::function<absl::StatusOr<std::optional<uint8_t>>()>;
 
 Popper EmptyPopper() {
-  return []() { return absl::nullopt; };
+  return []() { return std::nullopt; };
 }
 
 TEST(ByteStreamTest, ByteStreamEmpty) {
   ByteStream bs(EmptyPopper());
   EXPECT_EQ(bs.popped_index(), 0);
   EXPECT_THAT(bs.AtEof(), IsOkAndHolds(true));
-  EXPECT_THAT(bs.PeekEof(), IsOkAndHolds(absl::nullopt));
+  EXPECT_THAT(bs.PeekEof(), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(bs.AtEof(), IsOkAndHolds(true));
   EXPECT_EQ(bs.popped_index(), 0);
 }
@@ -69,7 +69,7 @@ TEST(ByteStreamTest, PeekPopToEof) {
   EXPECT_THAT(bs.AtEof(), IsOkAndHolds(false));
   EXPECT_THAT(bs.Pop(), IsOkAndHolds(0xaa));
   EXPECT_THAT(bs.AtEof(), IsOkAndHolds(true));
-  EXPECT_THAT(bs.PeekEof(), IsOkAndHolds(absl::nullopt));
+  EXPECT_THAT(bs.PeekEof(), IsOkAndHolds(std::nullopt));
   EXPECT_THAT(bs.AtEof(), IsOkAndHolds(true));
 }
 

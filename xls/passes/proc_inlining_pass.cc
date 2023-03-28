@@ -31,7 +31,7 @@ namespace {
 
 // Makes and returns a node computing Not(node).
 absl::StatusOr<Node*> Not(
-    Node* node, std::optional<std::string_view> name = absl::nullopt) {
+    Node* node, std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return node->function_base()->MakeNodeWithName<UnOp>(
         node->loc(), node, Op::kNot, name.value());
@@ -41,7 +41,7 @@ absl::StatusOr<Node*> Not(
 
 // Makes and returns a node computing Identity(node).
 absl::StatusOr<Node*> Identity(
-    Node* node, std::optional<std::string_view> name = absl::nullopt) {
+    Node* node, std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return node->function_base()->MakeNodeWithName<UnOp>(
         node->loc(), node, Op::kIdentity, name.value());
@@ -52,7 +52,7 @@ absl::StatusOr<Node*> Identity(
 
 // Makes and returns a node computing And(a, b).
 absl::StatusOr<Node*> And(
-    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kAnd, name.value());
@@ -63,7 +63,7 @@ absl::StatusOr<Node*> And(
 
 // Makes and returns a node computing Or(a, b).
 absl::StatusOr<Node*> Or(
-    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = std::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kOr, name.value());
@@ -74,7 +74,7 @@ absl::StatusOr<Node*> Or(
 
 // Makes and returns a node computing And(a, !b).
 absl::StatusOr<Node*> AndNot(
-    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = std::nullopt) {
   Node* not_b;
   if (name.has_value()) {
     XLS_ASSIGN_OR_RETURN(not_b, a->function_base()->MakeNodeWithName<UnOp>(
@@ -275,7 +275,7 @@ class VirtualChannel {
             proc->MakeNodeWithName<Select>(
                 SourceInfo(), /*selector=*/vc.any_send_fired_, /*cases=*/
                 std::vector<Node*>{vc.saved_data_->GetState(), vc.data_in_},
-                /*default_case=*/absl::nullopt,
+                /*default_case=*/std::nullopt,
                 absl::StrFormat("%s_data_next", channel->name())));
         XLS_RETURN_IF_ERROR(vc.saved_data_->SetNext(data_next));
 
@@ -288,7 +288,7 @@ class VirtualChannel {
                 SourceInfo(),
                 /*selector=*/vc.saved_data_valid_->GetState(), /*cases=*/
                 std::vector<Node*>{vc.data_in_, vc.saved_data_->GetState()},
-                /*default_case=*/absl::nullopt,
+                /*default_case=*/std::nullopt,
                 absl::StrFormat("%s_data_out", channel->name())));
 
         // Logic for the data valid bit state:
@@ -366,7 +366,7 @@ class VirtualChannel {
                            data->function_base()->MakeNode<Select>(
                                data->loc(), /*selector=*/send_fired, /*cases=*/
                                std::vector<Node*>{data_in_, data},
-                               /*default_case=*/absl::nullopt));
+                               /*default_case=*/std::nullopt));
       XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(select));
       data_in_ = select;
 
@@ -579,7 +579,7 @@ class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
     // an element of the output might come from any operand data source.
     LeafTypeTree<std::vector<Receive*>> ltt(node->GetType(),
                                             FlattenOperandVectors(node));
-    return SetValue(node, std::move(ltt));
+    return SetValue(node, ltt);
   }
 
   absl::Status HandleReceive(Receive* receive) override {
@@ -589,7 +589,7 @@ class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
                                             {receive->As<Receive>()});
     // The token element is not considered a data dependency.
     ltt.Get({0}).clear();
-    return SetValue(receive, std::move(ltt));
+    return SetValue(receive, ltt);
   }
 
   std::vector<Receive*> FlattenOperandVectors(Node* node) {
@@ -838,7 +838,7 @@ class ProcThread {
         AllocateActivationNode(
             absl::StrFormat("%s_activation_sink", inlined_proc_->name()),
             /*activations_in=*/{final_activation_node->activation_out},
-            absl::nullopt));
+            std::nullopt));
     XLS_RETURN_IF_ERROR(
         activation_state_->SetNext(sink_activation_node_->activation_out));
 
@@ -873,7 +873,7 @@ class ProcThread {
           container_proc_->MakeNodeWithName<Select>(
               SourceInfo(), /*selector=*/GetProcTickComplete(), /*cases=*/
               std::vector<Node*>{GetDummyState(i), next_state.at(i)},
-              /*default_case=*/absl::nullopt,
+              /*default_case=*/std::nullopt,
               absl::StrFormat("%s_%s_next_state", inlined_proc_->name(),
                               inlined_proc_->GetStateParam(i)->GetName())));
       XLS_RETURN_IF_ERROR(proc_state_.at(i)->SetNext(state_next));
@@ -1057,7 +1057,7 @@ class ProcThread {
               SourceInfo(),
               /*selector=*/anode.activation_out, /*cases=*/
               std::vector<Node*>{data_state->GetState(), receive_data},
-              /*default_case=*/absl::nullopt,
+              /*default_case=*/std::nullopt,
               absl::StrFormat("%s_data", channel->name())));
       XLS_RETURN_IF_ERROR(data_state->SetNext(maybe_saved_data));
 
@@ -1395,7 +1395,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
                        SourceInfo(),
                        /*selector=*/receive_fired, /*cases=*/
                        std::vector<Node*>{zero, virtual_channel.GetDataOut()},
-                       /*default_case=*/absl::nullopt,
+                       /*default_case=*/std::nullopt,
                        absl::StrFormat("%s_receive_data", channel->name())));
 
   // The output of a receive operation is a tuple of (token, data).

@@ -85,7 +85,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // Handles an operation that is variadic and has an implementation given by
   // the given function which has the given tonicities for each argument.
   //
-  // The function may return `absl::nullopt` to indicate that some
+  // The function may return `std::nullopt` to indicate that some
   // exception has occurred, like an integer overflow, which invalidates the
   // analysis. When that happens, this function will return without any side
   // effects having occurred.
@@ -99,7 +99,7 @@ class RangeQueryVisitor : public DfsVisitor {
 
   // Handles an operation that is monotone, unary (and whose argument is given
   // by `op->operand(0)`), and has an implementation given by the given
-  // function. The function may return `absl::nullopt` to indicate that some
+  // function. The function may return `std::nullopt` to indicate that some
   // exception has occurred, like an integer overflow, which invalidates the
   // analysis. When that happens, this function will return without any side
   // effects having occurred.
@@ -111,7 +111,7 @@ class RangeQueryVisitor : public DfsVisitor {
 
   // Handles an operation that is antitone, unary (and whose argument is given
   // by `op->operand(0)`), and has an implementation given by the given
-  // function. The function may return `absl::nullopt` to indicate that some
+  // function. The function may return `std::nullopt` to indicate that some
   // exception has occurred, like an integer overflow, which invalidates the
   // analysis. When that happens, this function will return without any side
   // effects having occurred.
@@ -124,7 +124,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // Handles an operation that is binary (and whose arguments are given by
   // `op->operand(0)` and `op->operand(1)`), monotone in both arguments, and
   // has an implementation given by the given function. The function may return
-  // `absl::nullopt` to indicate that some exception has occurred, like an
+  // `std::nullopt` to indicate that some exception has occurred, like an
   // integer overflow, which invalidates the analysis. When that happens, this
   // function will return without any side effects having occurred.
   //
@@ -139,7 +139,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // Handles an operation that is binary (and whose arguments are given by
   // `op->operand(0)` and `op->operand(1)`), monotone in the first argument
   // and antitone in the second argument, and has an implementation given by
-  // the given function. The function may return `absl::nullopt` to indicate
+  // the given function. The function may return `std::nullopt` to indicate
   // that some exception has occurred, like an integer overflow, which
   // invalidates the analysis. When that happens, this function will return
   // without any side effects having occurred.
@@ -157,7 +157,7 @@ class RangeQueryVisitor : public DfsVisitor {
   //
   // If the given interval sets are precise and identical, returns `true`.
   // If the given interval sets are disjoint, returns `false`.
-  // In all other cases, returns `absl::nullopt`.
+  // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeEq(const IntervalSet& lhs,
                                         const IntervalSet& rhs);
 
@@ -168,7 +168,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // returns `true`.
   // If `lhs` is disjoint from `rhs` and `rhs.ConvexHull() < lhs.ConvexHull()`,
   // returns `false`.
-  // In all other cases, returns `absl::nullopt`.
+  // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeLt(const IntervalSet& lhs,
                                         const IntervalSet& rhs);
 
@@ -581,7 +581,7 @@ std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
   if (is_disjoint) {
     return false;
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 std::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
@@ -598,7 +598,7 @@ std::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
       }
     }
   }
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 IntervalSet RangeQueryVisitor::FalseIntervalSet() {
@@ -634,7 +634,7 @@ absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
         Bits padded_result = bits_ops::Add(padded_lhs, padded_rhs);
         // If the MSB is 1, then we overflowed.
         if (padded_result.msb()) {
-          return absl::nullopt;
+          return std::nullopt;
         }
         return bits_ops::Add(lhs, rhs);
       },
@@ -1238,7 +1238,7 @@ absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
         if (bits_ops::ULessThanOrEqual(rhs, lhs)) {
           return bits_ops::Sub(lhs, rhs);
         }
-        return absl::nullopt;
+        return std::nullopt;
       },
       sub);
 }

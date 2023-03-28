@@ -14,8 +14,7 @@
 
 #include "xls/data_structures/path_cut.h"
 
-#include <stdint.h>
-
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -141,7 +140,7 @@ PG CreatePathGraph(absl::Span<const int32_t> node_weights,
 TEST(PathCutTest, SingleNodeTest) {
   // (50)
   PG path = CreatePathGraph({50}, {});
-  EXPECT_EQ(path.ComputePathCut(30), absl::nullopt);
+  EXPECT_EQ(path.ComputePathCut(30), std::nullopt);
   EXPECT_EQ(path.ComputePathCut(70).value(), PathCut({{PathNodeId(0)}}));
 }
 
@@ -183,7 +182,7 @@ struct ColoredNodeWeight {
 
 PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
   return {[]() -> ColoredNodeWeight {
-            return {absl::nullopt, 0};
+            return {std::nullopt, 0};
           },
           [](const ColoredNodeWeight& x,
              const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
@@ -197,7 +196,7 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
             }
             if (static_cast<int32_t>(x.interval->second) + 1 !=
                 static_cast<int32_t>(y.interval->first)) {
-              return absl::nullopt;
+              return std::nullopt;
             }
             return {{{{x.interval->first, y.interval->second}},
                      x.weight + y.weight}};
@@ -205,14 +204,14 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
           [](const ColoredNodeWeight& x,
              const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
             if (!x.interval) {
-              return absl::nullopt;
+              return std::nullopt;
             }
             if (!y.interval) {
               XLS_CHECK_EQ(y.weight, 0);
               return x;
             }
             if (x.interval->first != y.interval->first) {
-              return absl::nullopt;
+              return std::nullopt;
             }
             PathNodeId start(static_cast<int32_t>(y.interval->second) + 1);
             PathNodeId end(x.interval->second);
@@ -241,7 +240,7 @@ TEST(PathCutTest, NonIntNodeWeightsTest) {
           ColoredNodeWeightPDM(), AddSubPDM<int32_t>(),
           ColoredNodeWeightTotalOrder(), LessThanTotalOrder<int32_t>());
 
-  EXPECT_EQ(path.ComputePathCut({absl::nullopt, 70}),
+  EXPECT_EQ(path.ComputePathCut({std::nullopt, 70}),
             absl::make_optional<PathCut>({{PathNodeId(0), PathNodeId(1)},
                                           {PathNodeId(2), PathNodeId(3)}}));
 }

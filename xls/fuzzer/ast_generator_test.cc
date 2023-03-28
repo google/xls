@@ -57,9 +57,9 @@ absl::Status ParseAndTypecheck(std::string_view text,
 
 TEST(AstGeneratorTest, BitsTypeGetMetadata) {
   AstGeneratorOptions options;
-  ValueGenerator value_gen(std::mt19937{0});
+  ValueGenerator value_gen(std::mt19937_64{0});
   AstGenerator g(options, &value_gen);
-  g.module_ = std::make_unique<Module>("test_module");
+  g.module_ = std::make_unique<Module>("test_module", /*fs_path=*/std::nullopt);
 
   TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
   XLS_LOG(INFO) << "u7: " << u7->ToString();
@@ -77,16 +77,16 @@ TEST(AstGeneratorTest, BitsTypeGetMetadata) {
 }
 
 TEST(AstGeneratorTest, GeneratesParametricBindings) {
-  ValueGenerator value_gen(std::mt19937{0});
+  ValueGenerator value_gen(std::mt19937_64{0});
   AstGenerator g(AstGeneratorOptions(), &value_gen);
-  g.module_ = std::make_unique<Module>("my_mod");
+  g.module_ = std::make_unique<Module>("my_mod", /*fs_path=*/std::nullopt);
   std::vector<ParametricBinding*> pbs = g.GenerateParametricBindings(2);
   EXPECT_EQ(pbs.size(), 2);
   // TODO(https://github.com/google/googletest/issues/3084): 2021-08-12
   // googletest cannot currently seem to use \d in regexp patterns, which is
   // quite surprising.
   constexpr const char* kWantPattern =
-      R"(x[0-9]+: u[0-9]+ = u[0-9]+:0x[0-9a-f_]+)";
+      R"(x[0-9]+: u[0-9]+ = \{u[0-9]+:0x[0-9a-f_]+\})";
   EXPECT_THAT(pbs[0]->ToString(), MatchesRegex(kWantPattern));
   EXPECT_THAT(pbs[1]->ToString(), MatchesRegex(kWantPattern));
 }
@@ -95,7 +95,7 @@ namespace {
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidFunctions) {
-  ValueGenerator value_gen(std::mt19937{0});
+  ValueGenerator value_gen(std::mt19937_64{0});
   AstGeneratorOptions options;
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, &value_gen);
@@ -112,7 +112,7 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
 // Simply tests that we generate a bunch of valid procs with an empty state type
 // using seed 0 (that parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
-  ValueGenerator value_gen(std::mt19937{0});
+  ValueGenerator value_gen(std::mt19937_64{0});
   AstGeneratorOptions options;
   options.generate_proc = true;
   options.emit_stateless_proc = true;
@@ -136,7 +136,7 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
 // Simply tests that we generate a bunch of valid procs with a random state type
 // using seed 0 (that parse and typecheck).
 TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
-  ValueGenerator value_gen(std::mt19937{0});
+  ValueGenerator value_gen(std::mt19937_64{0});
   AstGeneratorOptions options;
   options.generate_proc = true;
   // Regex matcher for the next function signature.
@@ -165,7 +165,7 @@ static void TestRepeatable(uint64_t seed) {
   std::optional<std::string> first;
   // Try 32 generations at a given seed.
   for (int64_t i = 0; i < 32; ++i) {
-    ValueGenerator value_gen(std::mt19937{seed});
+    ValueGenerator value_gen(std::mt19937_64{seed});
     AstGenerator g(options, &value_gen);
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
                              g.Generate("main", "test"));

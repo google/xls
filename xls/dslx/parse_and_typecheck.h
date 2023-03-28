@@ -15,11 +15,14 @@
 #ifndef XLS_DSLX_PARSE_AND_TYPECHECK_H_
 #define XLS_DSLX_PARSE_AND_TYPECHECK_H_
 
-#include <filesystem>
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string_view>
 
-#include "xls/dslx/ast.h"
+#include "absl/status/statusor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_routines.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {

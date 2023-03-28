@@ -40,20 +40,22 @@ class DslxOptimizationTest : public IrTestBase {
   absl::StatusOr<std::unique_ptr<VerifiedPackage>> DslxToIr(
       std::string_view dslx) {
     XLS_ASSIGN_OR_RETURN(TempFile dslx_temp, TempFile::CreateWithContent(dslx));
-    XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_converter_main_path,
-                         GetXlsRunfilePath("xls/dslx/ir_converter_main"));
+    XLS_ASSIGN_OR_RETURN(
+        std::filesystem::path ir_converter_main_path,
+        GetXlsRunfilePath("xls/dslx/ir_convert/ir_converter_main"));
     std::pair<std::string, std::string> stdout_stderr;
-    XLS_ASSIGN_OR_RETURN(stdout_stderr,
-                         InvokeSubprocess({ir_converter_main_path.string(),
-                                           dslx_temp.path().string()}));
+    XLS_ASSIGN_OR_RETURN(
+        stdout_stderr,
+        SubprocessResultToStrings(SubprocessErrorAsStatus(InvokeSubprocess(
+            {ir_converter_main_path.string(), dslx_temp.path().string()}))));
     return ParsePackage(stdout_stderr.first);
   }
 
   // Returns the number of operations with one of the given opcodes in the
   // function.
-  int64_t OpCount(Function* function, absl::Span<const Op> ops) {
+  int64_t OpCount(FunctionBase* function_base, absl::Span<const Op> ops) {
     int64_t count = 0;
-    for (Node* node : function->nodes()) {
+    for (Node* node : function_base->nodes()) {
       if (std::find(ops.begin(), ops.end(), node->op()) != ops.end()) {
         ++count;
       }
@@ -62,8 +64,8 @@ class DslxOptimizationTest : public IrTestBase {
   }
 
   // Returns true if the given IR function has a node with the given op.
-  bool FunctionHasOp(Function* function, Op op) {
-    return OpCount(function, {op}) != 0;
+  bool HasOp(FunctionBase* function_base, Op op) {
+    return OpCount(function_base, {op}) != 0;
   }
 };
 
@@ -88,14 +90,14 @@ fn main(i: u32) -> (bool, u32) {
   // TODO(b/159035667): The optimized IR is much more complicated than it should
   // be. When optimizations have been added which simplify the IR, add stricter
   // tests here.
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayIndex));
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kArrayUpdate));
-  EXPECT_FALSE(FunctionHasOp(entry, Op::kReverse));
+  EXPECT_FALSE(HasOp(entry, Op::kArrayIndex));
+  EXPECT_FALSE(HasOp(entry, Op::kArrayUpdate));
+  EXPECT_FALSE(HasOp(entry, Op::kReverse));
 
   // TODO(https://github.com/google/xls/issues/423) 2021/04/05 Sensitivity
   // analysis should be able to remove these nodes.
-  EXPECT_TRUE(FunctionHasOp(entry, Op::kSignExt));
-  EXPECT_TRUE(FunctionHasOp(entry, Op::kAnd));
+  EXPECT_TRUE(HasOp(entry, Op::kSignExt));
+  EXPECT_TRUE(HasOp(entry, Op::kAnd));
 }
 
 TEST_F(DslxOptimizationTest, AttributeNamePropagation) {
@@ -136,7 +138,7 @@ fn main(foo: S, foo_bar: S) -> u8 {
 TEST_F(DslxOptimizationTest, UpdateSliceOfWideVector) {
   std::string input = R"(
 pub fn make_mask
-  <N : u32, B : u32, N_PLUS_1: u32 = N + u32:1, MAX_N_B:u32 = if N > B { N } else { B }>
+  <N : u32, B : u32, N_PLUS_1: u32 = {N + u32:1}, MAX_N_B:u32 = {if N > B { N } else { B }}>
   (num_ones : uN[B])
   -> uN[N] {
   let num_bits_clamped =
@@ -200,6 +202,60 @@ fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
 
   // The original has five shifts. Verify that only four remain.
   EXPECT_EQ(OpCount(entry, {Op::kShll, Op::kShrl, Op::kShra}), 4);
+}
+
+TEST_F(DslxOptimizationTest, ReceiveZeroDefaultValue) {
+  std::string input = R"(
+proc main {
+  in_ch: chan<u32> in;
+
+  init { u32:42 }
+
+  config(ch: chan<u32> in) {
+    (ch, )
+  }
+
+  next (tok: token, state: u32) {
+    let (tok, data) = recv_if(tok, in_ch, state == u32:0, u32:0);
+    data
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  Proc* main = package->procs().front().get();
+
+  // A select is added to handle the default value. Verify it is removed.
+  EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  // Selects with zero can be simplified to ANDs.
+  EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
+}
+
+TEST_F(DslxOptimizationTest, ReceiveZeroDefaultValueCompoundType) {
+  std::string input = R"(
+proc main {
+  in_ch: chan<(u32, u16, u8)> in;
+
+  init { (u32:0, u16:0, u8:0) }
+
+  config(ch: chan<(u32, u16, u8)> in) {
+    (ch, )
+  }
+
+  next (tok: token, state: (u32, u16, u8)) {
+    let (tok, data) = recv_if(tok, in_ch, state.0 == u32:0, (u32:0, u16:0, u8:0));
+    data
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
+  Proc* main = package->procs().front().get();
+
+  // A select is added to handle the default value. Verify it is removed.
+  EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
+  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  // Selects with zero can be simplified to ANDs.
+  EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
 }
 
 }  // namespace

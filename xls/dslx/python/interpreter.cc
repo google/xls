@@ -13,12 +13,19 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <deque>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/optional.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
@@ -27,19 +34,19 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/import_status_module.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/bytecode.h"
-#include "xls/dslx/bytecode_emitter.h"
-#include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/concrete_type.h"
+#include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/python/errors.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;
@@ -71,8 +78,6 @@ absl::StatusOr<std::vector<InterpValue>> RunFunctionBatched(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
                        BytecodeEmitter::Emit(&import_data, tm.type_info, f,
                                              /*caller_bindings=*/{}));
-  XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       tm.type_info->GetItemAs<FunctionType>(f));
   std::vector<InterpValue> results;
   results.reserve(args_batch.size());
   for (const std::vector<InterpValue>& args : args_batch) {
@@ -107,7 +112,7 @@ ConvertChannelValues(
           "Only channels are supported as parameters to the config function of "
           "a proc");
     }
-    if (channel_type->direction() != ChannelTypeAnnotation::kIn) {
+    if (channel_type->direction() != ChannelDirection::kIn) {
       continue;
     }
     converted_channel_values.insert(
@@ -175,9 +180,9 @@ RunProc(
           "Only channels are supported as parameters to the config function of "
           "a proc");
     }
-    if (channel_type->direction() == ChannelTypeAnnotation::kIn) {
+    if (channel_type->direction() == ChannelDirection::kIn) {
       config_args.push_back(input_channel_values.at(param->identifier()));
-    } else if (channel_type->direction() == ChannelTypeAnnotation::kOut) {
+    } else if (channel_type->direction() == ChannelDirection::kOut) {
       config_args.push_back(InterpValue::MakeChannel());
       out_chan_indexes.push_back(index);
       out_ir_channel_names.push_back(absl::StrCat(
@@ -186,12 +191,12 @@ RunProc(
   }
 
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::EvalSpawn(
-      &import_data, proc_type_info, absl::nullopt, absl::nullopt, proc,
+      &import_data, proc_type_info, std::nullopt, std::nullopt, proc,
       config_args, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
   for (int i = 0; i < proc_ticks; i++) {
-    XLS_RETURN_IF_ERROR(proc_instances[0].Run());
+    XLS_RETURN_IF_ERROR(proc_instances[0].Run().status());
   }
 
   // TODO(vmirian): Ideally, the result should be a tuple containing two

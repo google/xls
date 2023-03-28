@@ -15,7 +15,6 @@
 """Provides helper that loads external repositories with third-party code."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm:workspace.bzl", repo_llvm = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -26,6 +25,13 @@ def load_external_repositories():
     repo_boost()
     repo_llvm()
     repo_rules_hdl()
+
+    http_archive(
+        name = "rules_cc",
+        urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.5/rules_cc-0.0.5.tar.gz"],
+        sha256 = "2004c71f3e0a88080b2bd3b6d3b73b4c597116db9c9a36676d0ffad39b849214",
+        strip_prefix = "rules_cc-0.0.5",
+    )
 
     http_archive(
         name = "com_google_googletest",
@@ -54,21 +60,21 @@ def load_external_repositories():
         sha256 = "74d544d96f4a5bb630d465ca8bbcfe231e3594e5aae57e1edbf17a6eb3ca2506",
     )
 
-    git_repository(
+    http_archive(
         name = "boringssl",
         # Commit date: 2022-09-14
         # Note for updating: we need to use a commit from the main-with-bazel branch.
-        commit = "d345d68d5c4b5471290ebe13f090f1fd5b7e8f58",
-        remote = "https://boringssl.googlesource.com/boringssl",
-        shallow_since = "1663197646 +0000",
+        strip_prefix = "boringssl-d345d68d5c4b5471290ebe13f090f1fd5b7e8f58",
+        sha256 = "482796f369c8655dbda3be801ae98c47916ecd3bff223d007a723fd5f5ecba22",
+        urls = ["https://github.com/google/boringssl/archive/d345d68d5c4b5471290ebe13f090f1fd5b7e8f58.zip"],
     )
 
-    # Commit on 2022-11-02, current as of 2022-12-01
+    # Commit on 2023-02-09
     http_archive(
         name = "pybind11_bazel",
-        strip_prefix = "pybind11_bazel-faf56fb3df11287f26dbc66fdedf60a2fc2c6631",
-        urls = ["https://github.com/pybind/pybind11_bazel/archive/faf56fb3df11287f26dbc66fdedf60a2fc2c6631.tar.gz"],
-        sha256 = "a2b107b06ffe1049696e132d39987d80e24d73b131d87f1af581c2cb271232f8",
+        strip_prefix = "pybind11_bazel-fc56ce8a8b51e3dd941139d329b63ccfea1d304b",
+        urls = ["https://github.com/pybind/pybind11_bazel/archive/fc56ce8a8b51e3dd941139d329b63ccfea1d304b.tar.gz"],
+        sha256 = "150e2105f9243c445d48f3820b5e4e828ba16c41f91ab424deae1fa81d2d7ac6",
     )
 
     # Updated 2022-11-29
@@ -95,12 +101,12 @@ def load_external_repositories():
         ],
     )
 
-    # Version: pypi-v0.11.0, 2020/10/27
+    # Version release tag 2023-01-11
     http_archive(
         name = "com_google_absl_py",
-        strip_prefix = "abseil-py-ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4",
-        urls = ["https://github.com/abseil/abseil-py/archive/ddbd7d46d01fa71b0584e948d68fcd1d47bea0c4.zip"],
-        sha256 = "c4d112feb36d254de0057b9e67f5423c64908f17219b13f799b47b4deacc279c",
+        strip_prefix = "abseil-py-1.4.0",
+        urls = ["https://github.com/abseil/abseil-py/archive/refs/tags/v1.4.0.tar.gz"],
+        sha256 = "0fb3a4916a157eb48124ef309231cecdfdd96ff54adf1660b39c0d4a9790a2c0",
     )
 
     # Note - use @com_github_google_re2 instead of more canonical
@@ -192,22 +198,25 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
 
-    git_repository(
+    http_archive(
         name = "platforms",
-        remote = "https://github.com/bazelbuild/platforms.git",
-        # Apparently the arguments below are the reproducible form of this tag.
-        # tag = "0.0.5",
-        commit = "fbd0d188dac49fbcab3d2876a2113507e6fc68e9",
-        shallow_since = "1644333305 -0500",
+        urls = [
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.5/platforms-0.0.5.tar.gz",
+        ],
+        sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
     )
 
-    git_repository(
+    http_archive(
         name = "com_google_ortools",
-        commit = "525162feaadaeef640783b2eaea38cf4b623877f",
-        shallow_since = "1647023481 +0100",
-        remote = "https://github.com/google/or-tools.git",
+        urls = ["https://github.com/google/or-tools/archive/525162feaadaeef640783b2eaea38cf4b623877f.tar.gz"],
+        sha256 = "e1305990a5f2cfff2a91825cf2af7aca358e4b857af516207a996501e31825e4",
+        strip_prefix = "or-tools-525162feaadaeef640783b2eaea38cf4b623877f",
         # Removes undesired dependencies like Eigen, BLISS, SCIP
-        patches = ["@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff"],
+        patches = [
+            "@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:no-glpk.diff",
+        ],
     )
 
     http_archive(
@@ -232,4 +241,21 @@ def load_external_repositories():
         strip_prefix = "pybind11_abseil-6776a52004a92528789155b202508750049f584c",
         urls = ["https://github.com/pybind/pybind11_abseil/archive/6776a52004a92528789155b202508750049f584c.zip"],
         patches = ["@com_google_xls//dependency_support/pybind11_abseil:status_module.patch"],
+    )
+
+    # Updated 2023-2-1
+    http_archive(
+        name = "rules_license",
+        urls = [
+            "https://github.com/bazelbuild/rules_license/releases/download/0.0.4/rules_license-0.0.4.tar.gz",
+        ],
+        sha256 = "6157e1e68378532d0241ecd15d3c45f6e5cfd98fc10846045509fb2a7cc9e381",
+    )
+
+    # 2022-09-19
+    http_archive(
+        name = "com_grail_bazel_compdb",
+        sha256 = "a3ff6fe238eec8202270dff75580cba3d604edafb8c3408711e82633c153efa8",
+        strip_prefix = "bazel-compilation-database-940cedacdb8a1acbce42093bf67f3a5ca8b265f7",
+        urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )

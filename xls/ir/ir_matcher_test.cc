@@ -224,7 +224,7 @@ TEST(IrMatchersTest, Select) {
   auto pred = fb.Param("pred", p.GetBitsType(1));
   auto x = fb.Param("x", p.GetBitsType(32));
   auto y = fb.Param("y", p.GetBitsType(32));
-  fb.Select(pred, {x, y}, /*default_value=*/absl::nullopt);
+  fb.Select(pred, {x, y}, /*default_value=*/std::nullopt);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   EXPECT_THAT(f->return_value(), m::Select());
@@ -232,7 +232,7 @@ TEST(IrMatchersTest, Select) {
               m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")}));
   EXPECT_THAT(f->return_value(),
               m::Select(m::Name("pred"), {m::Name("x"), m::Name("y")},
-                        /*default_value=*/absl::nullopt));
+                        /*default_value=*/std::nullopt));
 
   EXPECT_THAT(
       Explain(f->return_value(), m::Select(m::Name("pred"), {m::Name("x")},
@@ -324,13 +324,13 @@ TEST(IrMatchersTest, SendOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", "my_token", &p);
@@ -345,12 +345,14 @@ TEST(IrMatchersTest, SendOps) {
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
   EXPECT_THAT(send.node(), m::Send(m::Name("my_token"), {m::Name("my_state")},
                                    m::Channel(42)));
+  EXPECT_THAT(send.node(), m::Send(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(send_if.node(), m::Send());
   EXPECT_THAT(send_if.node(), m::Send(m::Channel(123)));
   EXPECT_THAT(send_if.node(),
               m::Send(m::Name("my_token"), {m::Name("my_state")}, m::Literal(),
                       m::Channel(123)));
+  EXPECT_THAT(send_if.node(), m::Send(m::ChannelWithType("bits[32]")));
 }
 
 TEST(IrMatchersTest, ReceiveOps) {
@@ -359,13 +361,13 @@ TEST(IrMatchersTest, ReceiveOps) {
       Channel * ch42,
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
-          /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
+          /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", "my_token", &p);
@@ -384,6 +386,7 @@ TEST(IrMatchersTest, ReceiveOps) {
               m::Receive(m::Name("my_token"), m::Channel("ch42")));
   EXPECT_THAT(receive.node(), m::Receive(m::Name("my_token"),
                                          m::Channel(ChannelKind::kStreaming)));
+  EXPECT_THAT(receive.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   EXPECT_THAT(receive_if.node(), m::Receive());
   EXPECT_THAT(receive_if.node(), m::Receive(m::Channel(123)));
@@ -391,6 +394,7 @@ TEST(IrMatchersTest, ReceiveOps) {
                                             m::Channel("ch123")));
   EXPECT_THAT(receive_if.node(),
               m::Receive(m::Channel(ChannelKind::kStreaming)));
+  EXPECT_THAT(receive_if.node(), m::Receive(m::ChannelWithType("bits[32]")));
 
   // Mismatch conditions.
   EXPECT_THAT(Explain(receive.node(), m::Receive(m::Channel(444))),
@@ -401,6 +405,9 @@ TEST(IrMatchersTest, ReceiveOps) {
       Explain(receive.node(),
               m::Receive(m::Channel(ChannelKind::kSingleValue))),
       HasSubstr(" has incorrect kind (streaming), expected: single_value"));
+  EXPECT_THAT(
+      Explain(receive.node(), m::Receive(m::ChannelWithType("bits[64]"))),
+      HasSubstr(" has incorrect type (bits[32]), expected: bits[64]"));
 }
 
 TEST(IrMatchersTest, PortMatcher) {

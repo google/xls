@@ -29,7 +29,7 @@ class ProcStateFlatteningPass : public ProcPass {
  public:
   ProcStateFlatteningPass()
       : ProcPass("proc_state_flat", "Proc State Flattening") {}
-  ~ProcStateFlatteningPass() override {}
+  ~ProcStateFlatteningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,

@@ -18,11 +18,23 @@
 #ifndef XLS_DSLX_RUN_ROUTINES_H_
 #define XLS_DSLX_RUN_ROUTINES_H_
 
+#include <cstdint>
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "xls/common/test_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_converter.h"
-#include "xls/dslx/symbolic_bindings.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/jit/function_jit.h"
@@ -51,7 +63,7 @@ class RunComparator {
   absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
                              const Function* f,
                              absl::Span<InterpValue const> args,
-                             const SymbolicBindings* symbolic_bindings,
+                             const ParametricEnv* parametric_env,
                              const InterpValue& got);
 
   // Returns the cached or newly-compiled jit function for ir_name.  ir_name has
@@ -85,13 +97,15 @@ class RunComparator {
 struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
-  std::optional<std::string_view> test_filter = absl::nullopt;
+  std::optional<std::string_view> test_filter = std::nullopt;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
   RunComparator* run_comparator = nullptr;
   bool execute = true;
-  std::optional<int64_t> seed = absl::nullopt;
+  std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
   bool warnings_as_errors = true;
+  bool trace_channels = false;
+  std::optional<int64_t> max_ticks;
 };
 
 enum class TestResult {

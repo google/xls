@@ -626,7 +626,7 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
   using TokenT = std::variant<std::string, int64_t>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError(number_bit_width));
   std::string name;
-  std::optional<Range> range = absl::nullopt;
+  std::optional<Range> range = std::nullopt;
   if (std::holds_alternative<std::string>(token)) {
     name = std::get<std::string>(token);
     XLS_ASSIGN_OR_RETURN(range, ParseOptionalRange(false));

@@ -18,7 +18,7 @@ fn p<N: s32>(a: u32) -> uN[N] {
   a[:N]
 }
 
-fn p1<N: s32, M: s32 = N+s32:1>(a: u32) -> uN[M] {
+fn p1<N: s32, M: s32 = {N + s32:1}>(a: u32) -> uN[M] {
   a[:N+s32:1]
 }
 

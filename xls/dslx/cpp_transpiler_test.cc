@@ -13,8 +13,13 @@
 // limitations under the License.
 #include "xls/dslx/cpp_transpiler.h"
 
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"

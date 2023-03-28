@@ -33,11 +33,10 @@ class CallGraphTest : public IrTestBase {};
 TEST_F(CallGraphTest, SingleFunction) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
-  BValue x = fb.Param("x", p->GetBitsType(32));
+  fb.Param("x", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   EXPECT_THAT(GetDependentFunctions(f), ElementsAre(f));
-  EXPECT_TRUE(CalledFunctions(f).empty());
-  EXPECT_FALSE(CalledFunction(x.node()).has_value());
+  EXPECT_THAT(GetDependentFunctions(f), ElementsAre(f));
   EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(f));
 }
 
@@ -55,9 +54,9 @@ TEST_F(CallGraphTest, FunctionChain) {
   {
     FunctionBuilder fb("b", p.get());
     BValue x = fb.Param("x", u32);
-    BValue invoke = fb.Invoke({x}, a);
+    fb.Invoke({x}, a);
     XLS_ASSERT_OK_AND_ASSIGN(b, fb.Build());
-    EXPECT_THAT(CalledFunction(invoke.node()), Optional(a));
+    EXPECT_THAT(GetDependentFunctions(b), ElementsAre(a, b));
   }
   Function* c;
   {
@@ -66,8 +65,7 @@ TEST_F(CallGraphTest, FunctionChain) {
     fb.Map(array, b);
     XLS_ASSERT_OK_AND_ASSIGN(c, fb.Build());
   }
-  EXPECT_THAT(CalledFunctions(b), ElementsAre(a));
-  EXPECT_THAT(CalledFunctions(c), ElementsAre(b));
+  EXPECT_THAT(GetDependentFunctions(b), ElementsAre(a, b));
   EXPECT_THAT(GetDependentFunctions(c), ElementsAre(a, b, c));
   EXPECT_THAT(FunctionsInPostOrder(p.get()), ElementsAre(a, b, c));
 }
@@ -162,9 +160,9 @@ TEST_F(CallGraphTest, CloneFunctionAndItsDependencies) {
   {
     FunctionBuilder fb("b", p.get());
     BValue x = fb.Param("x", u32);
-    BValue invoke = fb.Invoke({x}, a);
+    fb.Invoke({x}, a);
     XLS_ASSERT_OK_AND_ASSIGN(b, fb.Build());
-    EXPECT_THAT(CalledFunction(invoke.node()), Optional(a));
+    EXPECT_THAT(GetDependentFunctions(b), ElementsAre(a, b));
   }
   Function* c;
   {

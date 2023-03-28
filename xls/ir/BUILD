@@ -23,6 +23,7 @@ load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
 # cc_proto_library is used in this file
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -179,6 +180,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
         "@rapidcheck",
     ],
@@ -258,6 +260,7 @@ cc_library(
     name = "ir",
     srcs = [
         "block.cc",
+        "call_graph.cc",
         "dfs_visitor.cc",
         "function.cc",
         "function_base.cc",
@@ -271,6 +274,7 @@ cc_library(
     ],
     hdrs = [
         "block.h",
+        "call_graph.h",
         "dfs_visitor.h",
         "function.h",
         "function_base.h",
@@ -434,6 +438,7 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -463,9 +468,9 @@ cc_test(
     size = "small",
     srcs = ["package_test.cc"],
     deps = [
-        "ir",
         ":channel",
         ":function_builder",
+        ":ir",
         ":ir_test_base",
         ":type",
         ":xls_type_cc_proto",
@@ -566,10 +571,10 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
@@ -768,7 +773,7 @@ genrule(
     cmd = "$(location :render_specification_against_template) ./xls/ir/op_header.tmpl" +
           " | $(location @llvm_toolchain_llvm//:bin/clang-format)" +
           " > $(OUTS)",
-    exec_tools = [
+    tools = [
         ":render_specification_against_template",
         "@llvm_toolchain_llvm//:bin/clang-format",
     ],
@@ -778,7 +783,7 @@ genrule(
     name = "gen_op_proto",
     outs = ["op.generated.proto"],
     cmd = "$(location :render_specification_against_template) ./xls/ir/op_proto.tmpl > $(OUTS)",
-    exec_tools = [
+    tools = [
         ":render_specification_against_template",
     ],
 )
@@ -804,7 +809,7 @@ genrule(
     cmd = "$(location :render_specification_against_template) ./xls/ir/op_source.tmpl" +
           " | $(location @llvm_toolchain_llvm//:bin/clang-format)" +
           " > $(OUTS)",
-    exec_tools = [
+    tools = [
         ":render_specification_against_template",
         "@llvm_toolchain_llvm//:bin/clang-format",
     ],
@@ -816,7 +821,7 @@ genrule(
     cmd = "$(location :render_specification_against_template) ./xls/ir/nodes_header.tmpl" +
           " | $(location @llvm_toolchain_llvm//:bin/clang-format)" +
           " > $(OUTS)",
-    exec_tools = [
+    tools = [
         ":render_specification_against_template",
         "@llvm_toolchain_llvm//:bin/clang-format",
     ],
@@ -828,7 +833,7 @@ genrule(
     cmd = "$(location :render_specification_against_template) ./xls/ir/nodes_source.tmpl" +
           " | $(location @llvm_toolchain_llvm//:bin/clang-format)" +
           " > $(OUTS)",
-    exec_tools = [
+    tools = [
         ":render_specification_against_template",
         "@llvm_toolchain_llvm//:bin/clang-format",
     ],
@@ -847,6 +852,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -891,6 +897,7 @@ cc_library(
         "//xls/common/logging",
         "@boringssl//:crypto",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -1243,23 +1250,10 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "call_graph",
-    srcs = ["call_graph.cc"],
-    hdrs = ["call_graph.h"],
-    deps = [
-        ":ir",
-        ":op",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_set",
-    ],
-)
-
 cc_test(
     name = "call_graph_test",
     srcs = ["call_graph_test.cc"],
     deps = [
-        ":call_graph",
         ":function_builder",
         ":ir",
         ":ir_test_base",
@@ -1284,4 +1278,14 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
+)
+
+proto_library(
+    name = "ram_rewrite_proto",
+    srcs = ["ram_rewrite.proto"],
+)
+
+cc_proto_library(
+    name = "ram_rewrite_cc_proto",
+    deps = [":ram_rewrite_proto"],
 )

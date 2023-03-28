@@ -55,7 +55,7 @@ class BooleanSimplificationPassTest : public IrTestBase {
 
 TEST_F(BooleanSimplificationPassTest, TruthTableTestSingleVariableNegated) {
   internal::TruthTable not_x(UBits(0b100, /*bit_count=*/3),
-                             UBits(0b100, /*bit_count=*/3), absl::nullopt);
+                             UBits(0b100, /*bit_count=*/3), std::nullopt);
   EXPECT_EQ(not_x.ComputeTruthTable(),
             bits_ops::Not(not_x.GetInitialVector(0)));
   EXPECT_TRUE(not_x.MatchesVector(not_x.ComputeTruthTable()));
@@ -89,7 +89,7 @@ fn f(x: bits[42], y: bits[42]) -> bits[42] {
 
 TEST_F(BooleanSimplificationPassTest, TruthTableMatchesNotX) {
   internal::TruthTable table(UBits(0b100, /*bit_count=*/3),
-                             UBits(0b100, /*bit_count=*/3), absl::nullopt);
+                             UBits(0b100, /*bit_count=*/3), std::nullopt);
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
 fn f(x: bits[42], y: bits[42]) -> bits[42] {

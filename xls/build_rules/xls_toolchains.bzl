@@ -20,7 +20,7 @@ _DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler"
 
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
-_DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx:ir_converter_main"
+_DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx/ir_convert:ir_converter_main"
 
 _DEFAULT_OPT_IR_TARGET = "//xls/tools:opt_main"
 

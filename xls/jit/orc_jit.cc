@@ -67,7 +67,7 @@ std::string DumpLlvmModuleToString(const llvm::Module* module) {
 // Used for reporting a bad optimization level specification to LLVM internals.
 class BadOptLevelError : public llvm::ErrorInfo<BadOptLevelError> {
  public:
-  BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
+  explicit BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
 
   void log(llvm::raw_ostream& os) const override {
     os << "Invalid opt level: " << opt_level_;
@@ -208,12 +208,25 @@ OrcJit::CreateTargetMachine() {
         absl::StrCat("Unable to create target machine: ",
                      llvm::toString(error_or_target_machine.takeError())));
   }
-
   return std::move(error_or_target_machine.get());
 }
 
 absl::Status OrcJit::Init() {
   XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine());
+  if (XLS_VLOG_IS_ON(1)) {
+    std::string triple = target_machine_->getTargetTriple().normalize();
+    std::string cpu = target_machine_->getTargetCPU().str();
+    std::string feature_string =
+        target_machine_->getTargetFeatureString().str();
+    XLS_VLOG(1) << "LLVM target triple: " << triple;
+    XLS_VLOG(1) << "LLVM target CPU: " << cpu;
+    XLS_VLOG(1) << "LLVM target feature string: " << feature_string;
+    XLS_VLOG_LINES(
+        1,
+        absl::StrFormat("llc invocation:\n  llc [input.ll] --filetype=obj "
+                        "--relocation-model=pic -mtriple=%s -mcpu=%s -mattr=%s",
+                        triple, cpu, feature_string));
+  }
   data_layout_ = target_machine_->createDataLayout();
 
   execution_session_.runSessionLocked([this]() {
@@ -320,9 +333,9 @@ absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<llvm::JITTargetAddress> OrcJit::LoadSymbol(
+absl::StatusOr<llvm::orc::ExecutorAddr> OrcJit::LoadSymbol(
     std::string_view function_name) {
-  llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
+  llvm::Expected<llvm::orc::ExecutorSymbolDef> symbol =
       execution_session_.lookup(&dylib_, function_name);
   if (!symbol) {
     return absl::InternalError(

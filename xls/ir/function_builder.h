@@ -279,7 +279,7 @@ class BuilderBase {
   // the selector value. If the number of cases is less than 2**selector_width
   // then a default value must be specified.
   BValue Select(BValue selector, absl::Span<const BValue> cases,
-                std::optional<BValue> default_value = absl::nullopt,
+                std::optional<BValue> default_value = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -507,7 +507,7 @@ class BuilderBase {
   // Binary decodes the n-bit input to a one-hot output. 'width' can be at most
   // 2**n where n is the bit width of the operand. If 'width' is not specified
   // the output is 2**n bits wide.
-  BValue Decode(BValue arg, std::optional<int64_t> width = absl::nullopt,
+  BValue Decode(BValue arg, std::optional<int64_t> width = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -544,7 +544,7 @@ class BuilderBase {
   // Adds an assert op to the function. Assert raises an error containing the
   // given message if the given condition evaluates to false.
   BValue Assert(BValue token, BValue condition, std::string_view message,
-                std::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -618,7 +618,7 @@ class FunctionBuilder : public BuilderBase {
   // can be set to false in tests that wish to build malformed IR.
   FunctionBuilder(std::string_view name, Package* package,
                   bool should_verify = true);
-  virtual ~FunctionBuilder() = default;
+  ~FunctionBuilder() override = default;
 
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
@@ -643,7 +643,7 @@ class ProcBuilder : public BuilderBase {
   ProcBuilder(std::string_view name, std::string_view token_name,
               Package* package, bool should_verify = true);
 
-  virtual ~ProcBuilder() = default;
+  ~ProcBuilder() override = default;
 
   // Returns the Proc being constructed.
   Proc* proc() const;
@@ -735,7 +735,7 @@ class TokenlessProcBuilder : public ProcBuilder {
       : ProcBuilder(name, token_name, package, should_verify),
         last_token_(GetTokenParam()) {}
 
-  virtual ~TokenlessProcBuilder() = default;
+  ~TokenlessProcBuilder() override = default;
 
   // Build the proc using the given BValues as the recurrent state. The
   // recurrent token value is a constructed as an AfterAll operation whose
@@ -769,6 +769,14 @@ class TokenlessProcBuilder : public ProcBuilder {
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
 
+  // Add a conditional, non-blocking receive operation. The type of the data
+  // value received is determined by the channel. The returned BValue is a pair
+  // of the received data itself along with a valid bit.
+  using ProcBuilder::ReceiveIfNonBlocking;
+  std::pair<BValue, BValue> ReceiveIfNonBlocking(
+      Channel* channel, BValue pred, const SourceInfo& loc = SourceInfo(),
+      std::string_view name = "");
+
   // Add a send operation. Returns the token-typed BValue of the send node.
   using ProcBuilder::Send;
   BValue Send(Channel* channel, BValue data,
@@ -786,7 +794,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // Add an assert operation. Returns the token-typed assert operation.
   using BuilderBase::Assert;
   BValue Assert(BValue condition, std::string_view message,
-                std::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = std::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 std::string_view name = "");
 
@@ -804,7 +812,7 @@ class BlockBuilder : public BuilderBase {
   BlockBuilder(std::string_view name, Package* package,
                bool should_verify = true)
       : BuilderBase(std::make_unique<Block>(name, package), should_verify) {}
-  virtual ~BlockBuilder() = default;
+  ~BlockBuilder() override = default;
 
   // Returns the Block being constructed.
   Block* block() const { return down_cast<Block*>(function()); }
@@ -830,8 +838,8 @@ class BlockBuilder : public BuilderBase {
   // Block::AddRegister. If the register being writen has a reset value then
   // `reset` must be specified.
   BValue RegisterWrite(Register* reg, BValue data,
-                       std::optional<BValue> load_enable = absl::nullopt,
-                       std::optional<BValue> reset = absl::nullopt,
+                       std::optional<BValue> load_enable = std::nullopt,
+                       std::optional<BValue> reset = std::nullopt,
                        const SourceInfo& loc = SourceInfo(),
                        std::string_view name = "");
 
@@ -841,13 +849,13 @@ class BlockBuilder : public BuilderBase {
   // and adding a RegisterRead operation. Returned BValue is the RegisterRead
   // operation.
   BValue InsertRegister(std::string_view name, BValue data,
-                        std::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // As InsertRegister above but with a reset value.
   BValue InsertRegister(std::string_view name, BValue data,
                         BValue reset_signal, Reset reset,
-                        std::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = std::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // Add an instantiation input/output to the block.

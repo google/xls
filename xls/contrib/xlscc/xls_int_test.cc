@@ -620,6 +620,19 @@ TEST_F(XlsIntTest, DefaultArrayInit) {
   RunIntTest({{"a", 100}}, 101, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, ToUnsigned) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    unsigned int my_package(long long a) {
+      XlsInt<32, false> ax = a;
+      return ax.to_uint();
+    })";
+  RunIntTest({{"a", -1}}, 0xFFFFFFFF, content,
+    xabsl::SourceLocation::current());
+  RunIntTest({{"a", 500}}, 500, content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, SaturateUnsigned) {
   const std::string content = R"(
     #include "xls_fixed.h"
@@ -691,6 +704,44 @@ TEST_F(XlsIntTest, IntTernaryAssign) {
   RunIntTest({{"a", 1}, {"b", 20}}, 20, content);
 }
 
+TEST_F(XlsIntTest, SignedBinaryOpsHaveProperResultingSign) {
+  const std::string content = R"(
+       #include "xls_int.h"
+
+       long long my_package() {
+        XlsInt<4, true> ax = -1;
+        const XlsInt<4, false> bx = 4;
+        ax = ax / bx;
+        return ax;
+       })";
+  RunIntTest({}, 0, content);
+}
+
+TEST_F(XlsIntTest, ACCompatibleModuloSign) {
+  const std::string content = R"(
+       #include "xls_int.h"
+
+       long long my_package() {
+        XlsInt<4, false> ax = 10;
+        const XlsInt<4, true> bx = -2;
+        auto result = ax % bx;
+        return result.sign ? 1 : 0;
+       })";
+  RunIntTest({}, 0, content);
+}
+
+TEST_F(XlsIntTest, ACCompatibleDivisionWidth) {
+  const std::string content = R"(
+       #include "xls_int.h"
+
+       long long my_package() {
+        XlsInt<4, false> ax = 10;
+        const XlsInt<4, false> bx = 4;
+        auto result = ax / bx;
+        return result.width;
+       })";
+  RunIntTest({}, 4, content);
+}
 
 }  // namespace
 

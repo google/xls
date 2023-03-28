@@ -97,7 +97,7 @@ using AttributeDict = absl::flat_hash_map<std::string, std::string>;
 
 void AddDigraphNode(std::string* out, int64_t id,
                     AttributeDict* attrs = nullptr) {
-  std::string attrs_flatten = "";
+  std::string attrs_flatten;
   if (attrs != nullptr) {
     for (const auto& [k, v] : *attrs) {
       absl::StrAppend(&attrs_flatten, k, "=", v, " ");
@@ -110,7 +110,7 @@ void AddDigraphNode(std::string* out, int64_t id,
 
 void AddDigraphEdge(std::string* out, int64_t src_id, int64_t dst_id,
                     AttributeDict* attrs = nullptr) {
-  std::string attrs_flatten = "";
+  std::string attrs_flatten;
   if (attrs != nullptr) {
     for (const auto& [k, v] : *attrs) {
       absl::StrAppend(&attrs_flatten, k, "=", v, " ");
@@ -130,7 +130,7 @@ void AddGrouping(std::string* out, const PipelineSchedule& sched,
   auto add_subgraph = [&next_id](std::string* out, std::string name,
                                  int64_t total_bits,
                                  const std::vector<int64_t>& IDs) {
-    std::string cluster_content = "";
+    std::string cluster_content;
     // Add label.
     absl::StrAppendFormat(&cluster_content,
                           "    label=\"%s registers\\n%lld bits\"\n", name,

@@ -75,6 +75,8 @@ message RamRWRequestProto {
   optional PortProto read_enable = 3;
   optional PortProto write_enable = 4;
   optional PortProto write_data = 5;
+  optional PortProto write_mask = 6;
+  optional PortProto read_mask = 7;
 }
 
 // A RW RAM port has a response side consisting of read data.
@@ -94,12 +96,53 @@ message Ram1RWProto {
   optional RamRWPortProto rw_port = 1;
 }
 
+// A "read" RAM port has a request side with address and enable fields.
+message RamRRequestProto {
+  optional string name = 1;
+  optional PortProto address = 2;
+  optional PortProto enable = 3;
+  optional PortProto mask = 4;
+}
+
+// A "read" RAM port has a response side with read data.
+message RamRResponseProto {
+  optional string name = 1;
+  optional PortProto data = 2;
+}
+
+// A "write" RAM port has a request side with address, data, and enable fields.
+message RamWRequestProto {
+  optional string name = 1;
+  optional PortProto address = 2;
+  optional PortProto data = 3;
+  optional PortProto enable = 4;
+  optional PortProto mask = 5;
+}
+
+// A "read" RAM port consists of a R request and R response.
+message RamRPortProto {
+  optional RamRRequestProto request = 1;
+  optional RamRResponseProto response = 2;
+}
+
+// A "write" RAM port consists of a W request and no response.
+message RamWPortProto {
+  optional RamWRequestProto request = 1;
+}
+
+// A 1R1W RAM has a read port and a write port.
+message Ram1R1WProto {
+  optional RamRPortProto r_port = 1;
+  optional RamWPortProto w_port = 2;
+}
+
 // A RAM is one of potentially many RAM kinds, each of which encapsulates
 // potentially many RAM ports. Each port may have a request and response side.
 message RamProto {
   optional string name = 1;
   oneof ram_oneof {
     Ram1RWProto ram_1rw = 2;
+    Ram1R1WProto ram_1r1w = 3;
   }
 }
 

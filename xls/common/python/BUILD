@@ -15,6 +15,7 @@
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )

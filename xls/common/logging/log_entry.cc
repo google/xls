@@ -14,7 +14,7 @@
 
 #include "xls/common/logging/log_entry.h"
 
-#include <time.h>
+#include <ctime>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/strings/str_cat.h"
@@ -38,7 +38,9 @@ std::string_view Basename(std::string_view filepath) {
 #else
   size_t path = filepath.find_last_of('/');
 #endif
-  if (path != filepath.npos) filepath.remove_prefix(path + 1);
+  if (path != filepath.npos) {
+    filepath.remove_prefix(path + 1);
+  }
   return filepath;
 }
 
@@ -137,8 +139,9 @@ void LogEntry::AppendSeverityTimeAndThreadId(std::string* out) const {
 
 std::string LogEntry::FormatPrefix() const {
   std::string prefix;
-  if (!absl::GetFlag(FLAGS_log_prefix) || !prefix_ || line_ == -1)
+  if (!absl::GetFlag(FLAGS_log_prefix) || !prefix_ || line_ == -1) {
     return prefix;
+  }
   // Generate a prefix like:
   // 'I0513 17:35:46.294773   27319 logging_unittest.cc:147] '
   prefix.reserve(kFixedPrefixLen + base_filename_.size());

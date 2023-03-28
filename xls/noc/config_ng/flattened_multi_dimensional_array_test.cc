@@ -144,12 +144,12 @@ TEST(FlattenedMultiDimensionalArrayTest, GetCoordinateOfIndex) {
       index++;
     }
   }
-  EXPECT_EQ(array.GetCoordinateOfIndex(index), absl::nullopt);
+  EXPECT_EQ(array.GetCoordinateOfIndex(index), std::nullopt);
   // Test with zero dimensions (no dimensions).
   FlattenedMultiDimensionalArray<int64_t> zero_array({});
   Coordinate coordinate = zero_array.GetCoordinateOfIndex(0).value();
   EXPECT_EQ(coordinate.GetDimensionCount(), 0);
-  EXPECT_EQ(zero_array.GetCoordinateOfIndex(1), absl::nullopt);
+  EXPECT_EQ(zero_array.GetCoordinateOfIndex(1), std::nullopt);
 }
 
 TEST(FlattenedMultiDimensionalArrayIteratorTest, IsAtBoundsCheck) {
@@ -199,9 +199,9 @@ TEST(FlattenedMultiDimensionalArrayIteratorTest, DistanceFromEnd) {
   array_t zero_array({});
   array_t::DimensionalSpaceIterator zero_iterator =
       zero_array.GetDimensionalSpaceIterator({});
-  EXPECT_EQ(zero_iterator.DistanceFromEnd(absl::nullopt), 1);
+  EXPECT_EQ(zero_iterator.DistanceFromEnd(std::nullopt), 1);
   ++zero_iterator;
-  EXPECT_EQ(zero_iterator.DistanceFromEnd(absl::nullopt), 0);
+  EXPECT_EQ(zero_iterator.DistanceFromEnd(std::nullopt), 0);
 }
 
 TEST(FlattenedMultiDimensionalArrayIteratorTest, GetDimensions) {
@@ -231,14 +231,14 @@ TEST(FlattenedMultiDimensionalArrayIteratorTest, GetCoordinate) {
       ++iterator;
     }
   }
-  EXPECT_EQ(iterator.GetCoordinate(), absl::nullopt);
+  EXPECT_EQ(iterator.GetCoordinate(), std::nullopt);
   // Test with a zero dimension.
   array_t zero_array({});
   array_t::DimensionalSpaceIterator zero_iterator =
       zero_array.GetDimensionalSpaceIterator({});
   EXPECT_EQ(zero_iterator.GetCoordinate(), Coordinate({}));
   ++zero_iterator;
-  EXPECT_EQ(zero_iterator.GetCoordinate(), absl::nullopt);
+  EXPECT_EQ(zero_iterator.GetCoordinate(), std::nullopt);
 }
 
 TEST(FlattenedMultiDimensionalArrayIteratorTest, EqualAndNotEqualOperator) {

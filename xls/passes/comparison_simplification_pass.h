@@ -31,7 +31,7 @@ class ComparisonSimplificationPass : public FunctionBasePass {
  public:
   ComparisonSimplificationPass()
       : FunctionBasePass("comparison_simp", "Comparison Simplification") {}
-  ~ComparisonSimplificationPass() override {}
+  ~ComparisonSimplificationPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(

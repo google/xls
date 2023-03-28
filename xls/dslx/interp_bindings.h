@@ -15,14 +15,19 @@
 #ifndef XLS_DSLX_INTERP_BINDINGS_H_
 #define XLS_DSLX_INTERP_BINDINGS_H_
 
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/ast.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/type_info.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 
@@ -30,12 +35,12 @@ namespace xls::dslx {
 struct FnCtx {
   std::string module_name;
   std::string fn_name;
-  SymbolicBindings sym_bindings;
+  ParametricEnv parametric_env;
 
   std::string ToString() const {
     return absl::StrFormat(
-        "FnCtx{module_name=\"%s\", fn_name=\"%s\", sym_bindings=%s}",
-        module_name, fn_name, sym_bindings.ToString());
+        "FnCtx{module_name=\"%s\", fn_name=\"%s\", parametric_env=%s}",
+        module_name, fn_name, parametric_env.ToString());
   }
 };
 
@@ -48,7 +53,7 @@ struct FnCtx {
 class InterpBindings {
  public:
   using Entry =
-      std::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
+      std::variant<InterpValue, TypeAlias*, EnumDef*, StructDef*, Module*>;
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
@@ -84,7 +89,7 @@ class InterpBindings {
   void AddModule(std::string identifier, Module* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
-  void AddTypeDef(std::string identifier, TypeDef* value) {
+  void AddTypeAlias(std::string identifier, TypeAlias* value) {
     map_.insert_or_assign(std::move(identifier), Entry(value));
   }
   void AddEnumDef(std::string identifier, EnumDef* value) {

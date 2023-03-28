@@ -37,7 +37,7 @@ class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
  public:
   explicit LibToolVisitor(clang::CompilerInstance& CI, CCParser& translator)
       : ast_context_(&(CI.getASTContext())), parser_(translator) {}
-  virtual ~LibToolVisitor() {}
+  virtual ~LibToolVisitor() = default;
   virtual bool VisitVarDecl(clang::VarDecl* decl) {
     return parser_.LibToolVisitVarDecl(decl);
     return true;
@@ -448,7 +448,6 @@ enum __xls_channel_dir {
 };
 
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
-
 class __xls_channel {
  public:
   T read() {
@@ -465,6 +464,25 @@ class __xls_channel {
     return true;
   }
 };
+
+template<typename T, unsigned long long Size>
+class __xls_memory {
+ public:
+  T& operator[](long long int addr) {
+    static T ret;
+    return ret;
+  }
+  T operator[](long long int addr)const {
+    return T();
+  }
+  void write(long long int addr, const T& value) {
+    return;
+  }
+  T read(long long int addr) const {
+    return T();
+  }
+};
+
 
 // Bypass no outputs error
 int __xlscc_unimplemented() { return 0; }

@@ -47,7 +47,7 @@ using DestinationToPacketCount = absl::flat_hash_map<FlitDestination, int64_t>;
 class NocSimulatorToLinkMonitorServiceShim
     : public NocSimulatorServiceShim {
  public:
-  NocSimulatorToLinkMonitorServiceShim(NocSimulator& simulator);
+  explicit NocSimulatorToLinkMonitorServiceShim(NocSimulator& simulator);
   absl::Status RunCycle() override;
 
   const absl::flat_hash_map<NetworkComponentId, DestinationToPacketCount>&

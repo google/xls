@@ -14,8 +14,21 @@
 
 #include "xls/dslx/cpp_transpiler.h"
 
+#include <cstdint>
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
@@ -24,11 +37,11 @@
 #include "xls/common/case_converters.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/dslx/ast.h"
-#include "xls/dslx/bytecode.h"
-#include "xls/dslx/bytecode_emitter.h"
-#include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {
 namespace {
@@ -46,7 +59,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(import_data, type_info, expr, env,
-                                      /*caller_bindings=*/absl::nullopt));
+                                      /*caller_bindings=*/std::nullopt));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{});
 }
 
@@ -238,15 +251,15 @@ absl::StatusOr<std::string> TypeAnnotationToString(
       absl::StrCat("Unknown TypeAnnotation kind: ", annot->ToString()));
 }
 
-absl::StatusOr<Sources> TranspileTypeDef(const TranspileData& xpile_data,
-                                         const TypeDef* type_def) {
+absl::StatusOr<Sources> TranspileTypeAlias(const TranspileData& xpile_data,
+                                           const TypeAlias* type_alias) {
   XLS_ASSIGN_OR_RETURN(
       std::string annot_str,
-      TypeAnnotationToString(xpile_data, type_def->type_annotation()));
-  return Sources{
-      absl::StrFormat("using %s = %s;", CheckedCamelize(type_def->identifier()),
-                      CheckedCamelize(annot_str)),
-      ""};
+      TypeAnnotationToString(xpile_data, type_alias->type_annotation()));
+  return Sources{absl::StrFormat("using %s = %s;",
+                                 CheckedCamelize(type_alias->identifier()),
+                                 CheckedCamelize(annot_str)),
+                 ""};
 }
 
 // Note that, in these functions, "Value" refers to a proper ::xls::Value
@@ -354,10 +367,10 @@ $0$4 = $1.value();)";
                               src_element, dst_element);
     }
 
-    if (std::holds_alternative<TypeDef*>(type_definition)) {
-      TypeDef* type_def = std::get<TypeDef*>(type_definition);
+    if (std::holds_alternative<TypeAlias*>(type_definition)) {
+      TypeAlias* type_alias = std::get<TypeAlias*>(type_definition);
       return GenerateTypeFromValueConverter(
-          xpile_data, src_element, dst_element, type_def->type_annotation(),
+          xpile_data, src_element, dst_element, type_alias->type_annotation(),
           indent_level);
     }
   }
@@ -467,10 +480,10 @@ absl::StatusOr<std::string> GenerateTypeToValueConverter(
                           src_name, ".ToValue();");
     }
 
-    if (std::holds_alternative<TypeDef*>(type_definition)) {
-      TypeDef* type_def = std::get<TypeDef*>(type_definition);
+    if (std::holds_alternative<TypeAlias*>(type_definition)) {
+      TypeAlias* type_alias = std::get<TypeAlias*>(type_definition);
       return GenerateTypeToValueConverter(xpile_data, src_name, dst_name,
-                                          type_def->type_annotation(),
+                                          type_alias->type_annotation(),
                                           indent_level);
     }
   }
@@ -517,9 +530,9 @@ absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
                  dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeDefinition type_definition =
         typeref_type->type_ref()->type_definition();
-    if (std::holds_alternative<TypeDef*>(type_definition)) {
+    if (std::holds_alternative<TypeAlias*>(type_definition)) {
       return GetFieldWidth(
-          xpile_data, std::get<TypeDef*>(type_definition)->type_annotation());
+          xpile_data, std::get<TypeAlias*>(type_definition)->type_annotation());
     }
     if (std::holds_alternative<EnumDef*>(type_definition)) {
       EnumDef* enum_def = std::get<EnumDef*>(type_definition);
@@ -527,7 +540,7 @@ absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
     }
   }
 
-  return absl::nullopt;
+  return std::nullopt;
 }
 
 // Should performance become an issue, optimizing struct layouts by reordering
@@ -681,8 +694,8 @@ $3)";
 absl::StatusOr<Sources> TranspileSingleToCpp(
     const TranspileData& xpile_data, const TypeDefinition& type_definition) {
   return absl::visit(
-      Visitor{[&](const TypeDef* type_def) {
-                return TranspileTypeDef(xpile_data, type_def);
+      Visitor{[&](const TypeAlias* type_alias) {
+                return TranspileTypeAlias(xpile_data, type_alias);
               },
               [&](const StructDef* struct_def) -> absl::StatusOr<Sources> {
                 XLS_ASSIGN_OR_RETURN(

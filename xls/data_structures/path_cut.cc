@@ -14,9 +14,8 @@
 
 #include "xls/data_structures/path_cut.h"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <sstream>
 #include <string>
 #include <type_traits>

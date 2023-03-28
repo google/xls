@@ -16,8 +16,14 @@ load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(":xls_toolchains.bzl", "xls_toolchain")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+filegroup(
+    name = "release_files",
+    srcs = glob(["*.bzl"]) + [":default_xls_toolchain"],
 )
 
 exports_files(
@@ -36,7 +42,7 @@ exports_files(
         "xls_rules.bzl",
         "xls_rules_build_defs.bzl",
         "xls_toolchains.bzl",
-        "xls_utilties.bzl",
+        "xls_utilities.bzl",
     ],
     visibility = ["//visibility:private"],
 )

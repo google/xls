@@ -22,8 +22,10 @@ load(
     "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
     "xls_cc_ir",
 )
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -41,6 +43,11 @@ proto_data(
 proto_data(
     name = "mux1to2_block_pb",
     src = "mux1to2.textproto",
+)
+
+proto_data(
+    name = "delay_block_pb",
+    src = "delay.textproto",
 )
 
 xls_cc_ir(
@@ -64,6 +71,20 @@ xls_cc_ir(
     ir_file = "mux1to2.ir",
 )
 
+xls_cc_ir(
+    name = "delay_ir",
+    src = "delay.cc",
+    block = ":delay_block_pb",
+    ir_file = "delay.ir",
+)
+
+xls_cc_ir(
+    name = "block_from_class_ir",
+    src = "block_from_class.cc",
+    block_from_class = "block_from_class.pbtxt",
+    ir_file = "block_from_class.ir",
+)
+
 xls_ir_opt_ir(
     name = "mux3_opt_ir",
     src = ":mux3.ir",
@@ -80,6 +101,30 @@ xls_ir_opt_ir(
     name = "mux1to2_opt_ir",
     src = ":mux1to2.ir",
     opt_ir_file = "mux1to2_opt_ir.opt.ir",
+)
+
+xls_ir_opt_ir(
+    name = "delay1rw_opt_ir",
+    src = ":delay.ir",
+    opt_ir_file = "delay1rw.opt.ir",
+    ram_rewrites = [
+        ":delay_ram1rw_rewrites.textproto",
+    ],
+)
+
+xls_ir_opt_ir(
+    name = "delay1r1w_opt_ir",
+    src = ":delay.ir",
+    opt_ir_file = "delay1r1w.opt.ir",
+    ram_rewrites = [
+        ":delay_ram1r1w_rewrites.textproto",
+    ],
+)
+
+xls_ir_opt_ir(
+    name = "block_from_class_opt_ir",
+    src = ":block_from_class.ir",
+    opt_ir_file = "block_from_class.opt.ir",
 )
 
 xls_ir_verilog(
@@ -131,6 +176,98 @@ xls_ir_verilog(
         "top": "Mux1To2_proc",
     },
     verilog_file = "mux1to2_stages_5_v.sv",
+)
+
+xls_ir_verilog(
+    name = "delay1rw_v",
+    src = ":delay1rw.opt.ir",
+    codegen_args = {
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "io_constraints": "{req}:send:{resp}:recv:1:1,{req}:send:{wr_comp}:recv:1:1".format(
+            req = "memory__req",
+            resp = "memory__resp",
+            wr_comp = "memory__write_completion",
+        ),
+        "ram_configurations": "ram:1RW:{req}:{resp}:{wr_comp}".format(
+            req = "memory__req",
+            resp = "memory__resp",
+            wr_comp = "memory__write_completion",
+        ),
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "pipeline_stages": "2",
+    },
+    verilog_file = "delay1rw.sv",
+)
+
+xls_ir_verilog(
+    name = "delay1r1w_v",
+    src = ":delay1r1w.opt.ir",
+    codegen_args = {
+        "generator": "pipeline",
+        "delay_model": "unit",
+        "io_constraints": "{rd_req}:send:{rd_resp}:recv:1:1,{wr_req}:send:{wr_comp}:recv:1:1".format(
+            rd_req = "memory__read_req",
+            rd_resp = "memory__read_resp",
+            wr_comp = "memory__write_completion",
+            wr_req = "memory__write_req",
+        ),
+        "ram_configurations": "ram:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
+            rd_req = "memory__read_req",
+            rd_resp = "memory__read_resp",
+            wr_comp = "memory__write_completion",
+            wr_req = "memory__write_req",
+        ),
+        "reset": "rst",
+        "reset_data_path": "true",
+        "reset_active_low": "false",
+        "reset_asynchronous": "true",
+        "flop_inputs": "false",
+        "streaming_channel_data_suffix": "_data",
+        "streaming_channel_ready_suffix": "_ready",
+        "streaming_channel_valid_suffix": "_valid",
+        "use_system_verilog": "true",
+        "pipeline_stages": "2",
+    },
+    verilog_file = "delay1r1w.sv",
+)
+
+verilog_library(
+    name = "delay1rw",
+    srcs = [":delay1rw.sv"],
+    tags = ["XLSCC_1RW"],
+)
+
+verilog_library(
+    name = "delay1r1w",
+    srcs = [":delay1r1w.sv"],
+    tags = ["XLSCC_1R1W"],
+)
+
+xls_ir_verilog(
+    name = "block_from_class_v",
+    src = ":block_from_class.opt.ir",
+    codegen_args = {
+        "module_name": "block_from_class",
+        "pipeline_stages": "1",
+        "generator": "pipeline",
+        "reset": "rst",
+        "reset_active_low": "false",
+        "reset_asynchronous": "false",
+        "reset_data_path": "false",
+        "flop_inputs": "false",
+        "flop_outputs": "false",
+        "top": "MyBlock_proc",
+    },
+    verilog_file = "block_from_class.sv",
 )
 
 cc_test(

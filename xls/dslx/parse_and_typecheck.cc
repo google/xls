@@ -14,13 +14,21 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
+#include <filesystem>  // NOLINT
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/cleanup/cleanup.h"
+#include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/dslx/parser.h"
-#include "xls/dslx/scanner.h"
-#include "xls/dslx/typecheck.h"
+#include "xls/dslx/frontend/parser.h"
+#include "xls/dslx/frontend/scanner.h"
+#include "xls/dslx/type_system/typecheck.h"
 
 namespace xls::dslx {
 
@@ -28,6 +36,15 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     std::string_view text, std::string_view path,
     std::string_view module_name, ImportData* import_data) {
   XLS_RET_CHECK(import_data != nullptr);
+
+  // The outermost import doesn't have a real import statement associated with
+  // it, but we need the filename to be correct to detect cycles.
+  const Span fake_import_span =
+      Span(Pos(std::string(path), 0, 0), Pos(std::string(path), 0, 0));
+  XLS_RETURN_IF_ERROR(import_data->AddToImporterStack(fake_import_span, path));
+  auto cleanup = absl::MakeCleanup([&] {
+    XLS_CHECK_OK(import_data->PopFromImporterStack(fake_import_span));
+  });
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseModule(text, path, module_name));

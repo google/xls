@@ -42,8 +42,8 @@ ABSL_FLAG(std::string, ir_path, "", "Path to the XLS IR to process.");
 
 namespace xls {
 
-absl::Status RealMain(const std::filesystem::path& ir_path,
-                      std::optional<std::string> top) {
+static absl::Status RealMain(const std::filesystem::path& ir_path,
+                             std::optional<std::string> top) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   Function* function;

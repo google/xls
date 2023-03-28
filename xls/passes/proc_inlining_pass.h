@@ -25,7 +25,7 @@ namespace xls {
 class ProcInliningPass : public Pass {
  public:
   ProcInliningPass() : Pass("proc_inlining", "{roc inlining") {}
-  ~ProcInliningPass() override {}
+  ~ProcInliningPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,

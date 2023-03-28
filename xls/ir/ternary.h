@@ -80,7 +80,7 @@ Bits ToKnownBits(const TernaryVector& ternary_vector);
 Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
 
 // Returns a vector with known positions for each bit known in `lhs` that isn't
-// known in `rhs`. If `lhs` and `rhs` conflict, returns `absl::nullopt`.
+// known in `rhs`. If `lhs` and `rhs` conflict, returns `std::nullopt`.
 // CHECK fails if `lhs` and `rhs` have different lengths.
 inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
                                                 const TernaryVector& rhs) {
@@ -94,7 +94,7 @@ inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
         result.push_back(lhs[i]);
       } else {
         if (lhs[i] != rhs[i]) {
-          return absl::nullopt;
+          return std::nullopt;
         }
         result.push_back(TernaryValue::kUnknown);
       }

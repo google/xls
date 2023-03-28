@@ -22,9 +22,9 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"

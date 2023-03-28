@@ -30,7 +30,7 @@ class BddSimplificationPass : public FunctionBasePass {
   explicit BddSimplificationPass(int64_t opt_level)
       : FunctionBasePass("bdd_simp", "BDD-based Simplification"),
         opt_level_(opt_level) {}
-  ~BddSimplificationPass() override {}
+  ~BddSimplificationPass() override = default;
 
  protected:
   // Run all registered passes in order of registration.

@@ -30,7 +30,7 @@ class IdentityRemovalPass : public FunctionBasePass {
  public:
   IdentityRemovalPass()
       : FunctionBasePass("ident_remove", "Identity Removal") {}
-  ~IdentityRemovalPass() override {}
+  ~IdentityRemovalPass() override = default;
 
  protected:
   // Iterate all nodes and eliminate identities.

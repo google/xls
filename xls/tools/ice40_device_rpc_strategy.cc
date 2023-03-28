@@ -15,16 +15,17 @@
 #include "xls/tools/ice40_device_rpc_strategy.h"
 
 #include <fcntl.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include <cstdlib>
 #include <filesystem>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/logging.h"
@@ -166,7 +167,7 @@ std::string LocalModesToString(tcflag_t local_modes) {
 Ice40DeviceRpcStrategy::~Ice40DeviceRpcStrategy() {
   if (tty_fd_.has_value()) {
     close(tty_fd_.value());
-    tty_fd_ = absl::nullopt;
+    tty_fd_ = std::nullopt;
   }
 }
 

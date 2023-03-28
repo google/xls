@@ -1,4 +1,4 @@
-#!/bin/bash -ex
+#!/usr/bin/env bash
 # Copyright 2021 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,5 +17,6 @@
 # verify that grepping the file in general works, because '! grep' will
 # "succeed" if the input file is inaccessible, for example.
 
+set -e -x
 grep . "$@"
 ! grep clk "$@"

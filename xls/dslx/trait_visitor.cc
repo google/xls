@@ -13,6 +13,10 @@
 // limitations under the License.
 #include "xls/dslx/trait_visitor.h"
 
+#include <vector>
+
+#include "absl/status/status.h"
+
 namespace xls::dslx {
 
 absl::Status TraitVisitor::HandleNameRef(const NameRef* expr) {

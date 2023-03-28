@@ -15,15 +15,19 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
+    "xls_benchmark_ir",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
     "xls_ir_verilog",
+    "xls_synthesis_metrics",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@rules_hdl//static_timing:build_defs.bzl", "run_opensta")
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],
 )
@@ -62,6 +66,70 @@ synthesize_rtl(
     top_module = "idct_chen",
     deps = [
         ":idct_chen_5000ps_model_unit_verilog",
+    ],
+)
+
+synthesize_rtl(
+    name = "idct_chen_5000ps_model_unit_verilog_synth_by_stage",
+    synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
+    tags = ["manual"],
+    top_module = "idct_chen",
+    deps = [
+        ":idct_chen_5000ps_model_unit_verilog",
+    ],
+)
+
+xls_benchmark_ir(
+    name = "idct_chen_13000ps_model_sky130_benchmark_ir",
+    src = ":idct_chen.ir",
+    benchmark_ir_args = {
+        "delay_model": "sky130",
+        "clock_period_ps": "13000",
+    },
+    tags = ["optonly"],
+)
+
+xls_ir_verilog(
+    name = "idct_chen_13000ps_model_sky130",
+    src = ":idct_chen.opt.ir",
+    codegen_args = {
+        "delay_model": "sky130",
+        "clock_period_ps": "13000",
+        "module_name": "idct_chen",
+        "use_system_verilog": "false",
+    },
+    verilog_file = "idct_chen_13000ps_model_sky130.v",
+)
+
+verilog_library(
+    name = "idct_chen_13000ps_model_sky130_verilog",
+    srcs = [
+        ":idct_chen_13000ps_model_sky130.v",
+    ],
+    tags = ["manual"],
+)
+
+synthesize_rtl(
+    name = "idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+    synth_tcl = "//xls/synthesis/yosys:synth_by_stage.tcl",
+    tags = ["manual"],
+    top_module = "idct_chen",
+    deps = [
+        ":idct_chen_13000ps_model_sky130_verilog",
+    ],
+)
+
+run_opensta(
+    name = "idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
+    sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
+    synth_target = ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+)
+
+xls_synthesis_metrics(
+    name = "idct_chen_13000ps_model_sky130_post_synth_metrics",
+    srcs = [
+        ":idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
+        ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
     ],
 )
 

@@ -17,7 +17,7 @@
         <link rel="next" href="../dslx_std/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.3">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.0.6">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6b71719e.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.558e4712.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.2505c338.min.css">
@@ -137,7 +137,7 @@
           <div class="md-search-result__meta">
             Initializing search
           </div>
-          <ol class="md-search-result__list"></ol>
+          <ol class="md-search-result__list" role="presentation"></ol>
         </div>
       </div>
     </div>
@@ -1137,8 +1137,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ternary-if-expression" class="md-nav__link">
-    Ternary If Expression
+  <a href="#if-expression" class="md-nav__link">
+    If Expression
   </a>
   
 </li>
@@ -1497,6 +1497,20 @@
     <li class="md-nav__item">
       <a href="../codegen_options/" class="md-nav__link">
         Codegen Options
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ir_lowering/" class="md-nav__link">
+        IR Lowering
       </a>
     </li>
   
@@ -2316,8 +2330,8 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ternary-if-expression" class="md-nav__link">
-    Ternary If Expression
+  <a href="#if-expression" class="md-nav__link">
+    If Expression
   </a>
   
 </li>
@@ -3620,11 +3634,9 @@ Python, where the same result would be achieved with code similar to this:</p>
 <p>However, <code>let</code> expressions are lexically scoped. In above example, the value <code>3</code>
 is bound to <code>a</code> only during the combined let expression sequence. There is no
 other type of scoping in DSLX.</p>
-<h3 id="ternary-if-expression">Ternary If Expression</h3>
-<p>Note: ternary expression syntax is expected to change to mimic Rust's, see
-<a href="https://github.com/google/xls/issues/318">#318</a>.</p>
-<p>DSLX offers a ternary <code>if</code> expression, which is very similar to the Rust ternary
-<code>if</code> expression. Blueprint:</p>
+<h3 id="if-expression">If Expression</h3>
+<p>DSLX offers an <code>if</code> expression, which is very similar to the Rust <code>if</code>
+expression. Blueprint:</p>
 <div class="highlight"><pre><span></span><code>if condition { consequent } else { alternate }
 </code></pre></div>
 <p>This corresponds to the C/C++ ternary <code>?:</code> operator:</p>
@@ -3633,6 +3645,14 @@ other type of scoping in DSLX.</p>
 <p>Note: both the <code>if</code> and <code>else</code> are <em>required</em> to be present, as with the <code>?:</code>
 operator, unlike a C++ <code>if</code> statement. This is because it is an <em>expression</em>
 that <em>produces</em> a result value, not a <em>statement</em> that causes a mutating effect.</p>
+<p>Furthermore, you can have multiple branches via <code>else if</code>:</p>
+<div class="highlight"><pre><span></span><code>if condition0 { consequent0 } else if condition1 { consequent1 } else { alternate }
+</code></pre></div>
+<p>which corresponds to the C/C++:</p>
+<div class="highlight"><pre><span></span><code>condition0 ? consequent0 : (contition1 ? consequent1 : alternate)
+</code></pre></div>
+<p>Note: a <code>match</code> expression can often be a better choice than having a long
+<code>if/else if/.../else</code> chain.</p>
 <p>For example, in the FP adder module (modules/fp32_add_2.x), there is code like
 the following:</p>
 <div class="highlight"><pre><span></span><code>[...]
@@ -4394,7 +4414,7 @@ production can be found in the execution log.</p>
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.e5c33ebb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.ba449ae6.min.js"></script>
+      <script src="../assets/javascripts/bundle.51d95adb.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

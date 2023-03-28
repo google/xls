@@ -25,7 +25,7 @@ namespace xls::noc {
 class ArbiterSchemeConfigProtoBuilder {
  public:
   // proto cannot be nullptr.
-  ArbiterSchemeConfigProtoBuilder(
+  explicit ArbiterSchemeConfigProtoBuilder(
       RouterConfigProto::ArbiterSchemeConfigProto* proto)
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 

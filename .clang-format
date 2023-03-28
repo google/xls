@@ -1,0 +1,8 @@
+# Use the Google style in this project mostly,
+# but switch off determining pointer alignment from
+# local style but always make it left.
+# https://google.github.io/styleguide/cppguide.html
+BasedOnStyle: Google
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left

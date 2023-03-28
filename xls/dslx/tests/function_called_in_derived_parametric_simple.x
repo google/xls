@@ -15,7 +15,7 @@
 // Note: double is only called from a "derived parametric" expression.
 fn double(x: u32) -> u32 { x * u32:2 }
 
-fn concat_self<N: u32, M: u32 = double(N)>(x: bits[N]) -> bits[M] {
+fn concat_self<N: u32, M: u32 = {double(N)}>(x: bits[N]) -> bits[M] {
   x ++ x
 }
 

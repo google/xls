@@ -26,7 +26,7 @@ class SignatureGenerationPass : public CodegenPass {
  public:
   SignatureGenerationPass()
       : CodegenPass("signature_generation", "Signature generation") {}
-  ~SignatureGenerationPass() override {}
+  ~SignatureGenerationPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,

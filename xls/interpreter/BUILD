@@ -13,6 +13,7 @@
 # limitations under the License.
 
 package(
+    default_applicable_licenses = ["//:license"],
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
@@ -180,6 +181,20 @@ cc_library(
         "//xls/ir",
         "//xls/ir:type",
         "//xls/ir:value",
+    ],
+)
+
+cc_test(
+    name = "random_value_test",
+    srcs = ["random_value_test.cc"],
+    deps = [
+        ":random_value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits_ops",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest",
     ],
 )
 

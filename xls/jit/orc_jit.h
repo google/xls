@@ -45,7 +45,7 @@ class OrcJit {
   absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module);
 
   // Returns the address of the given JIT'ed function.
-  absl::StatusOr<llvm::JITTargetAddress> LoadSymbol(
+  absl::StatusOr<llvm::orc::ExecutorAddr> LoadSymbol(
       std::string_view function_name);
 
   // Return the underlying LLVM context.

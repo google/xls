@@ -84,7 +84,7 @@ class ProcInterpreter : public ProcEvaluator {
   ProcInterpreter(const ProcInterpreter&) = delete;
   ProcInterpreter operator=(const ProcInterpreter&) = delete;
 
-  virtual ~ProcInterpreter() = default;
+  ~ProcInterpreter() override = default;
 
   std::unique_ptr<ProcContinuation> NewContinuation() const override;
   absl::StatusOr<TickResult> Tick(

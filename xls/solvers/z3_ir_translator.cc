@@ -939,6 +939,11 @@ absl::Status IrTranslator::HandleBitSlice(BitSlice* bit_slice) {
 }
 
 absl::Status IrTranslator::HandleBitSliceUpdate(BitSliceUpdate* update) {
+  if (update->start()->GetType()->GetFlatBitCount() > 130) {
+    XLS_VLOG(3) << "Losing some precision in Z3 analysis because of wide bit "
+                << "slice update start index";
+    return IrTranslator::DefaultHandler(update);
+  }
   ScopedErrorHandler seh(ctx_);
   Z3AbstractEvaluator evaluator(ctx_);
   std::vector<Z3_ast> to_update =
@@ -1216,7 +1221,7 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
                                const std::vector<Z3_ast>& selector,
                                const std::vector<std::vector<Z3_ast>>& cases) {
     // Calculate the Z3-ified default value, if any.
-    std::optional<std::vector<Z3_ast>> default_value = absl::nullopt;
+    std::optional<std::vector<Z3_ast>> default_value = std::nullopt;
     if (sel->default_value()) {
       default_value = FlattenValue(sel->default_value().value()->GetType(),
                                    GetValue(sel->default_value().value()));
@@ -1341,11 +1346,32 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
     XLS_VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
-                   "defaulting to variable: " << node->ToString();
+                   "defaulting to variable: "
+                << node->ToString();
     return absl::OkStatus();
   }
   return absl::UnimplementedError(
       "Unhandled node for conversion from XLS IR to Z3: " + node->ToString());
+}
+
+absl::Status IrTranslator::HandleInvoke(Invoke* invoke) {
+  XLS_CHECK_EQ(invoke->operands().size(), invoke->to_apply()->params().size());
+
+  std::vector<Z3_ast> z3_params;
+  for (const Node* param_node : invoke->operands()) {
+    z3_params.push_back(GetValue(param_node));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<IrTranslator> sub_translator,
+      CreateAndTranslate(ctx(), invoke->to_apply(),
+                         /*imported_params=*/z3_params, allow_unsupported_));
+
+  Z3_ast z3_ret = sub_translator->GetValue(invoke->to_apply()->return_value());
+
+  NoteTranslation(invoke, z3_ret);
+
+  return absl::OkStatus();
 }
 
 Z3_ast IrTranslator::GetValue(const Node* node) {

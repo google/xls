@@ -92,8 +92,12 @@ class CodeGenMainTest(parameterized.TestCase):
     caller: str = inspect.stack()[1].function
     path: str = f'xls/tools/testdata/codegen_main_test__{caller}.vtxt'
     if _UPDATE_GOLDEN.value:
-      dirpath, xls = os.path.split(_XLS_SOURCE_DIR.value)
-      assert xls == 'xls', (_XLS_SOURCE_DIR.value, 'should end with /xls')
+      dirpath, xls = os.path.split(_XLS_SOURCE_DIR.value.rstrip('/'))
+      assert xls == 'xls', (
+          _XLS_SOURCE_DIR.value,
+          'should end with `/xls/` got',
+          xls,
+      )
       path_to_write: str = os.path.join(dirpath, path)
       with open(path_to_write, 'w') as f:
         f.write(got)

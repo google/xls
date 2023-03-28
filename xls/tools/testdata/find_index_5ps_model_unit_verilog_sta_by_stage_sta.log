@@ -1,0 +1,111 @@
+Warning: xxx/sky130_fd_sc_hd/timing/sky130_fd_sc_hd__ff_100C_1v95.lib line 23, default_fanout_load is 0.0.
+ time 1ps
+ capacitance 1pF
+ resistance 1kohm
+ voltage 1v
+ current 1mA
+ power 1nW
+ distance 1um
+Total design
+Startpoint: p0mod/$auto$ff.cc:266:slice$194 (rising edge-triggered flip-flop)
+Endpoint: p1mod/$auto$ff.cc:266:slice$189 (rising edge-triggered flip-flop)
+Path Group: (none)
+Path Type: max
+
+  Delay    Time   Description
+---------------------------------------------------------
+   0.00    0.00 ^ p0mod/$auto$ff.cc:266:slice$194/CLK (sky130_fd_sc_hd__dfxtp_1)
+ 232.55  232.55 v p0mod/$auto$ff.cc:266:slice$194/Q (sky130_fd_sc_hd__dfxtp_1)
+ 101.38  333.93 v p1mod/$abc$252$auto$blifparse.cc:386:parse_blif$268/X (sky130_fd_sc_hd__xor2_1)
+ 138.04  471.97 ^ p1mod/$abc$252$auto$blifparse.cc:386:parse_blif$272/Y (sky130_fd_sc_hd__nor4_1)
+   0.00  471.97 ^ p1mod/$auto$ff.cc:266:slice$189/D (sky130_fd_sc_hd__dfxtp_1)
+         471.97   data arrival time
+---------------------------------------------------------
+(Path is unconstrained)
+
+
+STAGES: p0mod p1mod p2mod
+
+
+
+
+
+Timing p0mod
+Startpoint: $auto$ff.cc:266:slice$193 (rising edge-triggered flip-flop)
+Endpoint: p0_target[0] (output port)
+Path Group: (none)
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                  0.00    0.00    0.00 ^ $auto$ff.cc:266:slice$193/CLK (sky130_fd_sc_hd__dfxtp_1)
+                 12.21  173.91  173.91 v $auto$ff.cc:266:slice$193/Q (sky130_fd_sc_hd__dfxtp_1)
+     1    0.00                           p0_target[0] (net)
+                 12.21    0.00  173.91 v p0_target[0] (out)
+                                173.91   data arrival time
+-----------------------------------------------------------------------------
+(Path is unconstrained)
+
+
+p0mod Startpoint: $auto$ff.cc:266:slice$193/Q
+p0mod Endpoint: p0_target[0]
+Warning: sta_by_stage.tcl line 94, object 'p0_target[0]' not found.
+p0mod Endpoint flop outpout net: p0_target[0]
+
+
+Timing p1mod
+Startpoint: p0_target[1] (input port)
+Endpoint: $auto$ff.cc:266:slice$189 (rising edge-triggered flip-flop)
+Path Group: (none)
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                          0.00    0.00 v input external delay
+                  0.00    0.00    0.00 v p0_target[1] (in)
+     4    0.02                           p0_target[1] (net)
+                  0.00    0.00    0.00 v $abc$252$auto$blifparse.cc:386:parse_blif$268/A (sky130_fd_sc_hd__xor2_1)
+                 33.44   83.26   83.26 v $abc$252$auto$blifparse.cc:386:parse_blif$268/X (sky130_fd_sc_hd__xor2_1)
+     1    0.00                           $abc$252$new_n40_ (net)
+                 33.44    0.00   83.26 v $abc$252$auto$blifparse.cc:386:parse_blif$272/A (sky130_fd_sc_hd__nor4_1)
+                119.68  134.93  218.19 ^ $abc$252$auto$blifparse.cc:386:parse_blif$272/Y (sky130_fd_sc_hd__nor4_1)
+     1    0.00                           $abc$252$p1_target__2_comb (net)
+                119.68    0.00  218.19 ^ $auto$ff.cc:266:slice$189/D (sky130_fd_sc_hd__dfxtp_1)
+                                218.19   data arrival time
+-----------------------------------------------------------------------------
+(Path is unconstrained)
+
+
+p1mod Startpoint: p0_target[1]
+p1mod Endpoint: $auto$ff.cc:266:slice$189/D
+p1mod Endpoint net name: $abc$252$p1_target__2_comb
+p1mod Endpoint flop outpout net: p1_target__2
+
+
+Timing p2mod
+Startpoint: p1_target__4 (input port)
+Endpoint: $auto$ff.cc:266:slice$109 (rising edge-triggered flip-flop)
+Path Group: (none)
+Path Type: max
+
+Fanout     Cap    Slew   Delay    Time   Description
+-----------------------------------------------------------------------------
+                          0.00    0.00 v input external delay
+                  0.00    0.00    0.00 v p1_target__4 (in)
+     3    0.01                           p1_target__4 (net)
+                  0.00    0.00    0.00 v $abc$273$auto$blifparse.cc:386:parse_blif$276/A (sky130_fd_sc_hd__nor3_1)
+                137.12  125.54  125.54 ^ $abc$273$auto$blifparse.cc:386:parse_blif$276/Y (sky130_fd_sc_hd__nor3_1)
+     2    0.01                           $abc$273$new_n10_ (net)
+                137.12    0.00  125.54 ^ $abc$273$auto$blifparse.cc:386:parse_blif$279/B2 (sky130_fd_sc_hd__a22o_1)
+                 27.29   79.49  205.03 ^ $abc$273$auto$blifparse.cc:386:parse_blif$279/X (sky130_fd_sc_hd__a22o_1)
+     1    0.00                           $abc$273$p2_encode_413_comb[0] (net)
+                 27.29    0.00  205.03 ^ $auto$ff.cc:266:slice$109/D (sky130_fd_sc_hd__dfxtp_1)
+                                205.03   data arrival time
+-----------------------------------------------------------------------------
+(Path is unconstrained)
+
+
+p2mod Startpoint: p1_target__4
+p2mod Endpoint: $auto$ff.cc:266:slice$109/D
+p2mod Endpoint net name: $abc$273$p2_encode_413_comb[0]
+p2mod Endpoint flop outpout net: p2_tuple_416[0]

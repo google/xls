@@ -1,0 +1,32 @@
+overall {
+  area_um2: 740.7104
+  flops: 27
+  crit_path_delay_ps: 471.97
+}
+per_stage {
+  area_um2: 400.384
+  levels: 1
+  flops: 20
+  cells: 20
+  crit_path_delay_ps: 173.91
+  crit_path_start: "$auto$ff.cc:266:slice$193/Q"
+  crit_path_end: "p0_target[0]"
+}
+per_stage {
+  area_um2: 245.2352
+  levels: 3
+  flops: 4
+  cells: 32
+  crit_path_delay_ps: 218.19
+  crit_path_start: "p0_target[1]"
+  crit_path_end: "p1_target__2"
+}
+per_stage {
+  area_um2: 95.0912
+  levels: 3
+  flops: 3
+  cells: 11
+  crit_path_delay_ps: 205.03
+  crit_path_start: "p1_target__4"
+  crit_path_end: "p2_tuple_416[0]"
+}

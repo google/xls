@@ -31,7 +31,7 @@ namespace xls {
 // data out of a flat character buffer, thus these routines are necessary.
 class JitRuntime {
  public:
-  JitRuntime(llvm::DataLayout data_layout);
+  explicit JitRuntime(llvm::DataLayout data_layout);
   static absl::StatusOr<std::unique_ptr<JitRuntime>> Create();
 
   // Packs the specified values into a flat buffer with the data layout
