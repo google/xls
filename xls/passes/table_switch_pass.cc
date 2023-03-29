@@ -30,7 +30,7 @@ struct Uint64Comparison {
   uint64_t key;
   Op comparison_op;
 };
-std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
+static std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
   if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return std::nullopt;
   }
@@ -78,7 +78,7 @@ struct Link {
 //
 // If a match is found, the respective Link fields are filled in (as named
 // above). Otherwise std::nullopt is returned.
-std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
+static std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   if (!IsBinarySelect(node)) {
     return std::nullopt;
   }
@@ -136,7 +136,7 @@ std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 //
 // Returns std::nullopt if the chain cannot be represented as an index into a
 // literal array.
-absl::StatusOr<std::optional<Value>> LinksToTable(
+static absl::StatusOr<std::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
     XLS_VLOG(3) << "Empty chain.";

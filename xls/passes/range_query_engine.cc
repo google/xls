@@ -295,8 +295,8 @@ struct BitsWithIndex {
 // of ranges in the input vector that should be merged (i.e.: each range should
 // be compacted down to a single point by whatever processes the output of
 // this function).
-std::vector<MergeInterval> ReduceByMerging(absl::Span<Bits const> elements,
-                                           int64_t desired_size) {
+static std::vector<MergeInterval> ReduceByMerging(
+    absl::Span<Bits const> elements, int64_t desired_size) {
   if (elements.size() <= desired_size) {
     return {};
   }

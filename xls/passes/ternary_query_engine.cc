@@ -42,7 +42,8 @@ static bool IsExpensiveToEvaluate(Node* node) {
          node->GetType()->GetFlatBitCount() > 256;
 }
 
-Bits TernaryVectorToKnownBits(const TernaryEvaluator::Vector& ternary_vector) {
+static Bits TernaryVectorToKnownBits(
+    const TernaryEvaluator::Vector& ternary_vector) {
   // Use InlinedVector to avoid std::vector<bool> specialization madness.
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
   for (int64_t i = 0; i < bits.size(); ++i) {
@@ -52,7 +53,8 @@ Bits TernaryVectorToKnownBits(const TernaryEvaluator::Vector& ternary_vector) {
   return Bits(bits);
 }
 
-Bits TernaryVectorToValueBits(const TernaryEvaluator::Vector& ternary_vector) {
+static Bits TernaryVectorToValueBits(
+    const TernaryEvaluator::Vector& ternary_vector) {
   // Use InlinedVector to avoid std::vector<bool> specialization madness.
   absl::InlinedVector<bool, 1> bits(ternary_vector.size());
   for (int64_t i = 0; i < bits.size(); ++i) {

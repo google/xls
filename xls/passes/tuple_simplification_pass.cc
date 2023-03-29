@@ -33,7 +33,7 @@ namespace xls {
 // x = tuple(tuple_index.0, tuple_index.1, ...)
 // with:
 // x = bar
-Node* FindEquivalentTuple(Tuple* tuple) {
+static Node* FindEquivalentTuple(Tuple* tuple) {
   Node* common_subject = nullptr;
   for (int64_t operand_number = 0; operand_number < tuple->operand_count();
        operand_number++) {
