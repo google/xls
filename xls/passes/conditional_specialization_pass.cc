@@ -161,6 +161,10 @@ class ConditionMap {
   // and operand index `operand_no`.
   void SetEdgeConditionSet(Node* node, int64_t operand_no,
                            ConditionSet condition_set) {
+    XLS_VLOG(3) << absl::StrFormat(
+        "Setting conditions on %s->%s (operand %d): %s",
+        node->operand(operand_no)->GetName(), node->GetName(), operand_no,
+        condition_set.ToString());
     std::pair<Node*, int64_t> key = {node, operand_no};
     XLS_CHECK(!edge_conditions_.contains(key));
     edge_conditions_.insert({key, std::move(condition_set)});
@@ -298,10 +302,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
   bool changed = false;
   for (Node* node : ReverseTopoSort(f)) {
     ConditionSet& set = condition_map.GetNodeConditionSet(node);
+    XLS_VLOG(4) << absl::StreamFormat("Considering node %s: %s",
+                                      node->GetName(), set.ToString());
 
     if (OpIsSideEffecting(node->op()) && !node->Is<Send>()) {
       // Inputs to side-effecting operations should not change so don't assume
       // any conditions for this node or it's predecessors.
+      XLS_VLOG(4) << absl::StreamFormat("Node %s is side-effecting",
+                                        node->GetName());
       continue;
     }
 
@@ -311,6 +319,10 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
     // from the users because this value is unconditionally live and therefore
     // its computed value should not be changed.
     if (!f->HasImplicitUse(node)) {
+      XLS_VLOG(4) << absl::StreamFormat(
+          "%s has no implicit use, computing intersection of conditions of "
+          "users",
+          node->GetName());
       bool first_user = true;
       for (Node* user : node->users()) {
         if (first_user) {
@@ -351,8 +363,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
         continue;
       }
 
-      ConditionSet& node_set = condition_map.GetNodeConditionSet(send->data());
-      node_set.AddCondition(Condition{predicate, /*value=*/1});
+      XLS_VLOG(4) << absl::StreamFormat(
+          "%s is a conditional send, assuming predicate %s is true for data %s",
+          node->GetName(), predicate->GetName(), send->data()->GetName());
 
       ConditionSet edge_set = set;
       edge_set.AddCondition(Condition{predicate, /*value=*/1});
