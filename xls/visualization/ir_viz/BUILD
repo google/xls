@@ -43,14 +43,13 @@ list_filegroup_files(
 py_binary(
     name = "app",
     srcs = ["app.py"],
-    data = glob([
-        "templates/*.tmpl",
-    ]) + [
+    data = [
         "ir_examples_file_list.txt",
+        "ir_graph.css",
+        "templates/splash.tmpl",
+        "third_party_js.txt",
         ":ir_examples",
         ":js_compiled",
-        "ir_graph.css",
-        "third_party_js.txt",
         "//xls/tools:opt_main",
     ],
     python_version = "PY3",

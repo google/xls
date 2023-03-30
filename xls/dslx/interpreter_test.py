@@ -788,6 +788,30 @@ class InterpreterTest(test_base.TestCase):
     """)
     self._parse_and_test(program)
 
+  def test_large_generated_function_body(self):
+    # This fails at 6KiStatements in opt due to deep recursion.
+    # Picked this number so it passes with ASAN.
+    nesting = 1024 * 1
+    rest = '\n'.join('  let x%d = x%d;' % (i, i - 1) for i in range(1, nesting))
+    program = textwrap.dedent("""\
+    fn f() -> u32 {
+      let x0 = u32:42;
+      %s
+      // Make a fail label since those should be unique at function scope.
+      let _ = if x0 != u32:42 {
+        fail!("impossible", ())
+      } else {
+        ()
+      };
+      x%d
+    }
+    #[test]
+    fn test_f() {
+      assert_eq(u32:42, f());
+    }
+    """) % (rest, nesting - 1)
+    self._parse_and_test(program)
+
 
 if __name__ == '__main__':
   test_base.main()

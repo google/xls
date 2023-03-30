@@ -120,38 +120,21 @@ class Bindings {
   }
 
   // fail! labels must be unique within a function.
-  absl::Status AddFailLabel(const std::string& label) {
-    // Check parents, in case we're contained in a subblock. The root bindings
-    // will never contain any fail labels.
-    if (ContainsFailLabel(label)) {
-      return absl::InvalidArgumentError(
-          "A fail label must be unique within a function.");
-    }
-    fail_labels_.insert(label);
-    return absl::OkStatus();
-  }
-
-  bool ContainsFailLabel(const std::string& label) {
-    if (fail_labels_.contains(label)) {
-      return true;
-    }
-    if (parent_ != nullptr) {
-      return parent_->ContainsFailLabel(label);
-    }
-    return false;
-  }
+  //
+  // The labels are used in Verilog assertion labels, though they are given as
+  // strings in the DSLX source.
+  absl::Status AddFailLabel(const std::string& label);
+  bool ContainsFailLabel(const std::string& label);
 
   // Returns the AST node bound to 'name'.
   std::optional<BoundNode> ResolveNode(std::string_view name) const {
-    auto it = local_bindings_.find(name);
-    if (it == local_bindings_.end()) {
-      if (parent_ != nullptr) {
-        return parent_->ResolveNode(name);
+    for (const Bindings* b = this; b != nullptr; b = b->parent_) {
+      auto it = b->local_bindings_.find(name);
+      if (it != b->local_bindings_.end()) {
+        return it->second;
       }
-      return std::nullopt;
     }
-
-    return it->second;
+    return std::nullopt;
   }
 
   bool ResolveNodeIsTypeDefinition(std::string_view name) const {
@@ -170,7 +153,7 @@ class Bindings {
                                                const Span& span) const {
     std::optional<BoundNode> result = ResolveNode(name);
     if (result.has_value()) {
-      return *std::move(result);
+      return *result;
     }
     return ParseErrorStatus(
         span,

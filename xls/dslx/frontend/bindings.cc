@@ -142,4 +142,25 @@ std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
+bool Bindings::ContainsFailLabel(const std::string& label) {
+  if (fail_labels_.contains(label)) {
+    return true;
+  }
+  if (parent_ != nullptr) {
+    return parent_->ContainsFailLabel(label);
+  }
+  return false;
+}
+
+absl::Status Bindings::AddFailLabel(const std::string& label) {
+  // Check parents, in case we're contained in a subblock. The root bindings
+  // will never contain any fail labels.
+  if (ContainsFailLabel(label)) {
+    return absl::InvalidArgumentError(
+        "A fail label must be unique within a function.");
+  }
+  fail_labels_.insert(label);
+  return absl::OkStatus();
+}
+
 }  // namespace xls::dslx
