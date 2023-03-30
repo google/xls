@@ -2129,14 +2129,7 @@ Note: `trace!` currently exists as a builtin but is in the process of being
 removed, as it provided the user with only a "global flag" way of specifying the
 desired format for output values -- `trace_fmt!` is more powerful.
 
-### `fail!`
-
-NOTE: this section describes work-in-progress functionality, currently `fail!`
-will only trigger in DSL interpretation (it is discarded in IR conversion).
-Support for converting `fail!` to XLS `assert` IR is tracked in
-[#232](https://github.com/google/xls/issues/232) -- support for indicating the
-assertion was triggered in the JIT is tracked in
-[#308](https://github.com/google/xls/issues/308)
+### `fail!`: assertion failure
 
 The `fail!` builtin indicates dataflow that should not be occurring in practice.
 Its general signature is:
@@ -2157,7 +2150,7 @@ this situation, **when it is "erased", it acts as the identity function**,
 propagating the `fallback_value`. This allows XLS to keep well defined semantics
 even when fatal assertion hardware is not present.
 
-Example: if only these two enum values shown should be possible (say, as a
+**Example:** if only these two enum values shown should be possible (say, as a
 documented [precondition](https://en.wikipedia.org/wiki/Precondition) for
 `main`):
 
