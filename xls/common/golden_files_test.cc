@@ -44,7 +44,7 @@ file)";
 }
 
 TEST_F(GoldenFilesTest, EmptyComparison) {
-  std::string text = "";
+  std::string text;
   ExpectEqualToGoldenFile(GoldenFilePath(), text);
 }
 
