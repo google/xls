@@ -60,6 +60,20 @@ class BuiltinIntToBits {
   }
 };
 
+#pragma hls_synthetic_int
+template <typename T, int Width>
+class BitsToBuiltinInt {
+ public:
+  inline static T Convert(__xls_bits<Width> in) {
+    T in_type;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_9_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(in_type)
+        : "i"(Width), "a"(in));
+    return in_type;
+  }
+};
+
 template <int FromW, int ToW, bool Signed>
 class ExtendBits {};
 
@@ -152,6 +166,21 @@ class MultiplyWithSign<Width, true> {
         "= smul(a, b, pos=(loc)) }"
         : "=r"(ret)
         : "i"(Width), "d"(Width), "parama"(a), "paramb"(b));
+    return ret;
+  }
+};
+
+#pragma hls_synthetic_int
+template <int Width, int IndexW>
+class ShiftLeft {
+ public:
+  inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
+                                          __xls_bits<IndexW> b) {
+    __xls_bits<Width> ret;
+    asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[i] { ret op_(aid): bits[i] = "
+        "shll(a, o, pos=(loc)) }"
+        : "=r"(ret)
+        : "i"(Width), "c"(IndexW), "a"(a), "o"(b));
     return ret;
   }
 };
@@ -396,18 +425,16 @@ class XlsIntBase<Width, false> {
   // XLS[cc] will init with 0
   inline XlsIntBase() {}
 
-  inline XlsIntBase(const __xls_bits<Width> &o) : storage(o) {}
+  inline XlsIntBase(const __xls_bits<Width> o) : storage(o) {}
 
   inline operator unsigned long long() const {
+    static_assert(Width <= 64);
     __xls_bits<64> ret(ConvertBits<Width, 64, false>::Convert(storage));
-
     unsigned long long reti;
-
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_0_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
         : "=r"(reti)
         : "i"(64), "a"(ret));
-
     return reti;
   }
 
@@ -426,8 +453,8 @@ class XlsIntBase<Width, true> {
   inline XlsIntBase(__xls_bits<Width> o) : storage(o) {}
 
   inline operator long long() const {
+    static_assert(Width <= 64);
     __xls_bits<64> ret(ConvertBits<Width, 64, true>::Convert(storage));
-
     long long reti;
 
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_1_(aid): bits[i] = "
@@ -510,6 +537,9 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   inline XlsInt(unsigned long long value)
       : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
             BuiltinIntToBits<unsigned long long, 64>::Convert(value))) {}
+
+  inline XlsInt(__xls_bits<Width> value)
+      : XlsIntBase<Width, Signed>(value) {}
 
   inline int to_int() const {
     XlsInt<32, true> ret(*this);
@@ -643,7 +673,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return ret;                                                                \
   }                                                                            \
   template <int ToW, bool ToSign>                                              \
-  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {              \
+  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {               \
     (*this) = (*this)__OP o;                                                   \
     return (*this);                                                            \
   }
@@ -886,3 +916,4 @@ OPS_WITH_INT(unsigned long long, 64, false)
 #undef ac_int
 
 #endif  // XLS_INT
+

@@ -14,6 +14,8 @@
 
 #include "xls/contrib/xlscc/unit_test.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
@@ -22,6 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -66,6 +69,39 @@ void XlsccTestBase::Run(
       std::string ir, SourceToIr(cpp_source, nullptr, clang_argv,
                                  /*io_test_mode=*/false, max_unroll_iters));
   RunAndExpectEq(args, expected, ir, false, false, loc);
+}
+
+void XlsccTestBase::RunAcDatatypeTest(
+    const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
+    std::string_view cpp_source, xabsl::SourceLocation loc) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::string> clang_args,
+                           GetClangArgForIntTest());
+  std::vector<std::string_view> clang_argv(clang_args.begin(),
+                                           clang_args.end());
+  Run(args, expected, cpp_source, loc, clang_argv);
+}
+
+absl::StatusOr<std::vector<std::string>>
+XlsccTestBase::GetClangArgForIntTest() const {
+  XLS_ASSIGN_OR_RETURN(std::string ac_int_path,
+                       xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
+  XLS_ASSIGN_OR_RETURN(
+      std::string xls_int_path,
+      xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
+
+  // Get the path that includes the ac_datatypes folder, so that the
+  //  ac_datatypes headers can be included with the form:
+  // #include "external/com_github_hlslibs_ac_types/include/foo.h"
+  auto ac_int_dir = std::filesystem::path(ac_int_path);
+  ac_int_dir = ac_int_dir.parent_path().parent_path();
+
+  auto xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
+
+  std::vector<std::string> argv;
+  argv.push_back(std::string("-I") + xls_int_dir.string());
+  argv.push_back(std::string("-I") + ac_int_dir.string());
+  argv.push_back("-D__SYNTHESIS__");
+  return argv;
 }
 
 void XlsccTestBase::RunWithStatics(

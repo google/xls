@@ -47,6 +47,13 @@ class XlsccTestBase : public xls::IrTestBase {
            std::vector<std::string_view> clang_argv = {},
            int64_t max_unroll_iters = 0);
 
+  absl::StatusOr<std::vector<std::string>> GetClangArgForIntTest() const;
+
+  void RunAcDatatypeTest(
+      const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
+      std::string_view cpp_source,
+      xabsl::SourceLocation loc = xabsl::SourceLocation::current());
+
   void RunWithStatics(
       const absl::flat_hash_map<std::string, xls::Value>& args,
       const absl::Span<xls::Value>& expected_outputs,
