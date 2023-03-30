@@ -26,7 +26,7 @@
 namespace xls {
 
 JitRuntime::JitRuntime(llvm::DataLayout data_layout)
-    : data_layout_(std::move(data_layout)),
+    : data_layout_(data_layout),
       context_(std::make_unique<llvm::LLVMContext>()),
       type_converter_(
           std::make_unique<LlvmTypeConverter>(context_.get(), data_layout_)) {}
