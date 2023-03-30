@@ -1,4 +1,4 @@
-// Copyright 2020 Google LLC
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,8 +35,18 @@ struct YosysSynthesisStatistics {
   // Could add other fields for things like wires / memory...
   absl::flat_hash_map<std::string, int64_t> cell_histogram;
 };
+
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
     std::string_view yosys_output);
+
+// Parses the given strings output of STA and returns information about the
+// results.
+struct STAStatistics {
+  float period_ps;
+  int64_t max_frequency_hz;
+  int64_t slack_ps;
+};
+absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output);
 
 }  // namespace synthesis
 }  // namespace xls

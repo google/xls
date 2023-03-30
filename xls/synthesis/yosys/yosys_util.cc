@@ -1,4 +1,5 @@
-// Copyright 2020 Google LLC
+//
+// Copyright 2021 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -109,7 +111,39 @@ absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
   }
 
   return stats;
-}
+}  //  ParseYosysOutput
 
+absl::StatusOr<STAStatistics> ParseOpenSTAOutput(std::string_view sta_output) {
+  STAStatistics stats;
+
+  std::string clk_period_ps;
+  std::string freq_mhz;
+  float tmp_float = 0.0;
+  std::string slack_ps;
+
+  for (std::string_view line : absl::StrSplit(sta_output, '\n')) {
+    line = absl::StripAsciiWhitespace(line);
+    // We're looking for lines with this outline, all in ps, freq in mhz
+    //
+    //   clk period_min = 116.71 fmax = 8568.43
+    //   worst slack -96.67
+    // And we want to extract 116.71 and 8568.43 and -96.67
+
+    if (RE2::PartialMatch(line,
+                          R"(op_clk period_min = (\d+\.\d+) fmax = (\d+\.\d+))",
+                          &clk_period_ps, &freq_mhz)) {
+      XLS_RET_CHECK(absl::SimpleAtof(clk_period_ps, &stats.period_ps));
+      stats.max_frequency_hz = static_cast<int64_t>(
+          1e12 / stats.period_ps);  // use clk in ps for accuracy
+    }
+
+    if (RE2::PartialMatch(line, R"(^worst slack (-?\d+.\d+))", &slack_ps)) {
+      XLS_RET_CHECK(absl::SimpleAtof(slack_ps, &tmp_float));
+      stats.slack_ps = static_cast<int64_t>(tmp_float);
+    }
+  }
+
+  return stats;
+}  // ParseOpenSTAOutput
 }  // namespace synthesis
 }  // namespace xls
