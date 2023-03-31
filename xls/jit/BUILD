@@ -52,6 +52,7 @@ cc_binary(
 cc_test(
     name = "aot_compiler_test",
     srcs = ["aot_compiler_test.cc"],
+    # The XLS AOT compiler does not currently support cross-compilation.
     deps = [
         ":compound_type_cc",
         ":null_function_cc",

@@ -218,6 +218,7 @@ xls_dslx_ir(
 cc_test(
     name = "aes_test",
     srcs = ["aes_test.cc"],
+    # The XLS AOT compiler does not currently support cross-compilation.
     deps = [
         ":aes_decrypt_cc",
         ":aes_encrypt_cc",
