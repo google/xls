@@ -16,7 +16,6 @@
 #define XLS_PASSES_PROC_INLINING_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 
 namespace xls {
@@ -24,7 +23,7 @@ namespace xls {
 // Pass which inlines all procs into the top-level proc.
 class ProcInliningPass : public Pass {
  public:
-  ProcInliningPass() : Pass("proc_inlining", "{roc inlining") {}
+  ProcInliningPass() : Pass("proc_inlining", "Proc inlining") {}
   ~ProcInliningPass() override = default;
 
  protected:
