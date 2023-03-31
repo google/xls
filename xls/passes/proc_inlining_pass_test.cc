@@ -3258,5 +3258,37 @@ TEST_F(ProcInliningPassTest, ReceiveIfsWithFalseCondition) {
       {{"out0", {100, 102, 100, 142, 100}}, {"out1", {1, 0, 3, 0, 123}}});
 }
 
+TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/42));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * top,
+      MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * inner,
+                           MakeDoublerProc("B", a_to_b, b_to_a, p.get()));
+
+  top->SetInitiationInterval(5);
+  inner->SetInitiationInterval(7);
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("had a different initiation interval")));
+}
+
 }  // namespace
 }  // namespace xls

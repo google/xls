@@ -1595,6 +1595,22 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     procs_to_inline.push_back(proc.get());
   }
 
+  {
+    int64_t top_ii = 1;
+    if (top_func_base->GetInitiationInterval().has_value()) {
+      top_ii = top_func_base->GetInitiationInterval().value();
+    }
+    for (Proc* proc : procs_to_inline) {
+      int64_t inner_ii = 1;
+      if (proc->GetInitiationInterval().has_value()) {
+        inner_ii = proc->GetInitiationInterval().value();
+      }
+      XLS_RET_CHECK_EQ(inner_ii, top_ii)
+          << "Proc " << proc->name() << " had a different initiation interval "
+          << "when compared to the top proc (" << top_func_base->name() << ")";
+    }
+  }
+
   Proc* container_proc =
       p->AddProc(std::make_unique<Proc>("__container", "tkn", p));
 
