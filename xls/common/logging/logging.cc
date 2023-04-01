@@ -14,12 +14,8 @@
 
 #include "xls/common/logging/logging.h"
 
-#include "absl/base/attributes.h"
-#include "absl/flags/flag.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 
 namespace xls {
 namespace logging_internal {

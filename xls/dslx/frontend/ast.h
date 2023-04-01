@@ -3079,7 +3079,7 @@ class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
               std::optional<std::vector<Expr*>> dims)
-      : Expr(owner, span), type_(type), dims_(dims) {}
+      : Expr(owner, std::move(span)), type_(type), dims_(std::move(dims)) {}
 
   ~ChannelDecl() override;
 

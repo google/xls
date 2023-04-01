@@ -14,6 +14,9 @@
 
 #include "xls/common/init_xls.h"
 
+#include <string_view>
+#include <vector>
+
 #include "absl/flags/parse.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/logging.h"
