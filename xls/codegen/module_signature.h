@@ -86,12 +86,15 @@ class ModuleSignatureBuilder {
   ModuleSignatureBuilder& AddDataOutputAsBits(std::string_view name,
                                               int64_t width);
 
+  // Removes data input/output from the interface by name.
+  absl::Status RemoveData(std::string_view name);
+
   // Add a single value channel to the interface.
   ModuleSignatureBuilder& AddSingleValueChannel(std::string_view name,
                                                 ChannelOps supported_ops,
                                                 std::string_view port_name);
 
-  // Add a streaming channel to the interface
+  // Add a streaming channel to the interface.
   ModuleSignatureBuilder& AddStreamingChannel(
       std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
       std::optional<int64_t> fifo_depth, std::string_view port_name,
@@ -100,6 +103,7 @@ class ModuleSignatureBuilder {
       std::optional<std::string_view> ready_port_name =
           std::optional<std::string_view>());
 
+  // Remove a streaming channel from the interface.
   absl::Status RemoveStreamingChannel(std::string_view name);
 
   // Struct to emulate named arguments for AddRam1RW as there are a lot of

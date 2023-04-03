@@ -119,6 +119,20 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutputAsBits(
   return AddDataOutput(name, &bits_type);
 }
 
+absl::Status ModuleSignatureBuilder::RemoveData(std::string_view name) {
+  auto port_itr =
+      std::find_if(proto_.data_ports().begin(), proto_.data_ports().end(),
+                   [name](const PortProto& port) -> bool {
+                     return port.name() == ToProtoString(name);
+                   });
+  if (port_itr == proto_.data_ports().end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Port with name %s could not be found in the ModuleSignature.", name));
+  }
+  proto_.mutable_data_ports()->erase(port_itr);
+  return absl::OkStatus();
+}
+
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
     std::string_view name, ChannelOps supported_ops,
     std::string_view port_name) {

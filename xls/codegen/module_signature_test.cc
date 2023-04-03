@@ -54,6 +54,28 @@ TEST(ModuleSignatureTest, SimpledFixedLatencyInterface) {
   EXPECT_EQ(signature.proto().fixed_latency().latency(), 123);
 }
 
+TEST(ModuleSignatureTest, RemoveData) {
+  ModuleSignatureBuilder b(TestName());
+
+  b.AddDataInputAsBits("x", 42).AddDataInputAsBits("y", 32);
+  XLS_ASSERT_OK(b.RemoveData("y"));
+  b.AddDataOutputAsBits("y", 2).WithFixedLatencyInterface(123);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+  ASSERT_EQ(signature.data_inputs().size(), 1);
+  EXPECT_EQ(signature.data_inputs().front().width(), 42);
+  EXPECT_EQ(signature.data_inputs().front().name(), "x");
+  EXPECT_EQ(signature.TotalDataInputBits(), 42);
+
+  ASSERT_EQ(signature.data_outputs().size(), 1);
+  EXPECT_EQ(signature.data_outputs().front().width(), 2);
+  EXPECT_EQ(signature.data_outputs().front().name(), "y");
+  EXPECT_EQ(signature.TotalDataOutputBits(), 2);
+
+  ASSERT_TRUE(signature.proto().has_fixed_latency());
+  EXPECT_EQ(signature.proto().fixed_latency().latency(), 123);
+}
+
 TEST(ModuleSignatureTest, PipelineInterface) {
   ModuleSignatureBuilder b(TestName());
 

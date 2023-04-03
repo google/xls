@@ -199,34 +199,6 @@ absl::StatusOr<RamWPortBlockPorts> GetWBlockPorts(
   return ports;
 }
 
-// After modifying request/response channels to drive a RAM, the channels no
-// longer fit neatly into how ModuleSignature represents channels. Instead,
-// there is a separate place in the signature that describes RAM ports. This
-// function removes channels from the "streaming channel" list and adds them,
-// along with other metadata, to the ram list.
-absl::Status UpdateModuleSignatureChannelsToRams(
-    ModuleSignature* signature, std::string_view ram_name,
-    std::string_view req_name, std::string_view resp_name, OutputPort* address,
-    OutputPort* write_data, OutputPort* read_enable, OutputPort* write_enable,
-    InputPort* read_data) {
-  auto builder = ModuleSignatureBuilder::FromProto(signature->proto());
-  XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(req_name));
-  XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(resp_name));
-  builder.AddRam1RW({.ram_name = ram_name,
-                     .req_name = req_name,
-                     .resp_name = resp_name,
-                     .address_width = address->GetType()->GetFlatBitCount(),
-                     .data_width = write_data->GetType()->GetFlatBitCount(),
-                     .address_name = address->GetName(),
-                     .read_enable_name = read_enable->GetName(),
-                     .write_enable_name = write_enable->GetName(),
-                     .read_data_name = read_data->GetName(),
-                     .write_data_name = write_data->GetName()});
-
-  XLS_ASSIGN_OR_RETURN(*signature, builder.Build());
-  return absl::OkStatus();
-}
-
 // The write completion channel exists to model the behavior of a write
 // completion and does not actually drive any bits. It is useful as a touchpoint
 // for scheduling constraints.
@@ -443,6 +415,47 @@ absl::StatusOr<bool> Ram1RWRewrite(
         ram_config.rw_port_configuration().request_channel_name));
     XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(
         ram_config.rw_port_configuration().response_channel_name));
+    XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(
+        ram_config.rw_port_configuration().write_completion_channel_name));
+
+    for (std::string_view channel_name : {
+             ram_config.rw_port_configuration().request_channel_name,
+             ram_config.rw_port_configuration().response_channel_name,
+             ram_config.rw_port_configuration().write_completion_channel_name,
+         }) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           block->package()->GetChannel(channel_name));
+      if (channel->GetReadyPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetReadyPortName().value()));
+      }
+      if (channel->GetDataPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetDataPortName().value()));
+      }
+      if (channel->GetValidPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetValidPortName().value()));
+      }
+    }
+
+    for (const xls::OutputPort* port : {
+             req_addr_port,
+             req_re_port,
+             req_we_port,
+             req_wr_data_port,
+             req_wr_mask_port,
+             req_rd_mask_port,
+         }) {
+      if (port->operand(0)->GetType()->GetFlatBitCount() > 0) {
+        builder.AddDataOutput(port->name(), port->operand(0)->GetType());
+      }
+    }
+    for (const xls::InputPort* port : {resp_rd_data_port}) {
+      if (port->GetType()->GetFlatBitCount() > 0) {
+        builder.AddDataInput(port->name(), port->GetType());
+      }
+    }
 
     builder.AddRam1RW({
         .ram_name = ram_name,
@@ -644,6 +657,49 @@ absl::StatusOr<bool> Ram1R1WRewrite(
         ram_config.r_port_configuration().response_channel_name));
     XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(
         ram_config.w_port_configuration().request_channel_name));
+    XLS_RETURN_IF_ERROR(builder.RemoveStreamingChannel(
+        ram_config.w_port_configuration().write_completion_channel_name));
+
+    for (std::string_view channel_name : {
+             ram_config.r_port_configuration().request_channel_name,
+             ram_config.r_port_configuration().response_channel_name,
+             ram_config.w_port_configuration().request_channel_name,
+             ram_config.w_port_configuration().write_completion_channel_name,
+         }) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           block->package()->GetChannel(channel_name));
+      if (channel->GetReadyPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetReadyPortName().value()));
+      }
+      if (channel->GetDataPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetDataPortName().value()));
+      }
+      if (channel->GetValidPortName().has_value()) {
+        XLS_RETURN_IF_ERROR(
+            builder.RemoveData(channel->GetValidPortName().value()));
+      }
+    }
+    for (const xls::OutputPort* port : {
+             rd_addr_port,
+             rd_mask_port,
+             rd_en_port,
+             wr_addr_port,
+             wr_data_port,
+             wr_mask_port,
+             wr_en_port,
+         }) {
+      if (port->operand(0)->GetType()->GetFlatBitCount() > 0) {
+        builder.AddDataOutput(port->name(), port->operand(0)->GetType());
+      }
+    }
+    for (const xls::InputPort* port : {rd_data_port}) {
+      if (port->GetType()->GetFlatBitCount() > 0) {
+        builder.AddDataInput(port->name(), port->GetType());
+      }
+    }
+
     builder.AddRam1R1W({
         .ram_name = ram_name,
         .rd_req_name = ram_config.r_port_configuration().request_channel_name,

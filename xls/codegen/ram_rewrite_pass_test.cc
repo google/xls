@@ -102,6 +102,36 @@ inline ::testing::Matcher<::xls::Block::Port> PortByName(
   return ::testing::MakeMatcher(new PortByNameMatcher(port_name));
 }
 
+class PortProtoByNameMatcher : public ::testing::MatcherInterface<PortProto> {
+ public:
+  explicit PortProtoByNameMatcher(std::string_view port_name)
+      : port_name_(port_name) {}
+  PortProtoByNameMatcher(const PortProtoByNameMatcher&) = default;
+
+  bool MatchAndExplain(
+      const PortProto port_proto,
+      ::testing::MatchResultListener* listener) const override {
+    *listener << "PortProto(" << port_proto.name() << ")";
+    if (port_proto.name() != port_name_) {
+      *listener << " does not match expected " << port_name_ << ".";
+      return false;
+    }
+    return true;
+  }
+
+  void DescribeTo(::std::ostream* os) const override {
+    *os << "PortProto(" << port_name_ << ")";
+  }
+
+ protected:
+  std::string_view port_name_;
+};
+
+inline ::testing::Matcher<::xls::verilog::PortProto> PortProtoByName(
+    std::string_view port_name) {
+  return ::testing::MakeMatcher(new PortProtoByNameMatcher(port_name));
+}
+
 CodegenPass* DefaultCodegenPassPipeline() {
   static CodegenCompoundPass* singleton = CreateCodegenPassPipeline().release();
   return singleton;
@@ -382,6 +412,44 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
           ram1rw_config->rw_port_configuration().request_channel_name);
       channel_names.insert(
           ram1rw_config->rw_port_configuration().response_channel_name);
+      channel_names.insert(
+          ram1rw_config->rw_port_configuration().write_completion_channel_name);
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Channel * req_channel,
+          package->GetChannel(
+              ram1rw_config->rw_port_configuration().request_channel_name));
+      // req is (addr, wr_data, wr_mask, rd_mask, we, re), so wr_mask_idx=2 and
+      // rd_mask_idx=3.
+      // If a mask is an empty tuple, expect to see it 0 times (i.e. be absent)
+      // in the signature, otherwise expect it present once.
+      int write_mask_times =
+          req_channel->type()->AsTupleOrDie()->element_type(2)->IsEqualTo(
+              package->GetTupleType({}))
+              ? 0
+              : 1;
+      int read_mask_times =
+          req_channel->type()->AsTupleOrDie()->element_type(3)->IsEqualTo(
+              package->GetTupleType({}))
+              ? 0
+              : 1;
+      EXPECT_THAT(unit.signature->data_outputs(),
+                  AllOf(Contains(PortProtoByName(
+                            absl::StrCat(ram1rw_config->ram_name(), "_addr"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                            ram1rw_config->ram_name(), "_wr_data"))),
+                        Contains(PortProtoByName(
+                            absl::StrCat(ram1rw_config->ram_name(), "_we"))),
+                        Contains(PortProtoByName(
+                            absl::StrCat(ram1rw_config->ram_name(), "_re"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                                     ram1rw_config->ram_name(), "_wr_mask")))
+                            .Times(write_mask_times),
+                        Contains(PortProtoByName(absl::StrCat(
+                                     ram1rw_config->ram_name(), "_rd_mask")))
+                            .Times(read_mask_times)));
+      EXPECT_THAT(unit.signature->data_inputs(),
+                  Contains(PortProtoByName(
+                      absl::StrCat(ram1rw_config->ram_name(), "_rd_data"))));
     } else if (config->ram_kind() == "1R1W") {
       auto* ram1r1w_config = down_cast<Ram1R1WConfiguration*>(config.get());
       bool found = false;
@@ -403,9 +471,67 @@ TEST_P(RamRewritePassTest, ModuleSignatureUpdated) {
           ram1r1w_config->r_port_configuration().response_channel_name);
       channel_names.insert(
           ram1r1w_config->w_port_configuration().request_channel_name);
+      channel_names.insert(
+          ram1r1w_config->w_port_configuration().write_completion_channel_name);
+      // If a mask is an empty tuple, expect to see it 0 times (i.e. be absent)
+      // in the signature, otherwise expect it present once.
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Channel * r_channel,
+          package->GetChannel(
+              ram1r1w_config->r_port_configuration().request_channel_name));
+      // (rd_addr, rd_mask) -> mask_idx = 1
+      // Empty tuple means no read mask.
+      int read_mask_times =
+          r_channel->type()->AsTupleOrDie()->element_type(1)->IsEqualTo(
+              package->GetTupleType({}))
+              ? 0
+              : 1;
+      XLS_ASSERT_OK_AND_ASSIGN(
+          Channel * w_channel,
+          package->GetChannel(
+              ram1r1w_config->w_port_configuration().request_channel_name));
+      // (wr_addr, wr_data, wr_mask) -> mask_idx = 2
+      // Empty tuple means no write mask.
+      int write_mask_times =
+          w_channel->type()->AsTupleOrDie()->element_type(2)->IsEqualTo(
+              package->GetTupleType({}))
+              ? 0
+              : 1;
+      EXPECT_THAT(unit.signature->data_outputs(),
+                  AllOf(Contains(PortProtoByName(absl::StrCat(
+                            ram1r1w_config->ram_name(), "_rd_addr"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                            ram1r1w_config->ram_name(), "_wr_addr"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                            ram1r1w_config->ram_name(), "_wr_data"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                            ram1r1w_config->ram_name(), "_wr_en"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                            ram1r1w_config->ram_name(), "_rd_en"))),
+                        Contains(PortProtoByName(absl::StrCat(
+                                     ram1r1w_config->ram_name(), "_rd_mask")))
+                            .Times(read_mask_times),
+                        Contains(PortProtoByName(absl::StrCat(
+                                     ram1r1w_config->ram_name(), "_wr_mask")))
+                            .Times(write_mask_times)));
+      EXPECT_THAT(unit.signature->data_inputs(),
+                  Contains(PortProtoByName(
+                      absl::StrCat(ram1r1w_config->ram_name(), "_rd_data"))));
     }
     for (auto& channel : unit.signature->streaming_channels()) {
       EXPECT_THAT(channel_names, Not(Contains(Eq(channel.name()))));
+    }
+    for (auto& channel_name : channel_names) {
+      EXPECT_THAT(unit.signature->data_inputs(),
+                  Not(Contains(AnyOf(
+                      PortProtoByName(channel_name),
+                      PortProtoByName(absl::StrCat(channel_name, "_valid")),
+                      PortProtoByName(absl::StrCat(channel_name, "_ready"))))));
+      EXPECT_THAT(unit.signature->data_outputs(),
+                  Not(Contains(AnyOf(
+                      PortProtoByName(channel_name),
+                      PortProtoByName(absl::StrCat(channel_name, "_valid")),
+                      PortProtoByName(absl::StrCat(channel_name, "_ready"))))));
     }
   }
 }
