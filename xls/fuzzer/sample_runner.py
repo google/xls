@@ -33,6 +33,7 @@ from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_sample as sample
+from xls.fuzzer.python import cpp_sample_runner
 from xls.ir.python.value import Value as IRValue
 from xls.public.python import runtime_build_actions
 from xls.tools.python import eval_helpers
@@ -316,7 +317,22 @@ class SampleRunner:
                 options)
           self.timing.simulate_ns = t.elapsed_ns
 
-    self._compare_results_function(results, args_batch)
+    try:
+      cpp_sample_runner.compare_results_function(results, args_batch)
+    except Exception as e:
+      if e.__class__.__name__ == 'StatusNotOk':
+        # As part of the porting process we throw a ValueError() from C++ and
+        # adapt that in Python-land to be a SampleError(). We do a hacky class
+        # name test because importing the abseil status definition is nontrivial
+        # and given this is a temporary measure.
+        leader = 'SampleError: '
+        message = getattr(e, 'message', '')  # see pybind11_abseil/status.pyi
+        assert isinstance(message, str), message
+        if message.startswith(leader):
+          # Status puts the code at the end in brackets.
+          message = message.rsplit(' [', maxsplit=1)[0]
+          raise SampleError(message[len(leader) :]) from None
+      raise
 
   def _run_proc(self, input_filename: str, options: sample.SampleOptions,
                 args_filename: str, ir_channel_names_filename: str):
@@ -505,66 +521,6 @@ class SampleRunner:
     """Returns the content of the named text file in the run directory."""
     with open(os.path.join(self._run_dir, filename), 'r') as f:
       return f.read()
-
-  def _compare_results_function(self, results: Dict[str, Sequence[Value]],
-                                args_batch: Optional[ArgsBatch]):
-    """Compares a set of results as for equality.
-
-    Each entry in the map is sequence of Values generated from some source
-    (e.g., interpreting the optimized IR). Each sequence of Values is compared
-    for equality.
-
-    Args:
-      results: Map of result Values.
-      args_batch: Optional batch of arguments used to produce the given results.
-        Batch should be the same length as the number of results for any given
-        value in "results".
-
-    Raises:
-      SampleError: A miscompare is found.
-    """
-    if not results:
-      return
-
-    if args_batch:  # Check length is the same as results.
-      assert len(next(iter(results.values()))) == len(args_batch)
-
-    # Returns whether the two given values are equal. The IR tools and the
-    # verilog simulator produce unsigned values while the DSLX interpreter can
-    # produce signed values so compare the results ignoring signedness.
-    def values_equal(a: Value, b: Value) -> bool:
-      return a.eq(b).is_true()
-
-    reference = None
-    for name in sorted(results.keys()):
-      values = results[name]
-      if reference is None:
-        reference = name
-      else:
-        if len(results[reference]) != len(values):
-          raise SampleError(
-              f'Results for {reference} has {len(results[reference])} values,'
-              f' {name} has {len(values)}')
-
-        for i, value in enumerate(values):
-          ref_result = results[reference][i]
-          if not values_equal(ref_result, value):
-            # Bin all of the sources by whether they match the reference or
-            # 'values'. This helps identify which of the two is likely
-            # correct.
-            reference_matches = sorted(
-                n for n, v in results.items() if values_equal(v[i], ref_result))
-            values_matches = sorted(
-                n for n, v in results.items() if values_equal(v[i], value))
-            args = '(args unknown)'
-            if args_batch:
-              args = '; '.join(a.to_ir_str() for a in args_batch[i])
-            raise SampleError(f'Result miscompare for sample {i}:'
-                              f'\nargs: {args}'
-                              f'\n{", ".join(reference_matches)} ='
-                              f'\n   {ref_result.to_ir_str()}'
-                              f'\n{", ".join(values_matches)} ='
-                              f'\n   {value.to_ir_str()}')
 
   def _compare_results_proc(self, results: Dict[str, Dict[str,
                                                           Sequence[Value]]]):

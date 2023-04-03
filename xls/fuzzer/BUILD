@@ -234,6 +234,7 @@ py_library(
         "//xls/dslx/python:interpreter",
         "//xls/dslx/python:parse_and_typecheck",
         "//xls/fuzzer/python:cpp_sample",
+        "//xls/fuzzer/python:cpp_sample_runner",
         "//xls/ir/python:value",
         "//xls/public/python:runtime_build_actions",
         "//xls/tools/python:eval_helpers",
@@ -254,6 +255,7 @@ py_test(
         "//xls/fuzzer/python:cpp_sample",
         "//xls/ir/python:bits",
         "//xls/ir/python:value",
+        "@com_google_absl_py//absl/logging",
     ],
 )
 
@@ -677,5 +679,19 @@ cc_library(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging:log_lines",
         "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "cpp_sample_runner",
+    srcs = ["cpp_sample_runner.cc"],
+    hdrs = ["cpp_sample_runner.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/dslx:interp_value",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )

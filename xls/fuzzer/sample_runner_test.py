@@ -17,6 +17,8 @@ import collections
 import os
 from typing import Tuple, Text
 
+from absl import logging
+
 from xls.common import check_simulator
 from xls.common import test_base
 from xls.dslx.python.interp_value import interp_value_from_ir_string
@@ -276,6 +278,7 @@ class SampleRunnerTest(test_base.TestCase):
                       interp_value_from_ir_string('bits[8]:42'),
                       interp_value_from_ir_string('bits[8]:100')
                   ]]))
+    logging.info('e.exception: %r', e.exception)
     self.assertIn(
         'Result miscompare for sample 0:\n'
         'args: bits[8]:0x2a; bits[8]:0x64\n'
@@ -334,11 +337,19 @@ class SampleRunnerTest(test_base.TestCase):
                   ir_converter_args=['--top=main'],
                   optimize_ir=False), args_batch))
     self.assertIn(
-        'Results for evaluated unopt IR (JIT) has 2 values, interpreted DSLX has 1',
-        str(e.exception))
+        (
+            'Results for evaluated unopt IR (JIT) has 2 values, argument batch'
+            ' has 1'
+        ),
+        str(e.exception),
+    )
     self.assertIn(
-        'Results for evaluated unopt IR (JIT) has 2 values, interpreted DSLX has 1',
-        _read_file(sample_dir, 'exception.txt'))
+        (
+            'Results for evaluated unopt IR (JIT) has 2 values, argument batch'
+            ' has 1'
+        ),
+        _read_file(sample_dir, 'exception.txt'),
+    )
 
   def test_interpret_opt_ir(self):
     sample_dir = self._make_sample_dir()
