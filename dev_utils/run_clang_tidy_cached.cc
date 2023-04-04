@@ -149,6 +149,7 @@ void ClangTidyProcessFiles(const fs::path& content_dir,
     }
   };
   std::vector<std::unique_ptr<xls::Thread>> workers;
+  workers.reserve(kJobs);
   for (auto i = 0; i < kJobs; ++i) {
     workers.push_back(std::make_unique<xls::Thread>(clang_tidy_runner));
   }
