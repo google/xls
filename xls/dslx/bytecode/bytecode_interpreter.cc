@@ -535,7 +535,9 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
 
   if (!from.IsBits()) {
     return absl::InvalidArgumentError(
-        "Only casts from arrays, enums, and bits are supported.");
+        "Bytecode interpreter only supports casts from arrays, enums, and "
+        "bits; got: " +
+        from.ToString());
   }
 
   int64_t from_bit_count = from.GetBits().value().bit_count();

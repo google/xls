@@ -284,6 +284,10 @@ bool ConcreteType::IsArray() const {
   return dynamic_cast<const ArrayType*>(this) != nullptr;
 }
 
+bool ConcreteType::IsMeta() const {
+  return dynamic_cast<const MetaType*>(this) != nullptr;
+}
+
 bool ConcreteType::IsToken() const {
   return dynamic_cast<const TokenType*>(this) != nullptr;
 }
@@ -303,6 +307,10 @@ const ArrayType& ConcreteType::AsArray() const {
 // -- TokenType
 
 TokenType::~TokenType() = default;
+
+// -- MetaType
+
+MetaType::~MetaType() = default;
 
 // -- BitsType
 
@@ -331,6 +339,9 @@ StructType::StructType(std::vector<std::unique_ptr<ConcreteType>> members,
                        const StructDef& struct_def)
     : members_(std::move(members)), struct_def_(struct_def) {
   XLS_CHECK_EQ(members_.size(), struct_def_.members().size());
+  for (const std::unique_ptr<ConcreteType>& member_type : members_) {
+    XLS_CHECK(!member_type->IsMeta()) << member_type->ToString();
+  }
 }
 
 bool StructType::HasEnum() const {
@@ -655,6 +666,7 @@ ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type,
                          ChannelDirection direction)
     : payload_type_(std::move(payload_type)), direction_(direction) {
   XLS_CHECK(payload_type_ != nullptr);
+  XLS_CHECK(!payload_type_->IsMeta());
 }
 
 std::string ChannelType::ToString() const {
@@ -703,7 +715,8 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
     return signedness.value();
   }
   return absl::InvalidArgumentError(
-      "Cannot determined signedness; type is neither enum nor bits.");
+      "Cannot determined signedness; type is neither enum nor bits: " +
+      c.ToString());
 }
 
 const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim) {
@@ -715,4 +728,10 @@ const ParametricSymbol* TryGetParametricSymbol(const ConcreteTypeDim& dim) {
   return dynamic_cast<const ParametricSymbol*>(parametric);
 }
 
+absl::StatusOr<ConcreteTypeDim> MetaType::GetTotalBitCount() const {
+  return absl::InvalidArgumentError(
+      "Cannot get total bit count of a meta-type, as these are not "
+      "realizable as values; meta-type: " +
+      ToString());
+}
 }  // namespace xls::dslx

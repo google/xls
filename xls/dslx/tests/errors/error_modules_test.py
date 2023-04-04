@@ -41,6 +41,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     ]
     logging.info('running: %s', subp.list2cmdline(cmd))
     p = subp.run(cmd, stderr=subp.PIPE, check=False, encoding='utf-8')
+    logging.info('stderr: %r', p.stderr)
     if want_err_retcode:
       self.assertNotEqual(p.returncode, 0)
     else:
@@ -574,7 +575,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     test(
         'fn unit() -> () { () } fn f() { zero!<unit>() }',
-        'Cannot make a zero-value of function type',
+        'Expected a type in zero! macro type',
         'TypeInferenceError',
     )
 
@@ -696,6 +697,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run('xls/dslx/tests/errors/spawn_wrong_argc.x')
     self.assertIn('spawn_wrong_argc.x:35:5-35:29', stderr)
     self.assertIn('spawn had wrong argument count; want: 0 got: 2', stderr)
+
+  def test_use_imported_type_as_expr(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/use_imported_type_as_expr.x'
+    )
+    self.assertIn('use_imported_type_as_expr.x:17:42-19:2', stderr)
+    self.assertIn('Types cannot be returned from functions', stderr)
 
 
 if __name__ == '__main__':

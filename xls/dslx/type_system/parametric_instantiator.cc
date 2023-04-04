@@ -22,35 +22,26 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
-#include "absl/meta/type_traits.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
-#include "xls/dslx/bytecode/bytecode_emitter.h"
-#include "xls/dslx/bytecode/bytecode_interpreter.h"
-#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 
 namespace xls::dslx {
+namespace {
 
 // Helper ToString()s for debug logging.
-static std::string ToTypesString(absl::Span<const InstantiateArg> ts) {
+std::string ToTypesString(absl::Span<const InstantiateArg> ts) {
   if (ts.empty()) {
     return "none";
   }
   return absl::StrJoin(ts, ", ", [](std::string* out, const auto& t) {
-    absl::StrAppend(out, t.type->ToString());
+    absl::StrAppend(out, t.type()->ToString());
   });
 }
-static std::string ToString(
-    absl::Span<std::unique_ptr<ConcreteType> const> ts) {
+
+std::string ToString(absl::Span<std::unique_ptr<ConcreteType> const> ts) {
   if (ts.empty()) {
     return "none";
   }
@@ -58,8 +49,8 @@ static std::string ToString(
     absl::StrAppend(out, t->ToString());
   });
 }
-static std::string ToString(
-    const absl::flat_hash_map<std::string, InterpValue>& map) {
+
+std::string ToString(const absl::flat_hash_map<std::string, InterpValue>& map) {
   return absl::StrCat(
       "{",
       absl::StrJoin(
@@ -70,7 +61,7 @@ static std::string ToString(
       "}");
 }
 
-static std::string ToString(
+std::string ToString(
     const absl::Span<const ParametricConstraint>& parametric_constraints) {
   return absl::StrCat(
       "[",
@@ -80,6 +71,8 @@ static std::string ToString(
                     }),
       "]");
 }
+
+}  // namespace
 
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,

@@ -41,6 +41,7 @@
 #include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/value_format_descriptor.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
@@ -445,13 +446,8 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   }
   ConcreteType* from = maybe_from.value();
 
-  std::optional<ConcreteType*> maybe_to =
-      type_info_->GetItem(node->type_annotation());
-  if (!maybe_to.has_value()) {
-    return absl::InternalError(absl::StrCat(
-        "Could not find concrete type for cast \"to\" type: ",
-        node->type_annotation()->ToString(), " : ", node->span().ToString()));
-  }
+  std::optional<ConcreteType*> maybe_to = type_info_->GetItem(node);
+  XLS_RET_CHECK(maybe_to.has_value());
   ConcreteType* to = maybe_to.value();
 
   if (ArrayType* from_array = dynamic_cast<ArrayType*>(from);
@@ -481,7 +477,9 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   BitsType* from_bits = dynamic_cast<BitsType*>(from);
   if (from_bits == nullptr) {
     return absl::InternalError(
-        "Only casts from arrays, enums, or bits are allowed.");
+        "Bytecode emitter only supports casts from arrays, enums, or bits; got "
+        "'from': " +
+        from->ToString());
   }
 
   if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
@@ -497,7 +495,9 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   BitsType* to_bits = dynamic_cast<BitsType*>(to);
   if (to_bits == nullptr) {
     return absl::InternalError(
-        "Only casts to arrays, enums, or bits are allowed.");
+        "Bytecode emitter only supports casts to arrays, enums, or bits; got "
+        "'to': " +
+        to->ToString());
   }
 
   bytecode_.push_back(
@@ -632,9 +632,9 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   // only. Once the loops scope ends, the previous map is restored.
   absl::flat_hash_map<const NameDef*, int64_t> old_namedef_to_slot =
       namedef_to_slot_;
-  auto cleanup = absl::MakeCleanup([this, &old_namedef_to_slot]() {
+  absl::Cleanup cleanup = [this, &old_namedef_to_slot]() {
     namedef_to_slot_ = old_namedef_to_slot;
-  });
+  };
 
   // We need a means of referencing the loop index and accumulator in the
   // namedef_to_slot_ map, so we pretend that they're NameDefs for uniqueness.
@@ -714,13 +714,8 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 }
 
 absl::Status BytecodeEmitter::HandleZeroMacro(const ZeroMacro* node) {
-  std::optional<ConcreteType*> maybe_type =
-      type_info_->GetItem(ToAstNode(node->type()));
-  XLS_RET_CHECK(maybe_type.has_value());
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue value,
-      MakeZeroValue(*maybe_type.value(), *import_data_, node->span()));
-  Add(Bytecode::MakeLiteral(node->span(), value));
+  XLS_ASSIGN_OR_RETURN(InterpValue value, type_info_->GetConstExpr(node));
+  Add(Bytecode::MakeLiteral(node->span(), std::move(value)));
   return absl::OkStatus();
 }
 
@@ -824,15 +819,13 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
           width_slice->width()->ToString(), "\"."));
     }
 
-    ConcreteType* type = maybe_type.value();
-    BitsType* bits_type = dynamic_cast<BitsType*>(type);
-    if (bits_type == nullptr) {
-      return absl::InternalError(absl::StrCat(
-          "Width slice type specifier isn't a BitsType: ", type->ToString()));
-    }
+    MetaType* type = dynamic_cast<MetaType*>(maybe_type.value());
+    XLS_RET_CHECK(type != nullptr) << maybe_type.value()->ToString();
+    BitsType* bits_type = dynamic_cast<BitsType*>(type->wrapped().get());
+    XLS_RET_CHECK(bits_type != nullptr) << type->ToString();
 
     bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice,
-                                 type->CloneToUnique()));
+                                 bits_type->CloneToUnique()));
     return absl::OkStatus();
   }
 
@@ -1075,6 +1068,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
         "Channel %s type is not of type channel", channel->ToString()));
   }
 
+  XLS_RET_CHECK(!channel_type->payload_type().IsMeta());
   return channel_type->payload_type().CloneToUnique();
 }
 
@@ -1082,6 +1076,7 @@ absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
     const Expr* channel, const TypeInfo* type_info) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
                        GetChannelPayloadType(type_info, channel));
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ValueFormatDescriptor> struct_fmt_desc,
                        MakeValueFormatDescriptor(*channel_payload_type.get(),
                                                  FormatPreference::kDefault));

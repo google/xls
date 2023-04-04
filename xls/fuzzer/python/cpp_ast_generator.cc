@@ -115,17 +115,6 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
         return interp_value.GetBits();
       });
 
-  m.def("generate_interp_values",
-        [](const std::vector<const ConcreteType*>& arg_types,
-           ValueGenerator* value_gen) -> absl::StatusOr<py::tuple> {
-          XLS_ASSIGN_OR_RETURN(auto arguments,
-                               value_gen->GenerateInterpValues(arg_types));
-          py::tuple result(arguments.size());
-          for (int64_t i = 0; i < arguments.size(); ++i) {
-            result[i] = arguments[i];
-          }
-          return result;
-        });
   m.def("generate_sample", GenerateSample, py::arg("options"),
         py::arg("default_options"), py::arg("value_gen"));
 }

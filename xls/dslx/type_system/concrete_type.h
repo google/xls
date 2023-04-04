@@ -123,6 +123,7 @@ class TokenType;
 class StructType;
 class TupleType;
 class ArrayType;
+class MetaType;
 
 // Abstract base class for a ConcreteType visitor.
 class ConcreteTypeVisitor {
@@ -137,6 +138,7 @@ class ConcreteTypeVisitor {
   virtual absl::Status HandleStruct(const StructType& t) = 0;
   virtual absl::Status HandleTuple(const TupleType& t) = 0;
   virtual absl::Status HandleArray(const ArrayType& t) = 0;
+  virtual absl::Status HandleMeta(const MetaType& t) = 0;
 };
 
 // Represents a 'concrete' (evaluated) type, as determined by evaluating a
@@ -206,6 +208,7 @@ class ConcreteType {
   bool IsToken() const;
   bool IsStruct() const;
   bool IsArray() const;
+  bool IsMeta() const;
 
   const StructType& AsStruct() const;
   const ArrayType& AsArray() const;
@@ -222,6 +225,50 @@ inline std::ostream& operator<<(std::ostream& os, const ConcreteType& t) {
   os << t.ToString();
   return os;
 }
+
+// Indicates that the deduced entity is a type expression -- as opposed to "an
+// expression having type T" this indicates "it was type T itself".
+class MetaType : public ConcreteType {
+ public:
+  explicit MetaType(std::unique_ptr<ConcreteType> wrapped)
+      : wrapped_(std::move(wrapped)) {}
+
+  ~MetaType() override;
+
+  absl::Status Accept(ConcreteTypeVisitor& v) const override {
+    return v.HandleMeta(*this);
+  }
+  bool operator==(const ConcreteType& other) const override {
+    if (const auto* o = dynamic_cast<const MetaType*>(&other)) {
+      return *wrapped() == *o->wrapped();
+    }
+    return false;
+  }
+  std::string GetDebugTypeName() const override { return "meta-type"; }
+  std::string ToString() const override {
+    return absl::StrCat("typeof(", wrapped_->ToString(), ")");
+  }
+
+  bool HasEnum() const override { return wrapped_->HasEnum(); }
+  std::vector<ConcreteTypeDim> GetAllDims() const override {
+    return wrapped_->GetAllDims();
+  }
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const;
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const MapFn& f) const override {
+    XLS_ASSIGN_OR_RETURN(auto wrapped, wrapped_->MapSize(f));
+    return std::make_unique<MetaType>(std::move(wrapped));
+  }
+  std::unique_ptr<ConcreteType> CloneToUnique() const override {
+    return std::make_unique<MetaType>(wrapped_->CloneToUnique());
+  }
+
+  const std::unique_ptr<ConcreteType>& wrapped() const { return wrapped_; }
+  std::unique_ptr<ConcreteType>& wrapped() { return wrapped_; }
+
+ private:
+  std::unique_ptr<ConcreteType> wrapped_;
+};
 
 // Represents the type of a token value.
 //
@@ -368,7 +415,9 @@ class TupleType : public ConcreteType {
 class ArrayType : public ConcreteType {
  public:
   ArrayType(std::unique_ptr<ConcreteType> element_type, ConcreteTypeDim size)
-      : element_type_(std::move(element_type)), size_(std::move(size)) {}
+      : element_type_(std::move(element_type)), size_(std::move(size)) {
+    XLS_CHECK(!element_type_->IsMeta()) << element_type_->ToString();
+  }
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
     return v.HandleArray(*this);
@@ -474,7 +523,7 @@ class BitsType : public ConcreteType {
   BitsType(bool is_signed, int64_t size)
       : BitsType(is_signed, ConcreteTypeDim(InterpValue::MakeU32(size))) {}
   BitsType(bool is_signed, ConcreteTypeDim size)
-      : is_signed_(is_signed), size_(std::move(size)) {}
+      : is_signed_(is_signed), size_(size) {}
   ~BitsType() override = default;
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
@@ -523,7 +572,9 @@ class FunctionType : public ConcreteType {
  public:
   FunctionType(std::vector<std::unique_ptr<ConcreteType>> params,
                std::unique_ptr<ConcreteType> return_type)
-      : params_(std::move(params)), return_type_(std::move(return_type)) {}
+      : params_(std::move(params)), return_type_(std::move(return_type)) {
+    XLS_CHECK(!return_type_->IsMeta());
+  }
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
     return v.HandleFunction(*this);
@@ -576,6 +627,10 @@ class FunctionType : public ConcreteType {
 
 // Represents the type of a channel (half-duplex), which effectively just wraps
 // its payload type and has an associated direction.
+//
+// Attrs:
+//  payload_type: The type of the values that flow through the channel. Note
+//    that this cannot be a metatype (checked on construction).
 class ChannelType : public ConcreteType {
  public:
   ChannelType(std::unique_ptr<ConcreteType> payload_type,

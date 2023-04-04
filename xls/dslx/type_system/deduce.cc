@@ -52,6 +52,7 @@
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -88,8 +89,8 @@ absl::StatusOr<InterpValue> InterpretExpr(
 // Returns:
 //   An invocation node for the given function when called with an element in
 //   the argument array.
-static Invocation* CreateElementInvocation(Module* module, const Span& span,
-                                           Expr* callee, Expr* arg_array) {
+Invocation* CreateElementInvocation(Module* module, const Span& span,
+                                    Expr* callee, Expr* arg_array) {
   auto* name = module->GetOrCreateBuiltinNameDef("u32");
   auto* annotation =
       module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32, name);
@@ -178,9 +179,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
                                                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(auto concrete_type,
                        ctx->Deduce(node->type_annotation()));
+  auto* meta_type = dynamic_cast<MetaType*>(concrete_type.get());
+  std::unique_ptr<ConcreteType>& param_type = meta_type->wrapped();
+
   Function* f = dynamic_cast<Function*>(node->parent());
   if (f == nullptr) {
-    return concrete_type;
+    return std::move(param_type);
   }
 
   // When deducing a proc at top level, we won't have constexpr values for its
@@ -192,17 +196,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
   bool is_root_proc =
       f->tag() == Function::Tag::kProcConfig && ctx->fn_stack().size() == 2;
   bool is_channel_param =
-      dynamic_cast<ChannelType*>(concrete_type.get()) != nullptr;
+      dynamic_cast<ChannelType*>(param_type.get()) != nullptr;
   bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
   if (is_root_proc && is_channel_param && !is_param_constexpr) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
-        ConstexprEvaluator::CreateChannelValue(concrete_type.get()));
+        ConstexprEvaluator::CreateChannelValue(param_type.get()));
     ctx->type_info()->NoteConstExpr(node, value);
     ctx->type_info()->NoteConstExpr(node->name_def(), value);
   }
 
-  return concrete_type;
+  return std::move(param_type);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
@@ -268,13 +272,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(const TypeRef* node,
                                                             DeduceCtx* ctx) {
-  return ctx->Deduce(ToAstNode(node->type_definition()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       ctx->Deduce(ToAstNode(node->type_definition())));
+  XLS_RET_CHECK(type->IsMeta()) << type->ToString();
+  return type;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeAlias(
     const TypeAlias* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(node->type_annotation()));
+  XLS_RET_CHECK(type->IsMeta());
   ctx->type_info()->SetItem(node->name_def(), *type);
   return type;
 }
@@ -332,9 +340,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
     }
   } else {
     XLS_ASSIGN_OR_RETURN(concrete_type, ctx->Deduce(node->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(concrete_type,
+                         UnwrapMetaType(std::move(concrete_type),
+                                        node->type_annotation()->span(),
+                                        "numeric literal type-prefix"));
   }
 
   XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
+  XLS_RET_CHECK(!concrete_type->IsMeta());
   BitsType* bits_type = dynamic_cast<BitsType*>(concrete_type.get());
   if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -638,6 +651,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     XLS_ASSIGN_OR_RETURN(type, DeduceEnumSansUnderlyingType(node, ctx));
   } else {
     XLS_ASSIGN_OR_RETURN(type, DeduceAndResolve(node->type_annotation(), ctx));
+    XLS_ASSIGN_OR_RETURN(
+        type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
+                             "enum underlying type"));
   }
 
   auto* bits_type = dynamic_cast<BitsType*>(type.get());
@@ -678,15 +694,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     members.push_back(value);
   }
 
-  auto result = std::make_unique<EnumType>(*node, bit_count,
-                                           bits_type->is_signed(), members);
+  auto enum_type = std::make_unique<EnumType>(*node, bit_count,
+                                              bits_type->is_signed(), members);
 
   for (const EnumMember& member : node->values()) {
-    ctx->type_info()->SetItem(member.name_def, *result);
+    ctx->type_info()->SetItem(member.name_def, *enum_type);
   }
-  ctx->type_info()->SetItem(node->name_def(), *result);
-  ctx->type_info()->SetItem(node, *result);
-  return result;
+
+  auto meta_type = std::make_unique<MetaType>(std::move(enum_type));
+  ctx->type_info()->SetItem(node->name_def(), *meta_type);
+  ctx->type_info()->SetItem(node, *meta_type);
+  return meta_type;
 }
 
 // Typechecks the name def tree items against type, putting the corresponding
@@ -751,6 +769,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
   if (node->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
                          DeduceAndResolve(node->type_annotation(), ctx));
+    XLS_ASSIGN_OR_RETURN(
+        annotated,
+        UnwrapMetaType(std::move(annotated), node->type_annotation()->span(),
+                       "let type-annotation"));
     if (*rhs != *annotated) {
       return ctx->TypeMismatchError(
           node->type_annotation()->span(), nullptr, *annotated, nullptr, *rhs,
@@ -815,6 +837,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
   if (node->type_annotation() != nullptr) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated_type,
                          DeduceAndResolve(node->type_annotation(), ctx));
+    XLS_ASSIGN_OR_RETURN(annotated_type,
+                         UnwrapMetaType(std::move(annotated_type),
+                                        node->type_annotation()->span(),
+                                        "for-loop annotated type"));
 
     if (*target_annotated_type != *annotated_type) {
       return ctx->TypeMismatchError(
@@ -877,6 +903,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(const Cast* node,
                                                          DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        DeduceAndResolve(node->type_annotation(), ctx));
+  XLS_ASSIGN_OR_RETURN(
+      type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
+                           "cast type"));
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr,
                        DeduceAndResolve(node->expr(), ctx));
 
@@ -894,6 +924,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
   for (const ParametricBinding* parametric : node->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(parametric_binding_type,
+                         UnwrapMetaType(std::move(parametric_binding_type),
+                                        parametric->type_annotation()->span(),
+                                        "parametric binding type annotation"));
     if (parametric->expr() != nullptr) {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                            ctx->Deduce(parametric->expr()));
@@ -912,9 +946,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructDef(
   for (auto [name_def, type] : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete,
                          DeduceAndResolve(type, ctx));
+    XLS_ASSIGN_OR_RETURN(concrete,
+                         UnwrapMetaType(std::move(concrete), type->span(),
+                                        "struct member type"));
     members.push_back(std::move(concrete));
   }
-  auto result = std::make_unique<StructType>(std::move(members), *node);
+  auto wrapped = std::make_unique<StructType>(std::move(members), *node);
+  auto result = std::make_unique<MetaType>(std::move(wrapped));
   ctx->type_info()->SetItem(node->name_def(), *result);
   XLS_VLOG(5) << absl::StreamFormat("Deduced type for struct %s => %s",
                                     node->ToString(), result->ToString());
@@ -940,6 +978,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
 
   auto dim = ConcreteTypeDim::CreateU32(member_types.size());
 
+  // Try to infer the array type from the first member.
   std::unique_ptr<ArrayType> inferred;
   if (!member_types.empty()) {
     inferred =
@@ -957,6 +996,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
                        ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(annotated,
+                       UnwrapMetaType(std::move(annotated), node->span(),
+                                      "array type-prefix position"));
   auto* array_type = dynamic_cast<ArrayType*>(annotated.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -972,7 +1014,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
                        Resolve(array_type->element_type(), ctx));
   if (*resolved_element_type != *member_types[0]) {
     return ctx->TypeMismatchError(
-        node->span(), nullptr, *resolved_element_type, nullptr,
+        node->members().at(0)->span(), nullptr, *resolved_element_type, nullptr,
         *member_types[0],
         "Annotated element type did not match inferred "
         "element type.");
@@ -1054,6 +1096,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(node->type_annotation()));
+  XLS_ASSIGN_OR_RETURN(
+      type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
+                           "array type-prefix position"));
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
@@ -1190,6 +1235,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToArrayType(
     ArrayTypeAnnotation* array_type, const ColonRef* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        ctx->Deduce(array_type));
+  XLS_ASSIGN_OR_RETURN(
+      resolved,
+      UnwrapMetaType(std::move(resolved), array_type->span(), "array type"));
   if (!IsBits(*resolved)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -1232,7 +1280,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
                   absl::StrFormat("Name '%s' is not defined by the enum %s.",
                                   node->attr(), enum_def->identifier()));
             }
-            return DeduceEnumDef(enum_def, subject_ctx.get());
+            XLS_ASSIGN_OR_RETURN(auto enum_type,
+                                 DeduceEnumDef(enum_def, subject_ctx.get()));
+            return UnwrapMetaType(std::move(enum_type), node->span(),
+                                  "enum type");
           },
           [&](BuiltinNameDef* builtin_name_def) -> ReturnT {
             return DeduceColonRefToBuiltinNameDef(builtin_name_def, node);
@@ -1338,6 +1389,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   // error (prevent requesting over-slicing at compile time).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> width_type,
                        ctx->Deduce(width_slice.width()));
+  XLS_ASSIGN_OR_RETURN(width_type, UnwrapMetaType(std::move(width_type),
+                                                  width_slice.width()->span(),
+                                                  "width slice type"));
+
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim width_ctd,
                        width_type->GetTotalBitCount());
   ConcreteTypeDim subject_ctd = subject_type.size();
@@ -1714,10 +1769,17 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     }
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                          DeduceAndResolve(expr, ctx));
+    XLS_RET_CHECK(!expr_type->IsMeta())
+        << "name: " << name << " expr: " << expr->ToString()
+        << " type: " << expr_type->ToString();
+
     result.args.push_back(InstantiateArg{std::move(expr_type), expr->span()});
     std::optional<const ConcreteType*> maybe_type =
         struct_type.GetMemberTypeByName(name);
+
     if (maybe_type.has_value()) {
+      XLS_RET_CHECK(!maybe_type.value()->IsMeta())
+          << maybe_type.value()->ToString();
       result.member_types.push_back(maybe_type.value()->CloneToUnique());
     } else {
       return TypeInferenceErrorStatus(
@@ -1803,6 +1865,9 @@ static absl::StatusOr<StructDef*> DerefToStruct(
 }
 
 // Deduces the type for a ParametricBinding (via its type annotation).
+//
+// Note that this returns the type of the expression (i.e. parameter reference)
+// not the metatype (i.e. not the type of the type-annotation).
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
     ParametricBinding* binding, DeduceCtx* ctx) {
   Module* binding_module = binding->owner();
@@ -1810,7 +1875,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricBindingToType(
   XLS_ASSIGN_OR_RETURN(TypeInfo * binding_type_info,
                        import_data->GetRootTypeInfo(binding_module));
   auto binding_ctx = ctx->MakeCtx(binding_type_info, binding_module);
-  return binding_ctx->Deduce(binding->type_annotation());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       binding_ctx->Deduce(binding->type_annotation()));
+  return UnwrapMetaType(std::move(type), binding->type_annotation()->span(),
+                        "parametric binding type");
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
@@ -1819,11 +1887,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                        ctx->Deduce(ToAstNode(node->struct_def())));
-  auto* struct_type = dynamic_cast<StructType*>(type.get());
-  XLS_RET_CHECK(struct_type != nullptr) << type->ToString();
+  XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(std::move(type), node->span(),
+                                            "struct instance type"));
 
-  // TODO(leary): 2021-06-27 Grab parametric expressions off of the StructRef
-  // and use those as "constraints" in InstantiateStruct() below.
+  auto* struct_type = dynamic_cast<const StructType*>(type.get());
+  if (struct_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), struct_type,
+        "Expected a struct definition to instantiate");
+  }
 
   // Note what names we expect to be present.
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> names,
@@ -1871,6 +1943,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
     const SplatStructInstance* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> struct_type_ct,
                        ctx->Deduce(ToAstNode(node->struct_ref())));
+  XLS_ASSIGN_OR_RETURN(struct_type_ct,
+                       UnwrapMetaType(std::move(struct_type_ct), node->span(),
+                                      "splatted struct instance type"));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> splatted_type_ct,
                        ctx->Deduce(node->splatted()));
 
@@ -1950,10 +2025,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBuiltinTypeAnnotation(
     const BuiltinTypeAnnotation* node, DeduceCtx* ctx) {
+  std::unique_ptr<ConcreteType> t;
   if (node->builtin_type() == BuiltinType::kToken) {
-    return std::make_unique<TokenType>();
+    t = std::make_unique<TokenType>();
+  } else {
+    t = std::make_unique<BitsType>(node->GetSignedness(), node->GetBitCount());
   }
-  return std::make_unique<BitsType>(node->GetSignedness(), node->GetBitCount());
+  return std::make_unique<MetaType>(std::move(t));
 }
 
 // Converts an AST expression in "dimension position" (e.g. in an array type
@@ -2057,6 +2135,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
   XLS_VLOG(5) << "DeduceChannelTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_type,
                        Deduce(node->payload(), ctx));
+  XLS_RET_CHECK(payload_type->IsMeta())
+      << node->payload()->ToString() << " @ " << node->payload()->span();
+  XLS_ASSIGN_OR_RETURN(payload_type, UnwrapMetaType(std::move(payload_type),
+                                                    node->payload()->span(),
+                                                    "channel type annotation"));
   std::unique_ptr<ConcreteType> node_type =
       std::make_unique<ChannelType>(std::move(payload_type), node->direction());
   if (node->dims().has_value()) {
@@ -2070,7 +2153,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
     }
   }
 
-  return node_type;
+  return std::make_unique<MetaType>(std::move(node_type));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
@@ -2079,29 +2162,37 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleTypeAnnotation(
   for (TypeAnnotation* member : node->members()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                          ctx->Deduce(member));
+    XLS_ASSIGN_OR_RETURN(type, UnwrapMetaType(std::move(type), member->span(),
+                                              "tuple type member"));
     members.push_back(std::move(type));
   }
-  return std::make_unique<TupleType>(std::move(members));
+  auto t = std::make_unique<TupleType>(std::move(members));
+  return std::make_unique<MetaType>(std::move(t));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
     const ArrayTypeAnnotation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceArrayTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, DimToConcrete(node->dim(), ctx));
+  std::unique_ptr<ConcreteType> t;
   if (auto* element_type =
           dynamic_cast<BuiltinTypeAnnotation*>(node->element_type());
       element_type != nullptr && element_type->GetBitCount() == 0) {
-    return std::make_unique<BitsType>(element_type->GetSignedness(),
-                                      std::move(dim));
+    t = std::make_unique<BitsType>(element_type->GetSignedness(),
+                                   std::move(dim));
+  } else {
+    XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
+                << node->element_type()->ToString();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> e,
+                         ctx->Deduce(node->element_type()));
+    XLS_ASSIGN_OR_RETURN(
+        e, UnwrapMetaType(std::move(e), node->element_type()->span(),
+                          "array element type position"));
+    t = std::make_unique<ArrayType>(std::move(e), std::move(dim));
+    XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
+                                      node->ToString(), t->ToString());
   }
-  XLS_VLOG(5) << "DeduceArrayTypeAnnotation; element_type: "
-              << node->element_type()->ToString();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
-                       ctx->Deduce(node->element_type()));
-  auto result =
-      std::make_unique<ArrayType>(std::move(element_type), std::move(dim));
-  XLS_VLOG(4) << absl::StreamFormat("Array type annotation: %s => %s",
-                                    node->ToString(), result->ToString());
+  auto result = std::make_unique<MetaType>(std::move(t));
   return result;
 }
 
@@ -2226,7 +2317,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
           base_type, ConcretizeStructAnnotation(node, struct_def, *base_type));
     }
   }
-  return base_type;
+  XLS_RET_CHECK(base_type->IsMeta());
+  return std::move(base_type);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatchArm(
@@ -2236,7 +2328,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatchArm(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
     const ChannelDecl* node, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(auto element_type, Deduce(node->type(), ctx));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
+                       Deduce(node->type(), ctx));
+  XLS_ASSIGN_OR_RETURN(
+      element_type,
+      UnwrapMetaType(std::move(element_type), node->type()->span(),
+                     "channel declaration type"));
   std::unique_ptr<ConcreteType> producer = std::make_unique<ChannelType>(
       element_type->CloneToUnique(), ChannelDirection::kOut);
   std::unique_ptr<ConcreteType> consumer = std::make_unique<ChannelType>(
@@ -2293,14 +2390,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(const Send* node,
       std::unique_ptr<ChannelType> channel_type,
       DeduceChannelType(node->channel(), "send", "send(token, out chan, data)",
                         ChannelDirection::kOut, ctx));
-  XLS_ASSIGN_OR_RETURN(auto payload_type,
-                       DeduceAndResolve(node->payload(), ctx));
-  if (channel_type->payload_type() != *payload_type) {
+
+  Expr* payload_expr = node->payload();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_expr_type,
+                       DeduceAndResolve(payload_expr, ctx));
+  XLS_RET_CHECK(!payload_expr_type->IsMeta());
+
+  if (channel_type->payload_type() != *payload_expr_type) {
     return ctx->TypeMismatchError(
         node->span(), nullptr, channel_type->payload_type(), nullptr,
-        *payload_type,
-        "Send node's type did not match inferred type "
-        "of its payload.");
+        *payload_expr_type,
+        "send() channel type did not match the sent value type");
   }
 
   return std::make_unique<TokenType>();
@@ -2312,22 +2412,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(const SendIf* node,
                        DeduceChannelType(node->channel(), "send_if",
                                          "send_if(token, bool, out chan, data)",
                                          ChannelDirection::kOut, ctx));
+  const ConcreteType& channel_payload_type = channel_type->payload_type();
 
-  XLS_ASSIGN_OR_RETURN(auto payload_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_type,
                        DeduceAndResolve(node->payload(), ctx));
-  if (channel_type->payload_type() != *payload_type) {
+  if (channel_payload_type != *payload_type) {
     return ctx->TypeMismatchError(
-        node->span(), nullptr, channel_type->payload_type(), nullptr,
-        *payload_type,
-        "SendIf node's type did not match inferred type "
-        "of its payload.");
+        node->span(), nullptr, channel_payload_type, nullptr, *payload_type,
+        "send_if() channel type did not match the sent value type");
   }
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
   std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
   if (*condition_type != *bool_type) {
     return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
                                   nullptr, *bool_type,
-                                  "SendIf condition was not of bool type.");
+                                  "send_if() predicate was not a boolean");
   }
 
   return std::make_unique<TokenType>();
@@ -2381,10 +2480,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
       std::unique_ptr<ChannelType> channel_type,
       DeduceChannelType(node->channel(), "recv", "recv(token, in chan)",
                         ChannelDirection::kIn, ctx));
-
   std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.emplace_back(std::make_unique<TokenType>());
-  elements.emplace_back(channel_type->payload_type().CloneToUnique());
+  elements.push_back(std::make_unique<TokenType>());
+  elements.push_back(channel_type->payload_type().CloneToUnique());
   return std::make_unique<TupleType>(std::move(elements));
 }
 
@@ -2396,7 +2494,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
                         "recv_non_blocking(token, in chan, default)",
                         ChannelDirection::kIn, ctx));
 
-  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
                        Deduce(node->default_value(), ctx));
   if (*default_value_type != channel_type->payload_type()) {
     return ctx->TypeMismatchError(
@@ -2406,9 +2504,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
   }
 
   std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.emplace_back(std::make_unique<TokenType>());
-  elements.emplace_back(channel_type->payload_type().CloneToUnique());
-  elements.emplace_back(BitsType::MakeU1());
+  elements.push_back(std::make_unique<TokenType>());
+  elements.push_back(std::move(default_value_type));
+  elements.push_back(BitsType::MakeU1());
 
   return std::make_unique<TupleType>(std::move(elements));
 }
@@ -2428,18 +2526,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
                                   "RecvIf condition was not of bool type.");
   }
 
-  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+  const ConcreteType& channel_payload_type = channel_type->payload_type();
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
                        Deduce(node->default_value(), ctx));
-  if (*default_value_type != channel_type->payload_type()) {
+  if (*default_value_type != channel_payload_type) {
     return ctx->TypeMismatchError(
         node->span(), nullptr, *default_value_type, nullptr,
-        channel_type->payload_type(),
-        "Default value type does not match channel type");
+        channel_payload_type, "Default value type does not match channel type");
   }
 
   std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.emplace_back(std::make_unique<TokenType>());
-  elements.emplace_back(channel_type->payload_type().CloneToUnique());
+  elements.push_back(std::make_unique<TokenType>());
+  elements.push_back(std::move(default_value_type));
   return std::make_unique<TupleType>(std::move(elements));
 }
 
@@ -2459,19 +2558,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
                                   "RecvIf condition was not of bool type.");
   }
 
-  XLS_ASSIGN_OR_RETURN(auto default_value_type,
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
                        Deduce(node->default_value(), ctx));
-  if (*default_value_type != channel_type->payload_type()) {
+
+  const ConcreteType& channel_payload_type = channel_type->payload_type();
+
+  if (*default_value_type != channel_payload_type) {
     return ctx->TypeMismatchError(
         node->span(), nullptr, *default_value_type, nullptr,
-        channel_type->payload_type(),
-        "Default value type does not match channel type");
+        channel_payload_type, "Default value type does not match channel type");
   }
 
   std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.emplace_back(std::make_unique<TokenType>());
-  elements.emplace_back(channel_type->payload_type().CloneToUnique());
-  elements.emplace_back(std::move(bool_type));
+  elements.push_back(std::make_unique<TokenType>());
+  elements.push_back(std::move(default_value_type));
+  elements.push_back(std::move(bool_type));
   return std::make_unique<TupleType>(std::move(elements));
 }
 
@@ -2505,6 +2606,8 @@ absl::Status InstantiateParametricArgs(
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                          DeduceAndResolve(arg, ctx));
+    XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
+                                   << " type: " << type->ToString();
     instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
   }
 
@@ -2516,8 +2619,8 @@ absl::Status InstantiateParametricArgs(
 absl::StatusOr<TypeAndBindings> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
     const std::vector<InstantiateArg>& args,
-    std::function<absl::StatusOr<Function*>(const Instantiation*, DeduceCtx*)>
-        resolve_fn,
+    const std::function<absl::StatusOr<Function*>(const Instantiation*,
+                                                  DeduceCtx*)>& resolve_fn,
     const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env = {}) {
   bool is_parametric_fn = false;
   // We can't resolve builtins as AST Functions, hence this check.
@@ -2592,7 +2695,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       node, node->callee(), node->config()->args(), ctx, &config_args));
 
   std::vector<InstantiateArg> next_args;
-  next_args.emplace_back(
+  next_args.push_back(
       InstantiateArg{std::make_unique<TokenType>(), node->span()});
   XLS_RETURN_IF_ERROR(InstantiateParametricArgs(
       node, node->callee(), node->next()->args(), ctx, &next_args));
@@ -2754,9 +2857,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   }
 
   for (int i = 0; i < args.size(); i++) {
-    if (*args[i].type != *ft->params()[i]) {
+    if (*args[i].type() != *ft->params()[i]) {
       return ctx->TypeMismatchError(
-          args[i].span, nullptr, *ft->params()[i], nullptr, *args[i].type,
+          args[i].span(), nullptr, *ft->params()[i], nullptr, *args[i].type(),
           "Mismatch between parameter and argument types.");
     }
   }
@@ -2805,6 +2908,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
     const ZeroMacro* node, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "DeduceZeroMacro; node: " << node->ToString();
   // Note: since it's a macro the parser checks arg count and parametric count.
   //
   // This says the type of the parametric type arg is the type of the result.
@@ -2812,6 +2916,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
   // parametric argument type are "zero capable".
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
                        DeduceAndResolve(ToAstNode(node->type()), ctx));
+  XLS_ASSIGN_OR_RETURN(parametric_type,
+                       UnwrapMetaType(std::move(parametric_type), node->span(),
+                                      "zero! macro type"));
+  XLS_RET_CHECK(!parametric_type->IsMeta());
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
@@ -2829,7 +2937,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
     return concrete_type;
   }
 
-  return TypeMissingErrorStatus(name_def, node);
+  return TypeMissingErrorStatus(/*node=*/name_def, /*user=*/node);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(
@@ -2977,7 +3085,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                        DeduceInternal(node, ctx));
   XLS_RET_CHECK(type != nullptr);
   ctx->type_info()->SetItem(node, *type);
-  XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
+  XLS_VLOG(5) << "Deduced type of " << node->ToString()
+              << " (kind: " << node->GetNodeTypeName() << ") => "
               << type->ToString() << " in " << ctx->type_info();
 
   return type;

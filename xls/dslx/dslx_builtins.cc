@@ -225,12 +225,7 @@ class Checker {
   DeduceCtx& deduce_ctx_;
 };
 
-}  // namespace
-
-// TODO(leary): 2019-12-12 These *could* be automatically made by interpreting
-// the signature string, but just typing in the limited set we use is easier for
-// now.
-static void PopulateSignatureToLambdaMap(
+void PopulateSignatureToLambdaMap(
     absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
   auto& map = *map_ptr;
   map["(T) -> T"] = [](const SignatureData& data,
@@ -646,8 +641,7 @@ static void PopulateSignatureToLambdaMap(
   };
 }
 
-static const absl::flat_hash_map<std::string, SignatureFn>&
-GetSignatureToLambdaMap() {
+const absl::flat_hash_map<std::string, SignatureFn>& GetSignatureToLambdaMap() {
   static auto* map = ([] {
     auto* map = new absl::flat_hash_map<std::string, SignatureFn>();
     PopulateSignatureToLambdaMap(map);
@@ -656,6 +650,11 @@ GetSignatureToLambdaMap() {
   return *map;
 }
 
+}  // namespace
+
+// TODO(leary): 2019-12-12 These *could* be automatically made by interpreting
+// the signature string, but just typing in the limited set we use is easier for
+// now.
 const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames() {
   // Set of unary builtins appropriate as functions - that transform values.
   // TODO(b/144724970): Add enumerate here (and maybe move to ir_converter.py).

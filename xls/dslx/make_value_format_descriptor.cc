@@ -120,6 +120,10 @@ MakeValueFormatDescriptor(const ConcreteType& type,
       return absl::InvalidArgumentError("Cannot format a channel type; got: " +
                                         t.ToString());
     }
+    absl::Status HandleMeta(const MetaType& t) override {
+      return absl::InvalidArgumentError("Cannot format a metatype; got: " +
+                                        t.ToString());
+    }
 
     std::unique_ptr<ValueFormatDescriptor>& result() { return result_; }
 

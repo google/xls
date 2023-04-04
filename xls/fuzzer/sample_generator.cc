@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -32,6 +31,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/fuzzer/sample.h"
 
 namespace xls {
@@ -51,8 +51,6 @@ using dslx::TypecheckedModule;
 
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:
-  HasNonBlockingRecvVisitor() : has_nb_recv_(false) {}
-
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
   absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) override {
@@ -67,7 +65,7 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
   }
 
  private:
-  bool has_nb_recv_;
+  bool has_nb_recv_ = false;
 };
 
 static absl::StatusOr<bool> HasNonBlockingRecv(std::string dslx_text) {
@@ -213,10 +211,13 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
     if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
-    dslx::TypeAnnotation* payload_type = channel_type->payload();
-    XLS_CHECK(proc_type_info->GetItem(payload_type).has_value());
-    input_channel_payload_types.push_back(
-        proc_type_info->GetItem(payload_type).value()->CloneToUnique());
+    dslx::TypeAnnotation* payload_type_annotation = channel_type->payload();
+    std::optional<const ConcreteType*> maybe_payload_type =
+        proc_type_info->GetItem(payload_type_annotation);
+    XLS_RET_CHECK(maybe_payload_type.has_value());
+    XLS_ASSIGN_OR_RETURN(const ConcreteType* payload_type,
+                         UnwrapMetaType(*maybe_payload_type.value()));
+    input_channel_payload_types.push_back(payload_type->CloneToUnique());
   }
   return input_channel_payload_types;
 }

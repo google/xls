@@ -305,6 +305,14 @@ absl::StatusOr<EnumTypeProto> ToProto(const EnumType& enum_type) {
   return proto;
 }
 
+absl::StatusOr<MetaTypeProto> ToProto(const MetaType& meta_type) {
+  XLS_VLOG(5) << "Converting MetaType to proto: " << meta_type.ToString();
+  MetaTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_wrapped(), ToProto(*meta_type.wrapped()));
+  XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
+  return proto;
+}
+
 absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   ConcreteTypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&concrete_type)) {
@@ -324,6 +332,9 @@ absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   } else if (const auto* enum_type =
                  dynamic_cast<const EnumType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_type(), ToProto(*enum_type));
+  } else if (const auto* meta_type =
+                 dynamic_cast<const MetaType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_meta_type(), ToProto(*meta_type));
   } else if (dynamic_cast<const TokenType*>(&concrete_type) != nullptr) {
     proto.mutable_token_type();
   } else {
@@ -507,6 +518,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
         members.push_back(std::move(member));
       }
       return std::make_unique<StructType>(std::move(members), *struct_def);
+    }
+    case ConcreteTypeProto::ConcreteTypeOneofCase::kMetaType: {
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> wrapped,
+                           FromProto(ctp.meta_type().wrapped(), import_data));
+      return std::make_unique<MetaType>(std::move(wrapped));
     }
     default:
       return absl::UnimplementedError(

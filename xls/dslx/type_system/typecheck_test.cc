@@ -62,7 +62,7 @@ absl::Status Typecheck(std::string_view text,
   return absl::Status();
 }
 
-TEST(TypecheckTest, ParametricWrongArgCount) {
+TEST(TypecheckErrorTest, ParametricWrongArgCount) {
   std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u8:4) }
@@ -73,7 +73,7 @@ fn f() -> u32 { id(u8:3, u8:4) }
                HasSubstr("Expected 1 parameter(s) but got 2 argument(s)")));
 }
 
-TEST(TypecheckTest, ParametricTooManyExplicitSupplied) {
+TEST(TypecheckErrorTest, ParametricTooManyExplicitSupplied) {
   std::string_view text = R"(
 fn id<X: u32>(x: bits[X]) -> bits[X] { x }
 fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
@@ -1354,7 +1354,7 @@ fn main() {
 }
 
 // Helper for struct instance based tests.
-absl::Status TypecheckStructInstance(std::string program) {
+static absl::Status TypecheckStructInstance(std::string program) {
   program = R"(
 struct Point {
   x: s8,
@@ -1446,7 +1446,7 @@ TEST(TypecheckStructInstanceTest, SplatWithExtraFieldQ) {
 }
 
 // Helper for parametric struct instance based tests.
-absl::Status TypecheckParametricStructInstance(std::string program) {
+static absl::Status TypecheckParametricStructInstance(std::string program) {
   program = R"(
 struct Point<N: u32, M: u32 = {N + N}> {
   x: bits[N],

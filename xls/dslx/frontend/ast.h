@@ -925,14 +925,13 @@ class Number : public Expr {
   // present).
   std::string ToStringNoType() const;
 
-  TypeAnnotation* type_annotation() const { return type_annotation_; }
-
   // TODO(leary): 2021-05-18 We should remove this setter -- it is currently
   // used because of the `$type_annotation:$number` syntax, where the type is
   // parsed, the number is parsed independent of type context, but then the
   // type_annotation is imbued *into* the number. Cleaner would be to make a
   // TypedNumber construct that decorated a bare number with its literal
   // type_annotation context.
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
   void set_type_annotation(TypeAnnotation* type_annotation) {
     type_annotation_ = type_annotation;
   }
@@ -1053,11 +1052,11 @@ class Array : public Expr {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<Expr*>& members() const { return members_; }
-  TypeAnnotation* type_annotation() const { return type_annotation_; }
 
   // TODO(leary): 2021-05-18 See TODO comment on Number::set_type_annotation for
   // the reason this exists (prefix types for literal values), but it should be
   // removed in favor of a decorator construct instead of using mutability.
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
   void set_type_annotation(TypeAnnotation* type_annotation) {
     type_annotation_ = type_annotation;
   }

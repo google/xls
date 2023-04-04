@@ -37,16 +37,12 @@
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
-#include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/python/errors.h"
 #include "xls/dslx/type_system/concrete_type.h"
-#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/python/wrapper_types.h"
 
 namespace py = pybind11;

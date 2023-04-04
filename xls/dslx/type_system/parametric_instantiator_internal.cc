@@ -18,7 +18,6 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/errors.h"
 #include "xls/dslx/type_system/parametric_bind.h"
 
 namespace xls::dslx {
@@ -84,8 +83,11 @@ ParametricInstantiator::ParametricInstantiator(
       ordered.insert(identifier);
     }
 
+    auto resolved_type_or = Resolve(constraint.type());
+    XLS_CHECK_OK(resolved_type_or.status());
     std::unique_ptr<ConcreteType> resolved_type =
-        Resolve(constraint.type()).value();
+        std::move(resolved_type_or).value();
+
     if (constraint.expr() != nullptr) {
       ctx_->type_info()->SetItem(constraint.expr(), *resolved_type);
     }
@@ -226,7 +228,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   // Walk through all the params/args to collect symbolic bindings.
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
-    const ConcreteType& arg_type = *args()[i].type;
+    const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
                          InstantiateOneArg(i, param_type, arg_type));
     if (*instantiated_param_type != arg_type) {
@@ -234,7 +236,8 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
       // confusing to the user) we want to show what the mismatch was directly,
       // so we use the instantiated_param_type here.
       return ctx().TypeMismatchError(
-          args()[i].span, nullptr, *instantiated_param_type, nullptr, arg_type,
+          args()[i].span(), nullptr, *instantiated_param_type, nullptr,
+          arg_type,
           "Mismatch between parameter and argument types "
           "(after instantiation).");
     }
@@ -264,13 +267,13 @@ StructInstantiator::Make(
 absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
   for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
-    const ConcreteType& arg_type = *args()[i].type;
+    const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
                          InstantiateOneArg(i, member_type, arg_type));
     if (*instantiated_member_type != arg_type) {
       return ctx().TypeMismatchError(
-          args()[i].span, nullptr, *instantiated_member_type, nullptr, arg_type,
-          "Mismatch between member and argument types.");
+          args()[i].span(), nullptr, *instantiated_member_type, nullptr,
+          arg_type, "Mismatch between member and argument types.");
     }
   }
 

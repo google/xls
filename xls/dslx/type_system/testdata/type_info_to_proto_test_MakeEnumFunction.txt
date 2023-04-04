@@ -1,16 +1,16 @@
 1:0-1:4: ENUM_DEF :: `enum E : u32 {
   A = 42,
-}` :: E
-1:5-1:6: NAME_DEF :: `E` :: E
-1:9-1:12: TYPE_ANNOTATION :: `u32` :: uN[32]
+}` :: typeof(E)
+1:5-1:6: NAME_DEF :: `E` :: typeof(E)
+1:9-1:12: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
 1:15-1:16: NAME_DEF :: `A` :: E
 1:19-1:21: NUMBER :: `42` :: uN[32]
 2:0-2:20: FUNCTION :: `fn f() -> E {
   E::A
 }` :: () -> E
 2:3-2:4: NAME_DEF :: `f` :: () -> E
-2:10-2:11: TYPE_REF :: `E` :: E
-2:10-2:12: TYPE_ANNOTATION :: `E` :: E
+2:10-2:11: TYPE_REF :: `E` :: typeof(E)
+2:10-2:12: TYPE_ANNOTATION :: `E` :: typeof(E)
 2:12-2:20: BLOCK :: `{
   E::A
 }` :: E

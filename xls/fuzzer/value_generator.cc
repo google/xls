@@ -13,9 +13,9 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
-#include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
@@ -162,6 +162,7 @@ absl::StatusOr<InterpValue> ValueGenerator::GenerateUnbiasedValue(
 
 absl::StatusOr<InterpValue> ValueGenerator::GenerateInterpValue(
     const ConcreteType& arg_type, absl::Span<const InterpValue> prior) {
+  XLS_RET_CHECK(!arg_type.IsMeta()) << arg_type.ToString();
   if (auto* channel_type = dynamic_cast<const ChannelType*>(&arg_type)) {
     // For channels, the argument must be of its payload type.
     return GenerateInterpValue(channel_type->payload_type(), prior);
@@ -232,6 +233,7 @@ absl::StatusOr<std::vector<InterpValue>> ValueGenerator::GenerateInterpValues(
   std::vector<InterpValue> args;
   for (const ConcreteType* arg_type : arg_types) {
     XLS_RET_CHECK(arg_type != nullptr);
+    XLS_RET_CHECK(!arg_type->IsMeta());
     XLS_ASSIGN_OR_RETURN(InterpValue arg, GenerateInterpValue(*arg_type, args));
     args.push_back(std::move(arg));
   }

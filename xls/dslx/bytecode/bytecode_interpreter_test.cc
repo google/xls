@@ -76,7 +76,7 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
 // bytecode.
 static absl::StatusOr<InterpValue> Interpret(
     std::string_view program, std::string_view entry,
-    std::vector<InterpValue> args = {},
+    const std::vector<InterpValue>& args = {},
     const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions()) {
   ImportData import_data(CreateImportDataForTest());
   XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,

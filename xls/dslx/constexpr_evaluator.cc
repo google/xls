@@ -269,6 +269,12 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 /* static */ absl::Status ConstexprEvaluator::Evaluate(
     ImportData* import_data, TypeInfo* type_info, const ParametricEnv& bindings,
     const Expr* expr, const ConcreteType* concrete_type) {
+  XLS_VLOG(5) << "ConstexprEvaluator::Evaluate; expr: " << expr->ToString()
+              << " @ " << expr->span();
+  if (concrete_type != nullptr) {
+    XLS_RET_CHECK(!concrete_type->IsMeta());
+  }
+
   if (type_info->IsKnownConstExpr(expr) ||
       type_info->IsKnownNonConstExpr(expr)) {
     return absl::OkStatus();
@@ -285,7 +291,8 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
     return type_info->GetConstExpr(expr);
   }
   return absl::InvalidArgumentError(
-      absl::StrCat("Expr was not constexpr: ", expr->ToString()));
+      absl::StrFormat("Expression @ %s was not constexpr: `%s`",
+                      expr->span().ToString(), expr->ToString()));
 }
 
 // Evaluates the given expression and terminates current function execution
@@ -665,6 +672,9 @@ absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
 // Evaluates a Number AST node to an InterpValue.
 static absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
                                                   const ConcreteType* type) {
+  XLS_RET_CHECK(!type->IsMeta())
+      << "Got invalid type when evaluating number: " << type->ToString()
+      << " @ " << expr->span();
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
   const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
@@ -693,8 +703,12 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
     // parametric, in which case we'll need to fully instantiate it.
     auto maybe_type_ptr = type_info_->GetItem(expr->type_annotation());
     XLS_RET_CHECK(maybe_type_ptr.has_value());
-    type_ptr = maybe_type_ptr.value();
+    const MetaType* tt = dynamic_cast<const MetaType*>(maybe_type_ptr.value());
+    XLS_RET_CHECK(tt != nullptr);
+    type_ptr = tt->wrapped().get();
+
     const BitsType* bt = down_cast<const BitsType*>(type_ptr);
+    XLS_RET_CHECK(bt != nullptr);
     if (bt->size().IsParametric()) {
       XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(env, bt));
       type_ptr = temp_type.get();

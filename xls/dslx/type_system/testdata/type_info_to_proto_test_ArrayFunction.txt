@@ -2,18 +2,18 @@
   u8[2]:[u8:1, u8:2]
 }` :: () -> uN[8][2]
 0:3-0:4: NAME_DEF :: `f` :: () -> uN[8][2]
-0:10-0:12: TYPE_ANNOTATION :: `u8` :: uN[8]
-0:10-0:15: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]
+0:10-0:12: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])
+0:10-0:15: TYPE_ANNOTATION :: `u8[2]` :: typeof(uN[8][2])
 0:13-0:14: NUMBER :: `2` :: uN[32]
 0:16-0:38: BLOCK :: `{
   u8[2]:[u8:1, u8:2]
 }` :: uN[8][2]
-0:18-0:20: TYPE_ANNOTATION :: `u8` :: uN[8]
-0:18-0:23: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]
+0:18-0:20: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])
+0:18-0:23: TYPE_ANNOTATION :: `u8[2]` :: typeof(uN[8][2])
 0:21-0:22: NUMBER :: `2` :: uN[32]
 0:24-0:36: ARRAY :: `u8[2]:[u8:1, u8:2]` :: uN[8][2]
 0:24-0:36: STATEMENT :: `u8[2]:[u8:1, u8:2]` :: uN[8][2]
-0:25-0:27: TYPE_ANNOTATION :: `u8` :: uN[8]
+0:25-0:27: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])
 0:28-0:29: NUMBER :: `u8:1` :: uN[8]
-0:31-0:33: TYPE_ANNOTATION :: `u8` :: uN[8]
+0:31-0:33: TYPE_ANNOTATION :: `u8` :: typeof(uN[8])
 0:34-0:35: NUMBER :: `u8:2` :: uN[8]

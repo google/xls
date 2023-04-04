@@ -20,6 +20,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/string_to_int.h"
+#include "xls/dslx/errors.h"
 
 namespace xls::dslx {
 
@@ -54,9 +55,10 @@ absl::Status DeduceCtx::TypeMismatchError(
   while (top->parent_ != nullptr) {
     top = top->parent_;
   }
-  top->type_mismatch_error_data_ = TypeMismatchErrorData{
-      mismatch_span,       lhs_node, lhs.CloneToUnique(), rhs_node,
-      rhs.CloneToUnique(), message};
+  top->type_mismatch_error_data_ =
+      TypeMismatchErrorData{std::move(mismatch_span), lhs_node,
+                            lhs.CloneToUnique(),      rhs_node,
+                            rhs.CloneToUnique(),      std::move(message)};
   return absl::InvalidArgumentError("DslxTypeMismatchError");
 }
 
@@ -85,7 +87,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCtx::Deduce(
       << "node: `" << node->ToString() << "` from module "
       << node->owner()->name()
       << " vs type info module: " << type_info()->module()->name();
-  return deduce_function_(node, this);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
+                       deduce_function_(node, this));
+
+  if (dynamic_cast<const TypeAnnotation*>(node) != nullptr) {
+    XLS_RET_CHECK(result->IsMeta())
+        << node->ToString() << " @ " << SpanToString(node->GetSpan());
+  }
+
+  return result;
 }
 
 void DeduceCtx::AddDerivedTypeInfo() {

@@ -497,6 +497,7 @@ absl::Status FunctionConverter::HandleNe(const Binop* node, BValue lhs,
 
 absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
+  XLS_RET_CHECK(!type->IsMeta());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
                        std::get<InterpValue>(dim.value()).GetBitValueInt64());
@@ -1894,14 +1895,16 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    std::optional<InterpValue> sb_value =
+    std::optional<InterpValue> parametric_value =
         GetParametricBinding(parametric_binding->identifier());
-    XLS_RET_CHECK(sb_value.has_value());
+    XLS_RET_CHECK(parametric_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
-                         ResolveType(parametric_binding->type_annotation()));
+                         ResolveType(parametric_binding->name_def()));
+    XLS_RET_CHECK(!parametric_type->IsMeta());
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(Value param_value, InterpValueToValue(*sb_value));
+    XLS_ASSIGN_OR_RETURN(Value param_value,
+                         InterpValueToValue(*parametric_value));
     DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
@@ -2014,20 +2017,24 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    std::optional<InterpValue> sb_value =
+    std::optional<InterpValue> parametric_value =
         GetParametricBinding(parametric_binding->identifier());
-    XLS_RET_CHECK(sb_value.has_value());
+    XLS_RET_CHECK(parametric_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
-                         ResolveType(parametric_binding->type_annotation()));
+                         ResolveType(parametric_binding->name_def()));
+    XLS_RET_CHECK(!parametric_type->IsMeta());
+
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, parametric_width_ctd.GetAsInt64());
     Value param_value;
-    if (sb_value->IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(int64_t bit_value, sb_value->GetBitValueInt64());
+    if (parametric_value->IsSigned()) {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_value,
+                           parametric_value->GetBitValueInt64());
       param_value = Value(SBits(bit_value, bit_count));
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t bit_value, sb_value->GetBitValueUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t bit_value,
+                           parametric_value->GetBitValueUint64());
       param_value = Value(UBits(bit_value, bit_count));
     }
     DefConst(parametric_binding, param_value);
@@ -2056,6 +2063,9 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
   if (std::optional<Import*> import = node->ResolveImportSubject()) {
+    XLS_VLOG(6) << "ColonRef @ " << node->span()
+                << " was import subject; import: "
+                << import.value()->ToString();
     std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());

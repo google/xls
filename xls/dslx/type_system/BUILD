@@ -72,6 +72,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
+        "//xls/dslx:errors",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
         "//xls/dslx:warning_collector",
@@ -89,6 +90,7 @@ cc_library(
         ":parametric_constraint",
         ":parametric_instantiator",
         ":type_and_bindings",
+        ":unwrap_meta_type",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
@@ -133,9 +135,9 @@ cc_library(
         ":deduce_ctx",
         ":parametric_bind",
         ":parametric_constraint",
+        ":unwrap_meta_type",
         "@com_google_absl//absl/strings",
         "//xls/dslx:constexpr_evaluator",
-        "//xls/dslx:errors",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:pos",
@@ -200,6 +202,7 @@ cc_library(
         ":deduce_ctx",
         ":maybe_explain_error",
         ":parametric_env",
+        ":unwrap_meta_type",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -398,6 +401,18 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "unwrap_meta_type",
+    srcs = ["unwrap_meta_type.cc"],
+    hdrs = ["unwrap_meta_type.h"],
+    deps = [
+        ":concrete_type",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:ret_check",
+        "//xls/dslx:errors",
     ],
 )
 

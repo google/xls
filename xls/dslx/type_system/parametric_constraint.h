@@ -32,9 +32,22 @@ namespace xls::dslx {
 // conceptually have "argument" values given, with the 'actual' types, that are
 // filling in the (possibly parametric) slots of the formal (declared) types --
 // the formal types may be parametric.
-struct InstantiateArg {
-  std::unique_ptr<ConcreteType> type;
-  const Span span;
+class InstantiateArg {
+ public:
+  InstantiateArg(std::unique_ptr<ConcreteType> type, Span span)
+      : type_(std::move(type)), span_(std::move(span)) {
+    // This should be the type of the expression argument so it should not be a
+    // metatype.
+    XLS_CHECK(!type_->IsMeta());
+  }
+
+  std::unique_ptr<ConcreteType>& type() { return type_; }
+  const std::unique_ptr<ConcreteType>& type() const { return type_; }
+  const Span& span() const { return span_; }
+
+ private:
+  std::unique_ptr<ConcreteType> type_;
+  const Span span_;
 };
 
 // Decorates a parametric binding with its (deduced) ConcreteType.

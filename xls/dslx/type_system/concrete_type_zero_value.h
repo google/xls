@@ -27,7 +27,7 @@ namespace xls::dslx {
 // defined zero value, in which cases an error is returned. In this case, span
 // is used to cite the source of the error in the program text.
 absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
-                                          const ImportData& type_info,
+                                          const ImportData& import_data,
                                           const Span& span);
 
 }  // namespace xls::dslx

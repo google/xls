@@ -118,6 +118,13 @@ absl::StatusOr<xls::Type*> TypeToIr(Package* package,
       return absl::UnimplementedError(
           "Cannot convert channel type to XLS IR type: " + t.ToString());
     }
+    // Note: this is a bit of a kluge, we just turn metatypes into their
+    // corresponding (unwrapped) IR type.
+    absl::Status HandleMeta(const MetaType& t) override {
+      XLS_ASSIGN_OR_RETURN(retval_,
+                           TypeToIr(package_, *t.wrapped(), bindings_));
+      return absl::OkStatus();
+    }
 
     xls::Type* retval() const { return retval_; }
 

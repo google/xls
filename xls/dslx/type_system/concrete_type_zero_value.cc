@@ -88,9 +88,9 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
   }
   absl::Status HandleTuple(const TupleType& t) override {
     std::vector<InterpValue> elems;
-    for (const auto& t : t.members()) {
+    for (const auto& m : t.members()) {
       XLS_ASSIGN_OR_RETURN(InterpValue zero,
-                           MakeZeroValue(*t, import_data_, span_));
+                           MakeZeroValue(*m, import_data_, span_));
       elems.push_back(std::move(zero));
     }
     result_ = InterpValue::MakeTuple(std::move(elems));
@@ -105,6 +105,10 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
         result_,
         InterpValue::MakeArray(std::vector<InterpValue>(size, elem_value)));
     return absl::OkStatus();
+  }
+  absl::Status HandleMeta(const MetaType& t) override {
+    return TypeInferenceErrorStatus(span_, &t,
+                                    "Cannot make a zero-value of a meta-type.");
   }
 
   const std::optional<InterpValue>& result() const { return result_; }
@@ -123,7 +127,7 @@ absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
   MakeZeroVisitor v(import_data, span);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   XLS_RET_CHECK(v.result().has_value());
-  return std::move(v.result()).value();
+  return v.result().value();
 }
 
 }  // namespace xls::dslx

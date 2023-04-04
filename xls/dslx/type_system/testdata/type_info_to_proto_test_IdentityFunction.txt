@@ -4,8 +4,8 @@
 0:3-0:5: NAME_DEF :: `id` :: (uN[32]) -> uN[32]
 0:6-0:7: NAME_DEF :: `x` :: uN[32]
 0:6-0:12: PARAM :: `x: u32` :: uN[32]
-0:9-0:12: TYPE_ANNOTATION :: `u32` :: uN[32]
-0:17-0:20: TYPE_ANNOTATION :: `u32` :: uN[32]
+0:9-0:12: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
+0:17-0:20: TYPE_ANNOTATION :: `u32` :: typeof(uN[32])
 0:21-0:26: BLOCK :: `{
   x
 }` :: uN[32]
