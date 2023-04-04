@@ -515,7 +515,7 @@ DistributedRoutingTableBuilderForMultiplePaths::CalculateRoutes(
                            network_parameters.GetNetworkComponentParam(nc_id));
       return absl::FailedPreconditionError(absl::StrFormat(
           "%s has an invalid port.",
-          std::visit([](const auto& nc) { return nc.GetName(); }, nc_param)));
+          absl::visit([](const auto& nc) { return nc.GetName(); }, nc_param)));
     }
     BFS_queue.push(output_port_id);
   }
@@ -564,7 +564,8 @@ DistributedRoutingTableBuilderForMultiplePaths::CalculateRoutes(
             network_parameters.GetNetworkComponentParam(current_nc_id));
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s has an invalid port.",
-            std::visit([](const auto& nc) { return nc.GetName(); }, nc_param)));
+            absl::visit([](const auto& nc) { return nc.GetName(); },
+                        nc_param)));
       }
       BFS_queue.push(output_port_id);
     }

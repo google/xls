@@ -60,7 +60,7 @@ class PortByNameMatcher : public ::testing::MatcherInterface<Block::Port> {
   bool MatchAndExplain(
       const Block::Port port,
       ::testing::MatchResultListener* listener) const override {
-    return std::visit(
+    return absl::visit(
         Visitor{
             [=](Block::ClockPort* p) {
               *listener << "ClockPort(" << p->name << ")";

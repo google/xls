@@ -322,7 +322,7 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleIndex(const Index* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    IndexRhs new_rhs = std::visit(
+    IndexRhs new_rhs = absl::visit(
         Visitor{[&](Expr* expr) -> IndexRhs {
                   return down_cast<Expr*>(old_to_new_.at(expr));
                 },
@@ -434,7 +434,7 @@ class AstCloner : public AstNodeVisitor {
 
     if (n->is_leaf()) {
       NameDefTree::Leaf leaf;
-      XLS_RETURN_IF_ERROR(std::visit(
+      XLS_RETURN_IF_ERROR(absl::visit(
           Visitor{
               [&](ColonRef* colon_ref) -> absl::Status {
                 leaf = down_cast<ColonRef*>(old_to_new_.at(colon_ref));
@@ -800,7 +800,7 @@ class AstCloner : public AstNodeVisitor {
 
     // A TypeRef doesn't own its referenced type definition, so we have to
     // explicitly visit it.
-    XLS_RETURN_IF_ERROR(std::visit(
+    XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{[&](ColonRef* colon_ref) -> absl::Status {
                   XLS_RETURN_IF_ERROR(colon_ref->Accept(this));
                   new_type_definition =
@@ -926,7 +926,7 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
   AstCloner cloner(new_module.get());
   for (const ModuleMember member : module->top()) {
     ModuleMember new_member;
-    XLS_RETURN_IF_ERROR(std::visit(
+    XLS_RETURN_IF_ERROR(absl::visit(
         Visitor{
             [&](Function* f) -> absl::Status {
               XLS_RETURN_IF_ERROR(f->Accept(&cloner));

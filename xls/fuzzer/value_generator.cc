@@ -329,7 +329,7 @@ absl::StatusOr<Expr*> ValueGenerator::GenerateDslxConstant(
   auto* typeref_type = dynamic_cast<dslx::TypeRefTypeAnnotation*>(type);
   XLS_RET_CHECK_NE(typeref_type, nullptr);
   auto* typeref = typeref_type->type_ref();
-  return std::visit(
+  return absl::visit(
       Visitor{
           [&](dslx::TypeAlias* type_alias) -> absl::StatusOr<Expr*> {
             return GenerateDslxConstant(module, type_alias->type_annotation());

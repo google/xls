@@ -286,7 +286,7 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam link_param,
                          params.GetNetworkComponentParam(nc_id));
     // Get link name
-    std::string link_name = std::string(std::visit(
+    std::string link_name = std::string(absl::visit(
         [](const auto& nc_param) { return nc_param.GetName(); }, link_param));
     SinkVcPairPacketCount& sink_vc_pair_packet_count =
         info.link_to_packet_count_map_[link_name];
@@ -298,7 +298,7 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
               flit_destination.sink_index));
       XLS_ASSIGN_OR_RETURN(NetworkComponentParam sink_param,
                            params.GetNetworkComponentParam(sink_nc_id));
-      std::string sink_name = std::string(std::visit(
+      std::string sink_name = std::string(absl::visit(
           [](const auto& nc_param) { return nc_param.GetName(); }, sink_param));
       // Get vc name
       XLS_ASSIGN_OR_RETURN(NetworkParam network_param,

@@ -590,7 +590,7 @@ std::string Bytecode::ToString(bool source_locs) const {
       }
     };
 
-    std::string data_string = std::visit(DataVisitor(), data_.value());
+    std::string data_string = absl::visit(DataVisitor(), data_.value());
 
     return absl::StrFormat("%s %s%s", op_string, data_string, loc_string);
   }
