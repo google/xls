@@ -241,7 +241,9 @@ TEST_F(TernaryLogicTest, ULessThan) {
       std::vector<Bits> results;
       for (const Bits& lhs_bits : ExpandToBits(lhs)) {
         for (const Bits& rhs_bits : ExpandToBits(rhs)) {
-          results.push_back(UBits(bits_ops::ULessThan(lhs_bits, rhs_bits), 1));
+          results.push_back(UBits(
+              static_cast<uint64_t>(bits_ops::ULessThan(lhs_bits, rhs_bits)),
+              1));
         }
       }
       TernaryValue expected = ReduceFromBits(results)[0];
