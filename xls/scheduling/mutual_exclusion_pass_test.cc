@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/mutual_exclusion_pass.h"
+#include "xls/scheduling/mutual_exclusion_pass.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

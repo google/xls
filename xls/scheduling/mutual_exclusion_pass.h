@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_MUTUAL_EXCLUSION_PASS_H_
-#define XLS_PASSES_MUTUAL_EXCLUSION_PASS_H_
+#ifndef XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
+#define XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
@@ -117,4 +117,4 @@ class MutualExclusionPass : public FunctionBasePass {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_MUTUAL_EXCLUSION_PASS_H_
+#endif  // XLS_SCHEDULING_MUTUAL_EXCLUSION_PASS_H_

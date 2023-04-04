@@ -36,7 +36,6 @@
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/map_inlining_pass.h"
-#include "xls/passes/mutual_exclusion_pass.h"
 #include "xls/passes/narrowing_pass.h"
 #include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_flattening_pass.h"
@@ -54,6 +53,7 @@
 #include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/useless_io_removal_pass.h"
 #include "xls/passes/verifier_checker.h"
+#include "xls/scheduling/mutual_exclusion_pass.h"
 
 namespace xls {
 
