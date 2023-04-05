@@ -206,8 +206,7 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
     }
   } else {
     std::cout << "Performing full LEC.\n";
-    XLS_ASSIGN_OR_RETURN(auto lec,
-                         solvers::z3::Lec::Create(std::move(lec_params)));
+    XLS_ASSIGN_OR_RETURN(auto lec, solvers::z3::Lec::Create(lec_params));
     bool equal = lec->Run();
     std::cout << lec->ResultToString() << std::endl;
     if (!equal) {
@@ -256,8 +255,8 @@ absl::Status RealMain(
     if (auto_stage) {
       return AutoStage(lec_params, schedule, timeout_sec);
     }
-    XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::CreateForStage(
-                                  std::move(lec_params), schedule, stage));
+    XLS_ASSIGN_OR_RETURN(
+        lec, solvers::z3::Lec::CreateForStage(lec_params, schedule, stage));
   } else {
     XLS_ASSIGN_OR_RETURN(lec, solvers::z3::Lec::Create(lec_params));
   }
