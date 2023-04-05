@@ -1400,8 +1400,8 @@ void IrTranslator::NoteTranslation(Node* node, Z3_ast translated) {
   translations_[node] = translated;
 }
 
-absl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
-                                            IrTranslator* translator) {
+static absl::StatusOr<Z3_ast> PredicateToObjective(Predicate p, Z3_ast a,
+                                                   IrTranslator* translator) {
   ScopedErrorHandler seh(translator->ctx());
   Z3_ast objective;
   // Note that if the predicate we want to prove is "equal to zero" we return
