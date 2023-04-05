@@ -100,6 +100,39 @@ Invocation* CreateElementInvocation(Module* module, const Span& span,
   return module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
 }
 
+// Returns an AST node typed T from module "m", resolved via name "name".
+//
+// Errors are attributed to span "span".
+//
+// Prefer this function to Module::GetMemberOrError(), as this gives a
+// positional type-inference-error as its status result when the requested
+// resolution cannot be performed.
+template <typename T>
+absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
+                                                 std::string_view name,
+                                                 const Span& span) {
+  std::optional<ModuleMember*> member = m->FindMemberWithName(name);
+  if (!member.has_value()) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Name '%s' does not exist in module `%s`", name,
+                        m->name()));
+  }
+
+  if (!std::holds_alternative<T*>(*member.value())) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat(
+            "Name '%s' in module `%s` refers to a %s but a %s is required",
+            name, m->name(), GetModuleMemberTypeName(*member.value()),
+            T::GetDebugTypeName()));
+  }
+
+  T* result = std::get<T*>(*member.value());
+  XLS_RET_CHECK(result != nullptr);
+  return result;
+}
+
 // Resolves "ref" to an AST function.
 absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
   std::optional<Import*> import = ref->ResolveImportSubject();
@@ -107,7 +140,10 @@ absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
       << "ColonRef did not refer to an import: " << ref->ToString();
   std::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Function>(ref->attr());
+  XLS_RET_CHECK(imported_info.has_value());
+  Module* module = imported_info.value()->module;
+  return GetMemberOrTypeInferenceError<Function>(module, ref->attr(),
+                                                 ref->span());
 }
 
 // Resolves "ref" to an AST proc.
@@ -118,7 +154,8 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
       << "ColonRef did not refer to an import: " << ref->ToString();
   std::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
-  return imported_info.value()->module->GetMemberOrError<Proc>(ref->attr());
+  return GetMemberOrTypeInferenceError<Proc>(imported_info.value()->module,
+                                             ref->attr(), ref->span());
 }
 
 // If the width is known for "type", checks that "number" fits in that type.
@@ -2663,8 +2700,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       auto* name_ref = dynamic_cast<NameRef*>(callee);
       XLS_RET_CHECK(name_ref != nullptr);
       const std::string& callee_name = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(proc,
-                           ctx->module()->GetMemberOrError<Proc>(callee_name));
+      XLS_ASSIGN_OR_RETURN(
+          proc, GetMemberOrTypeInferenceError<Proc>(ctx->module(), callee_name,
+                                                    name_ref->span()));
     }
     return proc;
   };
@@ -2832,8 +2870,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     } else if (auto* name_ref = dynamic_cast<NameRef*>(callee);
                name_ref != nullptr) {
       const std::string& callee_name = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(
-          fn, ctx->module()->GetMemberOrError<Function>(callee_name));
+      XLS_ASSIGN_OR_RETURN(fn,
+                           GetMemberOrTypeInferenceError<Function>(
+                               ctx->module(), callee_name, name_ref->span()));
     } else {
       return TypeInferenceErrorStatus(
           node->span(), nullptr,

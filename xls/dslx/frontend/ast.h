@@ -1485,6 +1485,8 @@ class Proc;
 //    this feature is expected to evolve over time beyond a simple name.)
 class Function : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "function"; }
+
   // Indicates if a function is normal or is part of a proc instantiation.
   enum class Tag {
     kNormal,
@@ -1572,6 +1574,8 @@ class Function : public AstNode {
 // Represents a parsed 'process' specification in the DSL.
 class Proc : public AstNode {
  public:
+  static std::string_view GetDebugTypeName() { return "proc"; }
+
   Proc(Module* owner, Span span, NameDef* name_def, NameDef* config_name_def,
        NameDef* next_name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
@@ -3109,6 +3113,8 @@ class ChannelDecl : public Expr {
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
                  TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*>;
+
+std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 

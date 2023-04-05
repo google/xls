@@ -973,6 +973,22 @@ absl::Status Module::AddTop(ModuleMember member) {
   return absl::OkStatus();
 }
 
+std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
+  return absl::visit(Visitor{
+                         [](Function*) { return "function"; },
+                         [](Proc*) { return "proc"; },
+                         [](TestFunction*) { return "test-function"; },
+                         [](TestProc*) { return "test-proc"; },
+                         [](QuickCheck*) { return "quick-check"; },
+                         [](TypeAlias*) { return "type-alias"; },
+                         [](StructDef*) { return "struct-definition"; },
+                         [](ConstantDef*) { return "constant-definition"; },
+                         [](EnumDef*) { return "enum-definition"; },
+                         [](Import*) { return "import"; },
+                     },
+                     module_member);
+}
+
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {
   // clang-format off
   if (auto* n = dynamic_cast<Function*    >(node)) { return ModuleMember(n); }
