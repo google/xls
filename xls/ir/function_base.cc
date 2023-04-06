@@ -64,7 +64,7 @@ absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
 }
 
 absl::StatusOr<Node*> FunctionBase::GetNode(
-    std::string_view standard_node_name) {
+    std::string_view standard_node_name) const {
   for (Node* node : nodes()) {
     if (node->GetName() == standard_node_name) {
       return node;
