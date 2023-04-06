@@ -1828,6 +1828,23 @@ TEST(IrConverterTest, ChannelDecl) {
                        HasSubstr("AST node unsupported for IR conversion:")));
 }
 
+// TODO(google/xls#917): Remove this test when empty arrays are supported.
+TEST(IrConverterTest, EmptyArray) {
+  constexpr std::string_view kProgram = R"(
+    fn main() -> u32[0] {
+      u32[0]:[]
+    }
+)";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Array u32[0]:[] was empty")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

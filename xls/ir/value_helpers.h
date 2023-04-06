@@ -60,8 +60,9 @@ inline bool ValueConformsToType(const Value& value, Type* type) {
              value.bits().bit_count() == type->AsBitsOrDie()->bit_count();
     case ValueKind::kArray:
       return type->IsArray() && type->AsArrayOrDie()->size() == value.size() &&
-             ValueConformsToType(value.element(0),
-                                 type->AsArrayOrDie()->element_type());
+             (value.empty() ||
+              ValueConformsToType(value.element(0),
+                                  type->AsArrayOrDie()->element_type()));
     case ValueKind::kTuple: {
       if (!type->IsTuple()) {
         return false;

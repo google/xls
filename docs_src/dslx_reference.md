@@ -675,6 +675,10 @@ fn test_make_array() {
 }
 ```
 
+Note [google/xls#917](https://github.com/google/xls/issues/917): arrays with
+length zero will typecheck, but fail to work in most circumstances. Eventually,
+XLS should support them but they can't be used currently.
+
 TODO(meheff): Explain arrays and the intricacies of our bits type interpretation
 and how it affects arrays of bits etc.
 

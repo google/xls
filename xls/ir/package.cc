@@ -628,9 +628,9 @@ Type* Package::GetTypeForValue(const Value& value) {
     }
     case ValueKind::kArray: {
       // No element type can be inferred for 0-element arrays.
-      if (value.empty()) {
-        return GetArrayType(0, nullptr);
-      }
+      // TODO(google/xls#917): Remove this check when empty arrays are
+      // supported.
+      XLS_CHECK(!value.empty());
       return GetArrayType(value.size(), GetTypeForValue(value.elements()[0]));
     }
     case ValueKind::kToken:

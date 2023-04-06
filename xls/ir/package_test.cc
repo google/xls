@@ -787,5 +787,20 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   XLS_EXPECT_OK(pkg1->GetBlock("my_block"));
   XLS_EXPECT_OK(pkg1->GetBlock("my_block_1"));
 }
+
+// TODO(google/xls#917): Remove this test when empty arrays are supported.
+TEST_F(PackageTest, EmptyArrayIsError) {
+  constexpr std::string_view text = R"(
+package my_package
+
+
+top fn main(a: bits[32]) -> bits[32][0] {
+  ret array: bits[32][0] = literal(value=[])
+}
+)";
+  EXPECT_THAT(ParsePackage(text).status(),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("Empty array Values are not supported.")));
+}
 }  // namespace
 }  // namespace xls

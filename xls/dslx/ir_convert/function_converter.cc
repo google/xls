@@ -14,6 +14,7 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
+#include "absl/status/status.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -1323,6 +1324,11 @@ absl::Status FunctionConverter::HandleArray(const Array* node) {
     while (members.size() < array_size) {
       members.push_back(members.back());
     }
+  }
+  // TODO(google/xls#917): Remove this check when empty arrays are supported.
+  if (members.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Array %s was empty.", node->ToString()));
   }
   Def(node, [&](const SourceInfo& loc) {
     xls::Type* type = members[0].GetType();

@@ -141,6 +141,7 @@ cc_library(
         ":convert_options",
         ":ir_conversion_utils",
         ":proc_config_ir_converter",
+        "@com_google_absl//absl/status",
         "//xls/common:visitor",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:import_data",
