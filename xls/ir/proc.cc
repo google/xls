@@ -13,13 +13,31 @@
 // limitations under the License.
 
 #include "xls/ir/proc.h"
+#include <algorithm>
+#include <cstdint>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -168,9 +186,8 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
   // `state_param_name` or `init_value` referring to the existing to-be-removed
   // state element.
   std::string s(state_param_name);
-  Value v = init_value;
   XLS_RETURN_IF_ERROR(RemoveStateElement(index));
-  return InsertStateElement(index, s, v, next_state);
+  return InsertStateElement(index, s, init_value, next_state);
 }
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
