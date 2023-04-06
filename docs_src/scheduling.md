@@ -67,7 +67,8 @@ depending upon whether the **clock period** option is specified.
     In this case, **pipeline stages** must be specified. The effective clock
     period is computed as the minimum clock period in which a schedule may be
     found that meets timing with the specified number of pipeline stages. This
-    is done via a binary search through clock period values. If **clock period
+    is done via a binary search through clock period values, where at each step
+    of the binary search the scheduler is run in its entirety. If **clock period
     relaxation percent** is specified then the computed effective clock period
     is *increased* by the given percentage. The motivation is that this
     relaxation may result in fewer pipeline registers because of increased
@@ -78,13 +79,14 @@ depending upon whether the **clock period** option is specified.
 ### Step 2: schedule to minimize pipeline registers
 
 Once an effective clock period is determined, XLS computes a schedule which
-minimizes the number of registers (see [below](#min-cut) for details) while
-satisfying the critical path delay constraints imposed by the effective clock
-period. The number of stages in the pipeline may be specified by the user via
-the **pipeline stages** option. If the number of pipeline stages specified is
-too small an error such that no feasible schedule can be found then an error is
-returned. If **pipeline stages** is not given then the minimum number of stages
-which meets the delay constraint imposed by the effective clock period is used.
+minimizes the number of registers (see [below](#sdc) for details) while
+satisfying various constraints, including the critical path delay constraints
+imposed by the effective clock period. The number of stages in the pipeline may
+be specified by the user via the **pipeline stages** option. If the number of
+pipeline stages specified is too small an error such that no feasible schedule
+can be found then an error is returned. If **pipeline stages** is not given then
+the minimum number of stages which meets the delay constraint imposed by the
+effective clock period is used.
 
 ### Options for common scheduling objectives {#common-options}
 
@@ -131,94 +133,71 @@ should be set to enable them.
     is swept some combinations of **pipeline stages* and **clock period** values
     will result in an error returned because the design point is infeasible.
 
-## Minimizing pipeline registers via min-cut {#min-cut}
+## Minimizing pipeline registers via SDC scheduling {#sdc}
 
-Scheduling to minimize pipeline registers can be formulated as a graph min-cut
-problem where the graph cut divides the nodes of the graph into separate
-pipeline stages and the cost of the cut is the number of bits in the pipeline
-register between the stages. This formulation of the pipeline scheduling problem
-is attractive because the graph min-cut problem can be solved in polynomial
-time.
+For scheduling pipelines, XLS uses a variation on the approach described in
+[SDC-Based Modulo Scheduling for Pipeline Synthesis](https://www.csl.cornell.edu/~zhiruz/pdfs/sdcmod-iccad2013.pdf).
+The basic principle is to create a set of real-valued variables, each
+corresponding to the cycle in which a node is scheduled or the
+lifetime[^lifetime] of a node, and then carefully constrain the variables using
+linear inequality constraints such that minimizing a linear objective always
+gives an answer with *integer* values for all the variables. This avoids the
+need for integer linear programming, which is NP complete, and instead can be
+solved with linear programming, which is polynomial time in theory and takes
+roughly cubic time in practice.
 
-In general, the XLS IR graph cannot be used directly by the min-cut algorithm
-because of additional constraints imposed by pipeline scheduling and features of
-the IR graph. As a motivating example, consider the following graph of an XLS
-function to be scheduled into a two-stage pipeline:
+Prior to the implementation of the SDC scheduler, we used a scheduler based on
+taking the min-cut of the node graph with Ford-Fulkerson. However, this design
+proved difficult to extend with needed features like IO constraints, and unlike
+the SDC algorithm was not optimal in the particular, narrow, sense that it
+assigns nodes to cycles such that the required register bits are minimized. We
+found that switching from the min-cut algorithm to SDC resulted in marginal
+improvements to benchmarks and increased compile times by an small and
+acceptable amount.
 
-![drawing](./mincut_scheduling_0.png)
+[^lifetime]: The lifetime of a node is the interval starting at the cycle number
+    assigned to the node and ending at the maximum cycle number of the
+    users of the node.
 
-Node ***x*** is a parameter to the function, and node ***F*** is the return
-value. The width of the edges correlates with the (labeled) bit width of the
-respective operation. The bit width of the edges are edge weights in the min-cut
-algorithm.
+### Constraints
 
-The drawing above shows the initial and final pipeline registers which flops the
-input output on the interface boundary. In this example, a two-stage pipeline is
-desired so one additional pipeline register is required. The scheduling problem
-is to partition the nodes ***A*** through ***F*** into the two pipeline stages
-while minimizing register count, or alternatively formulated, identify a cut
-through the graph of minimum cost. Below is one possible cut resulting in a
-pipeline schedule where nodes ***A*** and ***B*** are in stage one and nodes
-***C*** through ***F*** are in stage two.
+Currently, we generate a variety of constraints:
 
-![drawing](./mincut_scheduling_1.png)
+-   Causality constraints, i.e.: if node Y uses the output of node X, then the
+    cycle of node X must be less than or equal to the cycle of node Y.
+-   Timing constraints, i.e.: if the critical path between node X and node Y is
+    greater than the clock period, then the cycle of Y must be strictly greater
+    than the cycle of X.
+-   IO constraints among sends and receives on a given channel (see the codegen
+    documentation for more details).
+-   "Node in cycle" constraints, which allow forcing a given node to be
+    scheduled in a given cycle. This is useful for incremental scheduling in the
+    scheduling pass pipeline.
+-   "Receives first, sends last" constraints, which allow accessing the old
+    behavior in which receives all went into the first cycle and sends all went
+    into the last cycle.
+-   Backedge constraints: when the initiation interval is 1, a state parameter
+    and its corresponding next state must be scheduled in the same cycle. More
+    generally, we build up a graph of states where there is an edge between two
+    states if the output of one affects the input of another, and then compute
+    the strongly connected components of this graph. All nodes within a strongly
+    connected component must be in the same cycle.
 
-In the pipeline generated from the example cut above pipeline registers are
-required for nodes ***A*** and ***B*** of bit widths 2 and 32 respectively for a
-total of 34 flops. However this value is inconsistent with the cost of the cut
-in the IR graph which is equal to the sum of weights of the cut edges: 2 + 32 +
-32 = 66. To reconcile the cost function, transformations are applied to the
-graph about nodes with fan-out. Specifically, an artificial node ***N'*** is
-added for each node ***N*** with fan-out and an edge is added from each
-immediate successor of ***N*** to ***N'***. The weight of each edge fanning out
-from ***N*** and fanning into ***N'*** is set to the original weight of the
-edges of ***N*** divided by the fan-out factor. In the example, the edge weight
-is set to 32 / 2 = 16. Below is the transformed graph. As shown, the cost of the
-cut (sum of edge weights) now equals the number of flops in the pipeline
-register (34).
+### Additional technical details
 
-![drawing](./mincut_scheduling_2.png)
+The linear inequality constraints can be summarized by a matrix M and a vector y
+such that Mx ≤ y. If the linear program has the property described above (that
+minimizing a linear objective gives an integer answer), then the matrix M is
+considered to be *integral*. One class of integral matrices is that of the
+"totally unimodular matrices". The exact definition of this class is out of
+scope to discuss here, but it suffices to say that it includes constraints of
+the following form:
 
-For scheduling the example graph, assume the target clock period be three time
-units and all nodes have unit delay. In this case, not all cuts will produce a
-schedule which satisfies the timing constraint. Specifically, if ***B*** is
-scheduled in the second stage, or ***F*** is scheduled in the first stage the
-pipeline cannot meet the timing constraint. To ensure the min-cut results in a
-schedule which satisfies timing an artificial source and sink node is added to
-the graph. Edges with infinite weight are added from the source to nodes which
-must be scheduled in the first stage (or earlier in the case of parameter nodes)
-to satisfy timing constraints. Similar edges are added from nodes which must be
-scheduled in the second stage to the sink node as shown below:
+-   Difference constraints between variables with an integer bound: `x - y ≤ k`
+    where `k` is an integer
+-   Constraints of the form `x - y - z ≤ k` where `k` is an integer
 
-![drawing](./mincut_scheduling_3.png)
-
-One additional transformation (not shown) is required to ensure a correct
-pipeline. Generally, a partitioning created by a min-cut allows edges going in
-both directions between the partitions. However, pipeline stages do not allow
-circular dependencies. To enforce directionality to the edges of the cut, an
-edge of infinite weight is added parallel to and in the opposite direction of
-every edge in the graph.
-
-After transforming the graph, a min-cut is found by applying a max flow
-algorithm (Ford-Fulkerson) from the artificial source node to the artificial
-sink node. In the running example, the min cut is edges ***C*** -> ***F*** and
-***E*** -> ***F*** of cost 12. All nodes except ***F*** are placed in the first
-stage of the pipeline.
-
-Generally, a pipeline can have more than two stages so a single cut is
-insufficient to determine a schedule. In this case a sequence of cuts is
-performed, one for each boundary between pipeline stages. Each min-cut
-partitions the nodes into two parts: the set of nodes scheduled before the
-respective stage boundary, and the set of node scheduled after. This imposes
-additional constraints on later min-cut computations. These constraints are
-imposed by extending infinite weight edges between these nodes and the source or
-sink node in the graph.
-
-The order in which the sequence of cuts is performed (e.g., cut the boundary
-between stage 0 and stage 1, then between 1 and 2, then between 2 and 3, and so
-on) can affect the total number of pipeline flops so, in general, multiple
-orders are attempted and the result with the fewest pipeline flops is kept.
-
-## Rematerialization
-
-TODO(meheff): Finish.
+In the SDC scheduler, we use `x - y ≤ k` constraints to express causality and
+timing constraints, whereas `x - y - z ≤ k` constraints are used to constrain
+the lifetime variables to be equal to the difference between the max user cycle
+and the cycle of a given node.
