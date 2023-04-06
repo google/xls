@@ -14,13 +14,21 @@
 
 #include "xls/ir/package.h"
 
+#include <optional>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/xls_type.pb.h"
 
 namespace xls {
@@ -605,7 +613,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
-  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  XLS_ASSERT_OK(pkg1->AddPackage(pkg2.get()).status());
   EXPECT_EQ(pkg1->functions().size(), 2);
   XLS_EXPECT_OK(pkg1->GetFunction("my_function"));
   XLS_EXPECT_OK(pkg1->GetFunction("my_function_1"));
@@ -637,7 +645,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
-  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  XLS_ASSERT_OK(pkg1->AddPackage(pkg2.get()).status());
 
   EXPECT_EQ(pkg1->functions().size(), 4);
   XLS_EXPECT_OK(pkg1->GetFunction("my_function"));
@@ -685,7 +693,7 @@ top proc another_main(__token: token, __state: (), init={()}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
-  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  XLS_ASSERT_OK(pkg1->AddPackage(pkg2.get()).status());
   EXPECT_EQ(pkg1->channels().size(), 2);
   EXPECT_EQ(pkg1->procs().size(), 2);
   XLS_EXPECT_OK(pkg1->GetProc("main"));
@@ -742,7 +750,7 @@ top proc another_main(__token: token, __state: (), init={()}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
-  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
+  XLS_ASSERT_OK(pkg1->AddPackage(pkg2.get()).status());
 
   EXPECT_EQ(pkg1->channels().size(), 2);
   EXPECT_EQ(pkg1->procs().size(), 2);
@@ -779,9 +787,7 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg1, ParsePackage(text1));
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg2, ParsePackage(text2));
-  XLS_ASSERT_OK(pkg1->AddPackage(std::move(pkg2)).status());
-
-  std::cout << pkg1->DumpIr();
+  XLS_ASSERT_OK(pkg1->AddPackage(pkg2.get()).status());
 
   EXPECT_EQ(pkg1->blocks().size(), 2);
   XLS_EXPECT_OK(pkg1->GetBlock("my_block"));

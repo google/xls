@@ -205,16 +205,15 @@ absl::flat_hash_set<std::string_view> AllPackageNames(const Package& package) {
 // Adds channels from other_package to this_package, potentially changing the
 // channel id. Returns channels ID mapping from old id -> new id.
 absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
-    Package* this_package, Package* other_package,
+    Package* this_package, const Package* other_package,
     NameCollisionResolver* name_resolver) {
   absl::flat_hash_map<int64_t, int64_t> channel_id_updates;
   // Channels can collide in two ways: by name, and by id. First we resolve name
   // collisions, and then we call the various Create*Channel() functions, which
   // will give a new channel id. We keep track of this new id to update
   // references to it later.
-  for (auto channel : other_package->channels()) {
-    std::string channel_name =
-        name_resolver->ResolveName(std::move(channel->name()));
+  for (const auto channel : other_package->channels()) {
+    std::string channel_name = name_resolver->ResolveName(channel->name());
     XLS_ASSIGN_OR_RETURN(
         auto* new_channel_type,
         this_package->MapTypeFromOtherPackage(channel->type()));
@@ -224,7 +223,7 @@ absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
             auto new_channel,
             this_package->CreateSingleValueChannel(
                 std::move(channel_name), channel->supported_ops(),
-                new_channel_type, std::move(channel->metadata())));
+                new_channel_type, channel->metadata()));
         channel_id_updates[channel->id()] = new_channel->id();
         break;
       }
@@ -242,8 +241,7 @@ absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
                 std::move(channel_name), channel->supported_ops(),
                 new_channel_type, channel->initial_values(),
                 streaming_channel->GetFifoDepth(),
-                streaming_channel->GetFlowControl(),
-                std::move(channel->metadata())));
+                streaming_channel->GetFlowControl(), channel->metadata()));
         channel_id_updates[channel->id()] = new_channel->id();
         break;
       }
@@ -257,7 +255,7 @@ absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
 // this_package. Assumes channels have already been added.
 absl::StatusOr<absl::flat_hash_map<const FunctionBase*, FunctionBase*>>
 AddFunctionBasesFromPackage(
-    Package* this_package, Package* other_package,
+    Package* this_package, const Package* other_package,
     NameCollisionResolver* name_resolver,
     const absl::flat_hash_map<int64_t, int64_t>& channel_remapping) {
   std::vector<FunctionBase*> other_function_bases =
@@ -315,21 +313,20 @@ AddFunctionBasesFromPackage(
 }  // namespace
 
 absl::StatusOr<Package::PackageMergeResult> Package::AddPackage(
-    std::unique_ptr<Package> other) {
+    const Package* other) {
   // Helper that keeps track of old -> new name mapping, resolving collisions if
   // needed.
   NameCollisionResolver name_resolver(AllPackageNames(*this));
 
   // First, merge channels.
   // Returns a mapping of channel ids from old id -> new id
-  XLS_ASSIGN_OR_RETURN(
-      auto channel_id_updates,
-      AddChannelsFromPackage(this, other.get(), &name_resolver));
+  XLS_ASSIGN_OR_RETURN(auto channel_id_updates,
+                       AddChannelsFromPackage(this, other, &name_resolver));
 
   // Next, merge in functions, procs, and blocks.
-  XLS_ASSIGN_OR_RETURN(auto call_mapping, AddFunctionBasesFromPackage(
-                                              this, other.get(), &name_resolver,
-                                              channel_id_updates));
+  XLS_ASSIGN_OR_RETURN(auto call_mapping,
+                       AddFunctionBasesFromPackage(this, other, &name_resolver,
+                                                   channel_id_updates));
   return Package::PackageMergeResult{
       .name_updates = name_resolver.name_updates(),
       .channel_id_updates = std::move(channel_id_updates)};

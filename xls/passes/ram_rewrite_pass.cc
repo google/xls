@@ -174,7 +174,7 @@ GetChannelsForNewRam(Package* p, std::string_view name_prefix,
   if (ram_model_builder.has_value()) {
     auto [new_package, new_channel_mapping] = (*ram_model_builder)(ram_config);
     XLS_ASSIGN_OR_RETURN(auto linked_channel_mapping,
-                         p->AddPackage(std::move(new_package)));
+                         p->AddPackage(new_package.get()));
     absl::flat_hash_map<RamLogicalChannel, Channel*> resolved_channel_mapping;
     for (const auto& [logical_name, original_id] : new_channel_mapping) {
       auto new_id = linked_channel_mapping.channel_id_updates.find(original_id);

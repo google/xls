@@ -115,7 +115,7 @@ class Package {
   };
   // Add another package to this package. Ownership is transferred to this
   // package.
-  absl::StatusOr<PackageMergeResult> AddPackage(std::unique_ptr<Package> other);
+  absl::StatusOr<PackageMergeResult> AddPackage(const Package* other);
 
   // Get a function, proc, or block by name. Returns an error if no such
   // construct of the indicated kind exists with that name.
