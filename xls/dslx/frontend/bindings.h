@@ -100,6 +100,14 @@ class Bindings {
  public:
   explicit Bindings(Bindings* parent = nullptr) : parent_(parent) {}
 
+  // Too easy to confuse chaining a bindings object with its parent vs copy
+  // constructing so we rely on an explicit Clone() call instead.
+  Bindings(const Bindings& other) = delete;
+
+  // Moving is ok though.
+  Bindings(Bindings&& other) = default;
+  Bindings& operator=(Bindings&& other) = default;
+
   // Returns a copy of this bindings object.
   Bindings Clone() const;
 
@@ -172,6 +180,10 @@ class Bindings {
   // Returns whether there is an AST binding associated with "name".
   bool HasName(std::string_view name) const {
     return ResolveNode(name).has_value();
+  }
+
+  const absl::flat_hash_map<std::string, BoundNode>& local_bindings() const {
+    return local_bindings_;
   }
 
  private:

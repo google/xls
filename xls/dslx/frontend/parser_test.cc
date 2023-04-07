@@ -82,7 +82,7 @@ class ParserTest : public ::testing::Test {
     for (const std::string& s : predefine) {
       b.Add(s, mod.GetOrCreateBuiltinNameDef(s));
     }
-    auto expr_or = parser_->ParseExpression(/*bindings=*/&b);
+    auto expr_or = parser_->ParseExpression(/*bindings=*/b);
     if (!expr_or.ok()) {
       TryPrintError(expr_or.status(),
                     [&](std::string_view path) -> absl::StatusOr<std::string> {
@@ -113,7 +113,7 @@ class ParserTest : public ::testing::Test {
   // Allows the private ParseTypeAnnotation method to be used by subtypes (test
   // instances).
   absl::StatusOr<TypeAnnotation*> ParseTypeAnnotation(Parser& p,
-                                                      Bindings* bindings) {
+                                                      Bindings& bindings) {
     return p.ParseTypeAnnotation(bindings);
   }
 
@@ -188,7 +188,8 @@ TEST_F(ParserTest, ParseErrorSpan) {
   const char* kFakeFilename = "fake.x";
   Scanner scanner(kFakeFilename, "+");
   Parser parser("test_module", &scanner);
-  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(/*bindings=*/nullptr);
+  Bindings b;
+  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(b);
   ASSERT_THAT(expr_or, StatusIs(absl::StatusCode::kInvalidArgument,
                                 "ParseError: fake.x:1:1-1:2 Expected start of "
                                 "an expression; got: +"));
@@ -198,7 +199,8 @@ TEST_F(ParserTest, EmptyTupleWithComma) {
   const char* kFakeFilename = "fake.x";
   Scanner scanner(kFakeFilename, "(,)");
   Parser parser("test_module", &scanner);
-  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(/*bindings=*/nullptr);
+  Bindings b;
+  absl::StatusOr<Expr*> expr_or = parser.ParseExpression(b);
   ASSERT_THAT(
       expr_or,
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -210,7 +212,8 @@ TEST_F(ParserTest, ParseLetExpression) {
   const char* text = "let x: u32 = 2; x";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * e, p.ParseExpression(/*bindings=*/nullptr));
+  Bindings b;
+  XLS_ASSERT_OK_AND_ASSIGN(Expr * e, p.ParseExpression(b));
   Let* let = dynamic_cast<Let*>(e);
   ASSERT_TRUE(let != nullptr) << e->ToString();
   NameDef* name_def = std::get<NameDef*>(let->name_def_tree()->leaf());
@@ -227,7 +230,7 @@ TEST_F(ParserTest, ParseIdentityFunction) {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
   Block* block = f->body();
   ASSERT_TRUE(block != nullptr);
@@ -258,7 +261,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
   Parser parser{"test", &s};
   Bindings bindings;
   auto proc_or =
-      parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/&bindings);
+      parser.ParseProc(/*is_public=*/false, /*outer_bindings=*/bindings);
   if (!proc_or.ok()) {
     TryPrintError(proc_or.status(),
                   [&](std::string_view path) -> absl::StatusOr<std::string> {
@@ -602,7 +605,7 @@ TEST_F(ParserTest, ConcatFunction) {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
   EXPECT_EQ(f->params().size(), 2);
 
   Block* block = f->body();
@@ -634,7 +637,7 @@ fn concat(
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
   EXPECT_EQ(f->params().size(), 2);
 }
 
@@ -649,7 +652,7 @@ fn f(x: u32) -> u8 {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
   Block* block = f->body();
   absl::Span<Statement* const> stmts = block->statements();
@@ -676,7 +679,7 @@ TEST_F(ParserTest, LocalConstBinding) {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
   Block* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
   ASSERT_EQ(stmts.size(), 1);
@@ -845,7 +848,7 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
   parser_.emplace("test", &*scanner_);
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(TypeAnnotation * ta,
-                           ParseTypeAnnotation(parser_.value(), &bindings));
+                           ParseTypeAnnotation(parser_.value(), bindings));
 
   auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(ta);
   EXPECT_EQ(array_type->span(),
@@ -1221,7 +1224,7 @@ fn f(x: u32) -> u8 {
   Bindings bindings;
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
-      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
 
   Block* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
