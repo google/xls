@@ -19,7 +19,8 @@ on:
 jobs:
   build:
     name: Bazel Test All (opt)
-    runs-on: ubuntu-20.04
+    runs-on:
+      labels: ubuntu-20.04-64core
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
@@ -58,7 +59,8 @@ jobs:
   cleanup:
     name: Bazel Cache Cleanup
     needs: build
-    runs-on: ubuntu-latest
+    runs-on:
+      labels: ubuntu-20.04-64core
     timeout-minutes: 5
     permissions:
       contents: read
