@@ -207,7 +207,7 @@ absl::Status RunComparator::RunComparison(Package* ir_package,
     // Slice off the first value.
     XLS_RET_CHECK(ir_result.element(0).IsToken());
     XLS_RET_CHECK_EQ(ir_result.size(), 2);
-    Value real_ir_result = std::move(ir_result.element(1));
+    Value real_ir_result = ir_result.element(1);
     ir_result = std::move(real_ir_result);
   }
 

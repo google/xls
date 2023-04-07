@@ -346,7 +346,7 @@ absl::StatusOr<std::string> InterpValue::ToFormattedString(
   Visitor v(*this, indentation);
   XLS_RETURN_IF_ERROR(fmt_desc.Accept(v));
   XLS_RET_CHECK(v.result().has_value());
-  return std::move(v.result()).value();
+  return v.result().value();
 }
 
 bool InterpValue::Eq(const InterpValue& other) const {
