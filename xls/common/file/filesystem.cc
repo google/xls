@@ -115,10 +115,9 @@ absl::Status FileExists(const std::filesystem::path& path) {
   bool result = std::filesystem::exists(path, ec);
   if (ec) {
     return ErrorCodeToStatus(ec);
-  } else {
-    return result ? absl::OkStatus()
-                  : absl::NotFoundError("File does not exist.");
   }
+  return result ? absl::OkStatus()
+                : absl::NotFoundError("File does not exist.");
 }
 
 absl::StatusOr<bool> FileIsExecutable(const std::filesystem::path& path) {
@@ -126,12 +125,11 @@ absl::StatusOr<bool> FileIsExecutable(const std::filesystem::path& path) {
   std::filesystem::file_status status = std::filesystem::status(path, ec);
   if (ec) {
     return ErrorCodeToStatus(ec);
-  } else {
-    return (status.permissions() & (std::filesystem::perms::owner_exec |
-                                    std::filesystem::perms::group_exec |
-                                    std::filesystem::perms::others_exec)) !=
-           std::filesystem::perms::none;
   }
+  return (status.permissions() & (std::filesystem::perms::owner_exec |
+                                  std::filesystem::perms::group_exec |
+                                  std::filesystem::perms::others_exec)) !=
+         std::filesystem::perms::none;
 }
 
 absl::Status RecursivelyCreateDir(const std::filesystem::path& path) {

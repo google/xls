@@ -37,10 +37,10 @@ absl::Status WriteContent(int fd, std::string_view content) {
     if (bytes_written_this_time == -1) {
       if (errno == EINTR) {
         continue;
-      } else {
-        return absl::UnavailableError(absl::StrCat(
-            "Failed to write content to temporary file: ", Strerror(errno)));
       }
+      return absl::UnavailableError(absl::StrCat(
+          "Failed to write content to temporary file: ", Strerror(errno)));
+
     } else {
       bytes_written += bytes_written_this_time;
     }
