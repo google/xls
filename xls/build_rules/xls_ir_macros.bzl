@@ -79,7 +79,7 @@ def xls_dslx_ir_macro(
       dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'top'
+        //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.

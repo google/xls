@@ -91,7 +91,8 @@ namespace {
 
 using solvers::z3::IrTranslator;
 
-constexpr const char kIrConverterPath[] = "xls/dslx/ir_converter_main";
+constexpr const char kIrConverterPath[] =
+    "xls/dslx/ir_convert/ir_converter_main";
 
 // Loads a cell library, either from a raw Liberty file or a preprocessed
 // CellLibraryProto proto.

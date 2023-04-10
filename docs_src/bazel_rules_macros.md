@@ -627,7 +627,7 @@ An IR conversion with a top entity defined.
 | <a id="xls_dslx_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
 | <a id="xls_dslx_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
 | <a id="xls_dslx_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
+| <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
 | <a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
 | <a id="xls_dslx_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |

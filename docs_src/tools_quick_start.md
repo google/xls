@@ -51,7 +51,7 @@ $ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
 To convert the DSL file to IR, run the following command:
 
 ```
-$ ./bazel-bin/xls/dslx/ir_converter_main --top=add /tmp/simple_add.x > /tmp/simple_add.ir
+$ ./bazel-bin/xls/dslx/ir_convert/ir_converter_main --top=add /tmp/simple_add.x > /tmp/simple_add.ir
 ```
 
 ## IR optimization
