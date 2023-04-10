@@ -22,7 +22,8 @@ env:
 jobs:
   build:
     name: Bazel Test (opt)
-    runs-on: ubuntu-22.04
+    runs-on:
+      labels: ubuntu-22.04-64core
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
@@ -46,42 +47,3 @@ jobs:
       - name: Bazel Test Target (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST -- $BAZEL_TARGET
-  cleanup:
-    name: Bazel Cache Cleanup
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - uses: actions/checkout@v3
-      - name: Cleanup older Bazel Caches
-        # Per https://github.com/actions/cache/blob/main/tips-and-workarounds.md#force-deletion-of-caches-overriding-default-cache-eviction-policy
-        run: |
-          gh extension install actions/gh-actions-cache
-
-          REPO=${{ github.repository }}
-          BRANCH=${{ github.ref }}
-
-          echo "Fetching list of cache key"
-          gh actions-cache list -R $REPO -B $BRANCH
-
-          # Do not fail if unable to clean up (i.e. no cache were found).
-          set +e
-          caches_for_22_04=($(gh actions-cache list -R $REPO -B $BRANCH | cut -f 1 | grep "bazel-cache-22_04"))
-
-          # Delete all except for the latest cache.
-          older_caches_for_22_04=${caches_for_22_04[@]:1}
-
-          echo "Deleting caches..."
-          for key in ${older_caches_for_22_04[@]}; do
-              echo "  ... deleting $key for $REPO and $BRANCH"
-              gh actions-cache delete $key -R $REPO -B $BRANCH --confirm
-          done
-
-          echo "Done"
-
-          set -e
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
