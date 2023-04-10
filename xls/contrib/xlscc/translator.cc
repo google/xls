@@ -2027,9 +2027,19 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(CValue sel_val, GenerateIR_Expr(cond_expr, loc));
   XLSCC_CHECK(sel_val.type()->Is<CBoolType>(), loc);
+  XLSCC_CHECK(sel_val.rvalue().valid(), loc);
 
-  XLS_ASSIGN_OR_RETURN(CValue true_cv, GenerateIR_Expr(true_expr, loc));
-  XLS_ASSIGN_OR_RETURN(CValue false_cv, GenerateIR_Expr(false_expr, loc));
+  CValue true_cv, false_cv;
+
+  {
+    PushContextGuard context_guard(*this, sel_val.rvalue(), loc);
+    XLS_ASSIGN_OR_RETURN(true_cv, GenerateIR_Expr(true_expr, loc));
+  }
+  {
+    PushContextGuard context_guard(*this, context().fb->Not(sel_val.rvalue()),
+                                   loc);
+    XLS_ASSIGN_OR_RETURN(false_cv, GenerateIR_Expr(false_expr, loc));
+  }
 
   if (result_type->Is<CPointerType>()) {
     if (context().lvalue_mode) {

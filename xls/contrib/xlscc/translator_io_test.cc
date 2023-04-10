@@ -266,6 +266,44 @@ TEST_F(TranslatorIOTest, ReadConditional) {
          /*outputs=*/{IOOpTest("out", 3, true)});
 }
 
+TEST_F(TranslatorIOTest, TernaryReadConditional) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         x += (x < 8) ? in.read() : 0;
+         out.write(x);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 10, true), IOOpTest("in", 0, false)},
+         /*outputs=*/{IOOpTest("out", 10, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("in", 2, true)},
+         /*outputs=*/{IOOpTest("out", 3, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryReadConditional2) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int x = in.read();
+         x += (x >= 8) ? 0 : in.read();
+         out.write(x);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 10, true), IOOpTest("in", 0, false)},
+         /*outputs=*/{IOOpTest("out", 10, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("in", 2, true)},
+         /*outputs=*/{IOOpTest("out", 3, true)});
+}
+
 TEST_F(TranslatorIOTest, Subroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
