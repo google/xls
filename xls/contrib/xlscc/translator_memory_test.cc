@@ -950,5 +950,27 @@ TEST_F(TranslatorMemoryTest, MemoryReadWriteFnTest) {
          });
 }
 
+TEST_F(TranslatorMemoryTest, MemoryReadWithTypeAlias) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       template <int W>
+       using MyMemory = __xls_memory<int, W>;
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       MyMemory<32>& memory,
+                       __xls_channel<int>& out) {
+         const int addr = in.read();
+         const int val = memory[addr];
+         out.write(3*val);
+       })";
+
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 7, true), IOOpTest("memory__read", 10, true)},
+      /*outputs=*/
+      {IOOpTest("memory__read", xls::Value(xls::UBits(7, 5)), true),
+       IOOpTest("out", 30, true)});
+}
+
 }  // namespace
 }  // namespace xlscc

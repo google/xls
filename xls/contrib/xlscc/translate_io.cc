@@ -15,9 +15,11 @@
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/OperationKinds.h"
+#include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -158,6 +160,8 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
                            EvaluateInt64(*arg.getAsExpr(), ctx, loc));
       op_type = static_cast<OpType>(val);
     }
+  } else if (template_spec->isTypeAlias()) {
+    return GetChannelType(template_spec->getAliasedType(), ctx, loc);
   }
   const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
   XLSCC_CHECK(arg.getKind() == clang::TemplateArgument::ArgKind::Type, loc);

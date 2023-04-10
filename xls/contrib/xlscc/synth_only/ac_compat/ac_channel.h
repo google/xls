@@ -15,6 +15,7 @@
 #ifndef __AC_CHANNEL_COMPAT_H__
 #define __AC_CHANNEL_COMPAT_H__
 
-#define ac_channel __xls_channel
+template <typename T>
+using ac_channel = __xls_channel<T>;
 
 #endif  //__AC_CHANNEL_COMPAT_H__

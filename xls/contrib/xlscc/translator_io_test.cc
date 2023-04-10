@@ -1205,6 +1205,42 @@ TEST_F(TranslatorIOTest, MuxTwoInputs) {
               xls::status_testing::StatusIs(absl::StatusCode::kOk));
 }
 
+TEST_F(TranslatorIOTest, AcChannelAlias) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       template <typename T>
+       using Channel = __xls_channel<T>;
+       #pragma hls_top
+       void my_package(Channel<int>& in,
+                       Channel<int>& out) {
+         out.write(3*in.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, ChannelAliasWithDir) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       template <typename T>
+       using Consumer = __xls_channel<T, __xls_channel_dir_In>;
+       template <typename T>
+       using Producer = __xls_channel<T, __xls_channel_dir_Out>;
+       #pragma hls_top
+       void my_package(Consumer<int>& in,
+                       Producer<int>& out) {
+         out.write(3*in.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+
+
 }  // namespace
 
 }  // namespace xlscc
