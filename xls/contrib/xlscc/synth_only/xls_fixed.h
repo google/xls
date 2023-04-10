@@ -15,8 +15,6 @@
 #ifndef XLS_FIXED_H
 #define XLS_FIXED_H
 
-#include <cstdint>
-
 #include "xls_int.h"
 
 #define __AC_NAMESPACE ac_datatypes
@@ -252,16 +250,16 @@ class XlsFixed {
     return BitsToBuiltinInt<unsigned long, 64>::Convert(ret);
   }
 
-  inline int64_t to_int64() const {
+  inline long long to_int64() const {
     auto ret(Adjustment<64, 64, true, Width, IntegerWidth, Signed>::Adjust(
         val.storage));
-    return BitsToBuiltinInt<int64_t, 64>::Convert(ret);
+    return BitsToBuiltinInt<long long, 64>::Convert(ret);
   }
 
-  inline uint64_t to_uint64() const {
+  inline  unsigned long long to_uint64() const {
     auto ret(Adjustment<64, 64, false, Width, IntegerWidth, Signed>::Adjust(
         val.storage));
-    return BitsToBuiltinInt<uint64_t, 64>::Convert(ret);
+    return BitsToBuiltinInt<unsigned long long, 64>::Convert(ret);
   }
 
   template <int W2, int I2, bool S2, ac_datatypes::ac_q_mode Q2,
