@@ -20,7 +20,9 @@
 # pytype binary only
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+
 # cc_proto_library is used in this file
+load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_int_fuzz_binaries")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -166,6 +168,56 @@ cc_library(
         "@llvm-project//llvm:Support",
         "@z3//:api",
     ],
+)
+
+cc_library(
+    name = "cc_generator",
+    srcs = ["cc_generator.cc"],
+    hdrs = ["cc_generator.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_binary(
+    name = "cc_generate_test",
+    srcs = ["cc_generate_test.cc"],
+    data = [
+        ":synth_only_headers",
+        ":xlscc",
+        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+    ],
+    deps = [
+        ":cc_generator",
+        "//xls/codegen:combinational_generator",
+        "//xls/codegen:module_signature",
+        "//xls/common:init_xls",
+        "//xls/common:subprocess",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/ir",
+        "//xls/ir:events",
+        "//xls/ir:function_builder",
+        "//xls/ir:value",
+        "//xls/passes:standard_pipeline",
+        "//xls/simulation:module_simulator",
+        "//xls/simulation:verilog_simulators",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+xls_int_fuzz_binaries(
+    name = "sample_fuzz",
+    seed_count = 9,
+    seed_start = 10,
 )
 
 cc_library(
