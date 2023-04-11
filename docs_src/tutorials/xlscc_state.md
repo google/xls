@@ -16,38 +16,30 @@ variables.
 Create a file named `test_state.cc` with the following contents.
 
 ```c++
-#include "/xls_builtin.h"
+template<typename T>
+using OutputChannel = __xls_channel<T, __xls_channel_dir_Out>;
 
-#pragma hls_top
-void test_state(__xls_channel<int>& out) {
-  static int count = 0;
-  out.write(count);
-  ++count;
-}
-```
+class TestBlock {
+public:
+    OutputChannel<int> out;
 
-As the above function uses channels, a proto detailing the type of interface is
-required. Create a file named `test_state.textproto` with the following
-contents to configure `out` as an output FIFO (ready/valid) interface.
+    int count = 0;
 
-```textproto
-channels {
-  name: "out"
-  is_input: false
-  type: FIFO
-}
-name: "xls_test_state"
+    #pragma hls_top
+    void Run() {
+        out.write(count);
+        count++;
+    }
+};
 ```
 
 ## Generate optimized XLS IR.
 
-Use a combination of `proto2bin`, `xlscc` and `opt_main` to generate optimized
-XLS IR.
+Use a combination of `xlscc` and `opt_main` to generate optimized XLS IR.
 
 ```shell
-$ ./bazel-bin/xls/tools/proto2bin test_state.textproto --message xlscc.HLSBlock --output test_state.pb
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test_state.cc \
-  --block_pb test_state.pb \
+  --block_from_class TestBlock --block_pb block.pb \
   > test_state.ir
 $ ./bazel-bin/xls/tools/opt_main test_state.ir > test_state.opt.ir
 ```
@@ -64,7 +56,7 @@ $ ./bazel-bin/xls/tools/codegen_main test_state.opt.ir \
   --delay_model="sky130" \
   --output_verilog_path=xls_counter.v \
   --module_name=xls_counter \
-  --top=xls_test_state_proc \
+  --top=TestBlock_proc \
   --reset=rst \
   --reset_active_low=false \
   --reset_asynchronous=false \
@@ -99,8 +91,8 @@ module xls_counter(
       __st__1 <= 32'h0000_0000;
     end else begin
       __st__1 <= pipeline_enable ? add_37 : __st__1;
-    end 
-  end 
+    end
+  end
   assign out = __st__1;
   assign out_vld = literal_40 & literal_43 & 1'h1;
 endmodule
@@ -108,11 +100,9 @@ endmodule
 
 ## Additional XLS[cc] examples.
 
-The above tutorials only touches upon the capabilities of XLS[cc]. XLS[cc] is
-based on libclang and supports many C++17 features. Notable *unsupported*
-features include pointers, function pointers, and virtual methods.
-
 For developers, it is possible to check if a specific feature is supported by
 checking
-[translator_logic_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_logic_test.cc)
+[translator_static_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_static_test.cc)
+and
+[translator_proc_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_proc_test.cc)
 for unit tests.

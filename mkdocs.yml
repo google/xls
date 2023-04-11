@@ -19,8 +19,11 @@ nav:
       - Intro to Procs: 'tutorials/intro_to_procs.md'
     - XLS[cc]:
       - Overview: 'tutorials/xlscc_overview.md'
+      - Integers: 'tutorials/xlscc_integers.md'
       - Channels: 'tutorials/xlscc_channels.md'
+      - Memory: 'tutorials/xlscc_memory.md'
       - State: 'tutorials/xlscc_state.md'
+      - Pipelined Loops: 'tutorials/xlscc_pipelined_loops.md'
   - IR:
     - Overview: 'ir_overview.md'
     - Semantics: 'ir_semantics.md'

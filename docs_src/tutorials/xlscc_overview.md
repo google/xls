@@ -74,8 +74,8 @@ Below is a quick summary of each option:
     to.
 4.  `--module_name=xls_test` states that the generated verilog module should
     have the name of `xls_test`.
-5.  `--top=add3` states that the function that should be used for codegen is
-    the function (`fn`) named `add3`.
+5.  `--top=add3` states that the function that should be used for codegen is the
+    function (`fn`) named `add3`.
 
 The resulting `test.v` should have contents similar to the following
 
@@ -156,3 +156,14 @@ Below is a quick summary of each option:
 9.  `--pipeline_stages=5` - create a 5 stage pipeline.
 10. `--flop_inputs=true` and `--flop_outputs=true` - input and outputs for the
     block are registered.
+
+## Additional XLS[cc] examples.
+
+The above tutorials only touches upon the capabilities of XLS[cc]. XLS[cc] is
+based on libclang and supports many C++17 features. Notable *unsupported*
+features include pointers, function pointers, and virtual methods.
+
+For developers, it is possible to check if a specific feature is supported by
+checking
+[translator_logic_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_logic_test.cc)
+and other unit tests in the same directory.
