@@ -16,16 +16,20 @@
 
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -382,6 +386,136 @@ TEST_F(PackageTest, ChannelRemoval) {
   EXPECT_THAT(p.RemoveChannel(ch0),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("cannot be removed because it is used")));
+}
+
+TEST_F(PackageTest, CloneSingleValueChannelSamePackage) {
+  Package p(TestName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
+                                                p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch1, p.CloneChannel(ch0, "ch1"));
+
+  EXPECT_EQ(p.channels().size(), 2);
+  EXPECT_EQ(ch1->name(), "ch1");
+  EXPECT_EQ(ch1->kind(), ChannelKind::kSingleValue);
+  EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_NE(ch0->id(), ch1->id());
+  EXPECT_EQ(ch0->supported_ops(), ch1->supported_ops());
+}
+
+TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
+  Package p(TestName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
+                                                p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CloneChannel(ch0, "ch1", ChannelOps::kSendReceive));
+
+  EXPECT_EQ(p.channels().size(), 2);
+  EXPECT_EQ(ch1->name(), "ch1");
+  EXPECT_EQ(ch1->kind(), ChannelKind::kSingleValue);
+  EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_NE(ch0->id(), ch1->id());
+  EXPECT_NE(ch0->supported_ops(), ch1->supported_ops());
+  EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendReceive);
+}
+
+TEST_F(PackageTest, CloneSingleValueChannelToDifferentPackage) {
+  Package p0(TestName());
+  Package p1(absl::StrCat(TestName(), "_clone"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p0.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
+                                                p0.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch0_clone, p1.CloneChannel(ch0, "ch0"));
+
+  EXPECT_EQ(p0.channels().size(), 1);
+  EXPECT_EQ(p1.channels().size(), 1);
+  EXPECT_EQ(ch0_clone->name(), "ch0");
+  EXPECT_EQ(ch0_clone->kind(), ChannelKind::kSingleValue);
+  EXPECT_THAT(ch0_clone, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch0->supported_ops(), ch0_clone->supported_ops());
+}
+
+TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
+  Package p(TestName());
+
+  std::vector<Value> initial_values = {Value(UBits(1, 32)),
+                                       Value(UBits(2, 32))};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateStreamingChannel(
+                         "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
+                         /*initial_values=*/initial_values, /*fifo_depth=*/3));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch1, p.CloneChannel(ch0, "ch1"));
+
+  EXPECT_EQ(p.channels().size(), 2);
+  EXPECT_EQ(ch1->name(), "ch1");
+  EXPECT_EQ(ch1->kind(), ChannelKind::kStreaming);
+  EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_NE(ch0->id(), ch1->id());
+  EXPECT_EQ(ch0->supported_ops(), ch1->supported_ops());
+
+  // Check streaming-specific fields.
+  StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
+  EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
+  EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
+  EXPECT_EQ(streaming_ch1->GetFlowControl(), FlowControl::kReadyValid);
+}
+
+TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
+  Package p(TestName());
+
+  std::vector<Value> initial_values = {Value(UBits(1, 32)),
+                                       Value(UBits(2, 32))};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateStreamingChannel(
+                         "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
+                         /*initial_values=*/initial_values, /*fifo_depth=*/3));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CloneChannel(ch0, "ch1", ChannelOps::kSendReceive));
+
+  EXPECT_EQ(p.channels().size(), 2);
+  EXPECT_EQ(ch1->name(), "ch1");
+  EXPECT_EQ(ch1->kind(), ChannelKind::kStreaming);
+  EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_NE(ch0->id(), ch1->id());
+  EXPECT_NE(ch0->supported_ops(), ch1->supported_ops());
+  EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendReceive);
+
+  // Check streaming-specific fields.
+  StreamingChannel* streaming_ch1 = down_cast<StreamingChannel*>(ch1);
+  EXPECT_EQ(streaming_ch1->initial_values(), initial_values);
+  EXPECT_EQ(streaming_ch1->GetFifoDepth(), 3);
+  EXPECT_EQ(streaming_ch1->GetFlowControl(), FlowControl::kReadyValid);
+}
+
+TEST_F(PackageTest, CloneStreamingChannelDifferentPackage) {
+  Package p0(TestName());
+  Package p1(absl::StrCat(TestName(), "_clone"));
+
+  std::vector<Value> initial_values = {Value(UBits(1, 32)),
+                                       Value(UBits(2, 32))};
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p0.CreateStreamingChannel(
+                         "ch0", ChannelOps::kSendOnly, p0.GetBitsType(32),
+                         /*initial_values=*/initial_values, /*fifo_depth=*/3));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch0_clone,
+                           p1.CloneChannel(ch0, "ch0_clone"));
+
+  EXPECT_EQ(p1.channels().size(), 1);
+  EXPECT_EQ(ch0_clone->name(), "ch0_clone");
+  EXPECT_EQ(ch0_clone->kind(), ChannelKind::kStreaming);
+  EXPECT_THAT(ch0_clone, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch0->supported_ops(), ch0_clone->supported_ops());
+
+  // Check streaming-specific fields.
+  StreamingChannel* streaming_ch0_clone =
+      down_cast<StreamingChannel*>(ch0_clone);
+  EXPECT_EQ(streaming_ch0_clone->initial_values(), initial_values);
+  EXPECT_EQ(streaming_ch0_clone->GetFifoDepth(), 3);
+  EXPECT_EQ(streaming_ch0_clone->GetFlowControl(), FlowControl::kReadyValid);
 }
 
 TEST_F(PackageTest, Top) {

@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -254,6 +255,13 @@ class Package {
   // Removes the given channel. If the channel has any associated send/receive
   // nodes an error is returned.
   absl::Status RemoveChannel(Channel* channel);
+
+  // Clone channel, potentially from another package, with new name. Channel id
+  // may differ from the old channel (it definitely will if it's coming from
+  // this package).
+  absl::StatusOr<Channel*> CloneChannel(
+      Channel* channel, std::string_view name,
+      std::optional<ChannelOps> supported_ops = std::nullopt);
 
  private:
   std::vector<std::string> GetChannelNames() const;

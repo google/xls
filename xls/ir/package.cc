@@ -18,6 +18,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
@@ -31,6 +32,7 @@
 #include "xls/ir/block.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
@@ -214,40 +216,10 @@ absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>> AddChannelsFromPackage(
   // references to it later.
   for (const auto channel : other_package->channels()) {
     std::string channel_name = name_resolver->ResolveName(channel->name());
-    XLS_ASSIGN_OR_RETURN(
-        auto* new_channel_type,
-        this_package->MapTypeFromOtherPackage(channel->type()));
-    switch (channel->kind()) {
-      case ChannelKind::kSingleValue: {
-        XLS_ASSIGN_OR_RETURN(
-            auto new_channel,
-            this_package->CreateSingleValueChannel(
-                std::move(channel_name), channel->supported_ops(),
-                new_channel_type, channel->metadata()));
-        channel_id_updates[channel->id()] = new_channel->id();
-        break;
-      }
-      case ChannelKind::kStreaming: {
-        auto streaming_channel = dynamic_cast<StreamingChannel*>(channel);
-        if (streaming_channel == nullptr) {
-          return absl::InternalError(
-              absl::StrFormat("Channel %s had kind kStreaming, but could not "
-                              "be cast to StreamingChannel",
-                              channel->name()));
-        }
-        XLS_ASSIGN_OR_RETURN(
-            auto new_channel,
-            this_package->CreateStreamingChannel(
-                std::move(channel_name), channel->supported_ops(),
-                new_channel_type, channel->initial_values(),
-                streaming_channel->GetFifoDepth(),
-                streaming_channel->GetFlowControl(), channel->metadata()));
-        channel_id_updates[channel->id()] = new_channel->id();
-        break;
-      }
-    }
+    XLS_ASSIGN_OR_RETURN(Channel * new_channel,
+                         this_package->CloneChannel(channel, channel_name));
+    channel_id_updates[channel->id()] = new_channel->id();
   }
-
   return channel_id_updates;
 }
 
@@ -705,7 +677,7 @@ std::string Package::DumpIr() const {
     }
     filenos.sort();
     // output in sorted order to be deterministic
-    for (const auto& fileno  : filenos) {
+    for (const auto& fileno : filenos) {
       std::string filename = fileno_to_filename_.at(fileno);
       absl::StrAppend(&out, "file_number ", static_cast<int32_t>(fileno), " ",
                       "\"", filename, "\"\n");
@@ -922,6 +894,40 @@ absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
   return absl::NotFoundError(absl::StrFormat(
       "No channel with name '%s' (package has %d channels: %s).", name,
       channels().size(), absl::StrJoin(GetChannelNames(), ", ")));
+}
+
+absl::StatusOr<Channel*> Package::CloneChannel(
+    Channel* channel, std::string_view name,
+    std::optional<ChannelOps> supported_ops) {
+  XLS_ASSIGN_OR_RETURN(auto* new_channel_type,
+                       this->MapTypeFromOtherPackage(channel->type()));
+  switch (channel->kind()) {
+    case ChannelKind::kSingleValue: {
+      XLS_ASSIGN_OR_RETURN(
+          auto new_channel,
+          this->CreateSingleValueChannel(
+              name, supported_ops.value_or(channel->supported_ops()),
+              new_channel_type, channel->metadata()));
+      return new_channel;
+    }
+    case ChannelKind::kStreaming: {
+      auto streaming_channel = dynamic_cast<StreamingChannel*>(channel);
+      if (streaming_channel == nullptr) {
+        return absl::InternalError(
+            absl::StrFormat("Channel %s had kind kStreaming, but could not "
+                            "be cast to StreamingChannel",
+                            channel->name()));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          auto new_channel,
+          this->CreateStreamingChannel(
+              name, supported_ops.value_or(channel->supported_ops()),
+              new_channel_type, channel->initial_values(),
+              streaming_channel->GetFifoDepth(),
+              streaming_channel->GetFlowControl(), channel->metadata()));
+      return new_channel;
+    }
+  }
 }
 
 absl::StatusOr<FunctionBase*> FindTop(Package* p,
