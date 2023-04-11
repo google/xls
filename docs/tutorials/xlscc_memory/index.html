@@ -8,27 +8,27 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/codegen_options/">
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_memory/">
       
       
-        <link rel="prev" href="../dslx_bytecode_interpreter/">
+        <link rel="prev" href="../xlscc_channels/">
       
       
-        <link rel="next" href="../ir_lowering/">
+        <link rel="next" href="../xlscc_state/">
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
     
     
       
-        <title>Codegen Options - XLS: Accelerated HW Synthesis</title>
+        <title>Memory - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ded33207.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ded33207.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.a0c5b2b5.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
       
       
 
@@ -44,7 +44,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -69,7 +69,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#codegen-options" class="md-skip">
+        <a href="#tutorial-xlscc-memories" class="md-skip">
           Skip to content
         </a>
       
@@ -85,7 +85,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -104,7 +104,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Codegen Options
+              Memory
             
           </span>
         </div>
@@ -183,7 +183,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -214,7 +214,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -227,14 +227,16 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
       
       
       
@@ -243,7 +245,7 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
         <label class="md-nav__title" for="__nav_2">
           <span class="md-nav__icon md-icon"></span>
           Tutorials
@@ -256,7 +258,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -297,7 +299,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/hello_xls/" class="md-nav__link">
+      <a href="../hello_xls/" class="md-nav__link">
         Hello, XLS!
       </a>
     </li>
@@ -311,7 +313,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/float_to_int/" class="md-nav__link">
+      <a href="../float_to_int/" class="md-nav__link">
         Basic logic
       </a>
     </li>
@@ -325,7 +327,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
+      <a href="../intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
       </a>
     </li>
@@ -339,7 +341,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/crc32/" class="md-nav__link">
+      <a href="../crc32/" class="md-nav__link">
         For expressions
       </a>
     </li>
@@ -353,7 +355,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/prefix_scan/" class="md-nav__link">
+      <a href="../prefix_scan/" class="md-nav__link">
         Enumerate and match
       </a>
     </li>
@@ -367,7 +369,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_procs/" class="md-nav__link">
+      <a href="../intro_to_procs/" class="md-nav__link">
         Intro to Procs
       </a>
     </li>
@@ -386,14 +388,16 @@
               
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" checked>
       
       
       
@@ -402,7 +406,7 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="true">
         <label class="md-nav__title" for="__nav_2_3">
           <span class="md-nav__icon md-icon"></span>
           XLS[cc]
@@ -415,7 +419,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_overview/" class="md-nav__link">
+      <a href="../xlscc_overview/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -429,7 +433,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_integers/" class="md-nav__link">
+      <a href="../xlscc_integers/" class="md-nav__link">
         Integers
       </a>
     </li>
@@ -443,7 +447,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_channels/" class="md-nav__link">
+      <a href="../xlscc_channels/" class="md-nav__link">
         Channels
       </a>
     </li>
@@ -455,11 +459,87 @@
               
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../tutorials/xlscc_memory/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Memory
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Memory
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#c-source" class="md-nav__link">
+    C++ Source
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translate-to-ir" class="md-nav__link">
+    Translate to IR
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examine-the-metadata" class="md-nav__link">
+    Examine the metadata
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optimize-the-ir-with-ram-rewrites" class="md-nav__link">
+    Optimize the IR with RAM rewrites
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate-verilog-with-io-constraints" class="md-nav__link">
+    Generate Verilog with IO constraints
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-xlscc-examples" class="md-nav__link">
+    Additional XLS[cc] examples.
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -471,7 +551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_state/" class="md-nav__link">
+      <a href="../xlscc_state/" class="md-nav__link">
         State
       </a>
     </li>
@@ -485,7 +565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_pipelined_loops/" class="md-nav__link">
+      <a href="../xlscc_pipelined_loops/" class="md-nav__link">
         Pipelined Loops
       </a>
     </li>
@@ -541,7 +621,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_overview/" class="md-nav__link">
+      <a href="../../ir_overview/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -555,7 +635,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_semantics/" class="md-nav__link">
+      <a href="../../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
     </li>
@@ -569,7 +649,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -610,7 +690,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scheduling/" class="md-nav__link">
+      <a href="../../scheduling/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -624,7 +704,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../delay_estimation/" class="md-nav__link">
+      <a href="../../delay_estimation/" class="md-nav__link">
         Delay Estimation
       </a>
     </li>
@@ -645,7 +725,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_visualization/" class="md-nav__link">
+      <a href="../../ir_visualization/" class="md-nav__link">
         Visualizer
       </a>
     </li>
@@ -686,7 +766,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_jit/" class="md-nav__link">
+      <a href="../../ir_jit/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -700,7 +780,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data_layout/" class="md-nav__link">
+      <a href="../../data_layout/" class="md-nav__link">
         Data Layout
       </a>
     </li>
@@ -721,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../solvers/" class="md-nav__link">
+      <a href="../../solvers/" class="md-nav__link">
         Formal
       </a>
     </li>
@@ -770,7 +850,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_reference/" class="md-nav__link">
+      <a href="../../dslx_reference/" class="md-nav__link">
         Reference
       </a>
     </li>
@@ -784,7 +864,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_std/" class="md-nav__link">
+      <a href="../../dslx_std/" class="md-nav__link">
         Standard Library
       </a>
     </li>
@@ -798,7 +878,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../floating_point/" class="md-nav__link">
+      <a href="../../floating_point/" class="md-nav__link">
         Floating Point
       </a>
     </li>
@@ -812,7 +892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fuzzer/" class="md-nav__link">
+      <a href="../../fuzzer/" class="md-nav__link">
         Fuzzer
       </a>
     </li>
@@ -826,7 +906,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
         Interpreter
       </a>
     </li>
@@ -846,16 +926,14 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
       
       
       
@@ -864,7 +942,7 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
         <label class="md-nav__title" for="__nav_5">
           <span class="md-nav__icon md-icon"></span>
           Code Generation
@@ -875,21 +953,11 @@
               
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../codegen_options/" class="md-nav__link">
         Codegen Options
       </a>
-      
     </li>
   
 
@@ -901,7 +969,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_lowering/" class="md-nav__link">
+      <a href="../../ir_lowering/" class="md-nav__link">
         IR Lowering
       </a>
     </li>
@@ -915,7 +983,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vast/" class="md-nav__link">
+      <a href="../../vast/" class="md-nav__link">
         VAST
       </a>
     </li>
@@ -964,7 +1032,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_system/" class="md-nav__link">
+      <a href="../../build_system/" class="md-nav__link">
         Build System
       </a>
     </li>
@@ -978,7 +1046,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../bazel_rules_macros/" class="md-nav__link">
+      <a href="../../bazel_rules_macros/" class="md-nav__link">
         Bazel Rules And Macros
       </a>
     </li>
@@ -992,7 +1060,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools_quick_start/" class="md-nav__link">
+      <a href="../../tools_quick_start/" class="md-nav__link">
         Quick Start
       </a>
     </li>
@@ -1006,7 +1074,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         Listing
       </a>
     </li>
@@ -1020,7 +1088,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../interpreters/" class="md-nav__link">
+      <a href="../../interpreters/" class="md-nav__link">
         Interpreters
       </a>
     </li>
@@ -1069,7 +1137,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         Contributing
       </a>
     </li>
@@ -1083,7 +1151,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_style/" class="md-nav__link">
+      <a href="../../xls_style/" class="md-nav__link">
         Style Guide
       </a>
     </li>
@@ -1097,7 +1165,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adding_ir_operation/" class="md-nav__link">
+      <a href="../../adding_ir_operation/" class="md-nav__link">
         Adding a new IR operation
       </a>
     </li>
@@ -1111,7 +1179,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ideas_and_projects/" class="md-nav__link">
+      <a href="../../ideas_and_projects/" class="md-nav__link">
         Ideas and Projects
       </a>
     </li>
@@ -1125,7 +1193,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fpga_characterization/" class="md-nav__link">
+      <a href="../../fpga_characterization/" class="md-nav__link">
         FPGA characterization (experimental)
       </a>
     </li>
@@ -1174,7 +1242,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_readme/" class="md-nav__link">
+      <a href="../../noc/xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1215,7 +1283,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_topologies/" class="md-nav__link">
+      <a href="../../noc/xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1229,7 +1297,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../../noc/xls_noc_dimension_order_topology/" class="md-nav__link">
         Dimension Order
       </a>
     </li>
@@ -1243,7 +1311,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../../noc/xls_noc_tree_topology/" class="md-nav__link">
         Tree
       </a>
     </li>
@@ -1257,7 +1325,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../../noc/xls_noc_butterfly_topology/" class="md-nav__link">
         k-ary n-fly Butterfly
       </a>
     </li>
@@ -1271,7 +1339,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../../noc/xls_noc_fully_connected_topology/" class="md-nav__link">
         Fully Connected
       </a>
     </li>
@@ -1285,7 +1353,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_star_topology/" class="md-nav__link">
+      <a href="../../noc/xls_noc_star_topology/" class="md-nav__link">
         Star
       </a>
     </li>
@@ -1306,7 +1374,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../noc/xls_noc_glossary/" class="md-nav__link">
+      <a href="../../noc/xls_noc_glossary/" class="md-nav__link">
         Glossary
       </a>
     </li>
@@ -1340,6 +1408,56 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#c-source" class="md-nav__link">
+    C++ Source
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translate-to-ir" class="md-nav__link">
+    Translate to IR
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examine-the-metadata" class="md-nav__link">
+    Examine the metadata
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#optimize-the-ir-with-ram-rewrites" class="md-nav__link">
+    Optimize the IR with RAM rewrites
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#generate-verilog-with-io-constraints" class="md-nav__link">
+    Generate Verilog with IO constraints
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-xlscc-examples" class="md-nav__link">
+    Additional XLS[cc] examples.
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1356,285 +1474,147 @@
   
 
 
-<h1 id="codegen-options">Codegen Options</h1>
-<p>This document outlines some useful knobs for running codegen on an XLS design.
-Codegen is the process of generating RTL from IR and is where operations are
-scheduled and mapped into RTL constructs. The output of codegen is suitable for
-simulation or implementation via standard tools that understand Verilog or
-SystemVerilog.</p>
+<h1 id="tutorial-xlscc-memories">Tutorial: XLS[cc] memories.</h1>
 <div class="toc">
 <ul>
-<li><a href="#codegen-options">Codegen Options</a></li>
-<li><a href="#input-specification">Input specification</a></li>
-<li><a href="#output-locations">Output locations</a></li>
-<li><a href="#pipelining-and-scheduling-options">Pipelining and Scheduling Options</a></li>
-<li><a href="#naming">Naming</a></li>
-<li><a href="#reset-signal-configuration">Reset Signal Configuration</a></li>
-<li><a href="#codegen-mapping">Codegen Mapping</a><ul>
-<li><a href="#format-strings">Format Strings</a></li>
+<li><a href="#tutorial-xlscc-memories">Tutorial: XLS[cc] memories.</a><ul>
+<li><a href="#c-source">C++ Source</a></li>
+<li><a href="#translate-to-ir">Translate to IR</a></li>
+<li><a href="#examine-the-metadata">Examine the metadata</a></li>
+<li><a href="#optimize-the-ir-with-ram-rewrites">Optimize the IR with RAM rewrites</a></li>
+<li><a href="#generate-verilog-with-io-constraints">Generate Verilog with IO constraints</a></li>
+<li><a href="#additional-xlscc-examples">Additional XLS[cc] examples.</a></li>
 </ul>
 </li>
-<li><a href="#io-behavior">I/O Behavior</a></li>
-<li><a href="#rams-experimental">RAMs (experimental)</a></li>
-<li><a href="#optimization">Optimization</a></li>
 </ul>
 </div>
-<h1 id="input-specification">Input specification</h1>
-<ul>
-<li><code>&lt;input.ir&gt;</code> is a positional argument giving the path to the ir file.</li>
-<li><code>--top</code> specifies the top function or proc to codegen.</li>
-</ul>
-<h1 id="output-locations">Output locations</h1>
-<p>The following flags control where output files are put. In addition to Verilog,
-codegen can generate files useful for understanding or integrating the RTL.</p>
-<ul>
-<li><code>--output_verilog_path</code> is the path to the output Verilog file.</li>
-<li><code>--output_schedule_path</code> is the path to a textproto that shows into which
-    pipeline stage the scheduler put IR ops.</li>
-<li><code>--output_block_ir_path</code> is the path to the "block IR" representation of the
-    design, a post-scheduling IR that is timed and includes registers, ports,
-    etc.</li>
-<li><code>--output_signature_path</code> is the path to the signature textproto. The
-    signature describes the ports, channels, external memories, etc.</li>
-<li><code>--output_verilog_line_map_path</code> is the path to the verilog line map
-    associating lines of verilog to lines of IR.</li>
-</ul>
-<h1 id="pipelining-and-scheduling-options">Pipelining and Scheduling Options</h1>
-<p>The following flags control how XLS maps IR operations to RTL, and if applicable
-control the scheduler.</p>
-<ul>
-<li><code>--generator=...</code> controls which generator to use. The options are
-    <code>pipeline</code> and <code>combinational</code>. The <code>pipeline</code> generator runs a scheduler
-    that partitions the IR ops into pipeline stages.</li>
-<li><code>--delay_model=...</code> selects the delay model to use when scheduling. See the
-    <a href="../delay_estimation/">page here</a> for more detail.</li>
-<li><code>--clock_period_ps=...</code> sets the target clock period. See
-    <a href="../scheduling/">scheduling</a> for more details on how scheduling works. Note
-    that this option is optional, without specifying clock period XLS will
-    estimate what the clock period should be.</li>
-<li><code>--pipeline_stages=...</code> sets the number of pipeline stages to use when
-    <code>--generator=pipeline</code>.</li>
-<li><code>--clock_margin_percent=...</code> sets the percentage to reduce the target clock
-    period before scheduling. See <a href="../scheduling/">scheduling</a> for more details.</li>
-<li><code>--period_relaxation_percent=...</code> sets the percentage that the computed
-    minimum clock period is increased. May not be specified with
-    <code>--clock_period_ps</code>.</li>
-<li><code>--additional_input_delay_ps=...</code> adds additional input delay to the inputs.
-    This can be helpful to meet timing when integrating XLS designs with other
-    RTL.</li>
-<li><code>--io_constraints=...</code> adds constraints to the scheduler. The flag takes a
-    comma-separated list of constraints of the form <code>foo:send:bar:recv:3:5</code>
-    which means that sends on channel <code>foo</code> must occur between 3 and 5 cycles
-    (inclusive) before receives on channel <code>bar</code>. Note that for a constraint
-    like <code>foo:send:foo:send:3:5</code>, no constraint will be applied between a node
-    and itself; i.e.: this means all <em>different</em> pairs of nodes sending on <code>foo</code>
-    must be in cycles that differ by between 3 and 5. If the special
-    minimum/maximum value <code>none</code> is used, then the minimum latency will be the
-    lowest representable <code>int64_t</code>, and likewise for maximum latency.
-    For an example of the use of this, see
-    <a href="https://github.com/google/xls/tree/main/xls/examples/constraint.x">this example</a>
-    and the associated BUILD rule.</li>
-</ul>
-<h1 id="naming">Naming</h1>
-<p>Some names can be set at codegen via the following flags:</p>
-<ul>
-<li><code>--module_name=...</code> sets the name of the generated verilog module</li>
-<li>For functions, <code>--input_valid_signal=...</code> and <code>--output_valid_signal=...</code>
-    adds and sets the name of valid signals when <code>--generator</code> is set to
-    <code>pipeline</code>.</li>
-<li><code>--manual_load_enable_signal=...</code> adds and sets the name of an input that
-    sets the load-enable signals of each pipeline stage.</li>
-<li>For procs, <code>--streaming_channel_data_suffix=...</code>,
-    <code>--streaming_channel_valid_suffix=...</code>, and
-    <code>--streaming_channel_ready_suffix=...</code> set suffixes to be used on their
-    respective signals in ready/valid channels. For example,
-    <code>--streaming_channel_valid_suffix=_vld</code> for a channel named <code>ABC</code> would
-    result in a valid port called <code>ABC_vld</code>.</li>
-</ul>
-<h1 id="reset-signal-configuration">Reset Signal Configuration</h1>
-<ul>
-<li><code>--reset=...</code> sets the name of the reset signal. If not specified, no reset
-    signal is used.</li>
-<li><code>--reset_active_low</code> sets if the reset is active low or high. Active high by
-    default.</li>
-<li><code>--reset_asynchronous</code> sets if the reset is synchronous or asynchronous
-    (synchronous by default).</li>
-<li><code>--reset_data_path</code> sets if the datapath should also be reset. True by
-    default.</li>
-</ul>
-<h1 id="codegen-mapping">Codegen Mapping</h1>
-<ul>
-<li><code>--use_system_verilog</code> sets if the output should use SystemVerilog
-    constructs such as SystemVerilog array assignments, <code>@always_comb</code>,
-    <code>@always_ff</code>, asserts, covers, etc. True by default.</li>
-<li><code>--separate_lines</code> causes every subexpression to be emitted on a separate
-    line. False by default.</li>
-</ul>
-<h2 id="format-strings">Format Strings</h2>
-<p>For some XLS ops, flags can override their default codegen behavior via format
-string. These format strings use placeholders to fill in relevant information.</p>
-<ul>
-<li><code>--gate_format=...</code> sets the format string for <code>gate!</code> ops. Supported
-    placeholders are:<p>-   <code>{condition}</code>: Identifier (or expression) of the gate.
-  -   <code>{input}</code>: Identifier (or expression) for the data input of the gate.
-  -   <code>{output}</code>: Identifier for the output of the gate.
-  -   <code>{width}</code>: The bit width of the gate operation.</p>
-<p>For example, consider a format string which instantiates a particular custom
-  AND gate for gating:</p>
-<div class="highlight"><pre><span></span><code>my_and gated_{output} [{width}-1:0] (.Z({output}), .A({condition}), .B({input}))
+<p>This tutorial is aimed at walking you through usage of memories. Memories in
+this context refer to externally implemented SRAMs. The example given will be
+usage of a dual port "1 read 1 write" memory.</p>
+<p>The channels tutorial should be followed as a prerequisite.</p>
+<h2 id="c-source">C++ Source</h2>
+<p>Create a source file <code>test_memory.cc</code></p>
+<div class="highlight"><pre><span></span><code><span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">InputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_In</span><span class="o">&gt;</span><span class="p">;</span>
+<span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">OutputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_Out</span><span class="o">&gt;</span><span class="p">;</span>
+<span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">Size</span><span class="o">&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">Memory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_memory</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">Size</span><span class="o">&gt;</span><span class="p">;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestBlock</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">InputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">in</span><span class="p">;</span>
+<span class="w">    </span><span class="n">OutputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Memory</span><span class="o">&lt;</span><span class="kt">short</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="o">&gt;</span><span class="w"> </span><span class="n">store</span><span class="p">;</span>
+
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">    </span><span class="cp">#pragma hls_top</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">const</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">next_addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">addr</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mb">0b11111</span><span class="p">;</span>
+<span class="w">        </span><span class="n">store</span><span class="p">[</span><span class="n">addr</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">();</span>
+<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="n">store</span><span class="p">[</span><span class="n">next_addr</span><span class="p">]);</span>
+<span class="w">        </span><span class="n">addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next_addr</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
 </code></pre></div>
-<p>And the IR gate operation is:</p>
-<p><code>the_result: bits[32] = gate(the_cond, the_data)</code></p>
-<p>This results in the following emitted Verilog:</p>
-<p><code>my_and gated_the_result [32-1:0] (.Z(the_result), .A(the cond),
-  .B(the_data));</code></p>
-<p>To ensure valid Verilog, the insantiated template must declare a value named
-  <code>{output}</code> (e.g. <code>the_result</code> in the example).</p>
-</li>
-</ul>
-<ul>
-<li><code>--assert_format=...</code> sets the format string for assert statements.
-    Supported placeholders are:<p>-   <code>{message}</code>: Message of the assert operation.
-  -   <code>{condition}</code>: Condition of the assert.
-  -   <code>{label}</code>: Label of the assert operation. It is an error not to use the
-      <code>label</code> placeholder.
-  -   <code>{clk}</code>: Name of the clock signal. It is an error not to use the <code>clk</code>
-      placeholder.
-  -   <code>{rst}</code>: Name of the reset signal. It is an error not to use the <code>rst</code>
-      placeholder.</p>
-<p>For example, the format string:</p>
-<p><code>{label}: `MY_ASSERT({condition}, "{message}")</code></p>
-<p>could result in the following emitted Verilog:</p>
-<p><code>my_label: `MY_ASSERT(foo &lt; 8'h42, "Oh noes!");</code></p>
-</li>
-</ul>
-<ul>
-<li><code>--smulp_format=...</code> and <code>--umulp_format=...</code> set the format strings for
-    <code>smulp</code> and <code>umulp</code> ops respectively. These ops perform partial (or split)
-    multiplies. Supported placeholders are:<p>-   <code>{input0}</code> and <code>{input1}</code>: The two inputs.
-  -   <code>{input0_width}</code> and <code>{input1_width}</code>: The width of the two inputs
-  -   <code>{output}</code>: Name of the output. Partial multiply IP generally produces
-      two outputs with the property that the sum of the two outputs is the
-      product of the inputs. <code>{output}</code> should be the concatenation of these
-      two outputs.
-  -   <code>{output_width}</code>: Width of the output.</p>
-<p>For example, the format string:</p>
-<div class="highlight"><pre><span></span><code>multp #(
-    .x_width({input0_width}),
-    .y_width({input1_width}),
-    .z_width({output_width}&gt;&gt;1)
-  ) {output}_inst (
-    .x({input0}),
-    .y({input1}),
-    .z0({output}[({output_width}&gt;&gt;1)-1:0]),
-    .z1({output}[({output_width}&gt;&gt;1)*2-1:({output_width}&gt;&gt;1)})])
-  );
+<h2 id="translate-to-ir">Translate to IR</h2>
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/contrib/xlscc/xlscc<span class="w"> </span>test_memory.cc<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--block_from_class<span class="w"> </span>TestBlock<span class="w"> </span>--block_pb<span class="w"> </span>block.pb<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>&gt;<span class="w"> </span>test_memory.ir
 </code></pre></div>
-<p>could result in the following emitted Verilog:</p>
-<div class="highlight"><pre><span></span><code>multp #(
-  .x_width(16),
-  .y_width(16),
-  .z_width(32&gt;&gt;1)
-) multp_out_inst (
-  .x(lhs),
-  .y(rhs),
-  .z0(multp_out[(32&gt;&gt;1)-1:0]),
-  .z1(multp_out[(32&gt;&gt;1)*2-1:(32&gt;&gt;1)])
-);
+<h2 id="examine-the-metadata">Examine the metadata</h2>
+<p>The memory should appear in the resulting block <code>block.pb</code>:</p>
+<div class="highlight"><pre><span></span><code>channels {
+  name: &quot;in&quot;
+  is_input: true
+  type: FIFO
+  width_in_bits: 32
+}
+channels {
+  name: &quot;out&quot;
+  is_input: false
+  type: FIFO
+  width_in_bits: 32
+}
+channels {
+  name: &quot;store&quot;
+  type: MEMORY
+  width_in_bits: 16
+  depth: 32
+}
+name: &quot;TestBlock&quot;
 </code></pre></div>
-<p>Note the arithmetic performed on <code>output_width</code> to make the two-output
-  <code>multp</code> block fill the concatenated output expected by XLS.</p>
-</li>
-</ul>
-<h1 id="io-behavior">I/O Behavior</h1>
-<ul>
-<li><code>--flop_inputs</code> and <code>--flop_outputs</code> control if inputs and outputs should be
-    flopped respectively. These flags are only used by the pipeline generator.<p>For procs, inputs and outputs are channels with ready/valid signalling and
-  have additional options controlling how inputs and outputs are registered.
-  <code>--flop_inputs_kind=...</code> and <code>--flop_outputs_kind=...</code> flags control what
-  the logic around the outputs and inputs look like respectively. The list
-  below enumerates the possible kinds of output flopping and shows what logic
-  is generated in each case.</p>
-<p>-   <code>flop</code>: Adds a pipeline stage at the beginning or end of the block to
-      hold inputs or outputs. This is essentially a single-element FIFO.</p>
-</li>
-</ul>
-<p><img alt="Flop Outputs" src="../flop_outputs.svg" /></p>
-<div class="highlight"><pre><span></span><code>-   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
-    skid buffer can hold 2 entries.
+<p>This block description information can be used to generate the RAM rewrites and
+IO constraints specified in later steps.</p>
+<h2 id="optimize-the-ir-with-ram-rewrites">Optimize the IR with RAM rewrites</h2>
+<p>Create <code>rewrites.textproto</code> with the following contents:</p>
+<div class="highlight"><pre><span></span><code>rewrites {
+  from_config {
+    kind: RAM_ABSTRACT
+    depth: 32
+  }
+  to_config {
+    kind: RAM_1R1W
+    depth: 32
+  }
+  from_channels_logical_to_physical: {
+    key: &quot;abstract_read_req&quot;
+    value: &quot;store__read_request&quot;
+  }
+  from_channels_logical_to_physical: {
+    key: &quot;abstract_read_resp&quot;
+    value: &quot;store__read_response&quot;
+  }
+  from_channels_logical_to_physical: {
+    key: &quot;abstract_write_req&quot;
+    value: &quot;store__write_request&quot;
+  }
+  from_channels_logical_to_physical: {
+    key: &quot;write_completion&quot;
+    value: &quot;store__write_response&quot;
+  }
+  to_name_prefix: &quot;store_&quot;
+}
 </code></pre></div>
-<p><img alt="Skid Buffer" src="../skid_buffer.svg" /></p>
-<div class="highlight"><pre><span></span><code>-   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
-    block. This is essentially a single-element FIFO with bypass.
+<p>Then run <code>opt</code> with awareness of the RAM:</p>
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/tools/opt_main<span class="w"> </span>test_memory.ir<span class="w"> </span>--ram_rewrites_pb<span class="w"> </span>rewrites.textproto<span class="w"> </span>&gt;<span class="w"> </span>test_memory.opt.ir
 </code></pre></div>
-<p><img alt="Zero Latency Buffer" src="../zero_latency_buffer.svg" /></p>
-<ul>
-<li><code>--flop_single_value_channels</code> control if single-value channels should be
-    flopped.</li>
-</ul>
-<ul>
-<li><code>--add_idle_output</code> adds an additional output port named <code>idle</code>. <code>idle</code> is
-    the NOR of:<p>1.  Pipeline registers storing the valid bit for each pipeline stage.
-  2.  All valid registers stored for the input/output buffers.
-  3.  All valid signals for the input channels.</p>
-</li>
-</ul>
-<h1 id="rams-experimental">RAMs (experimental)</h1>
-<p>XLS has experimental support for using proc channels to drive an external RAM.
-For an example usage, see
-<a href="https://github.com/google/xls/tree/main/xls/examples/delay.x">this delay</a> implemented
-with a single-port RAM
-(<a href="https://github.com/google/xls/tree/main/xls/examples/ram.x">modeled here</a>). Note that
-receives on the response channel must be conditioned on performing a read,
-otherwise there will be deadlock.</p>
-<p>The codegen option <code>--ram_configurations</code> takes a comma-separated list of
-configurations in the format <code>ram_name:ram_kind[:kind-specific-configuration]</code>.
-For a <code>1RW</code> RAM, the format is
-<code>ram_name:1RW:req_channel_name:resp_channel_name[:latency]</code>, where latency is 1
-if unspecified. For a <code>1RW</code> RAM, there are several requirements these channels
-must satisfy:</p>
-<ul>
-<li>The request channel must be a tuple type with 4 entries corresponding to
-    <code>(addr, wr_data, we, re)</code>. All entries must have type <code>bits</code>, and <code>we</code> and
-    <code>re</code> must be a single bit.</li>
-<li>The response channel must be a tuple type with a single entry corresponding
-    to <code>(rd_data)</code>. <code>rd_data</code> must have the same width as <code>wr_data</code>.</li>
-</ul>
-<p>Instead of the normal channel ports, the codegen option will produce the
-following ports:</p>
-<ul>
-<li><code>{ram_name}_addr</code></li>
-<li><code>{ram_name}_wr_data</code></li>
-<li><code>{ram_name}_we</code></li>
-<li><code>{ram_name}_re</code></li>
-<li><code>{ram_name}_rd_data</code></li>
-</ul>
-<p>Note that there are no ready/valid signals as RAMs have fixed latency. There is
-an internal buffer to catch the response and apply backpressure on requests if
-needed.</p>
-<p>When using <code>--ram_configurations</code>, you should generally add a scheduling
-constraint via <code>--io_constraints</code> to ensure the request-send and
-response-receive are scheduled to match the RAM's latency.</p>
-<h1 id="optimization">Optimization</h1>
-<ul>
-<li><code>--gate_recvs</code> emits logic to gate the data value of a receive operation in
-    Verilog. In the XLS IR, the receive operation has the semantics that the
-    data value is zero when the predicate is <code>false</code>. Moreover, for a
-    non-blocking receive, the data value is zero when the data is invalid. When
-    set to true, the data is gated and has the previously described semantics.
-    However, the latter does utilize more resource/area. Setting this value to
-    false may reduce the resource/area utilization, but may also result in
-    mismatches between IR-level evaluation and Verilog simulation.</li>
-</ul>
-<ul>
-<li><code>--array_index_bounds_checking</code>: With this option set, an out of bounds
-    array access returns the maximal index element in the array. If this option
-    is not set, the result relies on the semantics of out-of-bounds array access
-    in Verilog which is not well-defined. Setting this option to <code>true</code> may
-    result in more resource/area. Setting this value to <code>false</code> may reduce the
-    resource/area utilization, but may also result in mismatches between
-    IR-level evaluation and Verilog simulation.</li>
-</ul>
+<h2 id="generate-verilog-with-io-constraints">Generate Verilog with IO constraints</h2>
+<p>For this memory, we are assuming a fixed 1-cycle latency for reads and writes.
+As such, we need to add these constraints to the <code>codegen</code> command, in addition
+to making it aware of the RAM rewrites, so that the correct ports are generated.</p>
+<div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/tools/codegen_main<span class="w"> </span>test_memory.opt.ir<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--generator<span class="o">=</span>pipeline<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output_verilog_path<span class="o">=</span>memory_test.v<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--module_name<span class="o">=</span>memory_test<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--top<span class="o">=</span>TestBlock_proc<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reset<span class="o">=</span>rst<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reset_active_low<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reset_asynchronous<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reset_data_path<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--pipeline_stages<span class="o">=</span><span class="m">2</span><span class="w">  </span><span class="se">\</span>
+<span class="w">  </span>--flop_inputs<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--flop_outputs<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--io_constraints<span class="o">=</span>store__read_req:send:store__read_resp:recv:1:1,store__write_req:send:store__write_completion:recv:1:1<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--ram_configurations<span class="o">=</span>ram:1R1W:store__read_req:store__read_resp:store__write_req:store__write_completion
+</code></pre></div>
+<p>Below is a quick summary of the options.</p>
+<ol>
+<li><code>--io_constraints=store__read_req:send:store__read_resp:recv:1:1...</code> This
+    option ensures that requests to the memory are written exactly 1 cycle
+    before responses are read.</li>
+<li><code>--ram_configurations=ram:1R1W:store__read_req...</code> This option informs
+    codegen of the necessary information about the memory to generate the top
+    level ports in the correct style. "ram" is the name prefix the ports will
+    use.</li>
+</ol>
+<h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>
+<p>For developers, it is possible to check if a specific feature is supported by
+checking
+<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_memory_test.cc">translator_memory_test.cc</a>
+for unit tests.</p>
 
 
 
@@ -1672,10 +1652,10 @@ response-receive are scheduled to match the RAM's latency.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.51198bba.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51198bba.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

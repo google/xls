@@ -11,13 +11,13 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_channels/">
       
       
-        <link rel="prev" href="../xlscc_overview/">
+        <link rel="prev" href="../xlscc_integers/">
       
       
-        <link rel="next" href="../xlscc_state/">
+        <link rel="next" href="../xlscc_memory/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.5">
+      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.7a7fce14.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ded33207.min.css">
       
         
         <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
@@ -69,7 +69,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#tutorial-xlscc-channels-and-fixed-width-integers" class="md-skip">
+        <a href="#tutorial-xlscc-channels" class="md-skip">
           Skip to content
         </a>
       
@@ -151,7 +151,7 @@
         <a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.3.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -196,7 +196,7 @@
       <a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
   <div class="md-source__icon md-icon">
     
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.3.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
   </div>
   <div class="md-source__repository">
     GitHub
@@ -431,6 +431,20 @@
               
   
   
+  
+    <li class="md-nav__item">
+      <a href="../xlscc_integers/" class="md-nav__link">
+        Integers
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
     
   
   
@@ -474,27 +488,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#introduction-to-fixed-width-integers" class="md-nav__link">
-    Introduction to fixed-width integers.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-xlscc-for-channel-interfaces" class="md-nav__link">
-    Configuring XLS[cc] for channel interfaces.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-xlscc-for-fixed-width-integers" class="md-nav__link">
-    Configuring XLS[cc] for fixed-width integers.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#translate-into-optimized-xls-ir" class="md-nav__link">
     Translate into optimized XLS IR.
   </a>
@@ -502,8 +495,22 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#note-the-metadata-output" class="md-nav__link">
+    Note the metadata output
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
     Perform code-generation into a pipelined Verilog block.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-xlscc-examples" class="md-nav__link">
+    Additional XLS[cc] examples.
   </a>
   
 </li>
@@ -523,8 +530,36 @@
   
   
     <li class="md-nav__item">
+      <a href="../xlscc_memory/" class="md-nav__link">
+        Memory
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../xlscc_state/" class="md-nav__link">
         State
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xlscc_pipelined_loops/" class="md-nav__link">
+        Pipelined Loops
       </a>
     </li>
   
@@ -1380,27 +1415,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#introduction-to-fixed-width-integers" class="md-nav__link">
-    Introduction to fixed-width integers.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-xlscc-for-channel-interfaces" class="md-nav__link">
-    Configuring XLS[cc] for channel interfaces.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuring-xlscc-for-fixed-width-integers" class="md-nav__link">
-    Configuring XLS[cc] for fixed-width integers.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#translate-into-optimized-xls-ir" class="md-nav__link">
     Translate into optimized XLS IR.
   </a>
@@ -1408,8 +1422,22 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#note-the-metadata-output" class="md-nav__link">
+    Note the metadata output
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
     Perform code-generation into a pipelined Verilog block.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#additional-xlscc-examples" class="md-nav__link">
+    Additional XLS[cc] examples.
   </a>
   
 </li>
@@ -1432,116 +1460,78 @@
   
 
 
-<h1 id="tutorial-xlscc-channels-and-fixed-width-integers">Tutorial: XLS[cc] channels, and fixed-width integers.</h1>
+<h1 id="tutorial-xlscc-channels">Tutorial: XLS[cc] channels.</h1>
 <div class="toc">
 <ul>
-<li><a href="#tutorial-xlscc-channels-and-fixed-width-integers">Tutorial: XLS[cc] channels, and fixed-width integers.</a><ul>
+<li><a href="#tutorial-xlscc-channels">Tutorial: XLS[cc] channels.</a><ul>
 <li><a href="#introduction-to-channels">Introduction to channels.</a></li>
-<li><a href="#introduction-to-fixed-width-integers">Introduction to fixed-width integers.</a></li>
-<li><a href="#configuring-xlscc-for-channel-interfaces">Configuring XLS[cc] for channel interfaces.</a></li>
-<li><a href="#configuring-xlscc-for-fixed-width-integers">Configuring XLS[cc] for fixed-width integers.</a></li>
 <li><a href="#translate-into-optimized-xls-ir">Translate into optimized XLS IR.</a></li>
+<li><a href="#note-the-metadata-output">Note the metadata output</a></li>
 <li><a href="#perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</a></li>
+<li><a href="#additional-xlscc-examples">Additional XLS[cc] examples.</a></li>
 </ul>
 </li>
 </ul>
 </div>
 <p>This tutorial is aimed at walking you through the implementation and synthesis
-into Verilog of a C++ function containing channels and fixed-width integers.</p>
+into Verilog of a sequential C++ block containing channels.</p>
 <h2 id="introduction-to-channels">Introduction to channels.</h2>
 <p>XLS implements channels via a FIFO-based (ready/valid/data) interface.</p>
 <p>In C++, these channels are provided by a built-in template class called
-<code>__xls_channel</code> supporting two methods: <code>read()</code> and <code>write(val)</code>.</p>
-<p>To utilize channels include the special xls_builtin header file: <code>#include
-"/xls_builtin.h"</code>.</p>
+<code>__xls_channel</code> supporting the two methods: <code>read()</code> and <code>write(val)</code>.</p>
+<p>It can be aliased to the desired name like this:</p>
+<div class="highlight"><pre><span></span><code><span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">OutputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_Out</span><span class="o">&gt;</span><span class="p">;</span>
+
+<span class="k">template</span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">using</span><span class="w"> </span><span class="n">InputChannel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="w"> </span><span class="n">__xls_channel_dir_In</span><span class="o">&gt;</span><span class="p">;</span>
+</code></pre></div>
 <p>An example of a usage is below, which reads an integer on the input channel,
 multiplies it by 3, and writes it to the output channel.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;/xls_builtin.h&quot;</span>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TestBlock</span><span class="w"> </span><span class="p">{</span>
+<span class="k">public</span><span class="o">:</span>
+<span class="w">    </span><span class="n">InputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">in</span><span class="p">;</span>
+<span class="w">    </span><span class="n">OutputChannel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">;</span>
 
-<span class="cp">#pragma hls_top</span>
-<span class="kt">void</span><span class="w"> </span><span class="nf">test_channels</span><span class="p">(</span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">,</span>
-<span class="w">                   </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">());</span>
-<span class="p">}</span>
-</code></pre></div>
-<p>Note that an <code>ac_datatypes</code> compatibility layer is also provided so that the
-same C++ code can be used for both simulation and XLS[cc] synthesis with just a
-change in the include paths:
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/synth_only/ac_compat">ac_compat</a>.</p>
-<h2 id="introduction-to-fixed-width-integers">Introduction to fixed-width integers.</h2>
-<p>XLS also provides a template class for fixed-width integers. These are declared
-using the template class <code>XlsInt&lt;int Width, bool Signed = true&gt;</code>.</p>
-<p>To utilize fixed with integer types, include
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/synth_only/xls_int.h">xls_int.h</a>.</p>
-<p>Create a <code>test_channels.cc</code> with the following contents for the rest of this
-tutorial.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;/xls_builtin.h&quot;</span>
-<span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;xls_int.h&quot;</span>
-
-<span class="cp">#pragma hls_top</span>
-<span class="kt">void</span><span class="w"> </span><span class="nf">test_channels</span><span class="p">(</span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">XlsInt</span><span class="o">&lt;</span><span class="mi">17</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">,</span>
-<span class="w">                </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">XlsInt</span><span class="o">&lt;</span><span class="mi">22</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">());</span>
-<span class="p">}</span>
-</code></pre></div>
-<p><strong>NOTE</strong> <code>"/xls_builtin.h"</code> has a <code>/</code> in order to reduce the chance of
-collisions with other include files that may exist on the system.</p>
-<h2 id="configuring-xlscc-for-channel-interfaces">Configuring XLS[cc] for channel interfaces.</h2>
-<p>To support different of channel interfaces, a protofile is provided to XLS[cc]
-to configure the direction and interface of the top level function.</p>
-<p>The below textproto specifies that</p>
-<ol>
-<li>
-<p><code>in</code> is an input channel with FIFO (ready/valid) signaling</p>
-</li>
-<li>
-<p><code>out</code> is an output channel with FIFO (ready/valid) signaling.</p>
-</li>
-<li>
-<p>The IR should be created with a top-level proc named <code>xls_test_proc</code>.</p>
-</li>
-</ol>
-<p>Create a file <code>test_channels.textproto</code> with the following contents.</p>
-<div class="highlight"><pre><span></span><code>channels {
-  name: &quot;in&quot;
-  is_input: true
-  type: FIFO
-}
-channels {
-  name: &quot;out&quot;
-  is_input: false
-  type: FIFO
-}
-name: &quot;xls_test&quot;
-</code></pre></div>
-<p>Then convert it to a protobin. This protobin will be later provided to <code>xlscc</code>
-with <code>--block_pb test_channels.pb</code>.</p>
-<div class="highlight"><pre><span></span><code>./bazel-bin/xls/tools/proto2bin test_channels.textproto --message xlscc.HLSBlock --output test_channels.pb
-</code></pre></div>
-<h2 id="configuring-xlscc-for-fixed-width-integers">Configuring XLS[cc] for fixed-width integers.</h2>
-<p>XLS[cc] fixed-width integers have a dependency on the <code>ac_datatypes</code> library.
-Clone the repository (https://github.com/hlslibs) into a directory named
-<code>ac_datatypes</code>.</p>
-<div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/hlslibs/ac_types.git<span class="w"> </span>ac_datatypes
-</code></pre></div>
-<p>Then create the a <code>clang.args</code> file with the following contents to configure the
-include paths and pre-define the <code>__SYNTHESIS__</code> name as a macro.</p>
-<div class="highlight"><pre><span></span><code>-D__SYNTHESIS__
--I/path/to/your/xls/contrib/xlscc/synth_only
--I/path/containing/ac_datatypes/..
+<span class="w">    </span><span class="cp">#pragma hls_top</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">auto</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">();</span>
+<span class="w">        </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">x</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">};</span>
 </code></pre></div>
 <h2 id="translate-into-optimized-xls-ir">Translate into optimized XLS IR.</h2>
 <p>With the above setup complete, XLS IR can now be generated using a sequence of
 <code>xlscc</code> and <code>opt_main</code>.</p>
 <div class="highlight"><pre><span></span><code>$<span class="w"> </span>./bazel-bin/xls/contrib/xlscc/xlscc<span class="w"> </span>test_channels.cc<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--clang_args_file<span class="w"> </span>clang.args<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--block_pb<span class="w"> </span>test_channels.pb<span class="w"> </span>&gt;<span class="w"> </span>test_channels.ir
+<span class="w">  </span>--block_from_class<span class="w"> </span>TestBlock<span class="w"> </span>--block_pb<span class="w"> </span>meta.pb<span class="w"> </span>&gt;<span class="w"> </span>test_channels.ir
 $<span class="w"> </span>./bazel-bin/xls/tools/opt_main<span class="w"> </span>test_channels.ir<span class="w"> </span>&gt;<span class="w"> </span>test_channels.opt.ir
 </code></pre></div>
+<p>Below is a quick summary of the options. 1. <code>--block_from_class TestBlock</code> -
+tells XLS[cc] which class is the top block. 1. <code>--block_pb</code> - tells XLS[cc]
+where to write the block's metadata description. This must be specified with
+<code>--block_from_class</code>.</p>
 <p>Note that unlike in the prior tutorial, XLS[cc] is used to generate
 <a href="../../ir_semantics/#proc">XLS procs</a>
 rather than functions. This is to support the additional interface requirements
 of channels.</p>
+<h2 id="note-the-metadata-output">Note the metadata output</h2>
+<p>The file <code>meta.pb</code> now contains a description of the block which can be useful
+for integration. In this example, the result is:</p>
+<div class="highlight"><pre><span></span><code>channels {
+  name: &quot;in&quot;
+  is_input: true
+  type: FIFO
+  width_in_bits: 32
+}
+channels {
+  name: &quot;out&quot;
+  is_input: false
+  type: FIFO
+  width_in_bits: 32
+}
+name: &quot;TestBlock&quot;
+</code></pre></div>
 <h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
 <p>With the same IR, you can either generate a combinational block or a clocked
 pipelined block with the <code>codegen_main</code> tool. In this section, we'll demonstrate
@@ -1551,7 +1541,7 @@ how to generate a pipelined block using the above C++ code.</p>
 <span class="w">  </span>--delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--output_verilog_path<span class="o">=</span>test_channels.v<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--module_name<span class="o">=</span>xls_test<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--top<span class="o">=</span>xls_test_proc<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--top<span class="o">=</span>TestBlock_proc<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--reset<span class="o">=</span>rst<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--reset_active_low<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--reset_asynchronous<span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="se">\</span>
@@ -1562,16 +1552,22 @@ how to generate a pipelined block using the above C++ code.</p>
 <span class="w">  </span>--flop_inputs_kind<span class="o">=</span>skid<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--flop_outputs_kind<span class="o">=</span>skid
 </code></pre></div>
-<p>Below is a quick summary of the new options.</p>
+<p>Below is a quick summary of the options.</p>
 <ol>
 <li><code>--delay_model="sky130"</code> - use the sky130 delay model.</li>
-<li><code>--top=xls_test_proc</code> - the proc that is the top-level is named
-    <code>xls_test_proc</code>. This should be the name specified in the textproto given to
-    XLS[cc] with a <code>_proc</code> suffix appended.</li>
+<li><code>--top=TestBlock_proc</code> - the proc that is the top-level is named
+    <code>TestBlock_proc</code>. This should be the block class name given to XLS[cc] with
+    a <code>_proc</code> suffix appended.</li>
 <li><code>--flop_inputs_kind=skid</code> and <code>--flop_outputs_kind=skid</code> - control what type
     of I/O buffering is used. In this case, we configure a skid buffer at both
     the input and output.</li>
 </ol>
+<h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>
+<p>For developers, it is possible to check if a specific feature is supported by
+checking
+<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_io_test.cc">translator_io_test.cc</a>
+<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_proc_test.cc">translator_proc_test.cc</a>
+for unit tests.</p>
 
 
 
@@ -1612,7 +1608,7 @@ how to generate a pipelined block using the above C++ code.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.407015b8.min.js"></script>
+      <script src="../../assets/javascripts/bundle.51198bba.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
