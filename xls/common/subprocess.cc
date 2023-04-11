@@ -20,9 +20,14 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>  // NOLINT
+#include <optional>
+#include <ostream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -34,6 +39,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/file/file_descriptor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
