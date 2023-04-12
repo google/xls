@@ -126,8 +126,6 @@ Derived3 WontCompile(Base& r) {
 // Finally, tests that good code does compile (i.e. the compiler is
 // not blindly failing everything).
 
-int Identity(int x) {
-  return x;
-}
+static int Identity(int x) { return x; }
 
 #endif
