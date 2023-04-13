@@ -692,7 +692,7 @@ std::string Package::DumpIr() const {
     filenos.sort();
     // output in sorted order to be deterministic
     for (const auto& fileno : filenos) {
-      std::string filename = fileno_to_filename_.at(fileno);
+      std::string_view filename = fileno_to_filename_.at(fileno);
       absl::StrAppend(&out, "file_number ", static_cast<int32_t>(fileno), " ",
                       "\"", filename, "\"\n");
     }
@@ -707,8 +707,11 @@ std::string Package::DumpIr() const {
   }
   std::vector<std::string> function_dumps;
   std::optional<FunctionBase*> top = GetTop();
+  // Reuse prefix's storage for each loop iteration- it gets cleared each
+  // iteration but the storage remains.
+  std::string prefix;
   for (auto& function : functions()) {
-    std::string prefix;
+    prefix.clear();
     // TODO(taktoa):
     //   Refactor this so that attribute printing happens in function.cc
     if (function->GetInitiationInterval().has_value()) {
@@ -723,7 +726,7 @@ std::string Package::DumpIr() const {
   for (auto& proc : procs()) {
     // TODO(taktoa):
     //   Refactor this so that attribute printing happens in proc.cc
-    std::string prefix;
+    prefix.clear();
     if (proc->GetInitiationInterval().has_value()) {
       int64_t ii = proc->GetInitiationInterval().value();
       absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
@@ -734,7 +737,7 @@ std::string Package::DumpIr() const {
     function_dumps.push_back(absl::StrCat(prefix, proc->DumpIr()));
   }
   for (auto& block : blocks()) {
-    std::string prefix;
+    prefix.clear();
     if (top.has_value() && top.value() == block.get()) {
       prefix = "top ";
     }
