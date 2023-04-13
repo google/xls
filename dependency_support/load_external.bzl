@@ -22,6 +22,18 @@ load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
 def load_external_repositories():
     """Loads external repositories with third-party code."""
 
+    # Note: there are more direct dependencies than are explicitly listed here.
+    #
+    # By letting direct dependencies be satisfied by transitive WORKSPACE
+    # setups we let the transitive dependency versions "float" to satisfy their
+    # package requirements, so that we can bump our dependency versions here
+    # more easily without debugging/resolving unnecessary conflicts.
+    #
+    # This situation will change when XLS moves to bzlmod. See
+    # https://github.com/google/xls/issues/865 and
+    # https://github.com/google/xls/issues/931#issue-1667228764 for more
+    # information / background.
+
     repo_boost()
     repo_llvm()
     repo_rules_hdl()
