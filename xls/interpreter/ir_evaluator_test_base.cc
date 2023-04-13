@@ -25,6 +25,7 @@
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
+namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
@@ -3907,4 +3908,5 @@ TEST_P(IrEvaluatorTestBase, ThreeStringTraceTest) {
               ElementsAre("hello world!"));
 }
 
+}  // namespace
 }  // namespace xls
