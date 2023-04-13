@@ -15,28 +15,44 @@
 #include "xls/codegen/module_builder.h"
 
 #include <algorithm>
-#include <memory>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <iterator>
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
-#include "absl/strings/str_replace.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/node_representation.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_strings.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
@@ -1172,7 +1188,7 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
           node->operand(1)->BitCountOrDie(), node->operand(2)->BitCountOrDie());
     case Op::kPrioritySel:
       return absl::StrFormat("%s_%db_%dway", OpToString(node->op()),
-                             node->BitCountOrDie(),
+                             node->GetType()->GetFlatBitCount(),
                              node->operand(0)->BitCountOrDie());
     case Op::kSDiv:
     case Op::kUDiv:
@@ -1597,7 +1613,7 @@ VerilogFunction* DefinePrioritySelectFunction(
 
   VerilogFunction* func = section->Add<VerilogFunction>(
       sel->loc(), function_name,
-      file->BitVectorType(sel->BitCountOrDie(), sel->loc()));
+      file->BitVectorType(sel->GetType()->GetFlatBitCount(), sel->loc()));
   Expression* selector = func->AddArgument(
       "sel", file->BitVectorType(sel->operand(0)->BitCountOrDie(), sel->loc()),
       sel->loc());
@@ -1608,7 +1624,8 @@ VerilogFunction* DefinePrioritySelectFunction(
     Node* const node = sel->get_case(i);
     cases.push_back(func->AddArgument(
         absl::StrCat("case", i),
-        file->BitVectorType(node->BitCountOrDie(), sel->loc()), sel->loc()));
+        file->BitVectorType(node->GetType()->GetFlatBitCount(), sel->loc()),
+        sel->loc()));
   }
 
   XLS_CHECK(sel->selector()->GetType()->IsBits());
@@ -1657,8 +1674,8 @@ VerilogFunction* DefinePrioritySelectFunction(
 
   // Add default case that returns zero
   if (!never_zero) {
-    Expression* zero =
-        file->Literal(0, sel->operand(1)->BitCountOrDie(), sel->loc());
+    Expression* zero = file->Literal(
+        0, sel->operand(1)->GetType()->GetFlatBitCount(), sel->loc());
     case_statement->AddCaseArm(DefaultSentinel())
         ->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(), zero);
   }

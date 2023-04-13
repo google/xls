@@ -14,21 +14,33 @@
 
 #include "xls/codegen/combinational_generator.h"
 
+#include <cstdint>
+#include <memory>
+#include <optional>
 #include <random>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/matchers.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/simulation/module_simulator.h"
-#include "xls/simulation/verilog_simulators.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
 
 namespace xls {
@@ -483,6 +495,106 @@ top fn main(p: bits[1], x: bits[16], y: bits[16]) -> bits[16] {
               IsOkAndHolds(Value(UBits(0x00ff, 16))));
 }
 
+TEST_P(CombinationalGeneratorTest, PrioritySelectNonBits) {
+  constexpr std::string_view text = R"(
+package PrioritySelect
+
+top fn main(p: bits[2], x: (bits[16], bits[16]), y: (bits[16], bits[16])) -> (bits[16], bits[16]) {
+  ret priority_sel.1: (bits[16], bits[16]) = priority_sel(p, cases=[x, y])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  std::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x", Value::Tuple({Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})},
+      {"y",
+       Value::Tuple({Value(UBits(0xf0f0, 16)), Value(UBits(0x0f0f, 16))})}};
+  args["p"] = Value(UBits(0b00, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0x0000, 16)), Value(UBits(0x0000, 16))})));
+  args["p"] = Value(UBits(0b01, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})));
+  args["p"] = Value(UBits(0b10, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0xf0f0, 16)), Value(UBits(0x0f0f, 16))})));
+  args["p"] = Value(UBits(0b11, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})));
+}
+
+TEST_P(CombinationalGeneratorTest, PrioritySelectMixedBitsAndNonBits) {
+  constexpr std::string_view text = R"(
+package PrioritySelect
+
+top fn main(p: bits[2], x: (bits[16], bits[16]), y: (bits[16], bits[16])) -> (bits[32], bits[16], bits[16]) {
+  tuple_index.1: bits[16] = tuple_index(x, index=0)
+  tuple_index.2: bits[16] = tuple_index(x, index=1)
+  tuple_index.3: bits[16] = tuple_index(y, index=0)
+  tuple_index.4: bits[16] = tuple_index(y, index=1)
+  concat.5: bits[32] = concat(tuple_index.1, tuple_index.2)
+  concat.6: bits[32] = concat(tuple_index.3, tuple_index.4)
+  priority_sel.7: bits[32] = priority_sel(p, cases=[concat.5, concat.6])
+  priority_sel.8: (bits[16], bits[16]) = priority_sel(p, cases=[x, y])
+  tuple_index.9: bits[16] = tuple_index(priority_sel.8, index=0)
+  tuple_index.10: bits[16] = tuple_index(priority_sel.8, index=1)
+  ret tuple.11: (bits[32], bits[16], bits[16]) = tuple(priority_sel.7, tuple_index.9, tuple_index.10)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  std::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x", Value::Tuple({Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})},
+      {"y",
+       Value::Tuple({Value(UBits(0xf0f0, 16)), Value(UBits(0x0f0f, 16))})}};
+  args["p"] = Value(UBits(0b00, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple({Value(UBits(0x00000000, 32)),
+                                         Value(UBits(0x0000, 16)),
+                                         Value(UBits(0x0000, 16))})));
+  args["p"] = Value(UBits(0b01, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple({Value(UBits(0x00ffff00, 32)),
+                                         Value(UBits(0x00ff, 16)),
+                                         Value(UBits(0xff00, 16))})));
+  args["p"] = Value(UBits(0b10, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple({Value(UBits(0xf0f00f0f, 32)),
+                                         Value(UBits(0xf0f0, 16)),
+                                         Value(UBits(0x0f0f, 16))})));
+  args["p"] = Value(UBits(0b11, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple({Value(UBits(0x00ffff00, 32)),
+                                         Value(UBits(0x00ff, 16)),
+                                         Value(UBits(0xff00, 16))})));
+}
+
 TEST_P(CombinationalGeneratorTest, UncommonParameterTypes) {
   std::string text = R"(
 package UncommonParameterTypes
@@ -735,7 +847,7 @@ top fn main(idx: bits[2]) -> bits[32][2][3] {
 
   auto make_array_of_values = [&](absl::Span<const Value> values) {
     std::vector<Value> elements;
-    for (auto array : values) {
+    for (const auto& array : values) {
       elements.push_back(array);
     }
     absl::StatusOr<Value> array_of_values = Value::Array(elements);
@@ -795,7 +907,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
 
   auto make_array_of_values = [&](absl::Span<const Value> values) {
     std::vector<Value> elements;
-    for (auto array : values) {
+    for (const auto& array : values) {
       elements.push_back(array);
     }
     absl::StatusOr<Value> array_of_values = Value::Array(elements);
@@ -855,7 +967,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
 
   auto make_tuple = [](absl::Span<const Value> values) {
     std::vector<Value> elements;
-    for (auto v : values) {
+    for (const auto& v : values) {
       elements.push_back(v);
     }
     absl::StatusOr<Value> tuple = Value::Tuple(elements);
@@ -865,7 +977,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
 
   auto make_array_of_values = [&](absl::Span<const Value> values) {
     std::vector<Value> elements;
-    for (auto array : values) {
+    for (const auto& array : values) {
       elements.push_back(array);
     }
     absl::StatusOr<Value> array_of_values = Value::Array(elements);
