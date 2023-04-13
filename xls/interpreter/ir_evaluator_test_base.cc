@@ -14,15 +14,42 @@
 
 #include "xls/interpreter/ir_evaluator_test_base.h"
 
+#include <algorithm>
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/keyword_args.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/events.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 namespace {
@@ -1378,8 +1405,8 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   std::string bytes_str = "0x";
   std::vector<uint8_t> bytes;
 
-  Value a = kwargs.at("a");
-  Value b = kwargs.at("b");
+  const Value& a = kwargs.at("a");
+  const Value& b = kwargs.at("b");
   int64_t a_width = a.GetFlatBitCount();
   int64_t b_width = b.GetFlatBitCount();
   std::string formatted_text =
@@ -3170,7 +3197,8 @@ TEST_P(IrEvaluatorTestBase, FunnyShapedArrays) {
 
 absl::Status RunBitwiseReduceTest(
     const IrEvaluatorTestParam& param, const std::string& reduce_op,
-    std::function<Value(const Bits&)> generate_expected, const Bits& bits) {
+    const std::function<Value(const Bits&)>& generate_expected,
+    const Bits& bits) {
   constexpr std::string_view ir_text = R"(
   package test
 
