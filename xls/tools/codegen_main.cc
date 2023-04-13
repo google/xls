@@ -12,14 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <cstdlib>
+#include <filesystem>  // NOLINT
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
-#include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
@@ -29,12 +39,16 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/op.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 #include "xls/tools/codegen_flags.h"
+#include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
@@ -77,7 +91,7 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     options = verilog::BuildPipelineOptions();
 
     if (!p.input_valid_signal().empty()) {
-      std::optional<std::string> output_signal;
+      std::optional<std::string_view> output_signal;
       if (!p.output_valid_signal().empty()) {
         output_signal = p.output_valid_signal();
       }
@@ -202,7 +216,7 @@ absl::Status RealMain(std::string_view ir_path) {
   }
   XLS_RET_CHECK(p->GetTop().has_value())
       << "Package " << p->name() << " needs a top function/proc.";
-  FunctionBase* main = p->GetTop().value();
+  auto main = [&p]() -> FunctionBase* { return p->GetTop().value(); };
 
   verilog::ModuleGeneratorResult result;
 
@@ -222,10 +236,10 @@ absl::Status RealMain(std::string_view ir_path) {
                          SetUpDelayEstimator());
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        RunSchedulingPipeline(main, scheduling_options, delay_estimator));
+        RunSchedulingPipeline(main(), scheduling_options, delay_estimator));
 
-    XLS_ASSIGN_OR_RETURN(
-        result, verilog::ToPipelineModuleText(schedule, main, codegen_options));
+    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
+                                     schedule, main(), codegen_options));
 
     if (!codegen_flags_proto.output_schedule_path().empty()) {
       XLS_RETURN_IF_ERROR(SetTextProtoFile(
@@ -233,7 +247,7 @@ absl::Status RealMain(std::string_view ir_path) {
     }
   } else if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
     XLS_ASSIGN_OR_RETURN(
-        result, verilog::GenerateCombinationalModule(main, codegen_options));
+        result, verilog::GenerateCombinationalModule(main(), codegen_options));
   } else {
     // Note: this should already be validated by CodegenFlagsFromAbslFlags().
     XLS_LOG(FATAL) << "Invalid generator kind: "
