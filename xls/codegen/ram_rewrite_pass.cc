@@ -19,17 +19,32 @@
 #include <string>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "xls/codegen/block_conversion.h"
+#include "xls/codegen/codegen_pass.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/block.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -38,13 +53,18 @@ absl::StatusOr<Channel*> GetStreamingChannel(Block* block,
                                              std::string_view channel_name) {
   XLS_ASSIGN_OR_RETURN(Channel * channel,
                        block->package()->GetChannel(channel_name));
-  XLS_RET_CHECK(channel->GetDataPortName().has_value());
+  XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming)
+      << absl::StreamFormat("Channel %s must be a streaming channel.",
+                            channel_name);
+  XLS_RET_CHECK(channel->GetDataPortName().has_value())
+      << "data port not found- channel " << channel->name()
+      << " should be streaming with ready/valid flow control.";
   XLS_RET_CHECK(channel->GetValidPortName().has_value())
       << "valid port not found- channel " << channel->name()
       << " should be streaming with ready/valid flow control.";
   XLS_RET_CHECK(channel->GetReadyPortName().has_value())
-      << "ready port not found- channels should be streaming with "
-         "ready/valid flow control.";
+      << "ready port not found- channel " << channel->name()
+      << " should be streaming with ready/valid flow control.";
 
   return channel;
 }
