@@ -303,6 +303,7 @@ cc_library(
         ":unwrapping_iterator",
         ":value",
         ":value_helpers",
+        ":xls_type_cc_proto",
         "//xls/common:casts",
         "//xls/common:iterator_range",
         "//xls/common:math_util",

@@ -14,31 +14,45 @@
 
 #include "xls/ir/package.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <list>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
+#include "xls/ir/fileno.h"
+#include "xls/ir/name_uniquer.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/ir/xls_type.pb.h"
 
 namespace xls {
 
@@ -153,7 +167,7 @@ namespace {
 class NameCollisionResolver {
  public:
   explicit NameCollisionResolver(absl::flat_hash_set<std::string_view> names)
-      : names_(names), name_updates_({}) {}
+      : names_(std::move(names)), name_updates_({}) {}
 
   const absl::flat_hash_map<std::string, std::string>& name_updates() const {
     return name_updates_;
@@ -694,7 +708,7 @@ std::string Package::DumpIr() const {
   std::vector<std::string> function_dumps;
   std::optional<FunctionBase*> top = GetTop();
   for (auto& function : functions()) {
-    std::string prefix = "";
+    std::string prefix;
     // TODO(taktoa):
     //   Refactor this so that attribute printing happens in function.cc
     if (function->GetInitiationInterval().has_value()) {
@@ -709,7 +723,7 @@ std::string Package::DumpIr() const {
   for (auto& proc : procs()) {
     // TODO(taktoa):
     //   Refactor this so that attribute printing happens in proc.cc
-    std::string prefix = "";
+    std::string prefix;
     if (proc->GetInitiationInterval().has_value()) {
       int64_t ii = proc->GetInitiationInterval().value();
       absl::StrAppend(&prefix, "#[initiation_interval(", ii, ")]\n");
@@ -720,7 +734,7 @@ std::string Package::DumpIr() const {
     function_dumps.push_back(absl::StrCat(prefix, proc->DumpIr()));
   }
   for (auto& block : blocks()) {
-    std::string prefix = "";
+    std::string prefix;
     if (top.has_value() && top.value() == block.get()) {
       prefix = "top ";
     }
@@ -898,15 +912,23 @@ absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
 
 absl::StatusOr<Channel*> Package::CloneChannel(
     Channel* channel, std::string_view name,
-    std::optional<ChannelOps> supported_ops) {
+    const CloneChannelOverrides& overrides) {
   XLS_ASSIGN_OR_RETURN(auto* new_channel_type,
                        this->MapTypeFromOtherPackage(channel->type()));
   switch (channel->kind()) {
     case ChannelKind::kSingleValue: {
+      if (overrides.initial_values().has_value() ||
+          overrides.fifo_depth().has_value() ||
+          overrides.flow_control().has_value()) {
+        return absl::InvalidArgumentError(
+            "Cannot clone single value channel with streaming channel "
+            "parameter overrides.");
+      }
       XLS_ASSIGN_OR_RETURN(
           auto new_channel,
           this->CreateSingleValueChannel(
-              name, supported_ops.value_or(channel->supported_ops()),
+              name,
+              overrides.supported_ops().value_or(channel->supported_ops()),
               new_channel_type, channel->metadata()));
       return new_channel;
     }
@@ -921,10 +943,15 @@ absl::StatusOr<Channel*> Package::CloneChannel(
       XLS_ASSIGN_OR_RETURN(
           auto new_channel,
           this->CreateStreamingChannel(
-              name, supported_ops.value_or(channel->supported_ops()),
-              new_channel_type, channel->initial_values(),
-              streaming_channel->GetFifoDepth(),
-              streaming_channel->GetFlowControl(), channel->metadata()));
+              name,
+              overrides.supported_ops().value_or(channel->supported_ops()),
+              new_channel_type,
+              overrides.initial_values().value_or(channel->initial_values()),
+              overrides.fifo_depth().value_or(
+                  streaming_channel->GetFifoDepth()),
+              overrides.flow_control().value_or(
+                  streaming_channel->GetFlowControl()),
+              overrides.metadata().value_or(channel->metadata())));
       return new_channel;
     }
   }

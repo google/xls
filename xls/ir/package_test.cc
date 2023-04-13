@@ -14,6 +14,7 @@
 
 #include "xls/ir/package.h"
 
+#include <cstdint>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -404,6 +405,35 @@ TEST_F(PackageTest, CloneSingleValueChannelSamePackage) {
   EXPECT_EQ(ch0->supported_ops(), ch1->supported_ops());
 }
 
+TEST_F(PackageTest, CloneSingleValueChannelSetStreamingChannelParams) {
+  Package p(TestName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
+                                                p.GetBitsType(32)));
+  std::vector<Value> initial_values_override;
+  EXPECT_THAT(
+      p.CloneChannel(ch0, "ch1",
+                     Package::CloneChannelOverrides().OverrideInitialValues(
+                         initial_values_override)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot clone single value channel with "
+                         "streaming channel parameter overrides")));
+  EXPECT_THAT(p.CloneChannel(ch0, "ch2",
+                             Package::CloneChannelOverrides().OverrideFifoDepth(
+                                 std::nullopt)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot clone single value channel with "
+                                 "streaming channel parameter overrides")));
+  EXPECT_THAT(
+      p.CloneChannel(ch0, "ch3",
+                     Package::CloneChannelOverrides().OverrideFlowControl(
+                         FlowControl::kReadyValid)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Cannot clone single value channel with "
+                         "streaming channel parameter overrides")));
+}
+
 TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
   Package p(TestName());
 
@@ -411,7 +441,10 @@ TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
       Channel * ch0, p.CreateSingleValueChannel("ch0", ChannelOps::kSendOnly,
                                                 p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch1, p.CloneChannel(ch0, "ch1", ChannelOps::kSendReceive));
+      Channel * ch1,
+      p.CloneChannel(ch0, "ch1",
+                     Package::CloneChannelOverrides().OverrideSupportedOps(
+                         ChannelOps::kSendReceive)));
 
   EXPECT_EQ(p.channels().size(), 2);
   EXPECT_EQ(ch1->name(), "ch1");
@@ -464,6 +497,91 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackage) {
   EXPECT_EQ(streaming_ch1->GetFlowControl(), FlowControl::kReadyValid);
 }
 
+TEST_F(PackageTest, CloneStreamingChannelSetParams) {
+  Package p(TestName());
+
+  ChannelMetadataProto original_metadata;
+  original_metadata.mutable_block_ports()->set_block_name("original_name");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0,
+      p.CreateStreamingChannel(
+          "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
+          /*initial_values*/ std::vector<Value>{Value(UBits(0, 32))},
+          /*fifo_depth=*/3, /*flow_control=*/FlowControl::kNone,
+          /*metadata=*/original_metadata));
+  std::vector<Value> initial_values_override;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1_base,
+      p.CloneChannel(ch0, "ch1",
+                     Package::CloneChannelOverrides().OverrideInitialValues(
+                         initial_values_override)));
+  StreamingChannel* ch1 = down_cast<StreamingChannel*>(ch1_base);
+  EXPECT_NE(ch1, nullptr);
+
+  EXPECT_EQ(ch1->name(), "ch1");
+  EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendOnly);
+  EXPECT_EQ(ch1->GetFifoDepth(), 3);
+  EXPECT_EQ(ch1->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch1->metadata().block_ports().block_name(), "original_name");
+
+  EXPECT_EQ(ch1->initial_values(), initial_values_override);
+
+  std::optional<int64_t> fifo_depth = std::nullopt;
+  std::optional<std::optional<int64_t>> fifo_depth_override =
+      std::make_optional(fifo_depth);
+  EXPECT_TRUE(fifo_depth_override.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch2_base,
+      p.CloneChannel(
+          ch0, "ch2",
+          Package::CloneChannelOverrides().OverrideFifoDepth(std::nullopt)));
+  StreamingChannel* ch2 = down_cast<StreamingChannel*>(ch2_base);
+  EXPECT_NE(ch2, nullptr);
+
+  EXPECT_EQ(ch2->name(), "ch2");
+  EXPECT_THAT(ch2, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch2->supported_ops(), ChannelOps::kSendOnly);
+  EXPECT_EQ(ch2->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
+  EXPECT_EQ(ch2->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch2->metadata().block_ports().block_name(), "original_name");
+
+  EXPECT_EQ(ch2->GetFifoDepth(), std::nullopt);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch3_base,
+      p.CloneChannel(ch0, "ch3",
+                     Package::CloneChannelOverrides().OverrideFlowControl(
+                         FlowControl::kReadyValid)));
+  StreamingChannel* ch3 = down_cast<StreamingChannel*>(ch3_base);
+  EXPECT_NE(ch3, nullptr);
+
+  EXPECT_EQ(ch3->name(), "ch3");
+  EXPECT_THAT(ch3, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch3->supported_ops(), ChannelOps::kSendOnly);
+  EXPECT_EQ(ch3->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
+  EXPECT_EQ(ch3->GetFifoDepth(), 3);
+  EXPECT_EQ(ch3->metadata().block_ports().block_name(), "original_name");
+
+  EXPECT_EQ(ch3->GetFlowControl(), FlowControl::kReadyValid);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch4_base,
+      p.CloneChannel(ch0, "ch4",
+                     Package::CloneChannelOverrides().OverrideMetadata(
+                         ChannelMetadataProto())));
+  StreamingChannel* ch4 = down_cast<StreamingChannel*>(ch4_base);
+  EXPECT_NE(ch4, nullptr);
+
+  EXPECT_EQ(ch4->name(), "ch4");
+  EXPECT_THAT(ch4, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch4->supported_ops(), ChannelOps::kSendOnly);
+  EXPECT_EQ(ch4->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
+  EXPECT_EQ(ch4->GetFifoDepth(), 3);
+  EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch4->metadata().block_ports().block_name(), "");
+}
+
 TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
   Package p(TestName());
 
@@ -474,7 +592,10 @@ TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {
                          "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
                          /*initial_values=*/initial_values, /*fifo_depth=*/3));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Channel * ch1, p.CloneChannel(ch0, "ch1", ChannelOps::kSendReceive));
+      Channel * ch1,
+      p.CloneChannel(ch0, "ch1",
+                     Package::CloneChannelOverrides().OverrideSupportedOps(
+                         ChannelOps::kSendReceive)));
 
   EXPECT_EQ(p.channels().size(), 2);
   EXPECT_EQ(ch1->name(), "ch1");

@@ -18,15 +18,19 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
@@ -34,6 +38,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/xls_type.pb.h"
 
 namespace xls {
 
@@ -256,12 +261,68 @@ class Package {
   // nodes an error is returned.
   absl::Status RemoveChannel(Channel* channel);
 
+  // Builder to collect overrides when cloning channels.
+  // Each field is optional where std::nullopt indicates that the cloned channel
+  // should share the same value as the original. If a field contains a value,
+  // the cloned channel should ignore the original's value and use the override.
+  class CloneChannelOverrides {
+   public:
+    explicit CloneChannelOverrides() = default;
+
+    CloneChannelOverrides& OverrideSupportedOps(ChannelOps supported_ops) {
+      supported_ops_ = supported_ops;
+      return *this;
+    }
+
+    CloneChannelOverrides& OverrideInitialValues(
+        absl::Span<const Value> values) {
+      initial_values_ = values;
+      return *this;
+    }
+
+    CloneChannelOverrides& OverrideFifoDepth(std::optional<int64_t> depth) {
+      fifo_depth_ = depth;
+      return *this;
+    }
+
+    CloneChannelOverrides& OverrideFlowControl(FlowControl flow_control) {
+      flow_control_ = flow_control;
+      return *this;
+    }
+
+    CloneChannelOverrides& OverrideMetadata(ChannelMetadataProto metadata) {
+      metadata_ = std::move(metadata);
+      return *this;
+    }
+
+    std::optional<ChannelOps> supported_ops() const { return supported_ops_; }
+    std::optional<absl::Span<const Value>> initial_values() const {
+      return initial_values_;
+    }
+    std::optional<std::optional<int64_t>> fifo_depth() const {
+      return fifo_depth_;
+    }
+    std::optional<FlowControl> flow_control() const { return flow_control_; }
+    std::optional<ChannelMetadataProto> metadata() const { return metadata_; }
+
+   private:
+    std::optional<ChannelOps> supported_ops_;
+    std::optional<absl::Span<const Value>> initial_values_;
+    // Nested optionals are strange, but used here to differentiate between
+    // "use the original channel's FIFO depth" and "do not set FIFO depth".
+    std::optional<std::optional<int64_t>> fifo_depth_;
+    std::optional<FlowControl> flow_control_;
+    std::optional<ChannelMetadataProto> metadata_;
+  };
+
   // Clone channel, potentially from another package, with new name. Channel id
   // may differ from the old channel (it definitely will if it's coming from
   // this package).
+  // CloneChannelOverrides is a builder class that optionally overrides fields
+  // from the original channel.
   absl::StatusOr<Channel*> CloneChannel(
       Channel* channel, std::string_view name,
-      std::optional<ChannelOps> supported_ops = std::nullopt);
+      const CloneChannelOverrides& overrides = CloneChannelOverrides());
 
  private:
   std::vector<std::string> GetChannelNames() const;
