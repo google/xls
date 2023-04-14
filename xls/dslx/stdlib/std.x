@@ -177,6 +177,37 @@ fn iterative_div_test () {
   ()
 }
 
+// Binary Division algorithm as outlined by:
+// http://www.dragonwins.com/domains/GetTechEd/de248/binary_division.htm
+fn iterative_binary_div<N: u32, DN: u32 = {N * u32:2}>(dividend: bits[N], divisor: bits[N]) -> (bits[N], bits[N]) {
+  let quotient: bits[N] = bits[N]:0;
+  let remainder: bits[N] = dividend;
+  let term: bits[DN] = bits[DN]:1 << (N as bits[DN]);
+  let product: bits[DN] = (divisor as bits[DN]) << (N as bits[DN]);
+  let (quotient, remainder, product, term) =
+     for (i, (quotient, remainder, product, term)): (bits[N], (bits[N], bits[N], bits[DN], bits[DN]))
+     in range(bits[N]:0, (N as bits[N])) {
+       let product = product >> bits[DN]:1;
+       let term = term >> bits[DN]:1;
+       let (new_q, new_r) : (bits[N], bits[N]) =
+         match product <= (remainder as bits[DN]) {
+           true => (quotient + (term as bits[N]), remainder - (product as bits[N])),
+           _ => (quotient, remainder),
+         };
+       (new_q, new_r, product, term)
+    }((quotient, remainder, product, term));
+  (quotient, remainder)
+}
+
+#[test]
+fn iterative_binary_div_test() {
+  let _ = assert_eq((u8:8, u8:0), iterative_binary_div(u8:8, u8:1));
+  let _ = assert_eq((u8:4, u8:0), iterative_binary_div(u8:8, u8:2));
+  let _ = assert_eq((u8:2, u8:2), iterative_binary_div(u8:8, u8:3));
+  let _ = assert_eq((u8:1, u8:0), iterative_binary_div(u8:1, u8:1));
+  ()
+}
+
 // Returns the value of x-1 with saturation at 0.
 pub fn bounded_minus_1<N: u32>(x: uN[N]) -> uN[N] {
   if x == uN[N]:0 { x } else { x-uN[N]:1 }
