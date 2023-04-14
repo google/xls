@@ -106,3 +106,30 @@ circumstances in the Markdown docs:
 GitHub issue [google/xls#378](https://github.com/google/xls/issues/378) tracks
 a script that does the parse/typecheck/test that ensures our documentation is
 up to date and correct.
+
+### GitHub Issue "T-Shirt Size" Estimate Labels
+
+We attempt to employ some lightweight processes for task size estimation for the
+GitHub issues in the XLS repository, as a way of making tasks available that fit
+for available development time as well as gut checking, if something takes
+longer than we expected, why and can we do things to mitigate the surprising
+amount of time required going forward.
+
+There's a practice of marking issues with "t-shirt sizes" for development tasks.
+An issue can be XS, S, M, L, XL, these are given in the ["estimate"
+labels](https://github.com/google/xls/labels?q=estimate):
+
+| Name        | Abbreviation | Time Scale  |
+| :---------: | :----------: | :---------: |
+| eXtra Small | XS           | ~few hours  |
+| Small       | S            | ~a day      |
+| Medium      | M            | ~1-3 days   |
+| Large       | L            | ~a week     |
+| eXtra Large | XL           | ~multi-week |
+
+These are not "load bearing", just to note expectation. Generally the
+assumption is "time expected for a person familiar with this matter / part of
+the code base", so developers that would ramp on an issue would require more
+time than is indicated by the label. Feel free to change the label at will,
+ideally by providing a helpful explanation for why/how the estimate came to
+change.
