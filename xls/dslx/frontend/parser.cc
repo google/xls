@@ -664,7 +664,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   }
 
   Span span(tok.span().start(), GetPos());
-  return MakeTypeRefTypeAnnotation(span, type_ref, std::move(dims),
+  return MakeTypeRefTypeAnnotation(span, type_ref, dims,
                                    std::move(parametrics));
 }
 

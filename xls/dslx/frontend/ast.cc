@@ -1506,7 +1506,7 @@ SplatStructInstance::SplatStructInstance(
     Module* owner, Span span, StructRef struct_ref,
     std::vector<std::pair<std::string, Expr*>> members, Expr* splatted)
     : Expr(owner, std::move(span)),
-      struct_ref_(std::move(struct_ref)),
+      struct_ref_(struct_ref),
       members_(std::move(members)),
       splatted_(splatted) {}
 
@@ -2048,7 +2048,7 @@ WildcardPattern::~WildcardPattern() = default;
 
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
                        std::optional<int64_t> test_count)
-    : AstNode(owner), span_(span), f_(f), test_count_(std::move(test_count)) {}
+    : AstNode(owner), span_(span), f_(f), test_count_(test_count) {}
 
 QuickCheck::~QuickCheck() = default;
 
