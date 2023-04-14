@@ -313,7 +313,7 @@ FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
       options_(options),
       fileno_(module->fs_path().has_value()
                   ? package_data.package->GetOrCreateFileno(
-                        std::string(module->fs_path().value()))
+                        std::string{module->fs_path().value()})
                   : Fileno(0)),
       proc_data_(proc_data),
       is_top_(is_top) {

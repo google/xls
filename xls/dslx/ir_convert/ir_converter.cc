@@ -153,11 +153,11 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
   Function* f = record.f();
   if (f->tag() == Function::Tag::kProcConfig) {
     // TODO(rspringer): 2021-09-29: Probably need to pass constants in here.
-    ProcConfigIrConverter converter(
+    ProcConfigIrConverter config_converter(
         package_data.package, f, record.type_info(), import_data, proc_data,
         record.parametric_env(), record.proc_id().value());
-    XLS_RETURN_IF_ERROR(f->Accept(&converter));
-    XLS_RETURN_IF_ERROR(converter.Finalize());
+    XLS_RETURN_IF_ERROR(f->Accept(&config_converter));
+    XLS_RETURN_IF_ERROR(config_converter.Finalize());
     return absl::OkStatus();
   }
 
@@ -456,7 +456,7 @@ absl::Status AddContentsToPackage(
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
-    absl::Span<const std::string_view> paths, std::string stdlib_path,
+    absl::Span<const std::string_view> paths, const std::string& stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths,
     const ConvertOptions& convert_options, std::optional<std::string_view> top,
     std::optional<std::string_view> package_name, bool* printed_error) {

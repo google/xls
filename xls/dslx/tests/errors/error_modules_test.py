@@ -719,6 +719,19 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('imports_and_calls_proc_as_fn.x:18:18-18:21', stderr)
     self.assertIn('refers to a proc but a function is required', stderr)
 
+  def test_channel_direction_mismatch(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/channel_direction_mismatch.x'
+    )
+    self.assertIn('channel_direction_mismatch.x:18:31-20:4', stderr)
+    self.assertIn(
+        (
+            "Return type of function body for 'foo.config' did not match the"
+            ' annotated return type'
+        ),
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
