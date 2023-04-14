@@ -27,7 +27,7 @@ nav:
   - IR:
     - Overview: 'ir_overview.md'
     - Semantics: 'ir_semantics.md'
-    - Optimizations: 'optimizations.md'
+    - Optimizations: 'optimizations/optimizations.md'
     - Scheduling:
       - Overview: 'scheduling.md'
       - Delay Estimation: 'delay_estimation.md'

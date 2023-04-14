@@ -31,7 +31,7 @@ A deadlock occurs when a set of agents holding resources are waiting on another
 set of resources such that a cycle of waiting agents is formed, implying that
 agents are unable to make progress.
 
-![drawing](./noc/deadlock.png)
+![drawing](./deadlock.png)
 
 **Figure Deadlock_Example<a id="deadlock_example"></a>. A deadlock example with
 two agents and two resources.**
@@ -69,7 +69,7 @@ Livelock occurs when a packet is not able to make progress in the network and is
 never delivered to its destination. Unlike deadlock, a livelocked packet
 continues to move through the network.
 
-![drawing](./noc/livelock.png)
+![drawing](./livelock.png)
 
 **Figure Livelock_Example<a id="livelock_example"></a>. A example with
 livelocked packet P1.**

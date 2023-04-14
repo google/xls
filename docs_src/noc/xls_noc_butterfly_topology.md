@@ -27,7 +27,7 @@ _i_ &lt; n. For example, for a 2-ary 4-fly butterfly network: channel
 [2.<strong>110</strong>0<sub>2</sub>] of stage 2.
 **[Butterfly_Ref_0](#butterfly_ref_0)**
 
-![drawing](./noc/butterfly_topology.png)
+![drawing](./butterfly_topology.png)
 
 **Figure Butterfly_Topology_Example<a id="butterfly_topology_example"></a>. The
 router nodes of a 2-ary 3-tree butterfly topology.**
@@ -56,7 +56,7 @@ the same nodes, resulting in an equal number of nodes connected to stage 0 and
 stage _n_-1. Moreover, the endpoints nodes are connected to stage 0 in the same
 order as stage _n_-1 (mirrored from the vertical cross section).
 
-![drawing](./noc/unidirectional_butterfly.png)
+![drawing](./unidirectional_butterfly.png)
 
 **Figure
 Unidirectional_Butterfly_Topology_Example<a id="unidirectional_butterfly_topology_example"></a>.
@@ -87,7 +87,7 @@ is, each message experiences two phases, an ascending phase to get to a nearest
 common ancestor, followed by a descending phase.
 **[Fat_Tree_Ref_1](#fat_tree_ref_1)**
 
-![drawing](./noc/bidirectional_butterfly.png)
+![drawing](./bidirectional_butterfly.png)
 
 **Figure
 Bidirectional_Butterfly_Topology_Example<a id="bidirectional_butterfly_topology_example"></a>.
@@ -127,7 +127,7 @@ The flattened butterfly is derived by flattening the routers in each row of a
 conventional butterfly topology while maintaining the same inter-router
 connections. **[Butterfly_Ref_1](#butterfly_ref_1)**
 
-![drawing](./noc/flatten_butterfly.png)
+![drawing](./flatten_butterfly.png)
 
 **Figure
 Flattened_Butterfly_Topology_Example<a id="flattened_butterfly_topology_example"></a>.

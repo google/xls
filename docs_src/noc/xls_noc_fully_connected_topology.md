@@ -4,7 +4,7 @@ The fully-connected topology is a topology where each router has a bidirectional
 channel connecting it to each remaining router of the topology. One or more
 endpoint nodes are connected to a router.
 
-![drawing](./noc/fully_connected_topology.png)
+![drawing](./fully_connected_topology.png)
 
 **Figure Fully_Connected_example<a id="fully_connected_example"></a>. A
 fully-connected topology with six routers.**

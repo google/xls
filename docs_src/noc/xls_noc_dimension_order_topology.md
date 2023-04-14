@@ -19,7 +19,7 @@ bidirectional. In practice, the channels are bidirectional.
 
 ### Ring Topology <a id="ring"></a>
 
-![drawing](./noc/ring.png)
+![drawing](./ring.png)
 
 **Figure Ring_4ary_1cube_example<a id="ring_4ary_1cube_example"></a>. A ring
 topology with four routers, also known as a 4-ary 1-cube topology.**
@@ -31,7 +31,7 @@ dotted lines show the connectivity between routers 0 and k-1 for a dimension.
 
 ### Symmetric Torus Topology <a id="symmetric_torus"></a>
 
-![drawing](./noc/symmetric_torus.png)
+![drawing](./symmetric_torus.png)
 
 **Figure
 Symmetric_Torus_4ary_2cube_example<a id="symmetric_torus_4ary_2cube_example"></a>.
@@ -46,7 +46,7 @@ symmetric torus topology with four routers along each dimension, also known as a
 other dimension. The dotted lines show the connectivity between routers 0 and
 k-1 for a dimension.
 
-![drawing](./noc/hierarchical_structure_dimension_order.png)
+![drawing](./hierarchical_structure_dimension_order.png)
 
 **Figure
 4ary_2cube_construction_example<a id="4ary_2cube_construction_example"></a>. The
@@ -64,7 +64,7 @@ stated. Each router is assigned an _n_-digit where the digit at index _i_ has
 the radix of dimension _i_. A 2,3-ary 2-cube describes a grid-like topology with
 a radix of 2 in one dimension and radix of 3 in the other dimension.
 
-![drawing](./noc/multi_radix_n_cube.png)
+![drawing](./multi_radix_n_cube.png)
 
 **Figure 2,3-ary_2cube_example<a id="2_3_ary_2cube_example"></a>. A 2,3-ary
 2-cube topology example.**
@@ -80,7 +80,7 @@ address a<sub>k−1</sub> to address a<sub>0</sub> omitted in each dimension.
 
 ### Line <a id="line"></a>
 
-![drawing](./noc/line.png)
+![drawing](./line.png)
 
 **Figure Line_4ary_1mesh_example<a id="line_4ary_1mesh_example"></a>. A line
 topology with four routers, also known as a 4-ary 1-mesh topology.**
@@ -94,7 +94,7 @@ to the ring topology in Figure
 
 ### Symmetric Mesh <a id="symmetric_mesh"></a>
 
-![drawing](./noc/symmetric_mesh.png)
+![drawing](./symmetric_mesh.png)
 
 **Figure
 Symmetric_Mesh_4ary_2mesh_example<a id="symmetric_mesh_4ary_2mesh_example"></a>. A
@@ -121,7 +121,7 @@ digit at index _i_ has the radix of dimension _i_. A 2,3-ary 2-mesh describes a
 grid-like topology with a radix of 2 in one dimension and radix of 3 in the
 other dimension.
 
-![drawing](./noc/multi_radix_n_mesh.png)
+![drawing](./multi_radix_n_mesh.png)
 
 **Figure 2,3-ary_2mesh_example<a id="2_3_ary_2mesh_example"></a>. A 2,3-ary
 2-mesh topology example.**

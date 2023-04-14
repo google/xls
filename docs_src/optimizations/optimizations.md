@@ -896,7 +896,7 @@ input is not all-0 bits, this is the first 1 bit encountered in the input going
 from least to most significant bit or vice-versa depending on the priority
 specified. If the input is all-0 bits, the most significant bit of the `OneHot`
 output is set to 1. The semantics of `OneHot` are described in detail
-[here](./ir_semantics.md). If the MSB of a `OneHot`
+[here](../ir_semantics.md). If the MSB of a `OneHot`
 does not affect the functionality of a program, we replace the MSB with a 0-bit,
 e.g.
 

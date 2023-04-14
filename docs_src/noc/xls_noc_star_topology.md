@@ -9,12 +9,12 @@ The star topology is a topology with a central router node.
 The hierarchical star topology is a hierarchical topology with a central router
 node that is only connected to router nodes, and the endpoint nodes are only
 connected to leaf routers. It is identical to a
-[bidirectional tree topology](./noc/xls_noc_tree_topology.md#bidirectional_tree)
+[bidirectional tree topology](./xls_noc_tree_topology.md#bidirectional_tree)
 with the exception that there are no endpoints connected to the root router. The
 channels are unidirectional or bidirectional. In practice, it is common that all
 channels of the network be bidirectional.
 
-![drawing](./noc/hierarchical_star.png)
+![drawing](./hierarchical_star.png)
 
 **Figure Hierarchical_Star_example<a id="hierarchical_star_example"></a>. A
 hierarchical star topology example with eight endpoint nodes and five router
@@ -33,7 +33,7 @@ The star topology is a topology with a single router: the central router node.
 All communication flows through the central router (all traffic traverses
 through the central router). The channels are bidirectional.
 
-![drawing](./noc/star.png)
+![drawing](./star.png)
 
 **Figure Star_example<a id="star_example"></a>. A star topology example with
 four endpoint nodes and the central router.**
@@ -48,7 +48,7 @@ unidirectional. The single router topology has a single router: the central
 router node. All communication flows through the central router (all traffic
 traverses through the central router).
 
-![drawing](./noc/single_router.png)
+![drawing](./single_router.png)
 
 **Figure Single_Router_example<a id="single_router_example"></a>. A single
 router topology example with four endpoint nodes and the central router.**

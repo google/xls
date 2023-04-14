@@ -8,7 +8,7 @@ node. The nodes represent the router nodes and endpoint nodes of a network. A
 tree topology has endpoints connected to the root router and leaf routers. It is
 called a tree topology because the router nodes form a tree data structure.
 
-![drawing](./noc/tree_topology.png)
+![drawing](./tree_topology.png)
 
 **Figure Tree_Topology_Example<a id="tree_topology_example"></a>. A tree
 topology example.**
@@ -34,7 +34,7 @@ tree to the root router of the tree. The endpoints connected to the root router
 receive from the network, and the endpoints connected to the leaf routers send
 to the network.
 
-![drawing](./noc/aggregation_tree.png)
+![drawing](./aggregation_tree.png)
 
 **Figure
 Aggregation_Tree_Topology_Example<a id="aggregation_tree_topology_example"></a>.
@@ -53,7 +53,7 @@ tree to the leaf routers of the tree. The endpoints connected to the root router
 send to the network, and the endpoints connected to the leaf routers receive
 from the network.
 
-![drawing](./noc/distribution_tree.png)
+![drawing](./distribution_tree.png)
 
 **Figure
 Distribution_Tree_Topology_Example<a id="distribution_tree_topology_example"></a>.
@@ -79,7 +79,7 @@ to the leaf routers that receives from the network. In practice, it is common to
 have all endpoints connected to the root router and leaf routers send to and
 receive from the network.
 
-![drawing](./noc/bidirectional_tree.png)
+![drawing](./bidirectional_tree.png)
 
 **Figure
 Bidirectional_Tree_Topology_Example<a id="bidirectional_tree_topology_example"></a>.
