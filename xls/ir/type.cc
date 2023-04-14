@@ -136,6 +136,7 @@ std::ostream& operator<<(std::ostream& os, const Type& type) {
 
 std::string TupleType::ToString() const {
   std::vector<std::string> pieces;
+  pieces.reserve(members_.size());
   for (Type* member : members_) {
     pieces.push_back(member->ToString());
   }

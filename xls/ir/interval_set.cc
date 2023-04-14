@@ -343,6 +343,7 @@ bool IntervalSet::IsEmpty() const {
 std::string IntervalSet::ToString() const {
   XLS_CHECK_GE(bit_count_, 0);
   std::vector<std::string> strings;
+  strings.reserve(intervals_.size());
   for (const auto& interval : intervals_) {
     strings.push_back(interval.ToString());
   }
