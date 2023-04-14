@@ -201,10 +201,26 @@ fn iterative_binary_div<N: u32, DN: u32 = {N * u32:2}>(dividend: bits[N], diviso
 
 #[test]
 fn iterative_binary_div_test() {
-  let _ = assert_eq((u8:8, u8:0), iterative_binary_div(u8:8, u8:1));
-  let _ = assert_eq((u8:4, u8:0), iterative_binary_div(u8:8, u8:2));
-  let _ = assert_eq((u8:2, u8:2), iterative_binary_div(u8:8, u8:3));
-  let _ = assert_eq((u8:1, u8:0), iterative_binary_div(u8:1, u8:1));
+  // Power of 2.
+  let _ = assert_eq((u4:0, u4:8), iterative_binary_div(u4:8, u4:15));
+  let _ = assert_eq((u4:1, u4:0), iterative_binary_div(u4:8, u4:8));
+  let _ = assert_eq((u4:2, u4:0), iterative_binary_div(u4:8, u4:4));
+  let _ = assert_eq((u4:4, u4:0), iterative_binary_div(u4:8, u4:2));
+  let _ = assert_eq((u4:8, u4:0), iterative_binary_div(u4:8, u4:1));
+  let _ = assert_eq((u4:8 / u4:0, u4:8), iterative_binary_div(u4:8, u4:0));
+  let _ = assert_eq((u4:15, u4:8), iterative_binary_div(u4:8, u4:0));
+
+  // Non-powers-of-2.
+  let _ = assert_eq((u32:6, u32:0), iterative_binary_div(u32:18, u32:3));
+  let _ = assert_eq((u32:6, u32:0), iterative_binary_div(u32:36, u32:6));
+  let _ = assert_eq((u32:6, u32:0), iterative_binary_div(u32:48, u32:8));
+  let _ = assert_eq((u32:20, u32:0), iterative_binary_div(u32:900, u32:45));
+
+  // Results w/ remainder.
+  let _ = assert_eq((u32:6, u32:2), iterative_binary_div(u32:20, u32:3));
+  let _ = assert_eq((u32:6, u32:5), iterative_binary_div(u32:41, u32:6));
+  let _ = assert_eq((u32:6, u32:7), iterative_binary_div(u32:55, u32:8));
+  let _ = assert_eq((u32:20, u32:44), iterative_binary_div(u32:944, u32:45));
   ()
 }
 
