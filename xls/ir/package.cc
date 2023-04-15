@@ -932,7 +932,8 @@ absl::StatusOr<Channel*> Package::CloneChannel(
           this->CreateSingleValueChannel(
               name,
               overrides.supported_ops().value_or(channel->supported_ops()),
-              new_channel_type, channel->metadata()));
+              new_channel_type,
+              overrides.metadata().value_or(channel->metadata())));
       return new_channel;
     }
     case ChannelKind::kStreaming: {

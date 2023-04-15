@@ -405,7 +405,7 @@ TEST_F(PackageTest, CloneSingleValueChannelSamePackage) {
   EXPECT_EQ(ch0->supported_ops(), ch1->supported_ops());
 }
 
-TEST_F(PackageTest, CloneSingleValueChannelSetStreamingChannelParams) {
+TEST_F(PackageTest, CloneSingleValueChannelSetParams) {
   Package p(TestName());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -432,6 +432,17 @@ TEST_F(PackageTest, CloneSingleValueChannelSetStreamingChannelParams) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Cannot clone single value channel with "
                          "streaming channel parameter overrides")));
+
+  ChannelMetadataProto new_metadata;
+  new_metadata.mutable_block_ports()->set_block_name("new_block_name");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch4,
+      p.CloneChannel(
+          ch0, "ch4",
+          Package::CloneChannelOverrides().OverrideMetadata(new_metadata)));
+  EXPECT_EQ(ch4->metadata().block_ports().block_name(), "new_block_name");
+  EXPECT_NE(ch0->metadata().block_ports().block_name(),
+            ch4->metadata().block_ports().block_name());
 }
 
 TEST_F(PackageTest, CloneSingleValueChannelSamePackageButDifferentOps) {
@@ -579,6 +590,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch4->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch4->GetFifoDepth(), 3);
   EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch0->metadata().block_ports().block_name(), "original_name");
   EXPECT_EQ(ch4->metadata().block_ports().block_name(), "");
 }
 
