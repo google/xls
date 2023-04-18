@@ -170,8 +170,8 @@ std::string BitVectorToString(Z3_context ctx,
   constexpr const char kZ3One[] = "#x1";
   BitsRope rope(z3_bits.size());
 
-  for (int i = 0; i < z3_bits.size(); i++) {
-    rope.push_back(QueryNode(ctx, model, z3_bits.at(i)) == kZ3One);
+  for (auto z3_bit : z3_bits) {
+    rope.push_back(QueryNode(ctx, model, z3_bit) == kZ3One);
   }
   Bits bits = bits_ops::Reverse(rope.Build());
   return absl::StrCat("0b", bits.ToRawDigits(FormatPreference::kBinary,

@@ -101,12 +101,12 @@ absl::Status CreateNetList(
     // Assign a random available net to each cell input.
     absl::flat_hash_map<std::string, NetRef> param_assignments;
     absl::Span<const std::string> input_names = entry->input_names();
-    for (int input_index = 0; input_index < input_names.size(); input_index++) {
+    for (const auto& input_name : input_names) {
       int available_index = absl::Uniform(*bitgen, 0u, available_inputs.size());
       XLS_ASSIGN_OR_RETURN(
           NetRef input_ref,
           module->ResolveNet(available_inputs[available_index]));
-      param_assignments[input_names[input_index]] = input_ref;
+      param_assignments[input_name] = input_ref;
     }
 
     // And associate the output with a new NetRef.
