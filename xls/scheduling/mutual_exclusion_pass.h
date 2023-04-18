@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
@@ -101,18 +102,18 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f);
 
 // Pass which merges together nodes that are determined to be mutually exclusive
 // via SMT solver analysis.
-class MutualExclusionPass : public FunctionBasePass {
+class MutualExclusionPass : public SchedulingFunctionBasePass {
  public:
   MutualExclusionPass()
-      : FunctionBasePass(
+      : SchedulingFunctionBasePass(
             "mutual_exclusion",
             "Merge mutually exclusively used nodes using SMT solver") {}
   ~MutualExclusionPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
-      PassResults* results) const override;
+      SchedulingUnit<FunctionBase*>* unit, const SchedulingPassOptions& options,
+      SchedulingPassResults* results) const override;
 };
 
 }  // namespace xls

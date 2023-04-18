@@ -53,54 +53,50 @@
 #include "xls/passes/useless_assert_removal_pass.h"
 #include "xls/passes/useless_io_removal_pass.h"
 #include "xls/passes/verifier_checker.h"
-#include "xls/scheduling/mutual_exclusion_pass.h"
 
 namespace xls {
 
-class SimplificationPass : public FixedPointCompoundPass {
- public:
-  explicit SimplificationPass(int64_t opt_level)
-      : FixedPointCompoundPass("simp", "Simplification") {
-    Add<IdentityRemovalPass>();
-    Add<ConstantFoldingPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<CanonicalizationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<ArithSimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<ComparisonSimplificationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<TableSwitchPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<ReceiveDefaultValueSimplificationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<SelectSimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
-    Add<DeadCodeEliminationPass>();
-    Add<ReassociationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<ConstantFoldingPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<BitSliceSimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<ConcatSimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<TupleSimplificationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<StrengthReductionPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<ArraySimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<NarrowingPass>(/*use_range_analysis=*/false, opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<ArithSimplificationPass>(opt_level);
-    Add<DeadCodeEliminationPass>();
-    Add<BooleanSimplificationPass>();
-    Add<DeadCodeEliminationPass>();
-    Add<CsePass>();
-  }
-};
+SimplificationPass::SimplificationPass(int64_t opt_level)
+    : FixedPointCompoundPass("simp", "Simplification") {
+  Add<IdentityRemovalPass>();
+  Add<ConstantFoldingPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<CanonicalizationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<ArithSimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<ComparisonSimplificationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<TableSwitchPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<ReceiveDefaultValueSimplificationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<SelectSimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<ConditionalSpecializationPass>(/*use_bdd=*/false);
+  Add<DeadCodeEliminationPass>();
+  Add<ReassociationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<ConstantFoldingPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<BitSliceSimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<ConcatSimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<TupleSimplificationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<StrengthReductionPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<ArraySimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<NarrowingPass>(/*use_range_analysis=*/false, opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<ArithSimplificationPass>(opt_level);
+  Add<DeadCodeEliminationPass>();
+  Add<BooleanSimplificationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<CsePass>();
+}
 
 std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   auto top = std::make_unique<CompoundPass>("ir", "Top level pass pipeline");
@@ -171,10 +167,6 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<UselessIORemovalPass>();
   top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
-
-  top->Add<MutualExclusionPass>();
-  top->Add<DeadCodeEliminationPass>();
-  top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
 
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();

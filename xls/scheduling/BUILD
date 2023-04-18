@@ -255,6 +255,7 @@ cc_library(
     srcs = ["scheduling_pass_pipeline.cc"],
     hdrs = ["scheduling_pass_pipeline.h"],
     deps = [
+        ":mutual_exclusion_pass",
         ":pipeline_scheduling_pass",
         ":proc_clumping_pass",
         ":scheduling_checker",
@@ -262,6 +263,8 @@ cc_library(
         ":scheduling_wrapper_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
+        "//xls/passes:literal_uncommoning_pass",
+        "//xls/passes:standard_pipeline",
     ],
 )
 
@@ -321,8 +324,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:graph_coloring",
         "//xls/data_structures:transitive_closure",
-        "//xls/data_structures:union_find_map",
-        "//xls/interpreter:random_value",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
@@ -330,10 +331,9 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/passes",
-        "//xls/passes:cse_pass",
-        "//xls/passes:dce_pass",
         "//xls/passes:post_dominator_analysis",
         "//xls/passes:token_provenance_analysis",
+        "//xls/scheduling:scheduling_pass",
         "//xls/solvers:z3_ir_translator",
         "//xls/solvers:z3_utils",
         "@z3//:api",

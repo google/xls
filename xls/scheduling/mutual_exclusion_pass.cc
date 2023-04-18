@@ -14,8 +14,6 @@
 
 #include "xls/scheduling/mutual_exclusion_pass.h"
 
-#include <random>
-
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
@@ -26,16 +24,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/graph_coloring.h"
 #include "xls/data_structures/transitive_closure.h"
-#include "xls/data_structures/union_find_map.h"
-#include "xls/interpreter/random_value.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/passes/cse_pass.h"
-#include "xls/passes/dce_pass.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
 #include "xls/solvers/z3_ir_translator.h"
@@ -269,7 +263,7 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
 // size 1 including only themselves.
 // A merge class is a set of nodes that are all jointly mutually exclusive.
 absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
-    Predicates* p, FunctionBase* f) {
+    Predicates* p, FunctionBase* f, const ScheduleCycleMap& scm) {
   absl::flat_hash_set<Node*> nodes;
   std::vector<Node*> ordered_nodes;
   absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> neighborhoods;
@@ -285,7 +279,8 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
   XLS_ASSIGN_OR_RETURN(NodeRelation mergable_effects,
                        ComputeMergableEffects(f));
   auto is_mergable = [&](Node* x, Node* y) -> bool {
-    return mergable_effects.contains(x) && mergable_effects.at(x).contains(y);
+    return mergable_effects.contains(x) && mergable_effects.at(x).contains(y) &&
+           scm.at(x) == scm.at(y);
   };
 
   for (Node* x : nodes) {
@@ -948,11 +943,27 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 }
 
 absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    SchedulingUnit<FunctionBase*>* unit, const SchedulingPassOptions& options,
+    SchedulingPassResults* results) const {
+  FunctionBase* f = unit->ir;
+
+  ScheduleCycleMap scm;
+  if (unit->schedule.has_value()) {
+    if (f != unit->schedule.value().function_base()) {
+      return false;
+    }
+    scm = unit->schedule.value().GetCycleMap();
+  } else {
+    for (Node* node : unit->ir->nodes()) {
+      scm[node] = 0;
+    }
+  }
+
   // Sets limit on z3 "solver resources", so that the pass doesn't take too long
-  const int64_t z3_rlimit = (options.mutual_exclusion_z3_rlimit < 0)
-                                ? 5000
-                                : options.mutual_exclusion_z3_rlimit;
+  const int64_t z3_rlimit =
+      options.scheduling_options.mutual_exclusion_z3_rlimit().has_value()
+          ? options.scheduling_options.mutual_exclusion_z3_rlimit().value()
+          : 5000;
 
   const std::string z3_rlimit_str = absl::StrCat(z3_rlimit);
 
@@ -962,7 +973,7 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
   XLS_RETURN_IF_ERROR(AddSendReceivePredicates(&p, f));
   XLS_RETURN_IF_ERROR(ComputeMutualExclusion(&p, f));
   XLS_ASSIGN_OR_RETURN(std::vector<absl::flat_hash_set<Node*>> merge_classes,
-                       ComputeMergeClasses(&p, f));
+                       ComputeMergeClasses(&p, f, scm));
 
   if (XLS_VLOG_IS_ON(3)) {
     for (const absl::flat_hash_set<Node*>& merge_class : merge_classes) {

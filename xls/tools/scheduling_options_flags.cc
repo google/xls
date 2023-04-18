@@ -61,6 +61,8 @@ ABSL_FLAG(std::vector<std::string>, io_constraints, {},
 ABSL_FLAG(bool, receives_first_sends_last, false,
           "If true, this forces receives into the first cycle and sends into "
           "the last cycle.");
+ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
+          "Resource limit for solver in mutual exclusion pass");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -137,6 +139,10 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
     scheduling_options.add_constraint(RecvsFirstSendsLastConstraint());
   }
   scheduling_options.add_constraint(BackedgeConstraint());
+  if (absl::GetFlag(FLAGS_mutual_exclusion_z3_rlimit) != -1) {
+    scheduling_options.mutual_exclusion_z3_rlimit(
+        absl::GetFlag(FLAGS_mutual_exclusion_z3_rlimit));
+  }
 
   if (p != nullptr) {
     for (const SchedulingConstraint& c : scheduling_options.constraints()) {

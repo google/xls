@@ -220,8 +220,6 @@ absl::Status RealMain(std::string_view ir_path) {
 
   verilog::ModuleGeneratorResult result;
 
-  XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
-
   XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
                        CodegenOptionsFromProto(codegen_flags_proto));
 
@@ -237,6 +235,8 @@ absl::Status RealMain(std::string_view ir_path) {
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         RunSchedulingPipeline(main(), scheduling_options, delay_estimator));
+
+    XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
     XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
                                      schedule, main(), codegen_options));

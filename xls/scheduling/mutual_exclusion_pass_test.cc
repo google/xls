@@ -48,10 +48,16 @@ class MutualExclusionPassTest : public IrTestBase {
     PassResults results;
     bool changed = false;
     bool subpass_changed;
-    XLS_ASSIGN_OR_RETURN(
-        subpass_changed,
-        MutualExclusionPass().RunOnFunctionBase(f, PassOptions(), &results));
-    changed |= subpass_changed;
+    {
+      SchedulingUnit<FunctionBase*> unit;
+      unit.ir = f;
+      SchedulingPassResults scheduling_results;
+      XLS_ASSIGN_OR_RETURN(
+          subpass_changed,
+          MutualExclusionPass().RunOnFunctionBase(
+              &unit, SchedulingPassOptions(), &scheduling_results));
+      changed |= subpass_changed;
+    }
     XLS_ASSIGN_OR_RETURN(
         subpass_changed,
         SimplificationPass().Run(f->package(), PassOptions(), &results));

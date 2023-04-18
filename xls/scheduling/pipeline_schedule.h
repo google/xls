@@ -94,6 +94,9 @@ class PipelineSchedule {
   // Returns the number of internal registers in this schedule.
   int64_t CountFinalInteriorPipelineRegisters() const;
 
+  // Returns the underlying cycle map.
+  const ScheduleCycleMap& GetCycleMap() const { return cycle_map_; }
+
  private:
   FunctionBase* function_base_;
 

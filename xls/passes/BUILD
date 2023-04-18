@@ -61,7 +61,6 @@ cc_library(
         ":useless_io_removal_pass",
         ":verifier_checker",
         "@com_google_absl//absl/status:statusor",
-        "//xls/scheduling:mutual_exclusion_pass",
     ],
 )
 

@@ -201,7 +201,6 @@ def _optimize_ir(ctx, src):
         "run_only_passes",
         "skip_passes",
         "opt_level",
-        "mutual_exclusion_z3_rlimit",
         "convert_array_index_to_select",
         "inline_procs",
     )

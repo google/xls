@@ -55,19 +55,15 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
       .inline_procs = options.inline_procs,
       .convert_array_index_to_select = options.convert_array_index_to_select,
       .ram_rewrites = options.ram_rewrites,
-      .mutual_exclusion_z3_rlimit = options.mutual_exclusion_z3_rlimit};
+  };
   PassResults results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package.get(), pass_options, &results).status());
-  // If opt returns something that obviously can't be codegenned, that's a bug
-  // in opt, not codegen.
-  XLS_RETURN_IF_ERROR(xls::VerifyPackage(package.get(), /*codegen=*/true));
   return package->DumpIr();
 }
 
 absl::StatusOr<std::string> OptimizeIrForTop(
-    std::string_view input_path, int64_t opt_level,
-    int64_t mutual_exclusion_z3_rlimit, std::string_view top,
+    std::string_view input_path, int64_t opt_level, std::string_view top,
     std::string_view ir_dump_path,
     absl::Span<const std::string> run_only_passes,
     absl::Span<const std::string> skip_passes,
@@ -83,7 +79,6 @@ absl::StatusOr<std::string> OptimizeIrForTop(
   }
   const OptOptions options = {
       .opt_level = opt_level,
-      .mutual_exclusion_z3_rlimit = mutual_exclusion_z3_rlimit,
       .top = top,
       .ir_dump_path = std::string(ir_dump_path),
       .run_only_passes =

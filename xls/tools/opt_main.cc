@@ -61,9 +61,6 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
-ABSL_FLAG(
-    int64_t, mutual_exclusion_z3_rlimit, -1,
-    absl::StrFormat("Resource limit for solver in mutual exclusion pass"));
 ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass.");
 ABSL_FLAG(std::string, ram_rewrites_pb, "",
@@ -78,8 +75,6 @@ absl::Status RealMain(std::string_view input_path) {
     input_path = "/dev/stdin";
   }
   int64_t opt_level = absl::GetFlag(FLAGS_opt_level);
-  int64_t mutual_exclusion_z3_rlimit =
-      absl::GetFlag(FLAGS_mutual_exclusion_z3_rlimit);
   std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> run_only_passes =
@@ -93,7 +88,6 @@ absl::Status RealMain(std::string_view input_path) {
       std::string opt_ir,
       tools::OptimizeIrForTop(
           /*input_path=*/input_path, /*opt_level=*/opt_level,
-          /*mutual_exclusion_z3_rlimit=*/mutual_exclusion_z3_rlimit,
           /*top=*/top,
           /*ir_dump_path=*/ir_dump_path,
           /*run_only_passes=*/run_only_passes,

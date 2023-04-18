@@ -20,6 +20,11 @@
 
 namespace xls {
 
+class SimplificationPass : public FixedPointCompoundPass {
+ public:
+  explicit SimplificationPass(int64_t opt_level);
+};
+
 // CreateStandardPassPipeline connects together the various optimization
 // and analysis passes in the order of execution.
 std::unique_ptr<CompoundPass> CreateStandardPassPipeline(

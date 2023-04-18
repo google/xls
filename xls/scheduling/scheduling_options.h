@@ -198,6 +198,15 @@ class SchedulingOptions {
   }
   std::optional<int32_t> seed() const { return seed_; }
 
+  // The rlimit used for mutual exclusion analysis.
+  SchedulingOptions& mutual_exclusion_z3_rlimit(int64_t value) {
+    mutual_exclusion_z3_rlimit_ = value;
+    return *this;
+  }
+  std::optional<int64_t> mutual_exclusion_z3_rlimit() const {
+    return mutual_exclusion_z3_rlimit_;
+  }
+
  private:
   SchedulingStrategy strategy_;
   std::optional<int64_t> clock_period_ps_;
@@ -207,6 +216,7 @@ class SchedulingOptions {
   std::optional<int64_t> additional_input_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
+  std::optional<int64_t> mutual_exclusion_z3_rlimit_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

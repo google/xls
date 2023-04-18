@@ -294,3 +294,9 @@ response-receive are scheduled to match the RAM's latency.
     result in more resource/area. Setting this value to `false` may reduce the
     resource/area utilization, but may also result in mismatches between
     IR-level evaluation and Verilog simulation.
+
+-   `--mutual_exclusion_z3_rlimit` controls how hard the mutual exclusion pass
+    will work to attempt to prove that sends and receives are mutually
+    exclusive. Concretely, this roughly limits the number of `malloc` calls done
+    by the Z3 solver, so the output should be deterministic across machines for
+    a given rlimit.

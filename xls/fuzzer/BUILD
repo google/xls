@@ -284,6 +284,9 @@ generate_crasher_regression_tests(
         "crashers/crasher_2022-10-25_133f.x": [
             "optonly",
         ],
+        "crashers/multiple-sends.x": [
+            "optonly",
+        ],
     },
 )
 

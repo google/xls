@@ -23,6 +23,10 @@ namespace xls {
 absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     SchedulingUnit<>* unit, const SchedulingPassOptions& options,
     PassResults* results) const {
+  if (!unit->schedule.has_value()) {
+    return wrapped_pass_->Run(unit->ir, PassOptions(), results);
+  }
+
   absl::flat_hash_map<int64_t, Node*> nodes_before;
   for (FunctionBase* f : unit->ir->GetFunctionBases()) {
     for (Node* node : f->nodes()) {

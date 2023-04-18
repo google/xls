@@ -33,7 +33,6 @@ namespace xls::tools {
 // this consolidated library).
 struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
-  int64_t mutual_exclusion_z3_rlimit = -1;
   std::string_view top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = std::nullopt;
@@ -53,8 +52,7 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
 // Convenience wrapper around the above that builds an OptOptions appropriately.
 // Analagous to calling opt_main with each argument being a flag.
 absl::StatusOr<std::string> OptimizeIrForTop(
-    std::string_view input_path, int64_t opt_level,
-    int64_t mutual_exclusion_z3_rlimit, std::string_view top,
+    std::string_view input_path, int64_t opt_level, std::string_view top,
     std::string_view ir_dump_path,
     absl::Span<const std::string> run_only_passes,
     absl::Span<const std::string> skip_passes,

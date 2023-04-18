@@ -232,6 +232,7 @@ def xls_ir_verilog_impl(ctx, src):
         "ram_configurations",
         "gate_recvs",
         "array_index_bounds_checking",
+        "mutual_exclusion_z3_rlimit",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)
