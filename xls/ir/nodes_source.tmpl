@@ -240,6 +240,14 @@ Type* Receive::GetPayloadType() const {
   return GetReceivePayloadType(function_base_->package(), channel_id_);
 }
 
+void Receive::ReplaceChannel(int64_t new_channel_id) {
+  channel_id_ = new_channel_id;
+}
+
+void Send::ReplaceChannel(int64_t new_channel_id) {
+  channel_id_ = new_channel_id;
+}
+
 absl::StatusOr<Node*> Receive::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {

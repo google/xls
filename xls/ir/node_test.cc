@@ -14,18 +14,28 @@
 
 #include "xls/ir/node.h"
 
+#include <cstdint>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
@@ -211,6 +221,85 @@ TEST_F(NodeTest, ReplaceOperandNumber) {
               StatusIs(absl::StatusCode::kInternal));
   XLS_ASSERT_OK(f->return_value()->ReplaceOperandNumber(
       1, FindNode("z", f), /*type_must_match=*/false));
+}
+
+TEST_F(NodeTest, ReplaceSendChannel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p->CreateStreamingChannel("ch0", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p->CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), "tok", p.get());
+  BValue send_on_c1 =
+      pb.StateElement("send_on_c1", Value(UBits(0, /*bit_count=*/1)));
+  BValue send0_tok =
+      pb.Send(ch0, pb.GetTokenParam(), pb.Literal(UBits(123, 32)));
+  BValue send1_tok =
+      pb.SendIf(ch1, send0_tok, send_on_c1, pb.Literal(UBits(456, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(send1_tok, {pb.Not(send_on_c1)}));
+  Send* send0 = send0_tok.node()->As<Send>();
+  Send* send1 = send1_tok.node()->As<Send>();
+  EXPECT_NE(send0->channel_id(), ch1->id());
+  send0->ReplaceChannel(ch1->id());
+  EXPECT_EQ(send0->channel_id(), ch1->id());
+  XLS_EXPECT_OK(VerifyNode(send0));
+  EXPECT_NE(send1->channel_id(), ch0->id());
+  send1->ReplaceChannel(ch0->id());
+  EXPECT_EQ(send1->channel_id(), ch0->id());
+  XLS_EXPECT_OK(VerifyNode(send1));
+  XLS_EXPECT_OK(VerifyProc(proc));
+}
+
+TEST_F(NodeTest, ReplaceReceiveChannel) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p->CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p->CreateStreamingChannel("ch1", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch2, p->CreateStreamingChannel("ch2", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch3, p->CreateStreamingChannel("ch3", ChannelOps::kReceiveOnly,
+                                               p->GetBitsType(32)));
+  ProcBuilder pb(TestName(), "tok", p.get());
+  BValue recv_on_c1 =
+      pb.StateElement("recv_on_c1", Value(UBits(0, /*bit_count=*/1)));
+  BValue recv_on_c2 =
+      pb.StateElement("recv_on_c1", Value(UBits(1, /*bit_count=*/1)));
+  BValue recv0 = pb.Receive(ch0, pb.GetTokenParam());
+  BValue recv0_tok = pb.TupleIndex(recv0, /*idx=*/0);
+  BValue recv1 = pb.ReceiveIf(ch1, recv0_tok, recv_on_c1);
+  BValue recv1_tok = pb.TupleIndex(recv1, /*idx=*/0);
+  BValue recv2 = pb.ReceiveIfNonBlocking(ch2, recv1_tok, recv_on_c2);
+  BValue recv2_tok = pb.TupleIndex(recv2, /*idx=*/0);
+  BValue recv3 = pb.ReceiveNonBlocking(ch3, recv2_tok);
+  BValue recv3_tok = pb.TupleIndex(recv3, /*idx=*/0);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      pb.Build(recv3_tok, {pb.Not(recv_on_c1), pb.Not(recv_on_c2)}));
+  Receive* recv0_node = recv0.node()->As<Receive>();
+  Receive* recv1_node = recv1.node()->As<Receive>();
+  Receive* recv2_node = recv2.node()->As<Receive>();
+  EXPECT_NE(recv0_node->channel_id(), ch1->id());
+  recv0_node->ReplaceChannel(ch1->id());
+  EXPECT_EQ(recv0_node->channel_id(), ch1->id());
+  XLS_EXPECT_OK(VerifyNode(recv0_node));
+  EXPECT_NE(recv1_node->channel_id(), ch2->id());
+  recv1_node->ReplaceChannel(ch2->id());
+  EXPECT_EQ(recv1_node->channel_id(), ch2->id());
+  XLS_EXPECT_OK(VerifyNode(recv1_node));
+  EXPECT_NE(recv2_node->channel_id(), ch0->id());
+  recv2_node->ReplaceChannel(ch0->id());
+  EXPECT_EQ(recv2_node->channel_id(), ch0->id());
+  XLS_EXPECT_OK(VerifyNode(recv2_node));
+
+  XLS_EXPECT_OK(VerifyProc(proc));
 }
 
 TEST_F(NodeTest, IsDefinitelyEqualTo) {

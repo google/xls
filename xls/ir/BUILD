@@ -622,11 +622,17 @@ cc_test(
     name = "node_test",
     srcs = ["node_test.cc"],
     deps = [
+        ":bits",
+        ":channel_ops",
         ":function_builder",
         ":ir",
         ":ir_test_base",
+        ":op",
+        ":source_location",
+        ":value",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
         "@com_google_googletest//:gtest",
     ],
 )
