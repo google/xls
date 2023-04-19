@@ -14,16 +14,46 @@
 
 #include "xls/passes/proc_inlining_pass.h"
 
+#include <cstdint>
+#include <list>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/pass_base.h"
+#include "xls/passes/query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
 
 namespace xls {
@@ -848,7 +878,7 @@ class ProcThread {
   // Allocate and return a state element. The state will later be added to the
   // container proc state.
   absl::StatusOr<StateElement*> AllocateState(std::string_view name,
-                                              Value initial_value);
+                                              const Value& initial_value);
 
   // Allocates an activation node for the proc thread's activation network.
   // `activations_in` are the activation bits of the predecessors of this node
@@ -1213,8 +1243,8 @@ class ProcThread {
   absl::flat_hash_map<Node*, ActivationNode*> original_node_to_activation_node_;
 };
 
-absl::StatusOr<StateElement*> ProcThread::AllocateState(std::string_view name,
-                                                        Value initial_value) {
+absl::StatusOr<StateElement*> ProcThread::AllocateState(
+    std::string_view name, const Value& initial_value) {
   XLS_VLOG(3) << absl::StreamFormat(
       "AllocateState: %s, size: %d, initial value %s", name,
       initial_value.GetFlatBitCount(), initial_value.ToString());
@@ -1457,7 +1487,6 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
                        container_proc_->MakeNodeWithName<TupleIndex>(
                            SourceInfo(), activated_receive, 1,
                            absl::StrFormat("%s_data_in", channel->name())));
-  activation_node->data_out = data;
 
   XLS_ASSIGN_OR_RETURN(Node * token, container_proc_->MakeNode<TupleIndex>(
                                          SourceInfo(), activated_receive, 0));
@@ -1591,8 +1620,21 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
   }
 
   std::vector<Proc*> procs_to_inline;
+  procs_to_inline.reserve(p->procs().size());
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     procs_to_inline.push_back(proc.get());
+  }
+
+  for (Proc* proc : procs_to_inline) {
+    // Check for any non-blocking reiceives, which are not supported.
+    // Error out early: inlining creates new receives, and erroring out later
+    // can lead to weird verifier errors from leftover state.
+    for (Node* node : proc->nodes()) {
+      if (node->Is<Receive>() && !node->As<Receive>()->is_blocking()) {
+        return absl::UnimplementedError(
+            "Proc inlining does not support non-blocking receives.");
+      }
+    }
   }
 
   {

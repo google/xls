@@ -14,22 +14,42 @@
 
 #include "xls/passes/proc_inlining_pass.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <numeric>
+#include <optional>
 #include <random>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
-#include "xls/ir/function.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -348,6 +368,59 @@ class ProcInliningPassTest : public IrTestBase {
                    {b.Not(cnt), x_plus_x_accum, y_plus_y_accum});
   }
 
+  // Simple proc that arbitrates between inputs, with lower-index inputs being
+  // higher priority than higher-index inputs.
+  absl::StatusOr<Proc*> MakeArbiterProc(std::string_view name,
+                                        absl::Span<Channel* const> inputs,
+                                        Channel* out, Package* p) {
+    XLS_RET_CHECK(!inputs.empty());
+    XLS_RETURN_IF_ERROR(std::accumulate(
+        inputs.begin(), inputs.end(), absl::OkStatus(),
+        [inputs](const absl::Status& status_in,
+                 Channel* channel) -> absl::Status {
+          XLS_RETURN_IF_ERROR(status_in);
+          if (!inputs[0]->type()->IsEqualTo(channel->type())) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Inputs must be same type, got %s != %s for channel %s.",
+                inputs[0]->type()->ToString(), channel->type()->ToString(),
+                channel->name()));
+          }
+          if (!channel->CanReceive()) {
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "Must be able to receive on channel %s.", channel->name()));
+          }
+          return absl::OkStatus();
+        }));
+
+    ProcBuilder b(name, "tkn", p);
+
+    BValue token = b.GetTokenParam();
+    std::vector<BValue> recv_data;
+    recv_data.reserve(inputs.size());
+    std::vector<BValue> recv_data_valids;
+    recv_data_valids.reserve(inputs.size());
+    for (Channel* in : inputs) {
+      BValue recv_pred;
+      if (recv_data_valids.empty()) {
+        recv_pred = b.Literal(UBits(1, /*bit_count=*/1));
+      } else {
+        recv_pred = b.Not(b.Or(recv_data_valids));
+      }
+      BValue recv = b.ReceiveIfNonBlocking(in, token, recv_pred);
+      token = b.TupleIndex(recv, 0);
+      recv_data.push_back(b.TupleIndex(recv, 1));
+      BValue recv_data_valid = b.And({recv_pred, b.TupleIndex(recv, 2)});
+      recv_data_valids.push_back(recv_data_valid);
+    }
+    BValue send_pred = b.Or(recv_data_valids);
+    // First element should be LSB, last should be MSB.
+    std::reverse(recv_data_valids.begin(), recv_data_valids.end());
+    BValue send_data = b.OneHotSelect(b.Concat(recv_data_valids), recv_data);
+    token = b.SendIf(out, token, send_pred, send_data);
+
+    return b.Build(token, {});
+  }
+
   int64_t TotalProcStateSize(Package* p) {
     int64_t bit_count = 0;
     XLS_VLOG(1) << absl::StreamFormat("Proc state of package %s:", p->name());
@@ -583,10 +656,10 @@ TEST_F(ProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
 
   ProcBuilder ab("A", "tkn", p.get());
   BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
-  BValue in_data = ab.TupleIndex(rcv_in, 1);
-  BValue data_is_odd = ab.BitSlice(in_data, /*start=*/0, /*width=*/1);
-  BValue send_to_b =
-      ab.SendIf(a_to_b, ab.TupleIndex(rcv_in, 0), data_is_odd, in_data);
+  BValue data_in = ab.TupleIndex(rcv_in, 1);
+  BValue pred_data_is_odd = ab.BitSlice(data_in, /*start=*/0, /*width=*/1);
+  BValue send_to_b = ab.SendIf(a_to_b, ab.TupleIndex(rcv_in, 0),
+                               /*pred=*/pred_data_is_odd, /*data=*/data_in);
   BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
   BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                             ab.TupleIndex(rcv_from_b, 1));
@@ -3288,6 +3361,85 @@ TEST_F(ProcInliningPassTest, ProcsWithDifferentII) {
   EXPECT_THAT(Run(p.get(), /*top=*/"A"),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("had a different initiation interval")));
+}
+
+TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0,
+      p->CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1,
+      p->CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * drop_to_arb,
+      p->CreateStreamingChannel("drop_to_arb", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  {
+    ProcBuilder b("drop", "tok", p.get());
+    BValue done = b.StateElement("done", Value(UBits(0, 1)));
+    BValue recv = b.Receive(in0, b.GetTokenParam());
+    BValue recv_token = b.TupleIndex(recv, 0);
+    BValue data = b.TupleIndex(recv, 1);
+    BValue send_token = b.SendIf(drop_to_arb, recv_token, b.Not(done), data);
+
+    XLS_ASSERT_OK(b.Build(send_token, {b.Literal(UBits(1, /*bit_count=*/1))}));
+  }
+
+  XLS_ASSERT_OK(
+      MakeArbiterProc("arb", {drop_to_arb, in1}, out, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(),
+                {{"in0", {100, 3, 5, 7, 9, 11}}, {"in1", {0, 2, 4, 6, 8, 10}}},
+                {{"out", {100, 0, 2, 4, 6, 8, 10}}});
+  EXPECT_THAT(
+      Run(p.get(), /*top=*/"arb"),
+      StatusIs(
+          absl::StatusCode::kUnimplemented,
+          HasSubstr("Proc inlining does not support non-blocking receives.")));
+}
+
+TEST_F(ProcInliningPassTest,
+       ProcsWithNonblockingReceivesWithLoopingAccumulator) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0,
+      p->CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1,
+      p->CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * accum_to_arb,
+      p->CreateStreamingChannel("accum_to_arb", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK(
+      MakeLoopingAccumulatorProc("accum", in0, accum_to_arb, 3, p.get()));
+
+  XLS_ASSERT_OK(
+      MakeArbiterProc("arb", {accum_to_arb, in1}, out, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(),
+                {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}},
+                {{"out", {0, 2, 103, 4, 6, 203, 8, 10, 303}}});
+  EXPECT_THAT(
+      Run(p.get(), /*top=*/"arb"),
+      StatusIs(
+          absl::StatusCode::kUnimplemented,
+          HasSubstr("Proc inlining does not support non-blocking receives.")));
 }
 
 }  // namespace
