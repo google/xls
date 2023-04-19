@@ -75,10 +75,9 @@ static absl::StatusOr<std::string> IrToJsonWrapper(
             SchedulingOptions().pipeline_stages(pipeline_stages.value())));
     return IrToJson(package.get(), *delay_estimator, &schedule,
                     func_base->name());
-  } else {
-    return IrToJson(package.get(), *delay_estimator, /*schedule=*/nullptr,
-                    func_base->name());
   }
+  return IrToJson(package.get(), *delay_estimator, /*schedule=*/nullptr,
+                  func_base->name());
 }
 
 PYBIND11_MODULE(ir_to_json, m) {
