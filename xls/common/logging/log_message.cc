@@ -509,7 +509,7 @@ LogMessageQuietlyFatal::~LogMessageQuietlyFatal() {
 
 }  // namespace logging_internal
 
-void AddLogSink(LogSink* sink)
+static void AddLogSink(LogSink* sink)
     ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
   absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
   if (!logging_internal::global_sinks) {
@@ -518,7 +518,7 @@ void AddLogSink(LogSink* sink)
   logging_internal::global_sinks->push_back(sink);
 }
 
-void RemoveLogSink(LogSink* sink)
+static void RemoveLogSink(LogSink* sink)
     ABSL_LOCKS_EXCLUDED(logging_internal::global_sinks_mutex) {
   absl::MutexLock global_sinks_lock(&logging_internal::global_sinks_mutex);
   if (!logging_internal::global_sinks) {
