@@ -37,11 +37,10 @@ absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
           absl::StrFormat("No delay estimator found named \"%s\". No "
                           "estimators are registered. Was InitXls called?",
                           name));
-    } else {
-      return absl::NotFoundError(absl::StrFormat(
-          "No delay estimator found named \"%s\". Available estimators: %s",
-          name, absl::StrJoin(estimator_names_, ", ")));
     }
+    return absl::NotFoundError(absl::StrFormat(
+        "No delay estimator found named \"%s\". Available estimators: %s", name,
+        absl::StrJoin(estimator_names_, ", ")));
   }
   return estimators_.at(name).second.get();
 }
@@ -139,13 +138,12 @@ namespace {
       if (operand_width <= 2) {
         // A 2-bit or less encode simply passes through the MSB.
         return 0;
-      } else {
-        XLS_ASSIGN_OR_RETURN(
-            int64_t nor_delay,
-            netlist::logical_effort::GetLogicalEffort(netlist::CellKind::kNor,
-                                                      (operand_width + 1) / 2));
-        return std::ceil(nor_delay + 1);
       }
+      XLS_ASSIGN_OR_RETURN(
+          int64_t nor_delay,
+          netlist::logical_effort::GetLogicalEffort(netlist::CellKind::kNor,
+                                                    (operand_width + 1) / 2));
+      return std::ceil(nor_delay + 1);
     }
     default:
       break;

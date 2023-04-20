@@ -31,9 +31,6 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
-using ::testing::ElementsAre;
-
 class AnalyzeCriticalPathTest : public IrTestBase {
  protected:
   const DelayEstimator* delay_estimator_ = GetDelayEstimator("unit").value();
