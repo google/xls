@@ -79,7 +79,8 @@ bool MatchUint(const Type& type, std::string* enclosing_type) {
   if (bit_count <= 16) {
     *enclosing_type = "uint16_t";
     return true;
-  } else if (bit_count <= 32) {
+  }
+  if (bit_count <= 32) {
     *enclosing_type = "uint32_t";
     return true;
   } else if (bit_count <= 64) {
@@ -144,17 +145,15 @@ std::string PackedTypeString(const Type& type) {
         PackedTypeString(*array_type->element_type());
     return absl::StrFormat("xls::PackedArrayView<%s, %d>", element_type_str,
                            array_type->size());
-  } else {
-    // Is tuple!
-    XLS_CHECK(type.IsTuple()) << type.ToString();
-    const TupleType* tuple_type = type.AsTupleOrDie();
-    std::vector<std::string> element_type_strs;
-    for (const Type* element_type : tuple_type->element_types()) {
-      element_type_strs.push_back(PackedTypeString(*element_type));
-    }
-    return absl::StrFormat("xls::PackedTupleView<%s>",
-                           absl::StrJoin(element_type_strs, ", "));
+  }  // Is tuple!
+  XLS_CHECK(type.IsTuple()) << type.ToString();
+  const TupleType* tuple_type = type.AsTupleOrDie();
+  std::vector<std::string> element_type_strs;
+  for (const Type* element_type : tuple_type->element_types()) {
+    element_type_strs.push_back(PackedTypeString(*element_type));
   }
+  return absl::StrFormat("xls::PackedTupleView<%s>",
+                         absl::StrJoin(element_type_strs, ", "));
 }
 
 // Emits the code necessary to convert a u32/i32 value to its corresponding
@@ -199,7 +198,8 @@ std::optional<std::string> MatchTypeSpecialization(const Type& type) {
   }
   if (MatchFloat(type)) {
     return "float";
-  } else if (MatchDouble(type)) {
+  }
+  if (MatchDouble(type)) {
     return "double";
   }
 
@@ -217,7 +217,8 @@ std::optional<std::string> CreateConversion(std::string_view name,
   }
   if (MatchFloat(type)) {
     return ConvertFloat(name);
-  } else if (MatchDouble(type)) {
+  }
+  if (MatchDouble(type)) {
     return ConvertDouble(name);
   }
 

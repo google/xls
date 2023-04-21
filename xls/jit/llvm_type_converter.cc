@@ -103,7 +103,8 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
 
     return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
                                      llvm_elements);
-  } else if (type->isArrayTy()) {
+  }
+  if (type->isArrayTy()) {
     std::vector<llvm::Constant*> elements;
     llvm::Type* element_type = type->getArrayElementType();
     for (const Value& element : value.elements()) {
