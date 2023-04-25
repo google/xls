@@ -316,7 +316,7 @@ void TypeInfo::AddSliceStartAndWidth(Slice* node,
         SliceData{node, {{parametric_env, std::move(start_width)}}};
   } else {
     top->slices_[node].bindings_to_start_width.emplace(parametric_env,
-                                                       std::move(start_width));
+                                                       start_width);
   }
 }
 
