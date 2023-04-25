@@ -159,7 +159,7 @@ std::optional<ValidProto> CodegenOptions::valid_control() const {
 }
 
 CodegenOptions& CodegenOptions::clock_name(std::string_view clock_name) {
-  clock_name_ = std::move(clock_name);
+  clock_name_ = clock_name;
   return *this;
 }
 
