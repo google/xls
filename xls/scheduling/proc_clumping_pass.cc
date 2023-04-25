@@ -225,7 +225,9 @@ absl::StatusOr<Counter> AddCounterFSM(Proc* proc, std::string_view name,
 // If the given node is not side-effecting then this has no effect.
 // Returns the node that `node` was replaced with if it was.
 absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
-    Node* node, Node* condition) {
+    Node* node, Node* condition, ScheduleCycleMap* scm) {
+  XLS_CHECK_NE(scm, nullptr);
+
   FunctionBase* f = node->function_base();
 
   if (node->Is<Send>()) {
@@ -237,6 +239,8 @@ absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
           f->MakeNode<NaryOp>(SourceInfo(),
                               std::vector<Node*>({condition, pred.value()}),
                               Op::kAnd));
+      int64_t s = scm->at(pred.value());
+      (*scm)[new_pred] = s;
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_send,
@@ -255,6 +259,8 @@ absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
           f->MakeNode<NaryOp>(SourceInfo(),
                               std::vector<Node*>({condition, pred.value()}),
                               Op::kAnd));
+      int64_t s = scm->at(pred.value());
+      (*scm)[new_pred] = s;
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_recv,
@@ -273,6 +279,8 @@ absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
           f->MakeNode<NaryOp>(SourceInfo(),
                               std::vector<Node*>({condition, cond.value()}),
                               Op::kAnd));
+      int64_t s = scm->at(cond.value());
+      (*scm)[new_cond] = s;
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_assert,
@@ -291,6 +299,8 @@ absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
           f->MakeNode<NaryOp>(SourceInfo(),
                               std::vector<Node*>({condition, cond.value()}),
                               Op::kAnd));
+      int64_t s = scm->at(cond.value());
+      (*scm)[new_cond] = s;
     }
     XLS_ASSIGN_OR_RETURN(Node * new_cover,
                          f->MakeNode<Cover>(cover->loc(), cover->token(),
@@ -308,6 +318,8 @@ absl::StatusOr<std::optional<Node*>> AddConditionToSideEffectingNode(
           f->MakeNode<NaryOp>(SourceInfo(),
                               std::vector<Node*>({condition, cond.value()}),
                               Op::kAnd));
+      int64_t s = scm->at(cond.value());
+      (*scm)[new_cond] = s;
     }
     XLS_ASSIGN_OR_RETURN(
         Node * new_trace,
@@ -405,6 +417,7 @@ absl::StatusOr<bool> ProcClumpingPass::RunInternal(
     // If there are state backedges (implicit uses as a next node) on the given
     // node, we need to add a mux driven by the counter predicate corresponding
     // to the logical cycle of the node.
+    int64_t physical_cycle = physical_schedule.at(node);
     int64_t logical_cycle = logical_schedule.at(node);
     Node* predicate = counter.predicates.at(logical_cycle);
     for (int64_t index : proc->GetNextStateIndices(node)) {
@@ -415,6 +428,7 @@ absl::StatusOr<bool> ProcClumpingPass::RunInternal(
                                  std::vector<Node*>({prev_state, node}),
                                  /*default_value=*/std::nullopt));
       XLS_RETURN_IF_ERROR(proc->SetNextStateElement(index, mux));
+      physical_schedule[mux] = physical_cycle;
     }
   }
 
@@ -446,8 +460,9 @@ absl::StatusOr<bool> ProcClumpingPass::RunInternal(
 
     // Add the counter predicate of the logical cycle of `node` as a condition
     // to `node` if it is side-effecting.
-    XLS_ASSIGN_OR_RETURN(std::optional<Node*> new_node,
-                         AddConditionToSideEffectingNode(node, condition));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> new_node,
+        AddConditionToSideEffectingNode(node, condition, &physical_schedule));
     if (new_node.has_value()) {
       XLS_RETURN_IF_ERROR(proc->RemoveNode(node));
       physical_schedule.erase(node);
@@ -455,7 +470,11 @@ absl::StatusOr<bool> ProcClumpingPass::RunInternal(
     }
   }
 
-  return false;
+  unit->schedule =
+      PipelineSchedule(unit->schedule.value().function_base(),
+                       physical_schedule, unit->schedule.value().length());
+
+  return true;
 }
 
 }  // namespace xls
