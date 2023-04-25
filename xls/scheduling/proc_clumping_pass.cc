@@ -119,6 +119,9 @@ absl::StatusOr<ScheduleCycleMap> ScheduleSubProc(
     if (std::holds_alternative<BackedgeConstraint>(constraint)) {
       continue;
     }
+    // TODO(taktoa): map the nodes in these constraints to the cloned nodes
+    XLS_CHECK(!std::holds_alternative<NodeInCycleConstraint>(constraint));
+    XLS_CHECK(!std::holds_alternative<DifferenceConstraint>(constraint));
     scheduling_options.add_constraint(constraint);
   }
 

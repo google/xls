@@ -192,6 +192,7 @@ class ConstraintBuilder {
   absl::Status AddIOConstraint(const IOConstraint& constraint);
   absl::Status AddNodeInCycleConstraint(
       const NodeInCycleConstraint& constraint);
+  absl::Status AddDifferenceConstraint(const DifferenceConstraint& constraint);
   absl::Status AddRFSLConstraint(
       const RecvsFirstSendsLastConstraint& constraint);
 
@@ -444,6 +445,9 @@ absl::Status ConstraintBuilder::AddSchedulingConstraint(
     return AddNodeInCycleConstraint(
         std::get<NodeInCycleConstraint>(constraint));
   }
+  if (std::holds_alternative<DifferenceConstraint>(constraint)) {
+    return AddDifferenceConstraint(std::get<DifferenceConstraint>(constraint));
+  }
   if (std::holds_alternative<RecvsFirstSendsLastConstraint>(constraint)) {
     return AddRFSLConstraint(
         std::get<RecvsFirstSendsLastConstraint>(constraint));
@@ -506,6 +510,20 @@ absl::Status ConstraintBuilder::AddNodeInCycleConstraint(
 
   XLS_VLOG(2) << "Setting node-in-cycle constraint: "
               << absl::StrFormat("cycle[%s] = %d", node->GetName(), cycle);
+
+  return absl::OkStatus();
+}
+
+absl::Status ConstraintBuilder::AddDifferenceConstraint(
+    const DifferenceConstraint& constraint) {
+  Node* a = constraint.GetA();
+  Node* b = constraint.GetB();
+  int64_t max_difference = constraint.GetMaxDifference();
+  DiffLessThanConstraint(a, b, max_difference, "diff");
+
+  XLS_VLOG(2) << "Setting difference constraint: "
+              << absl::StrFormat("cycle[%s] - cycle[%s] ≤ %d", a->GetName(),
+                                 b->GetName(), max_difference);
 
   return absl::OkStatus();
 }

@@ -99,6 +99,25 @@ class NodeInCycleConstraint {
   int64_t cycle_;
 };
 
+// Force the given node to be less than or less than or equal to another node.
+// The constraint will be `a - b ≤ max_difference`, so if you want to express
+// `a ≤ b`, set max_difference to 0, and if you want to express `a < b`, set
+// max_difference to -1.
+class DifferenceConstraint {
+ public:
+  DifferenceConstraint(Node* a, Node* b, int64_t max_difference)
+      : a_(a), b_(b), max_difference_(max_difference) {}
+
+  Node* GetA() const { return a_; }
+  Node* GetB() const { return b_; }
+  int64_t GetMaxDifference() const { return max_difference_; }
+
+ private:
+  Node* a_;
+  Node* b_;
+  int64_t max_difference_;
+};
+
 // When this is present, receives will be scheduled in the first cycle and sends
 // will be scheduled in the last cycle.
 class RecvsFirstSendsLastConstraint {
@@ -115,7 +134,7 @@ class BackedgeConstraint {
 };
 
 using SchedulingConstraint =
-    std::variant<IOConstraint, NodeInCycleConstraint,
+    std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
                  RecvsFirstSendsLastConstraint, BackedgeConstraint>;
 
 // Options to use when generating a pipeline schedule. At least a clock period
