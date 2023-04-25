@@ -14,16 +14,28 @@
 
 #include "xls/codegen/node_expressions.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -367,9 +379,8 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
         mul->loc(),
         file->Mul(file->Make<SignedCast>(mul->loc(), lhs),
                   file->Make<SignedCast>(mul->loc(), rhs), mul->loc()));
-  } else {
-    return file->Mul(lhs, rhs, mul->loc());
   }
+  return file->Mul(lhs, rhs, mul->loc());
 }
 
 // Decomposes `e` into its constituent array elements and adds the elements to
@@ -432,7 +443,7 @@ absl::StatusOr<Expression*> NodeToExpression(
                         node->ToString()));
   };
   auto do_nary_op =
-      [&](std::function<Expression*(Expression*, Expression*)> f) {
+      [&](const std::function<Expression*(Expression*, Expression*)> &f) {
         Expression* accum = inputs[0];
         for (int64_t i = 1; i < inputs.size(); ++i) {
           accum = f(accum, inputs[i]);
@@ -504,11 +515,10 @@ absl::StatusOr<Expression*> NodeToExpression(
       if (slice->width() == 1) {
         return file->Index(inputs[0]->AsIndexableExpressionOrDie(),
                            slice->start(), node->loc());
-      } else {
-        return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
-                           slice->start() + slice->width() - 1, slice->start(),
-                           node->loc());
       }
+      return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
+                         slice->start() + slice->width() - 1, slice->start(),
+                         node->loc());
     }
     case Op::kBitSliceUpdate:
       return unimplemented();
@@ -600,19 +610,18 @@ absl::StatusOr<Expression*> NodeToExpression(
         // A sign extension of a single-bit value is just replication.
         return file->Concat(
             /*replication=*/node->BitCountOrDie(), {inputs[0]}, node->loc());
-      } else {
-        int64_t bits_added =
-            node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
-        return file->Concat(
-            {file->Concat(
-                 /*replication=*/bits_added,
-                 {file->Index(inputs[0]->AsIndexableExpressionOrDie(),
-                              node->operand(0)->BitCountOrDie() - 1,
-                              node->loc())},
-                 node->loc()),
-             inputs[0]},
-            node->loc());
       }
+      int64_t bits_added =
+          node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
+      return file->Concat(
+          {file->Concat(
+               /*replication=*/bits_added,
+               {file->Index(inputs[0]->AsIndexableExpressionOrDie(),
+                            node->operand(0)->BitCountOrDie() - 1,
+                            node->loc())},
+               node->loc()),
+           inputs[0]},
+          node->loc());
     }
     case Op::kSDiv:
       return unimplemented();

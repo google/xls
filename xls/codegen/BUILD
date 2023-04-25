@@ -266,7 +266,10 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:op",
+        "//xls/ir:source_location",
         "//xls/ir:type",
     ],
 )
