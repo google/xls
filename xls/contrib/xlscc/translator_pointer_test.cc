@@ -1214,6 +1214,33 @@ TEST_F(TranslatorPointerTest, SetPointerInMethod) {
           testing::HasSubstr("Don't know how to create LValue for member")));
 }
 
+TEST_F(TranslatorPointerTest, BaseClassReference) {
+  const std::string content = R"(
+    struct FooBase {
+      int v;
+      operator int()const {
+        return v+1;
+      }
+    };
+    struct Foo : public FooBase {
+    };
+    struct Bar {
+      Foo y;
+    };
+    int Test(const Bar& ctrl) {
+      const Foo& v = ctrl.y;
+      return v;
+    }
+    #pragma hls_top
+    int my_package(int a) {
+      Bar bar;
+      bar.y.v = a;
+      return Test(bar);
+    })";
+
+  Run({{"a", 15}}, 16, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

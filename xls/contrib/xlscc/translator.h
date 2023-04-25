@@ -1445,6 +1445,9 @@ class Translator {
 
   absl::StatusOr<ResolvedInheritance> ResolveInheritance(
       std::shared_ptr<CType> sub_type, std::shared_ptr<CType> to_type);
+  absl::StatusOr<CValue> ResolveCast(const CValue& sub,
+                                     const std::shared_ptr<CType>& to_type,
+                                     const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::BValue> GenTypeConvert(CValue const& in,
                                              std::shared_ptr<CType> out_type,

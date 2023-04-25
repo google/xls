@@ -1570,6 +1570,9 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
           std::string(*rvalue.type()),
           std::string(*arr_type->GetElementType())));
     }
+    XLS_ASSIGN_OR_RETURN(bool element_has_lvalues,
+                         arr_type->GetElementType()->ContainsLValues(*this));
+    XLSCC_CHECK(!element_has_lvalues, loc);
     XLSCC_CHECK(rvalue.rvalue().valid(), loc);
     auto arr_rvalue =
         CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
@@ -3018,6 +3021,55 @@ absl::StatusOr<Translator::ResolvedInheritance> Translator::ResolveInheritance(
   return ResolvedInheritance();
 }
 
+absl::StatusOr<CValue> Translator::ResolveCast(
+    const CValue& sub, const std::shared_ptr<CType>& to_type,
+    const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
+                       ResolveInheritance(sub.type(), to_type));
+
+  // Are we casting to a derived class?
+  if (inheritance.base_field != nullptr) {
+    XLSCC_CHECK(inheritance.resolved_struct != nullptr, loc);
+
+    xls::BValue val =
+        GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
+                          *inheritance.resolved_struct, loc);
+
+    return CValue(val, to_type);
+  }
+
+  // Pointer conversions
+  if (sub.type()->Is<CPointerType>()) {
+    if (to_type->Is<CPointerType>()) {
+      return sub;
+    }
+    if (to_type->Is<CArrayType>()) {
+      return GenerateIR_Expr(sub.lvalue(), loc);
+    }
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Don't know how to convert %s to pointer type",
+                     std::string(*sub.type())));
+  }
+  if (auto ref = dynamic_cast<const CReferenceType*>(sub.type().get());
+      ref != nullptr) {
+    XLS_ASSIGN_OR_RETURN(ResolvedInheritance ref_inheritance,
+                         ResolveInheritance(ref->GetPointeeType(), to_type));
+
+    if (*to_type == *ref->GetPointeeType() || ref_inheritance.resolved_struct) {
+      XLSCC_CHECK_NE(sub.lvalue(), nullptr, loc);
+      XLS_ASSIGN_OR_RETURN(CValue subc, GenerateIR_Expr(sub.lvalue(), loc));
+      return ResolveCast(subc, to_type, loc);
+    }
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Don't know how to convert reference type %s to type %s",
+        std::string(*sub.type()), std::string(*to_type)));
+  }
+
+  XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
+
+  return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
+}
+
 absl::Status Translator::FailIfTypeHasDtors(
     const clang::CXXRecordDecl* cxx_record) {
   if (cxx_record->hasUserDeclaredDestructor()) {
@@ -3144,46 +3196,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
-                         ResolveInheritance(sub.type(), to_type));
-
-    // Are we casting to a derived class?
-    if (inheritance.base_field != nullptr) {
-      XLSCC_CHECK(inheritance.resolved_struct != nullptr, loc);
-
-      xls::BValue val =
-          GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
-                            *inheritance.resolved_struct, loc);
-
-      return CValue(val, to_type);
-    }
-
-    // Pointer conversions
-    if (sub.type()->Is<CPointerType>()) {
-      if (to_type->Is<CPointerType>()) {
-        return sub;
-      }
-      if (to_type->Is<CArrayType>()) {
-        return GenerateIR_Expr(sub.lvalue(), loc);
-      }
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Don't know how to convert %s to pointer type",
-                       std::string(*sub.type())));
-    }
-    if (auto ref = dynamic_cast<const CReferenceType*>(sub.type().get());
-        ref != nullptr) {
-      if (*to_type == *ref->GetPointeeType()) {
-        XLSCC_CHECK_NE(sub.lvalue(), nullptr, loc);
-        return GenerateIR_Expr(sub.lvalue(), loc);
-      }
-      return absl::UnimplementedError(ErrorMessage(
-          loc, "Don't know how to convert reference type %s to type %s",
-          std::string(*sub.type()), std::string(*to_type)));
-    }
-
-    XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
-
-    return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
+    return ResolveCast(sub, to_type, loc);
   }
   if (clang::isa<clang::CXXThisExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
