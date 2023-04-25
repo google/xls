@@ -156,43 +156,62 @@ struct Counter {
 
 absl::StatusOr<Counter> AddCounterFSM(Proc* proc, std::string_view name,
                                       int64_t limit) {
-  // TODO(taktoa): It may be cheaper in terms of area to have a log2(ii) bits
-  //               FSM that requires an adder and n equality checks. Note that
-  //               with the log2(ii) bits FSM, we don't need to carry ii bits of
-  //               data along the entire pipeline length.
-
+  XLS_CHECK_GE(limit, 0);
+  int64_t bits = CeilOfLog2(limit);
   XLS_ASSIGN_OR_RETURN(
       Param * fsm_state,
-      proc->AppendStateElement(name, Value(UBits(1, limit)), std::nullopt));
+      proc->AppendStateElement(name, Value(UBits(0, bits)), std::nullopt));
   XLS_ASSIGN_OR_RETURN(int64_t fsm_state_index,
                        proc->GetStateParamIndex(fsm_state));
-  XLS_ASSIGN_OR_RETURN(Node * one, proc->MakeNode<Literal>(
-                                       SourceInfo(), Value(UBits(1, limit))));
+  XLS_ASSIGN_OR_RETURN(Node * zero, proc->MakeNode<Literal>(
+                                        SourceInfo(), Value(UBits(0, bits))));
   XLS_ASSIGN_OR_RETURN(
-      Node * shifted,
-      proc->MakeNode<BinOp>(SourceInfo(), fsm_state, one, Op::kShll));
+      Node * one, proc->MakeNode<Literal>(SourceInfo(), Value(UBits(1, bits))));
   XLS_ASSIGN_OR_RETURN(
-      Node * has_not_overflowed,
-      proc->MakeNode<BitwiseReductionOp>(SourceInfo(), shifted, Op::kOrReduce));
-  XLS_ASSIGN_OR_RETURN(
-      Node * next_fsm_state,
-      proc->MakeNode<Select>(SourceInfo(), has_not_overflowed,
-                             std::vector<Node*>({one, shifted}),
-                             /*default_value=*/std::nullopt));
+      Node * added,
+      proc->MakeNode<BinOp>(SourceInfo(), fsm_state, one, Op::kAdd));
+
+  std::vector<Node*> nodes = {fsm_state, zero, one, added};
+
+  Node* next_fsm_state = nullptr;
+  if (limit == Exp2<int64_t>(static_cast<int>(bits))) {
+    XLS_ASSIGN_OR_RETURN(Node * will_overflow,
+                         proc->MakeNode<BitwiseReductionOp>(
+                             SourceInfo(), fsm_state, Op::kAndReduce));
+    nodes.push_back(will_overflow);
+    XLS_ASSIGN_OR_RETURN(next_fsm_state, proc->MakeNode<Select>(
+                                             SourceInfo(), will_overflow,
+                                             std::vector<Node*>({added, zero}),
+                                             /*default_value=*/std::nullopt));
+  } else {
+    XLS_ASSIGN_OR_RETURN(
+        Node * limit_lit,
+        proc->MakeNode<Literal>(SourceInfo(), Value(UBits(limit, bits))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * equals_limit,
+        proc->MakeNode<CompareOp>(SourceInfo(), added, limit_lit, Op::kEq));
+    nodes.push_back(limit_lit);
+    nodes.push_back(equals_limit);
+    XLS_ASSIGN_OR_RETURN(next_fsm_state, proc->MakeNode<Select>(
+                                             SourceInfo(), equals_limit,
+                                             std::vector<Node*>({added, zero}),
+                                             /*default_value=*/std::nullopt));
+  }
   XLS_RETURN_IF_ERROR(
       proc->SetNextStateElement(fsm_state_index, next_fsm_state));
+  nodes.push_back(next_fsm_state);
 
   std::vector<Node*> predicates;
   predicates.reserve(limit);
   for (int64_t i = 0; i < limit; ++i) {
     XLS_ASSIGN_OR_RETURN(
-        Node * pred, proc->MakeNode<BitSlice>(SourceInfo(), fsm_state, i, 1));
+        Node * index,
+        proc->MakeNode<Literal>(SourceInfo(), Value(UBits(i, bits))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * pred,
+        proc->MakeNode<CompareOp>(SourceInfo(), fsm_state, index, Op::kEq));
     predicates.push_back(pred);
-  }
-
-  std::vector<Node*> nodes{fsm_state, one, shifted, has_not_overflowed,
-                           next_fsm_state};
-  for (Node* pred : predicates) {
+    nodes.push_back(index);
     nodes.push_back(pred);
   }
 
