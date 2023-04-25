@@ -662,6 +662,46 @@ TEST_F(TranslatorLogicTest, MaximumEnum) {
   Run({{"a", 11}}, 11L + 0xFFFFFFFFL + 0xFFFFFFFFL, content);
 }
 
+TEST_F(TranslatorLogicTest, CheckRepeatedGlobals) {
+  const std::string content = R"(
+       enum Values {
+        A=1000, B=10
+       };
+       long long my_package(long long a) {
+         a += A;
+         a += B;
+         a += A;
+         return a;
+       })";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string source, SourceToIr(content));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
+                           ParsePackage(source));
+  ASSERT_EQ(package->functions().size(), 1);
+  xls::Function* function = package->functions()[0].get();
+  int64_t n_literals = 0;
+  for (const xls::Node* n : function->nodes()) {
+    if (n->Is<xls::Literal>()) {
+      XLS_ASSERT_OK_AND_ASSIGN(
+          uint64_t value, n->As<xls::Literal>()->value().bits().ToUint64());
+      if (value == 1000) {
+        ++n_literals;
+      }
+    }
+  }
+  EXPECT_EQ(n_literals, 1);
+}
+
+TEST_F(TranslatorLogicTest, EnumVarDecl) {
+  const std::string content = R"(
+       long long my_package() {
+          enum BlahE {
+            A=2,B,C
+          } decl = A;
+          return decl;
+       })";
+  Run({}, 2, content);
+}
+
 TEST_F(TranslatorLogicTest, SetGlobal) {
   const std::string content = R"(
        int off = 60;

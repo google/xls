@@ -453,6 +453,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     const clang::FunctionDecl* funcdecl, std::string_view name_override,
     bool force_static, bool member_references_become_channels) {
   XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
+
   std::string xls_name;
 
   if (!name_override.empty()) {
@@ -1215,19 +1216,14 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
         ErrorMessage(loc, "Undeclared identifier %s", decl->getNameAsString()));
   }
 
-  const clang::NamedDecl* name =
-      (var_decl != nullptr)
-          ? absl::implicit_cast<const clang::NamedDecl*>(var_decl)
-          : absl::implicit_cast<const clang::NamedDecl*>(enum_decl);
-
   // Don't re-build the global value for each reference
   // They need to be built once for each Function[Builder]
-  auto found_global = context().sf->global_values.find(name);
+  auto found_global = context().sf->global_values.find(decl);
   if (found_global != context().sf->global_values.end()) {
     return found_global->second;
   }
 
-  const xls::SourceInfo global_loc = GetLoc(*name);
+  const xls::SourceInfo global_loc = GetLoc(*decl);
 
   CValue value;
 
@@ -1258,7 +1254,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
       value = CValue(bval, type);
     }
   }
-  context().sf->global_values[name] = value;
+  context().sf->global_values[decl] = value;
   return value;
 }
 
@@ -3955,16 +3951,16 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
     for (auto decl : declstmt->decls()) {
       if (clang::isa<clang::TypedefDecl>(decl)) {
-        break;
+        continue;
       }
       if (clang::isa<clang::StaticAssertDecl>(decl)) {
-        break;
+        continue;
       }
       if (clang::isa<clang::EnumDecl>(decl)) {
-        break;
+        continue;
       }
       if (clang::isa<clang::TypeAliasDecl>(decl)) {
-        break;
+        continue;
       }
       if (auto recd = clang::dyn_cast<const clang::RecordDecl>(decl)) {
         XLS_RETURN_IF_ERROR(ScanStruct(recd));
@@ -3974,6 +3970,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
           return absl::UnimplementedError(ErrorMessage(
               loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
         }
+
         if (vard->isStaticLocal() || vard->isStaticDataMember()) {
           XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, loc));
         } else {
