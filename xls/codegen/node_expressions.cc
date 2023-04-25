@@ -194,11 +194,7 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
 absl::StatusOr<Expression*> EmitOneHotSelect(
     OneHotSelect* sel, IndexableExpression* selector,
     absl::Span<Expression* const> inputs, VerilogFile* file) {
-  if (!sel->GetType()->IsBits()) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Only bits-typed one-hot select supported:: %s", sel->ToString()));
-  }
-  int64_t sel_width = sel->BitCountOrDie();
+  int64_t sel_width = sel->GetType()->GetFlatBitCount();
   Expression* sum = nullptr;
   for (int64_t i = 0; i < inputs.size(); ++i) {
     Expression* masked_input =

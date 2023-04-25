@@ -386,6 +386,49 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
               IsOkAndHolds(Value(UBits(0xf0ff, 16))));
 }
 
+TEST_P(CombinationalGeneratorTest, OneHotSelectNonBits) {
+  std::string text = R"(
+package OneHotSelect
+
+top fn main(p: bits[2], x: (bits[16], bits[16]), y: (bits[16], bits[16])) -> (bits[16], bits[16]) {
+  ret one_hot_sel.1: (bits[16], bits[16]) = one_hot_sel(p, cases=[x, y])
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(text));
+
+  std::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x", Value::Tuple({Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})},
+      {"y",
+       Value::Tuple({Value(UBits(0xf0f0, 16)), Value(UBits(0x0f0f, 16))})}};
+  args["p"] = Value(UBits(0b00, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0x0000, 16)), Value(UBits(0x0000, 16))})));
+  args["p"] = Value(UBits(0b01, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0x00ff, 16)), Value(UBits(0xff00, 16))})));
+  args["p"] = Value(UBits(0b10, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0xf0f0, 16)), Value(UBits(0x0f0f, 16))})));
+  args["p"] = Value(UBits(0b11, 2));
+  EXPECT_THAT(simulator.RunFunction(args),
+              IsOkAndHolds(Value::Tuple(
+                  {Value(UBits(0xf0ff, 16)), Value(UBits(0xff0f, 16))})));
+}
+
 TEST_P(CombinationalGeneratorTest, PrioritySelect) {
   std::string text = R"(
 package PrioritySelect
