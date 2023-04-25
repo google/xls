@@ -39,7 +39,8 @@ static Bits BitsFromPyInt(py::int_ x, int64_t bit_count) {
     auto low_bit =
         py::reinterpret_steal<py::int_>(PyNumber_And(x.ptr(), one.ptr()));
     x = py::reinterpret_steal<py::int_>(PyNumber_Rshift(x.ptr(), one.ptr()));
-    bitmap.Set(i, PyObject_RichCompareBool(low_bit.ptr(), one.ptr(), Py_EQ));
+    bitmap.Set(i,
+               PyObject_RichCompareBool(low_bit.ptr(), one.ptr(), Py_EQ) != 0);
   }
   auto result = Bits::FromBitmap(std::move(bitmap));
   if (negative) {
@@ -134,7 +135,8 @@ PYBIND11_MODULE(bits, m) {
                    absl::StrFormat("Bit index %d is out of range; size %d", i,
                                    self.bit_count()));
              }
-             return UBits(/*value=*/self.Get(i), /*bit_count=*/1);
+             return UBits(/*value=*/static_cast<uint64_t>(self.Get(i)),
+                          /*bit_count=*/1);
            })
       .def("to_uint",
            [](const Bits& self) {
