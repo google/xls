@@ -238,6 +238,12 @@ absl::Status RealMain(std::string_view ir_path) {
 
     XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
+    if (!codegen_flags_proto.output_schedule_ir_path().empty()) {
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(codegen_flags_proto.output_schedule_ir_path(),
+                          main()->package()->DumpIr()));
+    }
+
     XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
                                      schedule, main(), codegen_options));
 
@@ -246,6 +252,11 @@ absl::Status RealMain(std::string_view ir_path) {
           codegen_flags_proto.output_schedule_path(), schedule.ToProto()));
     }
   } else if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
+    if (!codegen_flags_proto.output_schedule_ir_path().empty()) {
+      XLS_RETURN_IF_ERROR(
+          SetFileContents(codegen_flags_proto.output_schedule_ir_path(), ""));
+    }
+
     XLS_ASSIGN_OR_RETURN(
         result, verilog::GenerateCombinationalModule(main(), codegen_options));
   } else {

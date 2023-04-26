@@ -49,6 +49,7 @@ _SIGNATURE_TEXTPROTO_FILE_EXTENSION = ".sig.textproto"
 _SCHEDULE_TEXTPROTO_FILE_EXTENSION = ".schedule.textproto"
 _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION = ".verilog_line_map.textproto"
 _BLOCK_IR_FILE_EXTENSION = ".block.ir"
+_SCHEDULE_IR_FILE_EXTENSION = ".schedule.opt.ir"
 
 xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
@@ -77,6 +78,12 @@ xls_ir_verilog_attrs = {
         doc = "The filename of line map for the generated Verilog file." +
               "If not specified, the basename of the Verilog file followed " +
               "by a " + _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION + " extension is " +
+              "used.",
+    ),
+    "schedule_ir_file": attr.output(
+        doc = "The filename of scheduled IR file generated during scheduled. " +
+              "If not specified, the basename of the Verilog file followed " +
+              "by a " + _SCHEDULE_IR_FILE_EXTENSION + " extension is " +
               "used.",
     ),
     "block_ir_file": attr.output(
@@ -113,6 +120,10 @@ def append_xls_ir_verilog_generated_files(args, basename, arguments):
         basename + _SIGNATURE_TEXTPROTO_FILE_EXTENSION,
     )
     args.setdefault(
+        "schedule_ir_file",
+        basename + _SCHEDULE_IR_FILE_EXTENSION,
+    )
+    args.setdefault(
         "block_ir_file",
         basename + _BLOCK_IR_FILE_EXTENSION,
     )
@@ -139,6 +150,7 @@ def get_xls_ir_verilog_generated_files(args, arguments):
     """
     generated_files = [
         args.get("module_sig_file"),
+        args.get("schedule_ir_file"),
         args.get("block_ir_file"),
         args.get("verilog_line_map_file"),
     ]
@@ -277,6 +289,14 @@ def xls_ir_verilog_impl(ctx, src):
     my_generated_files += [verilog_file, module_sig_file]
     my_args += " --output_verilog_path={}".format(verilog_file.path)
     my_args += " --output_signature_path={}".format(module_sig_file.path)
+    schedule_ir_filename = get_output_filename_value(
+        ctx,
+        "schedule_ir_file",
+        verilog_basename + _SCHEDULE_IR_FILE_EXTENSION,
+    )
+    schedule_ir_file = ctx.actions.declare_file(schedule_ir_filename)
+    my_args += " --output_schedule_ir_path={}".format(schedule_ir_file.path)
+    my_generated_files.append(schedule_ir_file)
     block_ir_filename = get_output_filename_value(
         ctx,
         "block_ir_file",
@@ -310,6 +330,7 @@ def xls_ir_verilog_impl(ctx, src):
             module_sig_file = module_sig_file,
             verilog_line_map_file = verilog_line_map_file,
             schedule_file = schedule_file,
+            schedule_ir_file = schedule_ir_file,
             block_ir_file = block_ir_file,
             delay_model = codegen_args.get("delay_model"),
             top = codegen_args.get("module_name", codegen_args.get("top")),

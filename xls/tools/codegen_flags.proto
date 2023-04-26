@@ -66,4 +66,5 @@ message CodegenFlagsProto {
   repeated string ram_configurations = 31;
   optional bool gate_recvs = 32;
   optional bool array_index_bounds_checking = 33;
+  optional string output_schedule_ir_path = 34;
 }

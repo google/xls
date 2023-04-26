@@ -27,6 +27,8 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, output_schedule_path, "",
           "Specific output path for the generated pipeline schedule. "
           "If not specified, then no schedule is output.");
+ABSL_FLAG(std::string, output_schedule_ir_path, "",
+          "Path to write the scheduled IR.");
 ABSL_FLAG(std::string, output_block_ir_path, "",
           "Path to write the block-level IR.");
 ABSL_FLAG(
@@ -162,6 +164,7 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
   } while (0)
   POPULATE_FLAG(output_verilog_path);
   POPULATE_FLAG(output_schedule_path);
+  POPULATE_FLAG(output_schedule_ir_path);
   POPULATE_FLAG(output_block_ir_path);
   POPULATE_FLAG(output_signature_path);
   POPULATE_FLAG(output_verilog_line_map_path);

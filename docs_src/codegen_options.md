@@ -21,6 +21,9 @@ codegen can generate files useful for understanding or integrating the RTL.
 -   `--output_verilog_path` is the path to the output Verilog file.
 -   `--output_schedule_path` is the path to a textproto that shows into which
     pipeline stage the scheduler put IR ops.
+-   `--output_schedule_ir_path` is the path to the "IR" representation of the
+    design, a post-scheduling IR that includes any optimizations or transforms
+    during the scheduling pipeline.
 -   `--output_block_ir_path` is the path to the "block IR" representation of the
     design, a post-scheduling IR that is timed and includes registers, ports,
     etc.

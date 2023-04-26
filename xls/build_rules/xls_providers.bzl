@@ -58,6 +58,7 @@ CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
           "is created and returned by the xls_ir_verilog rule.",
     fields = {
+        "schedule_ir_file": "File: The IR file post-scheduling.",
         "block_ir_file": "File: The block IR file.",
         "delay_model": "Optional(string) Delay model used in codegen.",
         "module_sig_file": "File: The module signature of the Verilog file.",
