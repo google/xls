@@ -1962,6 +1962,45 @@ TEST_F(TranslatorLogicTest, ReturnFromFor3) {
   Run({{"a", 140}, {"b", 55}}, 525, content);
 }
 
+TEST_F(TranslatorLogicTest, MaxUnrollItersError) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+      }
+      return ret;
+    })";
+  ASSERT_THAT(
+      SourceToIr(content, /*pfunc=*/nullptr,
+                 /*clang_argv=*/{}, /*io_test_mode=*/false,
+                 /*max_unroll_iters=*/4)
+          .status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                    testing::HasSubstr("broke at maximum")));
+}
+
+TEST_F(TranslatorLogicTest, MaxUnrollItersEquals) {
+  const std::string content = R"(
+    #pragma hls_top
+    int foo(int b) {
+      int ret = 0;
+
+      #pragma hls_unroll yes
+      for(int i=0;i<5;++i) {
+        ret += b;
+      }
+      return ret;
+    })";
+  Run({{"b", 5}}, 25, content,
+      /*loc=*/xabsl::SourceLocation::current(),
+      /*clang_argv=*/{},
+      /*max_unroll_iters=*/5);
+}
+
 TEST_F(TranslatorLogicTest, ReturnFromForStopsUnrolling) {
   const std::string content = R"(
     #pragma hls_top

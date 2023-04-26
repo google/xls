@@ -126,7 +126,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
 
     unique_decl_ids_ = saved_check_ids;
 
-    if (nIters >= max_unroll_iters_) {
+    if (nIters > max_unroll_iters_) {
       return absl::ResourceExhaustedError(
           ErrorMessage(loc, "Loop unrolling broke at maximum %i iterations",
                        max_unroll_iters_));
