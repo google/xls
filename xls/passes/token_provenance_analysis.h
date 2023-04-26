@@ -18,6 +18,7 @@
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
@@ -33,6 +34,18 @@ using TokenProvenance = absl::flat_hash_map<Node*, LeafTypeTree<Node*>>;
 absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f);
 
 std::string ToString(const TokenProvenance& provenance);
+
+// A map from side-effecting nodes (and AfterAll) to the set of side-effecting
+// nodes (/ AfterAll) that their token inputs immediately came from. Note that
+// this skips over intermediate movement of tokens through tuples or `identity`.
+using TokenDAG = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
+
+// Compute the immediate preceding side-effecting nodes (including proc token
+// param and `after_all`s) for each side-effecting node (and after_all). Note
+// that this skips over intermediate movement of token through tuples or
+// `identity`, and that the proc token param does not appear as a key in the
+// result map.
+absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f);
 
 }  // namespace xls
 

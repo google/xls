@@ -14,7 +14,6 @@
 
 #include "xls/passes/token_provenance_analysis.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -26,11 +25,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/type.h"
 #include "xls/passes/dataflow_visitor.h"
 
 namespace xls {
@@ -86,5 +87,26 @@ std::string ToString(const TokenProvenance& provenance) {
   }
   return absl::StrJoin(lines, "\n");
 }
+
+absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
+  XLS_ASSIGN_OR_RETURN(TokenProvenance provenance, TokenProvenanceAnalysis(f));
+
+  TokenDAG dag;
+  for (Node* node : f->nodes()) {
+    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll) {
+      for (Node* operand : node->operands()) {
+        if (operand->GetType()->IsToken()) {
+          Node* child = provenance.at(operand).Get({});
+          if (child != nullptr) {
+            dag[node].insert(child);
+          }
+        }
+      }
+    }
+  }
+
+  return dag;
+}
+
 
 }  // namespace xls

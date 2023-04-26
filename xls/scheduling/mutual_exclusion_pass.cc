@@ -14,27 +14,49 @@
 
 #include "xls/scheduling/mutual_exclusion_pass.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <numeric>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/container/btree_map.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/graph_coloring.h"
 #include "xls/data_structures/transitive_closure.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/post_dominator_analysis.h"
 #include "xls/passes/token_provenance_analysis.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/scheduling_pass.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "xls/solvers/z3_utils.h"
-#include "../z3/src/api/z3.h"
+#include "../z3/src/api/z3_api.h"
 
 namespace xls {
 
@@ -65,12 +87,8 @@ bool HasIntersection(const absl::flat_hash_set<T>& lhs,
                      const absl::flat_hash_set<T>& rhs) {
   const absl::flat_hash_set<T>& smaller = lhs.size() > rhs.size() ? rhs : lhs;
   const absl::flat_hash_set<T>& bigger = lhs.size() > rhs.size() ? lhs : rhs;
-  for (const T& element : smaller) {
-    if (bigger.contains(element)) {
-      return true;
-    }
-  }
-  return false;
+  return std::any_of(smaller.begin(), smaller.end(),
+                     [&bigger](T element) { return bigger.contains(element); });
 }
 
 Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
@@ -103,31 +121,6 @@ bool IsHeavyOp(Op op) {
          op == Op::kReceive;
 }
 
-// A map from side-effecting nodes (and AfterAll) to the set of side-effecting
-// nodes (/ AfterAll) that their token inputs immediately came from. Note that
-// this skips over intermediate movement of tokens through tuples or `identity`.
-using TokenDAG = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
-
-absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
-  XLS_ASSIGN_OR_RETURN(TokenProvenance provenance, TokenProvenanceAnalysis(f));
-
-  TokenDAG dag;
-  for (Node* node : f->nodes()) {
-    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll) {
-      for (Node* operand : node->operands()) {
-        if (operand->GetType()->IsToken()) {
-          Node* child = provenance.at(operand).Get({});
-          if (child != nullptr) {
-            dag[node].insert(child);
-          }
-        }
-      }
-    }
-  }
-
-  return dag;
-}
-
 using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
 // Find all nodes that the given node transitively depends on.
@@ -152,7 +145,8 @@ absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
 // a rooted DAG whose root is the given node, and all nodes in the subgraph
 // satisfy the given predicate.
 absl::flat_hash_set<Node*> LargestConnectedSubgraph(
-    Node* root, const TokenDAG& dag, std::function<bool(Node*)> predicate) {
+    Node* root, const TokenDAG& dag,
+    const std::function<bool(Node*)>& predicate) {
   std::vector<Node*> stack;
   stack.push_back(root);
   absl::flat_hash_set<Node*> discovered;
