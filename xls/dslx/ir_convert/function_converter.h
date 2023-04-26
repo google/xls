@@ -495,7 +495,7 @@ class FunctionConverter {
 
   // The ID of the unique Proc instance currently being converted. Only valid if
   // a Proc is being converted.
-  ProcId proc_id_;
+  std::optional<ProcId> proc_id_;
 
   // If the function is the entry function resulting in a top entity in the IR.
   bool is_top_;

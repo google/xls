@@ -569,7 +569,9 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
   AstNode* from = ToAstNode(node->name_def());
 
   if (!node_to_ir_.contains(from)) {
-    for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_)) {
+    XLS_RET_CHECK(proc_id_.has_value());
+    XLS_RET_CHECK(proc_data_->id_to_members.contains(proc_id_.value()));
+    for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_.value())) {
       if (k == node->identifier()) {
         if (std::holds_alternative<Value>(v)) {
           XLS_VLOG(4) << "Reference to Proc member: " << k
