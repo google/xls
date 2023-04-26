@@ -14,12 +14,15 @@
 
 #include "xls/scheduling/proc_clumping_pass.h"
 
+#include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -63,6 +66,59 @@ absl::StatusOr<std::vector<Node*>> DependenciesToStateEdge(
   }
 
   return added;
+}
+
+// This function separately topologically sorts the sends and receives on a
+// given channel to compute constraints that those ops must be scheduled in
+// that order. Without this, there is nothing stopping the proc clumping pass
+// from scheduling sends/receives on the same channel in the same logical cycle,
+// thereby preventing the mutual exclusion scheduling pass from merging them
+// together.
+absl::StatusOr<std::vector<DifferenceConstraint>> ComputeSendRecvConstraints(
+    Proc* proc, int64_t cycle, const ScheduleCycleMap& scm) {
+  std::vector<DifferenceConstraint> result;
+
+  struct ChannelIdLessThan {
+    bool operator()(const Channel* a, const Channel* b) const {
+      return a->id() < b->id();
+    }
+  };
+
+  absl::btree_map<Channel*, std::vector<Node*>, ChannelIdLessThan>
+      sends_ord, receives_ord;
+
+  for (Node* node : TopoSort(proc)) {
+    if (scm.at(node) != cycle) {
+      continue;
+    }
+    if (node->Is<Send>() || node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      if (node->Is<Send>()) {
+        sends_ord[channel].push_back(node);
+      }
+      if (node->Is<Receive>()) {
+        receives_ord[channel].push_back(node);
+      }
+    }
+  }
+
+  for (const auto& [channel, nodes] : sends_ord) {
+    if (nodes.size() >= 2) {
+      for (int64_t i = 0; i < nodes.size() - 1; ++i) {
+        result.push_back(DifferenceConstraint(nodes[i], nodes[i + 1], -1));
+      }
+    }
+  }
+
+  for (const auto& [channel, nodes] : receives_ord) {
+    if (nodes.size() >= 2) {
+      for (int64_t i = 0; i < nodes.size() - 1; ++i) {
+        result.push_back(DifferenceConstraint(nodes[i], nodes[i + 1], -1));
+      }
+    }
+  }
+
+  return result;
 }
 
 // Clones all nodes in the given proc in a given cycle into a separate proc,
@@ -123,6 +179,15 @@ absl::StatusOr<ScheduleCycleMap> ScheduleSubProc(
     XLS_CHECK(!std::holds_alternative<NodeInCycleConstraint>(constraint));
     XLS_CHECK(!std::holds_alternative<DifferenceConstraint>(constraint));
     scheduling_options.add_constraint(constraint);
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::vector<DifferenceConstraint> send_recv_constraints,
+                       ComputeSendRecvConstraints(proc, cycle, scm));
+  for (const DifferenceConstraint& constraint : send_recv_constraints) {
+    DifferenceConstraint mapped(original_to_clone.at(constraint.GetA()),
+                                original_to_clone.at(constraint.GetB()),
+                                constraint.GetMaxDifference());
+    scheduling_options.add_constraint(mapped);
   }
 
   XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
