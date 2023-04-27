@@ -692,54 +692,6 @@ GetReceiveDataDependencies(Proc* inlined_proc) {
   return std::move(result);
 }
 
-struct TokenNode {
-  Node* node;
-  std::vector<Node*> predecessors;
-};
-
-// Returns a predecessor-list representation of the token graph connecting
-// side-effecting operations in the given `proc`. The returns nodes will be in a
-// topological sort.
-// TODO(meheff): 2022/05/17 Unify this with ComputeTokenDAG in
-// mutual_exclusion_pass.
-absl::StatusOr<std::vector<TokenNode>> GetTokenGraph(Proc* proc) {
-  XLS_ASSIGN_OR_RETURN(TokenProvenance token_provenance,
-                       TokenProvenanceAnalysis(proc));
-  std::vector<TokenNode> graph;
-  XLS_VLOG(3) << absl::StreamFormat("Token graph of proc %s:", proc->name());
-  for (Node* node : TopoSort(proc)) {
-    if (!TypeHasToken(node->GetType())) {
-      continue;
-    }
-    if (!OpIsSideEffecting(node->op()) && !node->Is<AfterAll>()) {
-      continue;
-    }
-    if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
-        !node->Is<Receive>() && !node->Is<Param>()) {
-      return absl::UnimplementedError(absl::StrFormat(
-          "Proc inlining does not support side-effecting op %s: %s",
-          OpToString(node->op()), node->GetName()));
-    }
-    std::vector<Node*> operand_sources;
-    for (Node* operand : node->operands()) {
-      if (TypeHasToken(operand->GetType())) {
-        for (Node* element : token_provenance.at(operand).elements()) {
-          if (element != nullptr) {
-            operand_sources.push_back(element);
-          }
-        }
-      }
-    }
-    XLS_VLOG(3) << absl::StreamFormat(
-        "  %s : preds (%s)", node->GetName(),
-        absl::StrJoin(operand_sources, ", ", NodeFormatter));
-    XLS_RET_CHECK(operand_sources.size() <= 1 || node->Is<AfterAll>())
-        << node->ToString();
-    graph.push_back(TokenNode{node, operand_sources});
-  }
-  return std::move(graph);
-}
-
 // Abstraction representing a proc thread. A proc thread contains the logic
 // required to virtually evaluate a proc (the "inlined proc") within another
 // proc (the "container proc"). An activation bit is threaded through the proc's
@@ -826,15 +778,23 @@ class ProcThread {
   // source and sink nodes as well.
   absl::Status CreateActivationNetwork() {
     XLS_VLOG(3) << "CreateActivationNetwork " << inlined_proc_->name();
-    XLS_ASSIGN_OR_RETURN(std::vector<TokenNode> token_graph,
-                         GetTokenGraph(inlined_proc_));
+    for (Node* node : inlined_proc_->nodes()) {
+      if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
+          !node->Is<Receive>() && !node->Is<Param>()) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Proc inlining does not support side-effecting op %s: %s",
+            OpToString(node->op()), node->GetName()));
+      }
+    }
+    XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> token_graph,
+                         ComputeTopoSortedTokenDAG(inlined_proc_));
     // Create the state element for the activation bit of the proc thread.
     XLS_ASSIGN_OR_RETURN(
         activation_state_,
         AllocateState(absl::StrFormat("%s_activation", inlined_proc_->name()),
                       Value(UBits(1, 1))));
 
-    for (const TokenNode& token_node : token_graph) {
+    for (const NodeAndPredecessors& token_node : token_graph) {
       ActivationNode* activation_node;
       if (token_node.node->Is<Param>()) {
         XLS_RET_CHECK_EQ(token_node.node, inlined_proc_->TokenParam());

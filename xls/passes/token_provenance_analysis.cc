@@ -14,11 +14,15 @@
 
 #include "xls/passes/token_provenance_analysis.h"
 
+#include <unistd.h>
+
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -29,7 +33,6 @@
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
 #include "xls/passes/dataflow_visitor.h"
@@ -37,13 +40,27 @@
 namespace xls {
 namespace {
 
+inline bool OpHasTokenProvenance(Op op) {
+  switch (op) {
+    case Op::kLiteral:
+    case Op::kParam:
+    case Op::kAssert:
+    case Op::kCover:
+    case Op::kTrace:
+    case Op::kReceive:
+    case Op::kSend:
+    case Op::kAfterAll:
+      return true;
+    default:
+      return false;
+  }
+}
+
 class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
  public:
   absl::Status DefaultHandler(Node* node) override {
     LeafTypeTree<Node*> ltt(node->GetType(), nullptr);
-    if (node->Is<Literal>() || node->Is<Param>() || node->Is<Assert>() ||
-        node->Is<Cover>() || node->Is<Trace>() || node->Is<Receive>() ||
-        node->Is<Send>() || node->Is<AfterAll>()) {
+    if (OpHasTokenProvenance(node->op())) {
       for (int64_t i = 0; i < ltt.size(); ++i) {
         if (ltt.leaf_types().at(i)->IsToken()) {
           ltt.elements().at(i) = node;
@@ -56,6 +73,29 @@ class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
     }
     return SetValue(node, ltt);
   }
+};
+
+// This variant of the TokenProvenanceVisitor keeps a list of visited nodes in
+// order. This allows the topo-sorted token DAG computation to reuse the
+// visitor's traversal instead of having to topo-sort.
+class TokenProvenanceWithTopoSortVisitor : public TokenProvenanceVisitor {
+ public:
+  absl::Status DefaultHandler(Node* node) override {
+    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll) {
+      if (!(node->op() == Op::kParam && !TypeHasToken(node->GetType()))) {
+        // Don't include normal state, just the proc token param.
+        topo_sorted_token_nodes_.push_back(node);
+      }
+    }
+    return TokenProvenanceVisitor::DefaultHandler(node);
+  }
+
+  absl::Span<Node* const> topo_sorted_token_nodes() const {
+    return topo_sorted_token_nodes_;
+  }
+
+ private:
+  std::vector<Node*> topo_sorted_token_nodes_;
 };
 
 }  // namespace
@@ -108,5 +148,26 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
   return dag;
 }
 
+absl::StatusOr<std::vector<NodeAndPredecessors>> ComputeTopoSortedTokenDAG(
+    FunctionBase* f) {
+  TokenProvenanceWithTopoSortVisitor visitor;
+  XLS_RETURN_IF_ERROR(f->Accept(&visitor));
+
+  std::vector<NodeAndPredecessors> result;
+
+  for (Node* node : visitor.topo_sorted_token_nodes()) {
+    NodeAndPredecessors entry{.node = node};
+    for (Node* operand : node->operands()) {
+      if (operand->GetType()->IsToken()) {
+        Node* child = visitor.GetValue(operand).Get({});
+        if (child != nullptr) {
+          entry.predecessors.insert(child);
+        }
+      }
+    }
+    result.push_back(std::move(entry));
+  }
+  return result;
+}
 
 }  // namespace xls

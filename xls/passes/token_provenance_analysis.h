@@ -16,6 +16,7 @@
 #define XLS_PASSES_TOKEN_PROVENANCE_ANALYSIS_H_
 
 #include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -46,6 +47,18 @@ using TokenDAG = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 // `identity`, and that the proc token param does not appear as a key in the
 // result map.
 absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f);
+
+
+struct NodeAndPredecessors {
+  Node* node;
+  absl::flat_hash_set<Node*> predecessors;
+};
+
+// Returns a predecessor-list representation of the token graph connecting
+// side-effecting operations in the given `proc`. The returns nodes will be in a
+// topological sort.
+absl::StatusOr<std::vector<NodeAndPredecessors>> ComputeTopoSortedTokenDAG(
+    FunctionBase* f);
 
 }  // namespace xls
 

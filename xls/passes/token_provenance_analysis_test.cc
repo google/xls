@@ -37,9 +37,10 @@ namespace {
 using testing::AllOf;
 using testing::Contains;
 using testing::ElementsAre;
+using testing::IsEmpty;
 using testing::Key;
-using testing::Pair;
 using testing::Not;
+using testing::Pair;
 using testing::SizeIs;
 
 class TokenProvenanceAnalysisTest : public IrTestBase {};
@@ -160,6 +161,54 @@ TEST_F(TokenProvenanceAnalysisTest, TokenDAGVeryLongChain) {
   XLS_ASSERT_OK_AND_ASSIGN(TokenDAG dag, ComputeTokenDAG(proc));
   EXPECT_THAT(dag, ElementsAre(Pair(assertion.node(),
                                     ElementsAre(proc->TokenParam()))));
+}
+
+TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kSendReceive,
+                                p->GetBitsType(32)));
+
+  ProcBuilder pb(TestName(), "token", p.get());
+  pb.StateElement("state", Value(UBits(0, 0)));
+  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue t1 = pb.TupleIndex(recv, 0);
+  BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
+  BValue tuple = pb.Tuple(
+      {t1, pb.Literal(UBits(50, 32)),
+       pb.Tuple({pb.Literal(UBits(50, 32)), pb.Literal(UBits(50, 32))}),
+       pb.Tuple({t2})});
+  BValue t3 = pb.Assert(pb.TupleIndex(pb.TupleIndex(tuple, 3), 0),
+                        pb.Literal(UBits(1, 1)), "assertion failed");
+  BValue t4 = pb.Trace(t3, pb.Literal(UBits(1, 1)), {}, "");
+  BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
+  BValue t6 = pb.AfterAll({t3, t4, t5});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(t6, {pb.Literal(UBits(0, 0))}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<NodeAndPredecessors> topo_dag,
+                           ComputeTopoSortedTokenDAG(proc));
+
+  EXPECT_EQ(topo_dag.size(), 7);
+  EXPECT_EQ(topo_dag[0].node, proc->TokenParam());
+  EXPECT_THAT(topo_dag[0].predecessors, IsEmpty());
+  EXPECT_EQ(topo_dag[1].node, recv.node());
+  EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(proc->TokenParam()));
+  EXPECT_EQ(topo_dag[2].node, t2.node());
+  EXPECT_THAT(topo_dag[2].predecessors, ElementsAre(recv.node()));
+  EXPECT_EQ(topo_dag[3].node, t3.node());
+  EXPECT_THAT(topo_dag[3].predecessors, ElementsAre(t2.node()));
+  EXPECT_EQ(topo_dag[4].node, t4.node());
+  EXPECT_THAT(topo_dag[4].predecessors, ElementsAre(t3.node()));
+  EXPECT_EQ(topo_dag[5].node, t5.node());
+  EXPECT_THAT(topo_dag[5].predecessors, ElementsAre(t4.node()));
+  EXPECT_EQ(topo_dag[6].node, t6.node());
+  EXPECT_THAT(topo_dag[6].predecessors,
+              AllOf(SizeIs(3), Contains(t3.node()), Contains(t4.node()),
+                    Contains(t5.node())));
 }
 
 }  // namespace
