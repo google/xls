@@ -94,6 +94,9 @@ ABSL_FLAG(int, warn_unroll_iters, 100,
 ABSL_FLAG(int, z3_rlimit, -1,
           "rlimit to set for z3 solver (eg for loop unrolling)");
 
+ABSL_FLAG(bool, hier_pass_only, false,
+          "Temporary flag to skip code generation and only generate metadata");
+
 namespace xlscc {
 
 absl::Status Run(std::string_view cpp_path) {
@@ -209,7 +212,8 @@ absl::Status Run(std::string_view cpp_path) {
       XLS_ASSIGN_OR_RETURN(
           proc,
           translator.GenerateIR_BlockFromClass(
-              &package, &block, absl::GetFlag(FLAGS_top_level_init_interval)));
+              &package, &block, absl::GetFlag(FLAGS_top_level_init_interval),
+              absl::GetFlag(FLAGS_hier_pass_only)));
 
       if (!block_pb_name.empty()) {
         XLS_RETURN_IF_ERROR(xls::SetTextProtoFile(block_pb_name, block));

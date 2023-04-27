@@ -154,7 +154,6 @@ cc_library(
         "//xls/solvers:z3_ir_translator",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",

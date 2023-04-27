@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <ostream>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -4343,6 +4344,298 @@ TEST_F(TranslatorLogicTest, TypeAlias) {
 
   Run({{"a", -1}}, static_cast<int64_t>(true), content);
   Run({{"a", 2}}, static_cast<int64_t>(false), content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitialization) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a;
+          int b = a;
+        };
+
+       long long my_package() {
+        LeafBlock block = {11};
+        return block.b;
+       })";
+  Run({}, 11, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitialization2) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a = 55;
+          int b = a;
+        };
+
+       long long my_package() {
+        LeafBlock block = {12};
+        return block.b;
+       })";
+  Run({}, 12, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitialization3) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a = 55;
+          int b;
+          int c = b;
+        };
+
+       long long my_package() {
+        LeafBlock block = {.b = 15};
+        return block.c;
+       })";
+  Run({}, 15, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationLValue) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int& a;
+          int& b = a;
+        };
+
+       long long my_package() {
+        int aa = 10;
+        LeafBlock block = {aa};
+        aa = 11;
+        return block.b;
+       })";
+  Run({}, 11, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtor) {
+  const std::string content = R"(
+        struct LeafBlock {
+          LeafBlock(int a) : a_(a) {
+          }
+
+          int a_;
+          int b_ = a_;
+        };
+
+       long long my_package() {
+        LeafBlock block = {11};
+        return block.b_;
+       })";
+  Run({}, 11, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationCtorLValue) {
+  const std::string content = R"(
+        struct LeafBlock {
+          LeafBlock(int& a) : a_(a) {
+          }
+
+          int& a_;
+          int& b_ = a_;
+        };
+
+       long long my_package() {
+        int aa = 10;
+        LeafBlock block = {aa};
+        aa = 11;
+        return block.b_;
+       })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Don't know how to create")));
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a;
+          int b;
+        };
+
+        struct HierBlock {
+          LeafBlock x = {.a = 10, .b = 20};
+          LeafBlock y = {.a = x.a, .b = 40};
+        };
+
+       long long my_package() {
+        HierBlock block;
+        return block.y.a;
+       })";
+
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchical2) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a;
+          int b;
+        };
+
+        struct HierBlock1 {
+          LeafBlock x = {.a = 10, .b = 20};
+          LeafBlock y = {.a = x.a, .b = 40};
+        };
+
+        struct HierBlock2 {
+          HierBlock1 h;
+        };
+
+       long long my_package() {
+        HierBlock2 block;
+        return block.h.y.a;
+       })";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValues) {
+  const std::string content = R"(
+
+        struct LeafBlock {
+          int& a;
+          int& b = a;
+        };
+
+       long long my_package() {
+        int a=5;
+        LeafBlock block = {a};
+        a = 10;
+        return block.b;
+       })";
+  Run({}, 10, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationAssignment) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a;
+          int b;
+        };
+
+        struct HierBlock {
+          LeafBlock x = {.a = 10, .b = 20};
+          LeafBlock y = {.a = x.b=55};
+        };
+
+       long long my_package() {
+        HierBlock block;
+        return block.y.a;
+       })";
+
+  Run({}, 55, content);
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValue) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int& a;
+          int& b;
+        };
+
+        struct HierBlock {
+          int aa = 10;
+          int bb = 20;
+          LeafBlock y = {.a = aa, .b = bb};
+        };
+
+       long long my_package() {
+        HierBlock block;
+        return block.y.a;
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Don't know how to create")));
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass) {
+  const std::string content = R"(
+    struct LeafBlock {
+      int a;
+      int b;  
+    };
+
+    struct HierBlock {
+      LeafBlock x = {.a = 10, .b = 20};
+      LeafBlock y = {.a = x.a, .b = 40};
+
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+
+      #pragma hls_top
+      void Run() {
+        out.write(y.a);
+      }
+    };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(10, 64))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1);
+  }
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass2) {
+  const std::string content = R"(
+    struct LeafBlock {
+      int a;
+      int b;  
+    };
+
+    struct HierBlock {
+      LeafBlock x = {.a = 10, .b = 20};
+      LeafBlock y = {.a = x.a, .b = 40};
+
+      __xls_channel<long, __xls_channel_dir_Out>& out;
+      __xls_channel<long, __xls_channel_dir_Out>& out2 = out;
+
+      #pragma hls_top
+      void Run() {
+        out2.write(y.a);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("initializers containing LValues")));
+}
+
+TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
+  const std::string content = R"(
+    struct LeafBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+    };
+
+    struct HierBlock {
+      __xls_channel<long, __xls_channel_dir_Out> out;
+
+      LeafBlock leaf = {out};
+
+      #pragma hls_top
+      void Run() {
+        leaf.out.write(10);
+      }
+    };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                             /*top_level_init_interval=*/0,
+                                             /*hier_pass_mode=*/true));
 }
 
 }  // namespace

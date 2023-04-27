@@ -1015,7 +1015,7 @@ TEST_F(TranslatorIOTest, NonparameterIOOps) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
                   testing::HasSubstr(
-                      "Channel declaration initialized to channel value")));
+                      "no channel found")));
 }
 
 TEST_F(TranslatorIOTest, Struct) {

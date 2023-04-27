@@ -841,6 +841,8 @@ struct TranslationContext {
   // "this" uses the key of the clang::NamedDecl* of the method
   absl::flat_hash_map<const clang::NamedDecl*, CValue> variables;
 
+  const clang::NamedDecl* override_this_decl_ = nullptr;
+
   xls::BValue return_val;
   xls::BValue last_return_condition;
   // For "control flow": assignments after a return are conditional on this
@@ -904,6 +906,10 @@ struct TranslationContext {
 
   bool mask_io_other_than_memory_writes = false;
   bool mask_memory_writes = false;
+
+  // Hierarchy pass only, i.e. populate subblocks field of generated HLSBlock
+  // proto.
+  bool hier_pass_only = false;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -954,13 +960,14 @@ class Translator {
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(xls::Package* package,
                                               const HLSBlock& block,
-                                              int top_level_init_interval = 0);
+                                              int top_level_init_interval = 0,
+                                              bool hier_pass_mode = false);
 
   // Generates IR as an HLS block / XLS proc.
   // Top is a method, block specification is extracted from the class.
   absl::StatusOr<xls::Proc*> GenerateIR_BlockFromClass(
       xls::Package* package, HLSBlock* block_spec_out,
-      int top_level_init_interval = 0);
+      int top_level_init_interval = 0, bool hier_pass_mode = false);
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1123,6 +1130,30 @@ class Translator {
 
     Translator& translator;
     bool prev_val;
+  };
+
+  struct OverrideThisDeclGuard {
+    explicit OverrideThisDeclGuard(Translator& translator,
+                                   const clang::NamedDecl* this_decl,
+                                   bool activate_now = true)
+        : translator_(translator), this_decl_(this_decl) {
+      if (activate_now) {
+        activate();
+      }
+    }
+    ~OverrideThisDeclGuard() {
+      if (prev_this_ != nullptr) {
+        translator_.context().override_this_decl_ = prev_this_;
+      }
+    }
+    void activate() {
+      prev_this_ = translator_.context().override_this_decl_;
+      translator_.context().override_this_decl_ = this_decl_;
+    }
+
+    Translator& translator_;
+    const clang::NamedDecl* this_decl_;
+    const clang::NamedDecl* prev_this_ = nullptr;
   };
 
   // The maximum number of iterations before loop unrolling fails.
@@ -1313,11 +1344,12 @@ class Translator {
 
   absl::StatusOr<xls::Proc*> GenerateIR_Block(
       xls::Package* package, const HLSBlock& block,
-      std::shared_ptr<CStructType> this_type,
+      const std::shared_ptr<CType>& this_type,
       const clang::CXXRecordDecl* this_decl,
       const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc, int top_level_init_interval,
-      bool force_static, bool member_references_become_channels);
+      bool force_static, bool member_references_become_channels,
+      bool hier_pass_mode);
 
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
   absl::Status GenerateIRBlockCheck(
@@ -1329,20 +1361,21 @@ class Translator {
       const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& loc);
 
-  absl::StatusOr<xls::Value> GenerateTopClassInitValue(
-      std::shared_ptr<CStructType> this_type,
+  absl::StatusOr<CValue> GenerateTopClassInitValue(
+      const std::shared_ptr<CType>& this_type,
       // Can be nullptr
-      const clang::CXXRecordDecl* this_decl, const xls::SourceInfo& body_loc);
+      const clang::CXXRecordDecl* this_decl, bool hier_pass_mode,
+      const xls::SourceInfo& body_loc);
 
   // Prepares IO channels for generating XLS Proc
   // definition can be null, and then channels_by_name can also be null. They
   // are only used for direct-ins
   absl::Status GenerateIRBlockPrepare(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-      int64_t next_state_index, std::shared_ptr<CStructType> this_type,
+      int64_t next_state_index, std::shared_ptr<CType> this_type,
       // Can be nullptr
       const clang::CXXRecordDecl* this_decl,
-      const std::list<ExternalChannelInfo>& top_decls,
+      const std::list<ExternalChannelInfo>& top_decls, bool hier_pass_mode,
       const xls::SourceInfo& body_loc);
 
   // Returns last invoke's return value
@@ -1376,6 +1409,9 @@ class Translator {
   IOChannel* AddChannel(const clang::NamedDecl* decl, IOChannel new_channel);
   absl::StatusOr<std::shared_ptr<CChannelType>> GetChannelType(
       const clang::QualType& channel_type, clang::ASTContext& ctx,
+      const xls::SourceInfo& loc);
+  absl::StatusOr<int64_t> GetIntegerTemplateArgument(
+      const clang::TemplateArgument& arg, clang::ASTContext& ctx,
       const xls::SourceInfo& loc);
 
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
@@ -1455,6 +1491,8 @@ class Translator {
   absl::StatusOr<xls::BValue> GenBoolConvert(CValue const& in,
                                              const xls::SourceInfo& loc);
 
+  absl::StatusOr<CValue> CreateDefaultCValue(const std::shared_ptr<CType>& t,
+                                             const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> CreateDefaultRawValue(std::shared_ptr<CType> t,
                                                    const xls::SourceInfo& loc);
   absl::StatusOr<xls::BValue> CreateDefaultValue(std::shared_ptr<CType> t,
@@ -1505,6 +1543,9 @@ class Translator {
       const clang::FunctionDecl* funcdecl, std::string_view name_override = "",
       bool force_static = false,
       bool member_references_become_channels = false);
+  absl::StatusOr<CValue> TranslateThisLValues(
+      xls::BValue this_bval, const std::shared_ptr<CType>& thisctype,
+      bool member_references_become_channels, const xls::SourceInfo& loc);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)

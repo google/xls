@@ -117,7 +117,8 @@ absl::Status Translator::GenerateExternalChannels(
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
-    xls::Package* package, const HLSBlock& block, int top_level_init_interval) {
+    xls::Package* package, const HLSBlock& block, int top_level_init_interval,
+    bool hier_pass_mode) {
   package_ = package;
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
@@ -205,20 +206,21 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     top_decls.push_back(channel_info);
   }
 
-  return GenerateIR_Block(package, block, /*this_type=*/nullptr,
-                          /*this_decl=*/nullptr, top_decls, body_loc,
-                          top_level_init_interval,
-                          /*force_static=*/true,
-                          /*member_references_become_channels=*/false);
+  return GenerateIR_Block(
+      package, block, /*this_type=*/nullptr,
+      /*this_decl=*/nullptr, top_decls, body_loc, top_level_init_interval,
+      /*force_static=*/true,
+      /*member_references_become_channels=*/false, hier_pass_mode);
 }
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     xls::Package* package, const HLSBlock& block,
-    std::shared_ptr<CStructType> this_type,
+    const std::shared_ptr<CType>& this_type,
     const clang::CXXRecordDecl* this_decl,
     const std::list<ExternalChannelInfo>& top_decls,
     const xls::SourceInfo& body_loc, int top_level_init_interval,
-    bool force_static, bool member_references_become_channels) {
+    bool force_static, bool member_references_become_channels,
+    bool hier_pass_mode) {
   XLS_CHECK_NE(package_, nullptr);
 
   // Create external channels
@@ -231,10 +233,14 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
   PreparedBlock prepared;
-  XLS_ASSIGN_OR_RETURN(prepared.xls_func, GenerateIR_Top_Function(
-                                              package, force_static,
-                                              member_references_become_channels,
-                                              top_level_init_interval));
+
+  if (!hier_pass_mode) {
+    XLS_ASSIGN_OR_RETURN(
+        prepared.xls_func,
+        GenerateIR_Top_Function(package, force_static,
+                                member_references_become_channels,
+                                top_level_init_interval));
+  }
 
   xls::ProcBuilder pb(block.name() + "_proc", /*token_name=*/"tkn", package);
 
@@ -242,10 +248,13 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb,
                                              /*next_return_index=*/0,
-                                             /*next_state_index=*/0,
-                                             /*this_type=*/this_type,
-                                             /*this_decl=*/this_decl, top_decls,
-                                             body_loc));
+                                             /*next_state_index=*/0, this_type,
+                                             this_decl, top_decls,
+                                             hier_pass_mode, body_loc));
+
+  if (hier_pass_mode) {
+    return nullptr;
+  }
 
   XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
                        GenerateIOInvokes(prepared, pb, body_loc));
@@ -284,7 +293,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
 absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     xls::Package* package, HLSBlock* block_spec_out,
-    int top_level_init_interval) {
+    int top_level_init_interval, bool hier_pass_mode) {
   package_ = package;
   block_spec_out->Clear();
 
@@ -393,11 +402,12 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     }
   }
 
-  return GenerateIR_Block(package, *block_spec_out, struct_type,
+  return GenerateIR_Block(package, *block_spec_out, this_ctype,
                           /*this_decl=*/record_decl, top_decls,
                           GetLoc(*record_decl), top_level_init_interval,
                           /*force_static=*/false,
-                          /*member_references_become_channels=*/true);
+                          /*member_references_become_channels=*/true,
+                          /*hier_pass_mode=*/hier_pass_mode);
 }
 
 absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
@@ -608,10 +618,11 @@ absl::Status Translator::GenerateIRBlockCheck(
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::Value> Translator::GenerateTopClassInitValue(
-    std::shared_ptr<CStructType> this_type,
+absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
+    const std::shared_ptr<CType>& this_type,
     // Can be nullptr
-    const clang::CXXRecordDecl* this_decl, const xls::SourceInfo& body_loc) {
+    const clang::CXXRecordDecl* this_decl, bool hier_pass_mode,
+    const xls::SourceInfo& body_loc) {
   for (const clang::CXXConstructorDecl* ctor : this_decl->ctors()) {
     if (!(ctor->isTrivial() || ctor->isDefaultConstructor())) {
       ctor->dump();
@@ -620,58 +631,80 @@ absl::StatusOr<xls::Value> Translator::GenerateTopClassInitValue(
     }
   }
 
-  std::vector<xls::BValue> field_bvals;
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_type,
+                       ResolveTypeInstance(this_type));
+
+  auto struct_type = std::dynamic_pointer_cast<CStructType>(resolved_type);
+  XLS_CHECK_NE(struct_type, nullptr);
+
+  PushContextGuard temporary_this_context(*this, body_loc);
+
+  // Don't allow "this" to be propagated up: it's only temporary for use
+  // within the initializer list
+  context().propagate_up = false;
+  context().override_this_decl_ = this_decl;
+  context().hier_pass_only = hier_pass_mode;
+
+  XLS_ASSIGN_OR_RETURN(CValue this_val,
+                       CreateDefaultCValue(this_type, body_loc));
+
+  XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, body_loc));
 
   // Check for side-effects
   for (const clang::FieldDecl* field_decl : this_decl->fields()) {
-    XLS_ASSIGN_OR_RETURN(
-        std::shared_ptr<CType> field_type,
-        TranslateTypeFromClang(field_decl->getType(), GetLoc(*field_decl)));
-
-    XLS_ASSIGN_OR_RETURN(bool contains_lvalues,
+    std::shared_ptr<CField> field = struct_type->get_field(field_decl);
+    std::shared_ptr<CType> field_type = field->type();
+    auto field_decl_loc = GetLoc(*field_decl);
+    XLS_ASSIGN_OR_RETURN(bool field_contains_lvalues,
                          field_type->ContainsLValues(*this));
 
-    xls::BValue field_bval;
-    if (contains_lvalues || !field_decl->hasInClassInitializer()) {
-      XLS_ASSIGN_OR_RETURN(field_bval,
-                           CreateDefaultValue(field_type, GetLoc(*field_decl)));
+    CValue field_val;
+    if (!field_decl->hasInClassInitializer()) {
+      XLS_ASSIGN_OR_RETURN(field_val,
+                           CreateDefaultCValue(field_type, field_decl_loc));
     } else {
-      PushContextGuard guard(*this, GetLoc(*field_decl));
+      if (field_contains_lvalues && !hier_pass_mode) {
+        return absl::UnimplementedError(ErrorMessage(
+            field_decl_loc,
+            "Top class initializers containing LValues not yet supported"));
+      }
+
+      PushContextGuard guard(*this, field_decl_loc);
       context().mask_side_effects = true;
       context().any_side_effects_requested = false;
 
-      XLS_ASSIGN_OR_RETURN(CValue field_cval,
-                           GenerateIR_Expr(field_decl->getInClassInitializer(),
-                                           GetLoc(*field_decl)));
-      field_bval = field_cval.rvalue();
-      XLS_CHECK(field_bval.valid());
-      XLS_CHECK(*field_cval.type() == *field_type);
+      XLS_ASSIGN_OR_RETURN(
+          field_val,
+          GenerateIR_Expr(field_decl->getInClassInitializer(), field_decl_loc));
+
+      if (context().any_side_effects_requested) {
+        return absl::UnimplementedError(
+            ErrorMessage(field_decl_loc,
+                         "Side effects in initializer for top class field %s",
+                         field_decl->getQualifiedNameAsString()));
+      }
     }
 
-    if (context().any_side_effects_requested) {
-      return absl::UnimplementedError(
-          ErrorMessage(GetLoc(*field_decl),
-                       "Side effects in initializer for top class field %s",
-                       field_decl->getQualifiedNameAsString()));
-    }
-    field_bvals.push_back(field_bval);
+    XLS_CHECK(*field_val.type() == *field_type);
+
+    XLS_ASSIGN_OR_RETURN(this_val,
+                         StructUpdate(this_val, field_val,
+                                      /*field_name=*/field_decl,
+                                      /*type=*/*struct_type, field_decl_loc));
+
+    XLS_RETURN_IF_ERROR(Assign(this_decl, this_val, field_decl_loc));
   }
 
-  xls::BValue this_bval = MakeStructXLS(field_bvals, *this_type, body_loc);
+  XLS_ASSIGN_OR_RETURN(this_val, GetIdentifier(this_decl, body_loc));
 
-  XLS_CHECK(this_bval.valid());
-
-  XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
-                       EvaluateBVal(this_bval, body_loc));
-
-  return this_init_val;
+  return this_val;
 }
 
 absl::Status Translator::GenerateIRBlockPrepare(
     PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-    int64_t next_state_index, std::shared_ptr<CStructType> this_type,
+    int64_t next_state_index, std::shared_ptr<CType> this_type,
     const clang::CXXRecordDecl* this_decl,
-    const std::list<ExternalChannelInfo>& top_decls,
+    const std::list<ExternalChannelInfo>& top_decls, bool hier_pass_mode,
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
   GeneratedFunction temp_sf;
@@ -682,9 +715,17 @@ absl::Status Translator::GenerateIRBlockPrepare(
 
   // This state and argument
   if (this_decl != nullptr) {
-    XLS_ASSIGN_OR_RETURN(
-        xls::Value this_init_val,
-        GenerateTopClassInitValue(this_type, this_decl, body_loc));
+    XLS_ASSIGN_OR_RETURN(CValue this_cval,
+                         GenerateTopClassInitValue(this_type, this_decl,
+                                                   hier_pass_mode, body_loc));
+
+    if (hier_pass_mode) {
+      return absl::OkStatus();
+    }
+
+    XLS_CHECK(this_cval.rvalue().valid());
+    XLS_ASSIGN_OR_RETURN(xls::Value this_init_val,
+                         EvaluateBVal(this_cval.rvalue(), body_loc));
 
     prepared.state_index_for_static[this_decl] = next_state_index++;
     pb.StateElement("this", this_init_val, body_loc);

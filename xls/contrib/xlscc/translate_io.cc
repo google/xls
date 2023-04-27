@@ -122,21 +122,61 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
   return obj_type_ret.value()->Is<CChannelType>();
 }
 
+absl::StatusOr<int64_t> Translator::GetIntegerTemplateArgument(
+    const clang::TemplateArgument& arg, clang::ASTContext& ctx,
+    const xls::SourceInfo& loc) {
+  if (arg.getKind() == clang::TemplateArgument::ArgKind::Expression) {
+    XLS_ASSIGN_OR_RETURN(int64_t val,
+                         EvaluateInt64(*arg.getAsExpr(), ctx, loc));
+    return val;
+  }
+  if (arg.getKind() == clang::TemplateArgument::ArgKind::Integral) {
+    return arg.getAsIntegral().getExtValue();
+  }
+  return absl::UnimplementedError(ErrorMessage(
+      loc, "Expected integer or expression for second template argument"));
+}
+
 absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
     const clang::QualType& channel_type, clang::ASTContext& ctx,
     const xls::SourceInfo& loc) {
+  clang::ArrayRef<clang::TemplateArgument> template_arguments;
+  std::string template_name;
+
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_type));
-  auto template_spec = clang::dyn_cast<const clang::TemplateSpecializationType>(
-      stripped.base.getTypePtr());
-  if (template_spec == nullptr) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Channel type should be a template specialization"));
+
+  if (auto template_spec =
+          clang::dyn_cast<const clang::TemplateSpecializationType>(
+              stripped.base.getTypePtr());
+      template_spec != nullptr) {
+    template_arguments = template_spec->template_arguments();
+    template_name =
+        template_spec->getTemplateName().getAsTemplateDecl()->getNameAsString();
+    if (template_spec->isTypeAlias()) {
+      return GetChannelType(template_spec->getAliasedType(), ctx, loc);
+    }
+  } else if (auto record = clang::dyn_cast<const clang::RecordType>(
+                 stripped.base.getTypePtr());
+             record != nullptr) {
+    clang::RecordDecl* decl = record->getDecl();
+    if (auto class_template_spec =
+            clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
+                decl)) {
+      template_name =
+          class_template_spec->getSpecializedTemplate()->getNameAsString();
+      template_arguments = class_template_spec->getTemplateArgs().asArray();
+    } else {
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Channel RecordDecl should be ClassTemplateSpecializationDecl"));
+    }
+  } else {
+    return absl::UnimplementedError(ErrorMessage(
+        loc,
+        "Channel type should be a template specialization or record decl"));
   }
-  const std::string template_name =
-      template_spec->getTemplateName().getAsTemplateDecl()->getNameAsString();
-  if ((template_spec->template_arguments().size() != 1) &&
-      (template_spec->template_arguments().size() != 2)) {
+
+  if ((template_arguments.size() != 1) && (template_arguments.size() != 2)) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel should have 1 or 2 template args"));
   }
@@ -145,25 +185,20 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
 
   // TODO(seanhaskell): Put these strings in one place
   if (template_name == "__xls_memory") {
-    if (template_spec->template_arguments().size() != 2) {
+    if (template_arguments.size() != 2) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Memory should have 2 template args"));
     }
-    const clang::TemplateArgument& arg = template_spec->template_arguments()[1];
-    XLS_ASSIGN_OR_RETURN(memory_size,
-                         EvaluateInt64(*arg.getAsExpr(), ctx, loc));
-  } else if (template_name == "__xls_channel") {
-    if (template_spec->template_arguments().size() == 2) {
-      const clang::TemplateArgument& arg =
-          template_spec->template_arguments()[1];
-      XLS_ASSIGN_OR_RETURN(int64_t val,
-                           EvaluateInt64(*arg.getAsExpr(), ctx, loc));
-      op_type = static_cast<OpType>(val);
-    }
-  } else if (template_spec->isTypeAlias()) {
-    return GetChannelType(template_spec->getAliasedType(), ctx, loc);
+    XLS_ASSIGN_OR_RETURN(memory_size, GetIntegerTemplateArgument(
+                                          template_arguments[1], ctx, loc));
+  } else if (template_name == "__xls_channel" &&
+             template_arguments.size() == 2) {
+    int64_t op_type_int = -1;
+    XLS_ASSIGN_OR_RETURN(op_type_int, GetIntegerTemplateArgument(
+                                          template_arguments[1], ctx, loc));
+    op_type = static_cast<OpType>(op_type_int);
   }
-  const clang::TemplateArgument& arg = template_spec->template_arguments()[0];
+  const clang::TemplateArgument& arg = template_arguments[0];
   XLSCC_CHECK(arg.getKind() == clang::TemplateArgument::ArgKind::Type, loc);
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> item_type,
                        TranslateTypeFromClang(arg.getAsType(), loc));
@@ -199,6 +234,16 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           clang::dyn_cast<const clang::CXXOperatorCallExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(IOChannel * channel,
                          GetChannelForExprOrNull(operator_call->getArg(0)));
+
+    XLS_ASSIGN_OR_RETURN(
+        bool type_is_channel,
+        TypeIsChannel(operator_call->getArg(0)->getType(), loc));
+    if (type_is_channel && channel == nullptr) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Method call on channel type, but no channel found "
+                       "(uninitialized?)"));
+    }
 
     if (channel != nullptr) {
       if (operator_call->getOperator() ==
@@ -259,6 +304,15 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     const clang::Expr* object = member_call->getImplicitObjectArgument();
 
     XLS_ASSIGN_OR_RETURN(IOChannel * channel, GetChannelForExprOrNull(object));
+
+    XLS_ASSIGN_OR_RETURN(bool type_is_channel,
+                         TypeIsChannel(object->getType(), loc));
+    if (type_is_channel && channel == nullptr) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc,
+                       "Method call on channel type, but no channel found "
+                       "(uninitialized?)"));
+    }
 
     if (channel != nullptr) {
       if (assignment_value.valid()) {

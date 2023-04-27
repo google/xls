@@ -648,7 +648,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
                              /*next_state_index=*/extra_state_count,
                              /*this_type=*/nullptr,
                              /*this_decl=*/nullptr,
-                             /*top_decls=*/{}, loc));
+                             /*top_decls=*/{},
+                             /*hier_pass_mode=*/false, loc));
 
   XLS_ASSIGN_OR_RETURN(xls::BValue ret_tup,
                        GenerateIOInvokes(prepared, pb, loc));
