@@ -209,7 +209,7 @@ class YosysStaServiceImpl : public SynthesisService::Service {
         absl::StrFormat("set clk_period %s", delay_target);
     const std::string setup_clk_port =
         absl::StrFormat("set clk_port [get_ports -quiet clk]");
-    const std::string setup_delay = absl::StrFormat("set clk_io_pct 0.2");
+    const std::string setup_delay = absl::StrFormat("set clk_io_pct 0.001");
 
     const std::string setup_constraints = absl::StrFormat(
         R"(if { [string length [get_ports -quiet clk]] > 1 } {
@@ -329,7 +329,8 @@ class YosysStaServiceImpl : public SynthesisService::Service {
     XLS_LOG(INFO) << "STA command file: " << sta_cmd_path;
 
     XLS_ASSIGN_OR_RETURN(
-        string_pair, RunSubprocess({sta_path_, "-no_splash", sta_cmd_path}));
+        string_pair,
+        RunSubprocess({sta_path_, "-no_splash", "-exit", sta_cmd_path}));
 
     auto [sta_stdout, sta_stderr] = string_pair;
     if (absl::GetFlag(FLAGS_save_temps)) {

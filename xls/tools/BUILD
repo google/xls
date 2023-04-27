@@ -17,6 +17,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 # pytype binary and test
 # cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -1348,4 +1349,15 @@ py_test(
         "//xls/common:test_base",
         "@com_google_absl_py//absl/testing:absltest",
     ],
+)
+
+# A full run for this target currently takes 40 minutes
+xls_delay_model_generation(
+    name = "sky130_delay_model",
+    standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
+)
+
+xls_delay_model_generation(
+    name = "asap7_delay_model",
+    standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
 )

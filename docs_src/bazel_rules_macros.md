@@ -564,6 +564,46 @@ converted, we use their mangled names to refer to them in the IR namespace.
 The "mangled" symbol string.
 
 
+<a id="xls_delay_model_generation"></a>
+
+## xls_delay_model_generation
+
+<pre>
+xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
+</pre>
+
+Generate an XLS delay model for one PDK corner.
+
+This macro gathers the locations of the required dependencies
+(Yosys, OpenSTA, helper scripts, and cell libraries) and
+generates a wrapper script that invokes "run_timing_characterization"
+with the dependency locations provided as args.
+
+Any extra runtime args will get passed in to the
+"run_timing_characterization" script (e.g. "--debug" or "--quick_run").
+
+The script must be "run" from the root of the workspace
+to perform the timing characterization.  The output textproto
+will be produced in the current directory (which, as just
+stated, must be the root of the workspace).
+
+Currently, only a subset of XLS operators are characterized,
+including most arithmetic, logical, and shift operators.
+However, many common operators such as "concat", "bit_slice",
+and "encode" are missing, and so the delay model that is
+currently produced should be considered INCOMPLETE.
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_delay_model_generation-name"></a>name |  Used as basename for both the script and the output textproto.   |  none |
+| <a id="xls_delay_model_generation-standard_cells"></a>standard_cells |  Label for the PDK (possibly specifying a non-default corner), with the assumption that $location will return the timing (Liberty) library for the PDK corner.   |  none |
+| <a id="xls_delay_model_generation-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
+
+
 <a id="xls_dslx_cpp_type_library"></a>
 
 ## xls_dslx_cpp_type_library

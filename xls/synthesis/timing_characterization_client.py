@@ -36,10 +36,15 @@ from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
 FLAGS = flags.FLAGS
-flags.DEFINE_integer('max_width', 8, 'Max width in bits to sweep.')
-flags.DEFINE_integer('min_freq_mhz', 500, 'Minimum frequency to test.')
-flags.DEFINE_integer('max_freq_mhz', 5000, 'Maximum frequency to test.')
-flags.DEFINE_string(
+_QUICK_RUN = flags.DEFINE_bool(
+    'quick_run', False, 'Do just a small subset for testing.')
+_MAX_WIDTH = flags.DEFINE_integer(
+    'max_width', 8, 'Max width in bits to sweep.')
+_MIN_FREQ_MHZ = flags.DEFINE_integer(
+    'min_freq_mhz', 500, 'Minimum frequency to test.')
+_MAX_FREQ_MHZ = flags.DEFINE_integer(
+    'max_freq_mhz', 5000, 'Maximum frequency to test.')
+_CHECKPOINT_PATH = flags.DEFINE_string(
     'checkpoint_path', '', 'Path at which to load and save checkpoints. ' +
     'Checkpoints will not be kept if unspecified.')
 
@@ -75,7 +80,11 @@ MISCELLANEOUS = ('kArray kArrayIndex kArrayUpdate kBitSlice kDynamicBitSlice '
 
 
 def get_bit_widths():
-  return [1] + list(range(2, FLAGS.max_width + 1, 2))
+  # Fibonacci sequence
+  r = [1, 2]
+  while r[-1] < _MAX_WIDTH.value:
+    r.append(r[-1]+r[-2])
+  return r
 
 
 def save_checkpoint(model: delay_model_pb2.DelayModel, checkpoint_path: str):
@@ -91,8 +100,8 @@ def _search_for_fmax_and_synth(
 ) -> synthesis_pb2.CompileResponse:
   """Bisects the space of frequencies and sends requests to the server."""
   best_result = synthesis_pb2.CompileResponse()
-  high_hz = FLAGS.max_freq_mhz * 1e6
-  low_hz = FLAGS.min_freq_mhz * 1e6
+  high_hz = _MAX_FREQ_MHZ.value * 1e6
+  low_hz = _MIN_FREQ_MHZ.value * 1e6
   epsilon_hz = 10 * 1e6
 
   while (high_hz - low_hz) > epsilon_hz:
@@ -147,8 +156,8 @@ def _search_for_fmax_and_synth(
 
 def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
                    model: delay_model_pb2.DelayModel,
-                   data_points: Dict[str, Set[str]], ir_text: str, op: str,
-                   result_bit_count: int,
+                   data_points: Dict[str, Set[str]], ir_text: str,
+                   op: str, result_bit_count: int,
                    operand_bit_counts: Sequence[int]) -> None:
   """Synthesizes the given IR text and checkpoint resulting data points."""
   if op not in data_points:
@@ -192,7 +201,7 @@ def _synthesize_ir(stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 
   # Checkpoint after every run.
   model.data_points.append(result)
-  save_checkpoint(model, FLAGS.checkpoint_path)
+  save_checkpoint(model, _CHECKPOINT_PATH.value)
 
 
 def _run_unary_bitwise(
@@ -208,11 +217,12 @@ def _run_unary_bitwise(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type,))
+    ir_text = op_module_generator.generate_ir_package(
+        op_name, op_type, (op_type,))
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
     )
@@ -231,7 +241,7 @@ def _run_variadic_bitwise(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   # Compute samples
   widths = get_bit_widths()
@@ -240,7 +250,7 @@ def _run_variadic_bitwise(
   for bit_count, arity in combs:
     op_type = f'bits[{bit_count}]'
     ir_text = op_module_generator.generate_ir_package(
-        op, op_type, (op_type,) * arity
+        op_name, op_type, (op_type,) * arity
     )
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
@@ -260,11 +270,12 @@ def _run_arithmetic_unary(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
-    ir_text = op_module_generator.generate_ir_package(op, op_type, (op_type,))
+    ir_text = op_module_generator.generate_ir_package(
+        op_name, op_type, (op_type,))
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
     )
@@ -283,12 +294,12 @@ def _run_arithmetic_binary(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
     ir_text = op_module_generator.generate_ir_package(
-        op, op_type, (op_type, op_type)
+        op_name, op_type, (op_type, op_type)
     )
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
@@ -308,13 +319,13 @@ def _run_comparison(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
     ret_type = 'bits[1]'
     ir_text = op_module_generator.generate_ir_package(
-        op, ret_type, (op_type, op_type)
+        op_name, ret_type, (op_type, op_type)
     )
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
@@ -334,13 +345,13 @@ def _run_shift(
   expr.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expr.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   # Compute samples
   for bit_count in get_bit_widths():
     op_type = f'bits[{bit_count}]'
     ir_text = op_module_generator.generate_ir_package(
-        op, op_type, (op_type, op_type)
+        op_name, op_type, (op_type, op_type)
     )
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
@@ -360,7 +371,7 @@ def _run_extension(
   expression.factor.source = delay_model_pb2.DelayFactor.OPERAND_BIT_COUNT
   expression.factor.operand_number = 0
 
-  op = ENUM2NAME_MAP[op]
+  op_name = ENUM2NAME_MAP[op]
 
   # Compute samples
   widths = get_bit_widths()
@@ -369,20 +380,11 @@ def _run_extension(
     op_type = f'bits[{bit_count}]'
     ret_type = f'bits[{new_bit_count}]'
     ir_text = op_module_generator.generate_ir_package(
-        op, ret_type, (op_type,), attributes=[('new_bit_count', new_bit_count)])
+        op_name, ret_type, (op_type,),
+        attributes=[('new_bit_count', new_bit_count)])
     _synthesize_ir(
         stub, model, data_points, ir_text, op, bit_count, (bit_count,)
     )
-
-
-def _run_miscellaneous(
-    op: str,
-    model: delay_model_pb2.DelayModel,
-    data_points: Dict[str, Set[str]],
-    stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
-) -> None:
-  del op, model, data_points, stub
-  pass
 
 
 OPS_RUNNERS = [(UNARY_BITWISE, _run_unary_bitwise),
@@ -390,7 +392,9 @@ OPS_RUNNERS = [(UNARY_BITWISE, _run_unary_bitwise),
                (ARITHMETIC_UNARY, _run_arithmetic_unary),
                (ARITHMETIC_BINARY, _run_arithmetic_binary),
                (COMPARISON, _run_comparison), (SHIFT, _run_shift),
-               (EXTENSION, _run_extension), (MISCELLANEOUS, _run_miscellaneous)]
+               (EXTENSION, _run_extension),
+               # (MISCELLANEOUS, _run_miscellaneous)  # placeholder
+               ]
 
 
 def init_data(
@@ -415,10 +419,14 @@ def run_characterization(
     stub: synthesis_service_pb2_grpc.SynthesisServiceStub,
 ) -> None:
   """Run characterization with the given synthesis service."""
-  data_points, model = init_data(FLAGS.checkpoint_path)
-  for ops, runner in OPS_RUNNERS:
-    for op in ops:
-      runner(op, model, data_points, stub)
+  data_points, model = init_data(_CHECKPOINT_PATH.value)
+  if _QUICK_RUN.value:
+    _run_arithmetic_binary('kAdd', model, data_points, stub)
+    _run_arithmetic_binary('kUMul', model, data_points, stub)
+  else:
+    for ops, runner in OPS_RUNNERS:
+      for op in ops:
+        runner(op, model, data_points, stub)
 
   print('# proto-file: xls/delay_model/delay_model.proto')
   print('# proto-message: xls.delay_model.DelayModel')

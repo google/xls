@@ -13,7 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Runs timing_characterization with OpenROAD scripts tooling and libraries."""
+"""Runs timing characterization to generate XLS delay models using Yosys and OpenSTA.
+
+   There are two modes:
+
+   If --openroad_path is supplied, then scripts, tooling,
+   and libraries are found in the OpenROAD installation.
+   The set of PDKs used is hardcoded (sky130, asap7, and nangate45).
+   Timing characterization is run for all these PDKs.
+
+   If --openroad_path is NOT supplied, then paths to
+   Yosys, openSTA, synthesis library, and (if different from
+   synthesis librarty) STA libraries must be provided.
+"""
 
 # Assume that https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts are
 # build ALSO assume that OpenROAD has pre-processed libraries.
@@ -40,8 +52,35 @@ _OPENROAD_PATH = flags.DEFINE_string(
 _DEBUG = flags.DEFINE_bool(
     'debug', False, 'Enable verbose debugging info for client and server'
 )
-flags.mark_flag_as_required('bazel_bin_path')
-flags.mark_flag_as_required('openroad_path')
+_QUICK_RUN = flags.DEFINE_bool(
+    'quick_run', False, 'Do a small subset for testing.'
+)
+
+# The options below are used when openroad_path is NOT specified
+_YOSYS_PATH = flags.DEFINE_string(
+    'yosys_path', None, 'Path to Yosys executable'
+)
+_STA_PATH = flags.DEFINE_string(
+    'sta_path', None, 'Path to sta/opensta executable'
+)
+_SYNTH_LIBS = flags.DEFINE_string(
+    'synth_libs', None, 'Path to synthesis library or libraries'
+)
+_STA_LIBS = flags.DEFINE_string(
+    'sta_libs', None, 'Path to static timing library or libraries; '
+                      'only needed if different from synth_libs'
+)
+_OUT_PATH = flags.DEFINE_string(
+    'out_path', None, 'Path for output text proto'
+)
+
+# The options below are used when bazel_bin_path is NOT specified
+_CLIENT = flags.DEFINE_string(
+    'client', None, 'Path for timing characterization client executable'
+)
+_SERVER = flags.DEFINE_string(
+    'server', None, 'Path for timing characterization server executable'
+)
 
 
 class WorkerConfig:
@@ -49,6 +88,8 @@ class WorkerConfig:
 
   bazel_bin_path: str
   openroad_path: str
+  yosys_path: str
+  sta_path: str
   debug: bool
   target: str
   yosys_bin: str
@@ -68,13 +109,69 @@ class WorkerConfig:
 
 def _do_config_task(config: WorkerConfig):
   """Extract configs from args and environment."""
-  # Expect OpenROAD-flow-scripts to hold tools
-  config.yosys_bin = f'{config.openroad_path}/tools/install/yosys/bin/yosys'
-  config.sta_bin = f'{config.openroad_path}/tools/install/OpenROAD/bin/sta'
-  config.server_bin = (
-      f'{config.bazel_bin_path}/xls/synthesis/yosys/yosys_sta_server_main'
-  )
-  config.client_bin = f'{config.bazel_bin_path}/xls/synthesis/timing_characterization_client_main'
+  if config.openroad_path:
+    # Expect OpenROAD-flow-scripts to hold tools
+    config.yosys_bin = f'{config.openroad_path}/tools/install/yosys/bin/yosys'
+    config.sta_bin = f'{config.openroad_path}/tools/install/OpenROAD/bin/sta'
+    config.client_checkpoint_file = (
+        f'../../{config.target}_checkpoint.textproto')
+  else:
+    if not _YOSYS_PATH.value:
+      raise app.UsageError(
+          'Must provide either --openroad_path or --yosys_path.')
+    config.yosys_bin = os.path.realpath(_YOSYS_PATH.value)
+
+    if not _STA_PATH.value:
+      raise app.UsageError(
+          'Must provide either --openroad_path or --sta_path.')
+    config.sta_bin = os.path.realpath(_STA_PATH.value)
+
+    if not _SYNTH_LIBS.value:
+      raise app.UsageError(
+          'Must provide either --openroad_path or --synth_libs.')
+    synth_libs = _SYNTH_LIBS.value
+    assert synth_libs is not None
+    config.synthesis_libraries = synth_libs.split()
+
+    if _STA_LIBS.value:
+      sta_libs = _STA_LIBS.value
+      assert sta_libs is not None
+      config.sta_libraries = sta_libs.split()
+    else:
+      config.sta_libraries = config.synthesis_libraries
+
+    if _OUT_PATH.value:
+      out_path = _OUT_PATH.value
+      assert out_path is not None
+      config.client_checkpoint_file = out_path
+    else:
+      raise app.UsageError(
+          'If not using --openroad_path, then must provide --out_path.')
+
+    if _QUICK_RUN.value:
+      config.client_args.append('--max_width=2')
+    else:
+      config.client_args.append('--max_width=64')
+    config.client_args.append('--min_freq_mhz=1000')
+    config.client_args.append('--max_freq_mhz=30000')
+
+  if config.bazel_bin_path:
+    config.server_bin = (
+        f'{config.bazel_bin_path}/xls/synthesis/yosys/yosys_sta_server_main'
+    )
+    config.client_bin = f'{config.bazel_bin_path}/xls/synthesis/timing_characterization_client_main'
+  else:
+    if not _SERVER.value:
+      raise app.UsageError('Must provide either --bazel_bin_path or --server.')
+    config.server_bin = os.path.realpath(_SERVER.value)
+    if not _CLIENT.value:
+      raise app.UsageError('Must provide either --bazel_bin_path or --client.')
+    config.client_bin = os.path.realpath(_CLIENT.value)
+
+  print('server bin path:', config.server_bin)
+  print('client bin path:', config.client_bin)
+  print('output checkpoint path:',
+        os.path.realpath(config.client_checkpoint_file))
 
   if not os.path.isfile(config.yosys_bin):
     raise app.UsageError(f'Yosys tools not found with {config.yosys_bin}')
@@ -89,7 +186,6 @@ def _do_config_task(config: WorkerConfig):
     raise app.UsageError(f'Client tool not found with {config.client_bin}')
 
   config.rpc_port = portpicker.pick_unused_port()
-  config.client_checkpoint_file = f'{config.target}_checkpoint.textproto'
 
   if config.debug:
     config.server_extra_args = ['--save_temps', '--v 1', '--alsologtostderr']
@@ -97,6 +193,9 @@ def _do_config_task(config: WorkerConfig):
   else:
     config.server_extra_args = ['']
     config.client_extra_args = ['']
+
+  if _QUICK_RUN.value:
+    config.client_extra_args.append('--quick_run')
 
 
 def _do_config_asap7(config: WorkerConfig):
@@ -165,6 +264,7 @@ def _do_worker_task(config: WorkerConfig):
   server = [config.server_bin]
   server.append(f'--yosys_path={config.yosys_bin}')
   server.append(f"--synthesis_libraries={' '.join(config.synthesis_libraries)}")
+  server.append('--return_netlist=false')
 
   server.append(f'--sta_path={config.sta_bin}')
   server.append(f"--sta_libraries=\"{' '.join(config.sta_libraries)}\"")
@@ -191,7 +291,7 @@ def _do_worker_task(config: WorkerConfig):
   start = datetime.datetime.now()
 
   # start non-blocking process
-  subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True)
+  server_proc = subprocess.Popen(server_cmd, stdout=subprocess.PIPE, shell=True)
 
   time.sleep(5)
 
@@ -207,27 +307,51 @@ def _do_worker_task(config: WorkerConfig):
       ' Total elapsed time for worker (%s) : %s', config.target, elapsed
   )
 
+  # clean up
+  server_proc.kill()
+  server_proc.communicate()
+
 
 def main(_):
   """Real main."""
   config = WorkerConfig()
 
-  config.openroad_path = os.path.realpath(_OPENROAD_PATH.value)
   config.debug = _DEBUG.value
-  config.bazel_bin_path = os.path.realpath(_BAZEL_BIN_PATH.value)
 
-  target_task = [
-      ('asap7', _do_config_asap7),
-      ('nangate45', _do_config_nangate45),
-      ('sky130', _do_config_sky130),
-  ]
+  if _BAZEL_BIN_PATH.value:
+    config.bazel_bin_path = os.path.realpath(_BAZEL_BIN_PATH.value)
+  else:
+    config.bazel_bin_path = None
 
-  for target, task in target_task:
-    config.target = target
-    task(config)
+  if _OPENROAD_PATH.value:
+    config.openroad_path = os.path.realpath(_OPENROAD_PATH.value)
+  else:
+    config.openroad_path = None
+
+  if config.openroad_path:
+    target_task = [
+        ('asap7', _do_config_asap7),
+        ('nangate45', _do_config_nangate45),
+        ('sky130', _do_config_sky130),
+    ]
+    for target, task in target_task:
+      # Be careful re-using same config object
+      config.synthesis_libraries = []
+      config.sta_libraries = []
+
+      print('Start ', target)
+      config.target = target
+      task(config)
+      _do_config_task(config)
+      _do_worker_task(config)
+      print('Finish ', target)
+
+  else:
+    print('Start')
+    config.target = 'user'
     _do_config_task(config)
     _do_worker_task(config)
-
+    print('Finish')
 
 if __name__ == '__main__':
   app.run(main)
