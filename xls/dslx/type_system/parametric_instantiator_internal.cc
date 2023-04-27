@@ -18,6 +18,7 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/type_system/parametric_bind.h"
 
 namespace xls::dslx {
@@ -100,10 +101,8 @@ ParametricInstantiator::~ParametricInstantiator() {
   XLS_CHECK_OK(ctx_->PopDerivedTypeInfo());
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>>
-ParametricInstantiator::InstantiateOneArg(int64_t i,
-                                          const ConcreteType& param_type,
-                                          const ConcreteType& arg_type) {
+absl::Status ParametricInstantiator::InstantiateOneArg(
+    int64_t i, const ConcreteType& param_type, const ConcreteType& arg_type) {
   if (typeid(param_type) != typeid(arg_type)) {
     std::string message = absl::StrFormat(
         "Parameter %d and argument types are different kinds (%s vs %s).", i,
@@ -119,11 +118,7 @@ ParametricInstantiator::InstantiateOneArg(int64_t i,
                             parametric_default_exprs_, parametric_env_,
                             this->ctx()};
   XLS_RETURN_IF_ERROR(ParametricBind(param_type, arg_type, ctx));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
-                       Resolve(param_type));
-  XLS_VLOG(5) << "Resolved parameter type from " << param_type.ToString()
-              << " to " << resolved->ToString();
-  return resolved;
+  return absl::OkStatus();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
@@ -184,17 +179,17 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     if (auto it = parametric_env_.find(name); it != parametric_env_.end()) {
       InterpValue seen = it->second;
       if (result.value() != seen) {
-        XLS_ASSIGN_OR_RETURN(auto lhs_type,
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
                              ConcreteType::FromInterpValue(seen));
-        XLS_ASSIGN_OR_RETURN(auto rhs_type,
+        XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> rhs_type,
                              ConcreteType::FromInterpValue(result.value()));
         std::string message = absl::StrFormat(
-            "Parametric constraint violated, first saw %s = %s; then saw %s = "
+            "Inconsistent parametric instantiation of %s, first saw %s = %s; "
+            "then saw %s = "
             "%s = %s",
-            name, seen.ToString(), name, expr->ToString(),
+            GetKindName(), name, seen.ToString(), name, expr->ToString(),
             result.value().ToString());
-        return ctx_->TypeMismatchError(span_, nullptr, *rhs_type, nullptr,
-                                       *lhs_type, std::move(message));
+        return TypeInferenceErrorStatus(span_, nullptr, message);
       }
     } else {
       parametric_env_.insert({name, result.value()});
@@ -225,12 +220,19 @@ FunctionInstantiator::Make(
 }
 
 absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
-  // Walk through all the params/args to collect symbolic bindings.
+  // Phase 1: instantiate actuals against parametrics in left-to-right order.
+  for (int64_t i = 0; i < args().size(); ++i) {
+    const ConcreteType& param_type = *param_types_[i];
+    const ConcreteType& arg_type = *args()[i].type();
+    XLS_RETURN_IF_ERROR(InstantiateOneArg(i, param_type, arg_type));
+  }
+
+  // Phase 2: resolve and check.
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
-                         InstantiateOneArg(i, param_type, arg_type));
+                         Resolve(param_type));
     if (*instantiated_param_type != arg_type) {
       // Although it's not the *original* parameter (which could be a little
       // confusing to the user) we want to show what the mismatch was directly,
@@ -265,11 +267,18 @@ StructInstantiator::Make(
 }
 
 absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
+  // Phase 1: instantiate actuals against parametrics in left-to-right order.
+  for (int64_t i = 0; i < member_types_.size(); ++i) {
+    const ConcreteType& member_type = *member_types_[i];
+    const ConcreteType& arg_type = *args()[i].type();
+    XLS_RETURN_IF_ERROR(InstantiateOneArg(i, member_type, arg_type));
+  }
+  // Phase 2: resolve and check.
   for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
-                         InstantiateOneArg(i, member_type, arg_type));
+                         Resolve(member_type));
     if (*instantiated_member_type != arg_type) {
       return ctx().TypeMismatchError(
           args()[i].span(), nullptr, *instantiated_member_type, nullptr,

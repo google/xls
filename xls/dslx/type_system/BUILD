@@ -138,6 +138,7 @@ cc_library(
         ":unwrap_meta_type",
         "@com_google_absl//absl/strings",
         "//xls/dslx:constexpr_evaluator",
+        "//xls/dslx:errors",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:pos",

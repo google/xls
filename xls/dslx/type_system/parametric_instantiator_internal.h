@@ -56,10 +56,13 @@ class ParametricInstantiator {
 
   virtual absl::StatusOr<TypeAndBindings> Instantiate() = 0;
 
+  // e.g. "struct" or "function"
+  virtual std::string_view GetKindName() = 0;
+
  protected:
   // Binds param_type via arg_type, updating 'parametric_env_'.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> InstantiateOneArg(
-      int64_t i, const ConcreteType& param_type, const ConcreteType& arg_type);
+  absl::Status InstantiateOneArg(int64_t i, const ConcreteType& param_type,
+                                 const ConcreteType& arg_type);
 
   // Verifies all constraints and then resolves possibly-parametric type
   // 'annotated' via 'parametric_env_'.
@@ -133,6 +136,8 @@ class FunctionInstantiator : public ParametricInstantiator {
   // args_' types.
   absl::StatusOr<TypeAndBindings> Instantiate() override;
 
+  std::string_view GetKindName() override { return "function"; }
+
  private:
   FunctionInstantiator(
       Span span, const FunctionType& function_type,
@@ -160,6 +165,8 @@ class StructInstantiator : public ParametricInstantiator {
 
   absl::StatusOr<TypeAndBindings> Instantiate() override;
 
+  std::string_view GetKindName() override { return "struct"; }
+
  private:
   StructInstantiator(
       Span span, const StructType& struct_type,
@@ -169,7 +176,7 @@ class StructInstantiator : public ParametricInstantiator {
       absl::Span<const ParametricConstraint> parametric_bindings)
       : ParametricInstantiator(std::move(span), args, ctx,
                                /*parametric_constraints=*/parametric_bindings,
-                               /*explicit_constraints=*/{}),
+                               /*explicit_parametrics=*/{}),
         struct_type_(CloneToUnique(struct_type)),
         member_types_(member_types) {}
 
