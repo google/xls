@@ -298,13 +298,13 @@ absl::StatusOr<std::string> InterpValue::ToTupleString(
 absl::StatusOr<std::string> InterpValue::ToEnumString(
     const EnumFormatDescriptor& fmt_desc) const {
   const auto& value_to_name = fmt_desc.value_to_name();
-  if (auto it = value_to_name.find(GetBitsOrDie()); it == value_to_name.end()) {
+  auto it = value_to_name.find(GetBitsOrDie());
+  if (it == value_to_name.end()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Enum value %s was not found in enum descriptor for %s",
                         ToString(), fmt_desc.enum_name()));
-  } else {
-    return absl::StrCat(fmt_desc.enum_name(), "::", it->second);
   }
+  return absl::StrCat(fmt_desc.enum_name(), "::", it->second);
 }
 
 absl::StatusOr<std::string> InterpValue::ToFormattedString(
