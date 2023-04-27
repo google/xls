@@ -237,7 +237,7 @@ TEST(BinaryDecisionDiagramTest, Parity) {
   auto uint64_to_bools = [&](uint64_t value) {
     absl::flat_hash_map<BddNodeIndex, bool> values;
     for (int64_t i = 0; i < 64; ++i) {
-      values[variables[i]] = (value >> i) & 1;
+      values[variables[i]] = (((value >> i) & 1) != 0u);
     }
     return values;
   };
@@ -294,7 +294,10 @@ TEST(BinaryDecisionDiagramTest, ThreeVariableExhaustive) {
     for (bool x2 : {false, true}) {
       for (bool x1 : {false, true}) {
         for (bool x0 : {false, true}) {
-          bool expected = (truth_table >> (4 * x2 + 2 * x1 + x0)) & 1;
+          bool expected = ((truth_table >>
+                            (4 * static_cast<int>(x2) +
+                             2 * static_cast<int>(x1) + static_cast<int>(x0))) &
+                           1) != 0;
           EXPECT_THAT(
               bdd.Evaluate(func, {{vars[0], x0}, {vars[1], x1}, {vars[2], x2}}),
               IsOkAndHolds(expected))

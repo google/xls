@@ -380,9 +380,9 @@ TEST(InlineBitmapTest, Union) {
 
   {
     InlineBitmap b = InlineBitmap::FromWord(0b00001100, 8);
-    b.Union(InlineBitmap(InlineBitmap::FromWord(0b10001001, 8)));
+    b.Union((InlineBitmap::FromWord(0b10001001, 8)));
     EXPECT_EQ(b.GetWord(0), 0b10001101);
-    b.Union(InlineBitmap(InlineBitmap::FromWord(0b11111111, 8)));
+    b.Union((InlineBitmap::FromWord(0b11111111, 8)));
     EXPECT_EQ(b.GetWord(0), 0b11111111);
   }
 
