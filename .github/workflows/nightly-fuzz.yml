@@ -12,7 +12,8 @@ on:
 jobs:
   build:
     name: Nightly Fuzz
-    runs-on: ubuntu-20.04
+    runs-on:
+      labels: ubuntu-20.04-64core
     steps:
       - uses: actions/checkout@v2
       - name: Mount Bazel Cache
@@ -35,52 +36,11 @@ jobs:
       - name: Bazel Build Fuzz Driver (opt)
         run: |
           "${GITHUB_WORKSPACE}/bin/bazel" build -c opt xls/fuzzer:run_fuzz_multiprocess
-      - name: Bazel Run Fuzz (nosim, opt)
-        # TODO(leary): 2020-08-28 Can remove some of these "lighter weight"
-        # options as we understand why GitHub action jobs are getting killed.
+      - name: Bazel Run Fuzz (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=1024 --codegen=false --simulate=false --emit_loops=False --summary_path "${GITHUB_WORKSPACE}/crashers"
+          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=2048 --summary_path "${GITHUB_WORKSPACE}/crashers"
       - name: Upload Fuzz Crashers
         uses: actions/upload-artifact@v2
         with:
           name: crashers
           path: "${GITHUB_WORKSPACE}/crashers"
-  cleanup:
-    name: Bazel Cache Cleanup
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: write
-    steps:
-      - uses: actions/checkout@v3
-      - name: Cleanup older Bazel Caches
-        # Per https://github.com/actions/cache/blob/main/tips-and-workarounds.md#force-deletion-of-caches-overriding-default-cache-eviction-policy
-        run: |
-          gh extension install actions/gh-actions-cache
-
-          REPO=${{ github.repository }}
-          BRANCH=${{ github.ref }}
-
-          echo "Fetching list of cache key"
-          gh actions-cache list -R $REPO -B $BRANCH
-
-          # Do not fail if unable to clean up (i.e. no cache were found).
-          set +e
-          caches_for_20_04=($(gh actions-cache list -R $REPO -B $BRANCH | cut -f 1 | grep "bazel-cache-20_04"))
-
-          # Delete all except for the latest cache.
-          older_caches_for_20_04=${caches_for_20_04[@]:1}
-
-          echo "Deleting caches..."
-          for key in ${older_caches_for_20_04[@]}; do
-              echo "  ... deleting $key for $REPO and $BRANCH"
-              gh actions-cache delete $key -R $REPO -B $BRANCH --confirm
-          done
-
-          echo "Done"
-
-          set -e
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
