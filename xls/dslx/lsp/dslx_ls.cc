@@ -51,7 +51,6 @@ namespace {
 namespace fs = std::filesystem;
 
 using verible::lsp::BufferCollection;
-using verible::lsp::Diagnostic;
 using verible::lsp::DocumentSymbol;
 using verible::lsp::EditTextBuffer;
 using verible::lsp::InitializeResult;
