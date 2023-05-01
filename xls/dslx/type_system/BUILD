@@ -221,17 +221,49 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "typecheck_test",
-    srcs = ["typecheck_test.cc"],
+cc_library(
+    name = "typecheck_test_helpers",
+    testonly = True,
+    srcs = ["typecheck_test_helpers.cc"],
+    hdrs = ["typecheck_test_helpers.h"],
     deps = [
         ":type_info_to_proto",
         ":typecheck",
         "@com_google_absl//absl/status",
+        "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+    ],
+)
+
+cc_test(
+    name = "typecheck_test",
+    srcs = ["typecheck_test.cc"],
+    deps = [
+        ":typecheck",
+        ":typecheck_test_helpers",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/dslx:command_line_utils",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:error_printer",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx/frontend:ast",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "proc_typecheck_test",
+    srcs = ["proc_typecheck_test.cc"],
+    deps = [
+        ":typecheck",
+        ":typecheck_test_helpers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",

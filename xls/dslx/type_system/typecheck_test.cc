@@ -27,40 +27,17 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_system/type_info_to_proto.h"
+#include "xls/dslx/type_system/typecheck_test_helpers.h"
 
 namespace xls::dslx {
 namespace {
 
 using status_testing::StatusIs;
 using testing::HasSubstr;
-
-// Helper for parsing/typechecking a snippet of DSLX text.
-absl::Status Typecheck(std::string_view text,
-                       TypecheckedModule* tm_out = nullptr) {
-  auto import_data = CreateImportDataForTest();
-  auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
-  if (!tm_or.ok()) {
-    TryPrintError(tm_or.status(),
-                  [&](std::string_view path) -> absl::StatusOr<std::string> {
-                    return std::string(text);
-                  });
-    return tm_or.status();
-  }
-  TypecheckedModule& tm = tm_or.value();
-  if (tm_out != nullptr) {
-    *tm_out = tm;
-  }
-  // Ensure that we can convert all the type information in the unit tests into
-  // its protobuf form.
-  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
-  return absl::Status();
-}
 
 TEST(TypecheckErrorTest, ParametricWrongArgCount) {
   std::string_view text = R"(
@@ -85,14 +62,17 @@ fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
           HasSubstr("Too many parametric values supplied; limit: 1 given: 2")));
 }
 
-TEST(TypecheckTest, Identity) {
-  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u32 { x }"));
-  XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[3] { x }"));
-  XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[4] { y }"));
+TEST(TypecheckErrorTest, ReturnTypeMismatch) {
   EXPECT_THAT(
       Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[5] { y }"),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("uN[4] vs uN[5]: Return type of function body")));
+}
+
+TEST(TypecheckTest, Identity) {
+  XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u32 { x }"));
+  XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[3] { x }"));
+  XLS_EXPECT_OK(Typecheck("fn f(x: bits[3], y: bits[4]) -> bits[4] { y }"));
 }
 
 TEST(TypecheckTest, TokenIdentity) {
@@ -183,7 +163,7 @@ fn f() -> u32 { o(u32:3) }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
-TEST(TypecheckTest, ParametricInvocationConflictingArgs) {
+TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u32:5) }
@@ -192,7 +172,7 @@ fn f() -> u32 { id(u8:3, u32:5) }
                                            HasSubstr("saw: 8; then: 32")));
 }
 
-TEST(TypecheckTest, ParametricWrongKind) {
+TEST(TypecheckErrorTest, ParametricWrongKind) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id((u8:3,)) }
@@ -201,7 +181,7 @@ fn f() -> u32 { id((u8:3,)) }
                                            HasSubstr("different kinds")));
 }
 
-TEST(TypecheckTest, ParametricWrongNumberOfDims) {
+TEST(TypecheckErrorTest, ParametricWrongNumberOfDims) {
   std::string program = R"(
 fn id<N: u32, M: u32>(x: bits[N][M]) -> bits[N][M] { x }
 fn f() -> u32 { id(u32:42) }
@@ -212,14 +192,14 @@ fn f() -> u32 { id(u32:42) }
                HasSubstr("types are different kinds (array vs ubits)")));
 }
 
-TEST(TypecheckTest, RecursionCausesError) {
+TEST(TypecheckErrorTest, RecursionCausesError) {
   std::string program = "fn f(x: u32) -> u32 { f(x) }";
   EXPECT_THAT(Typecheck(program),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("This may be due to recursion")));
 }
 
-TEST(TypecheckTest, ParametricRecursionCausesError) {
+TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
   std::string program = R"(
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
@@ -229,7 +209,7 @@ fn g() -> u32 { f(u32: 5) }
                        HasSubstr("Recursion detected while typechecking")));
 }
 
-TEST(TypecheckTest, HigherOrderRecursionCausesError) {
+TEST(TypecheckErrorTest, HigherOrderRecursionCausesError) {
   std::string program = R"(
 fn h<Y: u32>(y: bits[Y]) -> bits[Y] { h(y) }
 fn g() -> u32[3] {
@@ -242,7 +222,7 @@ fn g() -> u32[3] {
                        HasSubstr("Recursion detected while typechecking")));
 }
 
-TEST(TypecheckTest, InvokeWrongArg) {
+TEST(TypecheckErrorTest, InvokeWrongArg) {
   std::string program = R"(
 fn id_u32(x: u32) -> u32 { x }
 fn f(x: u8) -> u8 { id_u32(x) }
@@ -253,7 +233,7 @@ fn f(x: u8) -> u8 { id_u32(x) }
                HasSubstr("Mismatch between parameter and argument types")));
 }
 
-TEST(TypecheckTest, BadTupleType) {
+TEST(TypecheckErrorTest, BadTupleType) {
   std::string program = R"(
 fn f() -> u32 {
   let (a, b, c): (u32, u32) = (u32:1, u32:2, u32:3);
@@ -571,7 +551,7 @@ fn caller() {
 )"));
 }
 
-TEST(TypecheckTest, ParametricMapNonPolymorphic) {
+TEST(TypecheckErrorTest, ParametricMapNonPolymorphic) {
   EXPECT_THAT(Typecheck(R"(
 fn add_one<N: u32>(x: bits[N]) -> bits[N] { x + bits[5]:1 }
 
@@ -586,7 +566,7 @@ fn main() {
                        HasSubstr("uN[6] vs uN[5]")));
 }
 
-TEST(TypecheckTest, LetBindingInferredDoesNotMatchAnnotation) {
+TEST(TypecheckErrorTest, LetBindingInferredDoesNotMatchAnnotation) {
   EXPECT_THAT(Typecheck(R"(
 fn f() -> u32 {
   let x: u32 = bits[4]:7;
@@ -653,7 +633,7 @@ fn f(x: u32, y: u17, z: u15) -> u32 {
 )"));
 }
 
-TEST(TypecheckTest, UpdateIncompatibleValue) {
+TEST(TypecheckErrorTest, UpdateIncompatibleValue) {
   EXPECT_THAT(Typecheck(R"(
 fn f(x: u32[5]) -> u32[5] {
   update(x, u32:1, u8:0)
@@ -663,7 +643,7 @@ fn f(x: u32[5]) -> u32[5] {
                        HasSubstr("uN[32] to match argument 2 type uN[8]")));
 }
 
-TEST(TypecheckTest, UpdateMultidimIndex) {
+TEST(TypecheckErrorTest, UpdateMultidimIndex) {
   EXPECT_THAT(Typecheck(R"(
 fn f(x: u32[6][5], i: u32[2]) -> u32[6][5] {
   update(x, i, u32[6]:[0, ...])
@@ -1039,7 +1019,7 @@ fn main() -> u8[2] { p(false) }
 )"));
 }
 
-TEST(TypecheckTest, BadQuickcheckFunctionRet) {
+TEST(TypecheckErrorTest, BadQuickcheckFunctionRet) {
   EXPECT_THAT(Typecheck(R"(
 #[quickcheck]
 fn f() -> u5 { u5:1 }
@@ -1048,7 +1028,7 @@ fn f() -> u5 { u5:1 }
                        HasSubstr("must return a bool")));
 }
 
-TEST(TypecheckTest, BadQuickcheckFunctionParametrics) {
+TEST(TypecheckErrorTest, BadQuickcheckFunctionParametrics) {
   EXPECT_THAT(
       Typecheck(R"(
 #[quickcheck]
@@ -1136,7 +1116,7 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
   // are indeed constexpr.
   class IsConstVisitor : public AstNodeVisitorWithDefault {
    public:
-    IsConstVisitor(TypeInfo* type_info) : type_info_(type_info) {}
+    explicit IsConstVisitor(TypeInfo* type_info) : type_info_(type_info) {}
 
     absl::Status HandleFunction(const Function* node) override {
       XLS_RETURN_IF_ERROR(node->body()->Accept(this));
@@ -1180,162 +1160,6 @@ fn main() {
   IsConstVisitor visitor(tm.type_info);
   XLS_ASSERT_OK(f->Accept(&visitor));
   EXPECT_TRUE(visitor.all_numbers_constexpr());
-}
-
-TEST(TypecheckTest, CantSendOnNonMember) {
-  constexpr std::string_view kProgram = R"(
-proc foo {
-    init { () }
-
-    config() {
-        ()
-    }
-
-    next(tok: token, state: ()) {
-        let foo = u32:0;
-        let tok = send(tok, foo, u32:0x0);
-        ()
-    }
-}
-)";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("send requires a channel argument")));
-}
-
-TEST(TypecheckTest, CantSendOnNonChannel) {
-  constexpr std::string_view kProgram = R"(
-proc foo {
-    bar: u32;
-    init { () }
-    config() {
-        (u32:0,)
-    }
-    next(tok: token, state: ()) {
-        let tok = send(tok, bar, u32:0x0);
-        ()
-    }
-}
-)";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("send requires a channel argument")));
-}
-
-TEST(TypecheckTest, CantRecvOnOutputChannel) {
-  constexpr std::string_view kProgram = R"(
-proc foo {
-    c : chan<u32> out;
-    init {
-        u32:0
-    }
-    config(c: chan<u32> out) {
-        (c,)
-    }
-    next(tok: token, state: u32) {
-        let (tok, x) = recv(tok, c);
-        (state + x,)
-    }
-}
-
-proc entry {
-    c: chan<u32> in;
-    init { () }
-    config() {
-        let (p, c) = chan<u32>;
-        spawn foo(c);
-        (p,)
-    }
-    next (tok: token, state: ()) { () }
-}
-)";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot recv on an output channel.")));
-}
-
-TEST(TypecheckTest, CantSendOnOutputChannel) {
-  constexpr std::string_view kProgram = R"(
-proc entry {
-    p: chan<u32> out;
-    c: chan<u32> in;
-    init { () }
-    config() {
-        let (p, c) = chan<u32>;
-        (p, c)
-    }
-    next (tok: token, state: ()) {
-        let tok = send(tok, c, u32:0);
-        ()
-    }
-}
-)";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot send on an input channel.")));
-}
-
-TEST(TypecheckTest, RecvIfDefaultValueWrongType) {
-  constexpr std::string_view kProgram = R"(
-proc foo {
-    c : chan<u32> in;
-    init {
-        u32:0
-    }
-    config(c: chan<u32> in) {
-        (c,)
-    }
-    next(tok: token, state: u32) {
-        let (tok, x) = recv_if(tok, c, true, u42:1234);
-        (state + x,)
-    }
-}
-
-proc entry {
-    c: chan<u32> out;
-    init { () }
-    config() {
-        let (p, c) = chan<u32>;
-        spawn foo(p);
-        (c,)
-    }
-    next (tok: token, state: ()) { () }
-}
-)";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Default value type does not match channel type")));
-}
-
-TEST(TypecheckTest, InitDoesntMatchStateParam) {
-  constexpr std::string_view kProgram = R"(
-proc oopsie {
-    init { u32:0xbeef }
-    config() { () }
-    next(tok: token, state: u33) {
-      state
-    }
-})";
-  EXPECT_THAT(
-      Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("'next' state param and 'init' types differ")));
-}
-
-TEST(TypecheckTest, NextReturnDoesntMatchState) {
-  constexpr std::string_view kProgram = R"(
-proc oopsie {
-    init { u32:0xbeef }
-    config() { () }
-    next(tok: token, state: u32) {
-      state as u33
-    }
-})";
-
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("input and output state types differ")));
 }
 
 TEST(TypecheckTest, BasicTupleIndex) {
