@@ -1397,6 +1397,17 @@ fn f() -> MyU0 { bits[0]:0 }
 )"));
 }
 
+TEST(TypecheckTest, TypeAliasOfStructWithBoundParametrics) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct S<X: u32, Y: u32> {
+  x: bits[X],
+  y: bits[Y],
+}
+type MyS = S<u32:3, u32:4>;
+fn f() -> MyS { MyS{x: bits[3]:3, y: bits[4]:4 } }
+)"));
+}
+
 TEST(TypecheckTest, SplatWithAllStructMembersSpecifiedGivesWarning) {
   const std::string program = R"(
 struct S {
