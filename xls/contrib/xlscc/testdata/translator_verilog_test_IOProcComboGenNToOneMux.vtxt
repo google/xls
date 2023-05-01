@@ -14,14 +14,14 @@ module foo_proc(
   wire in2_pred;
   wire [31:0] in2_select;
   wire [31:0] in1_select;
-  wire and_111;
+  wire p0_all_active_inputs_valid;
   assign in1_pred = dir == 32'h0000_0000;
   assign in2_pred = dir != 32'h0000_0000;
   assign in2_select = in2_pred ? in2 : 32'h0000_0000;
   assign in1_select = in1_pred ? in1 : 32'h0000_0000;
-  assign and_111 = out_rdy;
+  assign p0_all_active_inputs_valid = (~in1_pred | in1_vld) & (~in2_pred | in2_vld);
   assign out = in1_pred ? in1_select : in2_select;
-  assign out_vld = (~in1_pred | in1_vld) & (~in2_pred | in2_vld) & 1'h1 & 1'h1;
-  assign in1_rdy = in1_pred & and_111;
-  assign in2_rdy = in2_pred & and_111;
+  assign out_vld = p0_all_active_inputs_valid & 1'h1 & 1'h1;
+  assign in1_rdy = in1_pred & out_rdy;
+  assign in2_rdy = in2_pred & out_rdy;
 endmodule

@@ -14,9 +14,9 @@ module neg_proc(
   reg [31:0] __out_skid_reg;
   reg __out_valid_reg;
   reg __out_valid_skid_reg;
+  wire literal_21;
   wire out_from_skid_rdy;
-  wire literal_23;
-  wire and_20;
+  wire p0_stage_done;
   wire __out_vld_buf;
   wire pipeline_enable;
   wire in_valid_inv;
@@ -32,11 +32,11 @@ module neg_proc(
   wire [31:0] negate;
   wire out_data_valid_load_en__1;
   wire out_skid_valid_load_en;
+  assign literal_21 = 1'h1;
   assign out_from_skid_rdy = ~__out_valid_skid_reg;
-  assign literal_23 = 1'h1;
-  assign and_20 = __in_valid_reg;
-  assign __out_vld_buf = and_20 & literal_23 & 1'h1;
-  assign pipeline_enable = literal_23 & and_20 & out_from_skid_rdy & (literal_23 & and_20 & out_from_skid_rdy);
+  assign p0_stage_done = literal_21 & __in_valid_reg & out_from_skid_rdy;
+  assign __out_vld_buf = __in_valid_reg & literal_21 & 1'h1;
+  assign pipeline_enable = p0_stage_done & p0_stage_done;
   assign in_valid_inv = ~__in_valid_reg;
   assign out_data_valid_load_en = __out_vld_buf & out_from_skid_rdy;
   assign out_to_is_not_rdy = ~out_rdy;
