@@ -58,6 +58,8 @@ nav:
     - Adding a new IR operation: 'adding_ir_operation.md'
     - Ideas and Projects: 'ideas_and_projects.md'
     - FPGA characterization (experimental): 'fpga_characterization.md'
+    - Design Docs:
+      - Legalize Multiple Channel Ops Per Channel: 'design_docs/legalize_multiple_channel_ops_per_channel.md'
   - NoC:
     - Overview: 'noc/xls_noc_readme.md'
     - Topologies:
