@@ -475,7 +475,7 @@ def xls_delay_model_generation(
         tools = [
             "@at_clifford_yosys//:yosys",
             "@org_theopenroadproject//:opensta",
-            "//xls/synthesis/yosys:yosys_sta_server_main",
+            "//xls/synthesis/yosys:yosys_server_main",
             "//xls/synthesis:timing_characterization_client_main",
             "//xls/tools:run_timing_characterization",
         ],
@@ -494,7 +494,7 @@ def xls_delay_model_generation(
                 echo -n ' ' --sta_path $(location @org_theopenroadproject//:opensta) >> $@; \
                 echo -n ' ' --synth_libs $${lib} >> $@; \
                 echo -n ' ' --client $(location //xls/synthesis:timing_characterization_client_main) >> $@; \
-                echo -n ' ' --server $(location //xls/synthesis/yosys:yosys_sta_server_main) >> $@; \
+                echo -n ' ' --server $(location //xls/synthesis/yosys:yosys_server_main) >> $@; \
                 echo -n ' ' --out_path " + name + ".textproto >> $@; \
                 echo -n ' ' \\\"\\$$\\@\\\" >> $@; \
                 echo '' >> $@",

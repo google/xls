@@ -157,7 +157,7 @@ def _do_config_task(config: WorkerConfig):
 
   if config.bazel_bin_path:
     config.server_bin = (
-        f'{config.bazel_bin_path}/xls/synthesis/yosys/yosys_sta_server_main'
+        f'{config.bazel_bin_path}/xls/synthesis/yosys/yosys_server_main'
     )
     config.client_bin = f'{config.bazel_bin_path}/xls/synthesis/timing_characterization_client_main'
   else:

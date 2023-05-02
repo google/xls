@@ -47,29 +47,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "yosys_sta_server_main",
-    srcs = ["yosys_sta_server_main.cc"],
-    deps = [
-        ":yosys_util",
-        "//xls/common:init_xls",
-        "//xls/common:subprocess",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:temp_directory",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/synthesis:server_credentials",
-        "//xls/synthesis:synthesis_cc_proto",
-        "//xls/synthesis:synthesis_service_cc_grpc",
-        "@com_github_grpc_grpc//:grpc++",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/time",
-    ],
-)
-
-cc_binary(
     name = "bogusys",
     srcs = ["bogusys.cc"],
     data = ["testdata/netlist.json"],
@@ -112,7 +89,6 @@ py_test(
         ":bogusys",
         ":nextpbr",
         ":yosys_server_main",
-        ":yosys_sta_server_main",
         "//xls/synthesis:synthesis_client_main",
     ],
     python_version = "PY3",
