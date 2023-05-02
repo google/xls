@@ -51,6 +51,13 @@ load(
     "string_type_check",
 )
 
+XlsccInfo = provider(
+    doc = "A provider containing transitive XLScc source deps",
+    fields = {
+        "cc_headers": "XLScc headers",
+    },
+)
+
 _CC_FILE_EXTENSION = ".cc"
 _H_FILE_EXTENSION = ".h"
 _INC_FILE_EXTENSION = ".inc"
@@ -116,6 +123,18 @@ def _get_runfiles_for_xls_cc_ir(ctx):
     runfiles = runfiles.merge_all(transitive_runfiles)
     return runfiles
 
+def _get_headers_for_xls_cc_ir(ctx):
+    transitive_runfiles = []
+    files = (ctx.files._default_cc_header_files +
+             ctx.files._default_synthesis_header_files +
+             ctx.files.src_deps)
+    runfiles = ctx.runfiles(files = files)
+    for dep in ctx.attr.src_deps:
+        if XlsccInfo in dep:
+            transitive_runfiles.append(dep[XlsccInfo].cc_headers)
+    runfiles = runfiles.merge_all(transitive_runfiles)
+    return runfiles
+
 def _get_transitive_built_files_for_xls_cc_ir(ctx):
     """Returns the transitive built files from a 'xls_cc_ir' ctx.
 
@@ -157,6 +176,7 @@ def _xls_cc_ir_impl(ctx):
         1. The ConvIRInfo provider
         1. The list of built files.
         1. The runfiles.
+        1. The XlsccInfo provider (transitive C++ headers)
     """
     XLSCC_FLAGS = (
         "module_name",
@@ -215,6 +235,8 @@ def _xls_cc_ir_impl(ctx):
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
+    cc_headers = _get_headers_for_xls_cc_ir(ctx)
+
     ctx.actions.run_shell(
         outputs = outputs,
         # The IR converter executable is a tool needed by the action.
@@ -232,7 +254,7 @@ def _xls_cc_ir_impl(ctx):
         mnemonic = "ConvertXLSCC",
         progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
     )
-    return [ConvIRInfo(conv_ir_file = ir_file), outputs, runfiles]
+    return [ConvIRInfo(conv_ir_file = ir_file), outputs, runfiles, XlsccInfo(cc_headers = cc_headers)]
 
 _xls_cc_ir_attrs = {
     "src": attr.label(
@@ -317,8 +339,9 @@ def _xls_cc_ir_impl_wrapper(ctx):
     Returns:
       ConvIRInfo provider
       DefaultInfo provider
+      XlsccInfo provider
     """
-    ir_conv_info, built_files, runfiles = _xls_cc_ir_impl(ctx)
+    ir_conv_info, built_files, runfiles, xlscc_info = _xls_cc_ir_impl(ctx)
     return [
         ir_conv_info,
         DefaultInfo(
@@ -328,6 +351,7 @@ def _xls_cc_ir_impl_wrapper(ctx):
             ),
             runfiles = runfiles,
         ),
+        xlscc_info,
     ]
 
 xls_cc_ir = rule(
@@ -459,7 +483,7 @@ def _xls_cc_verilog_impl(ctx):
       CodegenInfo provider.
       DefaultInfo provider.
     """
-    ir_conv_info, ir_conv_built_files, ir_conv_runfiles = _xls_cc_ir_impl(ctx)
+    ir_conv_info, ir_conv_built_files, ir_conv_runfiles, _xlscc_info = _xls_cc_ir_impl(ctx)
     ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
         ir_conv_info.conv_ir_file,
