@@ -17,7 +17,7 @@
         <link rel="next" href="../xls_noc_tree_topology/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.9">
     
     
       
@@ -25,10 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ded33207.min.css">
-      
-        
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.85bb2934.min.css">
       
       
 
@@ -54,14 +51,11 @@
   </head>
   
   
-    
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+    <body dir="ltr">
   
     
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -569,7 +563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -1121,6 +1115,54 @@
 
             
           
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7_6" id="__nav_7_6_label" tabindex="0">
+          Design Docs
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7_6">
+          <span class="md-nav__icon md-icon"></span>
+          Design Docs
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+        Legalize Multiple Channel Ops Per Channel
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -1583,7 +1625,7 @@ exactly one address digit. Each dimension is constructed using <em>k</em> <em>k<
 (<em>n-1</em>)-cubes. The channels between the routers can be unidirectional or
 bidirectional. In practice, the channels are bidirectional.</p>
 <h3 id="ring-topology">Ring Topology <a id="ring"></a></h3>
-<p><img alt="drawing" src="./noc/ring.png" /></p>
+<p><img alt="drawing" src="../ring.png" /></p>
 <p><strong>Figure Ring_4ary_1cube_example<a id="ring_4ary_1cube_example"></a>. A ring
 topology with four routers, also known as a 4-ary 1-cube topology.</strong></p>
 <p>The ring topology is a special instance of the <em>k</em>-ary <em>n</em>-cube, where <em>n</em> is
@@ -1591,7 +1633,7 @@ equal to one. Figure <a href="#ring_4ary_1cube_example">Ring_4ary_1cube_example<
 ring topology with four routers, also known as a 4-ary 1-cube topology. The
 dotted lines show the connectivity between routers 0 and k-1 for a dimension.</p>
 <h3 id="symmetric-torus-topology">Symmetric Torus Topology <a id="symmetric_torus"></a></h3>
-<p><img alt="drawing" src="./noc/symmetric_torus.png" /></p>
+<p><img alt="drawing" src="../symmetric_torus.png" /></p>
 <p><strong>Figure
 Symmetric_Torus_4ary_2cube_example<a id="symmetric_torus_4ary_2cube_example"></a>.
 A symmetric torus topology with four routers along each dimension, also known as
@@ -1603,7 +1645,7 @@ symmetric torus topology with four routers along each dimension, also known as a
 4-ary 2-cube topology. Router (3,0) has address 3 in a dimension and 0 in the
 other dimension. The dotted lines show the connectivity between routers 0 and
 k-1 for a dimension.</p>
-<p><img alt="drawing" src="./noc/hierarchical_structure_dimension_order.png" /></p>
+<p><img alt="drawing" src="../hierarchical_structure_dimension_order.png" /></p>
 <p><strong>Figure
 4ary_2cube_construction_example<a id="4ary_2cube_construction_example"></a>. The
 construction of a symmetric torus (4-ary 2-cube) topology using 4-ary 1-cubes.</strong></p>
@@ -1616,7 +1658,7 @@ where the radix (number of router nodes) for each dimension is explicitly
 stated. Each router is assigned an <em>n</em>-digit where the digit at index <em>i</em> has
 the radix of dimension <em>i</em>. A 2,3-ary 2-cube describes a grid-like topology with
 a radix of 2 in one dimension and radix of 3 in the other dimension.</p>
-<p><img alt="drawing" src="./noc/multi_radix_n_cube.png" /></p>
+<p><img alt="drawing" src="../multi_radix_n_cube.png" /></p>
 <p><strong>Figure 2,3-ary_2cube_example<a id="2_3_ary_2cube_example"></a>. A 2,3-ary
 2-cube topology example.</strong></p>
 <p>Figure <a href="#2_3_ary_2cube_example">2,3-ary_2cube_example</a> shows a 2,3-ary 2-cube
@@ -1626,7 +1668,7 @@ router radix<sub>i </sub>- 1 for each dimension.</p>
 <p>A <em>k</em>-ary <em>n</em>-mesh is a <em>k</em>-ary <em>n</em>-cube topology with the connection from
 address a<sub>k−1</sub> to address a<sub>0</sub> omitted in each dimension.</p>
 <h3 id="line">Line <a id="line"></a></h3>
-<p><img alt="drawing" src="./noc/line.png" /></p>
+<p><img alt="drawing" src="../line.png" /></p>
 <p><strong>Figure Line_4ary_1mesh_example<a id="line_4ary_1mesh_example"></a>. A line
 topology with four routers, also known as a 4-ary 1-mesh topology.</strong></p>
 <p>The line topology is a special instance of the <em>k</em>-ary <em>n</em>-mesh, where <em>n</em> is
@@ -1636,7 +1678,7 @@ to the ring topology in Figure
 <a href="#ring_4ary_1cube_example">Ring_4ary_1cube_example</a>, the connection from router
 0 to router 3 is omitted.</p>
 <h3 id="symmetric-mesh">Symmetric Mesh <a id="symmetric_mesh"></a></h3>
-<p><img alt="drawing" src="./noc/symmetric_mesh.png" /></p>
+<p><img alt="drawing" src="../symmetric_mesh.png" /></p>
 <p><strong>Figure
 Symmetric_Mesh_4ary_2mesh_example<a id="symmetric_mesh_4ary_2mesh_example"></a>. A
 symmetric mesh topology with four routers along each dimension, also known as a
@@ -1658,7 +1700,7 @@ dimension is explicitly stated. Each router is assigned an <em>n</em>-digit wher
 digit at index <em>i</em> has the radix of dimension <em>i</em>. A 2,3-ary 2-mesh describes a
 grid-like topology with a radix of 2 in one dimension and radix of 3 in the
 other dimension.</p>
-<p><img alt="drawing" src="./noc/multi_radix_n_mesh.png" /></p>
+<p><img alt="drawing" src="../multi_radix_n_mesh.png" /></p>
 <p><strong>Figure 2,3-ary_2mesh_example<a id="2_3_ary_2mesh_example"></a>. A 2,3-ary
 2-mesh topology example.</strong></p>
 <p>Figure <a href="#2_3_ary_2mesh_example">2,3-ary_2mesh_example</a> shows a 2,3-ary 2-mesh
@@ -1737,7 +1779,7 @@ USA.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.51198bba.min.js"></script>
+      <script src="../../assets/javascripts/bundle.fac441b0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

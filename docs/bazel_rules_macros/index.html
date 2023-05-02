@@ -17,7 +17,7 @@
         <link rel="next" href="../tools_quick_start/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.9">
     
     
       
@@ -25,10 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.ded33207.min.css">
-      
-        
-        <link rel="stylesheet" href="../assets/stylesheets/palette.a0c5b2b5.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.85bb2934.min.css">
       
       
 
@@ -54,14 +51,11 @@
   </head>
   
   
-    
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+    <body dir="ltr">
   
     
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -569,7 +563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../optimizations/" class="md-nav__link">
+      <a href="../optimizations/optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -1086,6 +1080,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_delay_model_generation" class="md-nav__link">
+    xls_delay_model_generation
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#xls_dslx_cpp_type_library" class="md-nav__link">
     xls_dslx_cpp_type_library
   </a>
@@ -1292,6 +1293,54 @@
       <a href="../fpga_characterization/" class="md-nav__link">
         FPGA characterization (experimental)
       </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7_6" id="__nav_7_6_label" tabindex="0">
+          Design Docs
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7_6">
+          <span class="md-nav__icon md-icon"></span>
+          Design Docs
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+        Legalize Multiple Channel Ops Per Channel
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
     </li>
   
 
@@ -1590,6 +1639,13 @@
         <li class="md-nav__item">
   <a href="#get_mangled_ir_symbol" class="md-nav__link">
     get_mangled_ir_symbol
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_delay_model_generation" class="md-nav__link">
+    xls_delay_model_generation
   </a>
   
 </li>
@@ -2549,6 +2605,55 @@ converted, we use their mangled names to refer to them in the IR namespace.</p>
 </table>
 <p><strong>RETURNS</strong></p>
 <p>The "mangled" symbol string.</p>
+<p><a id="xls_delay_model_generation"></a></p>
+<h2 id="xls_delay_model_generation">xls_delay_model_generation</h2>
+<pre>
+xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
+</pre>
+
+<p>Generate an XLS delay model for one PDK corner.</p>
+<p>This macro gathers the locations of the required dependencies
+(Yosys, OpenSTA, helper scripts, and cell libraries) and
+generates a wrapper script that invokes "run_timing_characterization"
+with the dependency locations provided as args.</p>
+<p>Any extra runtime args will get passed in to the
+"run_timing_characterization" script (e.g. "--debug" or "--quick_run").</p>
+<p>The script must be "run" from the root of the workspace
+to perform the timing characterization.  The output textproto
+will be produced in the current directory (which, as just
+stated, must be the root of the workspace).</p>
+<p>Currently, only a subset of XLS operators are characterized,
+including most arithmetic, logical, and shift operators.
+However, many common operators such as "concat", "bit_slice",
+and "encode" are missing, and so the delay model that is
+currently produced should be considered INCOMPLETE.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_delay_model_generation-name"></a>name</td>
+<td align="left">Used as basename for both the script and the output textproto.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_delay_model_generation-standard_cells"></a>standard_cells</td>
+<td align="left">Label for the PDK (possibly specifying a non-default corner), with the assumption that $location will return the timing (Liberty) library for the PDK corner.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_delay_model_generation-kwargs"></a>kwargs</td>
+<td align="left">Accepts add'l keyword arguments. Passed to native.genrule().</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
 <p><a id="xls_dslx_cpp_type_library"></a></p>
 <h2 id="xls_dslx_cpp_type_library">xls_dslx_cpp_type_library</h2>
 <pre>
@@ -3145,7 +3250,7 @@ Recognized metrics from OpenSTA log:
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.51198bba.min.js"></script>
+      <script src="../assets/javascripts/bundle.fac441b0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

@@ -17,7 +17,7 @@
         <link rel="next" href="../xls_noc_fully_connected_topology/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.9">
     
     
       
@@ -25,10 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ded33207.min.css">
-      
-        
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.85bb2934.min.css">
       
       
 
@@ -54,14 +51,11 @@
   </head>
   
   
-    
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+    <body dir="ltr">
   
     
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -569,7 +563,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -1121,6 +1115,54 @@
 
             
           
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7_6" id="__nav_7_6_label" tabindex="0">
+          Design Docs
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7_6">
+          <span class="md-nav__icon md-icon"></span>
+          Design Docs
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+        Legalize Multiple Channel Ops Per Channel
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -1538,7 +1580,7 @@ d<sub>n−i</sub> and d<sub>0</sub> of the channel identifier, with <em>i</em> &
 [1.<strong>100</strong>1<sub>2</sub>] of stage 1 and router 6
 [2.<strong>110</strong>0<sub>2</sub>] of stage 2.
 <strong><a href="#butterfly_ref_0">Butterfly_Ref_0</a></strong></p>
-<p><img alt="drawing" src="./noc/butterfly_topology.png" /></p>
+<p><img alt="drawing" src="../butterfly_topology.png" /></p>
 <p><strong>Figure Butterfly_Topology_Example<a id="butterfly_topology_example"></a>. The
 router nodes of a 2-ary 3-tree butterfly topology.</strong></p>
 <p>Figure <a href="#butterfly_topology_example">Butterfly_Topology_Example</a> shows the
@@ -1562,7 +1604,7 @@ connected to stage 0 and at most <em>k<sup>n</sup></em> endpoints connected to s
 the same nodes, resulting in an equal number of nodes connected to stage 0 and
 stage <em>n</em>-1. Moreover, the endpoints nodes are connected to stage 0 in the same
 order as stage <em>n</em>-1 (mirrored from the vertical cross section).</p>
-<p><img alt="drawing" src="./noc/unidirectional_butterfly.png" /></p>
+<p><img alt="drawing" src="../unidirectional_butterfly.png" /></p>
 <p><strong>Figure
 Unidirectional_Butterfly_Topology_Example<a id="unidirectional_butterfly_topology_example"></a>.
 A 2-ary 3-fly butterfly with the endpoints connected to stage 0 sending to the
@@ -1587,7 +1629,7 @@ ancestors of both source and destination and from there to the destination. That
 is, each message experiences two phases, an ascending phase to get to a nearest
 common ancestor, followed by a descending phase.
 <strong><a href="#fat_tree_ref_1">Fat_Tree_Ref_1</a></strong></p>
-<p><img alt="drawing" src="./noc/bidirectional_butterfly.png" /></p>
+<p><img alt="drawing" src="../bidirectional_butterfly.png" /></p>
 <p><strong>Figure
 Bidirectional_Butterfly_Topology_Example<a id="bidirectional_butterfly_topology_example"></a>.
 A bidirectional 2-ary 3-fly butterfly with the endpoints connected to stage 0
@@ -1620,7 +1662,7 @@ stage 0 example.</p>
 <p>The flattened butterfly is derived by flattening the routers in each row of a
 conventional butterfly topology while maintaining the same inter-router
 connections. <strong><a href="#butterfly_ref_1">Butterfly_Ref_1</a></strong></p>
-<p><img alt="drawing" src="./noc/flatten_butterfly.png" /></p>
+<p><img alt="drawing" src="../flatten_butterfly.png" /></p>
 <p><strong>Figure
 Flattened_Butterfly_Topology_Example<a id="flattened_butterfly_topology_example"></a>.
 An example of a 2-ary 3-fly butterfly and its corresponding flattened butterfly
@@ -1695,7 +1737,7 @@ pp. 172-182, doi: 10.1109/MICRO.2007.29.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.51198bba.min.js"></script>
+      <script src="../../assets/javascripts/bundle.fac441b0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

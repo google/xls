@@ -15,7 +15,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.2, mkdocs-material-9.1.6">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.9">
     
     
       
@@ -23,10 +23,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ded33207.min.css">
-      
-        
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.a0c5b2b5.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.85bb2934.min.css">
       
       
 
@@ -52,14 +49,11 @@
   </head>
   
   
-    
-    
-    
-    
-    
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="" data-md-color-accent="">
+    <body dir="ltr">
   
     
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
     <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
@@ -567,7 +561,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -1114,6 +1108,54 @@
       <a href="../../fpga_characterization/" class="md-nav__link">
         FPGA characterization (experimental)
       </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7_6" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7_6" id="__nav_7_6_label" tabindex="0">
+          Design Docs
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_7_6_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_7_6">
+          <span class="md-nav__icon md-icon"></span>
+          Design Docs
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
+        Legalize Multiple Channel Ops Per Channel
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
     </li>
   
 
@@ -1688,7 +1730,7 @@ from the perspective of the endpoints.</p>
 <p>A deadlock occurs when a set of agents holding resources are waiting on another
 set of resources such that a cycle of waiting agents is formed, implying that
 agents are unable to make progress.</p>
-<p><img alt="drawing" src="./noc/deadlock.png" /></p>
+<p><img alt="drawing" src="../deadlock.png" /></p>
 <p><strong>Figure Deadlock_Example<a id="deadlock_example"></a>. A deadlock example with
 two agents and two resources.</strong></p>
 <p>Figure <a href="#deadlock_example">Deadlock_Example</a> shows a deadlock example with two
@@ -1715,7 +1757,7 @@ structure). Another example is traffic congestion within an area of the network.
 <p>Livelock occurs when a packet is not able to make progress in the network and is
 never delivered to its destination. Unlike deadlock, a livelocked packet
 continues to move through the network.</p>
-<p><img alt="drawing" src="./noc/livelock.png" /></p>
+<p><img alt="drawing" src="../livelock.png" /></p>
 <p><strong>Figure Livelock_Example<a id="livelock_example"></a>. A example with
 livelocked packet P1.</strong></p>
 <p>Figure <a href="#livelock_example">Livelock_Example</a> shows a livelock example. In the
@@ -1814,7 +1856,7 @@ USA.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.51198bba.min.js"></script>
+      <script src="../../assets/javascripts/bundle.fac441b0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
