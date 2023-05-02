@@ -625,9 +625,8 @@ absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
     }
   }
 
-  for (int64_t index = 0; index < threads_.size(); ++index) {
-    XLS_RETURN_IF_ERROR(
-        threads_[index]->CheckOutput(stdout_str, parsed_values));
+  for (const auto& thread : threads_) {
+    XLS_RETURN_IF_ERROR(thread->CheckOutput(stdout_str, parsed_values));
   }
   return absl::OkStatus();
 }
@@ -677,15 +676,15 @@ std::string ModuleTestbench::GenerateVerilog() {
       /*parameters=*/absl::Span<const Connection>(), connections);
 
   std::vector<LogicRef*> done_signal_refs;
-  for (int64_t index = 0; index < threads_.size(); ++index) {
-    if (!threads_[index]->done_signal_name().has_value()) {
+  for (const auto& thread : threads_) {
+    if (!thread->done_signal_name().has_value()) {
       continue;
     }
     LogicRef* ref =
-        m->AddReg(threads_[index]->done_signal_name().value(),
+        m->AddReg(thread->done_signal_name().value(),
                   file.BitVectorType(1, SourceInfo()), SourceInfo());
     done_signal_refs.push_back(ref);
-    signal_refs[threads_[index]->done_signal_name().value()] = ref;
+    signal_refs[thread->done_signal_name().value()] = ref;
   }
 
   {
@@ -755,10 +754,10 @@ std::string ModuleTestbench::GenerateVerilog() {
     initial->statements()->Add<Monitor>(SourceInfo(), monitor_args);
   }
 
-  for (int64_t index = 0; index < threads_.size(); ++index) {
+  for (const auto& thread : threads_) {
     // TODO(vmirian) : Consider lowering the thread to an 'always' block.
     Initial* initial = m->Add<Initial>(SourceInfo());
-    threads_[index]->EmitInto(initial, signal_refs);
+    thread->EmitInto(initial, signal_refs);
   }
 
   {
