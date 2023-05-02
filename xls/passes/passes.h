@@ -39,7 +39,7 @@ using CompoundPass = CompoundPassBase<Package>;
 using FixedPointCompoundPass = FixedPointCompoundPassBase<Package>;
 using InvariantChecker = CompoundPass::InvariantChecker;
 
-static constexpr int64_t kMaxOptLevel = 3;
+inline constexpr int64_t kMaxOptLevel = 3;
 
 // Whether optimizations which split operations into multiple pieces should be
 // performed at the given optimization level.

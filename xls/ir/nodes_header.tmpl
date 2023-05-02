@@ -26,20 +26,20 @@ struct SliceData {
 };
 
 {% for op_class in spec.OpClass.kinds.values() -%}
-class {{ op_class.name }} : public Node {
+class {{ op_class.name }} final : public Node {
  public:
   {{ op_class.name }}({{ op_class.constructor_args_str() }});
 
   absl::StatusOr<Node*> CloneInNewFunction(
     absl::Span<Node* const> new_operands,
-    FunctionBase* new_function) const override;
+    FunctionBase* new_function) const final;
 {% for method in op_class.methods() -%}
-{{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) {%if method.is_const %} const{% endif %} 
+{{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) {%if method.is_const %} const{% endif %}
   {% if method.expression %}  {% if method.expression_is_body %} { {{ method.expression }} } {% else %} { return {{ method.expression }}; }  {% endif %}
   {% else %}; {% endif %}
 {% endfor -%}
 {%- if op_class.data_members() %}
-  bool IsDefinitelyEqualTo(const Node* other) const override;
+  bool IsDefinitelyEqualTo(const Node* other) const final;
 
  private:
 {% for member in op_class.data_members() -%}

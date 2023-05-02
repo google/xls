@@ -50,7 +50,7 @@ class SourceLocation {
 struct SourceInfo {
   std::vector<SourceLocation> locations;
 
-  SourceInfo() : locations() {}
+  SourceInfo() = default;
   explicit SourceInfo(const SourceLocation& loc) : locations({loc}) {}
   explicit SourceInfo(absl::Span<const SourceLocation> locs)
       : locations(locs.begin(), locs.end()) {}

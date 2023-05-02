@@ -62,7 +62,7 @@ class Package {
   virtual ~Package();
 
   std::optional<FunctionBase*> GetTop() const;
-  bool HasTop() { return top_.has_value(); }
+  bool HasTop() const { return top_.has_value(); }
   // Sets the top entity of the package.
   absl::Status SetTop(std::optional<FunctionBase*> top);
   // Sets the top to a FunctionBase with its name equivalent to the 'top_name'
@@ -80,10 +80,10 @@ class Package {
   absl::StatusOr<FunctionBase*> GetFunctionBaseByName(std::string_view name);
 
   // Returns whether the given type is one of the types owned by this package.
-  bool IsOwnedType(const Type* type) {
+  bool IsOwnedType(const Type* type) const {
     return owned_types_.find(type) != owned_types_.end();
   }
-  bool IsOwnedFunctionType(const FunctionType* function_type) {
+  bool IsOwnedFunctionType(const FunctionType* function_type) const {
     return owned_function_types_.find(function_type) !=
            owned_function_types_.end();
   }
