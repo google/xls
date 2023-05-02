@@ -31,7 +31,6 @@ namespace {
 
 constexpr const char kIrPath[] = "xls/examples/matmul_4x4.ir";
 
-using status_testing::IsOkAndHolds;
 using testing::Optional;
 
 Value GetX0Value() {
