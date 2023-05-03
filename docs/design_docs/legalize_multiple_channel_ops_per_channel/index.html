@@ -1904,14 +1904,14 @@ examples) ASAP. The steps roughly follow:</p>
     predicate before the operation and receive a completion after the operation
     will be added and connected.</p>
 <p>1.  The adapter will arbitrate between multiple operations in priority
-      order.
-  1.  Priority order will be determined by token dependencies. The adapter
+      order.</p>
+<p>2.  Priority order will be determined by token dependencies. The adapter
       will have runtime checks that all active receives are ordered with
       respect to each other. Optionally, impose an arbitrary order to
       unordered operations via a topo sort.</p>
-<p>1.  Channel operations from different procs will be required to be mutually
+<p>3.  Channel operations from different procs will be required to be mutually
       exclusive, enforced by a runtime check.</p>
-<p>1.  Initially, use proc inlining on the adapter.</p>
+<p>4.  Initially, use proc inlining on the adapter.</p>
 </li>
 <li>
 <p>After the adapter is added and connected by the pass, scheduling constraints
