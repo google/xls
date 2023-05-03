@@ -479,7 +479,7 @@ static absl::Status DecodeDqtSegment(ByteStream& byte_stream, DecodeCtx& ctx) {
     ctx.quantization_tables.push_back(
         QuantizationTable{.precision = static_cast<Precision>(p_q),
                           .identifier = t_q,
-                          .data = std::move(q_k)});
+                          .data = q_k});
     XLS_VLOG(3) << "Quantization table count now: "
                 << ctx.quantization_tables.size();
     length -= static_cast<int32_t>(kCoeffPerMcu) + 1;
