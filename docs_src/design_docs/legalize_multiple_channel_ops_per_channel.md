@@ -128,15 +128,16 @@ examples) ASAP. The steps roughly follow:
 
     1.  The adapter will arbitrate between multiple operations in priority
         order.
-    1.  Priority order will be determined by token dependencies. The adapter
+
+    2.  Priority order will be determined by token dependencies. The adapter
         will have runtime checks that all active receives are ordered with
         respect to each other. Optionally, impose an arbitrary order to
         unordered operations via a topo sort.
 
-    1.  Channel operations from different procs will be required to be mutually
+    3.  Channel operations from different procs will be required to be mutually
         exclusive, enforced by a runtime check.
 
-    1.  Initially, use proc inlining on the adapter.
+    4.  Initially, use proc inlining on the adapter.
 
 3.  After the adapter is added and connected by the pass, scheduling constraints
     will only apply to the operation in the adapter. The original send/receives
