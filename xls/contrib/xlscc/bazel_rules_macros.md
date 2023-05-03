@@ -11,7 +11,7 @@
 
 <pre>
 xls_cc_ir(<a href="#xls_cc_ir-name">name</a>, <a href="#xls_cc_ir-src">src</a>, <a href="#xls_cc_ir-block">block</a>, <a href="#xls_cc_ir-block_pb_out">block_pb_out</a>, <a href="#xls_cc_ir-block_from_class">block_from_class</a>, <a href="#xls_cc_ir-src_deps">src_deps</a>, <a href="#xls_cc_ir-xlscc_args">xlscc_args</a>,
-          <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_ir-kwargs">kwargs</a>)
+          <a href="#xls_cc_ir-enable_generated_file">enable_generated_file</a>, <a href="#xls_cc_ir-enable_presubmit_generated_file">enable_presubmit_generated_file</a>, <a href="#xls_cc_ir-metadata_out">metadata_out</a>, <a href="#xls_cc_ir-kwargs">kwargs</a>)
 </pre>
 
 A macro that instantiates a build rule generating an IR file from a C/C++ source file.
@@ -47,6 +47,7 @@ Examples:
 | <a id="xls_cc_ir-xlscc_args"></a>xlscc_args |  Arguments of the XLSCC conversion tool.   |  <code>{}</code> |
 | <a id="xls_cc_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_cc_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_cc_ir-metadata_out"></a>metadata_out |  Generated metadata proto.   |  <code>None</code> |
 | <a id="xls_cc_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 

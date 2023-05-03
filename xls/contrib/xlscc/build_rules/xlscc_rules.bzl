@@ -232,6 +232,13 @@ def _xls_cc_ir_impl(ctx):
     else:
         block_pb = ctx.file.block.path
 
+    meta_out_flag = ""
+    metadata_out_filename = getattr(ctx.attr, "metadata_out")
+    if metadata_out_filename:
+        meta_pb_file = ctx.actions.declare_file(metadata_out_filename.name)
+        outputs.append(meta_pb_file)
+        meta_out_flag = "--meta_out " + meta_pb_file.path
+
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
@@ -243,11 +250,12 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} {} > {}".format(
+        command = "{} {} --block_pb {} {} {} {} > {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
             block_from_class_flag,
+            meta_out_flag,
             my_args,
             ir_file.path,
         ),
@@ -308,6 +316,10 @@ _xls_cc_ir_attrs = {
         doc = "Filename of the generated IR. If not specified, the " +
               "target name of the bazel rule followed by an " +
               _IR_FILE_EXTENSION + " extension is used.",
+    ),
+    "metadata_out": attr.output(
+        doc = "Filename of the generated metadata protobuf",
+        mandatory = False,
     ),
     "_xlscc_tool": attr.label(
         doc = "The target of the XLSCC executable.",
@@ -387,6 +399,7 @@ def xls_cc_ir_macro(
         xlscc_args = {},
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
+        metadata_out = None,
         **kwargs):
     """A macro that instantiates a build rule generating an IR file from a C/C++ source file.
 
@@ -428,6 +441,7 @@ def xls_cc_ir_macro(
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
         from 'enable_generated_file_wrapper' function.
+      metadata_out: Generated metadata proto.
       **kwargs: Keyword arguments. Named arguments.
     """
 
@@ -460,6 +474,7 @@ def xls_cc_ir_macro(
         src_deps = src_deps,
         xlscc_args = xlscc_args,
         outs = _get_xls_cc_ir_generated_files(kwargs),
+        metadata_out = metadata_out,
         **kwargs
     )
     enable_generated_file_wrapper(
