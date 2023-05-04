@@ -28,6 +28,10 @@ struct SliceData {
 {% for op_class in spec.OpClass.kinds.values() -%}
 class {{ op_class.name }} final : public Node {
  public:
+{% for op in op_class.operands -%}
+  static constexpr int64_t k{{op.camel_case_name()}}Operand = {{loop.index0}};
+{% endfor %}
+
   {{ op_class.name }}({{ op_class.constructor_args_str() }});
 
   absl::StatusOr<Node*> CloneInNewFunction(

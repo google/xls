@@ -263,6 +263,9 @@ class Operand(object):
     self.name = name
     self.add_method = 'AddOperand'
 
+  def camel_case_name(self) -> str:
+    return ''.join(part.capitalize() for part in self.name.split('_'))
+
 
 class OperandSpan(Operand):
 
