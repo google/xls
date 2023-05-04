@@ -194,10 +194,10 @@ class NameRefCollector : public ExprVisitor {
     }
     return absl::OkStatus();
   }
-  absl::Status HandleTernary(const Ternary* expr) override {
+  absl::Status HandleConditional(const Conditional* expr) override {
     XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(expr->alternate()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(ToExprNode(expr->alternate())->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleUnop(const Unop* expr) override {
@@ -761,11 +761,11 @@ absl::Status ConstexprEvaluator::HandleStructInstance(
   return InterpretExpr(expr);
 }
 
-absl::Status ConstexprEvaluator::HandleTernary(const Ternary* expr) {
+absl::Status ConstexprEvaluator::HandleConditional(const Conditional* expr) {
   // Simple enough that we don't need to invoke the interpreter.
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->test());
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
-  EVAL_AS_CONSTEXPR_OR_RETURN(expr->alternate());
+  EVAL_AS_CONSTEXPR_OR_RETURN(ToExprNode(expr->alternate()));
 
   InterpValue test = type_info_->GetConstExpr(expr->test()).value();
   if (test.IsTrue()) {
@@ -773,7 +773,7 @@ absl::Status ConstexprEvaluator::HandleTernary(const Ternary* expr) {
         expr, type_info_->GetConstExpr(expr->consequent()).value());
   } else {
     type_info_->NoteConstExpr(
-        expr, type_info_->GetConstExpr(expr->alternate()).value());
+        expr, type_info_->GetConstExpr(ToExprNode(expr->alternate())).value());
   }
 
   return absl::OkStatus();

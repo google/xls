@@ -99,7 +99,7 @@ bool IsOneOf(ObjT* obj) {
   X(SplatStructInstance)           \
   X(String)                        \
   X(StructInstance)                \
-  X(Ternary)                       \
+  X(Conditional)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
@@ -275,7 +275,7 @@ enum class AstNodeKind {
   kString,
   kStructDef,
   kStructInstance,
-  kTernary,
+  kConditional,
   kTestFunction,
   kTestProc,
   kTupleIndex,
@@ -306,6 +306,10 @@ class AstNode {
   // e.g. "NameDef", "BuiltinTypeAnnotation", etc.
   virtual std::string_view GetNodeTypeName() const = 0;
   virtual std::string ToString() const = 0;
+
+  // Returns a string representation of this node and (if supported by this
+  // node's actual type) attempts to return it as a single line.
+  virtual std::string ToInlineString() const { return ToString(); }
 
   virtual std::optional<Span> GetSpan() const = 0;
 
@@ -804,16 +808,11 @@ class Statement : public AstNode {
 class Block : public Expr {
  public:
   Block(Module* owner, Span span, std::vector<Statement*> statements,
-        bool trailing_semi)
-      : Expr(owner, std::move(span)),
-        statements_(std::move(statements)),
-        trailing_semi_(trailing_semi) {
-    if (statements_.empty()) {
-      XLS_CHECK(trailing_semi) << "empty block but trailing_semi is false";
-    }
-  }
+        bool trailing_semi);
 
   ~Block() override;
+
+  std::string ToInlineString() const override;
 
   AstNodeKind kind() const override { return AstNodeKind::kBlock; }
   absl::Status Accept(AstNodeVisitor* v) const override {
@@ -1383,40 +1382,51 @@ class Binop : public Expr {
   Expr* rhs_;
 };
 
-// Represents the ternary expression; e.g. in Pythonic style:
+// Represents the conditional expression; e.g.
 //
-//  consequent if test else alternate
-class Ternary : public Expr {
+//  if test { consequent }
+//  else { alternate }
+//
+// Note that, in Rust-like fashion, this operates as a ternary, i.e. it yields
+// the last expression, unless a semicolon is given at the end that makes the
+// result into the unit type.
+//
+//  let _: () = if { side_effect!(); } else { side_effect!(); };
+//              note the semis ----^------------------------^
+//
+// To do laddered if / else if the `alternate` expression can itself be a
+// `Conditional` expression instead of a `Block`.
+class Conditional : public Expr {
  public:
-  Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
-          Expr* alternate);
+  Conditional(Module* owner, Span span, Expr* test, Block* consequent,
+              std::variant<Block*, Conditional*> alternate);
 
-  ~Ternary() override;
+  ~Conditional() override;
 
-  AstNodeKind kind() const override { return AstNodeKind::kTernary; }
+  AstNodeKind kind() const override { return AstNodeKind::kConditional; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleTernary(this);
+    return v->HandleConditional(this);
   }
   absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleTernary(this);
+    return v->HandleConditional(this);
   }
 
-  std::string_view GetNodeTypeName() const override { return "Ternary"; }
+  std::string_view GetNodeTypeName() const override { return "Conditional"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {test_, consequent_, alternate_};
+    return {test_, consequent_, ToAstNode(alternate_)};
   }
 
   Expr* test() const { return test_; }
-  Expr* consequent() const { return consequent_; }
-  Expr* alternate() const { return alternate_; }
+  Block* consequent() const { return consequent_; }
+  std::variant<Block*, Conditional*> alternate() const { return alternate_; }
 
  private:
   Expr* test_;
-  Expr* consequent_;
-  Expr* alternate_;
+  Block* consequent_;
+  std::variant<Block*, Conditional*> alternate_;
 };
 
 // Represents a member in a parametric binding list.
@@ -3358,6 +3368,20 @@ class Module : public AstNode {
 // Helper for determining whether an AST node is constant (e.g. can be
 // considered a constant value in a ConstantArray).
 bool IsConstant(AstNode* n);
+
+// Helper for making a ternary expression conditional. This avoids the user
+// needing to hand-craft the block nodes and such.
+inline Conditional* MakeTernary(Module* module, const Span& span, Expr* test,
+                                Expr* consequent, Expr* alternate) {
+  return module->Make<Conditional>(
+      span, test,
+      module->Make<Block>(
+          consequent->span(),
+          std::vector<Statement*>{module->Make<Statement>(consequent)}, false),
+      module->Make<Block>(
+          alternate->span(),
+          std::vector<Statement*>{module->Make<Statement>(alternate)}, false));
+}
 
 }  // namespace xls::dslx
 

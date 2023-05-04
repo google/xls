@@ -70,7 +70,7 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         absl::Span<const ImportRecord> cycle) {
   std::string cycle_str = absl::StrJoin(
       cycle, " imports\n    ", [](std::string* out, const ImportRecord& r) {
-        absl::StrAppend(out, std::string(r.imported));
+        absl::StrAppend(out, std::string{r.imported});
       });
 
   // Display the entry translation unit specially.

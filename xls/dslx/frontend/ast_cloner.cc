@@ -734,13 +734,22 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTernary(const Ternary* n) override {
+  absl::Status HandleConditional(const Conditional* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    old_to_new_[n] = module_->Make<Ternary>(
+    std::variant<Block*, Conditional*> new_alternate;
+    AstNode* new_alternate_node = old_to_new_.at(ToAstNode(n->alternate()));
+    if (auto* block = down_cast<Block*>(new_alternate_node)) {
+      new_alternate = block;
+    } else if (auto* cond = down_cast<Conditional*>(new_alternate_node)) {
+      new_alternate = cond;
+    } else {
+      return absl::InternalError("Unexpected Conditional alternate node type.");
+    }
+
+    old_to_new_[n] = module_->Make<Conditional>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
-        down_cast<Expr*>(old_to_new_.at(n->consequent())),
-        down_cast<Expr*>(old_to_new_.at(n->alternate())));
+        down_cast<Block*>(old_to_new_.at(n->consequent())), new_alternate);
     return absl::OkStatus();
   }
 

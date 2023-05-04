@@ -387,16 +387,27 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseLogicalOrExpression(Bindings& bindings,
                                                  ExprRestrictions restrictions);
 
+  // RangeExpression ::=
+  //   LogicalOrExpression [".." LogicalOrExpression]
   absl::StatusOr<Expr*> ParseRangeExpression(Bindings& bindings,
                                              ExprRestrictions restrictions);
 
-  // Parses a ternary expression or expression of higher precedence.
+  // Parses a conditional expression (or expression that binds more tightly).
   //
   // Example:
   //
   //    if { bar } else { baz }
-  absl::StatusOr<Expr*> ParseTernaryExpression(Bindings& bindings,
-                                               ExprRestrictions restrictions);
+  //
+  // ConditionalExpression ::=
+  //    ConditionalNode
+  //  | RangeExpression
+  absl::StatusOr<Expr*> ParseConditionalExpression(
+      Bindings& bindings, ExprRestrictions restrictions);
+
+  // Parses a conditional construct and returns it -- the token cursor should be
+  // hovering over the "if" keyword on invocation for this to be successful.
+  absl::StatusOr<Conditional*> ParseConditionalNode(
+      Bindings& bindings, ExprRestrictions restrictions);
 
   absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 

@@ -504,7 +504,7 @@ fn f(x: u8) -> u2 {
   ExpectIr(converted, TestName());
 }
 
-TEST(IrConverterTest, Ternary) {
+TEST(IrConverterTest, Conditional) {
   const char* program =
       R"(fn main(x: bool) -> u8 {
   if x { u8:42 } else { u8:24 }

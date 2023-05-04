@@ -1067,7 +1067,9 @@ TEST_F(ParserTest, ForFreevars) {
                              absl::flat_hash_set<std::string>{"j", "range"}));
 }
 
-TEST_F(ParserTest, Ternary) {
+TEST_F(ParserTest, EmptyTernary) { RoundTripExpr("if true {} else {}"); }
+
+TEST_F(ParserTest, TernaryConditional) {
   RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
 
   RoundTripExpr(R"(if really_long_identifier_so_that_this_is_too_many_chars {
@@ -1078,31 +1080,19 @@ TEST_F(ParserTest, Ternary) {
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
-TEST_F(ParserTest, TernaryChain) {
-  RoundTripExpr(
-      "if true { u32:42 } else if false { u32:33 } else { u32:24 }", {}, false,
-      "if true { u32:42 } else { if false { u32:33 } else { u32:24 } }");
+TEST_F(ParserTest, LadderedConditional) {
+  RoundTripExpr("if true { u32:42 } else if false { u32:33 } else { u32:24 }");
 
   RoundTripExpr(
       R"(if really_long_identifier_so_that_this_is_too_many_chars {
   u32:42
 } else if another_really_long_identifier_so_that_this_is_too_many_chars {
-  u32: 22
+  u32:22
 } else {
   u32:24
 })",
       {"really_long_identifier_so_that_this_is_too_many_chars",
-       "another_really_long_identifier_so_that_this_is_too_many_chars"},
-      false,
-      R"(if really_long_identifier_so_that_this_is_too_many_chars {
-  u32:42
-} else {
-  if another_really_long_identifier_so_that_this_is_too_many_chars {
-  u32:22
-} else {
-  u32:24
-}
-})");
+       "another_really_long_identifier_so_that_this_is_too_many_chars"});
 }
 
 TEST_F(ParserTest, TernaryWithComparisonTest) {
@@ -1367,7 +1357,7 @@ TEST_F(ParserTest, DetectsDuplicateFailLabels) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
-  let _ = { if x == u32:7 { fail!("x_is_7", u32:0)} } else { u32:0 } };
+  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
   x
 }
 )";

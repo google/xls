@@ -19,7 +19,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
-#include "xls/common/string_to_int.h"
 #include "xls/dslx/errors.h"
 
 namespace xls::dslx {

@@ -15,6 +15,7 @@
 #define XLS_DSLX_CONSTEXPR_EVALUATOR_H_
 
 #include <string>
+#include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -106,7 +107,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleStructInstance(const StructInstance* expr) override;
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* expr) override;
-  absl::Status HandleTernary(const Ternary* expr) override;
+  absl::Status HandleConditional(const Conditional* expr) override;
   absl::Status HandleTupleIndex(const TupleIndex* expr) override;
   absl::Status HandleUnop(const Unop* expr) override;
   absl::Status HandleUnrollFor(const UnrollFor* expr) override;
@@ -120,7 +121,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
                      ParametricEnv bindings, const ConcreteType* concrete_type)
       : import_data_(import_data),
         type_info_(type_info),
-        bindings_(bindings),
+        bindings_(std::move(bindings)),
         concrete_type_(concrete_type) {}
 
   bool IsConstExpr(const Expr* expr);

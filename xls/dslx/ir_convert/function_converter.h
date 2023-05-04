@@ -295,7 +295,7 @@ class FunctionConverter {
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
   absl::Status HandleStatement(const Statement* node);
   absl::Status HandleStructInstance(const StructInstance* node);
-  absl::Status HandleTernary(const Ternary* node);
+  absl::Status HandleConditional(const Conditional* node);
   absl::Status HandleTupleIndex(const TupleIndex* node);
 
   // Handles invocation of a user-defined function (UDF).

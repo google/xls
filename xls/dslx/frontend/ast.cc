@@ -44,6 +44,8 @@
 
 namespace xls::dslx {
 
+constexpr int64_t kTargetLineChars = 80;
+
 ExprOrType ToExprOrType(AstNode* n) {
   if (Expr* e = down_cast<Expr*>(n)) {
     return e;
@@ -65,8 +67,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "name definition";
     case AstNodeKind::kBuiltinNameDef:
       return "builtin name definition";
-    case AstNodeKind::kTernary:
-      return "ternary";
+    case AstNodeKind::kConditional:
+      return "conditional";
     case AstNodeKind::kTypeAlias:
       return "type alias";
     case AstNodeKind::kNumber:
@@ -452,37 +454,34 @@ std::string BinopKindToString(BinopKind kind) {
 NameDef::NameDef(Module* owner, Span span, std::string identifier,
                  AstNode* definer)
     : AstNode(owner),
-      span_(span),
+      span_(std::move(span)),
       identifier_(std::move(identifier)),
       definer_(definer) {}
 
 NameDef::~NameDef() = default;
 
-// -- class Ternary
+// -- class Conditional
 
-Ternary::Ternary(Module* owner, Span span, Expr* test, Expr* consequent,
-                 Expr* alternate)
+Conditional::Conditional(Module* owner, Span span, Expr* test,
+                         Block* consequent,
+                         std::variant<Block*, Conditional*> alternate)
     : Expr(owner, std::move(span)),
       test_(test),
       consequent_(consequent),
       alternate_(alternate) {}
 
-Ternary::~Ternary() = default;
+Conditional::~Conditional() = default;
 
-std::string Ternary::ToString() const {
-  std::string inline_str =
-      absl::StrFormat(R"(if %s { %s } else { %s })", test_->ToString(),
-                      consequent_->ToString(), alternate_->ToString());
-  if (inline_str.size() <= 80) {
+std::string Conditional::ToString() const {
+  std::string inline_str = absl::StrFormat(
+      R"(if %s %s else %s)", test_->ToInlineString(),
+      consequent_->ToInlineString(), ToAstNode(alternate_)->ToInlineString());
+  if (inline_str.size() <= kTargetLineChars) {
     return inline_str;
   }
-  return absl::StrFormat(R"(if %s {
-  %s
-} else {
-  %s
-})",
-                         test_->ToString(), consequent_->ToString(),
-                         alternate_->ToString());
+  return absl::StrFormat(R"(if %s %s else %s)", test_->ToString(),
+                         consequent_->ToString(),
+                         ToAstNode(alternate_)->ToString());
 }
 
 // -- class Attr
@@ -1558,25 +1557,55 @@ std::string UnopKindToString(UnopKind k) {
 
 // -- class Block
 
+Block::Block(Module* owner, Span span, std::vector<Statement*> statements,
+             bool trailing_semi)
+    : Expr(owner, std::move(span)),
+      statements_(std::move(statements)),
+      trailing_semi_(trailing_semi) {
+  if (statements_.empty()) {
+    XLS_CHECK(trailing_semi) << "empty block but trailing_semi is false";
+  }
+}
+
 Block::~Block() = default;
 
+std::string Block::ToInlineString() const {
+  // A formatting special case: if there are no statements (and implicitly a
+  // trailing semi since an empty block gives unit type) we just give back
+  // braces without any semicolon inside.
+  if (statements_.empty()) {
+    XLS_CHECK(trailing_semi_);
+    return "{}";
+  }
+
+  std::string s = absl::StrCat(
+      "{ ",
+      absl::StrJoin(statements_, "; ", [](std::string* out, Statement* stmt) {
+        absl::StrAppend(out, stmt->ToString());
+      }));
+  if (trailing_semi_) {
+    absl::StrAppend(&s, ";");
+  }
+  absl::StrAppend(&s, " }");
+  return s;
+}
+
 std::string Block::ToString() const {
-  // If we're within parametric bindings, we give the expression inline.
-  AstNode* p = parent();
-  while (p != nullptr) {
-    if (dynamic_cast<ParametricBinding*>(p) != nullptr &&
-        statements_.size() == 1) {
-      return absl::StrCat("{", statements_.at(0)->ToString(), "}");
-    }
-    p = p->parent();
+  // A formatting special case: if there are no statements (and implicitly a
+  // trailing semi since an empty block gives unit type) we just give back
+  // braces without any semicolon inside.
+  if (statements_.empty()) {
+    XLS_CHECK(trailing_semi_);
+    return "{}";
   }
 
   std::string statements_str =
       absl::StrJoin(statements_, "\n", [](std::string* out, Statement* stmt) {
         absl::StrAppend(out, stmt->ToString());
       });
-  return absl::StrFormat("{\n%s\n}",
-                         Indent(statements_str, kDefaultIndentSpaces));
+  return absl::StrFormat("{\n%s%s\n}",
+                         Indent(statements_str, kDefaultIndentSpaces),
+                         trailing_semi_ ? ";" : "");
 }
 
 absl::StatusOr<Expr*> Block::GetSingleBodyExpression() const {

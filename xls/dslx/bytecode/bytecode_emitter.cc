@@ -203,7 +203,7 @@ class NameDefCollector : public AstNodeVisitor {
     return absl::OkStatus();
   }
   DEFAULT_HANDLER(Statement);
-  DEFAULT_HANDLER(Ternary);
+  DEFAULT_HANDLER(Conditional);
   DEFAULT_HANDLER(TestProc);
   DEFAULT_HANDLER(TupleIndex);
   DEFAULT_HANDLER(TupleTypeAnnotation);
@@ -1308,7 +1308,7 @@ absl::Status BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleTernary(const Ternary* node) {
+absl::Status BytecodeEmitter::HandleConditional(const Conditional* node) {
   // Structure is:
   //
   //  $test
@@ -1325,7 +1325,7 @@ absl::Status BytecodeEmitter::HandleTernary(const Ternary* node) {
   size_t jump_if_index = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRelIf,
                                Bytecode::kPlaceholderJumpAmount));
-  XLS_RETURN_IF_ERROR(node->alternate()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(ToExprNode(node->alternate())->AcceptExpr(this));
   size_t jump_index = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRel,
                                Bytecode::kPlaceholderJumpAmount));

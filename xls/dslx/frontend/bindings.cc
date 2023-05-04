@@ -120,6 +120,12 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
                  << ToAstNode(bn)->ToString();
 }
 
+Bindings::Bindings(Bindings* parent) : parent_(parent) {
+  if (parent_ == nullptr) {
+    fail_labels_.emplace();
+  }
+}
+
 Bindings Bindings::Clone() const {
   Bindings bindings(parent_);
   bindings.local_bindings_ = local_bindings_;
@@ -142,24 +148,23 @@ std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
   return BoundNodeToAnyNameDef(*bn);
 }
 
-bool Bindings::ContainsFailLabel(const std::string& label) {
-  if (fail_labels_.contains(label)) {
-    return true;
+absl::Status Bindings::AddFailLabel(const std::string& label,
+                                    const Span& span) {
+  // Traverse up to our function-scoped bindings since these labels must be
+  // unique at the function scope.
+  Bindings* top = this;
+  while (!top->function_scoped_) {
+    XLS_CHECK(top->parent_ != nullptr);
+    top = top->parent_;
   }
-  if (parent_ != nullptr) {
-    return parent_->ContainsFailLabel(label);
-  }
-  return false;
-}
 
-absl::Status Bindings::AddFailLabel(const std::string& label) {
-  // Check parents, in case we're contained in a subblock. The root bindings
-  // will never contain any fail labels.
-  if (ContainsFailLabel(label)) {
-    return absl::InvalidArgumentError(
-        "A fail label must be unique within a function.");
+  XLS_CHECK(top->function_scoped_);
+  XLS_CHECK(top->fail_labels_.has_value());
+  auto [it, inserted] = top->fail_labels_->insert(label);
+  if (!inserted) {
+    return ParseErrorStatus(span,
+                            "A fail label must be unique within a function.");
   }
-  fail_labels_.insert(label);
   return absl::OkStatus();
 }
 

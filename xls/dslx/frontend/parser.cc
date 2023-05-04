@@ -51,6 +51,51 @@
 namespace xls::dslx {
 namespace {
 
+ColonRef::Subject CloneSubject(Module* module,
+                               const ColonRef::Subject subject) {
+  if (std::holds_alternative<NameRef*>(subject)) {
+    NameRef* name_ref = std::get<NameRef*>(subject);
+    return module->Make<NameRef>(name_ref->span(), name_ref->identifier(),
+                                 name_ref->name_def());
+  }
+
+  ColonRef* colon_ref = std::get<ColonRef*>(subject);
+  ColonRef::Subject clone_subject = CloneSubject(module, colon_ref->subject());
+  return module->Make<ColonRef>(colon_ref->span(), clone_subject,
+                                colon_ref->attr());
+}
+
+bool TypeIsToken(TypeAnnotation* type) {
+  auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
+  if (builtin_type == nullptr) {
+    return false;
+  }
+
+  return builtin_type->builtin_type() == BuiltinType::kToken;
+}
+
+bool HasChannelElement(const TypeAnnotation* type) {
+  if (const auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+      array_type != nullptr) {
+    return HasChannelElement(array_type->element_type());
+  }
+  if (const auto* channel_type =
+          dynamic_cast<const ChannelTypeAnnotation*>(type);
+      channel_type != nullptr) {
+    return true;
+  }
+  if (const auto* tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+      tuple_type != nullptr) {
+    for (const auto* sub_type : tuple_type->members()) {
+      if (HasChannelElement(sub_type)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 template <typename K, typename V>
 std::vector<K> MapKeysSorted(const absl::flat_hash_map<K, V>& m) {
   std::vector<K> keys;
@@ -407,7 +452,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
   if (peek->kind() == TokenKind::kOBrace) {
     return ParseBlockExpression(bindings);
   }
-  return ParseTernaryExpression(bindings, restrictions);
+  return ParseConditionalExpression(bindings, restrictions);
 }
 
 absl::StatusOr<Expr*> Parser::ParseRangeExpression(
@@ -426,37 +471,40 @@ absl::StatusOr<Expr*> Parser::ParseRangeExpression(
   return result;
 }
 
-absl::StatusOr<Expr*> Parser::ParseTernaryExpression(
+absl::StatusOr<Conditional*> Parser::ParseConditionalNode(
     Bindings& bindings, ExprRestrictions restrictions) {
-  XLS_VLOG(5) << "ParseTernaryExpression @ " << GetPos()
-              << " restrictions: " << ExprRestrictionsToString(restrictions);
-  XLS_ASSIGN_OR_RETURN(std::optional<Token> if_, TryPopKeyword(Keyword::kIf));
-  if (if_.has_value()) {  // Ternary
-    XLS_ASSIGN_OR_RETURN(
-        Expr * test,
-        ParseExpression(bindings,
-                        MakeRestrictions({ExprRestriction::kNoStructLiteral})));
-    XLS_RETURN_IF_ERROR(
-        DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
-                         "Opening brace for 'if' (ternary) expression."));
-    XLS_ASSIGN_OR_RETURN(Expr * consequent, ParseExpression(bindings));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-    XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
+  XLS_ASSIGN_OR_RETURN(Token if_, PopKeywordOrError(Keyword::kIf));
+  XLS_ASSIGN_OR_RETURN(
+      Expr * test,
+      ParseExpression(bindings,
+                      MakeRestrictions({ExprRestriction::kNoStructLiteral})));
+  XLS_ASSIGN_OR_RETURN(Block * consequent, ParseBlockExpression(bindings));
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kElse));
 
-    Expr* alternate = nullptr;
+  std::variant<Block*, Conditional*> alternate;
 
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (peek->IsKeyword(Keyword::kIf)) {  // Ternary expression.
-      XLS_ASSIGN_OR_RETURN(alternate, ParseExpression(bindings));
-    } else {
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      XLS_ASSIGN_OR_RETURN(alternate, ParseExpression(bindings));
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-    }
-
-    return module_->Make<Ternary>(Span(if_->span().start(), GetPos()), test,
-                                  consequent, alternate);
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
+    XLS_ASSIGN_OR_RETURN(alternate,
+                         ParseConditionalNode(bindings, kNoRestrictions));
+  } else {
+    XLS_ASSIGN_OR_RETURN(alternate, ParseBlockExpression(bindings));
   }
+
+  return module_->Make<Conditional>(Span(if_.span().start(), GetPos()), test,
+                                    consequent, alternate);
+}
+
+absl::StatusOr<Expr*> Parser::ParseConditionalExpression(
+    Bindings& bindings, ExprRestrictions restrictions) {
+  XLS_VLOG(5) << "ParseConditionalExpression @ " << GetPos()
+              << " restrictions: " << ExprRestrictionsToString(restrictions);
+  XLS_ASSIGN_OR_RETURN(bool peek_is_if, PeekTokenIs(Keyword::kIf));
+  if (peek_is_if) {
+    return ParseConditionalNode(bindings, restrictions);
+  }
+
+  // No leading 'if' keyword -- we fall back to the RangeExpression production.
   return ParseRangeExpression(bindings, restrictions);
 }
 
@@ -1267,6 +1315,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(outer_bindings));
 
   Bindings bindings(&outer_bindings);
+  bindings.NoteFunctionScoped();
   bindings.Add(name_def->identifier(), name_def);
 
   XLS_ASSIGN_OR_RETURN(bool dropped_oangle, TryDropToken(TokenKind::kOAngle));
@@ -1516,9 +1565,9 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(lhs, ParseMatch(outer_bindings));
   } else if (peek->kind() == TokenKind::kOBrack) {  // Array expression.
     XLS_ASSIGN_OR_RETURN(lhs, ParseArray(outer_bindings));
-  } else if (peek->IsKeyword(Keyword::kIf)) {  // Ternary expression.
+  } else if (peek->IsKeyword(Keyword::kIf)) {  // Conditional expression.
     XLS_ASSIGN_OR_RETURN(
-        lhs, ParseTernaryExpression(outer_bindings, kNoRestrictions));
+        lhs, ParseConditionalExpression(outer_bindings, kNoRestrictions));
   } else {
     return ParseErrorStatus(
         peek->span(),
@@ -1755,26 +1804,13 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
           return ParseErrorStatus(
               span, "A fail! label must be a valid Verilog identifier.");
         }
-        XLS_RETURN_IF_ERROR(bindings.AddFailLabel(label->text()));
+        XLS_RETURN_IF_ERROR(
+            bindings.AddFailLabel(label->text(), label->span()));
       }
     }
   }
   return module_->Make<Invocation>(span, callee, std::move(args),
                                    std::move(parametrics));
-}
-
-ColonRef::Subject CloneSubject(Module* module,
-                               const ColonRef::Subject subject) {
-  if (std::holds_alternative<NameRef*>(subject)) {
-    NameRef* name_ref = std::get<NameRef*>(subject);
-    return module->Make<NameRef>(name_ref->span(), name_ref->identifier(),
-                                 name_ref->name_def());
-  }
-
-  ColonRef* colon_ref = std::get<ColonRef*>(subject);
-  ColonRef::Subject clone_subject = CloneSubject(module, colon_ref->subject());
-  return module->Make<ColonRef>(colon_ref->span(), clone_subject,
-                                colon_ref->attr());
 }
 
 absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
@@ -2055,42 +2091,13 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   return config;
 }
 
-bool TypeIsToken(TypeAnnotation* type) {
-  auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type);
-  if (builtin_type == nullptr) {
-    return false;
-  }
-
-  return builtin_type->builtin_type() == BuiltinType::kToken;
-}
-
-bool HasChannelElement(const TypeAnnotation* type) {
-  if (const auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
-      array_type != nullptr) {
-    return HasChannelElement(array_type->element_type());
-  }
-  if (const auto* channel_type =
-          dynamic_cast<const ChannelTypeAnnotation*>(type);
-      channel_type != nullptr) {
-    return true;
-  }
-  if (const auto* tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
-      tuple_type != nullptr) {
-    for (const auto* sub_type : tuple_type->members()) {
-      if (HasChannelElement(sub_type)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings& bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
     std::string_view proc_name, bool is_public) {
   Bindings inner_bindings(&bindings);
+  inner_bindings.NoteFunctionScoped();
+
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsIdentifier("next")) {
     return ParseErrorStatus(
@@ -2370,9 +2377,9 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
                                                      Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token obrack, PopTokenOrError(TokenKind::kOBrack));
-  XLS_ASSIGN_OR_RETURN(Expr * dim,
-                       ParseTernaryExpression(bindings, kNoRestrictions));
-  std::vector<Expr*> dims = {dim};
+  XLS_ASSIGN_OR_RETURN(Expr * first_dim,
+                       ParseConditionalExpression(bindings, kNoRestrictions));
+  std::vector<Expr*> dims = {first_dim};
   const char* const kContext = "at end of type dimensions";
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kCBrack, &obrack, kContext, limit_pos));
@@ -2383,7 +2390,7 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
       break;
     }
     XLS_ASSIGN_OR_RETURN(Expr * dim,
-                         ParseTernaryExpression(bindings, kNoRestrictions));
+                         ParseConditionalExpression(bindings, kNoRestrictions));
     dims.push_back(dim);
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack, /*start=*/&obrack,
                                          /*context=*/kContext,
@@ -2797,9 +2804,9 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOBrace) {
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      // Ternary expressions are the first below the let/for/while set.
-      XLS_ASSIGN_OR_RETURN(Expr * expr,
-                           ParseTernaryExpression(bindings, kNoRestrictions));
+      // Conditional expressions are the first below the let/for/while set.
+      XLS_ASSIGN_OR_RETURN(
+          Expr * expr, ParseConditionalExpression(bindings, kNoRestrictions));
       XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
 
       return expr;

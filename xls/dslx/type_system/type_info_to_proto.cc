@@ -53,8 +53,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_CONST_REF;
     case AstNodeKind::kBuiltinNameDef:
       return AST_NODE_KIND_BUILTIN_NAME_DEF;
-    case AstNodeKind::kTernary:
-      return AST_NODE_KIND_TERNARY;
+    case AstNodeKind::kConditional:
+      return AST_NODE_KIND_CONDITIONAL;
     case AstNodeKind::kTypeAlias:
       return AST_NODE_KIND_TYPE_ALIAS;
     case AstNodeKind::kTypeRef:
@@ -556,8 +556,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kConstRef;
     case AST_NODE_KIND_BUILTIN_NAME_DEF:
       return AstNodeKind::kBuiltinNameDef;
-    case AST_NODE_KIND_TERNARY:
-      return AstNodeKind::kTernary;
+    case AST_NODE_KIND_CONDITIONAL:
+      return AstNodeKind::kConditional;
     case AST_NODE_KIND_TYPE_ALIAS:
       return AstNodeKind::kTypeAlias;
     case AST_NODE_KIND_TYPE_REF:

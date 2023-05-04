@@ -404,8 +404,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceString(const String* string,
   return std::make_unique<ArrayType>(BitsType::MakeU8(), std::move(dim));
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(const Ternary* node,
-                                                            DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConditional(
+    const Conditional* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> test_type,
                        ctx->Deduce(node->test()));
   XLS_ASSIGN_OR_RETURN(test_type, Resolve(*test_type, ctx));
@@ -421,14 +421,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTernary(const Ternary* node,
                        ctx->Deduce(node->consequent()));
   XLS_ASSIGN_OR_RETURN(consequent_type, Resolve(*consequent_type, ctx));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> alternate_type,
-                       ctx->Deduce(node->alternate()));
+                       ctx->Deduce(ToAstNode(node->alternate())));
   XLS_ASSIGN_OR_RETURN(alternate_type, Resolve(*alternate_type, ctx));
 
   if (*consequent_type != *alternate_type) {
     return ctx->TypeMismatchError(
-        node->span(), node->consequent(), *consequent_type, node->alternate(),
-        *alternate_type,
-        "Ternary consequent type (in the 'then' clause) "
+        node->span(), node->consequent(), *consequent_type,
+        ToAstNode(node->alternate()), *alternate_type,
+        "Conditional consequent type (in the 'then' clause) "
         "did not match alternative type (in the 'else' clause)");
   }
   return consequent_type;
@@ -3003,7 +3003,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(TypeRef)
   DEDUCE_DISPATCH(TypeAlias)
   DEDUCE_DISPATCH(XlsTuple)
-  DEDUCE_DISPATCH(Ternary)
+  DEDUCE_DISPATCH(Conditional)
   DEDUCE_DISPATCH(Binop)
   DEDUCE_DISPATCH(EnumDef)
   DEDUCE_DISPATCH(Let)

@@ -503,7 +503,13 @@ class AstGenerator {
   absl::StatusOr<TypedExpr> GenerateLogicalOp(Context* ctx);
 
   Expr* MakeSel(Expr* test, Expr* lhs, Expr* rhs) {
-    return module_->Make<Ternary>(fake_span_, test, lhs, rhs);
+    Block* consequent = module_->Make<Block>(
+        fake_span_, std::vector<Statement*>{module_->Make<Statement>(lhs)},
+        /*trailing_semi=*/false);
+    Block* alternate = module_->Make<Block>(
+        fake_span_, std::vector<Statement*>{module_->Make<Statement>(rhs)},
+        /*trailing_semi=*/false);
+    return module_->Make<Conditional>(fake_span_, test, consequent, alternate);
   }
   Expr* MakeGe(Expr* lhs, Expr* rhs) {
     return module_->Make<Binop>(fake_span_, BinopKind::kGe, lhs, rhs);

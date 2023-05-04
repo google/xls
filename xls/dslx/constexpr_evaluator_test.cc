@@ -158,12 +158,13 @@ fn main() -> u32 {
                            module->GetMemberOrError<Function>("main"));
 
   XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
-  Ternary* ternary = down_cast<Ternary*>(body_expr);
+  Conditional* conditional = down_cast<Conditional*>(body_expr);
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
-                           GetConcreteType(type_info, ternary));
-  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
-                                             ParametricEnv(), ternary, type));
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(ternary));
+                           GetConcreteType(type_info, conditional));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &test_data.import_data, type_info, ParametricEnv(), conditional, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           type_info->GetConstExpr(conditional));
   EXPECT_EQ(value.GetBitValueInt64().value(), 500);
 }
 

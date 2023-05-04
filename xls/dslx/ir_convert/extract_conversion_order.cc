@@ -497,10 +497,10 @@ class InvocationVisitor : public ExprVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleTernary(const Ternary* expr) override {
+  absl::Status HandleConditional(const Conditional* expr) override {
     XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
-    return expr->alternate()->AcceptExpr(this);
+    return ToExprNode(expr->alternate())->AcceptExpr(this);
   }
 
   absl::Status HandleTupleIndex(const TupleIndex* expr) override {

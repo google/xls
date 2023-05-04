@@ -228,7 +228,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Statement)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
-  NO_TRAVERSE_DISPATCH_VISIT(Ternary)
+  NO_TRAVERSE_DISPATCH_VISIT(Conditional)
   NO_TRAVERSE_DISPATCH_VISIT(TupleIndex)
 
   // A macro used for AST types that we never expect to visit (if we do we
@@ -2422,7 +2422,7 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleTernary(const Ternary* node) {
+absl::Status FunctionConverter::HandleConditional(const Conditional* node) {
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
@@ -2446,10 +2446,10 @@ absl::Status FunctionConverter::HandleTernary(const Ternary* node) {
           return function_builder_->And(orig_control_predicate(),
                                         function_builder_->Not(arg0));
         });
-    XLS_RETURN_IF_ERROR(Visit(node->alternate()));
+    XLS_RETURN_IF_ERROR(Visit(ToExprNode(node->alternate())));
   }
 
-  XLS_ASSIGN_OR_RETURN(BValue arg2, Use(node->alternate()));
+  XLS_ASSIGN_OR_RETURN(BValue arg2, Use(ToExprNode(node->alternate())));
 
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Select(arg0, arg1, arg2, loc);

@@ -98,7 +98,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
 // scope; new bindings in the worst case only shadow previous bindings.
 class Bindings {
  public:
-  explicit Bindings(Bindings* parent = nullptr) : parent_(parent) {}
+  explicit Bindings(Bindings* parent = nullptr);
 
   // Too easy to confuse chaining a bindings object with its parent vs copy
   // constructing so we rely on an explicit Clone() call instead.
@@ -131,8 +131,9 @@ class Bindings {
   //
   // The labels are used in Verilog assertion labels, though they are given as
   // strings in the DSLX source.
-  absl::Status AddFailLabel(const std::string& label);
-  bool ContainsFailLabel(const std::string& label);
+  //
+  // If a fail label is duplicated a parse error is returned.
+  absl::Status AddFailLabel(const std::string& label, const Span& span);
 
   // Returns the AST node bound to 'name'.
   std::optional<BoundNode> ResolveNode(std::string_view name) const {
@@ -186,10 +187,25 @@ class Bindings {
     return local_bindings_;
   }
 
+  // Some properties, such as failure labels, are uniquified at a function
+  // scope, so in parsing we mark which bindings are the "roll up point" for a
+  // function scope so we can check for uniqueness there.
+  void NoteFunctionScoped() {
+    function_scoped_ = true;
+    fail_labels_.emplace();
+  }
+  bool IsFunctionScoped() const { return function_scoped_; }
+
  private:
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
-  absl::flat_hash_set<std::string> fail_labels_;
+
+  // Indicates that these bindings were created for a function scope -- this
+  // helps us track properties that should be unique at function scope.
+  bool function_scoped_ = false;
+
+  // Note: only the function-scoped bindings will have fail_labels_.
+  std::optional<absl::flat_hash_set<std::string>> fail_labels_;
 };
 
 // Returns the name definition node (either builtin or user-defined) associated
