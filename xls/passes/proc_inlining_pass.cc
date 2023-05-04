@@ -117,6 +117,18 @@ absl::StatusOr<Node*> AndNot(
   return And(a, not_b, name);
 }
 
+absl::StatusOr<Node*> Implies(
+    Node* antecedant, Node* consequence,
+    std::optional<std::string_view> name = std::nullopt) {
+  // p->q === !p V q
+  XLS_ASSIGN_OR_RETURN(Node * not_antecedant, Not(antecedant));
+  XLS_ASSIGN_OR_RETURN(Node * implication, Or(not_antecedant, consequence));
+  if (name.has_value()) {
+    implication->SetName(name.value());
+  }
+  return implication;
+}
+
 // Replace uses of `node` with `node || pred`.
 absl::StatusOr<Node*> OrWithPredicate(Node* node, Node* pred) {
   std::vector<Node*> orig_users(node->users().begin(), node->users().end());
@@ -778,14 +790,6 @@ class ProcThread {
   // source and sink nodes as well.
   absl::Status CreateActivationNetwork() {
     XLS_VLOG(3) << "CreateActivationNetwork " << inlined_proc_->name();
-    for (Node* node : inlined_proc_->nodes()) {
-      if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
-          !node->Is<Receive>() && !node->Is<Param>()) {
-        return absl::UnimplementedError(absl::StrFormat(
-            "Proc inlining does not support side-effecting op %s: %s",
-            OpToString(node->op()), node->GetName()));
-      }
-    }
     XLS_ASSIGN_OR_RETURN(std::vector<NodeAndPredecessors> token_graph,
                          ComputeTopoSortedTokenDAG(inlined_proc_));
     // Create the state element for the activation bit of the proc thread.
@@ -805,6 +809,21 @@ class ProcThread {
                 /*activations_in=*/{activation_state_->GetState()},
                 token_node.node));
         source_activation_node_ = activation_node;
+      } else if (token_node.node->Is<Gate>()) {
+        // Gate ops are weird, they're side-effecting to prevent optimizations
+        // from removing them, but they have no token. They can be data
+        // dependent on a receive without a token, so use the proc activation as
+        // the activation.
+        XLS_RET_CHECK(token_node.predecessors.empty());
+        XLS_ASSIGN_OR_RETURN(std::string name,
+                             GetActivationNodeName(token_node.node));
+        XLS_ASSIGN_OR_RETURN(
+            activation_node,
+            AllocateActivationNode(name,
+                                   {original_node_to_activation_node_
+                                        .at(inlined_proc_->TokenParam())
+                                        ->activation_out},
+                                   token_node.node));
       } else {
         XLS_ASSIGN_OR_RETURN(std::string name,
                              GetActivationNodeName(token_node.node));
@@ -1128,6 +1147,65 @@ class ProcThread {
 
     activation_node->data_out = result;
     return result;
+  }
+
+  absl::StatusOr<Node*> ConvertNonChannelSideEffectingNode(
+      Node* node, ActivationNode* activation_node) {
+    XLS_RET_CHECK_EQ(node->function_base(), container_proc_);
+    std::string op_name = OpToString(node->op());
+    Node* activation_in = activation_node->activations_in.front();
+    int64_t condition_operand_index;
+    Node* new_condition;
+    switch (node->op()) {
+      case Op::kAssert: {
+        condition_operand_index = Assert::kConditionOperand;
+        // Assertion should only be checked when active (true otherwise), so
+        // check that activation_in -> condition
+        XLS_ASSIGN_OR_RETURN(
+            new_condition,
+            Implies(activation_in, node->As<Assert>()->condition()));
+        break;
+      }
+      case Op::kCover: {
+        condition_operand_index = Cover::kConditionOperand;
+        XLS_ASSIGN_OR_RETURN(
+            new_condition, And(node->As<Cover>()->condition(), activation_in));
+        break;
+      }
+      case Op::kGate: {
+        // Gate ops are weird, they're side-effecting to prevent optimizations
+        // from removing them, but they have no token. They can be data
+        // dependent on a receive without a token. Ideally, we'd set the
+        // condition to activation_in & condition, but we don't have a token to
+        // correctly build the activation. Instead, leave the condition alone
+        // and just return the op.
+        return node;
+      }
+      case Op::kTrace: {
+        condition_operand_index = Trace::kConditionOperand;
+        XLS_ASSIGN_OR_RETURN(
+            new_condition, And(node->As<Trace>()->condition(), activation_in));
+        break;
+      }
+      case Op::kSend:
+      case Op::kReceive:
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Unexpected channel operation %s.", node->GetName()));
+      default:
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Op %s is not a side-effecting node supported by "
+                            "proc inlining (%s).",
+                            node->GetName(), op_name));
+    }
+    XLS_VLOG(3) << absl::StreamFormat("Converting %s %s to activated %s",
+                                      op_name, node->GetName(), op_name);
+    XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(
+        condition_operand_index, new_condition, /*type_must_match=*/true));
+    XLS_VLOG(3) << absl::StreamFormat("Converted %s %s condition to %s",
+                                      op_name, node->GetName(),
+                                      new_condition->GetName());
+    activation_node->data_out = node;
+    return node;
   }
 
   // Creates a virtual receive corresponding to receiving the given data on the
@@ -1519,6 +1597,12 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
                                      proc_thread.GetActivationNode(node),
                                      virtual_channels));
       node_map[node] = converted_receive;
+    } else if (OpIsSideEffecting(node->op())) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * converted_node,
+          proc_thread.ConvertNonChannelSideEffectingNode(
+              cloned_node, proc_thread.GetActivationNode(node)));
+      node_map[node] = converted_node;
     } else {
       node_map[node] = cloned_node;
     }
