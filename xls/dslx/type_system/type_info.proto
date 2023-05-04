@@ -189,6 +189,17 @@ message MetaTypeProto {
   optional ConcreteTypeProto wrapped = 1;
 }
 
+enum ChannelDirectionProto {
+  CHANNEL_DIRECTION_INVALID = 0;
+  CHANNEL_DIRECTION_IN = 1;
+  CHANNEL_DIRECTION_OUT = 2;
+}
+
+message ChannelTypeProto {
+  optional ConcreteTypeProto payload = 1;
+  ChannelDirectionProto direction = 2;
+}
+
 message TokenTypeProto {
   // Empty.
 }
@@ -203,6 +214,7 @@ message ConcreteTypeProto {
     TokenTypeProto token_type = 6;
     EnumTypeProto enum_type = 7;
     MetaTypeProto meta_type = 8;
+    ChannelTypeProto channel_type = 9;
   }
 }
 

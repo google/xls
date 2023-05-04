@@ -15,6 +15,7 @@
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 
 #include "absl/strings/match.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"

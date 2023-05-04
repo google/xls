@@ -38,6 +38,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
@@ -56,6 +57,20 @@
 
 namespace xls::dslx {
 namespace {
+
+// Record that the current function being checked has a side effect and will
+// require an implicit token when converted to IR.
+void UseImplicitToken(DeduceCtx* ctx) {
+  Function* caller = ctx->fn_stack().back().f();
+  // Note: caller could be nullptr; e.g. when we're calling a function that
+  // can fail!() from the top level of a module; e.g. in a module-level const
+  // expression.
+  if (caller != nullptr) {
+    ctx->type_info()->NoteRequiresImplicitToken(caller, true);
+  }
+
+  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
+}
 
 absl::StatusOr<InterpValue> InterpretExpr(
     DeduceCtx* ctx, const Expr* expr,
@@ -2421,8 +2436,21 @@ absl::StatusOr<std::unique_ptr<ChannelType>> DeduceChannelType(
   return absl::WrapUnique(channel_type);
 }
 
+static absl::Status ValidateWithinProc(std::string_view builtin_name,
+                                       const Span& span, DeduceCtx* ctx) {
+  if (!ctx->WithinProc()) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Cannot %s() outside of a proc", builtin_name));
+  }
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(const Send* node,
                                                          DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "send";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelType> channel_type,
       DeduceChannelType(node->channel(), "send", "send(token, out chan, data)",
@@ -2445,8 +2473,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(const Send* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(const SendIf* node,
                                                            DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "send_if";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelType> channel_type,
-                       DeduceChannelType(node->channel(), "send_if",
+                       DeduceChannelType(node->channel(), kBuiltinName,
                                          "send_if(token, bool, out chan, data)",
                                          ChannelDirection::kOut, ctx));
   const ConcreteType& channel_payload_type = channel_type->payload_type();
@@ -2513,6 +2544,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
                                                          DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "recv";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelType> channel_type,
       DeduceChannelType(node->channel(), "recv", "recv(token, in chan)",
@@ -2525,9 +2559,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
     const RecvNonBlocking* node, DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "recv_non_blocking";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), "recv_non_blocking",
+      DeduceChannelType(node->channel(), kBuiltinName,
                         "recv_non_blocking(token, in chan, default)",
                         ChannelDirection::kIn, ctx));
 
@@ -2550,9 +2587,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
                                                            DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "recv_if";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), "recv_if",
+      DeduceChannelType(node->channel(), kBuiltinName,
                         "recv_if(token, in chan, bool, default)",
                         ChannelDirection::kIn, ctx));
   XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
@@ -2581,9 +2621,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
     const RecvIfNonBlocking* node, DeduceCtx* ctx) {
+  constexpr std::string_view kBuiltinName = "recv_if_non_blocking";
+  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), "recv_if_non_blocking",
+      DeduceChannelType(node->channel(), kBuiltinName,
                         "recv_if_non_blocking(token, in chan, bool, default)",
                         ChannelDirection::kIn, ctx));
 
@@ -2619,20 +2662,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceJoin(const Join* node,
     XLS_RETURN_IF_ERROR(Deduce(token, ctx).status());
   }
   return std::make_unique<TokenType>();
-}
-
-// Record that the current function being checked has a side effect and will
-// require an implicit token when converted to IR.
-void UseImplicitToken(DeduceCtx* ctx) {
-  Function* caller = ctx->fn_stack().back().f();
-  // Note: caller could be nullptr; e.g. when we're calling a function that
-  // can fail!() from the top level of a module; e.g. in a module-level const
-  // expression.
-  if (caller != nullptr) {
-    ctx->type_info()->NoteRequiresImplicitToken(caller, true);
-  }
-
-  // TODO(rspringer): 2021-09-01: How to fail! from inside a proc?
 }
 
 // Deduces the concrete types of the arguments to a parametric function or

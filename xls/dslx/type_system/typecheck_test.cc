@@ -39,6 +39,18 @@ namespace {
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
+TEST(TypecheckErrorTest, SendInFunction) {
+  std::string_view text = R"(
+fn f(tok: token, output_r: chan<u8> in, expected: u8) -> token {
+  let (tok, value) = recv(tok, output_r);
+  tok
+}
+)";
+  EXPECT_THAT(Typecheck(text),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot recv() outside of a proc")));
+}
+
 TEST(TypecheckErrorTest, ParametricWrongArgCount) {
   std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }

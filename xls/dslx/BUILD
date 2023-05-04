@@ -85,6 +85,7 @@ cc_library(
         ":import_data",
         "//xls/common:case_converters",
         "//xls/common:visitor",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/bytecode",
         "//xls/dslx/bytecode:bytecode_emitter",

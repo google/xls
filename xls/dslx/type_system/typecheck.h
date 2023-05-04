@@ -59,6 +59,7 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
 // Determines if the given type is best represented as a DSLX BuiltinType with
 // fixed width, e.g., u7 or s64 vs bits, uN, or sN. If so, then this function
 // returns that BuiltinType.
+//
 // Certain non-fixed width types, e.g., bits[17] or sN[63], while technically
 // array types (ArrayTypeAnnotations), they're more easily represented
 // in C++ as int64_t, as opposed to arrays of bool or "packed" int8_ts.

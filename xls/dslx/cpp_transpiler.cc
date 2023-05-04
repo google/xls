@@ -35,6 +35,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/common/case_converters.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode.h"
@@ -70,7 +71,7 @@ std::string CheckedCamelize(std::string_view input) {
     return std::string(input);
   }
 
-  int pos = input.find_first_of('[');
+  size_t pos = input.find_first_of('[');
   std::string suffix;
   if (pos != input.npos) {
     suffix = input.substr(pos);

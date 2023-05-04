@@ -163,8 +163,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
 PosProto ToProto(const Pos& pos) {
   PosProto proto;
   proto.set_filename(pos.filename());
-  proto.set_lineno(pos.lineno());
-  proto.set_colno(pos.colno());
+  proto.set_lineno(static_cast<int32_t>(pos.lineno()));
+  proto.set_colno(static_cast<int32_t>(pos.colno()));
   return proto;
 }
 
@@ -186,7 +186,7 @@ absl::StatusOr<InterpValueProto> ToProto(const InterpValue& v) {
   if (v.IsBits()) {
     BitsValueProto* bvp = proto.mutable_bits();
     bvp->set_is_signed(v.IsSBits());
-    bvp->set_bit_count(v.GetBitCount().value());
+    bvp->set_bit_count(static_cast<int32_t>(v.GetBitCount().value()));
     // Bits::ToBytes is in little-endian format. The proto stores data in
     // big-endian.
     std::vector<uint8_t> bytes = v.GetBitsOrDie().ToBytes();
@@ -313,6 +313,26 @@ absl::StatusOr<MetaTypeProto> ToProto(const MetaType& meta_type) {
   return proto;
 }
 
+ChannelDirectionProto ToProto(ChannelDirection d) {
+  switch (d) {
+    case ChannelDirection::kIn:
+      return ChannelDirectionProto::CHANNEL_DIRECTION_IN;
+    case ChannelDirection::kOut:
+      return ChannelDirectionProto::CHANNEL_DIRECTION_OUT;
+  }
+  XLS_LOG(FATAL) << "Invalid ChannelDirection: " << static_cast<int64_t>(d);
+}
+
+absl::StatusOr<ChannelTypeProto> ToProto(const ChannelType& channel_type) {
+  XLS_VLOG(5) << "Converting ChannelType to proto: " << channel_type.ToString();
+  ChannelTypeProto proto;
+  XLS_ASSIGN_OR_RETURN(*proto.mutable_payload(),
+                       ToProto(channel_type.payload_type()));
+  proto.set_direction(ToProto(channel_type.direction()));
+  XLS_VLOG(5) << "- proto: " << proto.ShortDebugString();
+  return proto;
+}
+
 absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   ConcreteTypeProto proto;
   if (const auto* bits = dynamic_cast<const BitsType*>(&concrete_type)) {
@@ -335,6 +355,9 @@ absl::StatusOr<ConcreteTypeProto> ToProto(const ConcreteType& concrete_type) {
   } else if (const auto* meta_type =
                  dynamic_cast<const MetaType*>(&concrete_type)) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_meta_type(), ToProto(*meta_type));
+  } else if (const auto* channel_type =
+                 dynamic_cast<const ChannelType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(*proto.mutable_channel_type(), ToProto(*channel_type));
   } else if (dynamic_cast<const TokenType*>(&concrete_type) != nullptr) {
     proto.mutable_token_type();
   } else {
@@ -712,8 +735,9 @@ absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
                                           const ImportData& import_data) {
   std::vector<std::string> lines;
   for (int64_t i = 0; i < tip.nodes_size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(std::string node_str,
-                         ToHumanString(tip.nodes(i), import_data));
+    XLS_ASSIGN_OR_RETURN(
+        std::string node_str,
+        ToHumanString(tip.nodes(static_cast<int32_t>(i)), import_data));
     lines.push_back(std::move(node_str));
   }
   return absl::StrJoin(lines, "\n");

@@ -28,6 +28,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -50,21 +51,24 @@ namespace {
 // check fn_stack() invariants are as expected.
 class ScopedFnStackEntry {
  public:
-  // Args:
-  //  expect_popped: Indicates that we expect, in the destructor for this scope,
-  //    that the entry will have already been popped.
-  ScopedFnStackEntry(DeduceCtx* ctx, Module* module, bool expect_popped = false)
+  ScopedFnStackEntry(DeduceCtx* ctx, Module* module)
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
-        expect_popped_(expect_popped) {
+        expect_popped_(false) {
     ctx->AddFnStackEntry(FnStackEntry::MakeTop(module));
   }
 
-  ScopedFnStackEntry(Function* fn, DeduceCtx* ctx, bool expect_popped = false)
+  // Args:
+  //  expect_popped: Indicates that we expect, in the destructor for this scope,
+  //    that the entry will have already been popped. Generally this is `false`
+  //    since we expect the entry to be on the top of the fn stack in the
+  //    destructor, in which case we automatically pop it.
+  ScopedFnStackEntry(Function* fn, DeduceCtx* ctx, WithinProc within_proc,
+                     bool expect_popped = false)
       : ctx_(ctx),
         depth_before_(ctx->fn_stack().size()),
         expect_popped_(expect_popped) {
-    ctx->AddFnStackEntry(FnStackEntry::Make(fn, ParametricEnv()));
+    ctx->AddFnStackEntry(FnStackEntry::Make(fn, ParametricEnv(), within_proc));
   }
 
   // Called when we close out a scope. We can't use this object as a scope
@@ -339,7 +343,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   {
     // The first and only argument to a Proc's config function is the terminator
     // channel. Create it here and mark it constexpr for deduction.
-    ScopedFnStackEntry scoped_entry(proc->config(), ctx, false);
+    ScopedFnStackEntry scoped_entry(proc->config(), ctx, WithinProc::kYes);
     InterpValue terminator(InterpValue::MakeChannel());
     ctx->type_info()->NoteConstExpr(proc->config()->params()[0], terminator);
     XLS_RETURN_IF_ERROR(CheckFunction(proc->config(), ctx));
@@ -347,7 +351,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   }
 
   {
-    ScopedFnStackEntry scoped_entry(proc->next(), ctx, false);
+    ScopedFnStackEntry scoped_entry(proc->next(), ctx, WithinProc::kYes);
     XLS_RETURN_IF_ERROR(CheckFunction(proc->next(), ctx));
     scoped_entry.Finish();
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
@@ -383,7 +387,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   return absl::OkStatus();
 }
 
-bool CanTypecheckProc(Proc* p) {
+static bool CanTypecheckProc(Proc* p) {
   for (Param* param : p->config()->params()) {
     if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) ==
         nullptr) {
@@ -421,8 +425,10 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
       return absl::OkStatus();
     }
 
+    bool within_proc = false;
     auto maybe_proc = f->proc();
     if (maybe_proc.has_value()) {
+      within_proc = true;
       Proc* p = maybe_proc.value();
       if (!CanTypecheckProc(p)) {
         return absl::OkStatus();
@@ -430,7 +436,8 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     }
 
     XLS_VLOG(2) << "Typechecking function: " << f->ToString();
-    ScopedFnStackEntry scoped_entry(f, ctx, /*expect_popped=*/false);
+    ScopedFnStackEntry scoped_entry(
+        f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
     scoped_entry.Finish();
     XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
@@ -451,7 +458,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     }
 
     XLS_VLOG(2) << "Typechecking quickcheck function: " << f->ToString();
-    ScopedFnStackEntry scoped(f, ctx, false);
+    ScopedFnStackEntry scoped(f, ctx, WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
     scoped.Finish();
 
@@ -476,7 +483,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
   } else if (std::holds_alternative<TestFunction*>(member)) {
     TestFunction* tf = std::get<TestFunction*>(member);
-    ScopedFnStackEntry scoped_entry(tf->fn(), ctx, /*expect_popped=*/false);
+    ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(tf->fn(), ctx));
     scoped_entry.Finish();
   } else if (std::holds_alternative<TestProc*>(member)) {
@@ -813,8 +820,9 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // We need to deduce fn body, so we're going to call Deduce, which means we'll
   // need a new stack entry w/the new symbolic bindings.
   TypeInfo* original_ti = parent_ctx->type_info();
-  ctx->AddFnStackEntry(
-      FnStackEntry::Make(callee_fn, tab.parametric_env, invocation));
+  ctx->AddFnStackEntry(FnStackEntry::Make(
+      callee_fn, tab.parametric_env, invocation,
+      callee_fn->proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
   ctx->AddDerivedTypeInfo();
 
   if (callee_fn->proc().has_value()) {

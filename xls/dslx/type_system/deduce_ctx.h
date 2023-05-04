@@ -27,10 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
-#include "absl/types/variant.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/dslx/import_routines.h"
-#include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_and_bindings.h"
 #include "xls/dslx/type_system/type_mismatch_error_data.h"
@@ -38,20 +35,27 @@
 
 namespace xls::dslx {
 
+enum class WithinProc {
+  kNo,
+  kYes,
+};
+
 // An entry on the "stack of functions/procs currently being deduced".
 class FnStackEntry {
  public:
   // Creates an entry for type inference of function 'f' with the given symbolic
   // bindings.
-  static FnStackEntry Make(Function* f, ParametricEnv parametric_env) {
+  static FnStackEntry Make(Function* f, ParametricEnv parametric_env,
+                           WithinProc within_proc) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(parametric_env), std::nullopt);
+                        std::move(parametric_env), std::nullopt, within_proc);
   }
 
   static FnStackEntry Make(Function* f, ParametricEnv parametric_env,
-                           const Invocation* invocation) {
+                           const Invocation* invocation,
+                           WithinProc within_proc) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(parametric_env), invocation);
+                        std::move(parametric_env), invocation, within_proc);
   }
 
   // Creates an entry for type inference of the top level of module 'module'.
@@ -65,28 +69,35 @@ class FnStackEntry {
   const Module* module() const { return module_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
   std::optional<const Invocation*> invocation() { return invocation_; }
+  WithinProc within_proc() const { return within_proc_; }
 
   bool operator!=(std::nullptr_t) const { return f_ != nullptr; }
 
  private:
   FnStackEntry(Function* f, std::string name, Module* module,
                ParametricEnv parametric_env,
-               std::optional<const Invocation*> invocation)
+               std::optional<const Invocation*> invocation,
+               WithinProc within_proc)
       : f_(f),
-        name_(name),
+        name_(std::move(name)),
         module_(module),
-        parametric_env_(parametric_env),
-        invocation_(invocation) {}
+        parametric_env_(std::move(parametric_env)),
+        invocation_(invocation),
+        within_proc_(within_proc) {}
 
   // Constructor overload for a module-level inference entry.
   explicit FnStackEntry(Module* module)
-      : f_(static_cast<Function*>(nullptr)), name_("<top>"), module_(module) {}
+      : f_(static_cast<Function*>(nullptr)),
+        name_("<top>"),
+        module_(module),
+        within_proc_(WithinProc::kNo) {}
 
   Function* f_;
   std::string name_;
   const Module* module_;
   ParametricEnv parametric_env_;
   std::optional<const Invocation*> invocation_;
+  WithinProc within_proc_;
 };
 
 class DeduceCtx;  // Forward decl.
@@ -144,6 +155,10 @@ class DeduceCtx {
                                  const ConcreteType& lhs,
                                  const AstNode* rhs_node,
                                  const ConcreteType& rhs, std::string message);
+
+  bool WithinProc() const {
+    return fn_stack().back().within_proc() == WithinProc::kYes;
+  }
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }
   const std::vector<FnStackEntry>& fn_stack() const { return fn_stack_; }
