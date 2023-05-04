@@ -733,6 +733,18 @@ TEST_F(XlsIntTest, ACCompatibleDivisionWidth) {
   RunAcDatatypeTest({}, 4, content);
 }
 
+TEST_F(XlsIntTest, Reverse) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    long long my_package() {
+      XlsInt<16, false> x = 0b1000110100001010;
+      return x.reverse();
+    })";
+  RunAcDatatypeTest({}, 0b0101000010110001, content,
+                    xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

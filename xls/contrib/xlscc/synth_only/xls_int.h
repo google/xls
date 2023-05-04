@@ -819,6 +819,15 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   }
   // --- / Hack
 
+  inline XlsInt reverse() const {
+    XlsInt<Width, false> reverse_out;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { "
+        "  ret (aid): bits[i] = reverse(a, pos=(loc)) }"
+        : "=r"(reverse_out.storage)
+        : "i"(Width), "a"(this->storage));
+    return reverse_out;
+  }
+
   inline index_t clz() const {
     XlsInt<Width, false> reverse_out;
     asm("fn (fid)(a: bits[i]) -> bits[i] { "
