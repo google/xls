@@ -287,7 +287,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     if (request->has_target_frequency_hz()) {
       nextpnr_args.push_back("--freq");
       nextpnr_args.push_back(
-          absl::StrCat(request->has_target_frequency_hz() / 1000000));
+          absl::StrCat(request->target_frequency_hz() / 1000000));
     }
     std::pair<std::string, std::string> string_pair;
     XLS_ASSIGN_OR_RETURN(string_pair, RunSubprocess(nextpnr_args));
