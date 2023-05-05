@@ -176,7 +176,7 @@ absl::StatusOr<int16_t> BitStream::PopCoeff(uint8_t n) {
     return 0;
   }
   XLS_ASSIGN_OR_RETURN(uint16_t bits, PopN(n));
-  bool msb_set = bits >> (n - 1);
+  bool msb_set = (bits >> (n - 1)) != 0;
   // Given the table in the header to project from a bit stream value (e.g. 0b00
   // to -3 in the two bit space, within the 16 bit value used as storage) we
   // have to set all the high bits above the bit pattern (which in the example
