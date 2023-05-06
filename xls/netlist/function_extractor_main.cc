@@ -35,8 +35,9 @@ ABSL_FLAG(bool, output_textproto, false,
 
 namespace xls::netlist::function {
 
-absl::Status RealMain(const std::string& cell_library_path,
-                      const std::string& output_path, bool output_textproto) {
+static absl::Status RealMain(const std::string& cell_library_path,
+                             const std::string& output_path,
+                             bool output_textproto) {
   XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
                        GetFileContents(cell_library_path));
   XLS_ASSIGN_OR_RETURN(
