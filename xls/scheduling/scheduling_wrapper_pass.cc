@@ -47,18 +47,27 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     }
   }
 
-  for (const auto& [after, after_node] : nodes_after) {
-    if (!nodes_before.contains(after)) {
+  auto itr = std::find_if(nodes_after.begin(), nodes_after.end(),
+                          [&nodes_before](const std::pair<int64_t, Node*>& kv) {
+                            return !nodes_before.contains(kv.first);
+                          });
+  if (itr != nodes_after.end()) {
+    if (reschedule_new_nodes_) {
+      // need to reschedule, delete the current schedule.
+      unit->schedule = std::nullopt;
+    } else {
       return absl::InternalError(
-          absl::StrFormat("SchedulingWrapperPass can't handle passes that "
-                          "create new nodes: wrapped over %s",
+          absl::StrFormat("SchedulingWrapperPass(%s) can't create new nodes "
+                          "when reschedule_new_nodes_ is false.",
                           wrapped_pass_->short_name()));
     }
   }
 
-  for (const auto& [before, before_node] : nodes_before) {
-    if (!nodes_after.contains(before) && unit->schedule.has_value()) {
-      unit->schedule.value().RemoveNode(before_node);
+  if (unit->schedule.has_value()) {
+    for (const auto& [before, before_node] : nodes_before) {
+      if (!nodes_after.contains(before)) {
+        unit->schedule.value().RemoveNode(before_node);
+      }
     }
   }
 

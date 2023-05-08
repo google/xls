@@ -26,15 +26,21 @@ namespace xls {
 // A scheduling pass wrapper which wraps a Pass. This is useful for adding an
 // optimization or transformation pass to the scheduling pipeline. The wrapped
 // pass is run on the underlying package and then any nodes that were removed
-// by the pass are removed from the schedule. If nodes were added by the pass,
-// this is detected and an error is raised.
+// by the pass are removed from the schedule.
+// If nodes were added by the pass, the behavior is determined by
+// reschedule_new_nodes, which is false by default. If !reschedule_new_nodes,
+// nodes added by the pass are detected and an error is raised. If
+// reschedule_new_nodes is true, the current schedule is deleted and a
+// scheduling pass must be rerun after this wrapped pass.
 class SchedulingWrapperPass : public SchedulingPass {
  public:
-  explicit SchedulingWrapperPass(std::unique_ptr<Pass> wrapped_pass)
+  explicit SchedulingWrapperPass(std::unique_ptr<Pass> wrapped_pass,
+                                 bool reschedule_new_nodes = false)
       : SchedulingPass(
             absl::StrFormat("scheduling_%s", wrapped_pass->short_name()),
             absl::StrFormat("%s (scheduling)", wrapped_pass->long_name())),
-        wrapped_pass_(std::move(wrapped_pass)) {}
+        wrapped_pass_(std::move(wrapped_pass)),
+        reschedule_new_nodes_(reschedule_new_nodes) {}
   ~SchedulingWrapperPass() override = default;
 
  protected:
@@ -44,6 +50,7 @@ class SchedulingWrapperPass : public SchedulingPass {
 
  private:
   std::unique_ptr<Pass> wrapped_pass_;
+  bool reschedule_new_nodes_;
 };
 
 }  // namespace xls
