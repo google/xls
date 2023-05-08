@@ -1845,6 +1845,44 @@ TEST(IrConverterTest, EmptyArray) {
                        HasSubstr("Array u32[0]:[] was empty")));
 }
 
+TEST(IrConverterTest, TraceFmt) {
+  constexpr std::string_view kProgram = R"(
+    fn trace_and_add(x: u32) -> u32 {
+      let _ = trace_fmt!("x = {}", x);
+      x + u32:1
+    }
+
+    fn assert_trace_and_add(x: u32) -> u32 {
+      let _ = if x == u32:5 { fail!("x_is_now_5", u32:0) } else { u32:0 };
+      trace_and_add(x)
+    }
+
+    proc main {
+      c: chan<u32> out;
+      init {
+        u32:0
+      }
+      config(input_c: chan<u32> out) {
+        (input_c,)
+      }
+      next(tok: token, i: u32) {
+        let tok = send(tok, c, i);
+        assert_trace_and_add(i)
+      }
+    }
+)";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = true;
+  options.emit_positions = false;
+  options.verify_ir = true;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

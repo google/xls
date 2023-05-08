@@ -2059,7 +2059,14 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
   BValue result = std::get<BValue>(node_to_ir_[f->body()]);
-  BValue final_token = builder_ptr->AfterAll(tokens_);
+
+  // Join all explicit and implicit tokens for the final token.
+  std::vector<BValue> explicit_and_implicit_tokens = tokens_;
+  for (BValue t : implicit_token_data_->control_tokens) {
+    explicit_and_implicit_tokens.push_back(t);
+  }
+  BValue final_token = builder_ptr->AfterAll(explicit_and_implicit_tokens);
+
   XLS_ASSIGN_OR_RETURN(xls::Proc * p,
                        builder_ptr->Build(final_token, {result}));
   package_data_.ir_to_dslx[p] = f;
