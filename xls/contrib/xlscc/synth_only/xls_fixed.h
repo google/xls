@@ -16,6 +16,7 @@
 #define XLS_FIXED_H
 
 #include "xls_int.h"
+#include <algorithm>
 
 #define __AC_NAMESPACE ac_datatypes
 #include "include/ac_fixed.h"
@@ -256,10 +257,15 @@ class XlsFixed {
     return BitsToBuiltinInt<long long, 64>::Convert(ret);
   }
 
-  inline  unsigned long long to_uint64() const {
+  inline unsigned long long to_uint64() const {
     auto ret(Adjustment<64, 64, false, Width, IntegerWidth, Signed>::Adjust(
         val.storage));
     return BitsToBuiltinInt<unsigned long long, 64>::Convert(ret);
+  }
+
+  inline XlsInt<std::max(IntegerWidth, 1), Signed> to_ac_int() const {
+    return ((XlsFixed<std::max(IntegerWidth, 1), std::max(IntegerWidth, 1),
+                      Signed>)*this).template slc<std::max(IntegerWidth, 1)>(0);
   }
 
   template <int W2, int I2, bool S2, ac_datatypes::ac_q_mode Q2,

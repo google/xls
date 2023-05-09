@@ -749,6 +749,16 @@ TEST_F(XlsFixedTest, QuantizationModeAcTrnSupported) {
   RunAcDatatypeTest({}, 0, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsFixedTest, ToAcInt) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(int a) {
+      XlsFixed<10, 6, true, ac_datatypes::AC_TRN, ac_datatypes::AC_WRAP> x(a);
+      return x.to_ac_int();
+    })";
+  RunAcDatatypeTest({{"a", 9}}, 9, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc
