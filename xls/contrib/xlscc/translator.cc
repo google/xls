@@ -855,9 +855,9 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
               base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
               GetLoc(*base_struct)));
 
-      fields.push_back(std::shared_ptr<CField>(
-          new CField(absl::implicit_cast<const clang::NamedDecl*>(base_struct),
-                     fields.size(), field_type)));
+      fields.push_back(std::make_shared<CField>(
+          absl::implicit_cast<const clang::NamedDecl*>(base_struct),
+          fields.size(), field_type));
     }
 
     for (const clang::FieldDecl* it : sd->fields()) {
@@ -879,9 +879,9 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
       // Up cast FieldDecl to NamedDecl because NamedDecl pointers are used to
       //  track identifiers by XLS[cc], no matter the type of object being
       //  identified
-      fields.push_back(std::shared_ptr<CField>(
-          new CField(absl::implicit_cast<const clang::NamedDecl*>(it),
-                     fields.size(), field_type)));
+      fields.push_back(std::make_shared<CField>(
+          absl::implicit_cast<const clang::NamedDecl*>(it), fields.size(),
+          field_type));
     }
   } else {
     XLS_LOG(WARNING) << ErrorMessage(
@@ -893,8 +893,8 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
   const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
   const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
 
-  new_type.reset(new CStructType(
-      fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
+  new_type = std::make_shared<CStructType>(
+      fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma);
 
   inst_types_[signature] = new_type;
   return absl::OkStatus();

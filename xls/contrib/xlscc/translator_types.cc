@@ -580,8 +580,7 @@ CInternalTuple::CInternalTuple(std::vector<std::shared_ptr<CType>> fields)
 absl::Status CInternalTuple::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
-  for (int i = 0; i < fields_.size(); ++i) {
-    std::shared_ptr<CType> field = fields_[i];
+  for (auto field : fields_) {
     XLS_RETURN_IF_ERROR(field->GetMetadata(
         translator, output->mutable_as_tuple()->add_fields(), aliases_used));
   }

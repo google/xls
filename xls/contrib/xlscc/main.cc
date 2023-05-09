@@ -157,8 +157,8 @@ absl::Status Run(std::string_view cpp_path) {
   }
 
   std::vector<std::string_view> clang_argv;
-  for (size_t i = 0; i < clang_argvs.size(); ++i) {
-    clang_argv.push_back(clang_argvs[i]);
+  for (const auto& i : clang_argvs) {
+    clang_argv.push_back(i);
   }
 
   std::cerr << "Parsing file '" << cpp_path << "' with clang..." << std::endl;
