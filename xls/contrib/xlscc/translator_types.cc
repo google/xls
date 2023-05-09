@@ -475,7 +475,7 @@ absl::Status CStructType::GetMetadataValue(
       int, std::pair<const clang::NamedDecl*, std::shared_ptr<CField>>>
       fields_by_index;
 
-  for (auto field : fields_by_name_) {
+  for (const auto& field : fields_by_name_) {
     fields_by_index[field.second->index()] = field;
   }
   for (int i = 0; i < fields_by_name_.size(); ++i) {
