@@ -25,7 +25,7 @@ class Explicit {
 };
 
 // Each case specified under each symbol must fail to compile.
-void MustNotCompile() {
+static void MustNotCompile() {
   USD dollars(1);
   (void)dollars;  // Avoid unused variable warning.
   EUR euro(2);
