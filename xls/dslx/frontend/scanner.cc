@@ -135,7 +135,7 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
 
 // This is too simple to need to return absl::Status. Just never call it
 // with a non-hex character.
-int HexCharToInt(char hex_char) {
+static int HexCharToInt(char hex_char) {
   if (std::isdigit(hex_char) != 0) {
     return hex_char - '0';
   }
