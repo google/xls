@@ -1603,6 +1603,13 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     XLS_ASSIGN_OR_RETURN(struct_prev_val,
                          GenerateIR_Expr(member_expr->getBase(), loc));
 
+    if (struct_prev_val.type()->Is<CReferenceType>()) {
+      XLSCC_CHECK_NE(struct_prev_val.lvalue().get(), nullptr, loc);
+      XLSCC_CHECK(!struct_prev_val.lvalue()->is_null(), loc);
+      XLS_ASSIGN_OR_RETURN(struct_prev_val,
+                           GenerateIR_Expr(struct_prev_val.lvalue(), loc));
+    }
+
     XLS_ASSIGN_OR_RETURN(auto resolved_type,
                          ResolveTypeInstance(struct_prev_val.type()));
 
@@ -3456,6 +3463,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(std::shared_ptr<LValue> expr,
 absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
     const clang::MemberExpr* expr, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(CValue leftval, GenerateIR_Expr(expr->getBase(), loc));
+
+  if (leftval.type()->Is<CReferenceType>()) {
+    XLSCC_CHECK_NE(leftval.lvalue().get(), nullptr, loc);
+    XLSCC_CHECK(!leftval.lvalue()->is_null(), loc);
+    XLS_ASSIGN_OR_RETURN(leftval, GenerateIR_Expr(leftval.lvalue(), loc));
+  }
+
   XLS_ASSIGN_OR_RETURN(auto itype, ResolveTypeInstance(leftval.type()));
 
   auto sitype = std::dynamic_pointer_cast<CStructType>(itype);

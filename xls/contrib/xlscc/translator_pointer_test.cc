@@ -971,26 +971,35 @@ TEST_F(TranslatorPointerTest, ReferenceMemberAccess) {
     struct MyPtr {
       int val;
 
-      MyPtr& operator+=(int x) {
-        val += x;
-        return *this;
-      }
-      int getit()const {
-        return val;
+      void minus_one() {
+        --val;
       }
     };
 
     int my_package() {
       MyPtr my = {.val = 55};
       MyPtr& ref = my;
-      ref.val--;
-      return ref.getit();
+      ref.minus_one();
+      return ref.val;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Unimplemented member access on type")));
+  Run({}, 55 - 1, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceMemberAssignment) {
+  const std::string content = R"(
+    struct MyPtr {
+      int val;
+    };
+
+    int my_package() {
+      MyPtr my = {.val = 55};
+      MyPtr& ref = my;
+      --ref.val;
+      return ref.val;
+    })";
+
+  Run({}, 55 - 1, content);
 }
 
 TEST_F(TranslatorPointerTest, SetThis) {
