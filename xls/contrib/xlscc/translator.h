@@ -895,6 +895,7 @@ struct TranslationContext {
   bool propagate_up = true;
   bool propagate_break_up = true;
   bool propagate_continue_up = true;
+  bool propagate_declarations = false;
 
   bool mask_assignments = false;
 

@@ -1193,6 +1193,41 @@ TEST_F(TranslatorLogicTest, ForInSwitch) {
   Run({{"a", 3}}, 3, content);
 }
 
+TEST_F(TranslatorLogicTest, SwitchDeclareInCase) {
+  const std::string content = R"(
+      #pragma hls_top
+      long long foo(long long in) {
+        switch(in) {
+          case 1: {
+            int bar = in;
+            in += bar;
+            break;
+          }
+        }
+
+        return in;
+      })";
+
+  Run({{"in", 1}}, 2, content);
+}
+
+TEST_F(TranslatorLogicTest, SwitchDeclareInCaseWithoutBraces) {
+  const std::string content = R"(
+      #pragma hls_top
+      long long foo(long long in) {
+        switch(in) {
+          case 1:
+            int bar = in;
+            in += bar;
+            break;
+        }
+
+        return in;
+      })";
+
+  Run({{"in", 1}}, 2, content);
+}
+
 TEST_F(TranslatorLogicTest, ForUnroll) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {

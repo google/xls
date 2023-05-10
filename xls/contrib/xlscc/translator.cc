@@ -186,16 +186,18 @@ absl::Status Translator::PropagateVariables(const TranslationContext& from,
   }
   for (const clang::NamedDecl* name :
        from.sf->DeterministicKeyNames(from.variables)) {
-    if (to.variables.contains(name) &&
-        (to.variables.at(name) != from.variables.at(name))) {
-      XLS_ASSIGN_OR_RETURN(CValue prepared,
-                           PrepareRValueWithSelect(
-                               to.variables.at(name), from.variables.at(name),
-                               from.relative_condition, loc));
+    if (to.variables.contains(name)) {
+      if (to.variables.at(name) != from.variables.at(name)) {
+        XLS_ASSIGN_OR_RETURN(CValue prepared,
+                             PrepareRValueWithSelect(
+                                 to.variables.at(name), from.variables.at(name),
+                                 from.relative_condition, loc));
 
-      // Don't use Assign(), it uses context()
-      to.variables.at(name) = prepared;
-    } else if (to.sf->static_values.contains(name)) {
+        // Don't use Assign(), it uses context()
+        to.variables.at(name) = prepared;
+      }
+    } else if (to.sf->static_values.contains(name) ||
+               from.propagate_declarations) {
       to.variables[name] = from.variables.at(name);
     }
   }
@@ -4519,6 +4521,8 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       PushContextGuard stmt_guard(*this, and_accum, loc);
       context().hit_break = false;
       context().full_switch_cond = ocond;
+      // Variables declared should be visible in the outer context
+      context().propagate_declarations = true;
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt, ctx));
 
       if (context().hit_break) {
@@ -4536,7 +4540,6 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   }
 
   XLSCC_CHECK(case_idx == case_conds.size(), loc);
-
   return absl::OkStatus();
 }
 
