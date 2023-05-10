@@ -3612,6 +3612,127 @@ TEST_F(TranslatorProcTest, IOProcClassMemberSetConstruct2) {
   }
 }
 
+TEST_F(TranslatorProcTest, IOProcClassLValueInit) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+         __xls_channel<long, __xls_channel_dir_Out>& out2 = out;
+
+         #pragma hls_top
+         void Run() {
+          out2.write(3*in.read());
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(15, 64)),
+                    xls::Value(xls::SBits(21, 64)),
+                    xls::Value(xls::SBits(30, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  fprintf(stderr, "meta.DebugString() {\n");
+  fprintf(stderr, "%s", meta.DebugString().c_str());
+  fprintf(stderr, "meta.DebugString() }\n");
+
+  const std::string ref_meta_str = R"(
+    channels 	 {
+      name: "in"
+      is_input: true
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out"
+      is_input: false
+      type: FIFO
+      width_in_bits: 64
+    }
+    name: "Block"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
+TEST_F(TranslatorProcTest, IOProcClassHierarchicalLValue) {
+  const std::string content = R"(
+    struct LeafBlock {
+      __xls_channel<int, __xls_channel_dir_Out> leaf_out1;
+      __xls_channel<int, __xls_channel_dir_Out> leaf_out2;
+
+      void Run() {
+        leaf_out1.write(1);
+        leaf_out2.write(1);
+      }
+    };
+
+    struct HierBlock {
+      __xls_channel<int, __xls_channel_dir_Out> out1;
+      __xls_channel<int, __xls_channel_dir_Out> out2;
+
+      LeafBlock x = {
+        .leaf_out1 = out1,
+        .leaf_out2 = out2,
+      };
+
+      #pragma hls_top
+      void Run() {
+        x.Run();
+      }
+    };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out1"] = {xls::Value(xls::SBits(1, 32))};
+  outputs["out2"] = {xls::Value(xls::SBits(1, 32))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 1, /*max_ticks=*/100,
+           /*top_level_init_interval=*/0,
+           /*top_class_name=*/"");
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::HLSBlock meta, GetBlockSpec());
+
+  // TODO: LeafBlock should be in metadata
+  const std::string ref_meta_str = R"(
+    channels {
+      name: "out1"
+      is_input: false
+      type: FIFO
+      width_in_bits: 32
+    }
+    channels {
+      name: "out2"
+      is_input: false
+      type: FIFO
+      width_in_bits: 32
+    }
+    name: "HierBlock"
+  )";
+
+  xlscc::HLSBlock ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 }  // namespace
 
 }  // namespace xlscc

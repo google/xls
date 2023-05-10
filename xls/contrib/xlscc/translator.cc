@@ -290,9 +290,6 @@ absl::StatusOr<CValue> Translator::StructUpdate(
                      string(*rvalue.type()), string(*cfield.type())));
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t counted_from_type,
-                       stype.count_lvalue_compounds(*this));
-
   // No tuple update, so we need to rebuild the tuple
   std::vector<xls::BValue> bvals;
   absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
@@ -301,14 +298,27 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     compounds = struct_before.lvalue()->get_compounds();
   }
 
+  XLS_ASSIGN_OR_RETURN(int64_t counted_from_type,
+                       stype.count_lvalue_compounds(*this));
+
   XLS_CHECK(
       (struct_before.lvalue().get() == nullptr) ||
       (struct_before.lvalue()->get_compounds().size() == 0) ||
       (struct_before.lvalue()->get_compounds().size() == counted_from_type));
 
-  XLS_CHECK((rvalue.lvalue().get() == nullptr) ||
-            (rvalue.lvalue()->get_compounds().size() == 0) ||
-            (rvalue.lvalue()->get_compounds().size() == counted_from_type));
+  {
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> field_type,
+                         ResolveTypeInstance(cfield.type()));
+    if (field_type->Is<CStructType>()) {
+      XLS_ASSIGN_OR_RETURN(
+          int64_t counted_from_field_type,
+          field_type->As<CStructType>()->count_lvalue_compounds(*this));
+      XLS_CHECK(
+          (rvalue.lvalue().get() == nullptr) ||
+          (rvalue.lvalue()->get_compounds().size() == 0) ||
+          (rvalue.lvalue()->get_compounds().size() == counted_from_field_type));
+    }
+  }
 
   for (auto it = stype.fields().begin(); it != stype.fields().end(); it++) {
     std::shared_ptr<CField> fp = *it;
@@ -456,18 +466,21 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   return absl::StrReplaceAll(res, {{"$", "S"}});
 }
 
-absl::StatusOr<CValue> Translator::TranslateThisLValues(
-    xls::BValue this_bval, const std::shared_ptr<CType>& thisctype,
+absl::Status Translator::GenerateThisLValues(
+    const clang::RecordDecl* this_struct_decl,
+    const std::shared_ptr<CType> thisctype,
     bool member_references_become_channels, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(auto thisctype_resolved, ResolveTypeInstance(thisctype));
+  auto struct_type = thisctype_resolved->As<CStructType>();
+  XLSCC_CHECK_NE(struct_type, nullptr, loc);
 
-  absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compound_by_index;
+  XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                       GetThisDecl(loc, /*for_declaration=*/false));
 
-  auto this_struct = thisctype_resolved->As<CStructType>();
-
-  XLSCC_CHECK_NE(this_struct, nullptr, loc);
-  for (const auto& [_, field] : this_struct->fields_by_name()) {
-    auto field_loc = GetLoc(*field->name());
+  for (const clang::FieldDecl* field_decl : this_struct_decl->fields()) {
+    std::shared_ptr<CField> field = struct_type->get_field(field_decl);
+    std::shared_ptr<CType> field_type = field->type();
+    auto field_decl_loc = GetLoc(*field_decl);
 
     XLS_ASSIGN_OR_RETURN(bool type_contains_lval,
                          field->type()->ContainsLValues(*this));
@@ -477,48 +490,84 @@ absl::StatusOr<CValue> Translator::TranslateThisLValues(
     }
 
     std::shared_ptr<LValue> lval;
-    if (field->type()->Is<CChannelType>()) {
-      const CChannelType* channel_type = field->type()->As<CChannelType>();
-      // Each channel reference becomes its own channel inside the function
-      IOChannel new_channel;
 
-      new_channel.item_type = channel_type->GetItemType();
-      new_channel.unique_name = field->name()->getNameAsString();
-      new_channel.memory_size = channel_type->GetMemorySize();
+    if (field_decl->getInClassInitializer() != nullptr) {
+      PushContextGuard guard(*this, field_decl_loc);
+      context().any_side_effects_requested = false;
 
-      lval = std::make_shared<LValue>(AddChannel(field->name(), new_channel));
-    } else if (field->type()->Is<CReferenceType>() &&
-               member_references_become_channels) {
-      return absl::UnimplementedError(ErrorMessage(
-          field_loc,
-          "Pass through for direct-ins not implemented yet for field %s",
-          field->name()->getNameAsString()));
+      XLS_ASSIGN_OR_RETURN(
+          CValue field_val,
+          GenerateIR_Expr(field_decl->getInClassInitializer(), field_decl_loc));
+
+      if (context().any_side_effects_requested) {
+        return absl::UnimplementedError(
+            ErrorMessage(field_decl_loc,
+                         "Side effects in initializer for top class field %s",
+                         field_decl->getQualifiedNameAsString()));
+      }
+
+      lval = field_val.lvalue();
     } else {
-      // Don't care about actually instantiating child members when
-      // generating hierarchy information only
-      if (context().hier_pass_only) {
-        lval = std::make_shared<LValue>();
+      if (field->type()->Is<CChannelType>()) {
+        const CChannelType* channel_type = field->type()->As<CChannelType>();
+        // Each channel reference becomes its own channel inside the function
+        IOChannel new_channel;
+
+        new_channel.item_type = channel_type->GetItemType();
+        new_channel.unique_name = field->name()->getNameAsString();
+        new_channel.memory_size = channel_type->GetMemorySize();
+
+        lval = std::make_shared<LValue>(AddChannel(field->name(), new_channel));
+      } else if (field->type()->Is<CReferenceType>() &&
+                 member_references_become_channels) {
+        return absl::UnimplementedError(ErrorMessage(
+            field_decl_loc,
+            "Pass through for direct-ins not implemented yet for field %s",
+            field->name()->getNameAsString()));
       } else {
         return absl::UnimplementedError(ErrorMessage(
-            field_loc, "Don't know how to create LValue for member %s",
+            field_decl_loc, "Don't know how to create LValue for member %s",
             field->name()->getNameAsString()));
       }
     }
-    if (lval != nullptr) {
-      compound_by_index[field->index()] = lval;
+
+    XLS_CHECK_NE(lval.get(), nullptr);
+
+    XLS_ASSIGN_OR_RETURN(CValue prev_this_cval, GetIdentifier(this_decl, loc));
+
+    XLS_CHECK(prev_this_cval.rvalue().valid());
+
+    xls::BValue prev_field_rvalue;
+
+    XLS_ASSIGN_OR_RETURN(bool field_must_have_rvalue,
+                         TypeMustHaveRValue(*field_type));
+    if (field_must_have_rvalue) {
+      prev_field_rvalue = GetStructFieldXLS(prev_this_cval.rvalue(),
+                                            field->index(), *struct_type, loc);
+    }
+
+    CValue new_field_cval(prev_field_rvalue, field_type,
+                          /*disable_type_check=*/false, lval);
+
+    {
+      UnmaskAndIgnoreSideEffectsGuard unmask_guard(*this);
+      XLS_RETURN_IF_ERROR(
+          AssignMember(this_decl, field_decl, new_field_cval, loc));
     }
   }
 
-  std::shared_ptr<LValue> this_lval;
+  return absl::OkStatus();
+}
 
-  if (!compound_by_index.empty()) {
-    this_lval = std::make_shared<LValue>(compound_by_index);
+absl::StatusOr<bool> Translator::TypeMustHaveRValue(const CType& type) {
+  if (type.Is<CVoidType>()) {
+    return false;
   }
-
-  CValue this_val = CValue(this_bval, thisctype,
-                           /*disable_type_conversion=*/false, this_lval);
-
-  return this_val;
+  XLS_ASSIGN_OR_RETURN(bool contains_lvalues, type.ContainsLValues(*this));
+  if (!contains_lvalues) {
+    return true;
+  }
+  return type.Is<CInstantiableTypeAlias>() || type.Is<CStructType>();
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
@@ -606,15 +655,22 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
       xls::BValue this_bval = context().fb->Param("this", xls_type, body_loc);
 
-      XLS_ASSIGN_OR_RETURN(
-          CValue this_val,
-          TranslateThisLValues(this_bval, thisctype,
-                               member_references_become_channels, body_loc));
-
       XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
                            GetThisDecl(body_loc, /*for_declaration=*/true));
 
+      XLS_ASSIGN_OR_RETURN(CValue this_default_val,
+                           CreateDefaultCValue(thisctype, body_loc));
+
+      CValue this_val(this_bval, thisctype, /*disable_type_check=*/false,
+                      this_default_val.lvalue());
+
       XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, body_loc));
+
+      XLS_RETURN_IF_ERROR(GenerateThisLValues(
+          /*this_struct_decl=*/q->getAsRecordDecl(), thisctype,
+          member_references_become_channels, body_loc));
+
+      XLS_ASSIGN_OR_RETURN(this_val, GetIdentifier(this_decl, body_loc));
       context().sf->this_lvalue = this_val.lvalue();
     }
   }
@@ -1096,6 +1152,10 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
       return absl::InvalidArgumentError(ErrorMessage(
           loc, "Channel declaration initialized to non-channel value"));
     }
+    if (cv.lvalue() == nullptr) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "Channel declaration uninitialized"));
+    }
     return cv;
   }
 
@@ -1493,6 +1553,68 @@ absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
   return absl::OkStatus();
 }
 
+absl::Status Translator::AssignMember(const clang::NamedDecl* lvalue,
+                                      const clang::NamedDecl* member,
+                                      const CValue& rvalue,
+                                      const xls::SourceInfo& loc) {
+  CValue struct_prev_val;
+
+  XLS_ASSIGN_OR_RETURN(struct_prev_val, GetIdentifier(lvalue, loc));
+
+  if (struct_prev_val.type()->Is<CReferenceType>()) {
+    XLSCC_CHECK_NE(struct_prev_val.lvalue().get(), nullptr, loc);
+    XLSCC_CHECK(!struct_prev_val.lvalue()->is_null(), loc);
+    XLS_ASSIGN_OR_RETURN(struct_prev_val,
+                         GenerateIR_Expr(struct_prev_val.lvalue(), loc));
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto resolved_type,
+                       ResolveTypeInstance(struct_prev_val.type()));
+
+  if (auto sitype = std::dynamic_pointer_cast<CStructType>(resolved_type)) {
+    XLS_ASSIGN_OR_RETURN(CValue newval, StructUpdate(struct_prev_val, rvalue,
+                                                     member, *sitype, loc));
+
+    return Assign(lvalue, newval, loc);
+  }
+  return absl::UnimplementedError(
+      ErrorMessage(loc,
+                   "Unimplemented fielddecl assignment to "
+                   "non-struct typed lvalue of type %s",
+                   string(*struct_prev_val.type())));
+}
+
+absl::Status Translator::AssignMember(const clang::Expr* lvalue,
+                                      const clang::NamedDecl* member,
+                                      const CValue& rvalue,
+                                      const xls::SourceInfo& loc) {
+  CValue struct_prev_val;
+
+  XLS_ASSIGN_OR_RETURN(struct_prev_val, GenerateIR_Expr(lvalue, loc));
+
+  if (struct_prev_val.type()->Is<CReferenceType>()) {
+    XLSCC_CHECK_NE(struct_prev_val.lvalue().get(), nullptr, loc);
+    XLSCC_CHECK(!struct_prev_val.lvalue()->is_null(), loc);
+    XLS_ASSIGN_OR_RETURN(struct_prev_val,
+                         GenerateIR_Expr(struct_prev_val.lvalue(), loc));
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto resolved_type,
+                       ResolveTypeInstance(struct_prev_val.type()));
+
+  if (auto sitype = std::dynamic_pointer_cast<CStructType>(resolved_type)) {
+    XLS_ASSIGN_OR_RETURN(CValue newval, StructUpdate(struct_prev_val, rvalue,
+                                                     member, *sitype, loc));
+
+    return Assign(lvalue, newval, loc);
+  }
+  return absl::UnimplementedError(
+      ErrorMessage(loc,
+                   "Unimplemented fielddecl assignment to "
+                   "non-struct typed lvalue of type %s",
+                   string(*struct_prev_val.type())));
+}
+
 absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                                 const xls::SourceInfo& loc) {
   // Assign to a variable using the identifier it was declared with
@@ -1598,39 +1720,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       return Assign(member_val.lvalue()->leaf(), rvalue, loc);
     }
 
-    CValue struct_prev_val;
-
-    XLS_ASSIGN_OR_RETURN(struct_prev_val,
-                         GenerateIR_Expr(member_expr->getBase(), loc));
-
-    if (struct_prev_val.type()->Is<CReferenceType>()) {
-      XLSCC_CHECK_NE(struct_prev_val.lvalue().get(), nullptr, loc);
-      XLSCC_CHECK(!struct_prev_val.lvalue()->is_null(), loc);
-      XLS_ASSIGN_OR_RETURN(struct_prev_val,
-                           GenerateIR_Expr(struct_prev_val.lvalue(), loc));
-    }
-
-    XLS_ASSIGN_OR_RETURN(auto resolved_type,
-                         ResolveTypeInstance(struct_prev_val.type()));
-
-    if (auto sitype = std::dynamic_pointer_cast<CStructType>(resolved_type)) {
-      auto field = clang::dyn_cast<clang::FieldDecl>(member);
-
-      XLS_ASSIGN_OR_RETURN(
-          CValue newval,
-          StructUpdate(struct_prev_val, rvalue,
-                       // Up cast to NamedDecl because NamedDecl pointers
-                       //  are used to track identifiers
-                       absl::implicit_cast<const clang::NamedDecl*>(field),
-                       *sitype, loc));
-
-      return Assign(member_expr->getBase(), newval, loc);
-    }
-    return absl::UnimplementedError(
-        ErrorMessage(loc,
-                     "Unimplemented fielddecl assignment to "
-                     "non-struct typed lvalue of type %s",
-                     string(*struct_prev_val.type())));
+    return AssignMember(member_expr->getBase(), member, rvalue, loc);
   }
   if (auto uop = clang::dyn_cast<const clang::UnaryOperator>(lvalue)) {
     if (uop->getOpcode() == clang::UnaryOperatorKind::UO_AddrOf) {
@@ -3223,27 +3313,27 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     return GenerateIR_Expr(cast->getSubExpr(), loc);
   }
   // Occurs in the AST for explicit constructor calls. "Foo a = Foo();"
-  if (auto cast = clang::dyn_cast<const clang::CXXConstructExpr>(expr)) {
+  if (auto ctor = clang::dyn_cast<const clang::CXXConstructExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(shared_ptr<CType> octype,
-                         TranslateTypeFromClang(cast->getType(), loc));
+                         TranslateTypeFromClang(ctor->getType(), loc));
     XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype, ResolveTypeInstance(octype));
 
     // A struct/class is being constructed
     if (ctype->Is<CStructType>()) {
       XLS_RETURN_IF_ERROR(
-          FailIfTypeHasDtors(cast->getType()->getAsCXXRecordDecl()));
+          FailIfTypeHasDtors(ctor->getType()->getAsCXXRecordDecl()));
 
       XLS_ASSIGN_OR_RETURN(xls::BValue this_inout,
                            CreateDefaultValue(octype, loc));
       std::vector<const clang::Expr*> args;
-      args.reserve(cast->getNumArgs());
-      for (int pi = 0; pi < cast->getNumArgs(); ++pi) {
-        args.push_back(cast->getArg(pi));
+      args.reserve(ctor->getNumArgs());
+      for (int pi = 0; pi < ctor->getNumArgs(); ++pi) {
+        args.push_back(ctor->getArg(pi));
       }
       std::shared_ptr<LValue> this_lval;
 
       XLS_ASSIGN_OR_RETURN(
-          CValue ret, GenerateIR_Call(cast->getConstructor(), args, &this_inout,
+          CValue ret, GenerateIR_Call(ctor->getConstructor(), args, &this_inout,
                                       /*this_lval=*/&this_lval, loc));
       XLSCC_CHECK(ret.type()->Is<CVoidType>(), loc);
       return CValue(this_inout, octype, /*disable_type_check=*/false,
@@ -3252,18 +3342,19 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
 
     // A built-in type is being constructed. Create default value if there's
     //  no constructor parameter
-    if (cast->getNumArgs() == 0) {
+    if (ctor->getNumArgs() == 0) {
       XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
       return CValue(dv, octype);
     }
-    if (cast->getNumArgs() == 1) {
-      XLS_ASSIGN_OR_RETURN(CValue pv, GenerateIR_Expr(cast->getArg(0), loc));
+    if (ctor->getNumArgs() == 1) {
+      XLS_ASSIGN_OR_RETURN(CValue pv, GenerateIR_Expr(ctor->getArg(0), loc));
       XLS_ASSIGN_OR_RETURN(xls::BValue converted,
                            GenTypeConvert(pv, octype, loc));
-      return CValue(converted, octype);
+      return CValue(converted, octype, /*disable_type_check=*/false,
+                    pv.lvalue());
     }
     return absl::UnimplementedError(ErrorMessage(
-        loc, "Unsupported constructor argument count %i", cast->getNumArgs()));
+        loc, "Unsupported constructor argument count %i", ctor->getNumArgs()));
   }
   if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
@@ -3519,7 +3610,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   //  with NamedDecl pointers
   XLSCC_CHECK_EQ(cfield.name(),
                  absl::implicit_cast<const clang::NamedDecl*>(field), loc);
+
   xls::BValue bval;
+
+  // Structs must have rvalue even if they also have lvalue
+  if (cfield.type()->Is<CInstantiableTypeAlias>() ||
+      cfield.type()->Is<CStructType>()) {
+    XLS_ASSIGN_OR_RETURN(bval, CreateDefaultValue(cfield.type(), loc));
+  }
+
   std::shared_ptr<LValue> lval;
 
   if (leftval.lvalue() != nullptr &&
@@ -3698,21 +3797,16 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
                    loc);
 
     PushContextGuard temporary_this_context(*this, loc);
-    // Don't allow "this" to be propogated up: it's only temporary for use
-    // within the initializer list
-    context().propagate_up = false;
 
     // Declare "this" so fields can refer to one another
     // Nesting of structs is acyclical, so this should be unique
     const clang::NamedDecl* this_decl = t->As<CInstantiableTypeAlias>()->base();
 
-    CValue this_val;
-
-    XLS_CHECK(!context().variables.contains(this_decl));
-
-    XLS_ASSIGN_OR_RETURN(this_val, CreateDefaultCValue(t, loc));
-
-    XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, loc));
+    {
+      CValue this_val;
+      XLS_ASSIGN_OR_RETURN(this_val, CreateDefaultCValue(t, loc));
+      XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, loc));
+    }
 
     XLS_CHECK_NE(init_list->getNumInits(), 0);
 
@@ -3745,15 +3839,19 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
       XLSCC_CHECK(*value.type() == *struct_type_ptr->fields().at(i)->type(),
                   loc);
 
-      XLS_ASSIGN_OR_RETURN(this_val, StructUpdate(this_val, value, field_name,
-                                                  *struct_type_ptr, loc));
+      {
+        UnmaskAndIgnoreSideEffectsGuard unmask_guard(*this);
 
-      // Make previous fields accessible via "this"
-      XLS_RETURN_IF_ERROR(Assign(this_decl, this_val, loc));
+        XLS_RETURN_IF_ERROR(AssignMember(this_decl, field_name, value, loc));
+      }
     }
 
+    XLS_ASSIGN_OR_RETURN(CValue got_val, GetIdentifier(this_decl, loc));
+
     unique_decl_ids_.erase(this_decl);
-    return this_val;
+    context().variables.erase(this_decl);
+
+    return got_val;
   }
   return absl::UnimplementedError(ErrorMessage(
       loc, "Don't know how to interpret initializer list for type %s",

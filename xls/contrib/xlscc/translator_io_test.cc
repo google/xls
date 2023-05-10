@@ -1014,8 +1014,7 @@ TEST_F(TranslatorIOTest, NonparameterIOOps) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr(
-                      "no channel found")));
+                  testing::HasSubstr("hannel declaration uninitialized")));
 }
 
 TEST_F(TranslatorIOTest, Struct) {
@@ -1238,8 +1237,6 @@ TEST_F(TranslatorIOTest, ChannelAliasWithDir) {
          /*inputs=*/{IOOpTest("in", 5, true)},
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
-
-
 
 }  // namespace
 

@@ -166,6 +166,7 @@ absl::Status Translator::GenerateFunctionMetadata(
     FillLocationRangeProto(namedecl->getSourceRange(),
                            proto_static_value->mutable_declaration_location());
   }
+  // TODO: Add lvalues if found->second->this_lvalue != null
   return absl::OkStatus();
 }
 

@@ -4381,6 +4381,21 @@ TEST_F(TranslatorLogicTest, TypeAlias) {
   Run({{"a", 2}}, static_cast<int64_t>(false), content);
 }
 
+TEST_F(TranslatorLogicTest, AssignmentInInitialization) {
+  const std::string content = R"(
+        struct LeafBlock {
+          int a;
+          int b = a;
+        };
+
+       long long my_package() {
+        int ret = 1;
+        LeafBlock block = {ret = 11};
+        return ret + block.a;
+       })";
+  Run({}, 22, content);
+}
+
 TEST_F(TranslatorLogicTest, SelfReferencingInitialization) {
   const std::string content = R"(
         struct LeafBlock {
@@ -4580,7 +4595,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationHierarchicalLValue) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Don't know how to create")));
+                  testing::HasSubstr("Tried to access 'this' in a context")));
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass) {
@@ -4632,17 +4647,14 @@ TEST_F(TranslatorLogicTest, SelfReferencingInitializationBlockFromClass2) {
       }
     };)";
 
-  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
-                         /*io_test_mode=*/false,
-                         /*error_on_init_interval=*/false));
-  package_.reset(new xls::Package("my_package"));
-  HLSBlock block_spec;
-  auto ret =
-      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("initializers containing LValues")));
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(10, 64))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 1);
+  }
 }
 
 TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
@@ -4669,8 +4681,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
   HLSBlock block_spec;
   XLS_ASSERT_OK(
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
-                                             /*top_level_init_interval=*/0,
-                                             /*hier_pass_mode=*/true));
+                                             /*top_level_init_interval=*/0));
 }
 
 }  // namespace

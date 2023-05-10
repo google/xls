@@ -907,10 +907,6 @@ struct TranslationContext {
 
   bool mask_io_other_than_memory_writes = false;
   bool mask_memory_writes = false;
-
-  // Hierarchy pass only, i.e. populate subblocks field of generated HLSBlock
-  // proto.
-  bool hier_pass_only = false;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -961,14 +957,13 @@ class Translator {
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(xls::Package* package,
                                               const HLSBlock& block,
-                                              int top_level_init_interval = 0,
-                                              bool hier_pass_mode = false);
+                                              int top_level_init_interval = 0);
 
   // Generates IR as an HLS block / XLS proc.
   // Top is a method, block specification is extracted from the class.
   absl::StatusOr<xls::Proc*> GenerateIR_BlockFromClass(
       xls::Package* package, HLSBlock* block_spec_out,
-      int top_level_init_interval = 0, bool hier_pass_mode = false);
+      int top_level_init_interval = 0);
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1085,6 +1080,23 @@ class Translator {
 
     Translator& translator;
     bool prev_val;
+  };
+
+  struct UnmaskAndIgnoreSideEffectsGuard {
+    explicit UnmaskAndIgnoreSideEffectsGuard(Translator& translator)
+        : translator(translator),
+          prev_val(translator.context().mask_side_effects),
+          prev_requested(translator.context().any_side_effects_requested) {
+      translator.context().mask_side_effects = false;
+    }
+    ~UnmaskAndIgnoreSideEffectsGuard() {
+      translator.context().mask_side_effects = prev_val;
+      translator.context().any_side_effects_requested = prev_requested;
+    }
+
+    Translator& translator;
+    bool prev_val;
+    bool prev_requested;
   };
 
   struct MaskIOOtherThanMemoryWritesGuard {
@@ -1368,8 +1380,7 @@ class Translator {
       const clang::CXXRecordDecl* this_decl,
       const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc, int top_level_init_interval,
-      bool force_static, bool member_references_become_channels,
-      bool hier_pass_mode);
+      bool force_static, bool member_references_become_channels);
 
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
   absl::Status GenerateIRBlockCheck(
@@ -1384,8 +1395,7 @@ class Translator {
   absl::StatusOr<CValue> GenerateTopClassInitValue(
       const std::shared_ptr<CType>& this_type,
       // Can be nullptr
-      const clang::CXXRecordDecl* this_decl, bool hier_pass_mode,
-      const xls::SourceInfo& body_loc);
+      const clang::CXXRecordDecl* this_decl, const xls::SourceInfo& body_loc);
 
   // Prepares IO channels for generating XLS Proc
   // definition can be null, and then channels_by_name can also be null. They
@@ -1395,7 +1405,7 @@ class Translator {
       int64_t next_state_index, std::shared_ptr<CType> this_type,
       // Can be nullptr
       const clang::CXXRecordDecl* this_decl,
-      const std::list<ExternalChannelInfo>& top_decls, bool hier_pass_mode,
+      const std::list<ExternalChannelInfo>& top_decls,
       const xls::SourceInfo& body_loc);
 
   // Generates a dummy no-op with condition 0 for channels in
@@ -1550,6 +1560,14 @@ class Translator {
                       const xls::SourceInfo& loc);
   absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
                       const xls::SourceInfo& loc);
+
+  absl::Status AssignMember(const clang::Expr* lvalue,
+                            const clang::NamedDecl* member,
+                            const CValue& rvalue, const xls::SourceInfo& loc);
+  absl::Status AssignMember(const clang::NamedDecl* lvalue,
+                            const clang::NamedDecl* member,
+                            const CValue& rvalue, const xls::SourceInfo& loc);
+
   absl::StatusOr<const clang::NamedDecl*> GetThisDecl(
       const xls::SourceInfo& loc, bool for_declaration = false);
   absl::StatusOr<CValue> PrepareRValueWithSelect(
@@ -1573,9 +1591,11 @@ class Translator {
       const clang::FunctionDecl* funcdecl, std::string_view name_override = "",
       bool force_static = false,
       bool member_references_become_channels = false);
-  absl::StatusOr<CValue> TranslateThisLValues(
-      xls::BValue this_bval, const std::shared_ptr<CType>& thisctype,
-      bool member_references_become_channels, const xls::SourceInfo& loc);
+
+  absl::Status GenerateThisLValues(const clang::RecordDecl* this_struct_decl,
+                                   const std::shared_ptr<CType> thisctype,
+                                   bool member_references_become_channels,
+                                   const xls::SourceInfo& loc);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)
@@ -1736,6 +1756,8 @@ class Translator {
   xls::BValue UpdateFlexTupleField(xls::BValue tuple_val, xls::BValue new_val,
                                    int index, int n_fields,
                                    const xls::SourceInfo& loc);
+
+  absl::StatusOr<bool> TypeMustHaveRValue(const CType& type);
 
   void FillLocationProto(const clang::SourceLocation& location,
                          xlscc_metadata::SourceLocation* location_out);
