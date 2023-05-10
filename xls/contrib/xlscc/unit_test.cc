@@ -32,6 +32,7 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value_helpers.h"
 
@@ -81,8 +82,8 @@ void XlsccTestBase::RunAcDatatypeTest(
   Run(args, expected, cpp_source, loc, clang_argv);
 }
 
-absl::StatusOr<std::vector<std::string>>
-XlsccTestBase::GetClangArgForIntTest() const {
+absl::StatusOr<std::vector<std::string>> XlsccTestBase::GetClangArgForIntTest()
+    const {
   XLS_ASSIGN_OR_RETURN(std::string ac_int_path,
                        xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
   XLS_ASSIGN_OR_RETURN(
@@ -439,6 +440,25 @@ XlsccTestBase::GenerateMetadata() {
 
 absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
   return block_spec_;
+}
+
+absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetOpsForChannel(
+    int64_t channel_id) {
+  std::vector<xls::Node*> ret;
+  XLS_CHECK_NE(package_.get(), nullptr);
+  for (const std::unique_ptr<xls::Proc>& proc : package_->procs()) {
+    for (xls::Node* node : proc->nodes()) {
+      if (node->Is<xls::Receive>() &&
+          node->As<xls::Receive>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+      if (node->Is<xls::Send>() &&
+          node->As<xls::Send>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+    }
+  }
+  return ret;
 }
 
 void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,

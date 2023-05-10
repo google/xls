@@ -1245,12 +1245,31 @@ class Translator {
     inline bool operator!=(const ChannelBundle& o) const {
       return !(*this == o);
     }
+
+    inline bool operator<(const ChannelBundle& o) const {
+      if (regular != o.regular) {
+        return regular < o.regular;
+      }
+      if (read_request != o.read_request) {
+        return read_request < o.read_request;
+      }
+      if (read_response != o.read_response) {
+        return read_response < o.read_response;
+      }
+      if (write_request != o.write_request) {
+        return write_request < o.write_request;
+      }
+      return write_response < o.write_response;
+    }
   };
 
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
   absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
       external_channels_by_decl_;
+
+  // Kept ordered for determinism
+  std::list<ChannelBundle> unused_external_channels_;
 
   // Used as a stack, but need to peek 2nd to top
   std::list<TranslationContext> context_stack_;
@@ -1377,6 +1396,16 @@ class Translator {
       const clang::CXXRecordDecl* this_decl,
       const std::list<ExternalChannelInfo>& top_decls, bool hier_pass_mode,
       const xls::SourceInfo& body_loc);
+
+  // Generates a dummy no-op with condition 0 for channels in
+  // unused_external_channels_
+  absl::Status GenerateDefaultIOOps(PreparedBlock& prepared,
+                                    xls::ProcBuilder& pb,
+                                    const xls::SourceInfo& body_loc);
+  absl::Status GenerateDefaultIOOp(xls::Channel* channel,
+                                   std::vector<xls::BValue>& final_tokens,
+                                   xls::ProcBuilder& pb,
+                                   const xls::SourceInfo& loc);
 
   // Returns last invoke's return value
   absl::StatusOr<xls::BValue> GenerateIOInvokes(

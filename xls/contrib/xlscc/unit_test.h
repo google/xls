@@ -133,6 +133,8 @@ class XlsccTestBase : public xls::IrTestBase {
 
   absl::StatusOr<xlscc::HLSBlock> GetBlockSpec();
 
+  absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(int64_t channel_id);
+
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;

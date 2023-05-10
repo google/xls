@@ -23,6 +23,7 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/value_helpers.h"
 
 using std::shared_ptr;
 using std::string;
@@ -112,6 +113,7 @@ absl::Status Translator::GenerateExternalChannels(
     }
     XLS_CHECK(!external_channels_by_decl_.contains(decl));
     external_channels_by_decl_[decl] = new_channel;
+    unused_external_channels_.push_back(new_channel);
   }
   return absl::OkStatus();
 }
@@ -258,6 +260,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
                        GenerateIOInvokes(prepared, pb, body_loc));
+
+  // Generate default ops for unused external channels
+  XLS_RETURN_IF_ERROR(GenerateDefaultIOOps(prepared, pb, body_loc));
 
   // Create next state value
   std::vector<xls::BValue> static_next_values;
@@ -410,6 +415,67 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
                           /*hier_pass_mode=*/hier_pass_mode);
 }
 
+absl::Status Translator::GenerateDefaultIOOp(
+    xls::Channel* channel, std::vector<xls::BValue>& final_tokens,
+    xls::ProcBuilder& pb, const xls::SourceInfo& loc) {
+  xls::BValue token;
+
+  xls::BValue pred_0 = pb.Literal(xls::UBits(0, 1), loc);
+
+  xls::Value data_0_val = xls::ZeroOfType(channel->type());
+  xls::BValue data_0 = pb.Literal(data_0_val, loc);
+
+  if (channel->CanReceive()) {
+    xls::BValue tup = pb.ReceiveIf(channel, pb.GetTokenParam(), pred_0, loc);
+    token = pb.TupleIndex(tup, 0);
+  } else if (channel->CanSend()) {
+    token = pb.SendIf(channel, pb.GetTokenParam(), pred_0, data_0, loc);
+  } else {
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Don't know how to create default IO op for channel %s",
+        channel->name()));
+  }
+  final_tokens.push_back(token);
+  return absl::OkStatus();
+}
+
+absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
+                                              xls::ProcBuilder& pb,
+                                              const xls::SourceInfo& body_loc) {
+  if (unused_external_channels_.empty()) {
+    return absl::OkStatus();
+  }
+
+  std::vector<xls::BValue> final_tokens = {prepared.token};
+
+  for (const ChannelBundle& bundle : unused_external_channels_) {
+    if (bundle.regular != nullptr) {
+      XLS_RETURN_IF_ERROR(
+          GenerateDefaultIOOp(bundle.regular, final_tokens, pb, body_loc));
+    }
+    if (bundle.read_request != nullptr) {
+      XLS_RETURN_IF_ERROR(
+          GenerateDefaultIOOp(bundle.read_request, final_tokens, pb, body_loc));
+    }
+    if (bundle.read_response != nullptr) {
+      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.read_response,
+                                              final_tokens, pb, body_loc));
+    }
+    if (bundle.write_request != nullptr) {
+      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.write_request,
+                                              final_tokens, pb, body_loc));
+    }
+    if (bundle.write_response != nullptr) {
+      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.write_response,
+                                              final_tokens, pb, body_loc));
+    }
+  }
+
+  prepared.token = pb.AfterAll(final_tokens, body_loc);
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     PreparedBlock& prepared, xls::ProcBuilder& pb,
     const xls::SourceInfo& body_loc) {
@@ -433,6 +499,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   for (const IOOp& op : prepared.xls_func->io_ops) {
     const ChannelBundle& bundle =
         prepared.xls_channel_by_function_channel.at(op.channel);
+
+    unused_external_channels_.remove(bundle);
+
     const int return_index = prepared.return_index_for_op.at(&op);
 
     xls::SourceInfo op_loc = op.op_location;
@@ -764,8 +833,9 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    xls::Channel* xls_channel =
-        external_channels_by_decl_.at(top_decl.decl).regular;
+    const ChannelBundle& bundle = external_channels_by_decl_.at(top_decl.decl);
+    xls::Channel* xls_channel = bundle.regular;
+    unused_external_channels_.remove(bundle);
 
     xls::BValue receive = pb.Receive(xls_channel, prepared.token);
     prepared.token = pb.TupleIndex(receive, 0);

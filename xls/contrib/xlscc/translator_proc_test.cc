@@ -34,6 +34,7 @@
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
@@ -108,6 +109,165 @@ TEST_F(TranslatorProcTest, IOProcMux) {
     absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
     outputs["out1"] = {};
     outputs["out2"] = {xls::Value(xls::SBits(55, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+// Multiple unused channels for determinism check
+TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(const int& dir,
+              __xls_channel<int>& in,
+              __xls_channel<int>& in_unused1,
+              __xls_channel<int>& in_unused2,
+              __xls_channel<int>& out1,
+              __xls_channel<int> &out2) {
+
+
+      const int ctrl = in.read();
+
+      if (dir == 0) {
+        out1.write(ctrl);
+      } else {
+        out2.write(ctrl);
+      }
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_in_unused1 = block_spec.add_channels();
+    ch_in_unused1->set_name("in_unused1");
+    ch_in_unused1->set_is_input(true);
+    ch_in_unused1->set_type(FIFO);
+
+    HLSChannel* ch_in_unused2 = block_spec.add_channels();
+    ch_in_unused2->set_name("in_unused2");
+    ch_in_unused2->set_is_input(true);
+    ch_in_unused2->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out1");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+
+    HLSChannel* ch_out2 = block_spec.add_channels();
+    ch_out2->set_name("out2");
+    ch_out2->set_is_input(false);
+    ch_out2->set_type(FIFO);
+  }
+
+  // Check that dummy op is present
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_Block(package_.get(), block_spec).status());
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
+                            package_->GetChannel("in_unused1"));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
+                            GetOpsForChannel(channel->id()));
+    EXPECT_FALSE(ops.empty());
+  }
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
+                            package_->GetChannel("in_unused2"));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
+                            GetOpsForChannel(channel->id()));
+    EXPECT_FALSE(ops.empty());
+  }
+
+  // Check functionality
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(0, 32))};
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+  inputs["in_unused1"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out1"] = {xls::Value(xls::SBits(55, 32))};
+    outputs["out2"] = {};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+
+TEST_F(TranslatorProcTest, IOProcUnusedDirectIn) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(const int& dir_unused,
+              __xls_channel<int>& in,
+              __xls_channel<int>& out) {
+      (void)dir_unused;
+      const int ctrl = in.read();
+      out.write(ctrl);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir_unused");
+    dir_in->set_is_input(true);
+    dir_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  // Check that dummy op is present
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  XLS_ASSERT_OK(
+      translator_->GenerateIR_Block(package_.get(), block_spec).status());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
+                           package_->GetChannel("dir_unused"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
+                           GetOpsForChannel(channel->id()));
+
+  EXPECT_FALSE(ops.empty());
+
+  // Check functionality
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir_unused"] = {xls::Value(xls::SBits(0, 32))};
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(55, 32))};
 
     ProcTest(content, block_spec, inputs, outputs);
   }
