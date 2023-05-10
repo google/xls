@@ -259,7 +259,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
       if (!LValueContainsOnlyChannels(cvalue.lvalue())) {
         return absl::UnimplementedError(ErrorMessage(
-            loc, "LValue translation for pipelined loops not supported yet"));
+            loc,
+            "LValue translation for pipelined loops not supported yet for %s",
+            decl->getQualifiedNameAsString()));
       }
       XLS_CHECK(cvalue.rvalue().valid());
       const uint64_t field_idx = tuple_values.size();
