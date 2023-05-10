@@ -1360,4 +1360,5 @@ xls_delay_model_generation(
 xls_delay_model_generation(
     name = "asap7_delay_model",
     standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
+    tags = ["manual"],
 )
