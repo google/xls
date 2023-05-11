@@ -127,7 +127,7 @@ absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
         "Impossible to schedule Function/Proc %s; the following "
         "node(s) must be scheduled in the final cycle but that "
         "is impossible due to users of these node(s): %s",
-        f->name(), absl::StrJoin(FinalStageNodes(f), ", ", NodeFormatter)));
+        f->name(), absl::StrJoin(FinalStageNodes(f), ", ")));
   }
 
   // Set and propagate upper bounds.

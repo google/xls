@@ -564,12 +564,12 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
       }
     }
 
-    XLS_VLOG(4) << absl::StrFormat(
-        "Receive predecessors of %s      : {%s}", node->GetName(),
-        absl::StrJoin(predecessors.at(node), ", ", NodeFormatter));
+    XLS_VLOG(4) << absl::StrFormat("Receive predecessors of %s      : {%s}",
+                                   node->GetName(),
+                                   absl::StrJoin(predecessors.at(node), ", "));
     XLS_VLOG(4) << absl::StrFormat(
         "Receive token predecessors of %s: {%s}", node->GetName(),
-        absl::StrJoin(token_predecessors.at(node), ", ", NodeFormatter));
+        absl::StrJoin(token_predecessors.at(node), ", "));
 
     // For side-effecting operations, the receives which are data predecessors
     // of `node` must be a subset of the token predecessors of `node`.
@@ -678,8 +678,7 @@ GetReceiveDataDependencies(Proc* inlined_proc) {
       XLS_VLOG(3) << absl::StreamFormat(
           "  %s : %s", node->GetName(),
           visitor.GetValue(node).ToString([](const std::vector<Receive*>& t) {
-            return absl::StrFormat("{%s}",
-                                   absl::StrJoin(t, ", ", NodeFormatter));
+            return absl::StrFormat("{%s}", absl::StrJoin(t, ", "));
           }));
     }
   }
@@ -1296,9 +1295,8 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(
 absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
     std::string_view name, absl::Span<Node* const> activations_in,
     std::optional<Node*> original_node) {
-  XLS_VLOG(3) << absl::StreamFormat(
-      "AllocateActivationNode: %s, inputs (%s)", name,
-      absl::StrJoin(activations_in, ", ", NodeFormatter));
+  XLS_VLOG(3) << absl::StreamFormat("AllocateActivationNode: %s, inputs (%s)",
+                                    name, absl::StrJoin(activations_in, ", "));
 
   ActivationNode activation_node;
   activation_node.name = name;

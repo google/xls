@@ -41,9 +41,9 @@ absl::Status ProcRuntime::Tick() {
   if (!result.progress_made) {
     // Not a single instruction executed on any proc. This is necessarily a
     // deadlock.
-    return absl::InternalError(absl::StrFormat(
-        "Proc network is deadlocked. Blocked channels: %s",
-        absl::StrJoin(result.blocked_channels, ", ", ChannelFormatter)));
+    return absl::InternalError(
+        absl::StrFormat("Proc network is deadlocked. Blocked channels: %s",
+                        absl::StrJoin(result.blocked_channels, ", ")));
   }
   return absl::OkStatus();
 }

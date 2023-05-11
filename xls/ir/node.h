@@ -244,6 +244,11 @@ class Node {
       absl::Span<Node* const> new_operands,
       FunctionBase* new_function) const = 0;
 
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Node& node) {
+    absl::Format(&sink, "%s", node.GetName());
+  }
+
  protected:
   // FunctionBase needs to be a friend to access RemoveUser for deleting nodes
   // from the graph.
@@ -301,11 +306,6 @@ inline std::ostream& operator<<(std::ostream& os, const Node* node) {
 
 inline void NodeAppend(std::string* out, const Node* n) {
   absl::StrAppend(out, n->ToString());
-}
-
-// For use in e.g. absl::StrJoin.
-inline void NodeFormatter(std::string* out, Node* node) {
-  absl::StrAppend(out, node->GetName());
 }
 
 }  // namespace xls

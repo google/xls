@@ -1625,7 +1625,7 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
       XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
           "Channel '%s' (id %d) cannot send but has send node(s): %s",
           channel->name(), channel->id(),
-          absl::StrJoin(send_nodes.at(channel), ", ", NodeFormatter));
+          absl::StrJoin(send_nodes.at(channel), ", "));
     }
     if (channel->CanReceive()) {
       XLS_RET_CHECK(receive_nodes.contains(channel)) << absl::StreamFormat(
@@ -1657,7 +1657,7 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
       XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
           "Channel '%s' (id %d) cannot receive but has a receive node(s): %s",
           channel->name(), channel->id(),
-          absl::StrJoin(receive_nodes.at(channel), ", ", NodeFormatter));
+          absl::StrJoin(receive_nodes.at(channel), ", "));
     }
 
     // Verify type-specific invariants of each channel.

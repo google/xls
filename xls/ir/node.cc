@@ -433,10 +433,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(
           absl::StrFormat("body=%s", As<CountedFor>()->body()->name()));
       if (!As<CountedFor>()->invariant_args().empty()) {
-        args.push_back(
-            absl::StrFormat("invariant_args=[%s]",
-                            absl::StrJoin(As<CountedFor>()->invariant_args(),
-                                          ", ", NodeFormatter)));
+        args.push_back(absl::StrFormat(
+            "invariant_args=[%s]",
+            absl::StrJoin(As<CountedFor>()->invariant_args(), ", ")));
       }
       break;
     case Op::kDynamicCountedFor:
@@ -449,8 +448,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       if (!As<DynamicCountedFor>()->invariant_args().empty()) {
         args.push_back(absl::StrFormat(
             "invariant_args=[%s]",
-            absl::StrJoin(As<DynamicCountedFor>()->invariant_args(), ", ",
-                          NodeFormatter)));
+            absl::StrJoin(As<DynamicCountedFor>()->invariant_args(), ", ")));
       }
       break;
     case Op::kMap:
@@ -472,22 +470,22 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kOneHotSel: {
       const OneHotSelect* sel = As<OneHotSelect>();
       args = {operand(0)->GetName()};
-      args.push_back(absl::StrFormat(
-          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
+      args.push_back(
+          absl::StrFormat("cases=[%s]", absl::StrJoin(sel->cases(), ", ")));
       break;
     }
     case Op::kPrioritySel: {
       const PrioritySelect* sel = As<PrioritySelect>();
       args = {operand(0)->GetName()};
-      args.push_back(absl::StrFormat(
-          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
+      args.push_back(
+          absl::StrFormat("cases=[%s]", absl::StrJoin(sel->cases(), ", ")));
       break;
     }
     case Op::kSel: {
       const Select* sel = As<Select>();
       args = {operand(0)->GetName()};
-      args.push_back(absl::StrFormat(
-          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
+      args.push_back(
+          absl::StrFormat("cases=[%s]", absl::StrJoin(sel->cases(), ", ")));
       if (sel->default_value().has_value()) {
         args.push_back(
             absl::StrFormat("default=%s", (*sel->default_value())->GetName()));
@@ -537,9 +535,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
     case Op::kArrayIndex: {
       const ArrayIndex* index = As<ArrayIndex>();
       args = {operand(0)->GetName()};
-      args.push_back(absl::StrFormat(
-          "indices=[%s]",
-          absl::StrJoin(index->indices(), ", ", NodeFormatter)));
+      args.push_back(absl::StrFormat("indices=[%s]",
+                                     absl::StrJoin(index->indices(), ", ")));
       break;
     }
     case Op::kArraySlice: {
@@ -550,9 +547,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       const ArrayUpdate* update = As<ArrayUpdate>();
       args = {update->array_to_update()->GetName(),
               update->update_value()->GetName()};
-      args.push_back(absl::StrFormat(
-          "indices=[%s]",
-          absl::StrJoin(update->indices(), ", ", NodeFormatter)));
+      args.push_back(absl::StrFormat("indices=[%s]",
+                                     absl::StrJoin(update->indices(), ", ")));
       break;
     }
     case Op::kAssert:
@@ -569,9 +565,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(absl::StrFormat(
           "format=\"%s\"",
           absl::CEscape(StepsToXlsFormatString(trace->format()))));
-      args.push_back(
-          absl::StrFormat("data_operands=[%s]",
-                          absl::StrJoin(trace->args(), ", ", NodeFormatter)));
+      args.push_back(absl::StrFormat("data_operands=[%s]",
+                                     absl::StrJoin(trace->args(), ", ")));
       break;
     }
     case Op::kCover:
@@ -623,11 +618,11 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
 }
 
 std::string Node::GetOperandsString() const {
-  return absl::StrFormat("[%s]", absl::StrJoin(operands_, ", ", NodeFormatter));
+  return absl::StrFormat("[%s]", absl::StrJoin(operands_, ", "));
 }
 
 std::string Node::GetUsersString() const {
-  return absl::StrFormat("[%s]", absl::StrJoin(users_, ", ", NodeFormatter));
+  return absl::StrFormat("[%s]", absl::StrJoin(users_, ", "));
 }
 
 bool Node::HasUser(const Node* target) const {

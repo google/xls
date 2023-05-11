@@ -168,9 +168,8 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
     XLS_VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
                                    clock_period_ps);
     for (Node* node : TopoSort(f)) {
-      XLS_VLOG(4) << absl::StrFormat(
-          "  %s: [%s]", node->GetName(),
-          absl::StrJoin(result.at(node), ", ", NodeFormatter));
+      XLS_VLOG(4) << absl::StrFormat("  %s: [%s]", node->GetName(),
+                                     absl::StrJoin(result.at(node), ", "));
     }
   }
   return result;

@@ -19,6 +19,7 @@
 #include <iosfwd>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.pb.h"
 #include "xls/ir/channel_ops.h"
@@ -140,6 +141,11 @@ class Channel {
 
   virtual std::string ToString() const;
 
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Channel& p) {
+    absl::Format(&sink, "%s", p.name());
+  }
+
  protected:
   std::string name_;
   int64_t id_;
@@ -216,11 +222,6 @@ class SingleValueChannel : public Channel {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 };
-
-// For use in e.g. absl::StrJoin.
-inline void ChannelFormatter(std::string* out, Channel* channel) {
-  absl::StrAppend(out, channel->name());
-}
 
 inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
   os << (channel == nullptr ? std::string("<nullptr Channel*>")

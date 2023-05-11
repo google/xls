@@ -34,8 +34,8 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
   auto relation_to_string = [](const NodeRelation& relation) {
     std::vector<std::string> lines;
     for (const auto& [n, s] : relation) {
-      lines.push_back(absl::StrFormat("  %s : {%s}", n->GetName(),
-                                      absl::StrJoin(s, ", ", NodeFormatter)));
+      lines.push_back(
+          absl::StrFormat("  %s : {%s}", n->GetName(), absl::StrJoin(s, ", ")));
     }
     return absl::StrJoin(lines, "\n");
   };

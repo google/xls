@@ -379,8 +379,8 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
     XLS_VLOG(4) << "Reassociated expression rooted at: "
                 << inputs[0]->GetName();
     XLS_VLOG(4) << "  operations to reassociate:  "
-                << absl::StrJoin(interior_nodes, ", ", NodeFormatter);
-    XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ", NodeFormatter);
+                << absl::StrJoin(interior_nodes, ", ");
+    XLS_VLOG(4) << "  leaves:  " << absl::StrJoin(leaves, ", ");
 
     // Create a clone of 'node' for construcing a reassociated expression.
     auto new_node = [&](Node* lhs, Node* rhs) -> absl::StatusOr<Node*> {
