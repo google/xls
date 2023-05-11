@@ -52,12 +52,12 @@ def load_external_repositories():
         sha256 = "77bfecb8d930cbd97e24e7570a3dee9b09bad483aab47c96b7b7efb7d54332ff",
     )
 
-    # LTS 20220623.1
+    # LTS 20230125.3 (released 04 May 2023)
     http_archive(
         name = "com_google_absl",
-        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20220623.1.zip"],
-        strip_prefix = "abseil-cpp-20220623.1",
-        sha256 = "54707f411cb62a26a776dad5fd60829098c181700edcd022ea5c2ca49e9b7ef1",
+        urls = ["https://github.com/abseil/abseil-cpp/archive/refs/tags/20230125.3.zip"],
+        strip_prefix = "abseil-cpp-20230125.3",
+        sha256 = "51d676b6846440210da48899e4df618a357e6e44ecde7106f1e44ea16ae8adc7",
     )
 
     # Protobuf depends on Skylib
@@ -125,13 +125,14 @@ def load_external_repositories():
     #        @com_google_re2 for consistency with dependency grpc
     #        which uses @com_github_google_re2.
     #          (see https://github.com/google/xls/issues/234)
+    # Commit from 2023-03-17, current as of 2023-05-08.
     http_archive(
         name = "com_github_google_re2",
-        sha256 = "d070e2ffc5476c496a6a872a6f246bfddce8e7797d6ba605a7c8d72866743bf9",
-        strip_prefix = "re2-506cfa4bffd060c06ec338ce50ea3468daa6c814",
+        sha256 = "d929e9f7d6d3648f98a9349770569a819d90e81cd8765b46e61bbd1de37ead9c",
+        strip_prefix = "re2-578843a516fd1da7084ae46209a75f3613b6065e",
         urls = [
-            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/506cfa4bffd060c06ec338ce50ea3468daa6c814.tar.gz",
-            "https://github.com/google/re2/archive/506cfa4bffd060c06ec338ce50ea3468daa6c814.tar.gz",
+            "https://github.com/google/re2/archive/578843a516fd1da7084ae46209a75f3613b6065e.tar.gz",
+            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/578843a516fd1da7084ae46209a75f3613b6065e.tar.gz",
         ],
     )
 
@@ -219,15 +220,17 @@ def load_external_repositories():
         sha256 = "379113459b0feaf6bfbb584a91874c065078aa673222846ac765f86661c27407",
     )
 
+    # Released 2023-03-13, current as of 2023-05-08.
     http_archive(
         name = "com_google_ortools",
-        urls = ["https://github.com/google/or-tools/archive/525162feaadaeef640783b2eaea38cf4b623877f.tar.gz"],
-        sha256 = "e1305990a5f2cfff2a91825cf2af7aca358e4b857af516207a996501e31825e4",
-        strip_prefix = "or-tools-525162feaadaeef640783b2eaea38cf4b623877f",
+        urls = ["https://github.com/google/or-tools/archive/refs/tags/v9.6.tar.gz"],
+        sha256 = "bc4b07dc9c23f0cca43b1f5c889f08a59c8f2515836b03d4cc7e0f8f2c879234",
+        strip_prefix = "or-tools-9.6",
         # Removes undesired dependencies like Eigen, BLISS, SCIP
         patches = [
-            "@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff",
-            "@com_google_xls//dependency_support/com_google_ortools:no-glpk.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:add_logging_prefix.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:no_glpk.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:no_scip_or_pdlp.diff",
         ],
     )
 

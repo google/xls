@@ -17,7 +17,7 @@
 #ifndef XLS_IR_NODE_UTIL_H_
 #define XLS_IR_NODE_UTIL_H_
 
-#include "absl/functional/function_ref.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
