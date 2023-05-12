@@ -946,12 +946,34 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   }
 
   // Add the induction value (the "ranged" counter).
-  AstNode* ivar = ToAstNode(flat[0]);
-  auto* name_def = dynamic_cast<NameDef*>(ivar);
-  XLS_RET_CHECK(name_def != nullptr);
-  XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(name_def));
-  BValue loop_index = body_converter.function_builder_->Param(
-      name_def->identifier(), ivar_type);
+  auto ivar = std::get<NameDefTree::Leaf>(flat[0]);
+  absl::StatusOr<BValue> loop_index_or = absl::visit(
+      Visitor{
+          [&](NameDef* name_def) -> absl::StatusOr<BValue> {
+            XLS_RET_CHECK(name_def != nullptr);
+            XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type,
+                                 ResolveTypeToIr(name_def));
+            return body_converter.function_builder_->Param(
+                name_def->identifier(), ivar_type);
+          },
+          [&](WildcardPattern* ivar) -> absl::StatusOr<BValue> {
+            XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(ivar));
+            return body_converter.function_builder_->Param("__", ivar_type);
+          },
+          [&](Number*) -> absl::StatusOr<BValue> {
+            return absl::InternalError("Induction variable cannot be a number");
+          },
+          [&](ColonRef*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a colon-reference");
+          },
+          [&](NameRef*) -> absl::StatusOr<BValue> {
+            return absl::InternalError(
+                "Induction variable cannot be a name-reference");
+          },
+      },
+      ivar);
+  XLS_ASSIGN_OR_RETURN(auto loop_index, loop_index_or);
 
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
@@ -964,7 +986,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
       body_converter.function_builder_->Literal(index_offset);
   BValue offset_sum =
       body_converter.function_builder_->Add(loop_index, offset_literal);
-  body_converter.SetNodeToIr(name_def, offset_sum);
+  body_converter.SetNodeToIr(ToAstNode(ivar), offset_sum);
 
   // Add the loop carry value.
   AstNode* carry_node = ToAstNode(flat[1]);

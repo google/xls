@@ -2913,7 +2913,7 @@ class NameDefTree : public AstNode {
       std::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
 
   NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
-      : AstNode(owner), span_(std::move(span)), tree_(tree) {}
+      : AstNode(owner), span_(std::move(span)), tree_(std::move(tree)) {}
 
   ~NameDefTree() override;
 

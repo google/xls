@@ -566,6 +566,8 @@ dslx_lang_test(name = "for_nonzero_start")
 
 dslx_lang_test(name = "for_sans_type_annotation")
 
+dslx_lang_test(name = "nil_tuple_accumulator")
+
 dslx_lang_test(name = "derived_parametrics")
 
 dslx_lang_test(name = "parametric_struct")
