@@ -117,21 +117,16 @@ absl::Status VerifyReadyValidHoldoffs(
 // Holds-off the valid signal of the indicated channel based on the hold-off
 // behavior specified in `holdoffs`.
 absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
-                          const ReadyValidHoldoffs& holdoffs,
+                          const ValidHoldoff& valid_holdoff,
                           const ChannelProto& channel_proto,
                           ModuleTestbenchThread& tbt) {
-  XLS_RET_CHECK(holdoffs.valid_holdoffs.contains(channel_proto.name()))
-      << absl::StreamFormat("No valid hold-off information for channel `%s`",
-                            channel_proto.name());
-  const ValidHoldoff& valid_holdoff =
-      holdoffs.valid_holdoffs.at(channel_proto.name()).at(input_number);
   if (valid_holdoff.cycles == 0) {
     // Nothing to do as the valid holdoff is zero cycles.
   } else if (valid_holdoff.driven_values.empty()) {
-    // Values to drive on the data port not specified. Drive zero and wait
+    // Values to drive on the data port not specified. Drive X and wait
     // the specified number of cycles.
     tbt.Set(channel_proto.valid_port_name(), UBits(0, 1));
-    tbt.Set(channel_proto.data_port_name(), UBits(0, input_bit_count));
+    tbt.SetX(channel_proto.data_port_name());
     tbt.AdvanceNCycles(valid_holdoff.cycles);
   } else {
     XLS_RET_CHECK_EQ(valid_holdoff.driven_values.size(), valid_holdoff.cycles)
@@ -149,6 +144,94 @@ absl::Status HoldoffValid(int64_t input_number, int64_t input_bit_count,
     }
   }
   return absl::OkStatus();
+}
+
+// Sets up the test bench to drive the specified inputs on to the given channel.
+absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
+                               const ChannelProto& channel_proto,
+                               absl::Span<const ValidHoldoff> valid_holdoffs,
+                               ModuleTestbench& tb) {
+  absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive;
+  std::string_view data_port_name = channel_proto.data_port_name();
+  owned_signals_to_drive[data_port_name] = std::nullopt;
+  std::optional<std::string> valid_port_name;
+  std::optional<std::string> ready_port_name;
+  if (channel_proto.has_valid_port_name()) {
+    valid_port_name = channel_proto.valid_port_name();
+    owned_signals_to_drive[valid_port_name.value()] = UBits(0, 1);
+  }
+  if (channel_proto.has_ready_port_name()) {
+    ready_port_name = channel_proto.ready_port_name();
+  }
+  ModuleTestbenchThread& tbt =
+      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false);
+  for (int64_t input_number = 0; input_number < inputs.size(); ++input_number) {
+    const Bits& value = inputs[input_number];
+    if (!valid_holdoffs.empty()) {
+      XLS_RET_CHECK(valid_port_name.has_value()) << absl::StreamFormat(
+          "Valid hold-off specified for channel without a valid signal: "
+          "`%s`",
+          channel_proto.name());
+      XLS_RETURN_IF_ERROR(HoldoffValid(input_number, value.bit_count(),
+                                       valid_holdoffs[input_number],
+                                       channel_proto, tbt));
+    }
+    tbt.Set(data_port_name, value);
+    if (valid_port_name.has_value()) {
+      tbt.Set(valid_port_name.value(), UBits(1, 1));
+    }
+    tbt.NextCycle();
+    if (ready_port_name.has_value()) {
+      tbt.WaitFor(ready_port_name.value());
+    }
+  }
+  // After driving all inputs, set valid to 0 and data port to X.
+  if (valid_port_name.has_value()) {
+    tbt.Set(valid_port_name.value(), UBits(0, 1));
+  }
+  tbt.SetX(data_port_name);
+  return absl::OkStatus();
+}
+
+// Sets up the test bench to captures `output_count` outputs on the given output
+// channel. Returns the sequence of placeholder Bits objects which will hold the
+// values after the test bench is run.
+absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
+    const ChannelProto& channel_proto, int64_t output_count,
+    absl::Span<const int64_t> ready_holdoffs, ModuleTestbench& tb) {
+  if (!ready_holdoffs.empty()) {
+    return absl::UnimplementedError("Ready holdoff not yet supported.");
+  }
+  std::string_view data_port_name = channel_proto.data_port_name();
+  absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive;
+  std::vector<std::string> input_driver_names;
+  std::optional<std::string> valid_port_name;
+  std::optional<std::string> ready_port_name;
+  if (channel_proto.has_valid_port_name()) {
+    valid_port_name = channel_proto.valid_port_name();
+  }
+  if (channel_proto.has_ready_port_name()) {
+    ready_port_name = channel_proto.ready_port_name();
+    owned_signals_to_drive[ready_port_name.value()] = UBits(0, 1);
+  }
+  std::vector<std::unique_ptr<Bits>> outputs;
+  ModuleTestbenchThread& tbt = tb.CreateThread(owned_signals_to_drive);
+  for (int64_t read_count = 0; read_count < output_count; ++read_count) {
+    if (ready_port_name.has_value()) {
+      tbt.Set(ready_port_name.value(), UBits(1, 1));
+    }
+    if (valid_port_name.has_value()) {
+      tbt.WaitFor(valid_port_name.value());
+    }
+    outputs.push_back(std::make_unique<Bits>());
+    tbt.Capture(data_port_name, outputs.back().get());
+    tbt.NextCycle();
+  }
+  if (ready_port_name.has_value()) {
+    tbt.Set(ready_port_name.value(), UBits(0, 1));
+  }
+
+  return outputs;
 }
 
 }  // namespace
@@ -418,18 +501,6 @@ ModuleSimulator::RunInputSeriesProc(
   }
   XLS_VLOG(2) << "Verilog:\n" << verilog_text_;
 
-  absl::flat_hash_map<std::string, std::vector<Bits>> channel_outputs;
-
-  // When there are no output channels or no expected value from the output
-  // channels, the simulation simply terminates and there is no data collected.
-  // For this special case, we exit early for performance.
-  if (IsEmptyOrAreAllCountsZero(output_channel_counts)) {
-    for (const auto& [name, _] : output_channel_counts) {
-      channel_outputs[name] = std::vector<Bits>();
-    }
-    return channel_outputs;
-  }
-
   for (const auto& [channel_name, channel_values] : channel_inputs) {
     XLS_RETURN_IF_ERROR(
         signature_.ValidateChannelBitsInputs(channel_name, channel_values));
@@ -470,108 +541,48 @@ ModuleSimulator::RunInputSeriesProc(
   }
 
   // TODO(vmirian): 10-30-2022 Ensure semantics work for single value channel.
-  // TODO(meheff): Make this a deterministic iteration order.
-  for (const auto& [channel_name, channel_values] : channel_inputs) {
-    XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,
-                         signature_.GetInputChannelProtoByName(channel_name));
-    absl::flat_hash_map<std::string, std::optional<Bits>>
-        owned_signals_to_drive;
-    std::string_view data_port_name = channel_proto.data_port_name();
-    owned_signals_to_drive[data_port_name] = std::nullopt;
-    std::optional<std::string> valid_port_name;
-    std::optional<std::string> ready_port_name;
-    if (channel_proto.has_valid_port_name()) {
-      valid_port_name = channel_proto.valid_port_name();
-      owned_signals_to_drive[valid_port_name.value()] = UBits(0, 1);
+  for (const ChannelProto& channel_proto : signature_.GetInputChannels()) {
+    std::string_view channel_name = channel_proto.name();
+    absl::Span<const ValidHoldoff> valid_holdoffs;
+    if (holdoffs.has_value() &&
+        holdoffs->valid_holdoffs.contains(channel_name)) {
+      valid_holdoffs = holdoffs->valid_holdoffs.at(channel_name);
     }
-    if (channel_proto.has_ready_port_name()) {
-      ready_port_name = channel_proto.ready_port_name();
-    }
-    ModuleTestbenchThread& tbt =
-        tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false);
-    for (int64_t input_number = 0; input_number < channel_values.size();
-         ++input_number) {
-      const Bits& value = channel_values[input_number];
-      if (holdoffs.has_value()) {
-        XLS_RET_CHECK(valid_port_name.has_value()) << absl::StreamFormat(
-            "Valid hold-off specified for channel without a valid signal: "
-            "`%s`",
-            channel_name);
-        XLS_RETURN_IF_ERROR(HoldoffValid(input_number, value.bit_count(),
-                                         holdoffs.value(), channel_proto, tbt));
-      }
-      tbt.Set(data_port_name, value);
-      if (valid_port_name.has_value()) {
-        tbt.Set(valid_port_name.value(), UBits(1, 1));
-      }
-      tbt.NextCycle();
-      if (ready_port_name.has_value()) {
-        tbt.WaitFor(ready_port_name.value());
-      }
-    }
-    if (valid_port_name.has_value()) {
-      tbt.SetX(valid_port_name.value());
-    }
+    XLS_RETURN_IF_ERROR(DriveInputChannel(channel_inputs.at(channel_name),
+                                          channel_proto, valid_holdoffs, tb));
   }
 
   // Use std::unique_ptr for pointer stability necessary for
   // ModuleTestbench::Capture().
-  using OutputMap = absl::flat_hash_map<std::string, std::unique_ptr<Bits>>;
-  std::vector<OutputMap> stable_outputs(max_channel_reads);
+  absl::flat_hash_map<std::string, std::vector<std::unique_ptr<Bits>>>
+      stable_outputs;
   for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
-    std::string_view data_port_name = channel_proto.data_port_name();
-    absl::flat_hash_map<std::string, std::optional<Bits>>
-        owned_signals_to_drive;
-    std::vector<std::string> input_driver_names;
-    std::optional<std::string> valid_port_name;
-    std::optional<std::string> ready_port_name;
-    if (channel_proto.has_valid_port_name()) {
-      valid_port_name = channel_proto.valid_port_name();
+    std::string_view channel_name = channel_proto.name();
+    absl::Span<const int64_t> ready_holdoffs;
+    if (holdoffs.has_value() &&
+        holdoffs->ready_holdoffs.contains(channel_name)) {
+      ready_holdoffs = holdoffs->ready_holdoffs.at(channel_name);
     }
-    if (channel_proto.has_ready_port_name()) {
-      ready_port_name = channel_proto.ready_port_name();
-      owned_signals_to_drive[ready_port_name.value()] = UBits(0, 1);
-    }
-    ModuleTestbenchThread& tbt = tb.CreateThread(owned_signals_to_drive);
-    for (int64_t read_count = 0;
-         read_count < output_channel_counts.at(channel_proto.name());
-         ++read_count) {
-      if (ready_port_name.has_value()) {
-        tbt.Set(ready_port_name.value(), UBits(1, 1));
-      }
-      if (valid_port_name.has_value()) {
-        tbt.WaitFor(valid_port_name.value());
-      }
-      OutputMap& outputs = stable_outputs[read_count];
-      outputs[data_port_name] = std::make_unique<Bits>();
-      tbt.Capture(data_port_name, outputs.at(data_port_name).get());
-      tbt.NextCycle();
-    }
-    if (ready_port_name.has_value()) {
-      tbt.SetX(ready_port_name.value());
-    }
+    XLS_ASSIGN_OR_RETURN(
+        stable_outputs[channel_name],
+        CaptureOutputChannel(channel_proto,
+                             output_channel_counts.at(channel_proto.name()),
+                             ready_holdoffs, tb));
   }
 
   XLS_RETURN_IF_ERROR(tb.Run());
 
+  absl::flat_hash_map<std::string, std::vector<Bits>> outputs;
   for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
-    channel_outputs[channel_proto.name()] = std::vector<Bits>();
-  }
-
-  for (const OutputMap& outputs : stable_outputs) {
-    for (const auto& [data_port_name, value] : outputs) {
-      XLS_ASSIGN_OR_RETURN(std::string channel_name,
-                           signature_.GetChannelNameWith(data_port_name));
-      XLS_ASSIGN_OR_RETURN(
-          ChannelProto channel_proto,
-          signature_.GetOutputChannelProtoByName(channel_name));
-      channel_outputs[channel_proto.name()].push_back(*value);
+    std::string_view channel_name = channel_proto.name();
+    for (std::unique_ptr<Bits>& bits : stable_outputs.at(channel_name)) {
+      outputs[channel_name].push_back(std::move(*bits));
     }
   }
 
   if (XLS_VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> result_channel_values;
-    for (const auto& [channel_name, channel_values] : channel_outputs) {
+    for (const auto& [channel_name, channel_values] : outputs) {
       XLS_ASSIGN_OR_RETURN(
           ChannelProto channel_proto,
           signature_.GetOutputChannelProtoByName(channel_name));
@@ -585,7 +596,7 @@ ModuleSimulator::RunInputSeriesProc(
     XLS_VLOG(1) << "Result channel values:\n";
     XLS_VLOG(1) << ChannelValuesToString(result_channel_values);
   }
-  return channel_outputs;
+  return outputs;
 }
 
 absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>

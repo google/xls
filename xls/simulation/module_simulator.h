@@ -33,7 +33,7 @@ struct ValidHoldoff {
   // Number of cycles to deassert valid.
   int64_t cycles;
   // Optional values to drive on the data lines when valid is deasserted. If
-  // non-empty, the vector must have `cycles` elements. If empty, zero is driven
+  // non-empty, the vector must have `cycles` elements. If empty, X is driven
   // on the data lines when valid is deasserted.
   std::vector<BitsOrX> driven_values;
 };
@@ -41,10 +41,27 @@ struct ValidHoldoff {
 // Data structure describing the holdoff behavior of the ready and valid signals
 // of all ready/valid channels of a module.
 struct ReadyValidHoldoffs {
-  // Indexed by channel name. Each vector element describes the valid holdoff
-  // behavior for a single input on the channel.
+  // Indexed by input channel name. Each vector element describes the valid
+  // holdoff behavior for a single input on the channel.
   absl::flat_hash_map<std::string, std::vector<ValidHoldoff>> valid_holdoffs;
-  // TODO(meheff): Add ready holdoff.
+
+  // Indexed by output channel name. Each element defines the number of cycles
+  // that ready is deasserted. Each deassertion is followed by a single-cycle
+  // assertion of ready. After the sequence is exhausted, ready is asserted
+  // indefinitely. For example, the sequence {1,2,0,3,0,0,1} results in the
+  // following pattern of ready assertions: 010011000111011111111...
+  //
+  // Transactions may occur at any point when ready is asserted. This does not
+  // affect the subsequent pattern of assertion/deassertions.
+  //
+  // Note: the different encoding of ready and valid holdoffs reflects the
+  // different allowed behavior between ready and valid. Once valid is asserted
+  // it must remain asserted until the transaction occurs. This means a single
+  // holdoff value for each transaction is sufficient to encode any legal valid
+  // holdoff behavior. Ready, however, may be deasserted prior to a transaction
+  // so the encoding mechanism must be flexible enough to encode an arbitrary
+  // wave form.
+  absl::flat_hash_map<std::string, std::vector<int64_t>> ready_holdoffs;
 };
 
 // Abstraction for simulating a module described by a SignatureProto using a

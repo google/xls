@@ -506,6 +506,30 @@ endmodule
         simulator.RunInputSeriesProc(input_values, output_channel_counts),
         IsOkAndHolds(result_values));
   }
+  {
+    // Test with Bits with valid hold off.
+    absl::flat_hash_map<std::string, std::vector<Bits>> input_values;
+    input_values["operand_0"] = {UBits(41, 32), UBits(32, 32)};
+    input_values["operand_1"] = {UBits(1, 32), UBits(32, 32)};
+
+    std::vector<ValidHoldoff> operand_0_valid_holdoffs = {
+        ValidHoldoff{.cycles = 2, .driven_values = {}},
+        ValidHoldoff{.cycles = 1, .driven_values = {}},
+    };
+    std::vector<ValidHoldoff> operand_1_valid_holdoffs = {
+        ValidHoldoff{.cycles = 0, .driven_values = {}},
+        ValidHoldoff{.cycles = 5, .driven_values = {}},
+    };
+    auto ready_valid_holdoffs = ReadyValidHoldoffs{
+        .valid_holdoffs = {{"operand_0", operand_0_valid_holdoffs},
+                           {"operand_1", operand_1_valid_holdoffs}}};
+
+    absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
+    result_values["result"] = {UBits(42, 32), UBits(64, 32)};
+    EXPECT_THAT(simulator.RunInputSeriesProc(
+                    input_values, output_channel_counts, ready_valid_holdoffs),
+                IsOkAndHolds(result_values));
+  }
 }
 
 TEST_P(ModuleSimulatorTest, TestNoValidHoldOff) {
@@ -549,17 +573,11 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithoutDrivenValues) {
   auto ready_valid_holdoffs =
       ReadyValidHoldoffs{.valid_holdoffs = {{"input", valid_holdoffs}}};
 
-  auto valid_data = [](bool valid, uint8_t data) {
-    return UBits((static_cast<uint64_t>(valid) << 8) + data, 9);
-  };
-  absl::flat_hash_map<std::string, std::vector<Bits>> result_values;
-  result_values["monitor"] = {valid_data(false, 0),   valid_data(false, 0),
-                              valid_data(true, 0xab), valid_data(true, 0xcd),
-                              valid_data(false, 0),   valid_data(true, 0xef)};
-
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
                                            ready_valid_holdoffs),
-              IsOkAndHolds(result_values));
+              StatusIs(absl::StatusCode::kNotFound,
+                       HasSubstr("Output monitor_data, instance #0 holds X "
+                                 "value in Verilog simulator output")));
 }
 
 TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenValues) {
@@ -619,6 +637,29 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenX) {
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("Output monitor_data, instance #0 holds X "
                                  "value in Verilog simulator output")));
+}
+
+TEST_P(ModuleSimulatorTest, RunInputSeriesEmptyModule) {
+  const std::string text = R"(
+module proc_adder_pipeline(
+  input wire clk,
+  input wire rst
+);
+endmodule
+
+)";
+
+  ModuleSignatureBuilder b("proc_adder_pipeline");
+  b.WithClock("clk");
+  b.WithReset("rst", /*asynchronous=*/false, /*active_low=*/false);
+  b.WithPipelineInterface(1, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ModuleSimulator simulator = NewModuleSimulator(text, signature);
+  absl::flat_hash_map<std::string, std::vector<Bits>> channel_inputs;
+  absl::flat_hash_map<std::string, std::vector<Bits>> empty_results;
+  EXPECT_THAT(simulator.RunInputSeriesProc(channel_inputs, {}),
+              IsOkAndHolds(empty_results));
 }
 
 INSTANTIATE_TEST_SUITE_P(ModuleSimulatorTestInstantiation, ModuleSimulatorTest,
