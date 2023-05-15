@@ -35,13 +35,6 @@ cc_library(
     srcs = ["verilog_simulator.cc"],
     hdrs = ["verilog_simulator.h"],
     deps = [
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:name_to_bit_count",
         "//xls/codegen:vast",
         "//xls/common:subprocess",
@@ -53,6 +46,13 @@ cc_library(
         "//xls/ir:bits",
         "//xls/tools:verilog_include",
         "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -63,12 +63,6 @@ cc_library(
     deps = [
         ":module_testbench",
         ":verilog_simulator",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:flattening",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
@@ -79,6 +73,12 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:value",
         "//xls/tools:eval_helpers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -90,13 +90,13 @@ cc_test(
         ":module_simulator",
         ":verilog_simulators",
         ":verilog_test_base",
-        "@com_google_absl//absl/status:statusor",
         "//xls/codegen:module_signature",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -108,11 +108,6 @@ cc_library(
     deps = [
         ":verilog_simulator",
         ":verilog_simulators",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
         "//xls/common:source_location",
@@ -125,6 +120,11 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
         "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -161,11 +161,6 @@ cc_library(
         ":module_testbench",
         ":verilog_simulator",
         ":verilog_simulators",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "//xls/codegen:codegen_options",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
@@ -174,6 +169,11 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -184,10 +184,10 @@ cc_library(
     hdrs = ["verilog_simulators.h"],
     deps = [
         ":verilog_simulator",
+        "//xls/simulation/simulators:iverilog_simulator",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "//xls/simulation/simulators:iverilog_simulator",
     ],
 )
 
@@ -197,9 +197,9 @@ cc_test(
     data = glob(["testdata/verilog_test_base_test_*"]),
     deps = [
         ":verilog_test_base",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -210,8 +210,6 @@ cc_test(
     deps = [
         ":module_simulator",
         ":verilog_test_base",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "//xls/codegen:block_generator",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
@@ -226,6 +224,8 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

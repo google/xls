@@ -24,7 +24,6 @@ cc_test(
     srcs = ["basic_ir_ops_test.cc"],
     shard_count = 2,
     deps = [
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -33,6 +32,7 @@ cc_test(
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -53,7 +53,6 @@ cc_test(
     srcs = ["dslx_optimization_test.cc"],
     data = ["//xls/dslx/ir_convert:ir_converter_main"],
     deps = [
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:subprocess",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:get_runfile_path",
@@ -66,6 +65,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/passes:standard_pipeline",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -82,8 +82,8 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "//xls/common:runfiles",
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
-        "//xls/common:runfiles",
     ],
 )
