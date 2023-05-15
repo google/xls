@@ -575,6 +575,7 @@ ModuleSimulator::RunInputSeriesProc(
   absl::flat_hash_map<std::string, std::vector<Bits>> outputs;
   for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
     std::string_view channel_name = channel_proto.name();
+    outputs[channel_name] = std::vector<Bits>();
     for (std::unique_ptr<Bits>& bits : stable_outputs.at(channel_name)) {
       outputs[channel_name].push_back(std::move(*bits));
     }
