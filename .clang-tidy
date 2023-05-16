@@ -13,6 +13,9 @@
 #
 # modernize-make-unique: mostly correct, but wants to also replace .reset()
 #    which is a more readable way than assign.
+#
+# modernize-loop-convert: Improper use of auto for loop variable.
+#
 # NOTE: Below, there must be no comments, otherwise clang tidy silently ignores
 #       rules... (ask me how I know).
 ###
@@ -53,6 +56,7 @@ Checks: >
   -modernize-avoid-bind,
   -modernize-avoid-c-arrays,
   -modernize-concat-nested-namespaces,
+  -modernize-loop-convert,
   -modernize-make-unique,
   -modernize-pass-by-value,
   -modernize-raw-string-literal,
