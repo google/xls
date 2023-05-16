@@ -773,12 +773,8 @@ static absl::Status AddToReady(std::variant<Function*, TestFunction*> f,
     return absl::OkStatus();
   }
 
-  Expr* body;
-  if (std::holds_alternative<Function*>(f)) {
-    body = std::get<Function*>(f)->body();
-  } else {
-    body = std::get<TestFunction*>(f)->fn()->body();
-  }
+  // TestFunctions are covered by IsReady()
+  Expr* body = std::get<Function*>(f)->body();
   XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
                        GetCallees(body, m, type_info, bindings, proc_id));
   XLS_VLOG(5) << "Original callees of " << std::get<Function*>(f)->identifier()
@@ -847,8 +843,7 @@ static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
 }
 
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
-                                                       TypeInfo* type_info,
-                                                       bool traverse_tests) {
+                                                       TypeInfo* type_info) {
   XLS_CHECK_EQ(type_info->module(), module);
   std::vector<ConversionRecord> ready;
 
@@ -891,21 +886,6 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
     XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
                          GetOrderForProc(proc, proc_ti, /*is_top=*/false));
     ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
-  }
-
-  // Collect tests.
-  if (traverse_tests) {
-    for (TestFunction* test : module->GetFunctionTests()) {
-      XLS_RETURN_IF_ERROR(AddToReady(test, /*invocation=*/nullptr, module,
-                                     type_info, ParametricEnv(), &ready, {}));
-    }
-    for (TestProc* test : module->GetProcTests()) {
-      XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
-                           type_info->GetTopLevelProcTypeInfo(test->proc()));
-      XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                           GetOrderForProc(test, proc_ti, /*is_top=*/false));
-      ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
-    }
   }
 
   // Remove duplicated functions. When performing a complete module conversion,

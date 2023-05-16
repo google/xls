@@ -37,15 +37,11 @@ namespace xls::dslx {
 // Args:
 //   module: Module to convert.
 //   import_data: Contains type information used in conversion.
-//   traverse_tests: Whether to convert functions called in DSLX test
-//   constructs.
-//     Note that this does NOT convert the test constructs themselves.
 //
 // Returns:
 //   The IR package that corresponds to this module.
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
-    Module* module, ImportData* import_data, const ConvertOptions& options,
-    bool traverse_tests = false);
+    Module* module, ImportData* import_data, const ConvertOptions& options);
 
 // As above, but the package is provided explicitly (instead of being created).
 //
@@ -53,7 +49,7 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
 // inside of it, it may not be nullptr.
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,
-                                      bool traverse_tests, Package* package);
+                                      Package* package);
 
 // Wrapper around ConvertModuleToPackage that converts to IR text.
 absl::StatusOr<std::string> ConvertModule(Module* module,
