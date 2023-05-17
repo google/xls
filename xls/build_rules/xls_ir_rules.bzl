@@ -197,6 +197,7 @@ def _optimize_ir(ctx, src):
     opt_ir_tool = get_executable_from(get_xls_toolchain_info(ctx).opt_ir_tool)
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
+        "top",
         "ir_dump_path",
         "run_only_passes",
         "skip_passes",
