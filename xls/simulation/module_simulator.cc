@@ -163,8 +163,9 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
   if (channel_proto.has_ready_port_name()) {
     ready_port_name = channel_proto.ready_port_name();
   }
-  ModuleTestbenchThread& tbt =
-      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false);
+  XLS_ASSIGN_OR_RETURN(
+      ModuleTestbenchThread * tbt,
+      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/false));
   for (int64_t input_number = 0; input_number < inputs.size(); ++input_number) {
     const Bits& value = inputs[input_number];
     if (!valid_holdoffs.empty()) {
@@ -174,22 +175,21 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
           channel_proto.name());
       XLS_RETURN_IF_ERROR(HoldoffValid(input_number, value.bit_count(),
                                        valid_holdoffs[input_number],
-                                       channel_proto, tbt));
+                                       channel_proto, *tbt));
     }
-    tbt.Set(data_port_name, value);
+    tbt->Set(data_port_name, value);
     if (valid_port_name.has_value()) {
-      tbt.Set(valid_port_name.value(), UBits(1, 1));
+      tbt->Set(valid_port_name.value(), UBits(1, 1));
     }
-    tbt.NextCycle();
     if (ready_port_name.has_value()) {
-      tbt.WaitFor(ready_port_name.value());
+      tbt->WaitForCycleAfter(ready_port_name.value());
     }
   }
   // After driving all inputs, set valid to 0 and data port to X.
   if (valid_port_name.has_value()) {
-    tbt.Set(valid_port_name.value(), UBits(0, 1));
+    tbt->Set(valid_port_name.value(), UBits(0, 1));
   }
-  tbt.SetX(data_port_name);
+  tbt->SetX(data_port_name);
   return absl::OkStatus();
 }
 
@@ -214,21 +214,25 @@ absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
     ready_port_name = channel_proto.ready_port_name();
     owned_signals_to_drive[ready_port_name.value()] = UBits(0, 1);
   }
+
+  XLS_ASSIGN_OR_RETURN(
+      ModuleTestbenchThread * tbt,
+      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/true));
   std::vector<std::unique_ptr<Bits>> outputs;
-  ModuleTestbenchThread& tbt = tb.CreateThread(owned_signals_to_drive);
   for (int64_t read_count = 0; read_count < output_count; ++read_count) {
     if (ready_port_name.has_value()) {
-      tbt.Set(ready_port_name.value(), UBits(1, 1));
-    }
-    if (valid_port_name.has_value()) {
-      tbt.WaitFor(valid_port_name.value());
+      tbt->Set(ready_port_name.value(), UBits(1, 1));
     }
     outputs.push_back(std::make_unique<Bits>());
-    tbt.Capture(data_port_name, outputs.back().get());
-    tbt.NextCycle();
+    if (valid_port_name.has_value()) {
+      tbt->AtEndOfCycleWhen(valid_port_name.value())
+          .Capture(data_port_name, outputs.back().get());
+    } else {
+      tbt->AtEndOfCycle().Capture(data_port_name, outputs.back().get());
+    }
   }
   if (ready_port_name.has_value()) {
-    tbt.Set(ready_port_name.value(), UBits(0, 1));
+    tbt->Set(ready_port_name.value(), UBits(0, 1));
   }
 
   return outputs;
@@ -312,12 +316,13 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     init_values_after_reset[name] = bit_value;
   }
 
-  ModuleTestbenchThread& tbt = tb.CreateThread(init_values_after_reset);
+  XLS_ASSIGN_OR_RETURN(ModuleTestbenchThread * tbt,
+                       tb.CreateThread(init_values_after_reset));
 
   // Drive data inputs. Values are flattened before using.
   auto drive_data = [&](int64_t index) {
     for (const PortProto& input : signature_.data_inputs()) {
-      tbt.Set(input.name(), inputs[index].at(input.name()));
+      tbt->Set(input.name(), inputs[index].at(input.name()));
     }
   };
 
@@ -325,11 +330,11 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
   // stability necessary for ModuleTestbench::Capture().
   using OutputMap = absl::flat_hash_map<std::string, std::unique_ptr<Bits>>;
   std::vector<OutputMap> stable_outputs(inputs.size());
-  auto capture_outputs = [&](int64_t index) {
+  auto capture_outputs = [&](int64_t index, EndOfCycleEvent& event) {
     OutputMap& outputs = stable_outputs[index];
     for (const PortProto& output : signature_.data_outputs()) {
       outputs[output.name()] = std::make_unique<Bits>();
-      tbt.Capture(output.name(), outputs.at(output.name()).get());
+      event.Capture(output.name(), outputs.at(output.name()).get());
     }
   };
 
@@ -337,12 +342,13 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
       // Fixed latency interface: just wait for compute to complete.
-      tbt.AdvanceNCycles(signature_.proto().fixed_latency().latency());
-      capture_outputs(i);
+      tbt->AdvanceNCycles(signature_.proto().fixed_latency().latency());
+      EndOfCycleEvent& event = tbt->AtEndOfCycle();
+      capture_outputs(i, event);
 
       // The input data cannot be changed in the same cycle that the output is
       // being read so hold for one more cycle while output is read.
-      tbt.NextCycle();
+      tbt->NextCycle();
     }
   } else if (signature_.proto().has_pipeline()) {
     const int64_t latency = signature_.proto().pipeline().latency();
@@ -355,68 +361,71 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
 
     if (pipeline_control.has_value() && pipeline_control->has_manual()) {
       // Drive the pipeline register load-enable signals high.
-      tbt.Set(pipeline_control->manual().input_name(), Bits::AllOnes(latency));
+      tbt->Set(pipeline_control->manual().input_name(), Bits::AllOnes(latency));
     }
 
     // Expect the output_valid signal (if it exists) to be the given value or X.
-    auto maybe_expect_output_valid = [&](bool expect_x, bool expected_value) {
+    auto maybe_expect_output_valid = [&](bool expect_x, bool expected_value,
+                                         EndOfCycleEvent& event) {
       if (pipeline_control.has_value() && pipeline_control->has_valid() &&
           pipeline_control->valid().has_output_name()) {
         if (expect_x) {
-          tbt.ExpectX(pipeline_control->valid().output_name());
+          event.ExpectX(pipeline_control->valid().output_name());
         } else {
-          tbt.ExpectEq(pipeline_control->valid().output_name(),
-                       static_cast<int64_t>(expected_value));
+          event.ExpectEq(pipeline_control->valid().output_name(),
+                         static_cast<int64_t>(expected_value));
         }
       }
     };
     while (cycle < inputs.size()) {
       drive_data(cycle);
       if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-        tbt.Set(pipeline_control->valid().input_name(), 1);
+        tbt->Set(pipeline_control->valid().input_name(), 1);
       }
       // Pipelined interface: drive inputs for a cycle, then wait for compute to
       // complete.  A pipelined interface should not require that the inputs be
       // held for more than a cycle.
-      tbt.NextCycle();
-      cycle++;
+      EndOfCycleEvent& event = tbt->AtEndOfCycle();
 
       if (cycle >= latency) {
-        maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true);
-        capture_outputs(captured_outputs);
+        maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true,
+                                  event);
+        capture_outputs(captured_outputs, event);
         captured_outputs++;
       } else {
         // The initial inputs have not yet reached the end of the pipeline. The
         // output_valid signal (if it exists) should still be X if there is no
         // reset signal.
         maybe_expect_output_valid(/*expect_x=*/!signature_.proto().has_reset(),
-                                  /*expected_value=*/false);
+                                  /*expected_value=*/false, event);
       }
+      cycle++;
     }
     for (const PortProto& input : signature_.data_inputs()) {
-      tbt.SetX(input.name());
+      tbt->SetX(input.name());
     }
     if (pipeline_control.has_value() && pipeline_control->has_valid()) {
-      tbt.Set(pipeline_control->valid().input_name(), 0);
+      tbt->Set(pipeline_control->valid().input_name(), 0);
     }
-    if (cycle < latency - 1) {
-      tbt.AdvanceNCycles(latency - 1 - cycle);
+    if (cycle < latency) {
+      tbt->AdvanceNCycles(latency - cycle);
     }
     while (captured_outputs < inputs.size()) {
-      tbt.NextCycle();
-      maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true);
-      capture_outputs(captured_outputs);
+      EndOfCycleEvent& event = tbt->AtEndOfCycle();
+      maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/true,
+                                event);
+      capture_outputs(captured_outputs, event);
       captured_outputs++;
     }
     // valid == 0 should have propagated all the way through the pipeline to
     // output_valid.
-    tbt.NextCycle();
-    maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/false);
+    EndOfCycleEvent& event = tbt->AtEndOfCycle();
+    maybe_expect_output_valid(/*expect_x=*/false, /*expected_value=*/false,
+                              event);
   } else if (signature_.proto().has_combinational()) {
     for (int64_t i = 0; i < inputs.size(); ++i) {
       drive_data(i);
-      capture_outputs(i);
-      tbt.NextCycle();
+      capture_outputs(i, tbt->AtEndOfCycle());
     }
   } else {
     return absl::UnimplementedError(absl::StrCat(
@@ -477,12 +486,23 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
   return outputs;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Bits>>>
-ModuleSimulator::RunInputSeriesProc(
+absl::StatusOr<std::string> ModuleSimulator::GenerateProcTestbenchVerilog(
     const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
     const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
     std::optional<ReadyValidHoldoffs> holdoffs) const {
-  XLS_VLOG(1) << "Running Verilog module with signature:\n"
+  XLS_ASSIGN_OR_RETURN(
+      ProcTestbench proc_tb,
+      CreateProcTestbench(channel_inputs, output_channel_counts,
+                          std::move(holdoffs)));
+  return proc_tb.testbench->GenerateVerilog();
+}
+
+absl::StatusOr<ModuleSimulator::ProcTestbench>
+ModuleSimulator::CreateProcTestbench(
+    const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+    const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+    std::optional<ReadyValidHoldoffs> holdoffs) const {
+  XLS_VLOG(1) << "Generating testbench for Verilog module with signature:\n"
               << signature_.ToString();
   if (XLS_VLOG_IS_ON(1)) {
     absl::flat_hash_map<std::string, std::vector<Value>> channel_inputs_values;
@@ -532,8 +552,8 @@ ModuleSimulator::RunInputSeriesProc(
     return absl::InvalidArgumentError("Expected clock in signature");
   }
 
-  ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
-                     includes_);
+  auto tb = std::make_unique<ModuleTestbench>(
+      verilog_text_, file_type_, signature_, simulator_, includes_);
 
   int64_t max_channel_reads = 0;
   for (const auto& [_, read_count] : output_channel_counts) {
@@ -549,7 +569,7 @@ ModuleSimulator::RunInputSeriesProc(
       valid_holdoffs = holdoffs->valid_holdoffs.at(channel_name);
     }
     XLS_RETURN_IF_ERROR(DriveInputChannel(channel_inputs.at(channel_name),
-                                          channel_proto, valid_holdoffs, tb));
+                                          channel_proto, valid_holdoffs, *tb));
   }
 
   // Use std::unique_ptr for pointer stability necessary for
@@ -567,16 +587,30 @@ ModuleSimulator::RunInputSeriesProc(
         stable_outputs[channel_name],
         CaptureOutputChannel(channel_proto,
                              output_channel_counts.at(channel_proto.name()),
-                             ready_holdoffs, tb));
+                             ready_holdoffs, *tb));
   }
+  return ProcTestbench{
+      .testbench = std::move(tb),
+      .outputs = std::move(stable_outputs),
+  };
+}
 
-  XLS_RETURN_IF_ERROR(tb.Run());
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Bits>>>
+ModuleSimulator::RunInputSeriesProc(
+    const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+    const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+    std::optional<ReadyValidHoldoffs> holdoffs) const {
+  XLS_ASSIGN_OR_RETURN(
+      ProcTestbench proc_tb,
+      CreateProcTestbench(channel_inputs, output_channel_counts,
+                          std::move(holdoffs)));
+  XLS_RETURN_IF_ERROR(proc_tb.testbench->Run());
 
   absl::flat_hash_map<std::string, std::vector<Bits>> outputs;
   for (const ChannelProto& channel_proto : signature_.GetOutputChannels()) {
     std::string_view channel_name = channel_proto.name();
     outputs[channel_name] = std::vector<Bits>();
-    for (std::unique_ptr<Bits>& bits : stable_outputs.at(channel_name)) {
+    for (std::unique_ptr<Bits>& bits : proc_tb.outputs.at(channel_name)) {
       outputs[channel_name].push_back(std::move(*bits));
     }
   }
@@ -607,20 +641,6 @@ ModuleSimulator::RunInputSeriesProc(
     std::optional<ReadyValidHoldoffs> holdoffs) const {
   absl::flat_hash_map<std::string, std::vector<Value>> channel_outputs;
 
-  // When there are no output channels or no expected value from the output
-  // channels, the simulation simply terminates and there is no data collected.
-  // For this special case, we exit early for performance. Moreover, although
-  // this special case is handled in the overload with with xls::Bits, by
-  // handling the case in this function, the translation between xls::Value and
-  // xls::Bits for the input/output channel values are not performed, increasing
-  // the performance further.
-  if (IsEmptyOrAreAllCountsZero(output_channel_counts)) {
-    for (const auto& [name, _] : output_channel_counts) {
-      channel_outputs[name] = std::vector<Value>();
-    }
-    return channel_outputs;
-  }
-
   using MapT = absl::flat_hash_map<std::string, std::vector<Bits>>;
   MapT channel_inputs_bits;
   for (const auto& [channel_name, channel_values] : channel_inputs) {
@@ -631,7 +651,8 @@ ModuleSimulator::RunInputSeriesProc(
 
   XLS_ASSIGN_OR_RETURN(
       MapT channel_outputs_bits,
-      RunInputSeriesProc(channel_inputs_bits, output_channel_counts, holdoffs));
+      RunInputSeriesProc(channel_inputs_bits, output_channel_counts,
+                         std::move(holdoffs)));
 
   for (const auto& [channel_name, channel_bits] : channel_outputs_bits) {
     XLS_ASSIGN_OR_RETURN(ChannelProto channel_proto,

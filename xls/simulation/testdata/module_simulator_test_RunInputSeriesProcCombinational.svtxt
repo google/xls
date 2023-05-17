@@ -1,0 +1,196 @@
+
+module proc_adder(
+  input wire [31:0] operand_0,
+  input wire operand_0_vld,
+  input wire [31:0] operand_1,
+  input wire operand_1_vld,
+  input wire result_rdy,
+  output wire [31:0] result,
+  output wire result_vld,
+  output wire operand_0_rdy,
+  output wire operand_1_rdy
+);
+  wire [31:0] result_val;
+  assign result_val = operand_0 + operand_1;
+  assign result = result_val;
+  assign result_vld = operand_0_vld & operand_1_vld;
+  assign operand_0_rdy = result_rdy;
+  assign operand_1_rdy = result_rdy;
+endmodule
+
+
+
+module testbench;
+  reg [31:0] operand_0;
+  reg operand_0_vld;
+  reg [31:0] operand_1;
+  reg operand_1_vld;
+  reg result_rdy;
+  wire operand_0_rdy;
+  wire operand_1_rdy;
+  wire [31:0] result;
+  wire result_vld;
+  reg clk;
+  proc_adder dut (
+    .operand_0(operand_0),
+    .operand_0_vld(operand_0_vld),
+    .operand_1(operand_1),
+    .operand_1_vld(operand_1_vld),
+    .result_rdy(result_rdy),
+    .operand_0_rdy(operand_0_rdy),
+    .operand_1_rdy(operand_1_rdy),
+    .result(result),
+    .result_vld(result_vld)
+  );
+  reg is_thread_2_done;
+
+  // Clock generator.
+  initial begin
+    clk = 0;
+    forever #5 clk = !clk;
+  end
+
+  // Watchdog timer.
+  initial begin
+    repeat (10000) @(posedge clk);
+    #1;
+    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
+    $finish;
+  end
+
+  // Monitor for input/output ports.
+  initial begin
+    $display("Starting. Clock rises at 5, 15, 25, ...:");
+    $monitor("%t operand_0: %d operand_0_vld: %d operand_1: %d operand_1_vld: %d result_rdy: %d operand_0_rdy: %d operand_1_rdy: %d result: %d result_vld: %d", $time, operand_0, operand_0_vld, operand_1, operand_1_vld, result_rdy, operand_0_rdy, operand_1_rdy, result, result_vld);
+  end
+
+  // Thread 0. Drives inputs: operand_0, operand_0_vld
+  initial begin
+    operand_0 = 32'dx;
+
+    operand_0_vld = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_0 = 32'h0000_0029;
+
+    operand_0_vld = 1'h1;
+
+    // Wait for cycle after `operand_0_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_0_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0 = 32'h0000_0020;
+
+    operand_0_vld = 1'h1;
+
+    // Wait for cycle after `operand_0_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_0_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0_vld = 1'h0;
+
+    operand_0 = 32'dx;
+  end
+
+  // Thread 1. Drives inputs: operand_1, operand_1_vld
+  initial begin
+    operand_1 = 32'dx;
+
+    operand_1_vld = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_1 = 32'h0000_0001;
+
+    operand_1_vld = 1'h1;
+
+    // Wait for cycle after `operand_1_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_1_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1 = 32'h0000_0020;
+
+    operand_1_vld = 1'h1;
+
+    // Wait for cycle after `operand_1_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_1_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1_vld = 1'h0;
+
+    operand_1 = 32'dx;
+  end
+
+  // Thread 2. Drives inputs: result_rdy
+  initial begin
+    is_thread_2_done = 1'h0;
+
+    result_rdy = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    result_rdy = 1'h1;
+
+    // Wait for `result_vld` to be asserted and capture output
+    #8;
+    while (!(1'h1 && result_vld == 1'h1)) begin
+      #10;
+    end
+    $display("%t OUTPUT result = 32'h%0x (#0)", $time, result);
+    @(posedge clk);
+    #1;
+
+    result_rdy = 1'h1;
+
+    // Wait for `result_vld` to be asserted and capture output
+    #8;
+    while (!(1'h1 && result_vld == 1'h1)) begin
+      #10;
+    end
+    $display("%t OUTPUT result = 32'h%0x (#1)", $time, result);
+    @(posedge clk);
+    #1;
+
+    result_rdy = 1'h0;
+
+    is_thread_2_done = 1'h1;
+  end
+
+  // Thread completion monitor.
+  initial begin
+    @(posedge clk);
+    #1;
+
+    // Wait for all threads to complete
+    #8;
+    while (!(1'h1 && is_thread_2_done == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+    $finish;
+  end
+endmodule

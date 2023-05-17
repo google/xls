@@ -441,7 +441,6 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/simulation:module_testbench",
-        "//xls/simulation:verilog_simulators",
         "//xls/simulation:verilog_test_base",
         "@com_google_googletest//:gtest",
     ],

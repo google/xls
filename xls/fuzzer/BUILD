@@ -102,8 +102,6 @@ py_test(
     tags = ["optonly"],
     deps = [
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
@@ -123,8 +121,6 @@ py_test(
     tags = ["optonly"],
     deps = [
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
@@ -287,6 +283,15 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/multiple-sends.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2022-12-01_9a43.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2023-02-26_ccb9.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2023-03-27_83b8.x": [
             "optonly",
         ],
     },
@@ -513,7 +518,6 @@ cc_test(
     srcs = ["ast_generator_test.cc"],
     deps = [
         ":ast_generator",
-        "//xls/common:init_xls",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -645,13 +649,11 @@ cc_library(
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/dslx:interp_value",
-        "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:unwrap_meta_type",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
     ],
@@ -666,7 +668,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:concrete_type",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -690,7 +691,6 @@ cc_library(
     srcs = ["cpp_sample_runner.cc"],
     hdrs = ["cpp_sample_runner.h"],
     deps = [
-        "//xls/common/status:ret_check",
         "//xls/dslx:interp_value",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

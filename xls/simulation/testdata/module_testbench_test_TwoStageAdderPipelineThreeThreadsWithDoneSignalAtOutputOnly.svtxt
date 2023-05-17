@@ -33,86 +33,178 @@ module testbench;
     .out(out)
   );
   reg is_thread_2_done;
+
+  // Clock generator.
   initial begin
-    clk <= 0;
-    forever #1 clk = !clk;
+    clk = 0;
+    forever #5 clk = !clk;
   end
+
+  // Reset generator.
   initial begin
-    reset <= 1'h1;
-    repeat (5) @(posedge clk);;
-    @(negedge clk);
-    reset <= 1'h0;
-    @(posedge clk);
-    @(negedge clk);
+    reset = 1'h1;
+    repeat (5) @(posedge clk);
+    #1;
+    reset = 1'h0;
   end
+
+  // Watchdog timer.
   initial begin
-    repeat (10000) @(posedge clk);;
-    @(negedge clk);
+    repeat (10000) @(posedge clk);
+    #1;
     $display("ERROR: timeout, simulation ran too long (10000 cycles).");
     $finish;
   end
+
+  // Monitor for input/output ports.
   initial begin
-    $display("Starting. Clock rises at start of odd time units:");
+    $display("Starting. Clock rises at 5, 15, 25, ...:");
     $monitor("%t operand_0: %d operand_1: %d reset: %d out: %d", $time, operand_0, operand_1, reset, out);
   end
+
+  // Thread 0. Drives inputs: operand_0
+  initial begin
+    operand_0 = 16'dx;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && reset == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0 = 16'h0021;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_0 = 16'h0032;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_0 = 16'h0080;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_0 = 16'dx;
+  end
+
+  // Thread 1. Drives inputs: operand_1
+  initial begin
+    operand_1 = 16'dx;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && reset == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1 = 16'h0021;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_1 = 16'h0032;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_1 = 16'h002a;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    operand_1 = 16'dx;
+  end
+
+  // Thread 2. Drives inputs: <none>
+  initial begin
+    is_thread_2_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && reset == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    // Wait 1 cycle(s).
+    #8;
+    $display("%t OUTPUT out = 16'h%0x (#0)", $time, out);
+    @(posedge clk);
+    #1;
+
+    // Wait 1 cycle(s).
+    #8;
+    $display("%t OUTPUT out = 16'h%0x (#1)", $time, out);
+    @(posedge clk);
+    #1;
+
+    // Wait 1 cycle(s).
+    #8;
+    $display("%t OUTPUT out = 16'h%0x (#2)", $time, out);
+    @(posedge clk);
+    #1;
+
+    // Wait 1 cycle(s).
+    #8;
+    $display("%t OUTPUT out = 16'h%0x (#3)", $time, out);
+    @(posedge clk);
+    #1;
+
+    // Wait 1 cycle(s).
+    #8;
+    $display("%t OUTPUT out = 16'h%0x (#4)", $time, out);
+    @(posedge clk);
+    #1;
+
+    is_thread_2_done = 1'h1;
+  end
+
+  // Thread completion monitor.
   initial begin
     @(posedge clk);
-    @(negedge clk);
-    operand_0 <= 16'h0000;
-    wait(reset == 1'h0);
-    operand_0 <= 16'h0021;
+    #1;
+
+    // Wait for reset deasserted
+    #8;
+    while (!(1'h1 && reset == 1'h0)) begin
+      #10;
+    end
     @(posedge clk);
-    @(negedge clk);
-    operand_0 <= 16'h0032;
+    #1;
+
+    // Wait for all threads to complete
+    #8;
+    while (!(1'h1 && is_thread_2_done == 1'h1)) begin
+      #10;
+    end
     @(posedge clk);
-    @(negedge clk);
-    operand_0 <= 16'h0080;
-    @(posedge clk);
-    @(negedge clk);
-    operand_0 <= 16'dx;
-  end
-  initial begin
-    @(posedge clk);
-    @(negedge clk);
-    operand_1 <= 16'h0000;
-    wait(reset == 1'h0);
-    operand_1 <= 16'h0021;
-    @(posedge clk);
-    @(negedge clk);
-    operand_1 <= 16'h0032;
-    @(posedge clk);
-    @(negedge clk);
-    operand_1 <= 16'h002a;
-    @(posedge clk);
-    @(negedge clk);
-    operand_1 <= 16'dx;
-  end
-  initial begin
-    is_thread_2_done <= 1'h0;
-    @(posedge clk);
-    @(negedge clk);
-    wait(reset == 1'h0);
-    $strobe("%t OUTPUT out = 16'h%0x (#0)", $time, out);
-    @(posedge clk);
-    @(negedge clk);
-    $strobe("%t OUTPUT out = 16'h%0x (#1)", $time, out);
-    @(posedge clk);
-    @(negedge clk);
-    $strobe("%t OUTPUT out = 16'h%0x (#2)", $time, out);
-    @(posedge clk);
-    @(negedge clk);
-    $strobe("%t OUTPUT out = 16'h%0x (#3)", $time, out);
-    @(posedge clk);
-    @(negedge clk);
-    $strobe("%t OUTPUT out = 16'h%0x (#4)", $time, out);
-    is_thread_2_done <= 1'h1;
-  end
-  always @ (clk or is_thread_2_done) begin
-    wait(clk == 1'h1);
-    wait(clk == 1'h0);
-    wait(is_thread_2_done == 1'h1);
-    wait(clk == 1'h1);
-    wait(clk == 1'h0);
+    #1;
     $finish;
   end
 endmodule
