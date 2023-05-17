@@ -298,13 +298,25 @@ absl::Status VerifyParentage(const Module* module) {
 }
 
 absl::Status VerifyParentage(const AstNode* root) {
+  XLS_CHECK(root != nullptr);
+
   if (const Module* module = dynamic_cast<const Module*>(root);
       module != nullptr) {
     return VerifyParentage(module);
   }
 
   for (const auto* child : root->GetChildren(/*want_types=*/true)) {
+    XLS_CHECK(child != nullptr);
     XLS_RETURN_IF_ERROR(VerifyParentage(child));
+
+    if (child->parent() == nullptr) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Child \"%s\" (%s) of node \"%s\" (%s) had "
+                          "no parent.",
+                          child->ToString(), child->GetNodeTypeName(),
+                          root->ToString(), root->GetNodeTypeName()));
+    }
+
     if (child->parent() != root) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Child \"%s\" (%s) of node \"%s\" (%s) had "

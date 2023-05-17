@@ -838,9 +838,9 @@ TEST(IrConverterTest, MatchWithlet) {
       R"(
 fn f(x: u8) -> u2 {
   match x {
-    u8:42 => let x = u2:0; x,
-    u8:64 => let x = u2:1; x,
-    _ => let x = u2:2; x
+    u8:42 => { let x = u2:0; x },
+    u8:64 => { let x = u2:1; x },
+    _ => { let x = u2:2; x }
   }
 }
 )";

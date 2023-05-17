@@ -566,7 +566,7 @@ class AstGenerator {
   }
 
   // Generates a unique symbol identifier.
-  std::string GenSym() { return absl::StrCat("x", next_name_index_++); }
+  std::string GenSym();
 
   // Returns true if the expression should continue to be extended. expr_depth
   // is a measure of the current size of the expression (number of times
@@ -575,8 +575,8 @@ class AstGenerator {
   bool ShouldNest(int64_t expr_size, int64_t call_depth) {
     // Make non-top level functions smaller.
     double alpha = (call_depth > 0) ? 1.0 : 7.0;
-    std::gamma_distribution<float> g(alpha, 5.0);
-    return g(value_gen_->rng()) >= expr_size;
+    std::gamma_distribution<double> g(alpha, 5.0);
+    return g(value_gen_->rng()) >= static_cast<double>(expr_size);
   }
 
   // Returns the (flattened) bit count of the given type.

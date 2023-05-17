@@ -251,6 +251,12 @@ xls_dslx_test(
 )
 
 dslx_lang_test(
+    name = "cover_in_loop",
+    # cover! not supported yet in translation to z3.
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "parametric_value_as_nested_loop_bound",
 )
 
@@ -569,6 +575,12 @@ dslx_lang_test(name = "for_sans_type_annotation")
 dslx_lang_test(name = "nil_tuple_accumulator")
 
 dslx_lang_test(name = "derived_parametrics")
+
+dslx_lang_test(
+    name = "derived_parametrics2",
+    # No meaningful entry point to convert.
+    convert_to_ir = False,
+)
 
 dslx_lang_test(name = "parametric_struct")
 

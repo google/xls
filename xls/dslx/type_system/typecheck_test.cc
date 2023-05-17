@@ -1137,7 +1137,6 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
 
     absl::Status HandleLet(const Let* node) override {
       XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
-      XLS_RETURN_IF_ERROR(node->body()->Accept(this));
       return absl::OkStatus();
     }
 

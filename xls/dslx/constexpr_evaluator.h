@@ -133,7 +133,8 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   // variable shadows the initial value. Constexpr env creation is string value
   // indexed, so this is needed so we can "skip" loop-declared variables.
   absl::Status InterpretExpr(
-      const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env = {});
+      const Expr* expr,
+      const absl::flat_hash_set<const NameDef*>& bypass_env = {});
 
   ImportData* import_data_;
   TypeInfo* type_info_;
@@ -159,7 +160,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
     const ParametricEnv& parametric_env,
-    absl::flat_hash_set<const NameDef*> bypass_env = {});
+    const absl::flat_hash_set<const NameDef*>& bypass_env = {});
 
 }  // namespace xls::dslx
 

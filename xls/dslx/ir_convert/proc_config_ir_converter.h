@@ -58,6 +58,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
                         const ParametricEnv& bindings, const ProcId& proc_id);
 
   absl::Status HandleBlock(const Block* node) override;
+  absl::Status HandleStatement(const Statement* node) override;
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
   absl::Status HandleColonRef(const ColonRef* node) override;
   absl::Status HandleFunction(const Function* node) override;

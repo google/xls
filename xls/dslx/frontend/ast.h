@@ -292,8 +292,6 @@ enum class AstNodeKind {
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
 
-class AstNode;
-
 // Abstract base class for AST nodes.
 class AstNode {
  public:
@@ -682,7 +680,7 @@ class ExprVisitorWithDefault : public ExprVisitor {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
+  Expr(Module* owner, Span span) : AstNode(owner), span_(std::move(span)) {}
 
   ~Expr() override;
 
@@ -764,33 +762,29 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 //    }
 //
 // Both of those lines are statements.
-class Statement : public AstNode {
+class Statement final : public AstNode {
  public:
-  static absl::StatusOr<std::variant<Expr*, TypeAlias*>> NodeToWrapped(
-      AstNode* n);
+  using Wrapped = std::variant<Expr*, TypeAlias*, Let*>;
 
-  Statement(Module* owner, std::variant<Expr*, TypeAlias*> wrapped)
-      : AstNode(owner), wrapped_(wrapped) {}
+  static absl::StatusOr<Wrapped> NodeToWrapped(AstNode* n);
+
+  Statement(Module* owner, Wrapped wrapped);
 
   AstNodeKind kind() const override { return AstNodeKind::kStatement; }
   std::string_view GetNodeTypeName() const override { return "Statement"; }
   std::string ToString() const override {
     return ToAstNode(wrapped_)->ToString();
   }
-  std::optional<Span> GetSpan() const override {
-    return ToAstNode(wrapped_)->GetSpan();
-  }
-  std::vector<AstNode*> GetChildren(bool want_types) const {
-    return {ToAstNode(wrapped_)};
-  }
+  std::optional<Span> GetSpan() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleStatement(this);
   }
 
-  const std::variant<Expr*, TypeAlias*>& wrapped() const { return wrapped_; }
+  const Wrapped& wrapped() const { return wrapped_; }
 
  private:
-  std::variant<Expr*, TypeAlias*> wrapped_;
+  Wrapped wrapped_;
 };
 
 // Represents a block expression, e.g.,
@@ -829,10 +823,16 @@ class Block : public Expr {
 
   absl::Span<Statement* const> statements() const { return statements_; }
   bool trailing_semi() const { return trailing_semi_; }
+  bool empty() const { return statements_.empty(); }
 
-  // This is a transitionary helper as we migrate from single expressions as
-  // function bodies to multiple statements.
-  absl::StatusOr<Expr*> GetSingleBodyExpression() const;
+  // Use sparingly! Mutation routine that adds statements to a block; e.g.
+  // sometimes we discover we want to create some invariant of the AST at parse
+  // time and want to add some statements to do that.
+  void AddStatement(Statement* statement) {
+    XLS_CHECK(statement->parent() == nullptr) << statement->ToString();
+    statements_.push_back(statement);
+    SetParentage();
+  }
 
  private:
   std::vector<Statement*> statements_;
@@ -840,6 +840,10 @@ class Block : public Expr {
 };
 
 // Represents a reference to a name (identifier).
+//
+// Every name reference has a link to its corresponding `name_def()`, which can
+// either be defined in the module somewhere (NameDef) or defined as a built-in
+// symbol that's implicitly available, e.g. built-in functions (BuiltinNameDef).
 class NameRef : public Expr {
  public:
   NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
@@ -959,7 +963,7 @@ class Number : public Expr {
 class String : public Expr {
  public:
   String(Module* owner, Span span, std::string_view text)
-      : Expr(owner, span), text_(text) {}
+      : Expr(owner, std::move(span)), text_(text) {}
 
   ~String() override;
 
@@ -1545,12 +1549,6 @@ class Function : public AstNode {
   }
   NameDef* name_def() const { return name_def_; }
 
-  // This is a transitionary helper as we migrate from single expressions as
-  // function bodies to multiple statements.
-  absl::StatusOr<Expr*> GetSingleBodyExpression() const {
-    return body_->GetSingleBodyExpression();
-  }
-
   TypeAnnotation* return_type() const { return return_type_; }
   void set_return_type(TypeAnnotation* return_type) {
     return_type_ = return_type;
@@ -1755,7 +1753,7 @@ class Attr : public Expr {
 class Instantiation : public Expr {
  public:
   Instantiation(Module* owner, Span span, Expr* callee,
-                const std::vector<ExprOrType>& explicit_parametrics);
+                std::vector<ExprOrType> explicit_parametrics);
 
   ~Instantiation() override;
 
@@ -1808,7 +1806,7 @@ class Invocation : public Instantiation {
                            FormatParametrics(), FormatArgs());
   };
 
-  const absl::Span<Expr* const> args() const { return args_; }
+  absl::Span<Expr* const> args() const { return args_; }
 
  private:
   std::vector<Expr*> args_;
@@ -1822,8 +1820,7 @@ class Spawn : public Instantiation {
  public:
   // A Spawn's body can be nullopt if it's the last expr in an unroll_for body.
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-        Invocation* next, std::vector<ExprOrType> explicit_parametrics,
-        Expr* body);
+        Invocation* next, std::vector<ExprOrType> explicit_parametrics);
 
   ~Spawn() override;
 
@@ -1843,12 +1840,10 @@ class Spawn : public Instantiation {
   Invocation* config() const { return config_; }
   Invocation* next() const { return next_; }
   bool IsParametric() { return !explicit_parametrics().empty(); }
-  Expr* body() const { return body_; }
 
  private:
   Invocation* config_;
   Invocation* next_;
-  Expr* body_;
 };
 
 // Represents a call to a variable-argument formatting macro;
@@ -1877,7 +1872,7 @@ class FormatMacro : public Expr {
   std::string ToString() const override;
 
   const std::string& macro() const { return macro_; }
-  const absl::Span<Expr* const> args() const { return args_; }
+  absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
 
  private:
@@ -2990,19 +2985,18 @@ class NameDefTree : public AstNode {
 };
 
 // Represents a let-binding expression.
-class Let : public Expr {
+class Let : public AstNode {
  public:
   // A Let's body can be nullopt if it's the last expr in an unroll_for body.
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
-      TypeAnnotation* type, Expr* rhs, Expr* body, bool is_const);
+      TypeAnnotation* type, Expr* rhs, bool is_const);
 
   ~Let() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kLet; }
 
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleLet(this);
-  }
+  std::optional<Span> GetSpan() const override { return span_; }
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleLet(this);
   }
@@ -3015,10 +3009,12 @@ class Let : public Expr {
   NameDefTree* name_def_tree() const { return name_def_tree_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   Expr* rhs() const { return rhs_; }
-  Expr* body() const { return body_; }
   bool is_const() const { return is_const_; }
+  const Span& span() const { return span_; }
 
  private:
+  Span span_;
+
   // Names that are bound by this let expression; e.g. in
   //  let (a, b, (c)) = (1, 2, (3,));
   //  ...
@@ -3031,10 +3027,6 @@ class Let : public Expr {
 
   // Right hand side of the let; e.g. in `let a = b; c` this is `b`.
   Expr* rhs_;
-
-  // The body of the let: it has the expression to be evaluated with the let
-  // bindings; e.g. in `let a = b; c` this is `c`.
-  Expr* body_;
 
   // Whether or not this is a constant binding; constant bindings cannot be
   // shadowed.

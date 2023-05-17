@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -34,15 +34,17 @@ fn main() -> u32 {
   u32:3
 })";
 
-  constexpr std::string_view kExpected = R"(let a = u32:0;
-let b = u32:1;
-u32:3)";
+  constexpr std::string_view kExpected = R"({
+  let a = u32:0;
+  let b = u32:1;
+  u32:3
+})";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  Block* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -55,14 +57,16 @@ fn main() -> u32 {
   a
 })";
 
-  constexpr std::string_view kExpected = R"(let a = u32:0;
-a)";
+  constexpr std::string_view kExpected = R"({
+  let a = u32:0;
+  a
+})";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  Block* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -77,15 +81,17 @@ fn main() -> (u32, u32) {
 }
 )";
 
-  constexpr std::string_view kExpected = R"(let a = u32:0;
-let b = u32:1;
-(a, b))";
+  constexpr std::string_view kExpected = R"({
+  let a = u32:0;
+  let b = u32:1;
+  (a, b)
+})";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, f->GetSingleBodyExpression());
+  Block* body_expr = f->body();
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(body_expr));
   EXPECT_EQ(kExpected, clone->ToString());
   XLS_ASSERT_OK(VerifyClone(body_expr, clone));
@@ -597,10 +603,17 @@ proc MyProc {
   }
 })";
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto module,
-                           ParseModule(kProgram, "fake_path.x", "the_module"));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
-                           CloneModule(module.get()));
+  absl::StatusOr<std::unique_ptr<Module>> module_or =
+      ParseModule(kProgram, "fake_path.x", "the_module");
+  if (!module_or.ok()) {
+    TryPrintError(module_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(kProgram);
+                  });
+  }
+  XLS_ASSERT_OK(module_or.status());
+  Module* module = module_or.value().get();
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone, CloneModule(module));
   EXPECT_EQ(kExpected, clone->ToString());
 }
 
@@ -617,8 +630,12 @@ fn bar() -> u32{
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * main,
                            module->GetMemberOrError<Function>("bar"));
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * body_expr, main->GetSingleBodyExpression());
-  ConstRef* orig_ref = down_cast<ConstRef*>(body_expr);
+  Block* body_expr = main->body();
+  ASSERT_EQ(body_expr->statements().size(), 1);
+  ASSERT_TRUE(
+      std::holds_alternative<Expr*>(body_expr->statements().at(0)->wrapped()));
+  ConstRef* orig_ref = down_cast<ConstRef*>(
+      std::get<Expr*>(body_expr->statements().at(0)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(orig_ref));
   ConstRef* new_ref = down_cast<ConstRef*>(clone);
   EXPECT_EQ(orig_ref->name_def(), new_ref->name_def());

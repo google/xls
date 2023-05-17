@@ -121,7 +121,6 @@ fn umul_test() {
 // Calculate x / y one bit at a time. This is an alternative to using
 // the division operator '/' which may not synthesize nicely.
 pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N] {
-
   let init_shift_amount = ((N as uN[N])-uN[N]:1);
   let x = x as uN[DN];
 
@@ -153,7 +152,7 @@ pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N]
 }
 
 #[test]
-fn iterative_div_test () {
+fn iterative_div_test() {
   // Power of 2.
   let _ = assert_eq(u4:0, iterative_div(u4:8, u4:15));
   let _ = assert_eq(u4:1, iterative_div(u4:8, u4:8));

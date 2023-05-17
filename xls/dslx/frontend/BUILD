@@ -45,9 +45,9 @@ cc_test(
     deps = [
         ":ast",
         ":ast_cloner",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:command_line_utils",
         "//xls/dslx:parse_and_typecheck",
         "@com_google_googletest//:gtest",
     ],

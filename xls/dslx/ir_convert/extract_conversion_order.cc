@@ -31,13 +31,15 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
+namespace {
 
-static std::string CalleesToString(absl::Span<const Callee> callees) {
+std::string CalleesToString(absl::Span<const Callee> callees) {
   return absl::StrCat("[",
                       absl::StrJoin(callees, ", ",
                                     [](std::string* out, const Callee& callee) {
@@ -46,7 +48,7 @@ static std::string CalleesToString(absl::Span<const Callee> callees) {
                       "]");
 }
 
-static std::string ConversionRecordsToString(
+std::string ConversionRecordsToString(
     absl::Span<const ConversionRecord> records) {
   return absl::StrCat(
       "[",
@@ -57,6 +59,8 @@ static std::string ConversionRecordsToString(
       "]");
 }
 
+}  // namespace
+
 // -- class Callee
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
@@ -65,7 +69,7 @@ static std::string ConversionRecordsToString(
     std::optional<ProcId> proc_id) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, parametric_env));
   return Callee(f, invocation, module, type_info, std::move(parametric_env),
-                proc_id);
+                std::move(proc_id));
 }
 
 Callee::Callee(Function* f, const Invocation* invocation, Module* m,
@@ -76,7 +80,7 @@ Callee::Callee(Function* f, const Invocation* invocation, Module* m,
       m_(m),
       type_info_(type_info),
       parametric_env_(std::move(parametric_env)),
-      proc_id_(proc_id) {
+      proc_id_(std::move(proc_id)) {
   XLS_CHECK_EQ(type_info->module(), m)
       << "type_info module: " << type_info->module()->name()
       << " vs module: " << m->name();
@@ -133,7 +137,7 @@ std::string Callee::ToString() const {
 
   return ConversionRecord(f, invocation, module, type_info,
                           std::move(parametric_env), std::move(callees),
-                          proc_id, is_top);
+                          std::move(proc_id), is_top);
 }
 
 std::string ConversionRecord::ToString() const {
@@ -282,7 +286,7 @@ class InvocationVisitor : public ExprVisitor {
       : module_(module),
         type_info_(type_info),
         bindings_(bindings),
-        proc_id_(proc_id) {
+        proc_id_(std::move(proc_id)) {
     XLS_CHECK_EQ(type_info_->module(), module_);
   }
 
@@ -314,10 +318,16 @@ class InvocationVisitor : public ExprVisitor {
 
   absl::Status HandleBlock(const Block* expr) override {
     for (Statement* stmt : expr->statements()) {
-      if (std::holds_alternative<Expr*>(stmt->wrapped())) {
-        Expr* e = std::get<Expr*>(stmt->wrapped());
-        XLS_RETURN_IF_ERROR(e->AcceptExpr(this));
-      }
+      XLS_RETURN_IF_ERROR(
+          absl::visit(Visitor{
+                          [&](Expr* e) { return e->AcceptExpr(this); },
+                          [&](Let* let) { return HandleLet(let); },
+                          [&](TypeAlias*) {
+                            // Nothing needed for conversion.
+                            return absl::OkStatus();
+                          },
+                      },
+                      stmt->wrapped()));
     }
     return absl::OkStatus();
   }
@@ -435,7 +445,7 @@ class InvocationVisitor : public ExprVisitor {
 
   absl::Status HandleLet(const Let* expr) override {
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
-    return expr->body()->AcceptExpr(this);
+    return absl::OkStatus();
   }
 
   absl::Status HandleMatch(const Match* expr) override {
@@ -478,7 +488,7 @@ class InvocationVisitor : public ExprVisitor {
     XLS_RETURN_IF_ERROR(expr->callee()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->config()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->next()->AcceptExpr(this));
-    return expr->body()->AcceptExpr(this);
+    return absl::OkStatus();
   }
 
   absl::Status HandleSplatStructInstance(

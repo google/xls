@@ -1266,12 +1266,11 @@ std::string EnumDef::ToString() const {
 
 // -- class Instantiation
 
-Instantiation::Instantiation(
-    Module* owner, Span span, Expr* callee,
-    const std::vector<ExprOrType>& explicit_parametrics)
-    : Expr(owner, span),
+Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
+                             std::vector<ExprOrType> explicit_parametrics)
+    : Expr(owner, std::move(span)),
       callee_(callee),
-      explicit_parametrics_(explicit_parametrics) {}
+      explicit_parametrics_(std::move(explicit_parametrics)) {}
 
 Instantiation::~Instantiation() = default;
 
@@ -1294,7 +1293,8 @@ std::string Instantiation::FormatParametrics() const {
 Invocation::Invocation(Module* owner, Span span, Expr* callee,
                        std::vector<Expr*> args,
                        std::vector<ExprOrType> explicit_parametrics)
-    : Instantiation(owner, std::move(span), callee, explicit_parametrics),
+    : Instantiation(owner, std::move(span), callee,
+                    std::move(explicit_parametrics)),
       args_(std::move(args)) {}
 
 Invocation::~Invocation() = default;
@@ -1316,17 +1316,16 @@ std::string Invocation::FormatArgs() const {
 // -- class Spawn
 
 Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-             Invocation* next, std::vector<ExprOrType> explicit_parametrics,
-             Expr* body)
-    : Instantiation(owner, std::move(span), callee, explicit_parametrics),
+             Invocation* next, std::vector<ExprOrType> explicit_parametrics)
+    : Instantiation(owner, std::move(span), callee,
+                    std::move(explicit_parametrics)),
       config_(config),
-      next_(next),
-      body_(body) {}
+      next_(next) {}
 
 Spawn::~Spawn() = default;
 
 std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
-  return {config_, next_, body_};
+  return {config_, next_};
 }
 
 std::string Spawn::ToString() const {
@@ -1339,9 +1338,8 @@ std::string Spawn::ToString() const {
       config_->args(), ", ",
       [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
 
-  std::string body_str = absl::StrCat(";\n", body_->ToString());
-  return absl::StrFormat("spawn %s%s(%s)%s", callee()->ToString(), param_str,
-                         config_args, body_str);
+  return absl::StrFormat("spawn %s%s(%s)", callee()->ToString(), param_str,
+                         config_args);
 }
 
 // -- class ZeroMacro
@@ -1368,8 +1366,8 @@ FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
                          std::vector<FormatStep> format,
                          std::vector<Expr*> args)
     : Expr(owner, std::move(span)),
-      macro_(macro),
-      format_(format),
+      macro_(std::move(macro)),
+      format_(std::move(format)),
       args_(std::move(args)) {}
 
 FormatMacro::~FormatMacro() = default;
@@ -1532,7 +1530,10 @@ absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
 
 Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
              Expr* rhs)
-    : Expr(owner, span), binop_kind_(binop_kind), lhs_(lhs), rhs_(rhs) {}
+    : Expr(owner, std::move(span)),
+      binop_kind_(binop_kind),
+      lhs_(lhs),
+      rhs_(rhs) {}
 
 absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s) {
   if (s == "!") {
@@ -1599,19 +1600,21 @@ std::string Block::ToString() const {
     return "{}";
   }
 
-  std::string statements_str =
-      absl::StrJoin(statements_, "\n", [](std::string* out, Statement* stmt) {
-        absl::StrAppend(out, stmt->ToString());
-      });
-  return absl::StrFormat("{\n%s%s\n}",
-                         Indent(statements_str, kDefaultIndentSpaces),
-                         trailing_semi_ ? ";" : "");
-}
-
-absl::StatusOr<Expr*> Block::GetSingleBodyExpression() const {
-  XLS_RET_CHECK_EQ(statements_.size(), 1);
-  XLS_RET_CHECK(std::holds_alternative<Expr*>(statements_.at(0)->wrapped()));
-  return std::get<Expr*>(statements_.at(0)->wrapped());
+  std::vector<std::string> stmts;
+  for (size_t i = 0; i < statements_.size(); ++i) {
+    Statement* stmt = statements_[i];
+    if (std::holds_alternative<Expr*>(stmt->wrapped())) {
+      if (i + 1 == statements_.size() && !trailing_semi_) {
+        stmts.push_back(stmt->ToString());
+      } else {
+        stmts.push_back(stmt->ToString() + ";");
+      }
+    } else {
+      stmts.push_back(stmt->ToString());
+    }
+  }
+  return absl::StrFormat(
+      "{\n%s\n}", Indent(absl::StrJoin(stmts, "\n"), kDefaultIndentSpaces));
 }
 
 // -- class For
@@ -1646,7 +1649,7 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<Param*> params, TypeAnnotation* return_type,
                    Block* body, Tag tag, bool is_public)
     : AstNode(owner),
-      span_(span),
+      span_(std::move(span)),
       name_def_(name_def),
       parametric_bindings_(parametric_bindings),
       params_(params),
@@ -2057,7 +2060,7 @@ std::string TupleTypeAnnotation::ToString() const {
 
 // -- class Statement
 
-/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*>>
+/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*>>
 Statement::NodeToWrapped(AstNode* n) {
   if (auto* e = dynamic_cast<Expr*>(n)) {
     return e;
@@ -2065,8 +2068,24 @@ Statement::NodeToWrapped(AstNode* n) {
   if (auto* t = dynamic_cast<TypeAlias*>(n)) {
     return t;
   }
+  if (auto* l = dynamic_cast<Let*>(n)) {
+    return l;
+  }
   return absl::InvalidArgumentError(absl::StrCat(
       "AST node could not be wrapped in a statement: ", n->GetNodeTypeName()));
+}
+
+Statement::Statement(Module* owner,
+                     std::variant<Expr*, TypeAlias*, Let*> wrapped)
+    : AstNode(owner), wrapped_(wrapped) {
+  XLS_CHECK_NE(ToAstNode(wrapped_), this);
+}
+
+std::optional<Span> Statement::GetSpan() const {
+  AstNode* wrapped = ToAstNode(wrapped_);
+  XLS_CHECK_NE(wrapped, nullptr);
+  XLS_CHECK_NE(wrapped, this);
+  return wrapped->GetSpan();
 }
 
 // -- class WildcardPattern
@@ -2077,7 +2096,7 @@ WildcardPattern::~WildcardPattern() = default;
 
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
                        std::optional<int64_t> test_count)
-    : AstNode(owner), span_(span), f_(f), test_count_(test_count) {}
+    : AstNode(owner), span_(std::move(span)), f_(f), test_count_(test_count) {}
 
 QuickCheck::~QuickCheck() = default;
 
@@ -2209,12 +2228,12 @@ NameDefTree::Flatten1() {
 // -- class Let
 
 Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
-         TypeAnnotation* type_annotation, Expr* rhs, Expr* body, bool is_const)
-    : Expr(owner, std::move(span)),
+         TypeAnnotation* type_annotation, Expr* rhs, bool is_const)
+    : AstNode(owner),
+      span_(std::move(span)),
       name_def_tree_(name_def_tree),
       type_annotation_(type_annotation),
       rhs_(rhs),
-      body_(body),
       is_const_(is_const) {}
 
 Let::~Let() = default;
@@ -2225,18 +2244,14 @@ std::vector<AstNode*> Let::GetChildren(bool want_types) const {
     results.push_back(type_annotation_);
   }
   results.push_back(rhs_);
-  results.push_back(body_);
   return results;
 }
 
 std::string Let::ToString() const {
-  std::string body_str = absl::StrCat("\n", body_->ToString());
-
   return absl::StrFormat(
-      "%s %s%s = %s;%s", is_const_ ? "const" : "let",
-      name_def_tree_->ToString(),
+      "%s %s%s = %s;", is_const_ ? "const" : "let", name_def_tree_->ToString(),
       type_annotation_ == nullptr ? "" : ": " + type_annotation_->ToString(),
-      rhs_->ToString(), body_str);
+      rhs_->ToString());
 }
 
 // -- class Expr
@@ -2353,4 +2368,7 @@ std::vector<AstNode*> Array::GetChildren(bool want_types) const {
   return results;
 }
 
+std::vector<AstNode*> Statement::GetChildren(bool want_types) const {
+  return {ToAstNode(wrapped_)};
+}
 }  // namespace xls::dslx

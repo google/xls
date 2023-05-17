@@ -22,6 +22,27 @@
 namespace xls::dslx {
 namespace {
 
+TEST(TypecheckTest, ConfigSpawnTerminatingSemicolonNoMembers) {
+  constexpr std::string_view kProgram = R"(
+proc foo {
+    init { }
+    config() {
+    }
+    next(tok: token, state: ()) {
+    }
+}
+
+proc entry {
+    init { () }
+    config() {
+        spawn foo();
+    }
+    next (tok: token, state: ()) { () }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 TEST(TypecheckTest, RecvIfDefaultValueWrongType) {
   constexpr std::string_view kProgram = R"(
 proc foo {

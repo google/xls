@@ -856,7 +856,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
                       ti->GetConstExpr(node->rhs()).value());
   }
 
-  return ctx->Deduce(node->body());
+  return ConcreteType::MakeUnit();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
@@ -1485,7 +1485,7 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
   absl::StatusOr<InterpValue> bound_or = InterpretExpr(ctx, bound, env);
   if (!bound_or.ok()) {
     const absl::Status& status = bound_or.status();
-    if (absl::StrContains(status.message(), "Could not find slot or binding")) {
+    if (absl::StrContains(status.message(), "could not find slot or binding")) {
       return TypeInferenceErrorStatus(
           bound->span(), nullptr,
           absl::StrFormat(
@@ -2807,18 +2807,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  XLS_ASSIGN_OR_RETURN(Expr * current,
-                       proc->config()->GetSingleBodyExpression());
-  while (true) {
-    if (Let* let = dynamic_cast<Let*>(current); let != nullptr) {
-      current = let->body();
-    } else if (Spawn* spawn = dynamic_cast<Spawn*>(current); spawn != nullptr) {
-      current = spawn->body();
-    } else {
-      break;
-    }
-  }
-  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(current);
+  Function* config_fn = proc->config();
+  Expr* last =
+      std::get<Expr*>(config_fn->body()->statements().back()->wrapped());
+  const XlsTuple* tuple = dynamic_cast<const XlsTuple*>(last);
   XLS_RET_CHECK_NE(tuple, nullptr);
 
   // 2. Extract the value of each element and associate with the corresponding
@@ -2836,8 +2828,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   XLS_RETURN_IF_ERROR(DeduceInstantiation(ctx, node->next(), next_args,
                                           resolve_next, constexpr_env)
                           .status());
-
-  return ctx->Deduce(node->body());
+  return ConcreteType::MakeUnit();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(

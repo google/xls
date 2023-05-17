@@ -30,6 +30,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/fuzzer/value_generator.h"
 
@@ -96,6 +97,13 @@ static bool ElemIsBitVectorType(const ArrayTypeAnnotation* ata) {
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Type annotation %s is not a builtin bits type", type->ToString()));
+}
+
+std::string AstGenerator::GenSym() {
+  std::string result = absl::StrCat("x", next_name_index_++);
+  XLS_VLOG(10) << "generated fresh symbol: " << result << " @ "
+               << GetSymbolizedStackTraceAsString();
+  return result;
 }
 
 absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
@@ -836,10 +844,14 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
       module_->Make<Binop>(fake_span_, BinopKind::kAdd, mulp_lhs, mulp_rhs);
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
-                                 /*body=*/sum, /*is_const=*/false);
+                                 /*is_const=*/false);
   auto* body_stmt = module_->Make<Statement>(let);
-  auto* block = module_->Make<Block>(
-      fake_span_, std::vector<Statement*>{body_stmt}, /*trailing_semi=*/false);
+  auto* block = module_->Make<Block>(fake_span_,
+                                     std::vector<Statement*>{
+                                         body_stmt,
+                                         module_->Make<Statement>(sum),
+                                     },
+                                     /*trailing_semi=*/false);
   return TypedExpr{block, lhs_cast.type};
 }
 
@@ -1461,6 +1473,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
                                         /*param_types=*/
                                         std::vector<TypeAnnotation*>(
                                             {array_type->element_type()})));
+
+  // We put the function into the functions_ member so we know to emit it at the
+  // top level of the module.
   functions_.push_back(map_fn);
 
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(
@@ -2064,6 +2079,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
 
     if (generated.ok()) {
       rhs = generated.value();
+
+      // Do some opportunistic checking that our result types are staying within
+      // requested parameters.
       if (IsBits(rhs.type)) {
         XLS_RET_CHECK_LE(GetTypeBitCount(rhs.type),
                          options_.max_width_bits_types)
@@ -2087,6 +2105,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
     // Any other error is unexpected, though.
     return generated.status();
   }
+
   std::string identifier = GenSym();
 
   // What we place into the environment is a NameRef that refers to this RHS
@@ -2114,12 +2133,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
             TypedExpr{member_name_ref, tuple_type->members()[index]};
         // Insert in reverse order so the identifier are consecutive when
         // displayed on the output.
-        channel_tuples[tuple_type->members().size() - index - 1] =
-            std::pair<NameDef*, TypedExpr>{
-                member_name_def,
-                TypedExpr{module_->Make<TupleIndex>(fake_span_, name_ref,
-                                                    MakeNumber(index)),
-                          tuple_type->members()[index]}};
+        channel_tuples[index] = std::pair<NameDef*, TypedExpr>{
+            member_name_def,
+            TypedExpr{module_->Make<TupleIndex>(fake_span_, name_ref,
+                                                MakeNumber(index)),
+                      tuple_type->members()[index]}};
       }
     }
   }
@@ -2127,20 +2145,36 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   XLS_ASSIGN_OR_RETURN(TypedExpr body,
                        GenerateExpr(expr_size + 1, call_depth, ctx));
 
-  auto* let = body.expr;
+  std::vector<Statement*> statements;
+
+  statements.push_back(module_->Make<Statement>(module_->Make<Let>(
+      fake_span_,
+      /*name_def_tree=*/module_->Make<NameDefTree>(fake_span_, name_def),
+      /*type=*/rhs.type, /*rhs=*/rhs.expr,
+      /*is_const=*/false)));
+
   for (const auto& channel_tuple : channel_tuples) {
-    auto* ndt = module_->Make<NameDefTree>(fake_span_, channel_tuple.first);
-    let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
-                             /*type=*/channel_tuple.second.type,
-                             /*rhs=*/channel_tuple.second.expr,
-                             /*body=*/let, /*is_const=*/false);
+    NameDefTree* ndt =
+        module_->Make<NameDefTree>(fake_span_, channel_tuple.first);
+    Let* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
+                                  /*type=*/channel_tuple.second.type,
+                                  /*rhs=*/channel_tuple.second.expr,
+                                  /*is_const=*/false);
+    statements.push_back(module_->Make<Statement>(let));
   }
 
-  auto* ndt = module_->Make<NameDefTree>(fake_span_, name_def);
-  let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
-                           /*type=*/rhs.type, /*rhs=*/rhs.expr,
-                           /*body=*/let, /*is_const=*/false);
-  return TypedExpr{let, body.type};
+  // If the thing we're nesting is a block we just absorb its statements into
+  // the block we're currently making.
+  if (Block* nested_block = dynamic_cast<Block*>(body.expr)) {
+    statements.insert(statements.end(), nested_block->statements().begin(),
+                      nested_block->statements().end());
+  } else {
+    statements.push_back(module_->Make<Statement>(body.expr));
+  }
+
+  Block* block =
+      module_->Make<Block>(fake_span_, statements, /*trailing_semi=*/false);
+  return TypedExpr{block, body.type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {

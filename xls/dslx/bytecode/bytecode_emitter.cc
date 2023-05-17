@@ -33,6 +33,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/symbolized_stacktrace.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
@@ -40,8 +41,6 @@
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
-#include "xls/dslx/type_system/concrete_type_zero_value.h"
-#include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/value_format_descriptor.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
@@ -255,7 +254,7 @@ BytecodeEmitter::EmitExpression(
 }
 
 absl::Status BytecodeEmitter::HandleArray(const Array* node) {
-  int num_members = node->members().size();
+  size_t num_members = node->members().size();
   for (auto* member : node->members()) {
     XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
   }
@@ -365,12 +364,22 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
   XLS_VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span();
   const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {
-    if (std::holds_alternative<Expr*>(s->wrapped())) {
-      const Expr* e = std::get<Expr*>(s->wrapped());
-      XLS_RETURN_IF_ERROR(e->AcceptExpr(this));
-      last_expression = e;
-    }
+    XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](Expr* e) {
+                                              last_expression = e;
+                                              return e->AcceptExpr(this);
+                                            },
+                                            [&](Let* let) {
+                                              last_expression = nullptr;
+                                              return HandleLet(let);
+                                            },
+                                            [&](TypeAlias* ta) {
+                                              // Nothing to emit, should be
+                                              // resolved via type inference.
+                                              return absl::OkStatus();
+                                            }},
+                                    s->wrapped()));
   }
+
   if (node->trailing_semi()) {
     if (last_expression == nullptr) {
       Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUnit()));
@@ -404,7 +413,7 @@ absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,
   }
 
   bytecode_.push_back(
-      Bytecode(span, Bytecode::Op::kCast, to_bits->CloneToUnique()));
+      Bytecode(std::move(span), Bytecode::Op::kCast, to_bits->CloneToUnique()));
   return absl::OkStatus();
 }
 
@@ -429,8 +438,8 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
                         bits_bit_count, array_bit_count));
   }
 
-  bytecode_.push_back(
-      Bytecode(span, Bytecode::Op::kCast, to_array->CloneToUnique()));
+  bytecode_.push_back(Bytecode(std::move(span), Bytecode::Op::kCast,
+                               to_array->CloneToUnique()));
   return absl::OkStatus();
 }
 
@@ -638,7 +647,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
 
   // We need a means of referencing the loop index and accumulator in the
   // namedef_to_slot_ map, so we pretend that they're NameDefs for uniqueness.
-  int iterable_slot = namedef_to_slot_.size();
+  size_t iterable_slot = namedef_to_slot_.size();
   const NameDef* fake_name_def =
       reinterpret_cast<const NameDef*>(node->iterable());
   namedef_to_slot_[fake_name_def] = iterable_slot;
@@ -646,7 +655,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(iterable_slot)));
 
-  int index_slot = namedef_to_slot_.size();
+  size_t index_slot = namedef_to_slot_.size();
   fake_name_def = reinterpret_cast<const NameDef*>(node);
   namedef_to_slot_[fake_name_def] = index_slot;
   bytecode_.push_back(
@@ -658,22 +667,24 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   XLS_RETURN_IF_ERROR(node->init()->AcceptExpr(this));
 
   // Jump destination for the end-of-loop jump to start.
-  int top_of_loop = bytecode_.size();
+  size_t top_of_loop = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
 
   // Loop header: Are we done iterating?
   // Reload the current index and compare against the iterable size.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
                                Bytecode::SlotIndex(index_slot)));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                               InterpValue::MakeU32(iterable_size)));
+  XLS_CHECK_EQ(static_cast<uint32_t>(iterable_size), iterable_size);
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLiteral,
+               InterpValue::MakeU32(static_cast<uint32_t>(iterable_size))));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
 
   // Cache the location of the top-of-loop jump so we can patch it up later once
   // we actually know the size of the jump.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRelIf,
                                Bytecode::kPlaceholderJumpAmount));
-  int start_jump_idx = bytecode_.size() - 1;
+  size_t start_jump_idx = bytecode_.size() - 1;
 
   // The loop-carry values are a tuple (index, accumulator), but we don't have
   // the index on the stack (so we don't have to drop it once we're out of the
@@ -953,7 +964,7 @@ absl::Status BytecodeEmitter::HandleJoin(const Join* node) {
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   DestructureLet(node->name_def_tree());
-  return node->body()->AcceptExpr(this);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
@@ -1003,9 +1014,10 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
     }
   }
 
-  return absl::InternalError(absl::StrCat(
-      "Could not find slot or binding for name: ", name_def->ToString(), " @ ",
-      name_def->span().ToString()));
+  return absl::InternalError(
+      absl::StrCat("BytecodeEmitter could not find slot or binding for name: ",
+                   name_def->ToString(), " @ ", name_def->span().ToString(),
+                   " stack: ", GetSymbolizedStackTraceAsString()));
 }
 
 absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
@@ -1207,7 +1219,7 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
   Bytecode::SpawnData spawn_data{node, proc, config_args, initial_state,
                                  final_bindings};
   Add(Bytecode::MakeSpawn(node->span(), spawn_data));
-  return node->body()->AcceptExpr(this);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleString(const String* node) {

@@ -71,7 +71,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(1));
@@ -114,7 +114,7 @@ fn expect_fail() -> u32{
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 8);
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(3));
@@ -190,7 +190,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 39);
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   ASSERT_EQ(bc->value_data().value(), InterpValue::MakeUBits(4, 0));
@@ -289,6 +289,26 @@ fn do_ternary() -> u32 {
 004 jump_dest
 005 literal u32:42
 006 jump_dest)");
+}
+
+TEST(BytecodeEmitterTest, Shadowing) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn f() -> u32 {
+  let x = u32:42;
+  let x = u32:64;
+  x
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "f"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+            R"(000 literal u32:42
+001 store 0
+002 literal u32:64
+003 store 1
+004 load 1)");
 }
 
 TEST(BytecodeEmitterTest, MatchSimpleArms) {
@@ -678,7 +698,7 @@ fn local_enum_ref() -> MyEnum {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
@@ -719,7 +739,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
@@ -755,7 +775,7 @@ fn imported_enum_ref() -> u3 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
 
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   ASSERT_TRUE(bc->has_data());
   EXPECT_THAT(bytecodes.at(0).value_data(),
@@ -1033,7 +1053,7 @@ fn main() -> u8[13] {
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 14);
-  const Bytecode* bc = &bytecodes[0];
+  const Bytecode* bc = bytecodes.data();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value, value.GetBitValueUint64());
   EXPECT_EQ(char_value, 't');
@@ -1298,9 +1318,11 @@ proc Parent {
                            tm.module->GetMemberOrError<Proc>("Parent"));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * child,
                            tm.module->GetMemberOrError<Proc>("Child"));
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * config_body_expr,
-                           parent->config()->GetSingleBodyExpression());
-  Spawn* spawn = down_cast<Spawn*>(down_cast<Let*>(config_body_expr)->body());
+
+  Block* config_body = parent->config()->body();
+  EXPECT_EQ(config_body->statements().size(), 3);
+  Spawn* spawn = down_cast<Spawn*>(
+      std::get<Expr*>(config_body->statements().at(1)->wrapped()));
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * parent_ti,
                            tm.type_info->GetTopLevelProcTypeInfo(parent));
   TypeInfo* child_ti =

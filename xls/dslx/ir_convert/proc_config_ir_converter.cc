@@ -21,7 +21,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/meta/type_traits.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
@@ -32,7 +31,6 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
-#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
 namespace xls::dslx {
@@ -84,8 +82,14 @@ absl::Status ProcConfigIrConverter::Finalize() {
 absl::Status ProcConfigIrConverter::HandleBlock(const Block* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString()
               << " : " << node->span().ToString();
-  XLS_ASSIGN_OR_RETURN(Expr * body_expr, node->GetSingleBodyExpression());
-  return body_expr->Accept(this);
+  for (const Statement* statement : node->statements()) {
+    XLS_RETURN_IF_ERROR(statement->Accept(this));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status ProcConfigIrConverter::HandleStatement(const Statement* node) {
+  return ToAstNode(node->wrapped())->Accept(this);
 }
 
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
@@ -120,8 +124,8 @@ absl::Status ProcConfigIrConverter::HandleColonRef(const ColonRef* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
-  for (int i = 0; i < node->params().size(); i++) {
-    XLS_RETURN_IF_ERROR(node->params()[i]->Accept(this));
+  for (Param* p : node->params()) {
+    XLS_RETURN_IF_ERROR(p->Accept(this));
   }
 
   return node->body()->Accept(this);
@@ -162,8 +166,6 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
     auto value = node_to_ir_.at(node->rhs());
     node_to_ir_[def] = value;
   }
-
-  XLS_RETURN_IF_ERROR(node->body()->Accept(this));
 
   return absl::OkStatus();
 }
@@ -231,7 +233,7 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
     proc_data_->id_to_initial_value[new_id] = ir_value;
   }
 
-  return node->body()->Accept(this);
+  return absl::OkStatus();
 }
 
 absl::Status ProcConfigIrConverter::HandleStructInstance(

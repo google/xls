@@ -87,7 +87,17 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseExpression(
       Bindings& bindings, ExprRestrictions restrictions = kNoRestrictions);
 
+  // Parses a block expression of the form:
+  //
+  //    "{" seq(Stmt ";") [;] "}"
+  //
+  // The optional trailing semicolon presence is noted on the Block AST node
+  // returned.
+  absl::StatusOr<Block*> ParseBlockExpression(Bindings& bindings);
+
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
+
+  Module& module() { return *module_; }
 
  private:
   friend class ParserTest;
@@ -467,8 +477,6 @@ class Parser : public TokenParser {
   absl::StatusOr<EnumDef*> ParseEnumDef(bool is_public, Bindings& bindings);
 
   absl::StatusOr<StructDef*> ParseStruct(bool is_public, Bindings& bindings);
-
-  absl::StatusOr<Block*> ParseBlockExpression(Bindings& bindings);
 
   absl::StatusOr<Expr*> ParseParenthesizedExpr(Bindings& bindings);
 

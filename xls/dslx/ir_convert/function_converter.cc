@@ -621,11 +621,13 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     XLS_RET_CHECK_EQ(annotated_type, value_type);
   }
 
+  XLS_RETURN_IF_ERROR(DefAlias(node->rhs(), /*to=*/node));
+
   if (node->name_def_tree()->is_leaf()) {
+    // Alias so that the RHS expression is now known as the name definition it
+    // is bound to.
     XLS_RETURN_IF_ERROR(
         DefAlias(node->rhs(), /*to=*/ToAstNode(node->name_def_tree()->leaf())));
-    XLS_RETURN_IF_ERROR(Visit(node->body()));
-    XLS_RETURN_IF_ERROR(DefAlias(node->body(), node));
   } else {
     // Walk the tree of names we're trying to bind, performing tuple_index
     // operations on the RHS to get to the values we want to bind to those
@@ -662,8 +664,6 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
     };
 
     XLS_RETURN_IF_ERROR(node->name_def_tree()->DoPreorder(walk));
-    XLS_RETURN_IF_ERROR(Visit(node->body()));
-    XLS_RETURN_IF_ERROR(DefAlias(node->body(), /*to=*/node));
   }
 
   return absl::OkStatus();
@@ -2421,13 +2421,19 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
 }
 
 absl::Status FunctionConverter::HandleBlock(const Block* node) {
+  XLS_VLOG(5) << "FunctionConverter::HandleBlock; node: " << node->ToString();
   Expr* last_expr = nullptr;
+
   for (const Statement* s : node->statements()) {
+    // We just want to see if it's an expr for "last expr in the block"
+    // purposes. Generaly we'll do Visit on the statement node to handle its
+    // contents.
     if (std::holds_alternative<Expr*>(s->wrapped())) {
       last_expr = std::get<Expr*>(s->wrapped());
     }
     XLS_RETURN_IF_ERROR(Visit(s));
   }
+
   if (node->trailing_semi() || last_expr == nullptr) {
     // Define the block result as nil.
     Def(node, [&](const SourceInfo& loc) {
@@ -2442,12 +2448,28 @@ absl::Status FunctionConverter::HandleBlock(const Block* node) {
 }
 
 absl::Status FunctionConverter::HandleStatement(const Statement* node) {
-  if (std::holds_alternative<Expr*>(node->wrapped())) {
-    XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->wrapped())));
-    Expr* body_expr = std::get<Expr*>(node->wrapped());
-    XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(body_expr));
-    SetNodeToIr(node, bvalue);
-  }
+  XLS_VLOG(5) << "FunctionConverter::HandleStatement; node: "
+              << node->ToString();
+  return absl::visit(Visitor{
+                         [&](Expr* e) -> absl::Status {
+                           XLS_RETURN_IF_ERROR(Visit(ToAstNode(e)));
+                           XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(e));
+                           SetNodeToIr(node, bvalue);
+                           return absl::OkStatus();
+                         },
+                         [&](TypeAlias* ta) -> absl::Status {
+                           // Nothing to do, all was resolved at type inference
+                           // time.
+                           return absl::OkStatus();
+                         },
+                         [&](Let* let) -> absl::Status {
+                           XLS_RETURN_IF_ERROR(Visit(ToAstNode(let)));
+                           XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(let));
+                           SetNodeToIr(node, bvalue);
+                           return absl::OkStatus();
+                         },
+                     },
+                     node->wrapped());
   return absl::OkStatus();
 }
 
