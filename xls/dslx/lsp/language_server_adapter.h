@@ -21,7 +21,6 @@
 
 #include "absl/status/statusor.h"
 #include "verible/common/lsp/lsp-protocol.h"
-#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -45,6 +44,11 @@ class LanguageServerAdapter {
 
   std::vector<verible::lsp::DocumentSymbol> GenerateDocumentSymbols(
       std::string_view uri) const;
+
+  // Note: the return type is slightly unintuitive, but the latest LSP protocol
+  // supports multiple defining locations for a single reference.
+  std::vector<verible::lsp::Location> FindDefinitions(
+      std::string_view uri, const verible::lsp::Position& position) const;
 
  private:
   const std::string stdlib_;

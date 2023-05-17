@@ -17,6 +17,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/lsp/document_symbols.h"
+#include "xls/dslx/lsp/find_definition.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_collector.h"
@@ -36,7 +37,7 @@ void AppendDiagnosticFromStatus(
   }
   const PositionalErrorData& err = *extracted_error_or;
   diagnostic_sink->push_back(
-      verible::lsp::Diagnostic{.range = ConvertSpanToRange(err.span),
+      verible::lsp::Diagnostic{.range = ConvertSpanToLspRange(err.span),
                                .source = "XLS",
                                .message = err.message});
 }
@@ -46,7 +47,7 @@ void AppendDiagnosticFromTypecheck(
     std::vector<verible::lsp::Diagnostic>* diagnostic_sink) {
   for (const WarningCollector::Entry& warning : module.warnings.warnings()) {
     diagnostic_sink->push_back(
-        verible::lsp::Diagnostic{.range = ConvertSpanToRange(warning.span),
+        verible::lsp::Diagnostic{.range = ConvertSpanToLspRange(warning.span),
                                  .source = "XLS",
                                  .message = warning.message});
   }
@@ -93,6 +94,25 @@ LanguageServerAdapter::GenerateDocumentSymbols(std::string_view uri) const {
   if (last_parse_result_.ok()) {
     XLS_CHECK(last_parse_result_->module != nullptr);
     return ToDocumentSymbols(*last_parse_result_->module);
+  }
+  return {};
+}
+
+std::vector<verible::lsp::Location> LanguageServerAdapter::FindDefinitions(
+    std::string_view uri, const verible::lsp::Position& position) const {
+  const Pos pos = ConvertLspPositionToPos(uri, position);
+  XLS_VLOG(1) << "FindDefinition; uri: " << uri << " pos: " << pos;
+  if (last_parse_result_.ok()) {
+    XLS_CHECK(last_parse_result_->module != nullptr);
+    const Module& m = *last_parse_result_->module;
+    std::optional<Span> maybe_definition_span =
+        xls::dslx::FindDefinition(m, pos);
+    if (maybe_definition_span.has_value()) {
+      verible::lsp::Location location =
+          ConvertSpanToLspLocation(maybe_definition_span.value());
+      location.uri = uri;
+      return {location};
+    }
   }
   return {};
 }

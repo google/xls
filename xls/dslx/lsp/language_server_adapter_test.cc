@@ -17,7 +17,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace xls::dslx {
@@ -33,6 +32,24 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
   std::vector<verible::lsp::DocumentSymbol> symbols =
       adapter.GenerateDocumentSymbols(kUri);
   ASSERT_EQ(symbols.size(), 1);
+}
+
+TEST(LanguageServerAdapterTest, TestFindDefinitions) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  constexpr std::string_view kUri = "unused-for-now";
+  adapter.Update(kUri, R"(fn f() { () }
+fn main() { f() })");
+  // Note: all of the line/column numbers are zero-based in the LSP protocol.
+  verible::lsp::Position position{1, 12};
+  std::vector<verible::lsp::Location> definition_locations =
+      adapter.FindDefinitions(kUri, position);
+  ASSERT_EQ(definition_locations.size(), 1);
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  EXPECT_EQ(definition_location.range.start.line, 0);
+  EXPECT_EQ(definition_location.range.start.character, 3);
+
+  EXPECT_EQ(definition_location.range.end.line, 0);
+  EXPECT_EQ(definition_location.range.end.character, 4);
 }
 
 }  // namespace

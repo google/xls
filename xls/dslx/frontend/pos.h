@@ -119,9 +119,17 @@ class Span {
     return absl::StrFormat("Span(%s, %s)", start().ToRepr(), limit().ToRepr());
   }
 
-  Span CloneWithLimit(Pos limit) const { return Span(start_, limit); }
+  Span CloneWithLimit(Pos limit) const {
+    return Span(start_, std::move(limit));
+  }
 
   bool empty() const { return start_ == limit_; }
+
+  // Returns true iff the given "pos" is contained within this span.
+  //
+  // (Note that spans have an exclusive limit position, so the limit position is
+  // not considered to be contained in the span.)
+  bool Contains(const Pos& pos) const { return start_ <= pos && pos < limit_; }
 
  private:
   Pos start_;

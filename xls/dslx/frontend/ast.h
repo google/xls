@@ -3292,15 +3292,12 @@ class Module : public AstNode {
     return fs_path_;
   }
 
-  const AstNode* FindNode(AstNodeKind kind, const Span& span) const {
-    for (const auto& node : nodes_) {
-      if (node->kind() == kind && node->GetSpan().has_value() &&
-          node->GetSpan().value() == span) {
-        return node.get();
-      }
-    }
-    return nullptr;
-  }
+  // Finds a node with the given kind and /exactly/ the same span as "target".
+  const AstNode* FindNode(AstNodeKind kind, const Span& target) const;
+
+  // Finds all the AST nodes in the module with spans that intercept the given
+  // "target" position.
+  std::vector<const AstNode*> FindIntercepting(const Pos& target) const;
 
  private:
   template <typename T, typename... Args>

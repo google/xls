@@ -741,6 +741,26 @@ Module::~Module() {
   XLS_VLOG(3) << "Destroying module \"" << name_ << "\" @ " << this;
 }
 
+const AstNode* Module::FindNode(AstNodeKind kind, const Span& target) const {
+  for (const auto& node : nodes_) {
+    if (node->kind() == kind && node->GetSpan().has_value() &&
+        node->GetSpan().value() == target) {
+      return node.get();
+    }
+  }
+  return nullptr;
+}
+
+std::vector<const AstNode*> Module::FindIntercepting(const Pos& target) const {
+  std::vector<const AstNode*> found;
+  for (const auto& node : nodes_) {
+    if (node->GetSpan().has_value() && node->GetSpan()->Contains(target)) {
+      found.push_back(node.get());
+    }
+  }
+  return found;
+}
+
 std::optional<Function*> Module::GetFunction(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<Function*>(member)) {

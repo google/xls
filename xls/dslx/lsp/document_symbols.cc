@@ -26,8 +26,8 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Function& f) {
   verible::lsp::DocumentSymbol ds = {
       .name = f.identifier(),
       .kind = verible::lsp::SymbolKind::kMethod,
-      .range = ConvertSpanToRange(f.span()),
-      .selectionRange = ConvertSpanToRange(f.name_def()->span()),
+      .range = ConvertSpanToLspRange(f.span()),
+      .selectionRange = ConvertSpanToLspRange(f.name_def()->span()),
   };
   return {std::move(ds)};
 }
@@ -37,8 +37,8 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(
   verible::lsp::DocumentSymbol ds = {
       .name = s.identifier(),
       .kind = verible::lsp::SymbolKind::kStruct,
-      .range = ConvertSpanToRange(s.span()),
-      .selectionRange = ConvertSpanToRange(s.name_def()->span()),
+      .range = ConvertSpanToLspRange(s.span()),
+      .selectionRange = ConvertSpanToLspRange(s.name_def()->span()),
   };
   return {std::move(ds)};
 }
@@ -47,8 +47,8 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const EnumDef& e) {
   verible::lsp::DocumentSymbol ds = {
       .name = e.identifier(),
       .kind = verible::lsp::SymbolKind::kEnum,
-      .range = ConvertSpanToRange(e.span()),
-      .selectionRange = ConvertSpanToRange(e.name_def()->span()),
+      .range = ConvertSpanToLspRange(e.span()),
+      .selectionRange = ConvertSpanToLspRange(e.name_def()->span()),
   };
   return {std::move(ds)};
 }
@@ -58,8 +58,8 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(
   verible::lsp::DocumentSymbol ds = {
       .name = c.identifier(),
       .kind = verible::lsp::SymbolKind::kConstant,
-      .range = ConvertSpanToRange(c.span()),
-      .selectionRange = ConvertSpanToRange(c.name_def()->span()),
+      .range = ConvertSpanToLspRange(c.span()),
+      .selectionRange = ConvertSpanToLspRange(c.name_def()->span()),
   };
   return {std::move(ds)};
 }

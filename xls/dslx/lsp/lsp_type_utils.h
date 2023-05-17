@@ -22,7 +22,18 @@
 
 namespace xls::dslx {
 
-verible::lsp::Range ConvertSpanToRange(const Span& span);
+verible::lsp::Range ConvertSpanToLspRange(const Span& span);
+verible::lsp::Location ConvertSpanToLspLocation(const Span& span);
+
+// Note: DSLX positions have filenames included in them, whereas LSP positions
+// do not -- we need the LSP adapter to handle filename resolution from URIs to
+// handle this in a uniform way, so we assume this will only be used in
+// single-file contexts for the moment and use an empty string for the filename.
+//
+// TODO(leary): 2023-05-16 Empty filename should be changed to real filenames
+// when we determine those in parsing.
+Pos ConvertLspPositionToPos(std::string_view file_uri,
+                            const verible::lsp::Position& position);
 
 }  // namespace xls::dslx
 
