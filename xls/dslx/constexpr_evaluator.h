@@ -128,13 +128,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
   // Interprets the given expression. Prior to calling this function, it's
   // necessary to determine that all expression components are constexpr.
-  // `bypass_env` is a set of NameDefs to skip when constructing the constexpr
-  // env. This is needed for `for` loop evaluation, in cases where a loop-scoped
-  // variable shadows the initial value. Constexpr env creation is string value
-  // indexed, so this is needed so we can "skip" loop-declared variables.
-  absl::Status InterpretExpr(
-      const Expr* expr,
-      const absl::flat_hash_set<const NameDef*>& bypass_env = {});
+  absl::Status InterpretExpr(const Expr* expr);
 
   ImportData* import_data_;
   TypeInfo* type_info_;
@@ -149,18 +143,9 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 //
 // `type_info` is required to look up the value of previously computed
 // constexprs.
-// `bypass_env` is a set of NameDefs to skip when constructing the constexpr
-// env. This is needed for `for` loop constexpr eval, in cases where a
-// loop-scoped variable shadows the initial value, to be able to resolve the
-// outer [constexpr] value.
-//
-// TODO(rspringer): 2022-05-29: `bypass_env` seems pretty nonintuitive and
-// fragile; could there be another way of ignoring for loop-declared NameDefs?
-// AIUI, they're the only reason this is needed.
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
-    const ParametricEnv& parametric_env,
-    const absl::flat_hash_set<const NameDef*>& bypass_env = {});
+    const ParametricEnv& parametric_env);
 
 }  // namespace xls::dslx
 
