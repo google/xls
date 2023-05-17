@@ -159,16 +159,15 @@ absl::Status RealMain() {
   dispatcher.AddRequestHandler(
       "textDocument/documentSymbol",
       [&](const verible::lsp::DocumentSymbolParams& params) {
-        return
-            language_server_adapter.GenerateDocumentSymbols(
-                params.textDocument.uri);
+        return language_server_adapter.GenerateDocumentSymbols(
+            params.textDocument.uri);
       });
 
   dispatcher.AddRequestHandler(
       "textDocument/definition",
       [&](const verible::lsp::DefinitionParams& params) {
         return language_server_adapter.FindDefinitions(params.textDocument.uri,
-                                                   params.position);
+                                                       params.position);
       });
 
   // Main loop. Feeding the stream-splitter that then calls the dispatcher.
