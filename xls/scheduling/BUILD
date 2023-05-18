@@ -263,6 +263,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
         "//xls/passes:literal_uncommoning_pass",
+        "//xls/passes:proc_inlining_pass",
         "//xls/passes:standard_pipeline",
     ],
 )
