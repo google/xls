@@ -22,102 +22,20 @@ fn lfsr<BIT_WIDTH: u32>(current_value: uN[BIT_WIDTH], tap_mask: uN[BIT_WIDTH]) -
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// A series of maximal LFSRs for different bit widths.
+// Here are a few maximal LFSRs for different bit widths.
 // These are only examples and it is possible to use different bit widths and
 // tap masks.
 // Source: https://en.wikipedia.org/wiki/Linear-feedback_shift_register
 ////////////////////////////////////////////////////////////////////////////////
 
-fn lfsr2(n: u2) -> u2 {
-	lfsr(n, u2:0b11)
-}
-
-fn lfsr3(n: u3) -> u3 {
-	lfsr(n, u3:0b110)
-}
-
-fn lfsr4(n: u4) -> u4 {
-	lfsr(n, u4:0b1100)
-}
-
-fn lfsr5(n: u5) -> u5 {
-	lfsr(n, u5:0b10100)
-}
-
-fn lfsr6(n: u6) -> u6 {
-	lfsr(n, u6:0b110000)
-}
-
+// 7-bit LFSR with the maximal period of 127
 fn lfsr7(n: u7) -> u7 {
 	lfsr(n, u7:0b1100000)
 }
 
+// 8-bit LFSR with the maximal period of 255
 fn lfsr8(n: u8) -> u8 {
 	lfsr(n, u8:0b10111000)
-}
-
-fn lfsr9(n: u9) -> u9 {
-	lfsr(n, u9:0b100010000)
-}
-
-fn lfsr10(n: u10) -> u10 {
-	lfsr(n, u10:0b1001000000)
-}
-
-fn lfsr11(n: u11) -> u11 {
-	lfsr(n, u11:0b10100000000)
-}
-
-fn lfsr12(n: u12) -> u12 {
-	lfsr(n, u12:0b111000001000)
-}
-
-fn lfsr13(n: u13) -> u13 {
-	lfsr(n, u13:0b1110010000000)
-}
-
-fn lfsr14(n: u14) -> u14 {
-	lfsr(n, u14:0b11100000000010)
-}
-
-fn lfsr15(n: u15) -> u15 {
-	lfsr(n, u15:0b110000000000000)
-}
-
-fn lfsr16(n: u16) -> u16 {
-	lfsr(n, u16:0b1101000000001000)
-}
-
-fn lfsr17(n: u17) -> u17 {
-	lfsr(n, u17:0b10010000000000000)
-}
-
-fn lfsr18(n: u18) -> u18 {
-	lfsr(n, u18:0b100000010000000000)
-}
-
-fn lfsr19(n: u19) -> u19 {
-	lfsr(n, u19:0b1110010000000000000)
-}
-
-fn lfsr20(n: u20) -> u20 {
-	lfsr(n, u20:0b10010000000000000000)
-}
-
-fn lfsr21(n: u21) -> u21 {
-	lfsr(n, u21:0b101000000000000000000)
-}
-
-fn lfsr22(n: u22) -> u22 {
-	lfsr(n, u22:0b1100000000000000000000)
-}
-
-fn lfsr23(n: u23) -> u23 {
-	lfsr(n, u23:0b10000100000000000000000)
-}
-
-fn lfsr24(n: u24) -> u24 {
-	lfsr(n, u24:0b111000010000000000000000)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
