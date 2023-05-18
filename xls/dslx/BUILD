@@ -411,6 +411,19 @@ cc_test(
 )
 
 cc_library(
+    name = "run_comparator",
+    srcs = ["run_comparator.cc"],
+    hdrs = ["run_comparator.h"],
+    deps = [
+        ":mangle",
+        ":run_routines",
+        "//xls/common:test_macros",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/jit:function_jit",
+    ],
+)
+
+cc_library(
     name = "run_routines",
     srcs = ["run_routines.cc"],
     hdrs = ["run_routines.h"],
@@ -424,18 +437,18 @@ cc_library(
         ":interp_value_helpers",
         ":mangle",
         ":parse_and_typecheck",
-        "//xls/common:test_macros",
         "//xls/dslx/bytecode:bytecode_cache",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:bindings",
+        "//xls/dslx/ir_convert:convert_options",
         "//xls/dslx/ir_convert:ir_converter",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:typecheck",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir",
-        "//xls/jit:function_jit",
+        "//xls/ir:events",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status",
@@ -451,13 +464,12 @@ cc_test(
     name = "run_routines_test",
     srcs = ["run_routines_test.cc"],
     deps = [
+        ":run_comparator",
         ":run_routines",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/ir:ir_parser",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/meta:type_traits",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
@@ -515,7 +527,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":command_line_utils",
-        ":error_printer",
+        ":run_comparator",
         ":run_routines",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",

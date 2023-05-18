@@ -25,63 +25,48 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "xls/common/test_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/ir_convert/ir_converter.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
-#include "xls/jit/function_jit.h"
 
 namespace xls::dslx {
 
-// Indicates whether the RunComparator should be comparing to the JIT's IR
-// execution or the IR interpreter's.
-enum class CompareMode {
-  kJit,
-  kInterpreter,
-};
-
-// Helper object that is used as a post-execution hook in the interpreter,
-// comparing interpreter results to results computed by the JIT to check that
-// they're equivalent.
-//
-// Implementation note: slightly simpler to keep in object form so we can
-// inspect cache state more easily than closing over it, e.g. for testing.
-class RunComparator {
+// Abstract API used for comparing DSLX-interpreter results to executed IR
+// results. This is a virtual API to help decouple from implementation details
+// like whether the JIT is available or only interpretation, or whether we
+// should perhaps compare against both.
+class AbstractRunComparator {
  public:
-  explicit RunComparator(CompareMode mode) : mode_(mode) {}
+  virtual ~AbstractRunComparator() = default;
 
-  // Runs a comparison of the interpreter-determined value against the
-  // JIT-determined value.
-  absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
-                             const Function* f,
-                             absl::Span<InterpValue const> args,
-                             const ParametricEnv* parametric_env,
-                             const InterpValue& got);
+  // Runs a comparison of the DSLX_interpreter-determined value against the
+  // otherwise-determined value (e.g. IR interpreter or IR JIT).
+  virtual absl::Status RunComparison(Package* ir_package,
+                                     bool requires_implicit_token,
+                                     const Function* f,
+                                     absl::Span<InterpValue const> args,
+                                     const ParametricEnv* parametric_env,
+                                     const InterpValue& got) = 0;
 
-  // Returns the cached or newly-compiled jit function for ir_name.  ir_name has
-  // already been mangled (see MangleDslxName) so it should be unique in the
-  // program and is used as the cache key.
+  // Helper for abstracting over the running of IR functions. i.e. we implement
+  // this in subclasses to either execute JIT'd computations or interpreted
+  // ones.
   //
-  // Note: There is no locking in jit compilation or on the jit function cache
-  // so this function is *not* thread-safe.
-  absl::StatusOr<FunctionJit*> GetOrCompileJitFunction(
-      std::string ir_name, xls::Function* ir_function);
-
- private:
-  XLS_FRIEND_TEST(RunRoutinesTest, TestInvokedFunctionDoesJit);
-  XLS_FRIEND_TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit);
-  XLS_FRIEND_TEST(RunRoutinesTest, NoSeedStillQuickChecks);
-
-  absl::flat_hash_map<std::string, std::unique_ptr<FunctionJit>> jit_cache_;
-  CompareMode mode_;
+  // Args:
+  //  ir_name: Already-mangled DSLX name.
+  //  ir_function: Corresponding IR function.
+  //  ir_args: Arguments to invoke the IR function with.
+  virtual absl::StatusOr<InterpreterResult<xls::Value>> RunIrFunction(
+      std::string_view ir_name, xls::Function* ir_function,
+      absl::Span<const xls::Value> ir_args) = 0;
 };
 
 // Optional arguments to ParseAndTest (that have sensible defaults).
@@ -99,7 +84,7 @@ struct ParseAndTestOptions {
   absl::Span<const std::filesystem::path> dslx_paths = {};
   std::optional<std::string_view> test_filter = std::nullopt;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
-  RunComparator* run_comparator = nullptr;
+  AbstractRunComparator* run_comparator = nullptr;
   bool execute = true;
   std::optional<int64_t> seed = std::nullopt;
   ConvertOptions convert_options;
@@ -142,10 +127,9 @@ struct QuickCheckResults {
 // xls_function is a predicate we're trying to find evidence to falsify, so if
 // this finds an example that falsifies the predicate, we early-return (i.e. the
 // length of the returned vectors may be < 1000).
-absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
-                                               std::string ir_name,
-                                               RunComparator* run_comparator,
-                                               int64_t seed, int64_t num_tests);
+absl::StatusOr<QuickCheckResults> DoQuickCheck(
+    xls::Function* xls_function, std::string_view ir_name,
+    AbstractRunComparator* run_comparator, int64_t seed, int64_t num_tests);
 
 }  // namespace xls::dslx
 

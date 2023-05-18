@@ -30,6 +30,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/run_comparator.h"
 #include "xls/dslx/run_routines.h"
 
 // LINT.IfChange
@@ -73,7 +74,7 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 
 absl::Status RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      std::optional<std::string> test_filter,
+                      const std::optional<std::string>& test_filter,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
@@ -81,22 +82,25 @@ absl::Status RealMain(std::string_view entry_module_path,
                       bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
-  std::optional<RunComparator> run_comparator;
+
+  std::unique_ptr<AbstractRunComparator> run_comparator;
   switch (compare_flag) {
     case CompareFlag::kNone:
       break;
     case CompareFlag::kJit:
-      run_comparator.emplace(CompareMode::kJit);
+      run_comparator = std::make_unique<RunComparator>(CompareMode::kJit);
       break;
     case CompareFlag::kInterpreter:
-      run_comparator.emplace(CompareMode::kInterpreter);
+      run_comparator =
+          std::make_unique<RunComparator>(CompareMode::kInterpreter);
       break;
   }
+
   ParseAndTestOptions options = {
       .dslx_paths = dslx_paths,
       .test_filter = test_filter,
       .trace_format_preference = trace_format_preference,
-      .run_comparator = run_comparator ? &run_comparator.value() : nullptr,
+      .run_comparator = run_comparator.get(),
       .execute = execute,
       .seed = seed,
       .warnings_as_errors = warnings_as_errors,
