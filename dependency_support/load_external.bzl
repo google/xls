@@ -274,3 +274,22 @@ def load_external_repositories():
         strip_prefix = "bazel-compilation-database-940cedacdb8a1acbce42093bf67f3a5ca8b265f7",
         urls = ["https://github.com/grailbio/bazel-compilation-database/archive/940cedacdb8a1acbce42093bf67f3a5ca8b265f7.tar.gz"],
     )
+
+    # 2023-03-17
+    http_archive(
+        name = "verible",
+        strip_prefix = "verible-2f16e8418e1b452d4f301a95f8af307079dd8e05",
+        urls = ["https://github.com/chipsalliance/verible/archive/2f16e8418e1b452d4f301a95f8af307079dd8e05.tar.gz"],
+        patches = ["@com_google_xls//dependency_support/verible:visibility.patch"],
+    )
+
+    # Same as Verible as of 2023-05-18
+    http_archive(
+        name = "jsonhpp",
+        build_file = "@verible//bazel:jsonhpp.BUILD",
+        sha256 = "081ed0f9f89805c2d96335c3acfa993b39a0a5b4b4cef7edb68dd2210a13458c",
+        strip_prefix = "json-3.10.2",
+        urls = [
+            "https://github.com/nlohmann/json/archive/refs/tags/v3.10.2.tar.gz",
+        ],
+    )

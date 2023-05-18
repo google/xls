@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "verible/common/lsp/lsp-protocol.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {

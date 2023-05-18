@@ -1,0 +1,96 @@
+# Copyright 2023 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package(
+    default_applicable_licenses = ["//:license"],
+    default_visibility = ["//xls:xls_internal"],
+    licenses = ["notice"],  # Apache 2.0
+)
+
+cc_library(
+    name = "lsp_type_utils",
+    srcs = ["lsp_type_utils.cc"],
+    hdrs = ["lsp_type_utils.h"],
+    deps = [
+        "//xls/dslx/frontend:pos",
+        "@verible//common/lsp:lsp-protocol",
+    ],
+)
+
+cc_library(
+    name = "find_definition",
+    srcs = ["find_definition.cc"],
+    hdrs = ["find_definition.h"],
+    deps = [
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
+    ],
+)
+
+cc_library(
+    name = "language_server_adapter",
+    srcs = ["language_server_adapter.cc"],
+    hdrs = ["language_server_adapter.h"],
+    deps = [
+        ":document_symbols",
+        ":find_definition",
+        ":lsp_type_utils",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_collector",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:bindings",
+        "@verible//common/lsp:lsp-protocol",
+    ],
+)
+
+cc_test(
+    name = "language_server_adapter_test",
+    srcs = ["language_server_adapter_test.cc"],
+    deps = [
+        ":language_server_adapter",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_binary(
+    name = "dslx_ls",
+    srcs = ["dslx_ls.cc"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":language_server_adapter",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/time",
+        "//xls/common:init_xls",
+        "@verible//common/lsp:json-rpc-dispatcher",
+        "@verible//common/lsp:lsp-protocol",
+        "@verible//common/lsp:lsp-text-buffer",
+        "@verible//common/lsp:message-stream-splitter",
+    ],
+)
+
+cc_library(
+    name = "document_symbols",
+    srcs = ["document_symbols.cc"],
+    hdrs = ["document_symbols.h"],
+    deps = [
+        ":lsp_type_utils",
+        "//xls/common:visitor",
+        "//xls/dslx/frontend:ast",
+        "@verible//common/lsp:lsp-protocol",
+        "@verible//common/lsp:lsp-protocol-enums",
+    ],
+)

@@ -29,10 +29,10 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
-#include "verible/common/lsp/json-rpc-dispatcher.h"
-#include "verible/common/lsp/lsp-protocol.h"
-#include "verible/common/lsp/lsp-text-buffer.h"
-#include "verible/common/lsp/message-stream-splitter.h"
+#include "external/verible/common/lsp/json-rpc-dispatcher.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
+#include "external/verible/common/lsp/lsp-text-buffer.h"
+#include "external/verible/common/lsp/message-stream-splitter.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/lsp/language_server_adapter.h"
 

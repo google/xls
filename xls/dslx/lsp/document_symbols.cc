@@ -14,7 +14,7 @@
 
 #include "xls/dslx/lsp/document_symbols.h"
 
-#include "verible/common/lsp/lsp-protocol-enums.h"
+#include "external/verible/common/lsp/lsp-protocol-enums.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
