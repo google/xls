@@ -163,9 +163,6 @@ xls_dslx_library(
 xls_dslx_test(
     name = "fir_filter_dslx_test",
     srcs = ["fir_filter.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
     deps = [":fir_filter_dslx"],
 )
 
@@ -174,9 +171,6 @@ xls_dslx_test(
     srcs = ["matmul_4x4.x"],
     # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
     # Needs support for arrays of channels.
-    dslx_test_args = {
-        "compare": "none",
-    },
     deps = [
         "//xls/modules/fp:fp32_mul_2",
     ],
@@ -454,9 +448,6 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "ram_test",
-    dslx_test_args = {
-        "compare": "none",
-    },
     library = ":ram_dslx",
 )
 
@@ -468,9 +459,6 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "delay_test",
-    dslx_test_args = {
-        "compare": "none",
-    },
     library = ":delay_dslx",
 )
 

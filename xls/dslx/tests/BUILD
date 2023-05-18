@@ -237,17 +237,11 @@ dslx_lang_test(name = "array_update")
 xls_dslx_test(
     name = "parametric_array_of_tuples_dslx_test",
     srcs = ["parametric_array_of_tuples.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 xls_dslx_test(
     name = "parametric_functions_dslx_test",
     srcs = ["parametric_functions.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(
@@ -268,9 +262,6 @@ dslx_lang_test(
 xls_dslx_test(
     name = "bit_slice_dslx_test",
     srcs = ["bit_slice.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(name = "bit_slice_update")
@@ -281,18 +272,12 @@ dslx_lang_test(name = "const_slice_limit")
 xls_dslx_test(
     name = "bit_slice_syntax_dslx_test",
     srcs = ["bit_slice_syntax.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
     name = "tuple_indexing_dslx_test",
     srcs = ["tuple_indexing.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(name = "clz")
@@ -303,18 +288,12 @@ dslx_lang_test(name = "ctz")
 xls_dslx_test(
     name = "one_hot_dslx_test",
     srcs = ["one_hot.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
     name = "one_hot_sel",
     srcs = ["one_hot_sel.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
@@ -331,18 +310,12 @@ dslx_lang_test(name = "signed_number_type")
 xls_dslx_test(
     name = "numerical_conversions_dslx_test",
     srcs = ["numerical_conversions.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
     name = "numerical_conversions2_dslx_test",
     srcs = ["numerical_conversions2.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(
@@ -359,44 +332,29 @@ xls_dslx_test(
 xls_dslx_test(
     name = "enum_values_dslx_test",
     srcs = ["enum_values.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
 xls_dslx_test(
     name = "casts_dslx_test",
     srcs = ["casts.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # TODO(leary); 2019-10-24 Enable when we have ConcatArray op.
 xls_dslx_test(
     name = "cast_to_array_dslx_test",
     srcs = ["cast_to_array.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 xls_dslx_test(
     name = "parametric_with_comparison_dslx_test",
     srcs = ["parametric_with_comparison.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
     name = "parametric_smul_dslx_test",
     srcs = ["parametric_smul.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 # Note: no meaningful function to convert.
@@ -415,9 +373,6 @@ dslx_lang_test(name = "basic_struct_attr")
 xls_dslx_test(
     name = "struct_equality_dslx_test",
     srcs = ["struct_equality.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(name = "basic_struct_update")
@@ -813,9 +768,6 @@ dslx_lang_test(name = "for_up_to_constexpr_cast")
 xls_dslx_test(
     name = "bits_concat_dslx_test",
     srcs = ["bits_concat.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(name = "local_const_value_in_parametric_match")

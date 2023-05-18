@@ -318,8 +318,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
   if (options.run_comparator != nullptr) {
     absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
         ConvertModuleToPackage(entry_module, &import_data,
-                               options.convert_options,
-                               /*traverse_tests=*/true);
+                               options.convert_options);
     if (!ir_package_or.ok()) {
       if (TryPrintError(ir_package_or.status())) {
         return TestResult::kSomeFailed;
