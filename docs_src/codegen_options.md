@@ -64,10 +64,26 @@ control the scheduler.
     and itself; i.e.: this means all *different* pairs of nodes sending on `foo`
     must be in cycles that differ by between 3 and 5. If the special
     minimum/maximum value `none` is used, then the minimum latency will be the
-    lowest representable `int64_t`, and likewise for maximum latency.
-    For an example of the use of this, see
-    [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x)
-    and the associated BUILD rule.
+    lowest representable `int64_t`, and likewise for maximum latency. For an
+    example of the use of this, see
+    [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
+    the associated BUILD rule.
+-   `--multiple_channel_ops_legalization_strictness=...` sets the strictness
+    with which multiple channel operations on the same channel are legalized.
+    The options are :
+    1.  `proven_mutually_exclusive` (default): Requires that channel operations
+        be formally proven mutually exclusive by Z3.
+    2.  `runtime_mutually_exclusive`: Requires that channel operations be
+        mutually exclusive- enforced during simulation via assertions.
+    3.  `total_order`: For each proc, requires a total order on all operations
+        on a channel. Note: operations from different procs will not be ordered
+        with respect to each other.
+    4.  `runtime_ordered`: Requires that a total order exists on every subset of
+        channel operations that fires at runtime. Adds assertions.
+    5.  `arbitrary_static_order`: For each proc, an arbitrary (respecting
+        existing token relationships) static priority is chosen for multiple
+        channel operations. Operations coming from different procs must be
+        mutually exclusive (enforced via assertions).
 
 # Naming
 

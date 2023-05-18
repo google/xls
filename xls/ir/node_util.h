@@ -17,6 +17,7 @@
 #ifndef XLS_IR_NODE_UTIL_H_
 #define XLS_IR_NODE_UTIL_H_
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -144,7 +145,27 @@ bool IsChannelNode(Node* node);
 // send/sendif/receive/receiveif node then an error is returned.
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node);
 
-// Compares the ID of two nodes. Can be used for determistics sorting of Nodes.
+// Replace the channel that node is operating on. If node is not a
+// send/sendif/receive/receiveif node then an error is returned.
+absl::Status ReplaceChannelUsedByNode(Node* node, int64_t new_channel_id);
+
+// Returns the predicate used by the given node. If node is not a
+// send/sendif/receive/receiveif node then an error is returned.
+absl::StatusOr<std::optional<Node*>> GetPredicateUsedByNode(Node* node);
+
+// For a tuple-typed `node`, replace the tuple elements with new values from the
+// `replacements` map. This will fail if a value in `replacements` depends on
+// `node`.
+absl::StatusOr<Node*> ReplaceTupleElementsWith(
+    Node* node, const absl::flat_hash_map<int64_t, Node*>& replacements);
+
+// For a tuple-typed `node`, replace the tuple element at `index` with
+// `replacement_element`. This will fail if replacement_element depends on
+// `node`.
+absl::StatusOr<Node*> ReplaceTupleElementsWith(Node* node, int64_t index,
+                                               Node* replacement_element);
+
+// Compares the ID of two nodes. Can be used for deterministic sorting of Nodes.
 inline bool NodeIdLessThan(const Node* a, const Node* b) {
   return a->id() < b->id();
 }

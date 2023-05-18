@@ -1,0 +1,13 @@
+fn ReplaceTupleIndicesWorksWithFunction(in: (bits[8], bits[16], bits[32])) -> bits[32] {
+  literal.9: bits[8] = literal(value=0, id=9)
+  tuple_index.15: bits[16] = tuple_index(in, index=1, id=15)
+  literal.10: bits[32] = literal(value=1, id=10)
+  tuple.14: (bits[8], bits[16], bits[32]) = tuple(literal.9, tuple_index.15, literal.10, id=14)
+  tuple_index.2: bits[8] = tuple_index(tuple.14, index=0, id=2)
+  tuple_index.4: bits[16] = tuple_index(tuple.14, index=1, id=4)
+  sign_ext.3: bits[32] = sign_ext(tuple_index.2, new_bit_count=32, id=3)
+  sign_ext.5: bits[32] = sign_ext(tuple_index.4, new_bit_count=32, id=5)
+  add.7: bits[32] = add(sign_ext.3, sign_ext.5, id=7)
+  tuple_index.6: bits[32] = tuple_index(tuple.14, index=2, id=6)
+  ret add.8: bits[32] = add(add.7, tuple_index.6, id=8)
+}

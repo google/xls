@@ -52,7 +52,13 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f);
 struct NodeAndPredecessors {
   Node* node;
   absl::flat_hash_set<Node*> predecessors;
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const NodeAndPredecessors& p) {
+    absl::Format(&sink, "%v: [%s]", *p.node,
+                 absl::StrJoin(p.predecessors, ", "));
+  }
 };
+
 
 // Returns a predecessor-list representation of the token graph connecting
 // side-effecting operations in the given `proc`. The returns nodes will be in a

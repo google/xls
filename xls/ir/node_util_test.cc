@@ -15,15 +15,17 @@
 #include "xls/ir/node_util.h"
 
 #include <memory>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -79,6 +81,12 @@ class NodeUtilTest : public IrTestBase {
     XLS_RET_CHECK(IsLiteralWithRunOfSetBits(
         n, &leading_zero_count, &set_bit_count, &trailing_zero_count));
     return Result{leading_zero_count, set_bit_count, trailing_zero_count};
+  }
+
+  void ExpectIr(std::string_view got, std::string_view test_name) {
+    ExpectEqualToGoldenFile(
+        absl::StrFormat("xls/ir/testdata/node_util_test_%s.ir", test_name),
+        got);
   }
 };
 
@@ -216,6 +224,79 @@ TEST_F(NodeUtilTest, ChannelNodes) {
   EXPECT_THAT(GetChannelUsedByNode(proc->GetStateParam(0)),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("No channel associated with node")));
+}
+
+TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithFunction) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue in = b.Param("in", p.GetTupleType({p.GetBitsType(8), p.GetBitsType(16),
+                                            p.GetBitsType(32)}));
+  BValue arg0 = b.SignExtend(b.TupleIndex(in, 0), 32);
+  BValue arg1 = b.SignExtend(b.TupleIndex(in, 1), 32);
+  BValue arg2 = b.TupleIndex(in, 2);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, b.BuildWithReturnValue(b.Add(b.Add(arg0, arg1), arg2)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * in_param, f->GetParamByName("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * lit0, f->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 8))));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * lit1, f->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 32))));
+  XLS_EXPECT_OK(ReplaceTupleElementsWith(in_param, {{0, lit0}, {2, lit1}}));
+
+  ExpectIr(f->DumpIr(), TestName());
+}
+
+TEST_F(NodeUtilTest, ReplaceTupleIndicesWorksWithToken) {
+  Package p("my_package");
+  ProcBuilder b(TestName(), "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch0, p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
+                                              p.GetBitsType(32)));
+
+  BValue receive = b.Receive(ch0, b.GetTokenParam(), SourceInfo(), "receive");
+  BValue rcv_token = b.TupleIndex(receive, 0);
+  BValue rcv_data = b.TupleIndex(receive, 1);
+  BValue send = b.Send(ch1, rcv_token, rcv_data);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node* receive_node, proc->GetNode("receive"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * lit0,
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 32))));
+  // Replace the receive (which is used by the send) with a literal and the
+  // token parameter. Note that this example won't verify because we remove the
+  // receive from the token chain of the next token. To make something that
+  // works, we'd need to make an after_all and add the receive's output token to
+  // it after calling ReplaceTupleElementsWith().
+  XLS_EXPECT_OK(ReplaceTupleElementsWith(receive_node,
+                                         {{0, proc->TokenParam()}, {1, lit0}}));
+
+  ExpectIr(proc->DumpIr(), TestName());
+}
+
+TEST_F(NodeUtilTest, ReplaceTupleIndicesFailsWithDependentReplacement) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue in =
+      b.Param("in", p.GetTupleType({p.GetBitsType(8), p.GetBitsType(32)}));
+  BValue lhs =
+      b.SignExtend(b.TupleIndex(in, 0), 32, SourceInfo(), /*name=*/"lhs");
+  BValue rhs = b.TupleIndex(in, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           b.BuildWithReturnValue(b.Add(lhs, rhs)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Node * in_param, f->GetParamByName("in"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Literal * lit0, f->MakeNode<Literal>(SourceInfo(), Value(UBits(0, 8))));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * lhs_node, f->GetNode("lhs"));
+  EXPECT_THAT(ReplaceTupleElementsWith(in_param, {{0, lit0}, {1, lhs_node}}),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Replacement index 1 (lhs) depends on")));
 }
 
 }  // namespace

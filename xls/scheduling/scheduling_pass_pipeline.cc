@@ -17,13 +17,17 @@
 
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
+#include <memory>
+
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/standard_pipeline.h"
+#include "xls/scheduling/channel_legalization_pass.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 #include "xls/scheduling/proc_clumping_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
+#include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_wrapper_pass.h"
 
 namespace xls {
@@ -41,6 +45,9 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  top->Add<ChannelLegalizationPass>();
+  top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  top->Add<PipelineSchedulingPass>();
 
   return top;
 }
