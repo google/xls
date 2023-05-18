@@ -281,6 +281,30 @@ fn find_index_test() {
   ()
 }
 
+// Returns the length of an array of unsigned values
+pub fn array_length_unsigned<BITS: u32, ELEMS: u32>(array: uN[BITS][ELEMS]) -> u32 {
+  ELEMS
+}
+
+#[test]
+fn array_length_unsigned_test() {
+  let _ = assert_eq(u32:0, array_length_unsigned(u8[0]:[]));
+  let _ = assert_eq(u32:1, array_length_unsigned(u16[1]:[u16:0]));
+  let _ = assert_eq(u32:999, array_length_unsigned(u32[999]:[u32:0, ...]));
+}
+
+// Returns the length of an array of signed values
+pub fn array_length_signed<BITS: u32, ELEMS: u32>(array: sN[BITS][ELEMS]) -> u32 {
+  ELEMS
+}
+
+#[test]
+fn array_length_signed_test() {
+  let _ = assert_eq(u32:0, array_length_signed(s8[0]:[]));
+  let _ = assert_eq(u32:1, array_length_signed(s16[1]:[s16:0]));
+  let _ = assert_eq(u32:999, array_length_signed(s32[999]:[s32:0, ...]));
+}
+
 // Concatenates 3 values of arbitrary bitwidths to a single value.
 pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = {X + Y + Z}>(
     x: bits[X], y: bits[Y], z: bits[Z]) -> bits[R] {
