@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Linear-feedback shift register (LFSR)
-// A template function to compute the next value of an LFSR counter.
+// A parametric function to compute the next value of an LFSR counter.
 // Taps can be specified to have varying periods for a given number of bits.
 //
 // For example, lfsr(u5:4, u5:0b10100) computes the value that comes after 4
@@ -18,11 +18,13 @@ fn lfsr<BIT_WIDTH: u32>(current_value: uN[BIT_WIDTH], tap_mask: uN[BIT_WIDTH]) -
 	} (u1:0);
 
 	// Kick the high bit and insert the new bit
-	current_value[0:{(BIT_WIDTH - u32:1) as s32}] ++ new_bit
+	current_value[u32:0 +: uN[BIT_WIDTH - u32:1]] ++ new_bit
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // A series of maximal LFSRs for different bit widths.
+// These are only examples and it is possible to use different bit widths and
+// tap masks.
 // Source: https://en.wikipedia.org/wiki/Linear-feedback_shift_register
 ////////////////////////////////////////////////////////////////////////////////
 
