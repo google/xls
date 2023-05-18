@@ -67,6 +67,11 @@ cc_library(
 )
 
 cc_library(
+    name = "foreign_function",
+    hdrs = ["foreign_function.h"],
+)
+
+cc_library(
     name = "caret",
     srcs = ["caret.cc"],
     hdrs = ["caret.h"],
@@ -293,6 +298,7 @@ cc_library(
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
+        ":foreign_function",
         ":format_strings",
         ":ir_scanner",
         ":name_uniquer",

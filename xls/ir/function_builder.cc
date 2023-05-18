@@ -80,6 +80,11 @@ BValue BuilderBase::CreateBValue(Node* node, const SourceInfo& loc) {
   return BValue(last_node_, this);
 }
 
+void BuilderBase::SetForeignFunctionData(
+    const std::optional<ForeignFunctionData>& ff) {
+  function_->SetForeignFunctionData(ff);
+}
+
 template <typename NodeT, typename... Args>
 BValue BuilderBase::AddNode(const SourceInfo& loc, Args&&... args) {
   last_node_ = function_->AddNode<NodeT>(std::make_unique<NodeT>(

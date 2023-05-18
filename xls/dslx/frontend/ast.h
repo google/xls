@@ -49,6 +49,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -1555,10 +1556,12 @@ class Function : public AstNode {
   }
 
   void set_extern_verilog_module_name(std::string module_name) {
-    extern_verilog_module_name_ = std::move(module_name);
+    extern_verilog_module_ =
+        xls::ForeignFunctionData{.name = std::move(module_name)};
   }
-  const std::optional<std::string>& extern_verilog_module_name() const {
-    return extern_verilog_module_name_;
+  const std::optional<::xls::ForeignFunctionData>& extern_verilog_module()
+      const {
+    return extern_verilog_module_;
   }
 
   Tag tag() const { return tag_; }
@@ -1576,7 +1579,7 @@ class Function : public AstNode {
   std::optional<Proc*> proc_;
 
   const bool is_public_;
-  std::optional<std::string> extern_verilog_module_name_;
+  std::optional<::xls::ForeignFunctionData> extern_verilog_module_;
 };
 
 // Represents a parsed 'process' specification in the DSL.

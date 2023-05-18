@@ -53,7 +53,8 @@ absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
       MangleDslxName(dslx_function->owner()->name(),
                      dslx_function->identifier(), CallingConvention::kTypical,
                      /*free_keys=*/{}, /*parametric_env=*/nullptr));
-  FunctionBuilder fb(mangled_name, implicit_token_f->package());
+  FunctionBuilder fb(mangled_name, implicit_token_f->package(), true);
+  fb.SetForeignFunctionData(dslx_function->extern_verilog_module());
   // Entry is a top entity.
   if (is_top) {
     XLS_RETURN_IF_ERROR(fb.SetAsTop());
@@ -1901,7 +1902,10 @@ absl::Status FunctionConverter::HandleFunction(
                      requires_implicit_token ? CallingConvention::kImplicitToken
                                              : CallingConvention::kTypical,
                      node->GetFreeParametricKeySet(), parametric_env));
-  auto builder = std::make_unique<FunctionBuilder>(mangled_name, package());
+  auto builder =
+      std::make_unique<FunctionBuilder>(mangled_name, package(), true);
+  builder->SetForeignFunctionData(node->extern_verilog_module());
+
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
   // Function is a top entity.

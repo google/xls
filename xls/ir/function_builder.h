@@ -122,6 +122,10 @@ class BuilderBase {
   // Set function as top to package.
   absl::Status SetAsTop();
 
+  // Set information about foreign function if the underlying function is
+  // a foreign function.
+  void SetForeignFunctionData(const std::optional<ForeignFunctionData>& ff);
+
   // Get access to currently built up function (or proc).
   FunctionBase* function() const { return function_.get(); }
 

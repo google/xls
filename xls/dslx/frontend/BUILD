@@ -308,6 +308,7 @@ cc_library(
         "//xls/dslx:channel_direction",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
         "//xls/ir:number_parser",
     ],

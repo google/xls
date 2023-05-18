@@ -16,6 +16,7 @@
 #define XLS_IR_FUNCTION_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -80,9 +81,7 @@ class Function : public FunctionBase {
   // conservative and false may be returned for some "equivalent" functions.
   bool IsDefinitelyEqualTo(const Function* other) const;
 
-  bool HasImplicitUse(Node* node) const override {
-    return node == return_value();
-  }
+  bool HasImplicitUse(Node* node) const final { return node == return_value(); }
 
  private:
   Node* return_value_ = nullptr;
