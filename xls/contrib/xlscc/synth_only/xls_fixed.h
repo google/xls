@@ -15,8 +15,9 @@
 #ifndef XLS_FIXED_H
 #define XLS_FIXED_H
 
-#include "xls_int.h"
 #include <algorithm>
+
+#include "xls_int.h"
 
 #define __AC_NAMESPACE ac_datatypes
 #include "include/ac_fixed.h"
@@ -79,11 +80,61 @@ class MaxValue<Width, false> {
 }  // namespace
 
 template <int W, int I, bool S, int FromW, int FromI, bool FromSigned,
+          ac_datatypes::ac_q_mode q_mode = ac_datatypes::AC_TRN,
+          ac_datatypes::ac_o_mode o_mode = ac_datatypes::AC_WRAP>
+class Quantize {
+ public:
+  inline static XlsInt<FromW, false> Adjust(
+      __xls_bits<FromW> in, XlsInt<FromW, FromSigned> input_val) {
+    constexpr int F = W - I;
+    constexpr int F2 = FromW - FromI;
+    auto res = XlsInt<FromW, false>(in);
+    if constexpr (q_mode != ac_datatypes::AC_TRN &&
+                  !(q_mode == ac_datatypes::AC_TRN_ZERO && !FromSigned)) {
+      bool qb =
+          (F2 - F > FromW) ? (input_val < 0) : (bool)input_val[F2 - F - 1];
+      auto zero = XlsInt<F2 - F - 1>(0);
+      XlsInt<F2 - F - 1, FromSigned> deleted_bits(0);
+#pragma hls_unroll yes
+      for (int i = 0; i < F2 - F - 1; ++i) {
+        deleted_bits[i] = input_val[i];
+      }
+      bool rounded;
+      if (F2 > F + 1) {
+        rounded = (zero != deleted_bits);
+      } else {
+        rounded = false;
+      }
+      bool s = FromSigned && input_val < 0;
+      if constexpr (q_mode == ac_datatypes::AC_RND_ZERO) {
+        qb &= s || rounded;
+      } else if constexpr (q_mode == ac_datatypes::AC_RND_MIN_INF) {
+        qb &= rounded;
+      } else if constexpr (q_mode == ac_datatypes::AC_RND_INF) {
+        qb &= !s || rounded;
+      } else if constexpr (q_mode == ac_datatypes::AC_RND_CONV) {
+        qb &= (input_val & 1) || rounded;
+      } else if constexpr (q_mode == ac_datatypes::AC_RND_CONV_ODD) {
+        qb &= (!(input_val & 1)) || rounded;
+      } else if constexpr (q_mode == ac_datatypes::AC_TRN_ZERO) {
+        qb = s && (qb || rounded);
+      }
+      if (qb) {
+        res++;
+      }
+    }
+    return res;
+  }
+};
+
+template <int W, int I, bool S, int FromW, int FromI, bool FromSigned,
+          ac_datatypes::ac_q_mode q_mode = ac_datatypes::AC_TRN,
           ac_datatypes::ac_o_mode o_mode = ac_datatypes::AC_WRAP>
 class Adjustment {
  public:
   inline static __xls_bits<W> Adjust(__xls_bits<FromW> in) {
-    auto input_val = XlsInt<FromW, FromSigned>(in);
+    const XlsInt<FromW, FromSigned> input_val(in);
+
     constexpr int shift = (W - I) - (FromW - FromI);
     constexpr int shift_log = 32;  // Log2Ceil<shift>;
     if constexpr (shift == 0) {
@@ -129,14 +180,25 @@ class Adjustment {
     } else {
       auto offset = BuiltinIntToBits<int, shift_log>::Convert(-shift);
       if constexpr (W == FromW) {
-        return ShiftRightWithSign<W, S, shift_log>::Operate(in, offset);
+        auto shifted = ShiftRightWithSign<W, S, shift_log>::Operate(in, offset);
+        auto res =
+            Quantize<W, I, S, FromW, FromI, FromSigned, q_mode, o_mode>::Adjust(
+                shifted, input_val);
+        return res.storage;
       } else if constexpr (W > FromW) {
-        auto extended = ExtendBits<FromW, W, S>::Convert(in);
-        return ShiftRightWithSign<W, S, shift_log>::Operate(extended, offset);
+        auto shifted =
+            ShiftRightWithSign<FromW, S, shift_log>::Operate(in, offset);
+        auto res =
+            Quantize<W, I, S, FromW, FromI, FromSigned, q_mode, o_mode>::Adjust(
+                shifted, input_val);
+        return ExtendBits<FromW, W, S>::Convert(res.storage);
       } else {
         auto shifted =
             ShiftRightWithSign<FromW, S, shift_log>::Operate(in, offset);
-        return SliceBits<FromW, W>::Convert(shifted);
+        auto res =
+            Quantize<W, I, S, FromW, FromI, FromSigned, q_mode, o_mode>::Adjust(
+                shifted, input_val);
+        return SliceBits<FromW, W>::Convert(res.storage);
       }
     }
   }
@@ -147,9 +209,6 @@ template <int Width, int IntegerWidth, bool Signed,
           ac_datatypes::ac_q_mode Quantization = ac_datatypes::AC_TRN,
           ac_datatypes::ac_o_mode Overflow = ac_datatypes::AC_WRAP>
 class XlsFixed {
-  static_assert(Quantization == ac_datatypes::AC_TRN,
-                "AC_TRN is the only currently supported quantization mode");
-
  public:
   // XLS[cc] will initialize to 0
   inline XlsFixed() {}
@@ -158,56 +217,70 @@ class XlsFixed {
   inline XlsFixed(const XlsInt<FromW, FromSign> &o)
       : val(XlsInt<Width, Signed>(
             Adjustment<Width, IntegerWidth, Signed, FromW, FromW, FromSign,
-                       Overflow>::Adjust(o.storage))) {}
+                       Quantization, Overflow>::Adjust(o.storage))) {}
 
   inline XlsFixed(const BitElemRef &value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 1, 1, false, Overflow>::
-                Adjust(BuiltinIntToBits<bool, 1>::Convert(value)))) {}
+            Adjustment<
+                Width, IntegerWidth, Signed, 1, 1, false, Quantization,
+                Overflow>::Adjust(BuiltinIntToBits<bool, 1>::Convert(value)))) {
+  }
 
   inline XlsFixed(bool value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 1, 1, false, Overflow>::
-                Adjust(BuiltinIntToBits<bool, 1>::Convert(value)))) {}
+            Adjustment<
+                Width, IntegerWidth, Signed, 1, 1, false, Quantization,
+                Overflow>::Adjust(BuiltinIntToBits<bool, 1>::Convert(value)))) {
+  }
 
   inline XlsFixed(char value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 8, 8, true, Overflow>::
-                Adjust(BuiltinIntToBits<char, 8>::Convert(value)))) {}
+            Adjustment<
+                Width, IntegerWidth, Signed, 8, 8, true, Quantization,
+                Overflow>::Adjust(BuiltinIntToBits<char, 8>::Convert(value)))) {
+  }
 
   inline XlsFixed(unsigned char value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 8, 8, false, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 8, 8, false, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<unsigned char, 8>::Convert(value)))) {}
 
   inline XlsFixed(int value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 32, 32, true, Overflow>::
-                Adjust(BuiltinIntToBits<int, 32>::Convert(value)))) {}
+            Adjustment<
+                Width, IntegerWidth, Signed, 32, 32, true, Quantization,
+                Overflow>::Adjust(BuiltinIntToBits<int, 32>::Convert(value)))) {
+  }
 
   inline XlsFixed(unsigned int value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 32, 32, false, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 32, 32, false, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<unsigned int, 32>::Convert(value)))) {}
 
   inline XlsFixed(long value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 64, 64, true, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 64, 64, true, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<long, 64>::Convert(value)))) {}
 
   inline XlsFixed(unsigned long value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 64, 64, false, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 64, 64, false, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<unsigned long, 64>::Convert(value)))) {}
 
   inline XlsFixed(long long value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 64, 64, true, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 64, 64, true, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<long long, 64>::Convert(value)))) {}
 
   inline XlsFixed(unsigned long long value)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, 64, 64, false, Overflow>::
+            Adjustment<Width, IntegerWidth, Signed, 64, 64, false, Quantization,
+                       Overflow>::
                 Adjust(BuiltinIntToBits<unsigned long long, 64>::Convert(
                     value)))) {}
 
@@ -265,14 +338,15 @@ class XlsFixed {
 
   inline XlsInt<std::max(IntegerWidth, 1), Signed> to_ac_int() const {
     return ((XlsFixed<std::max(IntegerWidth, 1), std::max(IntegerWidth, 1),
-                      Signed>)*this).template slc<std::max(IntegerWidth, 1)>(0);
+                      Signed>)*this)
+        .template slc<std::max(IntegerWidth, 1)>(0);
   }
 
   template <int W2, int I2, bool S2, ac_datatypes::ac_q_mode Q2,
             ac_datatypes::ac_o_mode O2>
   inline XlsFixed(const XlsFixed<W2, I2, S2, Q2, O2> &op)
       : val(XlsInt<Width, Signed>(
-            Adjustment<Width, IntegerWidth, Signed, W2, I2, S2,
+            Adjustment<Width, IntegerWidth, Signed, W2, I2, S2, Quantization,
                        Overflow>::Adjust(op.val.storage))) {}
 
   // Defines the result types for each operation based on ac_int
