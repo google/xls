@@ -252,7 +252,9 @@ string. These format strings use placeholders to fill in relevant information.
     the NOR of:
 
     1.  Pipeline registers storing the valid bit for each pipeline stage.
+
     2.  All valid registers stored for the input/output buffers.
+
     3.  All valid signals for the input channels.
 
 # RAMs (experimental)
