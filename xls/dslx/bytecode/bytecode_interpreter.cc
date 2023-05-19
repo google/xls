@@ -1295,9 +1295,9 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
     }
 
     std::string element_type_name = element_type->ToString();
-    std::string value_prefix = "";
+    std::string value_prefix;
     std::string separator = ", ";
-    std::string value_suffix = "";
+    std::string value_suffix;
     if (const auto* struct_type = dynamic_cast<const StructType*>(element_type);
         struct_type != nullptr) {
       element_type_name = struct_type->nominal_type().identifier();
