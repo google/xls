@@ -293,6 +293,11 @@ enum class AstNodeKind {
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
 
+inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
+  os << AstNodeKindToString(kind);
+  return os;
+}
+
 // Abstract base class for AST nodes.
 class AstNode {
  public:
@@ -1093,6 +1098,20 @@ class ConstantArray : public Array {
 // TypeRef.
 using TypeDefinition =
     std::variant<TypeAlias*, StructDef*, EnumDef*, ColonRef*>;
+
+// Returns the name definition that (most locally) defined this type definition
+// AST node.
+//
+// In the case of a ColonRef the name definition given is the subject of the
+// colon-reference, i.e. it does not traverse module boundaries to retrieve a
+// name definition. That is:
+//
+//    fn f() -> foo::Bar { ... }
+//    ----------^~~~~~~^
+//
+// The GetNameDef() on that ColonRef type definition node returns the subject
+// "foo", which can be a built-in name.
+AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td);
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 

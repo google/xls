@@ -18,22 +18,35 @@ namespace xls::dslx {
 
 std::optional<Span> FindDefinition(const Module& m, const Pos& selected) {
   std::vector<const AstNode*> intercepting = m.FindIntercepting(selected);
+  XLS_VLOG(3) << "Found " << intercepting.size()
+              << " nodes intercepting selected position: " << selected;
 
-  std::vector<const NameRef*> name_refs;
+  std::vector<const NameDef*> defs;
   for (const AstNode* node : intercepting) {
+    XLS_VLOG(5) << "Intercepting node kind: " << node->kind() << " @ "
+                << node->GetSpan().value();
     if (auto* name_ref = dynamic_cast<const NameRef*>(node);
         name_ref != nullptr) {
-      name_refs.push_back(name_ref);
+      XLS_VLOG(3) << "Intercepting name ref: `" << name_ref->ToString() << "`";
+      std::variant<const NameDef*, BuiltinNameDef*> name_def =
+          name_ref->name_def();
+      if (std::holds_alternative<const NameDef*>(name_def)) {
+        defs.push_back(std::get<const NameDef*>(name_def));
+      }
+    } else if (auto* type_ref = dynamic_cast<const TypeRef*>(node)) {
+      XLS_VLOG(3) << "Intercepting type ref: `" << type_ref->ToString() << "`";
+      AnyNameDef type_definer =
+          TypeDefinitionGetNameDef(type_ref->type_definition());
+      if (std::holds_alternative<const NameDef*>(type_definer)) {
+        defs.push_back(std::get<const NameDef*>(type_definer));
+      }
     }
   }
 
-  if (name_refs.size() == 1) {
-    std::variant<const NameDef*, BuiltinNameDef*> name_def =
-        name_refs.at(0)->name_def();
-    if (std::holds_alternative<const NameDef*>(name_def)) {
-      return std::get<const NameDef*>(name_def)->span();
-    }
-  } else if (name_refs.size() > 1) {
+  if (defs.size() == 1) {
+    return defs.at(0)->GetSpan();
+  }
+  if (defs.size() > 1) {
     XLS_LOG(WARNING)
         << "Multiple name references found intercepting at position: "
         << selected;

@@ -34,7 +34,7 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
   ASSERT_EQ(symbols.size(), 1);
 }
 
-TEST(LanguageServerAdapterTest, TestFindDefinitions) {
+TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
   constexpr std::string_view kUri = "unused-for-now";
   adapter.Update(kUri, R"(fn f() { () }
@@ -50,6 +50,26 @@ fn main() { f() })");
 
   EXPECT_EQ(definition_location.range.end.line, 0);
   EXPECT_EQ(definition_location.range.end.character, 4);
+}
+
+TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  constexpr std::string_view kUri = "unused-for-now";
+  adapter.Update(kUri, R"(
+type T = ();
+fn f() -> T { () }
+)");
+  // Note: all of the line/column numbers are zero-based in the LSP protocol.
+  verible::lsp::Position position{2, 10};
+  std::vector<verible::lsp::Location> definition_locations =
+      adapter.FindDefinitions(kUri, position);
+  ASSERT_EQ(definition_locations.size(), 1);
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  EXPECT_EQ(definition_location.range.start.line, 1);
+  EXPECT_EQ(definition_location.range.start.character, 5);
+
+  EXPECT_EQ(definition_location.range.end.line, 1);
+  EXPECT_EQ(definition_location.range.end.character, 6);
 }
 
 }  // namespace

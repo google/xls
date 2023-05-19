@@ -43,6 +43,18 @@
 #include "xls/ir/number_parser.h"
 
 namespace xls::dslx {
+namespace {
+
+static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
+  return absl::visit(
+      Visitor{
+          [](NameRef* n) { return n->name_def(); },
+          [](ColonRef* n) { return GetSubjectNameDef(n->subject()); },
+      },
+      subject);
+}
+
+}  // namespace
 
 constexpr int64_t kTargetLineChars = 80;
 
@@ -202,6 +214,19 @@ absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
   }
   return absl::InvalidArgumentError(
       "Expression AST node is not a ColonRef subject.");
+}
+
+AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
+  return absl::visit(
+      Visitor{
+          [](TypeAlias* n) -> AnyNameDef { return n->name_def(); },
+          [](StructDef* n) -> AnyNameDef { return n->name_def(); },
+          [](EnumDef* n) -> AnyNameDef { return n->name_def(); },
+          [](ColonRef* n) -> AnyNameDef {
+            return GetSubjectNameDef(n->subject());
+          },
+      },
+      td);
 }
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
