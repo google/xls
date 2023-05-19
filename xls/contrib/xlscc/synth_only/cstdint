@@ -16,6 +16,8 @@
 #ifndef __CSTDINT_H__
 #define __CSTDINT_H__
 
+#include <stdint.h>
+
 namespace std {
   // See Translator::TranslateTypeFromClang()
   typedef unsigned char uint8_t;
