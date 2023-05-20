@@ -208,6 +208,23 @@ absl::StatusOr<ParametricExpressionProto> ToProto(
     *psproto->mutable_span() = ToProto(s->span());
     return proto;
   }
+  if (const auto* s = dynamic_cast<const ParametricConstant*>(&e)) {
+    ParametricConstantProto* pp = proto.mutable_constant();
+    XLS_ASSIGN_OR_RETURN(*pp->mutable_constant(), ToProto(s->value()));
+    return proto;
+  }
+  if (const auto* p = dynamic_cast<const ParametricMul*>(&e)) {
+    ParametricMulProto* pp = proto.mutable_mul();
+    XLS_ASSIGN_OR_RETURN(*pp->mutable_lhs(), ToProto(p->lhs()));
+    XLS_ASSIGN_OR_RETURN(*pp->mutable_rhs(), ToProto(p->rhs()));
+    return proto;
+  }
+  if (const auto* p = dynamic_cast<const ParametricAdd*>(&e)) {
+    ParametricAddProto* pp = proto.mutable_add();
+    XLS_ASSIGN_OR_RETURN(*pp->mutable_lhs(), ToProto(p->lhs()));
+    XLS_ASSIGN_OR_RETURN(*pp->mutable_rhs(), ToProto(p->rhs()));
+    return proto;
+  }
   return absl::UnimplementedError(
       "TypeInfoToProto: convert ParametricExpression to proto: " +
       e.ToString());

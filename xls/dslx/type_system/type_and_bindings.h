@@ -22,6 +22,10 @@
 
 namespace xls::dslx {
 
+// Bundles together a type and the parametric environment that was used to
+// arrive at that type.
+//
+// TODO(cdleary): 2023-05-19 Rename to `TypeAndParametricEnv`.
 struct TypeAndBindings {
   std::unique_ptr<ConcreteType> type;
   ParametricEnv parametric_env;

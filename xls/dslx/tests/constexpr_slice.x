@@ -14,11 +14,11 @@
 
 const IDX = s32:5;
 
-fn p<N: s32>(a: u32) -> uN[N] {
+fn p<N: s32, N_U32: u32 = {N as u32}>(a: u32) -> uN[N_U32] {
   a[:N]
 }
 
-fn p1<N: s32, M: s32 = {N + s32:1}>(a: u32) -> uN[M] {
+fn p1<N: s32, M: s32 = {N + s32:1}, M_U32: u32 = {M as u32}>(a: u32) -> uN[M_U32] {
   a[:N+s32:1]
 }
 

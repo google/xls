@@ -787,7 +787,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   FunctionType fn_type(std::move(param_types), std::move(return_type));
 
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
+      TypeAndBindings callee_tab,
       InstantiateParametricFunction(ctx, parent_ctx, invocation, callee_fn,
                                     fn_type, instantiate_args));
 
@@ -795,7 +795,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   std::vector<FnStackEntry> fn_stack = parent_ctx->fn_stack();
   while (!fn_stack.empty()) {
     if (fn_stack.back().f() == callee_fn &&
-        fn_stack.back().parametric_env() == tab.parametric_env) {
+        fn_stack.back().parametric_env() == callee_tab.parametric_env) {
       return TypeInferenceErrorStatus(
           invocation->span(), nullptr,
           absl::StrFormat("Recursion detected while typechecking; name: '%s'",
@@ -811,9 +811,10 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // here, then if we instantiated the same proc 2x from some parent proc, we'd
   // end up with only a single set of constexpr values for proc members.
   parent_ctx->type_info()->AddInvocationCallBindings(
-      invocation, caller_parametric_env, tab.parametric_env);
+      invocation, caller_parametric_env, callee_tab.parametric_env);
 
-  FunctionType instantiated_ft{std::move(arg_types), tab.type->CloneToUnique()};
+  FunctionType instantiated_ft{std::move(arg_types),
+                               callee_tab.type->CloneToUnique()};
   parent_ctx->type_info()->SetItem(invocation->callee(), instantiated_ft);
   ctx->type_info()->SetItem(callee_fn->name_def(), instantiated_ft);
 
@@ -821,7 +822,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // need a new stack entry w/the new symbolic bindings.
   TypeInfo* original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(FnStackEntry::Make(
-      callee_fn, tab.parametric_env, invocation,
+      callee_fn, callee_tab.parametric_env, invocation,
       callee_fn->proc().has_value() ? WithinProc::kYes : WithinProc::kNo));
   ctx->AddDerivedTypeInfo();
 
@@ -842,7 +843,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   }
 
   // Add the new parametric bindings to the constexpr set.
-  const auto& bindings_map = tab.parametric_env.ToMap();
+  const auto& bindings_map = callee_tab.parametric_env.ToMap();
   for (ParametricBinding* parametric : callee_fn->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
@@ -872,33 +873,35 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
                        Resolve(*body_type, ctx));
   XLS_RET_CHECK(!resolved_body_type->IsMeta());
 
+  const ConcreteType& annotated_return_type = *callee_tab.type;
+
   // Assert type consistency between the body and deduced return types.
-  if (*tab.type != *resolved_body_type) {
-    XLS_VLOG(5) << "tab.type: " << tab.type->ToString()
+  if (annotated_return_type != *resolved_body_type) {
+    XLS_VLOG(5) << "annotated_return_type: " << annotated_return_type
                 << " resolved_body_type: " << resolved_body_type->ToString();
     if (callee_fn->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
           callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *tab.type,
+          *callee_tab.type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn->tag() == Function::Tag::kProcNext) {
       return ctx->TypeMismatchError(
           callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *tab.type,
+          *callee_tab.type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
         callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-        *tab.type,
+        *callee_tab.type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         callee_fn->identifier()));
   }
 
-  original_ti->SetInvocationTypeInfo(invocation, tab.parametric_env,
+  original_ti->SetInvocationTypeInfo(invocation, callee_tab.parametric_env,
                                      ctx->type_info());
 
   XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
@@ -914,7 +917,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
     ctx->type_info()->NoteRequiresImplicitToken(callee_fn, false);
   }
 
-  return tab;
+  return callee_tab;
 }
 
 absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,

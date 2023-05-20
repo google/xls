@@ -52,7 +52,8 @@ class ParametricExpression {
 
   explicit ParametricExpression(
       std::optional<InterpValue> const_value = std::nullopt)
-      : const_value_(const_value) {}
+      : const_value_(std::move(const_value)) {}
+
   virtual ~ParametricExpression() = default;
 
   virtual std::string ToRepr() const = 0;
@@ -146,7 +147,7 @@ class ParametricAdd : public ParametricExpression {
   ParametricAdd(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
                 std::optional<InterpValue> const_value = std::nullopt)
-      : ParametricExpression(const_value),
+      : ParametricExpression(std::move(const_value)),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
 
@@ -185,6 +186,9 @@ class ParametricAdd : public ParametricExpression {
                                            const_value());
   }
 
+  const ParametricExpression& lhs() const { return *lhs_; }
+  const ParametricExpression& rhs() const { return *rhs_; }
+
  private:
   std::unique_ptr<ParametricExpression> lhs_;
   std::unique_ptr<ParametricExpression> rhs_;
@@ -196,7 +200,7 @@ class ParametricMul : public ParametricExpression {
   ParametricMul(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
                 std::optional<InterpValue> const_value = std::nullopt)
-      : ParametricExpression(const_value),
+      : ParametricExpression(std::move(const_value)),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
 
@@ -235,6 +239,9 @@ class ParametricMul : public ParametricExpression {
                            rhs_->ToRepr());
   }
 
+  const ParametricExpression& lhs() const { return *lhs_; }
+  const ParametricExpression& rhs() const { return *rhs_; }
+
  private:
   std::unique_ptr<ParametricExpression> lhs_;
   std::unique_ptr<ParametricExpression> rhs_;
@@ -251,7 +258,7 @@ class ParametricSymbol : public ParametricExpression {
  public:
   ParametricSymbol(std::string identifier, Span span,
                    std::optional<InterpValue> const_value = std::nullopt)
-      : ParametricExpression(const_value),
+      : ParametricExpression(std::move(const_value)),
         identifier_(std::move(identifier)),
         span_(std::move(span)) {}
 

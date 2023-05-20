@@ -401,14 +401,6 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
                   stderr)
     self.assertIn('Please do not annotate a type on dimensions', stderr)
 
-  def test_parametric_plus_global_as_local_const(self):
-    stderr = self._run(
-        'xls/dslx/tests/errors/parametric_plus_global_as_dimension.x'
-    )
-    self.assertIn('parametric_plus_global_as_dimension.x:20:24-20:25', stderr)
-    self.assertIn('Could not evaluate dimension expression to a constant value',
-                  stderr)
-
   def test_signed_array_size(self):
     stderr = self._run('xls/dslx/tests/errors/signed_array_size.x')
     self.assertIn('signed_array_size.x:17:18-17:22', stderr)

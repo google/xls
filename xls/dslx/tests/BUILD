@@ -128,6 +128,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "parametric_dot_product")
 
+dslx_lang_test(name = "parametric_plus_global_as_dimension")
+
 dslx_lang_test(name = "character_conversion")
 
 dslx_lang_test(name = "string_conversion")

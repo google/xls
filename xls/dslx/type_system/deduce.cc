@@ -58,6 +58,51 @@
 namespace xls::dslx {
 namespace {
 
+ParametricEnv GetCurrentParametricEnv(DeduceCtx* ctx) {
+  return ctx->fn_stack().empty() ? ParametricEnv()
+                                 : ctx->fn_stack().back().parametric_env();
+}
+
+// Attempts to convert an expression from the full DSL AST into the
+// ParametricExpression sub-AST (a limited form that we can embed into a
+// ConcreteTypeDim for later instantiation).
+absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
+    const Expr* e, DeduceCtx* ctx) {
+  if (auto* n = dynamic_cast<const ConstRef*>(e)) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(n).status());
+    XLS_ASSIGN_OR_RETURN(InterpValue constant,
+                         ctx->type_info()->GetConstExpr(n));
+    return std::make_unique<ParametricConstant>(std::move(constant));
+  }
+  if (auto* n = dynamic_cast<const NameRef*>(e)) {
+    return std::make_unique<ParametricSymbol>(n->identifier(), n->span());
+  }
+  if (auto* n = dynamic_cast<const Binop*>(e)) {
+    XLS_ASSIGN_OR_RETURN(auto lhs, ExprToParametric(n->lhs(), ctx));
+    XLS_ASSIGN_OR_RETURN(auto rhs, ExprToParametric(n->rhs(), ctx));
+    switch (n->binop_kind()) {
+      case BinopKind::kMul:
+        return std::make_unique<ParametricMul>(std::move(lhs), std::move(rhs));
+      case BinopKind::kAdd:
+        return std::make_unique<ParametricAdd>(std::move(lhs), std::move(rhs));
+      default:
+        return absl::InvalidArgumentError(
+            "Cannot convert expression to parametric: " + e->ToString());
+    }
+  }
+  if (auto* n = dynamic_cast<const Number*>(e)) {
+    auto default_type = BitsType::MakeU32();
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue constexpr_value,
+        ConstexprEvaluator::EvaluateToValue(
+            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
+            n, default_type.get()));
+    return std::make_unique<ParametricConstant>(std::move(constexpr_value));
+  }
+  return absl::InvalidArgumentError(
+      "Cannot convert expression to parametric: " + e->ToString());
+}
+
 // Record that the current function being checked has a side effect and will
 // require an implicit token when converted to IR.
 void UseImplicitToken(DeduceCtx* ctx) {
@@ -215,11 +260,6 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
                         number.text(), type.ToString(), bit_count, low, high));
   }
   return absl::OkStatus();
-}
-
-ParametricEnv GetCurrentParametricEnv(DeduceCtx* ctx) {
-  return ctx->fn_stack().empty() ? ParametricEnv()
-                                 : ctx->fn_stack().back().parametric_env();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
@@ -2113,29 +2153,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
     return ConcreteTypeDim::CreateU32(value);
   }
 
-  // If it's a name reference (and not a const reference), make it symbolic.
-  if (auto* name_ref = dynamic_cast<const NameRef*>(dim_expr);
-      name_ref != nullptr &&
-      dynamic_cast<const ConstRef*>(dim_expr) == nullptr) {
-    std::unique_ptr<ParametricSymbol> sym;
-    absl::flat_hash_map<std::string, InterpValue> bindings =
-        ctx->fn_stack().back().parametric_env().ToMap();
-    if (bindings.contains(name_ref->identifier())) {
-      InterpValue dim_value = bindings.at(name_ref->identifier());
-      XLS_RET_CHECK(dim_value.IsBits());
-      sym = std::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                               dim_expr->span(), dim_value);
-    } else {
-      sym = std::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                               dim_expr->span());
-    }
-
-    // We should have a value for all parametric symbols we encounter. We still
-    // need to record the symbol, though, so we can emit a properly mangled
-    // name. Thus, we attach the resolved size to the symbol.
-    return ConcreteTypeDim(std::move(sym));
-  }
-
+  // First we check that it's a u32 (in the future we'll want it to be a usize).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> dim_type,
                        ctx->Deduce(dim_expr));
   auto u32_type = BitsType::MakeU32();
@@ -2148,10 +2166,14 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
             dim_expr->ToString()));
   }
 
-  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
-  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-      dim_expr, dim_type.get()));
+  // Now we try to constexpr evaluate it.
+  const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
+  XLS_VLOG(3) << "Attempting to evaluate dimension expression: `"
+              << dim_expr->ToString()
+              << "` via parametric env: " << parametric_env;
+  XLS_RETURN_IF_ERROR(
+      ConstexprEvaluator::Evaluate(ctx->import_data(), ctx->type_info(),
+                                   parametric_env, dim_expr, dim_type.get()));
   if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                          ctx->type_info()->GetConstExpr(dim_expr));
@@ -2162,24 +2184,23 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
     return ConcreteTypeDim::CreateU32(u32);
   }
 
-  absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), dim_expr,
-                            ctx->fn_stack().back().parametric_env()));
-  absl::StatusOr<InterpValue> value_or = InterpretExpr(ctx, dim_expr, env);
-  if (!value_or.ok()) {
-    return TypeInferenceErrorStatus(
-        dim_expr->span(), nullptr,
-        absl::StrCat(
-            "Could not evaluate dimension expression to a constant value: ",
-            value_or.status().ToString()));
+  // If there wasn't a known constexpr we could evaluate it to at this point, we
+  // attempt to turn it into a parametric expression.
+  absl::StatusOr<std::unique_ptr<ParametricExpression>> parametric_expr_or =
+      ExprToParametric(dim_expr, ctx);
+  if (parametric_expr_or.ok()) {
+    return ConcreteTypeDim(std::move(parametric_expr_or).value());
   }
 
-  XLS_ASSIGN_OR_RETURN(uint64_t int_value,
-                       value_or.value().GetBitValueUint64());
-  uint32_t u32 = static_cast<uint32_t>(int_value);
-  XLS_RET_CHECK_EQ(u32, int_value);
-  return ConcreteTypeDim::CreateU32(u32);
+  XLS_VLOG(3) << "Could not convert dim expr to parametric expr; status: "
+              << parametric_expr_or.status();
+
+  // If we can't evaluate it to a parametric expression we give an error.
+  return TypeInferenceErrorStatus(
+      dim_expr->span(), nullptr,
+      absl::StrFormat(
+          "Could not evaluate dimension expression `%s` to a constant value.",
+          dim_expr->ToString()));
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
@@ -3001,8 +3022,16 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(
     const ConstRef* node, DeduceCtx* ctx) {
+  XLS_VLOG(3) << "DeduceConstRef; node: `" << node->ToString() << "` @ "
+              << node->span();
   // ConstRef is a subtype of NameRef, same deduction rule works.
-  return DeduceNameRef(node, ctx);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceNameRef(node, ctx));
+  XLS_ASSIGN_OR_RETURN(InterpValue value,
+                       ctx->type_info()->GetConstExpr(node->name_def()));
+  XLS_VLOG(3) << " DeduceConstRef; value: " << value.ToString();
+  ctx->type_info()->NoteConstExpr(node, std::move(value));
+  return type;
 }
 
 class DeduceVisitor : public AstNodeVisitor {
@@ -3144,8 +3173,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                        DeduceInternal(node, ctx));
   XLS_RET_CHECK(type != nullptr);
   ctx->type_info()->SetItem(node, *type);
-  XLS_VLOG(5) << "Deduced type of " << node->ToString()
-              << " (kind: " << node->GetNodeTypeName() << ") => "
+  XLS_VLOG(5) << "Deduced type of `" << node->ToString()
+              << "` (kind: " << node->GetNodeTypeName() << ") => "
               << type->ToString() << " in " << ctx->type_info();
 
   return type;

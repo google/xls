@@ -110,10 +110,24 @@ message InterpValueProto {
   }
 }
 
+message ParametricConstantProto {
+  optional InterpValueProto constant = 1;
+}
+
 // See xls::dslx::ParametricSymbol.
 message ParametricSymbolProto {
   optional string identifier = 1;
   optional SpanProto span = 2;
+}
+
+message ParametricMulProto {
+  optional ParametricExpressionProto lhs = 1;
+  optional ParametricExpressionProto rhs = 2;
+}
+
+message ParametricAddProto {
+  optional ParametricExpressionProto lhs = 1;
+  optional ParametricExpressionProto rhs = 2;
 }
 
 // Parametric expressions can be held in ConcreteTypeDims (i.e. the "dimension"
@@ -124,6 +138,9 @@ message ParametricExpressionProto {
   // ConcreteTypeDims to protobuf form.
   oneof expr_oneof {
     ParametricSymbolProto symbol = 1;
+    ParametricMulProto mul = 2;
+    ParametricAddProto add = 3;
+    ParametricConstantProto constant = 4;
   }
 }
 
