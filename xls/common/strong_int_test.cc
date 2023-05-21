@@ -45,13 +45,13 @@ TEST(StrongIntTypeIdTest, TypeIdIsAsExpected) {
 template <typename T>
 class StrongIntTest : public ::testing::Test {
  public:
-  typedef T StrongIntTypeUnderTest;
+  using StrongIntTypeUnderTest = T;
 };
 
 // All tests will be executed on the following StrongInt<> types.
-typedef ::testing::Types<StrongInt8, StrongUInt8, StrongInt16, StrongUInt16,
-                         StrongInt32, StrongInt64, StrongUInt64, StrongLong>
-    SupportedStrongIntTypes;
+using SupportedStrongIntTypes =
+    ::testing::Types<StrongInt8, StrongUInt8, StrongInt16, StrongUInt16,
+                     StrongInt32, StrongInt64, StrongUInt64, StrongLong>;
 
 TYPED_TEST_SUITE(StrongIntTest, SupportedStrongIntTypes);
 

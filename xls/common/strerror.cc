@@ -42,7 +42,7 @@ std::string Strerror(int error_num) {
   char buffer[kBufferSize] = {};
 
   if constexpr (kXsiCompliant) {
-    if (strerror_r(error_num, buffer, kBufferSize) != 0) {
+    if (strerror_r(error_num, buffer, kBufferSize) != nullptr) {
       return absl::StrFormat(
           "Unknown error, strerror_r failed. error number %d", error_num);
     }
