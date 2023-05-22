@@ -32,3 +32,10 @@ pub struct EncData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
     count: bits[COUNT_WIDTH],   // symbol counter
     last: bool,                 // flush RLE
 }
+
+// structure containing output data from a Stream Mixer
+// and input to a Bus interface
+pub struct MixData<WORD_WIDTH: u32> {
+    word: bits[WORD_WIDTH], // word
+    last: bool,             // flush RLE
+}

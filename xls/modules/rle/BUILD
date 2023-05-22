@@ -83,3 +83,46 @@ xls_benchmark_verilog(
     name = "rle_enc_verilog_benchmark",
     verilog_target = "rle_enc_verilog",
 )
+
+xls_dslx_library(
+    name = "rle_mux_dslx",
+    srcs = [
+        "muxer.x",
+    ],
+    deps = [
+        ":rle_interface_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_mux_dslx_test",
+    dslx_test_args = {},
+    compare_list = ["none", "interpreter", "jit"],
+    library = "rle_mux_dslx",
+)
+
+xls_dslx_verilog (
+    name = "rle_mux_verilog",
+    dslx_top = "StreamMuxerSimple32",
+    verilog_file = "rle_mux.v",
+    library = "rle_mux_dslx",
+    opt_ir_args = {
+        "top": "__muxer__StreamMuxerSimple32__StreamMuxerSimple_0__32_next",
+    },
+    codegen_args = {
+        "module_name": "rle_mux",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+)
+
+xls_benchmark_ir(
+    name = "rle_mux_ir_benchmark",
+    src = "rle_mux_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "unit",
+    }
+)
