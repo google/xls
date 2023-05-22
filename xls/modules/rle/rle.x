@@ -45,22 +45,13 @@
 // (output channel)     ────────────────────────┘     └───────────┘     └────
 
 import std
+import xls.modules.rle.rle_interface as rle_interface
 
-// structure containing input data for an RLE encoder
-pub struct EncInData<SYMBOL_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // input symbol to compress
-    last: bool,                 // if this is the last symbol
-}
-
-// structure containing output data from an RLE encoder
-pub struct EncOutData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // compressed symbol
-    count: bits[COUNT_WIDTH],   // symbol count
-    last: bool,                 // if this is the last symbol
-}
+type EncInData  = rle_interface::PreData;
+type EncOutData = rle_interface::EncData;
 
 // structure to preserve the state of an RLE encoder
-pub struct RLEEncState<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
+struct RLEEncState<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
     // symbol from the previous RLEEnc::next evaluation,
     // valid if prev_count > 0
     prev_symbol: bits[SYMBOL_WIDTH],
@@ -138,7 +129,6 @@ pub proc RLEEnc<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
 
 // RLE encoder specialization for the codegen
 proc RLEEnc32 {
-
     init {()}
 
     config (
@@ -157,11 +147,11 @@ proc RLEEnc32 {
 // Tests
 
 const TEST_SYMBOL_WIDTH = u32:32;
-const TEST_COUNT_WIDTH = u32:2;
+const TEST_COUNT_WIDTH  = u32:2;
 
 type TestSymbol = bits[TEST_SYMBOL_WIDTH];
-type TestCount = bits[TEST_COUNT_WIDTH];
-type TestEncInData = EncInData<TEST_SYMBOL_WIDTH>;
+type TestCount  = bits[TEST_COUNT_WIDTH];
+type TestEncInData  = EncInData<TEST_SYMBOL_WIDTH>;
 type TestEncOutData = EncOutData<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH>;
 
 const TEST_SEND_LOOKUP = TestEncInData[20]:[
@@ -248,7 +238,7 @@ proc RLEEncTester {
     )}
 
     config(terminator: chan<bool> out) {
-        let (enc_input_s, enc_input_r) = chan<TestEncInData>;
+        let (enc_input_s, enc_input_r)   = chan<TestEncInData>;
         let (enc_output_s, enc_output_r) = chan<TestEncOutData>;
 
         spawn RLEEncTestSender(enc_input_s);

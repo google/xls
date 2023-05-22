@@ -30,8 +30,20 @@ package(
 )
 
 xls_dslx_library(
+    name = "rle_interface_dslx",
+    srcs = [
+        "rle_interface.x",
+    ],
+)
+
+xls_dslx_library(
     name = "rle_dslx",
-    srcs = ["rle.x"],
+    srcs = [
+        "rle.x"
+    ],
+    deps = [
+        ":rle_interface_dslx"
+    ],
 )
 
 xls_dslx_test(
