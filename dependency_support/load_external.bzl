@@ -278,6 +278,7 @@ def load_external_repositories():
     # 2023-03-17
     http_archive(
         name = "verible",
+        sha256 = "335673a5c74c9c10ce42e8abb36e89d93502734b54c6a9ff5a269a444dfe46a6",
         strip_prefix = "verible-2f16e8418e1b452d4f301a95f8af307079dd8e05",
         urls = ["https://github.com/chipsalliance/verible/archive/2f16e8418e1b452d4f301a95f8af307079dd8e05.tar.gz"],
         patches = ["@com_google_xls//dependency_support/verible:visibility.patch"],
