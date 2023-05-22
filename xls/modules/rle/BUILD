@@ -107,6 +107,75 @@ xls_benchmark_ir(
 )
 
 xls_dslx_library(
+    name = "rle_mux_dslx",
+    srcs = [
+        "muxer.x",
+    ],
+    deps = [
+        ":rle_common_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_mux_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = "rle_mux_dslx",
+)
+
+xls_dslx_test(
+    name = "rle_mux_dslx_ir_test",
+    dslx_test_args = {
+        "compare": "interpreter",
+    },
+    library = "rle_mux_dslx",
+)
+
+xls_dslx_test(
+    name = "rle_mux_dslx_jit_test",
+    dslx_test_args = {
+        "compare": "jit",
+    },
+    library = "rle_mux_dslx",
+)
+
+xls_dslx_ir(
+    name = "rle_mux_ir",
+    dslx_top = "StreamMuxerSimple32",
+    library = "rle_mux_dslx",
+    ir_file = "rle_mux.ir",
+)
+
+xls_ir_opt_ir(
+    name = "rle_mux_opt_ir",
+    src = "rle_mux.ir",
+    top = "__muxer__StreamMuxerSimple32__StreamMuxerSimple_0__32_next",
+)
+
+xls_ir_verilog(
+    name = "rle_mux_verilog",
+    src = ":rle_mux_opt_ir.opt.ir",
+    verilog_file = "rle_mux.v",
+    codegen_args = {
+        "module_name": "rle_mux",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+)
+
+xls_benchmark_ir(
+    name = "rle_mux_ir_benchmark",
+    src = ":rle_mux_opt_ir.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "unit",
+    }
+)
+
+xls_dslx_library(
     name = "rle_dec_dslx",
     srcs = [
         "rle_dec.x",
