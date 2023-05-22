@@ -250,6 +250,10 @@ absl::StatusOr<PredicateInfo> MakePredicateChannel(Node* operation) {
             SourceInfo(), Value(UBits(1, /*bit_count=*/1)),
             absl::StrFormat("true_predicate_for_chan_%s", channel->name())));
   }
+  // TODO(rigge): perform analysis to determine the proper token input for this
+  // send. Currently, we rely on the TokenDependencyPass to update the token
+  // argument for this send if it is not correctly accounting for data
+  // dependencies on side-effecting operations.
   XLS_ASSIGN_OR_RETURN(
       Send * send_pred,
       proc->MakeNodeWithName<Send>(

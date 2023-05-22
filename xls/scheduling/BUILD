@@ -265,6 +265,7 @@ cc_library(
         "//xls/passes:literal_uncommoning_pass",
         "//xls/passes:proc_inlining_pass",
         "//xls/passes:standard_pipeline",
+        "//xls/passes:token_dependency_pass",
     ],
 )
 
