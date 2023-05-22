@@ -552,6 +552,7 @@ TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneNonZeros) {
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneWithZeros) {
   const std::string content = R"(
        long long my_package() {
+         #pragma hls_array_allow_default_pad
          long long arr[4] = {0};
          return arr[3];
        })";
@@ -564,6 +565,7 @@ TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeOneWithDefaultStruct) {
          int a;
        };
        long long my_package() {
+         #pragma hls_array_allow_default_pad
          x arr[4] = {{}};
          return arr[3].a;
        })";
@@ -4109,6 +4111,29 @@ TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZeros) {
          return x[2];
        })";
   Run({{"a", 5}}, 0, content);
+}
+
+TEST_F(TranslatorLogicTest, ArrayZeroExtendFillsZerosLargeMultidimension) {
+  const std::string content = R"(
+        #pragma hls_top
+        int my_package(int a) {
+         #pragma hls_array_allow_default_pad
+         unsigned arr[2][3][4] = {{{1,0}}, {{2,2}}};
+         int sum = 0;
+         arr[0][0][0] = 5;
+         #pragma hls_unroll yes
+         for (int i = 0; i < 2; i++) {
+           #pragma hls_unroll yes
+           for (int j = 0; j < 3; j++) {
+             #pragma hls_unroll yes
+             for (int k = 0; k < 4; k++) {
+               sum += arr[i][j][k];
+             }
+            }
+          }
+         return sum;
+       })";
+  Run({{"a", 5}}, 5 + 2 + 2, content);
 }
 
 // Check that hls_array_allow_default_pad pragma maintains supplied values
