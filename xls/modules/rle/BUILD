@@ -31,9 +31,19 @@ package(
 )
 
 xls_dslx_library(
+    name = "rle_common_dslx",
+    srcs = [
+        "rle_common.x",
+    ],
+)
+
+xls_dslx_library(
     name = "rle_enc_dslx",
     srcs = [
         "rle_enc.x",
+    ],
+    deps = [
+        ":rle_common_dslx"
     ],
 )
 
@@ -100,6 +110,9 @@ xls_dslx_library(
     name = "rle_dec_dslx",
     srcs = [
         "rle_dec.x",
+    ],
+    deps = [
+        ":rle_common_dslx"
     ],
 )
 

@@ -47,17 +47,10 @@
 
 
 import std
+import xls.modules.rle.rle_common as rle_common
 
-pub struct DecInData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // compressed symbol
-    count: bits[COUNT_WIDTH],   // symbol count
-    last: bool,                 // if this is the last symbol
-}
-
-pub struct DecOutData<SYMBOL_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // input symbol to compress
-    last: bool,                 // if this is the last symbol
-}
+type DecInData  = rle_common::CompressedData;
+type DecOutData = rle_common::PlainData;
 
 // structure to preserve the state of an RLE decoder
 struct RunLengthDecoderState<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
