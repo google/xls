@@ -1,0 +1,314 @@
+
+module proc_adder_pipeline(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] operand_0,
+  input wire operand_0_vld,
+  input wire [31:0] operand_1,
+  input wire operand_1_vld,
+  input wire result_rdy,
+  output wire [31:0] result,
+  output wire result_vld,
+  output wire operand_0_rdy,
+  output wire operand_1_rdy
+);
+  reg [31:0] p0_operand_0_val;
+  reg [31:0] p0_operand_1_val;
+  reg p0_valid;
+  reg [31:0] __operand_0_reg;
+  reg __operand_0_valid_reg;
+  reg [31:0] __operand_1_reg;
+  reg __operand_1_valid_reg;
+  reg [31:0] __result_reg;
+  reg __result_valid_reg;
+  wire result_valid_inv;
+  wire __result_vld_buf;
+  wire result_valid_load_en;
+  wire result_load_en;
+  wire p1_not_valid;
+  wire p0_enable;
+  wire and_53;
+  wire p0_data_enable;
+  wire p0_load_en;
+  wire operand_0_valid_inv;
+  wire operand_1_valid_inv;
+  wire operand_0_valid_load_en;
+  wire operand_1_valid_load_en;
+  wire operand_0_load_en;
+  wire operand_1_load_en;
+  wire [31:0] result_val;
+  assign result_valid_inv = ~__result_valid_reg;
+  assign __result_vld_buf = p0_valid;
+  assign result_valid_load_en = result_rdy | result_valid_inv;
+  assign result_load_en = __result_vld_buf & result_valid_load_en;
+  assign p1_not_valid = ~p0_valid;
+  assign p0_enable = p0_valid & result_load_en | p1_not_valid;
+  assign and_53 = __operand_0_valid_reg & __operand_1_valid_reg;
+  assign p0_data_enable = p0_enable & and_53;
+  assign p0_load_en = p0_data_enable | rst;
+  assign operand_0_valid_inv = ~__operand_0_valid_reg;
+  assign operand_1_valid_inv = ~__operand_1_valid_reg;
+  assign operand_0_valid_load_en = p0_load_en | operand_0_valid_inv;
+  assign operand_1_valid_load_en = p0_load_en | operand_1_valid_inv;
+  assign operand_0_load_en = operand_0_vld & operand_0_valid_load_en;
+  assign operand_1_load_en = operand_1_vld & operand_1_valid_load_en;
+  assign result_val = p0_operand_0_val + p0_operand_1_val;
+  always @ (posedge clk) begin
+    p0_operand_0_val <= p0_load_en ? __operand_0_reg : p0_operand_0_val;
+    p0_operand_1_val <= p0_load_en ? __operand_1_reg : p0_operand_1_val;
+  end
+  always @ (posedge clk) begin
+    if (rst) begin
+      p0_valid <= 1'h0;
+      __operand_0_reg <= 32'h0000_0000;
+      __operand_0_valid_reg <= 1'h0;
+      __operand_1_reg <= 32'h0000_0000;
+      __operand_1_valid_reg <= 1'h0;
+      __result_reg <= 32'h0000_0000;
+      __result_valid_reg <= 1'h0;
+    end else begin
+      p0_valid <= p0_enable ? and_53 : p0_valid;
+      __operand_0_reg <= operand_0_load_en ? operand_0 : __operand_0_reg;
+      __operand_0_valid_reg <= operand_0_valid_load_en ? operand_0_vld : __operand_0_valid_reg;
+      __operand_1_reg <= operand_1_load_en ? operand_1 : __operand_1_reg;
+      __operand_1_valid_reg <= operand_1_valid_load_en ? operand_1_vld : __operand_1_valid_reg;
+      __result_reg <= result_load_en ? result_val : __result_reg;
+      __result_valid_reg <= result_valid_load_en ? __result_vld_buf : __result_valid_reg;
+    end
+  end
+  assign result = __result_reg;
+  assign result_vld = __result_valid_reg;
+  assign operand_0_rdy = operand_0_load_en;
+  assign operand_1_rdy = operand_1_load_en;
+endmodule
+
+
+
+module testbench;
+  reg clk;
+  reg [31:0] operand_0;
+  reg operand_0_vld;
+  reg [31:0] operand_1;
+  reg operand_1_vld;
+  reg result_rdy;
+  reg rst;
+  wire operand_0_rdy;
+  wire operand_1_rdy;
+  wire [31:0] result;
+  wire result_vld;
+  proc_adder_pipeline dut (
+    .clk(clk),
+    .operand_0(operand_0),
+    .operand_0_vld(operand_0_vld),
+    .operand_1(operand_1),
+    .operand_1_vld(operand_1_vld),
+    .result_rdy(result_rdy),
+    .rst(rst),
+    .operand_0_rdy(operand_0_rdy),
+    .operand_1_rdy(operand_1_rdy),
+    .result(result),
+    .result_vld(result_vld)
+  );
+  reg is_thread_3_done;
+
+  // Clock generator.
+  initial begin
+    clk = 0;
+    forever #5 clk = !clk;
+  end
+
+  // Reset generator.
+  initial begin
+    rst = 1'h1;
+    repeat (5) @(posedge clk);
+    #1;
+    rst = 1'h0;
+  end
+
+  // Watchdog timer.
+  initial begin
+    repeat (10000) @(posedge clk);
+    #1;
+    $display("ERROR: timeout, simulation ran too long (10000 cycles).");
+    $finish;
+  end
+
+  // Monitor for input/output ports.
+  initial begin
+    $display("Starting. Clock rises at 5, 15, 25, ...:");
+    $monitor("%t operand_0: %d operand_0_vld: %d operand_1: %d operand_1_vld: %d result_rdy: %d rst: %d operand_0_rdy: %d operand_1_rdy: %d result: %d result_vld: %d", $time, operand_0, operand_0_vld, operand_1, operand_1_vld, result_rdy, rst, operand_0_rdy, operand_1_rdy, result, result_vld);
+  end
+
+  // Thread 0. Drives inputs: operand_0, operand_0_vld
+  initial begin
+    operand_0 = 32'dx;
+
+    operand_0_vld = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && rst == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0 = 32'h0000_0029;
+
+    operand_0_vld = 1'h1;
+
+    // Wait for cycle after `operand_0_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_0_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0 = 32'h0000_0020;
+
+    operand_0_vld = 1'h1;
+
+    // Wait for cycle after `operand_0_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_0_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_0_vld = 1'h0;
+
+    operand_0 = 32'dx;
+  end
+
+  // Thread 1. Drives inputs: operand_1, operand_1_vld
+  initial begin
+    operand_1 = 32'dx;
+
+    operand_1_vld = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && rst == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1 = 32'h0000_0001;
+
+    operand_1_vld = 1'h1;
+
+    // Wait for cycle after `operand_1_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_1_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1 = 32'h0000_0020;
+
+    operand_1_vld = 1'h1;
+
+    // Wait for cycle after `operand_1_rdy` is asserted
+    #8;
+    while (!(1'h1 && operand_1_rdy == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    operand_1_vld = 1'h0;
+
+    operand_1 = 32'dx;
+  end
+
+  // Thread 2. Drives inputs: result_rdy
+  initial begin
+    result_rdy = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && rst == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    result_rdy = 1'h1;
+  end
+
+  // Thread 3. Drives inputs: <none>
+  initial begin
+    is_thread_3_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for last cycle of reset
+    #8;
+    while (!(1'h1 && rst == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    // Wait for all asserted (and capture output): result_vld, result_rdy
+    #8;
+    while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
+      #10;
+    end
+    $display("%t OUTPUT result = 32'h%0x (#0)", $time, result);
+    @(posedge clk);
+    #1;
+
+    // Wait for all asserted (and capture output): result_vld, result_rdy
+    #8;
+    while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
+      #10;
+    end
+    $display("%t OUTPUT result = 32'h%0x (#1)", $time, result);
+    @(posedge clk);
+    #1;
+
+    is_thread_3_done = 1'h1;
+  end
+
+  // Thread completion monitor.
+  initial begin
+    @(posedge clk);
+    #1;
+
+    // Wait for reset deasserted
+    #8;
+    while (!(1'h1 && rst == 1'h0)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+
+    // Wait for all threads to complete
+    #8;
+    while (!(1'h1 && is_thread_3_done == 1'h1)) begin
+      #10;
+    end
+    @(posedge clk);
+    #1;
+    $finish;
+  end
+endmodule

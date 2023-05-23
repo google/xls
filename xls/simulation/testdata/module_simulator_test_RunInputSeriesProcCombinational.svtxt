@@ -42,7 +42,7 @@ module testbench;
     .result(result),
     .result_vld(result_vld)
   );
-  reg is_thread_2_done;
+  reg is_thread_3_done;
 
   // Clock generator.
   initial begin
@@ -144,8 +144,6 @@ module testbench;
 
   // Thread 2. Drives inputs: result_rdy
   initial begin
-    is_thread_2_done = 1'h0;
-
     result_rdy = 1'h0;
 
     // Wait 1 cycle(s).
@@ -153,30 +151,35 @@ module testbench;
     #1;
 
     result_rdy = 1'h1;
+  end
 
-    // Wait for `result_vld` to be asserted and capture output
+  // Thread 3. Drives inputs: <none>
+  initial begin
+    is_thread_3_done = 1'h0;
+
+    // Wait 1 cycle(s).
+    @(posedge clk);
+    #1;
+
+    // Wait for all asserted (and capture output): result_vld, result_rdy
     #8;
-    while (!(1'h1 && result_vld == 1'h1)) begin
+    while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
       #10;
     end
     $display("%t OUTPUT result = 32'h%0x (#0)", $time, result);
     @(posedge clk);
     #1;
 
-    result_rdy = 1'h1;
-
-    // Wait for `result_vld` to be asserted and capture output
+    // Wait for all asserted (and capture output): result_vld, result_rdy
     #8;
-    while (!(1'h1 && result_vld == 1'h1)) begin
+    while (!(1'h1 && result_vld == 1'h1 && result_rdy == 1'h1)) begin
       #10;
     end
     $display("%t OUTPUT result = 32'h%0x (#1)", $time, result);
     @(posedge clk);
     #1;
 
-    result_rdy = 1'h0;
-
-    is_thread_2_done = 1'h1;
+    is_thread_3_done = 1'h1;
   end
 
   // Thread completion monitor.
@@ -186,7 +189,7 @@ module testbench;
 
     // Wait for all threads to complete
     #8;
-    while (!(1'h1 && is_thread_2_done == 1'h1)) begin
+    while (!(1'h1 && is_thread_3_done == 1'h1)) begin
       #10;
     end
     @(posedge clk);

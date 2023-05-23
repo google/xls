@@ -88,10 +88,11 @@ bool IsEmptyOrAreAllCountsZero(
 absl::Status VerifyReadyValidHoldoffs(
     const ReadyValidHoldoffs& holdoffs,
     const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+    const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
     const ModuleSignature& signature) {
   for (const auto& [channel_name, valid_holdoffs] : holdoffs.valid_holdoffs) {
     XLS_RET_CHECK(channel_inputs.contains(channel_name)) << absl::StreamFormat(
-        "Valid holdoff specified for channel `%s` which has no inputs",
+        "Valid holdoff specified for channel `%s` which is not an input",
         channel_name);
     XLS_RET_CHECK_EQ(channel_inputs.at(channel_name).size(),
                      valid_holdoffs.size())
@@ -110,6 +111,13 @@ absl::Status VerifyReadyValidHoldoffs(
                    channel_name);
       }
     }
+  }
+
+  for (const auto& [channel_name, _] : holdoffs.ready_holdoffs) {
+    XLS_RET_CHECK(output_channel_counts.contains(channel_name))
+        << absl::StreamFormat(
+               "Ready holdoff specified for channel `%s` is not an output",
+               channel_name);
   }
   return absl::OkStatus();
 }
@@ -199,42 +207,65 @@ absl::Status DriveInputChannel(absl::Span<const Bits> inputs,
 absl::StatusOr<std::vector<std::unique_ptr<Bits>>> CaptureOutputChannel(
     const ChannelProto& channel_proto, int64_t output_count,
     absl::Span<const int64_t> ready_holdoffs, ModuleTestbench& tb) {
-  if (!ready_holdoffs.empty()) {
-    return absl::UnimplementedError("Ready holdoff not yet supported.");
-  }
-  std::string_view data_port_name = channel_proto.data_port_name();
-  absl::flat_hash_map<std::string, std::optional<Bits>> owned_signals_to_drive;
-  std::vector<std::string> input_driver_names;
-  std::optional<std::string> valid_port_name;
-  std::optional<std::string> ready_port_name;
-  if (channel_proto.has_valid_port_name()) {
-    valid_port_name = channel_proto.valid_port_name();
-  }
   if (channel_proto.has_ready_port_name()) {
-    ready_port_name = channel_proto.ready_port_name();
-    owned_signals_to_drive[ready_port_name.value()] = UBits(0, 1);
+    std::string_view ready_port_name = channel_proto.ready_port_name();
+    // Create a separate thread to drive ready and any necessary holdoffs
+    absl::flat_hash_map<std::string, std::optional<Bits>> signals_to_drive;
+    signals_to_drive[ready_port_name] = UBits(0, 1);
+    XLS_ASSIGN_OR_RETURN(
+        ModuleTestbenchThread * ready_tbt,
+        tb.CreateThread(signals_to_drive, /*emit_done_signal=*/false));
+    // Collapse consecutive 0's in the ready holdoff sequence into a single
+    // multi-cycle assertion of ready. E.g., the sequence {7, 0, 0, 42, 0}
+    // should lower to:
+    //
+    //   ready = 0;
+    //   <wait 7 cycles>
+    //   ready = 1;
+    //   <wait 3 cycles>
+    //   ready = 0;
+    //   <wait 42 cycles>
+    //   ready = 1;
+    int64_t assertion_length = 1;
+    for (int64_t holdoff : ready_holdoffs) {
+      if (holdoff == 0) {
+        ++assertion_length;
+      } else {
+        if (assertion_length > 0) {
+          ready_tbt->Set(ready_port_name, UBits(1, 1));
+          ready_tbt->AdvanceNCycles(assertion_length);
+        }
+        ready_tbt->Set(ready_port_name, UBits(0, 1));
+        ready_tbt->AdvanceNCycles(holdoff);
+        assertion_length = 1;
+      }
+    }
+    ready_tbt->Set(ready_port_name, UBits(1, 1));
   }
 
+  // Create thread for capturing outputs. This thread drives no signals.
   XLS_ASSIGN_OR_RETURN(
       ModuleTestbenchThread * tbt,
-      tb.CreateThread(owned_signals_to_drive, /*emit_done_signal=*/true));
+      tb.CreateThread(/*owned_signals_to_drive=*/
+                      absl::flat_hash_map<std::string, std::optional<Bits>>()));
+  std::vector<std::string> flow_control_signals;
+  if (channel_proto.has_valid_port_name()) {
+    flow_control_signals.push_back(channel_proto.valid_port_name());
+  }
+  if (channel_proto.has_ready_port_name()) {
+    flow_control_signals.push_back(channel_proto.ready_port_name());
+  }
   std::vector<std::unique_ptr<Bits>> outputs;
   for (int64_t read_count = 0; read_count < output_count; ++read_count) {
-    if (ready_port_name.has_value()) {
-      tbt->Set(ready_port_name.value(), UBits(1, 1));
-    }
     outputs.push_back(std::make_unique<Bits>());
-    if (valid_port_name.has_value()) {
-      tbt->AtEndOfCycleWhen(valid_port_name.value())
-          .Capture(data_port_name, outputs.back().get());
+    if (flow_control_signals.empty()) {
+      tbt->AtEndOfCycle().Capture(channel_proto.data_port_name(),
+                                  outputs.back().get());
     } else {
-      tbt->AtEndOfCycle().Capture(data_port_name, outputs.back().get());
+      tbt->AtEndOfCycleWhenAll(flow_control_signals)
+          .Capture(channel_proto.data_port_name(), outputs.back().get());
     }
   }
-  if (ready_port_name.has_value()) {
-    tbt->Set(ready_port_name.value(), UBits(0, 1));
-  }
-
   return outputs;
 }
 
@@ -543,8 +574,8 @@ ModuleSimulator::CreateProcTestbench(
 
   // Verify ready/valid holdoffs if specified.
   if (holdoffs.has_value()) {
-    XLS_RETURN_IF_ERROR(
-        VerifyReadyValidHoldoffs(holdoffs.value(), channel_inputs, signature_));
+    XLS_RETURN_IF_ERROR(VerifyReadyValidHoldoffs(
+        holdoffs.value(), channel_inputs, output_channel_counts, signature_));
   }
 
   if (!signature_.proto().has_clock_name() &&
