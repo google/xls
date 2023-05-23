@@ -1,8 +1,8 @@
-Flask==2.1.3
+Flask==2.3.2
 Jinja2==3.1.2
-werkzeug==2.2.3
+werkzeug==2.3.3
 itsdangerous>=2.0
-click==8.0.1
+click==8.1.3
 markupsafe==2.1.1
 termcolor==1.1.0
 psutil==5.7.0
