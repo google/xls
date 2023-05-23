@@ -561,9 +561,9 @@ $1$2
   std::string struct_body;
   std::vector<std::string> member_decls;
   std::vector<std::string> scalar_widths;
-  for (int i = 0; i < struct_def->members().size(); i++) {
-    std::string member_name = struct_def->members()[i].first->identifier();
-    TypeAnnotation* type = struct_def->members()[i].second;
+  for (const auto& i : struct_def->members()) {
+    std::string member_name = i.first->identifier();
+    TypeAnnotation* type = i.second;
 
     XLS_ASSIGN_OR_RETURN(std::string type_str,
                          TypeAnnotationToString(xpile_data, type));
@@ -638,8 +638,7 @@ $0return ::xls::Value::Tuple(members);)";
   std::vector<std::string> setters;
   setters.reserve(struct_def->members().size());
   std::string indent = std::string(indent_level * 2, ' ');
-  for (int i = 0; i < members.size(); i++) {
-    auto& member = members[i];
+  for (const auto& member : members) {
     std::vector<std::string> setter_pieces;
     std::string member_name = member.first->identifier();
     std::string member_dst_name = absl::StrCat(member_name, "_value");
