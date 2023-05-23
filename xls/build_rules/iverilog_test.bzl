@@ -62,7 +62,7 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
         # verilog files as we can generated C++ files in cc_library rules.
         cmd = "$(location @com_icarus_iverilog//:iverilog) -s %s $(location %s) %s -o $@ -g2001 -I$(GENDIR)" % (top, main, defines),
         outs = [name + ".iverilog.out"],
-        exec_tools = ["@com_icarus_iverilog//:iverilog"],
+        tools = ["@com_icarus_iverilog//:iverilog"],
     )
     if execute:
         native.genrule(
@@ -70,7 +70,7 @@ def iverilog_test(name, top, main, srcs, execute = True, tick_defines = None):
             srcs = [":" + name + "-iverilog-build"],
             cmd = "$(location //xls/tools:generate_vvp_runner) $< > $@",
             outs = [name + "-vvp-runner.sh"],
-            exec_tools = ["//xls/tools:generate_vvp_runner"],
+            tools = ["//xls/tools:generate_vvp_runner"],
         )
         native.sh_test(
             name = name + "-run_test",
