@@ -206,5 +206,24 @@ proc entry {
                   testing::HasSubstr("Cannot send on an input channel.")));
 }
 
+TEST(TypecheckTest, CanUseZeroMacroInInitIssue943) {
+  constexpr std::string_view kProgram = R"(
+struct bar_t {
+  f: u32
+}
+
+proc foo {
+  config() { () }
+
+  init { zero!<bar_t>()  }
+
+  next(tok: token, state: bar_t) {
+    state
+  }
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 }  // namespace
 }  // namespace xls::dslx

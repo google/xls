@@ -487,5 +487,32 @@ fn main() -> u32 {
   EXPECT_EQ(value.GetBitValueInt64().value(), 32);
 }
 
+TEST(ConstexprEvaluatorTest, ZeroMacro) {
+  constexpr std::string_view kProgram = R"(
+struct MyStruct {
+  field: u32
+}
+
+fn main() -> MyStruct {
+  zero!<MyStruct>()
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, ParametricEnv(), f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  ASSERT_TRUE(value.IsTuple());
+  ASSERT_THAT(value.GetLength(), status_testing::IsOkAndHolds(1));
+  EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueInt64().value(), 0);
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -39,6 +39,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -334,11 +335,15 @@ absl::Status ConstexprEvaluator::HandleZeroMacro(const ZeroMacro* expr) {
                         ToAstNode(type_reference)->ToString(), span_str));
   }
 
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> concrete_type,
+                       UnwrapMetaType(maybe_type.value()->CloneToUnique(),
+                                      expr->span(), "zero macro input type"));
+
   // At this point type inference should have checked that this type was
   // zero-able.
   XLS_ASSIGN_OR_RETURN(
       InterpValue value,
-      MakeZeroValue(*maybe_type.value(), *import_data_, expr->span()));
+      MakeZeroValue(*concrete_type, *import_data_, expr->span()));
   type_info_->NoteConstExpr(expr, value);
   return absl::OkStatus();
 }

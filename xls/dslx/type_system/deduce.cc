@@ -2988,7 +2988,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
     const ZeroMacro* node, DeduceCtx* ctx) {
-  XLS_VLOG(5) << "DeduceZeroMacro; node: " << node->ToString();
+  XLS_VLOG(5) << "DeduceZeroMacro; node: `" << node->ToString() << "`";
   // Note: since it's a macro the parser checks arg count and parametric count.
   //
   // This says the type of the parametric type arg is the type of the result.

@@ -124,6 +124,7 @@ class MakeZeroVisitor : public ConcreteTypeVisitor {
 absl::StatusOr<InterpValue> MakeZeroValue(const ConcreteType& type,
                                           const ImportData& import_data,
                                           const Span& span) {
+  XLS_VLOG(5) << "MakeZeroValue; type: " << type << " @ " << span;
   MakeZeroVisitor v(import_data, span);
   XLS_RETURN_IF_ERROR(type.Accept(v));
   XLS_RET_CHECK(v.result().has_value());

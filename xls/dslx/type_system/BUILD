@@ -306,6 +306,7 @@ cc_library(
     hdrs = ["concrete_type_zero_value.h"],
     deps = [
         ":concrete_type",
+        "//xls/common:symbolized_stacktrace",
         "//xls/common/status:ret_check",
         "//xls/dslx:errors",
         "//xls/dslx:import_data",
