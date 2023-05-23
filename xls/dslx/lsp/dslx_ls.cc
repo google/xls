@@ -29,11 +29,10 @@
 #include <vector>
 
 #include "absl/flags/flag.h"
-#include "absl/time/time.h"
-#include "verible/common/lsp/json-rpc-dispatcher.h"
-#include "verible/common/lsp/lsp-protocol.h"
-#include "verible/common/lsp/lsp-text-buffer.h"
-#include "verible/common/lsp/message-stream-splitter.h"
+#include "external/verible/common/lsp/json-rpc-dispatcher.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
+#include "external/verible/common/lsp/lsp-text-buffer.h"
+#include "external/verible/common/lsp/message-stream-splitter.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/lsp/language_server_adapter.h"
 
@@ -65,6 +64,10 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"change", 2},        // Incremental updates
   };
   capabilities["documentSymbolProvider"] = true;
+  capabilities["definitionProvider"] = {
+      {"dynamicRegistration", false},
+      {"linkSupport", true},
+  };
   return InitializeResult{
       .capabilities = std::move(capabilities),
       .serverInfo =
@@ -156,17 +159,15 @@ absl::Status RealMain() {
   dispatcher.AddRequestHandler(
       "textDocument/documentSymbol",
       [&](const verible::lsp::DocumentSymbolParams& params) {
-        std::vector<verible::lsp::DocumentSymbol> symbols =
-            language_server_adapter.GenerateDocumentSymbols(
-                params.textDocument.uri);
+        return language_server_adapter.GenerateDocumentSymbols(
+            params.textDocument.uri);
+      });
 
-        auto j = nlohmann::json::array();
-        for (const verible::lsp::DocumentSymbol& symbol : symbols) {
-          nlohmann::json element;
-          to_json(element, symbol);
-          j.push_back(std::move(element));
-        }
-        return j;
+  dispatcher.AddRequestHandler(
+      "textDocument/definition",
+      [&](const verible::lsp::DefinitionParams& params) {
+        return language_server_adapter.FindDefinitions(params.textDocument.uri,
+                                                       params.position);
       });
 
   // Main loop. Feeding the stream-splitter that then calls the dispatcher.

@@ -66,6 +66,9 @@ Emit a feed-forward pipelined module:
        IR_FILE
 )";
 
+ABSL_FLAG(bool, inline_procs, false,
+          "Whether to inline all procs by calling the proc inlining pass.");
+
 namespace xls {
 namespace {
 
@@ -168,6 +171,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     const DelayEstimator* delay_estimator) {
   Package* p = main->package();
   SchedulingPassOptions sched_options;
+  sched_options.inline_procs = absl::GetFlag(FLAGS_inline_procs);
   sched_options.scheduling_options = scheduling_options;
   sched_options.delay_estimator = delay_estimator;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =

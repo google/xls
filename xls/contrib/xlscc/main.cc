@@ -154,6 +154,7 @@ absl::Status Run(std::string_view cpp_path) {
   }
 
   std::vector<std::string_view> clang_argv;
+  clang_argv.reserve(clang_argvs.size());
   for (const auto& i : clang_argvs) {
     clang_argv.push_back(i);
   }

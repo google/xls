@@ -67,6 +67,11 @@ cc_library(
 )
 
 cc_library(
+    name = "foreign_function",
+    hdrs = ["foreign_function.h"],
+)
+
+cc_library(
     name = "caret",
     srcs = ["caret.cc"],
     hdrs = ["caret.h"],
@@ -293,6 +298,7 @@ cc_library(
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
+        ":foreign_function",
         ":format_strings",
         ":ir_scanner",
         ":name_uniquer",
@@ -493,6 +499,7 @@ cc_test(
     name = "node_util_test",
     size = "small",
     srcs = ["node_util_test.cc"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":function_builder",
         ":ir",
@@ -500,11 +507,11 @@ cc_test(
         ":ir_test_base",
         ":node_util",
         ":op",
+        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_googletest//:gtest",
@@ -889,13 +896,14 @@ cc_library(
     srcs = ["node_util.cc"],
     hdrs = ["node_util.h"],
     deps = [
-        ":bits_ops",
         ":channel",
         ":ir",
+        ":value_helpers",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

@@ -1668,7 +1668,7 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
   }
 
   for (Proc* proc : procs_to_inline) {
-    // Check for any non-blocking reiceives, which are not supported.
+    // Check for any non-blocking receives, which are not supported.
     // Error out early: inlining creates new receives, and erroring out later
     // can lead to weird verifier errors from leftover state.
     for (Node* node : proc->nodes()) {

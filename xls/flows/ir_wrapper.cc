@@ -182,7 +182,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
 
   XLS_RET_CHECK_OK(dslx::ConvertModuleIntoPackage(
       ir_wrapper.top_module_, &ir_wrapper.import_data_, convert_options,
-      /*traverse_tests=*/false, ir_wrapper.package_.get()));
+      ir_wrapper.package_.get()));
 
   XLS_VLOG(3) << "IrWrapper Package (pre-opt):";
   XLS_VLOG_LINES(3, ir_wrapper.package_->DumpIr());

@@ -211,5 +211,35 @@ TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGSimple) {
                     Contains(t5.node())));
 }
 
+TEST_F(TokenProvenanceAnalysisTest, TopoSortedTokenDAGNestedTuples) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * channel,
+      p->CreateStreamingChannel("test_channel", ChannelOps::kReceiveOnly,
+                                p->GetBitsType(32)));
+
+  ProcBuilder pb(TestName(), "token", p.get());
+  BValue recv = pb.Receive(channel, pb.GetTokenParam());
+  BValue nested_tuple = pb.Tuple({pb.Literal(UBits(10, 32)), recv});
+  BValue indexed_original_tuple = pb.TupleIndex(nested_tuple, 1);
+  BValue recv_token = pb.TupleIndex(indexed_original_tuple, 0);
+  BValue recv2 = pb.Receive(channel, recv_token);
+  BValue recv2_token = pb.TupleIndex(recv2, 0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(recv2_token, {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<NodeAndPredecessors> topo_dag,
+                           ComputeTopoSortedTokenDAG(proc));
+
+  EXPECT_EQ(topo_dag.size(), 3);
+  EXPECT_EQ(topo_dag[0].node, proc->TokenParam());
+  EXPECT_THAT(topo_dag[0].predecessors, IsEmpty());
+  EXPECT_EQ(topo_dag[1].node, recv.node());
+  EXPECT_THAT(topo_dag[1].predecessors, ElementsAre(proc->TokenParam()));
+  EXPECT_EQ(topo_dag[2].node, recv2.node());
+  EXPECT_THAT(topo_dag[2].predecessors, ElementsAre(recv.node()));
+}
+
 }  // namespace
 }  // namespace xls

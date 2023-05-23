@@ -1,0 +1,11 @@
+--- common/lsp/BUILD
++++ common/lsp/BUILD
+@@ -13,7 +13,7 @@ load("//common/tools:jcxxgen.bzl", "jcxxgen")
+
+ package(
+     default_visibility = [
+-        "//:__subpackages__",
++        "//visibility:public",
+     ],
+ )
+ 

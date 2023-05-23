@@ -184,6 +184,13 @@ class ConcreteType {
   // this type.
   virtual std::vector<ConcreteTypeDim> GetAllDims() const = 0;
 
+  bool HasParametricDims() const {
+    std::vector<ConcreteTypeDim> all_dims = GetAllDims();
+    return std::any_of(
+        all_dims.begin(), all_dims.end(),
+        [](const ConcreteTypeDim& d) { return d.IsParametric(); });
+  }
+
   virtual absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const = 0;
 
   // Returns a "type name" suitable for debugging; e.g. "array", "bits", "enum",

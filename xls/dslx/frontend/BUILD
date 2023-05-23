@@ -45,9 +45,9 @@ cc_test(
     deps = [
         ":ast",
         ":ast_cloner",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:command_line_utils",
         "//xls/dslx:parse_and_typecheck",
         "@com_google_googletest//:gtest",
     ],
@@ -308,6 +308,7 @@ cc_library(
         "//xls/dslx:channel_direction",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
         "//xls/ir:number_parser",
     ],

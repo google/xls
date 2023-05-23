@@ -310,11 +310,11 @@ absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
 
 absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
                                       const ConvertOptions& options,
-                                      bool traverse_tests, Package* package) {
+                                      Package* package) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * root_type_info,
                        import_data->GetRootTypeInfo(module));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
-                       GetOrder(module, root_type_info, traverse_tests));
+                       GetOrder(module, root_type_info));
   PackageData package_data{package};
   XLS_RETURN_IF_ERROR(
       ConvertCallGraph(order, import_data, options, package_data));
@@ -326,11 +326,10 @@ absl::Status ConvertModuleIntoPackage(Module* module, ImportData* import_data,
 }
 
 absl::StatusOr<std::unique_ptr<Package>> ConvertModuleToPackage(
-    Module* module, ImportData* import_data, const ConvertOptions& options,
-    bool traverse_tests) {
+    Module* module, ImportData* import_data, const ConvertOptions& options) {
   auto package = std::make_unique<Package>(module->name());
   XLS_RETURN_IF_ERROR(ConvertModuleIntoPackage(module, import_data, options,
-                                               traverse_tests, package.get()));
+                                               package.get()));
   return package;
 }
 
@@ -448,7 +447,7 @@ absl::Status AddContentsToPackage(
   } else {
     XLS_RETURN_IF_ERROR(
         ConvertModuleIntoPackage(module.get(), import_data, convert_options,
-                                 /*traverse_tests=*/false, package));
+                                 package));
   }
   return absl::OkStatus();
 }

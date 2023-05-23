@@ -89,8 +89,8 @@ absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
       span_str = " @ " + ref_span->ToString();
     }
     return absl::NotFoundError(absl::StrFormat(
-        "Could not find bindings entry for identifier: \"%s\"%s", identifier,
-        span_str));
+        "InterpBindings could not find bindings entry for identifier: \"%s\"%s",
+        identifier, span_str));
   }
   InterpValue* value = absl::get_if<InterpValue>(&entry.value());
   if (value == nullptr) {

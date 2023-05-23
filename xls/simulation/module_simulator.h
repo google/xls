@@ -123,10 +123,29 @@ class ModuleSimulator {
   // Runs a function with arguments as a Span.
   absl::StatusOr<Value> RunFunction(absl::Span<const Value> inputs) const;
 
+  // Returns the (System)Verilog testbench for testing the module with the given
+  // inputs and expected outputs counts.
+  absl::StatusOr<std::string> GenerateProcTestbenchVerilog(
+      const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+      std::optional<ReadyValidHoldoffs> holdoffs = std::nullopt) const;
+
  private:
-  // Deassert all control inputs on the module. Returns a map of the signal name
-  // to its deasserted value.
+  // Returns a map of the signal name to its deasserted value.
   absl::flat_hash_map<std::string, Bits> DeassertControlSignals() const;
+
+  struct ProcTestbench {
+    std::unique_ptr<ModuleTestbench> testbench;
+
+    // Containers of the Bits objects which will be filled in with output
+    // channel values when the testbench is run. Indexed by output channel name.
+    absl::flat_hash_map<std::string, std::vector<std::unique_ptr<Bits>>>
+        outputs;
+  };
+  absl::StatusOr<ProcTestbench> CreateProcTestbench(
+      const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,
+      const absl::flat_hash_map<std::string, int64_t>& output_channel_counts,
+      std::optional<ReadyValidHoldoffs> holdoffs) const;
 
   ModuleSignature signature_;
   std::string verilog_text_;

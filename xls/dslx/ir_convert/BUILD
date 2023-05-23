@@ -229,6 +229,7 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:builtins_metadata",

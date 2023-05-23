@@ -165,6 +165,8 @@ absl::Status Bindings::AddFailLabel(const std::string& label,
     return ParseErrorStatus(span,
                             "A fail label must be unique within a function.");
   }
+
+  top->fail_labels_.value().insert(label);
   return absl::OkStatus();
 }
 

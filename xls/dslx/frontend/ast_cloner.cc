@@ -26,7 +26,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -42,6 +41,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
     std::vector<Expr*> new_members;
+    new_members.reserve(n->members().size());
     for (const Expr* old_member : n->members()) {
       new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
     }
@@ -375,12 +375,9 @@ class AstCloner : public AstNodeVisitor {
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
     }
 
-    Expr* new_body = down_cast<Expr*>(old_to_new_.at(n->body()));
-
     old_to_new_[n] = module_->Make<Let>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->name_def_tree())),
-        new_type, down_cast<Expr*>(old_to_new_.at(n->rhs())), new_body,
-        n->is_const());
+        new_type, down_cast<Expr*>(old_to_new_.at(n->rhs())), n->is_const());
     return absl::OkStatus();
   }
 
@@ -637,12 +634,10 @@ class AstCloner : public AstNodeVisitor {
       }
     }
 
-    Expr* new_body = down_cast<Expr*>(old_to_new_.at(n->body()));
     old_to_new_[n] = module_->Make<Spawn>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())),
         down_cast<Invocation*>(old_to_new_.at(n->config())),
-        down_cast<Invocation*>(old_to_new_.at(n->next())), new_parametrics,
-        new_body);
+        down_cast<Invocation*>(old_to_new_.at(n->next())), new_parametrics);
     return absl::OkStatus();
   }
 

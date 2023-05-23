@@ -275,8 +275,7 @@ absl::Status UpdateIr() {
   XLS_ASSIGN_OR_RETURN(globals->ir_package,
                        ConvertModuleToPackage(globals->dslx->module.get(),
                                               &globals->dslx->import_data,
-                                              dslx::ConvertOptions{},
-                                              /*traverse_tests=*/true));
+                                              dslx::ConvertOptions{}));
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
                        dslx::MangleDslxName(globals->dslx->module.get()->name(),
                                             "main", /*free_keys=*/{}));

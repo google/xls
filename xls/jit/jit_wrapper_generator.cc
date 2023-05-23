@@ -83,7 +83,8 @@ bool MatchUint(const Type& type, std::string* enclosing_type) {
   if (bit_count <= 32) {
     *enclosing_type = "uint32_t";
     return true;
-  } else if (bit_count <= 64) {
+  }
+  if (bit_count <= 64) {
     *enclosing_type = "uint64_t";
     return true;
   }

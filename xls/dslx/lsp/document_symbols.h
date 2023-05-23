@@ -17,7 +17,7 @@
 
 #include <vector>
 
-#include "verible/common/lsp/lsp-protocol.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {

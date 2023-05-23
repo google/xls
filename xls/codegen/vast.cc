@@ -14,19 +14,16 @@
 
 #include "xls/codegen/vast.h"
 
-#include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/strip.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
@@ -1033,7 +1030,7 @@ std::string RepeatStatement::Emit(LineInfo* line_info) const {
   std::string repeat_count = repeat_count_->Emit(line_info);
   std::string statement = statement_->Emit(line_info);
   LineInfoEnd(line_info, this);
-  return absl::StrFormat("repeat (%s) %s;", repeat_count, statement);
+  return absl::StrFormat("repeat (%s) %s", repeat_count, statement);
 }
 
 std::string EventControl::Emit(LineInfo* line_info) const {

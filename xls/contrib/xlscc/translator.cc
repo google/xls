@@ -3741,13 +3741,12 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
     auto array_t = t->As<CArrayType>();
     if (array_t->GetSize() < init_list->getNumInits()) {
       return absl::UnimplementedError(
-          ErrorMessage(loc, "Wrong number of initializers"));
+          ErrorMessage(loc, "Too many initializers"));
     }
     XLS_ASSIGN_OR_RETURN(Pragma pragma,
                          FindPragmaForLoc(init_list->getBeginLoc()));
     if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
-        array_t->GetSize() != init_list->getNumInits() &&
-        init_list->getNumInits() != 1) {
+        array_t->GetSize() != init_list->getNumInits()) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }
@@ -3774,12 +3773,6 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
               loc, "Wrong initializer type %s", string(*expr_val.type())));
         }
         this_val = expr_val.rvalue();
-      }
-      if (init_list->getNumInits() == 1 &&
-          array_t->GetSize() != init_list->getNumInits() &&
-          !EvaluateBVal(this_val, loc)->IsAllZeros()) {
-        return absl::UnimplementedError(ErrorMessage(
-            loc, "Non-zero initializers must have exact element count"));
       }
       XLSCC_CHECK(this_val.valid(), loc);
       element_vals.push_back(this_val);

@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <vector>
-
 #include "gtest/gtest.h"
-#include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/unit_test.h"
 
 namespace xlscc {
@@ -720,35 +717,6 @@ TEST_F(XlsFixedTest, MaxValueSigned) {
   RunAcDatatypeTest({}, 3, content, xabsl::SourceLocation::current());
 }
 
-TEST_F(XlsFixedTest, QuantizationModeOtherThanAcTrnNotSupported) {
-  const std::string content = R"(
-    #include "xls_fixed.h"
-    long long my_package() {
-      XlsFixed<10, 10, true, ac_datatypes::AC_RND, ac_datatypes::AC_WRAP> x(0);
-      return x.to_int();
-    })";
-  // AC_RND, AC_TRN_ZERO, AC_RND_ZERO, AC_RND_INF, AC_RND_MIN_INF, AC_RND_CONV,
-  // AC_RND_CONV_ODD
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::string> clang_args,
-                           XlsccTestBase::GetClangArgForIntTest());
-  std::vector<std::string_view> clang_argv(clang_args.begin(),
-                                           clang_args.end());
-  ASSERT_THAT(SourceToIr(content, nullptr, clang_argv).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kFailedPrecondition,
-                  testing::HasSubstr("Unable to parse text with clang")));
-}
-
-TEST_F(XlsFixedTest, QuantizationModeAcTrnSupported) {
-  const std::string content = R"(
-    #include "xls_fixed.h"
-    long long my_package() {
-      XlsFixed<10, 10, true, ac_datatypes::AC_TRN, ac_datatypes::AC_WRAP> x(0);
-      return x.to_int();
-    })";
-  RunAcDatatypeTest({}, 0, content, xabsl::SourceLocation::current());
-}
-
 TEST_F(XlsFixedTest, ToAcInt) {
   const std::string content = R"(
     #include "xls_fixed.h"
@@ -757,6 +725,224 @@ TEST_F(XlsFixedTest, ToAcInt) {
       return x.to_ac_int();
     })";
   RunAcDatatypeTest({{"a", 9}}, 9, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeTrnPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_TRN, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeTrnNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_TRN, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndTrnZeroPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_TRN_ZERO, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeTrnZeroNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 3);
+      XlsFixed<4, 4, true, ac_datatypes::AC_TRN_ZERO, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -2, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndZeroPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_ZERO, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndZeroNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_ZERO, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -3, content, xabsl::SourceLocation::current());
+}
+
+
+TEST_F(XlsFixedTest, QuantizationModeRndInfPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndInfPositiveSameSizeResult) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<10, 10, true, ac_datatypes::AC_RND_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndInfPositiveLargerResult) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<11, 11, true, ac_datatypes::AC_RND_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndInfNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndMinInfPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_MIN_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndMinInfNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_MIN_INF, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndConvPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_CONV, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 3, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndConvNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_CONV, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -4, content, xabsl::SourceLocation::current());
+}
+
+
+TEST_F(XlsFixedTest, QuantizationModeRndConvOddPositive) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_CONV_ODD, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 7}}, 4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, QuantizationModeRndConvOddNegative) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long a) {
+      XlsFixed<10, 6, true> x(a);
+      XlsFixed<10, 6, true> y(x / 2);
+      XlsFixed<4, 4, true, ac_datatypes::AC_RND_CONV_ODD, ac_datatypes::AC_WRAP> z(y);
+      return z.to_int();
+    })";
+  RunAcDatatypeTest({{"a", -7}}, -3, content, xabsl::SourceLocation::current());
 }
 
 }  // namespace

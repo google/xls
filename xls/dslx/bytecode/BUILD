@@ -91,6 +91,7 @@ cc_library(
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "//xls/common:symbolized_stacktrace",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -102,10 +103,8 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:concrete_type_zero_value",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:unwrap_meta_type",
     ],
 )
 

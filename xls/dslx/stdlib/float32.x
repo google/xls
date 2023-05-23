@@ -169,12 +169,14 @@ pub fn fixed_fraction(input_float: F32) -> u23 {
   let unbiased_input_float_exponent: s8 = unbiased_exponent(input_float);
 
   let input_fixed_magnitude: u25 = match unbiased_input_float_exponent as s8 > s8:0 {
-    true =>
+    true => {
       let fraction_left_shift = unbiased_input_float_exponent as u3;
-      input_fraction_magnitude << (fraction_left_shift as u25),
-    _ =>
+      input_fraction_magnitude << (fraction_left_shift as u25)
+    },
+    _ => {
       let fraction_right_shift = (-unbiased_input_float_exponent) as u5;
       input_fraction_magnitude >> (fraction_right_shift as u25)
+    }
   };
 
   let input_fraction_part_magnitude: u24 = input_fixed_magnitude as u23 as u24;

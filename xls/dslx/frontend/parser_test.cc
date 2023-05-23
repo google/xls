@@ -41,8 +41,9 @@ static const char kFilename[] = "test.x";
 
 class ParserTest : public ::testing::Test {
  public:
-  void RoundTrip(std::string program,
-                 std::optional<std::string_view> target = std::nullopt) {
+  std::unique_ptr<Module> RoundTrip(
+      std::string program,
+      std::optional<std::string_view> target = std::nullopt) {
     scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
     auto module_or = parser_->ParseModule();
@@ -51,14 +52,16 @@ class ParserTest : public ::testing::Test {
                     [&](std::string_view path) -> absl::StatusOr<std::string> {
                       return program;
                     });
+      return nullptr;
     }
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
-                             std::move(module_or));
+    std::unique_ptr<Module> module = std::move(module_or).value();
     if (target.has_value()) {
       EXPECT_EQ(module->ToString(), *target);
     } else {
       EXPECT_EQ(module->ToString(), program);
     }
+
+    return module;
   }
 
   // Note: given expression text should have no free variables other than those
@@ -92,22 +95,24 @@ class ParserTest : public ::testing::Test {
     return expr_or;
   }
 
-  void RoundTripExpr(std::string_view expr_text,
-                     absl::Span<const std::string> predefine = {},
-                     bool populate_dslx_builtins = false,
-                     std::optional<std::string> target = std::nullopt,
-                     Expr** parsed = nullptr) {
-    XLS_ASSERT_OK_AND_ASSIGN(
-        Expr * e, ParseExpr(expr_text, predefine, populate_dslx_builtins));
+  Expr* RoundTripExpr(std::string_view expr_text,
+                      absl::Span<const std::string> predefine = {},
+                      bool populate_dslx_builtins = false,
+                      std::optional<std::string> target = std::nullopt) {
+    absl::StatusOr<Expr*> e_or =
+        ParseExpr(expr_text, predefine, populate_dslx_builtins);
+    if (!e_or.ok()) {
+      XLS_EXPECT_OK(e_or.status());
+      return nullptr;
+    }
+    Expr* e = e_or.value();
     if (target.has_value()) {
       EXPECT_EQ(e->ToString(), *target);
     } else {
       EXPECT_EQ(e->ToString(), expr_text);
     }
 
-    if (parsed != nullptr) {
-      *parsed = e;
-    }
+    return e;
   }
 
   // Allows the private ParseTypeAnnotation method to be used by subtypes (test
@@ -165,10 +170,43 @@ TEST_F(ParserTest, TestIdentityFunction) {
 }
 
 TEST_F(ParserTest, TestIdentityFunctionWithLet) {
-  RoundTrip(R"(fn f(x: u32) -> u32 {
+  std::unique_ptr<Module> module = RoundTrip(R"(fn f(x: u32) -> u32 {
   let y = x;
   y
 })");
+  std::optional<Function*> maybe_f = module->GetFunction("f");
+  ASSERT_TRUE(maybe_f.has_value());
+  Function* f = maybe_f.value();
+  ASSERT_NE(f, nullptr);
+  Block* f_body = f->body();
+  ASSERT_EQ(f_body->statements().size(), 2);
+}
+
+TEST_F(ParserTest, TestBlockOfUnitNoSemi) {
+  RoundTripExpr(R"({
+  ()
+})");
+}
+
+TEST_F(ParserTest, TestBlockOfUnitWithSemi) {
+  RoundTripExpr(R"({
+  ();
+})");
+}
+
+TEST_F(ParserTest, TestBlockOfTwoUnits) {
+  Expr* e = RoundTripExpr(R"({
+  ();
+  ()
+})");
+  ASSERT_NE(e, nullptr);
+  auto* block = dynamic_cast<Block*>(e);
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(block->statements().size(), 2);
+  EXPECT_TRUE(
+      std::holds_alternative<Expr*>(block->statements().at(0)->wrapped()));
+  EXPECT_TRUE(
+      std::holds_alternative<Expr*>(block->statements().at(1)->wrapped()));
 }
 
 TEST_F(ParserTest, TestTokenIdentity) {
@@ -209,18 +247,81 @@ TEST_F(ParserTest, EmptyTupleWithComma) {
 }
 
 TEST_F(ParserTest, ParseLetExpression) {
-  const char* text = "let x: u32 = 2; x";
+  const char* text = R"({
+  let x: u32 = 2;
+  x
+})";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
   Bindings b;
-  XLS_ASSERT_OK_AND_ASSIGN(Expr * e, p.ParseExpression(b));
-  Let* let = dynamic_cast<Let*>(e);
-  ASSERT_TRUE(let != nullptr) << e->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           p.ParseBlockExpression(/*bindings=*/b));
+
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 2);
+
+  Let* let = std::get<Let*>(stmts.at(0)->wrapped());
   NameDef* name_def = std::get<NameDef*>(let->name_def_tree()->leaf());
   EXPECT_EQ(name_def->identifier(), "x");
   EXPECT_EQ(let->type_annotation()->ToString(), "u32");
   EXPECT_EQ(let->rhs()->ToString(), "2");
-  EXPECT_EQ(let->body()->ToString(), "x");
+
+  Expr* e = std::get<Expr*>(stmts.at(1)->wrapped());
+  auto* name_ref = dynamic_cast<NameRef*>(e);
+  EXPECT_EQ(name_ref->ToString(), "x");
+}
+
+TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
+  const char* text = R"({
+  let x: u32 = 2;
+  let x: u32 = 4;
+  x
+})";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           p.ParseBlockExpression(/*bindings=*/b));
+
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 3);
+
+  Let* second_let = std::get<Let*>(stmts.at(1)->wrapped());
+
+  Expr* e = std::get<Expr*>(stmts.at(2)->wrapped());
+  auto* name_ref = dynamic_cast<NameRef*>(e);
+  EXPECT_EQ(name_ref->ToString(), "x");
+  EXPECT_EQ(std::get<const NameDef*>(name_ref->name_def()),
+            std::get<NameDef*>(second_let->name_def_tree()->leaf()));
+}
+
+TEST_F(ParserTest, ParseBlockMultiLet) {
+  const char* kProgram = R"({
+  let x = f();
+  let y = g(x);
+  x + y
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser p{"test", &s};
+  Bindings bindings;
+  Module& mod = p.module();
+  bindings.Add("f", mod.GetOrCreateBuiltinNameDef("f"));
+  bindings.Add("g", mod.GetOrCreateBuiltinNameDef("g"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           p.ParseBlockExpression(/*bindings=*/bindings));
+
+  EXPECT_EQ(3, block->statements().size());
+  Expr* add_expr = std::get<Expr*>(block->statements().back()->wrapped());
+  auto* add = dynamic_cast<Binop*>(add_expr);
+  NameRef* lhs = dynamic_cast<NameRef*>(add->lhs());
+  const NameDef* lhs_def = std::get<const NameDef*>(lhs->name_def());
+  EXPECT_NE(lhs_def->definer(), nullptr);
+  EXPECT_EQ(lhs_def->definer()->ToString(), "f()");
+
+  NameRef* rhs = dynamic_cast<NameRef*>(add->rhs());
+  const NameDef* rhs_def = std::get<const NameDef*>(rhs->name_def());
+  EXPECT_NE(rhs_def->definer(), nullptr);
+  EXPECT_EQ(rhs_def->definer()->ToString(), "g(x)");
 }
 
 TEST_F(ParserTest, ParseIdentityFunction) {
@@ -682,15 +783,15 @@ TEST_F(ParserTest, LocalConstBinding) {
       p.ParseFunction(/*is_public=*/false, /*bindings=*/bindings));
   Block* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
-  ASSERT_EQ(stmts.size(), 1);
-  Statement* body_stmt = stmts.at(0);
+  ASSERT_EQ(stmts.size(), 2);
 
-  auto* const_let = dynamic_cast<Let*>(std::get<Expr*>(body_stmt->wrapped()));
+  Let* const_let = std::get<Let*>(stmts.at(0)->wrapped());
   ASSERT_NE(const_let, nullptr);
   ASSERT_TRUE(const_let->is_const());
   EXPECT_EQ("u8:42", const_let->rhs()->ToString());
 
-  auto* const_ref = dynamic_cast<ConstRef*>(const_let->body());
+  auto* const_ref =
+      dynamic_cast<ConstRef*>(std::get<Expr*>(stmts.at(1)->wrapped()));
   ASSERT_NE(const_ref, nullptr);
   const NameDef* name_def = const_ref->name_def();
   EXPECT_EQ(name_def->ToString(), "FOO");
@@ -798,37 +899,47 @@ fn main() {
 }
 
 TEST_F(ParserTest, LetDestructureFlat) {
-  RoundTripExpr(R"(let (x, y, z): (u32, u32, u32) = (1, 2, 3);
-y)");
+  RoundTripExpr(R"({
+  let (x, y, z): (u32, u32, u32) = (1, 2, 3);
+  y
+})");
 }
 
 TEST_F(ParserTest, LetDestructureNested) {
   RoundTripExpr(
-      R"(let (w, (x, (y)), z): (u32, (u32, (u32,)), u32) = (1, (2, (3,)), 4);
-y)");
+      R"({
+  let (w, (x, (y)), z): (u32, (u32, (u32,)), u32) = (1, (2, (3,)), 4);
+  y
+})");
 }
 
 TEST_F(ParserTest, LetDestructureWildcard) {
-  RoundTripExpr(R"(let (x, y, _): (u32, u32, u32) = (1, 2, 3);
-y)");
+  RoundTripExpr(R"({
+  let (x, y, _): (u32, u32, u32) = (1, 2, 3);
+  y
+})");
 }
 
 TEST_F(ParserTest, For) {
-  RoundTripExpr(R"(let accum: u32 = 0;
-let accum: u32 = for (i, accum): (u32, u32) in range(u32:0, u32:4) {
-  let new_accum: u32 = (accum) + (i);
-  new_accum
-}(accum);
-accum)",
+  RoundTripExpr(R"({
+  let accum: u32 = 0;
+  let accum: u32 = for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+    let new_accum: u32 = (accum) + (i);
+    new_accum
+  }(accum);
+  accum
+})",
                 {"range"});
 }
 
 TEST_F(ParserTest, ForSansTypeAnnotation) {
   RoundTripExpr(
-      R"(let init = ();
-for (i, accum) in range(u32:0, u32:4) {
-  accum
-}(init))",
+      R"({
+  let init = ();
+  for (i, accum) in range(u32:0, u32:4) {
+    accum
+  }(init)
+})",
       {"range"});
 }
 
@@ -860,8 +971,7 @@ TEST_F(ParserTest, ArrayTypeAnnotation) {
 }
 
 TEST_F(ParserTest, TupleArrayAndInt) {
-  Expr* e;
-  RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, std::nullopt, &e);
+  Expr* e = RoundTripExpr("(u8[4]:[1, 2, 3, 4], 7)", {}, false, std::nullopt);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   EXPECT_EQ(2, tuple->members().size());
   auto* array = tuple->members()[0];
@@ -1029,8 +1139,7 @@ TEST_F(ParserTest, ArrayOfNameRefs) {
 }
 
 TEST_F(ParserTest, EmptyTuple) {
-  Expr* e;
-  RoundTripExpr("()", {}, false, std::nullopt, &e);
+  Expr* e = RoundTripExpr("()", {}, false, std::nullopt);
   auto* tuple = dynamic_cast<XlsTuple*>(e);
   ASSERT_NE(tuple, nullptr);
   EXPECT_TRUE(tuple->empty());
@@ -1045,23 +1154,21 @@ TEST_F(ParserTest, Match) {
 }
 
 TEST_F(ParserTest, MatchFreevars) {
-  Expr* e;
-  RoundTripExpr(R"(match x {
+  Expr* e = RoundTripExpr(R"(match x {
   y => z,
 })",
-                {"x", "y", "z"}, false, std::nullopt, &e);
+                          {"x", "y", "z"}, false, std::nullopt);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
 }
 
 TEST_F(ParserTest, ForFreevars) {
-  Expr* e;
-  RoundTripExpr(R"(for (i, accum): (u32, u32) in range(u32:4) {
+  Expr* e = RoundTripExpr(R"(for (i, accum): (u32, u32) in range(u32:4) {
   let new_accum: u32 = ((accum) + (i)) + (j);
   new_accum
 }(u32:0))",
-                {"range", "j"}, false, std::nullopt, &e);
+                          {"range", "j"}, false, std::nullopt);
   FreeVariables fv = e->GetFreeVariables(&e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
@@ -1134,8 +1241,7 @@ fn f(a: MyStruct) -> u32 {
 }
 
 TEST_F(ParserTest, ConstantArray) {
-  Expr* e;
-  RoundTripExpr("u32[2]:[0, 1]", {}, false, std::nullopt, &e);
+  Expr* e = RoundTripExpr("u32[2]:[0, 1]", {}, false, std::nullopt);
   ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
 }
 
@@ -1144,9 +1250,8 @@ TEST_F(ParserTest, DoubleNegation) {
 }
 
 TEST_F(ParserTest, LogicalOperatorPrecedence) {
-  Expr* e;
-  RoundTripExpr("!a || !b && c", {"a", "b", "c"}, false,
-                "(!(a)) || ((!(b)) && (c))", &e);
+  Expr* e = RoundTripExpr("!a || !b && c", {"a", "b", "c"}, false,
+                          "(!(a)) || ((!(b)) && (c))");
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kLogicalOr);
   auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
@@ -1156,9 +1261,8 @@ TEST_F(ParserTest, LogicalOperatorPrecedence) {
 }
 
 TEST_F(ParserTest, LogicalEqualityPrecedence) {
-  Expr* e;
-  RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, false,
-                "((a) ^ (!(b))) == (f())", &e);
+  Expr* e = RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, false,
+                          "((a) ^ (!(b))) == (f())");
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kEq);
   auto* binop_lhs = dynamic_cast<Binop*>(binop->lhs());
@@ -1168,9 +1272,8 @@ TEST_F(ParserTest, LogicalEqualityPrecedence) {
 }
 
 TEST_F(ParserTest, CastVsComparatorPrecedence) {
-  Expr* e;
-  RoundTripExpr("x >= y as u32", {"x", "y"}, false, "(x) >= (((y) as u32))",
-                &e);
+  Expr* e = RoundTripExpr("x >= y as u32", {"x", "y"}, false,
+                          "(x) >= (((y) as u32))");
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kGe);
   auto* cast = dynamic_cast<Cast*>(binop->rhs());
@@ -1181,26 +1284,29 @@ TEST_F(ParserTest, CastVsComparatorPrecedence) {
 }
 
 TEST_F(ParserTest, CastVsUnaryPrecedence) {
-  Expr* e;
-  RoundTripExpr("-x as s32", {"x", "y"}, false, "((-(x)) as s32)", &e);
+  Expr* e = RoundTripExpr("-x as s32", {"x", "y"}, false, "((-(x)) as s32)");
   auto* cast = dynamic_cast<Cast*>(e);
   ASSERT_NE(cast, nullptr);
   EXPECT_EQ(cast->type_annotation()->ToString(), "s32");
 }
 
 TEST_F(ParserTest, NameDefTree) {
-  RoundTripExpr(R"(let (a, (b, (c, d), e), f) = x;
-a)",
+  RoundTripExpr(R"({
+  let (a, (b, (c, d), e), f) = x;
+  a
+})",
                 {"x"});
 }
 
 TEST_F(ParserTest, Strings) {
-  RoundTripExpr(R"(let x = "dummy --> \" <-- string";
-x)",
-                {"x"});
-  RoundTripExpr(R"(let x = "dummy --> \"";
-x)",
-                {"x"});
+  RoundTripExpr(R"({
+  let x = "dummy --> \" <-- string";
+  x
+})");
+  RoundTripExpr(R"({
+  let x = "dummy --> \"";
+  x
+})");
 }
 
 TEST_F(ParserTest, TupleIndex) {
@@ -1229,8 +1335,16 @@ fn f(x: u32) -> u8 {
   Number* index = tuple_index->index();
   EXPECT_EQ(index->ToString(), "1");
 
-  RoundTripExpr("let foo = tuple.0;\nfoo", {"tuple"});
-  RoundTripExpr("let foo = (u32:6, u32:7).1;\nfoo", {"tuple"});
+  RoundTripExpr(R"({
+  let foo = tuple.0;
+  foo
+})",
+                {"tuple"});
+  RoundTripExpr(R"({
+  let foo = (u32:6, u32:7).1;
+  foo
+})",
+                {"tuple"});
 }
 
 TEST_F(ParserTest, BlockWithinBlock) {
@@ -1242,35 +1356,33 @@ TEST_F(ParserTest, BlockWithinBlock) {
   };
   let d = u32:2;
 })";
-  const char* kOutput = R"({
-  let a = u32:0;
-  let b = {
-    let c = u32:1;
-    c
-  };
-  let d = u32:2;
-  ()
-})";
-
-  RoundTripExpr(kInput, /*predefine=*/{}, /*populate_dslx_builtins=*/false,
-                /*target=*/kOutput);
+  RoundTripExpr(kInput);
 }
 
 TEST_F(ParserTest, UnrollFor) {
   RoundTripExpr(
-      R"(let bar = u32:0;
-let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
-  let foo = (i) + (1);
-  ()
-}(u32:0);
-let baz = u32:0;
-res)",
+      R"({
+  let bar = u32:0;
+  let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
+    let foo = (i) + (1);
+    ()
+  }(u32:0);
+  let baz = u32:0;
+  res
+})",
       /*predefine=*/{"range"});
 }
 
 TEST_F(ParserTest, Range) {
-  RoundTripExpr("let foo = u32:8..u32:16;\nfoo");
-  RoundTripExpr("let foo = a..b;\nfoo", {"a", "b"});
+  RoundTripExpr(R"({
+  let foo = u32:8..u32:16;
+  foo
+})");
+  RoundTripExpr(R"({
+  let foo = a..b;
+  foo
+})",
+                {"a", "b"});
 }
 
 TEST_F(ParserTest, BuiltinFailWithLabels) {
@@ -1364,7 +1476,10 @@ fn main(x: u32) -> u32 {
 
   Scanner s{"test.x", std::string(kProgram)};
   Parser parser{"test", &s};
-  EXPECT_THAT(parser.ParseModule(),
+  absl::StatusOr<std::unique_ptr<Module>> module_or = parser.ParseModule();
+  ASSERT_FALSE(module_or.ok()) << module_or.status();
+  XLS_LOG(INFO) << "status: " << module_or.status();
+  EXPECT_THAT(module_or.status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("A fail label must be unique")));
 }
@@ -1390,22 +1505,14 @@ fn main() -> u32 {
 
   Block* body = f->body();
   absl::Span<Statement* const> stmts = body->statements();
-  ASSERT_EQ(stmts.size(), 1);
+  ASSERT_EQ(stmts.size(), 4);
 
   // Get the terminal expr.
-  Expr* current_expr = std::get<Expr*>(stmts.at(0)->wrapped());
-  while (dynamic_cast<Let*>(current_expr) != nullptr) {
-    current_expr = dynamic_cast<Let*>(current_expr)->body();
-  }
+  Expr* current_expr = std::get<Expr*>(stmts.back()->wrapped());
   NameRef* nameref = dynamic_cast<NameRef*>(current_expr);
   ASSERT_NE(nameref, nullptr);
 
-  // The parent let should be 3 "parent" ticks back...
-  AstNode* current_node = nameref;
-  for (int i = 0; i < 3; i++) {
-    current_node = current_node->parent();
-  }
-  Let* foo_parent = dynamic_cast<Let*>(current_node);
+  Let* foo_parent = std::get<Let*>(stmts.at(0)->wrapped());
   ASSERT_NE(foo_parent, nullptr);
   // The easiest way to verify what we've got the right node is just to do a
   // string comparison, even if it's not pretty.

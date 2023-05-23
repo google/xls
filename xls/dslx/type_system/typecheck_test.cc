@@ -175,6 +175,15 @@ fn f() -> u32 { o(u32:3) }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, ParametricPlusGlobal) {
+  std::string program = R"(
+const GLOBAL = u32:4;
+fn p<N: u32>() -> bits[N+GLOBAL] { bits[N+GLOBAL]:0 }
+fn f() -> u32 { p<u32:28>() }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
@@ -334,6 +343,16 @@ fn f() -> u32 { p(u32:3) }
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
               "Annotated type of derived parametric value did not match")));
+}
+
+TEST(TypecheckTest, ParametricExpressionInBitsReturnType) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn parametric<X: u32>() -> bits[X * u32:4] {
+  type Ret = bits[X * u32:4];
+  Ret:0
+}
+fn main() -> bits[4] { parametric<u32:1>() }
+)"));
 }
 
 TEST(TypecheckTest, ParametricInstantiationVsArgOk) {
@@ -1137,7 +1156,6 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
 
     absl::Status HandleLet(const Let* node) override {
       XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
-      XLS_RETURN_IF_ERROR(node->body()->Accept(this));
       return absl::OkStatus();
     }
 
@@ -1284,6 +1302,20 @@ TEST(TypecheckStructInstanceTest, SplatWithExtraFieldQ) {
                   "fn f(p: Point) -> Point { Point { q: u32:42, ..p } }"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Struct 'Point' has no member 'q'")));
+}
+
+TEST(TypecheckParametricStructInstanceTest, MulExprInMember) {
+  const std::string_view kProgram = R"(
+struct Point<N: u32> {
+  x: uN[N],
+  y: uN[N * u32:2]
+}
+
+fn f(p: Point<3>) -> uN[6] {
+  p.y
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
 // Helper for parametric struct instance based tests.

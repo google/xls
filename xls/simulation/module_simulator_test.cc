@@ -34,6 +34,9 @@ using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Pair;
 
+constexpr char kTestName[] = "module_simulator_test";
+constexpr char kTestdataPath[] = "xls/simulation/testdata";
+
 // Returns a test module which can be used to monitor the ready/valid interface
 // of a streaming channel.
 absl::StatusOr<ModuleGeneratorResult> GetInputChannelMonitorModule() {
@@ -353,6 +356,13 @@ endmodule
     EXPECT_THAT(
         simulator.RunInputSeriesProc(input_values, output_channel_counts),
         IsOkAndHolds(result_values));
+
+    // Test verilog against golden.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             simulator.GenerateProcTestbenchVerilog(
+                                 input_values, output_channel_counts));
+    ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                   verilog);
   }
   {
     // Test with Values.

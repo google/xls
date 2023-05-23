@@ -1455,8 +1455,7 @@ absl::StatusOr<bool> TryProve(Function* f, Node* subject, Predicate p,
   Z3_solver solver = solvers::z3::CreateSolver(ctx, 1);
   Z3_solver_assert(ctx, solver, objective);
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
-  XLS_VLOG(2) << solvers::z3::SolverResultToString(ctx, solver, satisfiable)
-              << std::endl;
+  XLS_VLOG(2) << solvers::z3::SolverResultToString(ctx, solver, satisfiable);
   Z3_solver_dec_ref(ctx, solver);
 
   if (Z3_solver_check(ctx, solver) == Z3_L_FALSE) {

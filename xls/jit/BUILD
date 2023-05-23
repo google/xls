@@ -187,11 +187,10 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "//xls/interpreter:channel_queue",
         "//xls/interpreter:ir_evaluator_test_base",
         "//xls/interpreter:random_value",
         "//xls/ir:function_builder",
-        "@com_github_google_re2//:re2",
+        "//xls/ir:value_view",
         "@com_google_googletest//:gtest",
     ],
 )

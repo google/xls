@@ -119,7 +119,6 @@ class NameRefCollector : public ExprVisitor {
   }
   absl::Status HandleLet(const Let* expr) override {
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
 
     std::vector<NameDefTree::Leaf> leaves = expr->name_def_tree()->Flatten();
     for (const auto& leaf : leaves) {
@@ -401,6 +400,9 @@ absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
       type_info_->NoteConstExpr(body_expr,
                                 type_info_->GetConstExpr(body_expr).value());
     } else {
+      XLS_VLOG(10)
+          << "ConstexprEvaluator::HandleBlock; expr was not constexpr: "
+          << body_expr->ToString();
       all_statements_constexpr = false;
     }
   }
@@ -562,42 +564,6 @@ absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
-  // A `for` loop evaluates constexpr if its init and enumeration values as
-  // well as any external NameRefs are constexpr.
-  XLS_VLOG(3) << "ConstexprEvaluator::HandleFor: " << expr->ToString();
-  EVAL_AS_CONSTEXPR_OR_RETURN(expr->init());
-  EVAL_AS_CONSTEXPR_OR_RETURN(expr->iterable());
-
-  // Since a `for` loop can refer to vars outside the loop body itself, we need
-  // to make sure that every NameRef is also constexpr.
-  std::vector<NameDef*> bound_defs = expr->names()->GetNameDefs();
-  absl::flat_hash_set<const NameDef*> bound_def_set(bound_defs.begin(),
-                                                    bound_defs.end());
-
-  NameRefCollector collector;
-  XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(&collector));
-  for (const NameRef* name_ref : collector.outside_name_refs()) {
-    // We can't bind to a BuiltinNameDef, so this std::get is safe.
-    XLS_RETURN_IF_ERROR(name_ref->AcceptExpr(this));
-    if (!type_info_->IsKnownConstExpr(name_ref) &&
-        !bound_def_set.contains(
-            std::get<const NameDef*>(name_ref->name_def()))) {
-      return absl::OkStatus();
-    }
-  }
-
-  // When constexpr eval'ing, we also don't want names declared inside the loop
-  // to shadow the [potentially] constexpr values declared outside.
-  bound_def_set.insert(collector.inside_name_defs().begin(),
-                       collector.inside_name_defs().end());
-
-  // We don't [yet] have a static assert fn, meaning that we don't want to catch
-  // runtime errors here. If we detect that a program has failed (due to
-  // execution of a `fail!` or unmatched `match`, then just assume we're ok.
-  absl::Status status = InterpretExpr(expr, bound_def_set);
-  if (!status.ok() && !absl::StartsWith(status.message(), "FailureError")) {
-    return status;
-  }
   return absl::OkStatus();
 }
 
@@ -818,11 +784,10 @@ absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   return absl::OkStatus();
 }
 
-absl::Status ConstexprEvaluator::InterpretExpr(
-    const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env) {
+absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
   absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(env, MakeConstexprEnv(import_data_, type_info_, expr,
-                                             bindings_, bypass_env));
+  XLS_ASSIGN_OR_RETURN(
+      env, MakeConstexprEnv(import_data_, type_info_, expr, bindings_));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
                        BytecodeEmitter::EmitExpression(import_data_, type_info_,
@@ -838,14 +803,13 @@ absl::Status ConstexprEvaluator::InterpretExpr(
 
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info, const Expr* node,
-    const ParametricEnv& parametric_env,
-    absl::flat_hash_set<const NameDef*> bypass_env) {
+    const ParametricEnv& parametric_env) {
   XLS_CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
       << "` from module: " << node->owner()->name()
       << " vs type info module: " << type_info->module()->name();
-  XLS_VLOG(5) << "Creating constexpr environment for node: "
-              << node->ToString();
+  XLS_VLOG(5) << "Creating constexpr environment for node: `"
+              << node->ToString() << "`";
   absl::flat_hash_map<std::string, InterpValue> env;
   absl::flat_hash_map<std::string, InterpValue> values;
 
@@ -855,17 +819,14 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
 
   // Collect all the freevars that are constexpr.
   FreeVariables freevars = node->GetFreeVariables();
-  XLS_VLOG(5) << "freevars for " << node->ToString() << ": "
-              << freevars.GetFreeVariableCount();
+  XLS_VLOG(5) << "freevar count for `" << node->ToString()
+              << "`: " << freevars.GetFreeVariableCount();
   freevars = freevars.DropBuiltinDefs();
   for (const auto& [name, name_refs] : freevars.values()) {
     const NameRef* target_ref = nullptr;
     for (const NameRef* name_ref : name_refs) {
-      if (!bypass_env.contains(
-              std::get<const NameDef*>(name_ref->name_def()))) {
-        target_ref = name_ref;
-        break;
-      }
+      target_ref = name_ref;
+      break;
     }
 
     if (target_ref == nullptr) {

@@ -390,7 +390,7 @@ fn run_i_instruction(pc: u32,
                      -> (u32, u32[REG_COUNT], u8[DMEM_SIZE]) {
   let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(ins);
   let (pc, new_value) = match opcode {
-     I_ARITH =>
+     I_ARITH => {
         let pc: u32 = pc + u32:4;
         let value: u32 = match funct3 {
            ADDI => regs[rs1] +   (imm12 as u32),
@@ -402,8 +402,9 @@ fn run_i_instruction(pc: u32,
            ANDI => regs[rs1] &   (imm12 as u32),
            _    => fail!("unmatched_I_ARITH_func3", u32:0)
         };
-        (pc, value),
-     I_LD =>
+        (pc, value)
+     },
+     I_LD => {
         let pc: u32 = pc + u32:4;
         let addr:u32 = regs[rs1] + (imm12 as u32);
         let value: u32 = match funct3 {
@@ -418,20 +419,22 @@ fn run_i_instruction(pc: u32,
            LHU  => (dmem[addr] ++ dmem[addr + u32:1]) as u32,
            _    => fail!("unmatched_I_LD_func3", u32:0)
         };
-        (pc, value),
-     I_JALR =>
+        (pc, value)
+     },
+     I_JALR => {
         let (pc, value) = match funct3 {
-          JALR => let new_rd : u32 = pc + u32:4;
+          JALR => {let new_rd : u32 = pc + u32:4;
                   // Add imm12 to rs1 and clear the LSB
                   let pc = (regs[rs1] + signex(imm12, u32:0)) & u32:0xfffffffe;
-                  (pc, new_rd),
-          _    => fail!("unmatched_I_JALR_funct3", (pc, u32:0))
+                  (pc, new_rd) },
+          _    => { fail!("unmatched_I_JALR_funct3", (pc, u32:0)) }
         };
-        (pc, value),
+        (pc, value)
+     },
 
      // Unsupported RV64I instructions:
      //   LD, LWU
-     _    => fail!("unsupported_instruction", (pc, u32:0))
+     _    => { fail!("unsupported_instruction", (pc, u32:0)) }
   };
   (pc, update(regs, rd, new_value), dmem)
 }
@@ -449,22 +452,27 @@ fn run_s_instruction(pc: u32,
   // This is where are much smarter load/store queue mechanism
   // will end up, which will resolve issues around alignment as well.
   let dmem = match funct3 {
-     SW   => let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
+     SW   => {
+       let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
                                regs[rs1][24 +: u8]);
              let dmem = update(dmem, regs[rs2] + u32:1 + (imm12 as u32),
                                regs[rs1][16 +: u8]);
              let dmem = update(dmem, regs[rs2] + u32:2 + (imm12 as u32),
                                regs[rs1][8 +: u8]);
                         update(dmem, regs[rs2] + u32:3 + (imm12 as u32),
-                               regs[rs1][0 +: u8]),
-     SH   => let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
+                               regs[rs1][0 +: u8])
+     },
+     SH   => {
+         let dmem = update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
                                regs[rs1][8 +: u8]);
                         update(dmem, regs[rs2] + u32:1 + (imm12 as u32),
-                               regs[rs1][0 +: u8]),
-     SB   =>            update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
-                               regs[rs1][0 +: u8]),
+                               regs[rs1][0 +: u8])
+     },
+     SB   => {           update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
+                               regs[rs1][0 +: u8])
+    },
      // Note: SD is a RV64I-only instruction.
-      _   => fail!("unsupported_funct3", dmem),
+      _   => { fail!("unsupported_funct3", dmem) },
   };
   (pc + u32:4, regs, dmem)
 }

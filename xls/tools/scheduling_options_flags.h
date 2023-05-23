@@ -17,9 +17,15 @@
 #ifndef XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 #define XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/ir/node.h"
+#include "xls/scheduling/scheduling_options.h"
 
 ABSL_DECLARE_FLAG(int64_t, clock_period_ps);
 ABSL_DECLARE_FLAG(int64_t, pipeline_stages);
@@ -29,6 +35,8 @@ ABSL_DECLARE_FLAG(int64_t, period_relaxation_percent);
 ABSL_DECLARE_FLAG(int64_t, additional_input_delay_ps);
 ABSL_DECLARE_FLAG(std::vector<std::string>, scheduling_constraints);
 ABSL_DECLARE_FLAG(int64_t, mutual_exclusion_z3_rlimit);
+ABSL_DECLARE_FLAG(xls::MultipleChannelOpsLegalizationStrictness,
+                  multiple_channel_ops_legalization_strictness);
 
 namespace xls {
 

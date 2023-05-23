@@ -25,6 +25,7 @@
 #include "xls/common/iterator_range.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
@@ -157,6 +158,17 @@ class FunctionBase {
   // procs.
   virtual bool HasImplicitUse(Node* node) const = 0;
 
+  // Set information about foreign function
+  void SetForeignFunctionData(const std::optional<ForeignFunctionData>& ff) {
+    foreign_function_ = ff;
+  }
+
+  // If this is to be expressed as foreign function call, returns the necessary
+  // call information.
+  const std::optional<xls::ForeignFunctionData>& ForeignFunctionData() const {
+    return foreign_function_;
+  }
+
  protected:
   FunctionBase(const FunctionBase& other) = delete;
   void operator=(const FunctionBase& other) = delete;
@@ -182,6 +194,8 @@ class FunctionBase {
 
   NameUniquer node_name_uniquer_ =
       NameUniquer(/*separator=*/"__", GetIrReservedWords());
+
+  std::optional<xls::ForeignFunctionData> foreign_function_;
 };
 
 std::ostream& operator<<(std::ostream& os, const FunctionBase& function);

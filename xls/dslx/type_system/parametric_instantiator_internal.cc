@@ -85,15 +85,14 @@ ParametricInstantiator::ParametricInstantiator(
       ordered.insert(identifier);
     }
 
-    auto resolved_type_or = Resolve(constraint.type());
-    XLS_CHECK_OK(resolved_type_or.status());
-    std::unique_ptr<ConcreteType> resolved_type =
-        std::move(resolved_type_or).value();
+    std::unique_ptr<ConcreteType> parametric_expr_type =
+        constraint.type().CloneToUnique();
 
     if (constraint.expr() != nullptr) {
-      ctx_->type_info()->SetItem(constraint.expr(), *resolved_type);
+      ctx_->type_info()->SetItem(constraint.expr(), *parametric_expr_type);
     }
-    parametric_binding_types_.emplace(identifier, std::move(resolved_type));
+    parametric_binding_types_.emplace(identifier,
+                                      std::move(parametric_expr_type));
     parametric_default_exprs_[identifier] = constraint.expr();
   }
 }
@@ -156,23 +155,26 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     if (expr == nullptr) {  // e.g. <X: u32> has no expr
       continue;
     }
+
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(), entry.parametric_env()};
-    absl::StatusOr<InterpValue> result =
-        InterpretExpr(ctx_, expr, ParametricEnv(parametric_env_));
+    const ParametricEnv env(parametric_env_);
+    XLS_VLOG(5) << absl::StreamFormat("Evaluating expr: `%s` in env: %s",
+                                      expr->ToString(), env.ToString());
+    absl::StatusOr<InterpValue> result = InterpretExpr(ctx_, expr, env);
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
-        (absl::StartsWith(result.status().message(),
-                          "Could not find bindings entry for identifier") ||
-         absl::StartsWith(result.status().message(),
-                          "Could not find callee bindings in type info"))) {
+        (absl::StartsWith(
+            result.status().message(),
+            "InterpBindings could not find bindings entry for identifier"))) {
       // We haven't seen enough bindings to evaluate this constraint yet.
       continue;
     }
     if (!result.ok() && result.status().code() == absl::StatusCode::kInternal &&
-        absl::StartsWith(result.status().message(),
-                         "Could not find slot or binding for name")) {
+        absl::StartsWith(
+            result.status().message(),
+            "BytecodeEmitter could not find slot or binding for name")) {
       // We haven't seen enough bindings to evaluate this constraint yet.
       continue;
     }
@@ -222,6 +224,7 @@ FunctionInstantiator::Make(
 
 absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
+  XLS_VLOG(10) << "Phase 1: isntantiate actuals";
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
@@ -229,6 +232,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   }
 
   // Phase 2: resolve and check.
+  XLS_VLOG(10) << "Phase 2: resolve-and-check";
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *args()[i].type();

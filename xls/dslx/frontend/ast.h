@@ -49,6 +49,7 @@
 #include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
@@ -292,7 +293,10 @@ enum class AstNodeKind {
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
 
-class AstNode;
+inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
+  os << AstNodeKindToString(kind);
+  return os;
+}
 
 // Abstract base class for AST nodes.
 class AstNode {
@@ -682,7 +686,7 @@ class ExprVisitorWithDefault : public ExprVisitor {
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
  public:
-  Expr(Module* owner, Span span) : AstNode(owner), span_(span) {}
+  Expr(Module* owner, Span span) : AstNode(owner), span_(std::move(span)) {}
 
   ~Expr() override;
 
@@ -764,33 +768,29 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 //    }
 //
 // Both of those lines are statements.
-class Statement : public AstNode {
+class Statement final : public AstNode {
  public:
-  static absl::StatusOr<std::variant<Expr*, TypeAlias*>> NodeToWrapped(
-      AstNode* n);
+  using Wrapped = std::variant<Expr*, TypeAlias*, Let*>;
 
-  Statement(Module* owner, std::variant<Expr*, TypeAlias*> wrapped)
-      : AstNode(owner), wrapped_(wrapped) {}
+  static absl::StatusOr<Wrapped> NodeToWrapped(AstNode* n);
+
+  Statement(Module* owner, Wrapped wrapped);
 
   AstNodeKind kind() const override { return AstNodeKind::kStatement; }
   std::string_view GetNodeTypeName() const override { return "Statement"; }
   std::string ToString() const override {
     return ToAstNode(wrapped_)->ToString();
   }
-  std::optional<Span> GetSpan() const override {
-    return ToAstNode(wrapped_)->GetSpan();
-  }
-  std::vector<AstNode*> GetChildren(bool want_types) const {
-    return {ToAstNode(wrapped_)};
-  }
+  std::optional<Span> GetSpan() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleStatement(this);
   }
 
-  const std::variant<Expr*, TypeAlias*>& wrapped() const { return wrapped_; }
+  const Wrapped& wrapped() const { return wrapped_; }
 
  private:
-  std::variant<Expr*, TypeAlias*> wrapped_;
+  Wrapped wrapped_;
 };
 
 // Represents a block expression, e.g.,
@@ -829,10 +829,16 @@ class Block : public Expr {
 
   absl::Span<Statement* const> statements() const { return statements_; }
   bool trailing_semi() const { return trailing_semi_; }
+  bool empty() const { return statements_.empty(); }
 
-  // This is a transitionary helper as we migrate from single expressions as
-  // function bodies to multiple statements.
-  absl::StatusOr<Expr*> GetSingleBodyExpression() const;
+  // Use sparingly! Mutation routine that adds statements to a block; e.g.
+  // sometimes we discover we want to create some invariant of the AST at parse
+  // time and want to add some statements to do that.
+  void AddStatement(Statement* statement) {
+    XLS_CHECK(statement->parent() == nullptr) << statement->ToString();
+    statements_.push_back(statement);
+    SetParentage();
+  }
 
  private:
   std::vector<Statement*> statements_;
@@ -840,6 +846,10 @@ class Block : public Expr {
 };
 
 // Represents a reference to a name (identifier).
+//
+// Every name reference has a link to its corresponding `name_def()`, which can
+// either be defined in the module somewhere (NameDef) or defined as a built-in
+// symbol that's implicitly available, e.g. built-in functions (BuiltinNameDef).
 class NameRef : public Expr {
  public:
   NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
@@ -959,7 +969,7 @@ class Number : public Expr {
 class String : public Expr {
  public:
   String(Module* owner, Span span, std::string_view text)
-      : Expr(owner, span), text_(text) {}
+      : Expr(owner, std::move(span)), text_(text) {}
 
   ~String() override;
 
@@ -1088,6 +1098,20 @@ class ConstantArray : public Array {
 // TypeRef.
 using TypeDefinition =
     std::variant<TypeAlias*, StructDef*, EnumDef*, ColonRef*>;
+
+// Returns the name definition that (most locally) defined this type definition
+// AST node.
+//
+// In the case of a ColonRef the name definition given is the subject of the
+// colon-reference, i.e. it does not traverse module boundaries to retrieve a
+// name definition. That is:
+//
+//    fn f() -> foo::Bar { ... }
+//    ----------^~~~~~~^
+//
+// The GetNameDef() on that ColonRef type definition node returns the subject
+// "foo", which can be a built-in name.
+AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td);
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
@@ -1545,22 +1569,18 @@ class Function : public AstNode {
   }
   NameDef* name_def() const { return name_def_; }
 
-  // This is a transitionary helper as we migrate from single expressions as
-  // function bodies to multiple statements.
-  absl::StatusOr<Expr*> GetSingleBodyExpression() const {
-    return body_->GetSingleBodyExpression();
-  }
-
   TypeAnnotation* return_type() const { return return_type_; }
   void set_return_type(TypeAnnotation* return_type) {
     return_type_ = return_type;
   }
 
   void set_extern_verilog_module_name(std::string module_name) {
-    extern_verilog_module_name_ = std::move(module_name);
+    extern_verilog_module_ =
+        xls::ForeignFunctionData{.name = std::move(module_name)};
   }
-  const std::optional<std::string>& extern_verilog_module_name() const {
-    return extern_verilog_module_name_;
+  const std::optional<::xls::ForeignFunctionData>& extern_verilog_module()
+      const {
+    return extern_verilog_module_;
   }
 
   Tag tag() const { return tag_; }
@@ -1578,7 +1598,7 @@ class Function : public AstNode {
   std::optional<Proc*> proc_;
 
   const bool is_public_;
-  std::optional<std::string> extern_verilog_module_name_;
+  std::optional<::xls::ForeignFunctionData> extern_verilog_module_;
 };
 
 // Represents a parsed 'process' specification in the DSL.
@@ -1755,7 +1775,7 @@ class Attr : public Expr {
 class Instantiation : public Expr {
  public:
   Instantiation(Module* owner, Span span, Expr* callee,
-                const std::vector<ExprOrType>& explicit_parametrics);
+                std::vector<ExprOrType> explicit_parametrics);
 
   ~Instantiation() override;
 
@@ -1808,7 +1828,7 @@ class Invocation : public Instantiation {
                            FormatParametrics(), FormatArgs());
   };
 
-  const absl::Span<Expr* const> args() const { return args_; }
+  absl::Span<Expr* const> args() const { return args_; }
 
  private:
   std::vector<Expr*> args_;
@@ -1822,8 +1842,7 @@ class Spawn : public Instantiation {
  public:
   // A Spawn's body can be nullopt if it's the last expr in an unroll_for body.
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-        Invocation* next, std::vector<ExprOrType> explicit_parametrics,
-        Expr* body);
+        Invocation* next, std::vector<ExprOrType> explicit_parametrics);
 
   ~Spawn() override;
 
@@ -1843,12 +1862,10 @@ class Spawn : public Instantiation {
   Invocation* config() const { return config_; }
   Invocation* next() const { return next_; }
   bool IsParametric() { return !explicit_parametrics().empty(); }
-  Expr* body() const { return body_; }
 
  private:
   Invocation* config_;
   Invocation* next_;
-  Expr* body_;
 };
 
 // Represents a call to a variable-argument formatting macro;
@@ -1877,7 +1894,7 @@ class FormatMacro : public Expr {
   std::string ToString() const override;
 
   const std::string& macro() const { return macro_; }
-  const absl::Span<Expr* const> args() const { return args_; }
+  absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
 
  private:
@@ -2990,19 +3007,18 @@ class NameDefTree : public AstNode {
 };
 
 // Represents a let-binding expression.
-class Let : public Expr {
+class Let : public AstNode {
  public:
   // A Let's body can be nullopt if it's the last expr in an unroll_for body.
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
-      TypeAnnotation* type, Expr* rhs, Expr* body, bool is_const);
+      TypeAnnotation* type, Expr* rhs, bool is_const);
 
   ~Let() override;
 
   AstNodeKind kind() const override { return AstNodeKind::kLet; }
 
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleLet(this);
-  }
+  std::optional<Span> GetSpan() const override { return span_; }
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleLet(this);
   }
@@ -3015,10 +3031,12 @@ class Let : public Expr {
   NameDefTree* name_def_tree() const { return name_def_tree_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   Expr* rhs() const { return rhs_; }
-  Expr* body() const { return body_; }
   bool is_const() const { return is_const_; }
+  const Span& span() const { return span_; }
 
  private:
+  Span span_;
+
   // Names that are bound by this let expression; e.g. in
   //  let (a, b, (c)) = (1, 2, (3,));
   //  ...
@@ -3031,10 +3049,6 @@ class Let : public Expr {
 
   // Right hand side of the let; e.g. in `let a = b; c` this is `b`.
   Expr* rhs_;
-
-  // The body of the let: it has the expression to be evaluated with the let
-  // bindings; e.g. in `let a = b; c` this is `c`.
-  Expr* body_;
 
   // Whether or not this is a constant binding; constant bindings cannot be
   // shadowed.
@@ -3300,15 +3314,12 @@ class Module : public AstNode {
     return fs_path_;
   }
 
-  const AstNode* FindNode(AstNodeKind kind, const Span& span) const {
-    for (const auto& node : nodes_) {
-      if (node->kind() == kind && node->GetSpan().has_value() &&
-          node->GetSpan().value() == span) {
-        return node.get();
-      }
-    }
-    return nullptr;
-  }
+  // Finds a node with the given kind and /exactly/ the same span as "target".
+  const AstNode* FindNode(AstNodeKind kind, const Span& target) const;
+
+  // Finds all the AST nodes in the module with spans that intercept the given
+  // "target" position.
+  std::vector<const AstNode*> FindIntercepting(const Pos& target) const;
 
  private:
   template <typename T, typename... Args>

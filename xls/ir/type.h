@@ -16,13 +16,12 @@
 #define XLS_IR_TYPE_H_
 
 #include <cstdint>
-#include <memory>
 #include <ostream>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
@@ -84,6 +83,11 @@ class Type {
   virtual int64_t leaf_count() const = 0;
 
   virtual std::string ToString() const = 0;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Type& tpe) {
+    absl::Format(&sink, "%s", tpe.ToString());
+  }
 
  protected:
   explicit Type(TypeKind kind) : kind_(kind) {}

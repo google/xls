@@ -115,7 +115,9 @@ class Bindings {
   // "commits" changes made in a child Bindings to this parent object.
   void ConsumeChild(Bindings* child) {
     XLS_CHECK_EQ(child->parent_, this);
-    local_bindings_.merge(child->local_bindings_);
+    for (const auto& [k, v] : child->local_bindings_) {
+      local_bindings_[k] = v;
+    }
   }
 
   // Returns whether there are any local bindings (i.e. bindings that are not
@@ -196,7 +198,28 @@ class Bindings {
   }
   bool IsFunctionScoped() const { return function_scoped_; }
 
+  std::vector<std::string> GetLocalBindings() const {
+    std::vector<std::string> result;
+    for (const auto& [k, _] : local_bindings_) {
+      result.push_back(k);
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+  }
+  absl::flat_hash_set<std::string> GetAllBindings() const {
+    absl::flat_hash_set<std::string> result;
+    if (parent_ != nullptr) {
+      result = parent_->GetAllBindings();
+    }
+    for (const auto& [k, v] : local_bindings_) {
+      result.insert(k);
+    }
+    return result;
+  }
+
  private:
+  Bindings* GetTop();
+
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
 
