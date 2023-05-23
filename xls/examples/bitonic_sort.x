@@ -1,14 +1,25 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Bitonic sort
-// A template function for sort an array of u32.
+// A parametric function for sort an array of u32.
 // The array size must be a power of two.
-// The template takes the log2 of the size of the array as parameter.
+// The parametric takes the size of the array as parameter, but that size can
+// be inferred too.
 //
 // For example, assuming "array" is of type u32[8].
-// Then, bitonic_sort<u32:3>(array) will return the sorted array.
+// Then, bitonic_sort(array) will return the sorted array.
+//
+// Source: https://en.wikipedia.org/wiki/Bitonic_sorter
 ////////////////////////////////////////////////////////////////////////////////
 
-fn bitonic_sort<LOG_N: u32, N: u32 = { u32:1 << LOG_N }>(array: u32[N]) -> u32[N] {
+import std
+
+fn swap<B: u32, N: u32>(array: uN[B][N], i: u32, j: u32) -> uN[B][N] {
+	let i_element = array[i];
+	let j_element = array[j];
+	update(update(array, i, j_element), j, i_element)
+}
+
+fn bitonic_sort<N: u32, LOG_N: u32 = { std::clog2(N) }>(array: u32[N]) -> u32[N] {
 	let (result, _) = for (_, (array, k)) in u32:0..LOG_N {
 		let (result, _) = for (_, (array, j)) in u32:0..LOG_N {
 			if (j == u32:0) {
@@ -20,9 +31,7 @@ fn bitonic_sort<LOG_N: u32, N: u32 = { u32:1 << LOG_N }>(array: u32[N]) -> u32[N
 						(array)
 					} else {
 						if ( (((i & k) == u32:0) && (array[i] > array[l])) || (((i & k) != u32:0) && (array[i] < array[l])) ) {
-							let i_element = array[i];
-							let l_element = array[l];
-							update(update(array, i, l_element), l, i_element)
+							swap(array, i, l)
 						} else {
 							(array)
 						}
@@ -46,7 +55,7 @@ fn bitonic_8_test() {
 		u32[8]:[
 		223,237,289,466,673,686,707,916,
 		],
-		bitonic_sort<u32:3>(
+		bitonic_sort(
 		u32[8]:[
 		707,223,686,289,237,673,466,916,
 		]));
@@ -66,7 +75,7 @@ fn bitonic_128_test() {
 		732,742,743,772,775,780,782,802,802,809,812,813,835,844,845,848,
 		849,857,861,873,880,881,887,891,894,905,915,938,953,956,958,970,
 		],
-		bitonic_sort<u32:7>(
+		bitonic_sort(
 		u32[128]:[
 		102,132,433,97,802,194,147,251,327,583,730,572,809,24,44,956,
 		25,891,467,10,482,45,802,608,813,116,155,848,743,418,107,447,
@@ -149,7 +158,7 @@ fn bitonic_1024_test() {
 		963,964,964,965,968,968,969,970,970,971,972,974,977,978,982,984,
 		984,984,986,986,987,988,988,988,990,990,992,993,993,996,996,1000,
 		],
-		bitonic_sort<u32:10>(
+		bitonic_sort(
 		u32[1024]:[
 		812,329,534,315,701,25,345,759,130,433,668,404,993,885,902,412,
 		173,23,943,432,796,848,971,87,615,307,762,715,64,448,424,138,
