@@ -37,9 +37,9 @@ xls_dslx_library(
 )
 
 xls_dslx_library(
-    name = "rle_dslx",
+    name = "rle_enc_dslx",
     srcs = [
-        "rle.x"
+        "rle_enc.x",
     ],
     deps = [
         ":rle_interface_dslx"
@@ -47,36 +47,36 @@ xls_dslx_library(
 )
 
 xls_dslx_test(
-    name = "rle_dslx_test",
+    name = "rle_enc_dslx_test",
     dslx_test_args = {
         "compare": "none",
     },
-    library = "rle_dslx",
+    library = "rle_enc_dslx",
 )
 
 xls_dslx_test(
-    name = "rle_dslx_ir_test",
+    name = "rle_enc_dslx_ir_test",
     dslx_test_args = {
         "compare": "interpreter",
     },
-    library = "rle_dslx",
+    library = "rle_enc_dslx",
 )
 
 xls_dslx_test(
-    name = "rle_dslx_jit_test",
+    name = "rle_enc_dslx_jit_test",
     dslx_test_args = {
         "compare": "jit",
     },
-    library = "rle_dslx",
+    library = "rle_enc_dslx",
 )
 
 xls_dslx_verilog (
     name = "rle_enc_verilog",
     dslx_top = "RLEEnc32",
     verilog_file = "rle_enc.v",
-    library = "rle_dslx",
+    library = "rle_enc_dslx",
     opt_ir_args = {
-        "top": "__rle__RLEEnc32__RLEEnc_0__2_32_next",
+        "top": "__rle_enc__RLEEnc32__RLEEnc_0__2_32_next",
     },
     codegen_args = {
         "module_name": "rle_enc",
