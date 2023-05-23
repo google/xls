@@ -95,6 +95,9 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     dslx_interpreter_tool = get_executable_from(
         get_xls_toolchain_info(ctx).dslx_interpreter_tool,
     )
+    if "compare" in ctx.attr.dslx_test_args.keys() and len(ctx.attr.compare_list) !=0:
+        fail("Both dslx_test_args.compare and compare_list defined")
+
     _dslx_test_args = append_default_to_args(
         ctx.attr.dslx_test_args,
         _DEFAULT_DSLX_TEST_ARGS,
@@ -112,20 +115,32 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         dslx_test_args.get("dslx_path", "") + ":${PWD}:" +
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
-    is_args_valid(dslx_test_args, DSLX_TEST_FLAGS)
-    my_args = args_to_string(dslx_test_args)
 
-    cmd = "{} {} {}".format(
-        dslx_interpreter_tool.short_path,
-        src.short_path,
-        my_args,
-    )
+    cmds = []
+    comp_list = [dslx_test_args["compare"]]
+    if len(ctx.attr.compare_list) !=0:
+        comp_list = ctx.attr.compare_list
 
-    # Append command-line arguments.
-    if append_cmd_line_args:
-        cmd = append_cmd_line_args_to(cmd)
+    for comp_type in comp_list:
+        _dslx_singe_test_args = dict(dslx_test_args)
+        _dslx_singe_test_args["compare"] = comp_type
+        is_args_valid(_dslx_singe_test_args, DSLX_TEST_FLAGS)
+        my_args = args_to_string(_dslx_singe_test_args)
 
-    return cmd
+        cmd = "{} {} {}".format(
+            dslx_interpreter_tool.short_path,
+            src.short_path,
+            my_args,
+        )
+
+        # Append command-line arguments.
+        if append_cmd_line_args:
+            cmd = append_cmd_line_args_to(cmd)
+        if type(cmd) == "string":
+            cmd = [cmd]
+        cmds.extend(cmd)
+
+    return cmds
 
 def get_src_files_from_dslx_library_as_input(ctx):
     """Returns the DSLX source files of rules using 'xls_dslx_library_as_input_attrs'.
@@ -234,6 +249,10 @@ xls_dslx_test_common_attrs = {
               "on the arguments, refer to the interpreter_main " +
               "application at " +
               "//xls/dslx/interpreter_main.cc.",
+    ),
+    "compare_list": attr.string_list(
+        doc = "Runs specified tests with listed compare options. Mutually " +
+              "exclusive with \"dslx_test_args {\"compare\"}\""
     ),
 }
 
@@ -406,7 +425,7 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
 
     cmds = []
     for src in src_files_to_test:
-        cmds.append(_get_dslx_test_cmdline(ctx, src))
+        cmds.extend(_get_dslx_test_cmdline(ctx, src))
     return runfiles, cmds
 
 def _xls_dslx_test_impl(ctx):
