@@ -25,6 +25,7 @@ load(
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
+    "xls_dslx_multi_test",
     "xls_dslx_verilog",
     "xls_eval_ir_test",
     "xls_ir_cc_library",
@@ -153,6 +154,12 @@ xls_dslx_test(
     srcs = ["generated.x"],
 )
 
+# Run the test inside of the generated file.
+xls_dslx_multi_test(
+    name = "generated_file_as_input_multi_test",
+    srcs = ["generated.x"],
+)
+
 # Encapsulate the generated file as a library.
 xls_dslx_library(
     name = "generated_dslx",
@@ -170,6 +177,12 @@ xls_dslx_library(
 # Reference the library with the generated file inside of a xls_dslx_test rule.
 xls_dslx_test(
     name = "dependent_on_library_with_generated_file_test",
+    library = ":importer_dslx",
+)
+
+# Reference the library with the generated file inside of a xls_dslx_multi_test rule.
+xls_dslx_multi_test(
+    name = "dependent_on_library_with_generated_file_multi_test",
     library = ":importer_dslx",
 )
 
@@ -207,6 +220,12 @@ xls_dslx_test(
     library = ":d_dslx",
 )
 
+# xls_dslx_multi_test on a xls_dslx_library with a transitive dependency.
+xls_dslx_multi_test(
+    name = "d_dslx_multi_test",
+    library = ":d_dslx",
+)
+
 # xls_dslx_library with a transitive dependency on a
 # xls_dslx_library.
 xls_dslx_library(
@@ -220,6 +239,12 @@ xls_dslx_library(
 # xls_dslx_test on a xls_dslx_library with a transitive dependency.
 xls_dslx_test(
     name = "e_dslx_test",
+    library = ":e_dslx",
+)
+
+# xls_dslx_multi_test on a xls_dslx_library with a transitive dependency.
+xls_dslx_multi_test(
+    name = "e_dslx_multi_test",
     library = ":e_dslx",
 )
 
