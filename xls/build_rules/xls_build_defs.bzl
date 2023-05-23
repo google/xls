@@ -31,6 +31,7 @@ load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
     _xls_dslx_test = "xls_dslx_test",
+    _xls_dslx_multi_test = "xls_dslx_multi_test",
 )
 load(
     "//xls/build_rules:xls_ir_macros.bzl",
@@ -74,6 +75,7 @@ check_sha256sum_frozen = _check_sha256sum_frozen
 proto_data = _proto_data
 xls_dslx_library = _xls_dslx_library
 xls_dslx_test = _xls_dslx_test
+xls_dslx_multi_test = _xls_dslx_multi_test
 
 get_mangled_ir_symbol = _get_mangled_ir_symbol
 xls_benchmark_ir = _xls_benchmark_ir
