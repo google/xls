@@ -2207,14 +2207,27 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelTypeAnnotation(
     const ChannelTypeAnnotation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "DeduceChannelTypeAnnotation; node: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_type,
-                       Deduce(node->payload(), ctx));
+                       Deduce(ToAstNode(node->payload()), ctx));
+
   XLS_RET_CHECK(payload_type->IsMeta())
-      << node->payload()->ToString() << " @ " << node->payload()->span();
-  XLS_ASSIGN_OR_RETURN(payload_type, UnwrapMetaType(std::move(payload_type),
-                                                    node->payload()->span(),
-                                                    "channel type annotation"));
+      << ToAstNode(node->payload())->ToString() << " @ "
+      << ToAstNode(node->payload())->GetSpan().value();
+  XLS_ASSIGN_OR_RETURN(payload_type,
+                       UnwrapMetaType(std::move(payload_type),
+                                      ToAstNode(node->payload())->GetSpan().value(),
+                                      "channel type annotation"));
+
+  std::optional<int64_t> fifo_depth = std::nullopt;
+  if (node->depth().has_value()) {
+    const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
+    XLS_ASSIGN_OR_RETURN(
+      InterpValue start_value,
+      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
+                                          parametric_env, node->depth().value()));
+    XLS_ASSIGN_OR_RETURN(fifo_depth, start_value.GetBitValueInt64());
+  }
   std::unique_ptr<ConcreteType> node_type =
-      std::make_unique<ChannelType>(std::move(payload_type), node->direction());
+      std::make_unique<ChannelType>(std::move(payload_type), node->direction(), fifo_depth);
   if (node->dims().has_value()) {
     std::vector<Expr*> dims = node->dims().value();
 
@@ -2382,15 +2395,27 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatchArm(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
     const ChannelDecl* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> element_type,
-                       Deduce(node->type(), ctx));
+                       Deduce(ToAstNode(node->type()), ctx));
+
   XLS_ASSIGN_OR_RETURN(
       element_type,
-      UnwrapMetaType(std::move(element_type), node->type()->span(),
+      UnwrapMetaType(std::move(element_type), ToAstNode(node->type())->GetSpan().value(),
                      "channel declaration type"));
+
+  std::optional<int64_t> fifo_depth = std::nullopt;
+  if (node->depth().has_value()) {
+    const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
+    XLS_ASSIGN_OR_RETURN(
+      InterpValue start_value,
+      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
+                                          parametric_env, node->depth().value()));
+    XLS_ASSIGN_OR_RETURN(fifo_depth, start_value.GetBitValueInt64());
+  }
+
   std::unique_ptr<ConcreteType> producer = std::make_unique<ChannelType>(
-      element_type->CloneToUnique(), ChannelDirection::kOut);
+      element_type->CloneToUnique(), ChannelDirection::kOut, fifo_depth);
   std::unique_ptr<ConcreteType> consumer = std::make_unique<ChannelType>(
-      std::move(element_type), ChannelDirection::kIn);
+      std::move(element_type), ChannelDirection::kIn, fifo_depth);
 
   if (node->dims().has_value()) {
     std::vector<Expr*> dims = node->dims().value();

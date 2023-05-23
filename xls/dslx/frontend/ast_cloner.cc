@@ -144,9 +144,20 @@ class AstCloner : public AstNodeVisitor {
       new_dims = std::move(new_dims_vector);
     }
 
+    std::optional<Expr*> new_depth;
+    if (n->depth().has_value()) {
+      new_depth = down_cast<Expr*>(old_to_new_.at(n->depth().value()));
+    }
+
+    ExprOrType type_old = n->type();
+    ExprOrType type_new;
+    if (std::holds_alternative<Expr*>(type_old))
+      type_new = down_cast<Expr*>(old_to_new_.at(std::get<Expr*>(type_old)));
+    else
+      type_new = down_cast<TypeAnnotation*>(old_to_new_.at(std::get<TypeAnnotation*>(type_old)));
+
     old_to_new_[n] = module_->Make<ChannelDecl>(
-        n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
-        new_dims);
+        n->span(), type_new, new_dims, new_depth);
     return absl::OkStatus();
   }
 
@@ -165,9 +176,22 @@ class AstCloner : public AstNodeVisitor {
       new_dims = new_dims_vector;
     }
 
+    std::optional<Expr*> new_depth;
+    if (n->depth().has_value()) {
+      new_depth = down_cast<Expr*>(old_to_new_.at(n->depth().value()));
+    }
+
+    ExprOrType type_old = n->payload();
+    ExprOrType type_new;
+    if (std::holds_alternative<Expr*>(type_old))
+      type_new = down_cast<Expr*>(old_to_new_.at(std::get<Expr*>(type_old)));
+    else
+      type_new = down_cast<TypeAnnotation*>(old_to_new_.at(std::get<TypeAnnotation*>(type_old)));
+
+
     old_to_new_[n] = module_->Make<ChannelTypeAnnotation>(
         n->span(), n->direction(),
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->payload())), new_dims);
+        type_new, new_dims, new_depth);
     return absl::OkStatus();
   }
 

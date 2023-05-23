@@ -616,10 +616,13 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   if (tok.IsTypeKeyword()) {  // Builtin types.
     Pos start_pos = tok.span().start();
     if (tok.GetKeyword() == Keyword::kChannel) {
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
-      XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
-                           ParseTypeAnnotation(bindings));
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));
+      XLS_ASSIGN_OR_RETURN(std::vector<ExprOrType> params, ParseParametrics(bindings));
+
+      std::optional<Expr*> depth = std::nullopt;
+      if (params.size() > 1) {
+        XLS_RET_CHECK(std::holds_alternative<Expr*>(params.at(1)));
+        depth = std::get<Expr*>(params.at(1));
+      }
 
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrack,
                            PeekTokenIs(TokenKind::kOBrack));
@@ -650,7 +653,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
 
       Span span(start_pos, GetPos());
       TypeAnnotation* type =
-          module_->Make<ChannelTypeAnnotation>(span, direction, payload, dims);
+          module_->Make<ChannelTypeAnnotation>(span, direction, params.at(0), dims, depth);
 
       return type;
     }
@@ -2317,18 +2320,28 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
 
-  std::optional<std::vector<Expr*>> dims = std::nullopt;
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
-  XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));
+  XLS_ASSIGN_OR_RETURN(std::vector<ExprOrType> params, ParseParametrics(bindings));
 
+  std::optional<Expr*> depth = std::nullopt;
+  if (params.size() > 1) {
+    XLS_RET_CHECK(std::holds_alternative<Expr*>(params.at(1)));
+    depth = std::get<Expr*>(params.at(1));
+  }
+
+  std::optional<std::vector<Expr*>> dims = std::nullopt;
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
   if (peek_is_obrack) {
     Pos limit_pos;
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
   }
+
   return module_->Make<ChannelDecl>(
-      Span(channel.span().start(), type->span().limit()), type, dims);
+      Span(
+        channel.span().start(),
+        ToAstNode(params.at(0))->GetSpan().value().limit()),
+      params.at(0),
+      dims,
+      depth);
 }
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,

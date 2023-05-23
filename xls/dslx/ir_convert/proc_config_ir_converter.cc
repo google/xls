@@ -103,14 +103,25 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
                                     {"/", "_"},
                                     {"\\", "_"},
                                     {">", "_"}});
-  auto concrete_type = type_info_->GetItem(node->type());
+  auto concrete_type = type_info_->GetItem(ToAstNode(node->type()));
   XLS_RET_CHECK(concrete_type.has_value());
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        TypeToIr(package_, *concrete_type.value(), bindings_));
 
+  std::optional<int64_t> depth = std::nullopt;
+  if (node->depth().has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(import_data_, type_info_, bindings_,
+                                            node->depth().value(), nullptr));
+    XLS_ASSIGN_OR_RETURN(depth, value.GetBitValueInt64());
+  }
+
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * channel,
-      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
+      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type,
+                                       /*initial_values=*/{},
+                                       depth));
   node_to_ir_[node] = channel;
   return absl::OkStatus();
 }

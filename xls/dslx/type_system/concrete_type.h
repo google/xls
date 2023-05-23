@@ -646,7 +646,8 @@ class FunctionType : public ConcreteType {
 class ChannelType : public ConcreteType {
  public:
   ChannelType(std::unique_ptr<ConcreteType> payload_type,
-              ChannelDirection direction);
+              ChannelDirection direction,
+              std::optional<int64_t> depth);
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {
     return v.HandleChannel(*this);
@@ -663,10 +664,12 @@ class ChannelType : public ConcreteType {
 
   const ConcreteType& payload_type() const { return *payload_type_; }
   ChannelDirection direction() const { return direction_; }
+  std::optional<int64_t> depth() const { return depth_; }
 
  private:
   std::unique_ptr<ConcreteType> payload_type_;
   ChannelDirection direction_;
+  std::optional<int64_t> depth_;
 };
 
 // Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,

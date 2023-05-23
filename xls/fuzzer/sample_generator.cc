@@ -211,7 +211,8 @@ GetInputChannelPayloadTypesOfProc(dslx::Proc* proc,
     if (channel_type->direction() != dslx::ChannelDirection::kIn) {
       continue;
     }
-    dslx::TypeAnnotation* payload_type_annotation = channel_type->payload();
+    dslx::TypeAnnotation* payload_type_annotation =
+      std::get<dslx::TypeAnnotation*>(channel_type->payload());
     std::optional<const ConcreteType*> maybe_payload_type =
         proc_type_info->GetItem(payload_type_annotation);
     XLS_RET_CHECK(maybe_payload_type.has_value());

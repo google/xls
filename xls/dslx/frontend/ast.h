@@ -587,8 +587,9 @@ class ChannelTypeAnnotation : public TypeAnnotation {
  public:
   // If this is a scalar channel, then `dims` will be nullopt.
   ChannelTypeAnnotation(Module* owner, Span span, ChannelDirection direction,
-                        TypeAnnotation* payload,
-                        std::optional<std::vector<Expr*>> dims);
+                        ExprOrType payload,
+                        std::optional<std::vector<Expr*>> dims,
+                        std::optional<Expr*> depth);
 
   ~ChannelTypeAnnotation() override;
 
@@ -601,7 +602,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> children{payload_};
+    std::vector<AstNode*> children{ToAstNode(payload_)};
     if (dims_.has_value()) {
       for (Expr* dim : dims_.value()) {
         children.push_back(dim);
@@ -613,7 +614,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   std::string ToString() const override;
 
   ChannelDirection direction() const { return direction_; }
-  TypeAnnotation* payload() const { return payload_; }
+  ExprOrType payload() const { return payload_; }
 
   // A ChannelTypeAnnotation needs to keep its own dims (rather than being
   // enclosed in an ArrayTypeAnnotation simply because it prints itself in a
@@ -622,11 +623,13 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   // channels, each of which transmits a u32, whereas the latter declares a
   // single channel that transmits a 32-element array of u32s.
   std::optional<std::vector<Expr*>> dims() const { return dims_; }
+  std::optional<Expr*> depth() const { return depth_; }
 
  private:
   ChannelDirection direction_;
-  TypeAnnotation* payload_;
+  ExprOrType payload_;
   std::optional<std::vector<Expr*>> dims_;
+  std::optional<Expr*> depth_;
 };
 
 // Represents an AST node that may-or-may-not be an expression. For example, in
@@ -2979,9 +2982,10 @@ class ConstRef : public NameRef {
 // ------------------------------------------^^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
-  ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
-              std::optional<std::vector<Expr*>> dims)
-      : Expr(owner, std::move(span)), type_(type), dims_(std::move(dims)) {}
+  ChannelDecl(Module* owner, Span span, ExprOrType type,
+              std::optional<std::vector<Expr*>> dims,
+              std::optional<Expr*> depth)
+      : Expr(owner, std::move(span)), type_(type), dims_(std::move(dims)), depth_(std::move(depth)) {}
 
   ~ChannelDecl() override;
 
@@ -3001,12 +3005,14 @@ class ChannelDecl : public Expr {
     return {ToAstNode(type_)};
   }
 
-  TypeAnnotation* type() const { return type_; }
+  ExprOrType type() const { return type_; }
   std::optional<std::vector<Expr*>> dims() const { return dims_; }
+  std::optional<Expr*> depth() const { return depth_; }
 
  private:
-  TypeAnnotation* type_;
+  ExprOrType type_;
   std::optional<std::vector<Expr*>> dims_;
+  std::optional<Expr*> depth_;
 };
 
 using ModuleMember =

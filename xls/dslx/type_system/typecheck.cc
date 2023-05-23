@@ -372,8 +372,16 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
                                     "Test proc 'config' functions should "
                                     "only take a terminator channel.");
   }
+
+  if (std::holds_alternative<Expr*>(channel_type->payload()))
+    return TypeInferenceErrorStatus(
+        proc->config()->span(), nullptr,
+        "Test proc 'config' terminator channel must be outgoing "
+        "and have boolean payload.");
+  auto type = std::get<TypeAnnotation*>(channel_type->payload());
+
   BuiltinTypeAnnotation* payload_type =
-      dynamic_cast<BuiltinTypeAnnotation*>(channel_type->payload());
+      dynamic_cast<BuiltinTypeAnnotation*>(type);
   if (channel_type->direction() != ChannelDirection::kOut ||
       payload_type == nullptr || payload_type->GetBitCount() != 1) {
     return TypeInferenceErrorStatus(

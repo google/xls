@@ -67,7 +67,8 @@ TEST(SampleGeneratorTest, GenerateChannelArgument) {
       std::make_unique<dslx::ChannelType>(std::make_unique<dslx::BitsType>(
                                               /*signed=*/true,
                                               /*size=*/4),
-                                          dslx::ChannelDirection::kOut));
+                                          dslx::ChannelDirection::kOut,
+                                          std::nullopt));
 
   std::vector<const dslx::ConcreteType*> param_type_ptrs;
   param_type_ptrs.reserve(param_types.size());

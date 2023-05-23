@@ -740,7 +740,13 @@ std::string ChannelDecl::ToString() const {
     }
   }
 
-  return absl::StrFormat("chan<%s>%s", type_->ToString(),
+  std::vector<std::string> params;
+  params.push_back(ToAstNode(type_)->ToString());
+  if (depth_.has_value()) {
+    params.push_back(depth_.value()->ToString());
+  }
+
+  return absl::StrFormat("chan<%s>%s", absl::StrJoin(params, ","),
                          absl::StrJoin(dims, ""));
 }
 
@@ -2051,11 +2057,13 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
 
 ChannelTypeAnnotation::ChannelTypeAnnotation(
     Module* owner, Span span, ChannelDirection direction,
-    TypeAnnotation* payload, std::optional<std::vector<Expr*>> dims)
+    ExprOrType payload, std::optional<std::vector<Expr*>> dims,
+    std::optional<Expr*> depth)
     : TypeAnnotation(owner, std::move(span)),
       direction_(direction),
       payload_(payload),
-      dims_(dims) {}
+      dims_(dims),
+      depth_(depth) {}
 
 ChannelTypeAnnotation::~ChannelTypeAnnotation() = default;
 
@@ -2066,7 +2074,15 @@ std::string ChannelTypeAnnotation::ToString() const {
       dims.push_back(absl::StrCat("[", dim->ToString(), "]"));
     }
   }
-  return absl::StrFormat("chan<%s>%s %s", payload_->ToString(),
+
+
+  std::vector<std::string> params;
+  params.push_back(ToAstNode(payload_)->ToString());
+  if (depth_.has_value()) {
+    params.push_back(depth_.value()->ToString());
+  }
+
+  return absl::StrFormat("chan<%s>%s %s", absl::StrJoin(params, ","),
                          absl::StrJoin(dims, ""),
                          direction_ == ChannelDirection::kIn ? "in" : "out");
 }

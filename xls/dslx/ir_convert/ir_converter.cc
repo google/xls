@@ -198,7 +198,7 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
     TypeAnnotation* type = param->type_annotation();
     if (auto* channel_type = dynamic_cast<ChannelTypeAnnotation*>(type);
         type != nullptr) {
-      auto maybe_type = type_info->GetItem(channel_type->payload());
+      auto maybe_type = type_info->GetItem(ToAstNode(channel_type->payload()));
       XLS_RET_CHECK(maybe_type.has_value());
       ConcreteType* ct = maybe_type.value();
       XLS_ASSIGN_OR_RETURN(

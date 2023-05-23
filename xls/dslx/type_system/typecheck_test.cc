@@ -139,6 +139,105 @@ TEST(TypecheckTest, Let) {
       "fn f() -> u32 { let (x, y): (u32, bits[4]) = (u32:2, bits[4]:3); x }"));
 }
 
+TEST(TypecheckTest, Channel) {
+  XLS_EXPECT_OK(Typecheck(
+    R"(proc f{
+        s: chan<u32> out;
+        r: chan<u32> in;
+        init{()}
+        config() {
+          let (s,r) = chan<u32>;
+          (s, r)
+        }
+        next(tok: token, state:()) {()}
+        })"));
+}
+
+TEST(TypecheckTest, ChannelWithDepth) {
+  XLS_EXPECT_OK(Typecheck(
+    R"(proc f{
+        s: chan<u32, 1> out;
+        r: chan<u32, 1> in;
+        init{()}
+        config() {
+          let (s,r) = chan<u32, 1>;
+          (s, r)
+        }
+        next(tok: token, state:()) {()}
+        })"));
+}
+
+TEST(TypecheckErrorTest, ChannelWithDepthMismatch) {
+  EXPECT_THAT(Typecheck(
+    R"(proc f{
+        s: chan<u32, 1> out;
+        r: chan<u32, 1> in;
+        init{()}
+        config() {
+          let (s,r) = chan<u32, 3>;
+          (s, r)
+        }
+        next(tok: token, state:()) {()}
+        })"),
+    StatusIs(absl::StatusCode::kInvalidArgument,
+      HasSubstr("Return type of function body for 'f.config' did not match the annotated return type.")));
+}
+
+TEST(TypecheckTest, ChannelWithDepthToNoneDepth) {
+  XLS_EXPECT_OK(Typecheck(
+    R"(proc f{
+        s: chan<u32> out;
+        r: chan<u32> in;
+        init{()}
+        config() {
+          let (s,r) = chan<u32, 1>;
+          (s, r)
+        }
+        next(tok: token, state:()) {()}
+        })"));
+}
+
+TEST(TypecheckTest, ChannelWithDepthSpawn) {
+  XLS_EXPECT_OK(Typecheck(
+    R"(proc A {
+  r: chan<u32> in;
+  init{()}
+  config(r:chan<u32> in) {(r, )}
+  next(tok:token, stat:()) {()}
+}
+
+proc B {
+  s: chan<u32> out;
+  init{()}
+  config() {
+    let (s, r) = chan<u32, 1>;
+    spawn A(r);
+    (s, )}
+  next(tok:token, state:()) {()}
+})"));
+}
+
+TEST(TypecheckErrorTest, ChannelWithDepthSpawnMismatch) {
+  EXPECT_THAT(Typecheck(
+    R"(proc A {
+  r: chan<u32, 3> in;
+  init{()}
+  config(r:chan<u32, 3> in) {(r, )}
+  next(tok:token, stat:()) {()}
+}
+
+proc B {
+  s: chan<u32> out;
+  init{()}
+  config() {
+    let (s, r) = chan<u32, 1>;
+    spawn A(r);
+    (s, )}
+  next(tok:token, state:()) {()}
+})"),
+  StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Mismatch between parameter and argument types (after instantiation).")));
+}
+
 TEST(TypecheckTest, LetBadRhs) {
   EXPECT_THAT(
       Typecheck(

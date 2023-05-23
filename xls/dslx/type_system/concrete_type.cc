@@ -663,13 +663,18 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
 }
 
 ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type,
-                         ChannelDirection direction)
-    : payload_type_(std::move(payload_type)), direction_(direction) {
+                         ChannelDirection direction,
+                         std::optional<int64_t> depth)
+    : payload_type_(std::move(payload_type)), direction_(direction),
+      depth_(depth) {
   XLS_CHECK(payload_type_ != nullptr);
   XLS_CHECK(!payload_type_->IsMeta());
 }
 
 std::string ChannelType::ToString() const {
+  if (depth_.has_value())
+    return absl::StrFormat("chan(%s, dir=%s, depth=%s)", payload_type_->ToString(),
+                           direction_ == ChannelDirection::kIn ? "in" : "out", depth_.value());
   return absl::StrFormat("chan(%s, dir=%s)", payload_type_->ToString(),
                          direction_ == ChannelDirection::kIn ? "in" : "out");
 }
@@ -685,12 +690,13 @@ absl::StatusOr<ConcreteTypeDim> ChannelType::GetTotalBitCount() const {
 absl::StatusOr<std::unique_ptr<ConcreteType>> ChannelType::MapSize(
     const MapFn& f) const {
   XLS_ASSIGN_OR_RETURN(auto new_payload, payload_type_->MapSize(f));
-  return std::make_unique<ChannelType>(std::move(new_payload), direction_);
+  return std::make_unique<ChannelType>(std::move(new_payload), direction_, depth_);
 }
 
 bool ChannelType::operator==(const ConcreteType& other) const {
   if (auto* o = dynamic_cast<const ChannelType*>(&other)) {
-    return *payload_type_ == *o->payload_type_ && direction_ == o->direction_;
+    return *payload_type_ == *o->payload_type_ && direction_ == o->direction_ &&
+        ((!depth_.has_value() || !o->depth_.has_value()) || depth_.value() == o->depth_.value());
   }
   return false;
 }
@@ -699,7 +705,7 @@ bool ChannelType::HasEnum() const { return payload_type_->HasEnum(); }
 
 std::unique_ptr<ConcreteType> ChannelType::CloneToUnique() const {
   return std::make_unique<ChannelType>(payload_type_->CloneToUnique(),
-                                       direction_);
+                                       direction_, depth_);
 }
 
 absl::StatusOr<bool> IsSigned(const ConcreteType& c) {

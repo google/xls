@@ -392,10 +392,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   // Create the channel.
   // TODO(vmirian): 8-22-2022 If payload type exists, create an array of
   // channels.
+  // TODO(mtdudek): 5-26-2023 If payload type exists, consider creating
+  // channel depth.
   ChannelTypeAnnotation* channel_type_annotation =
       module_->Make<ChannelTypeAnnotation>(fake_span_,
                                            chan_op_info.channel_direction,
-                                           channel_type, std::nullopt);
+                                           channel_type, std::nullopt, std::nullopt);
   Param* param = GenerateParam(channel_type_annotation);
   proc_properties_.params.push_back(param);
   NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
@@ -561,7 +563,8 @@ class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
     return ContainsTypeRef(array_type->element_type());
   }
   if (auto channel_type = dynamic_cast<const ChannelTypeAnnotation*>(type)) {
-    return ContainsTypeRef(channel_type->payload());
+    return  std::holds_alternative<TypeAnnotation*>(channel_type->payload()) &&
+            ContainsTypeRef(std::get<TypeAnnotation*>(channel_type->payload()));
   }
   XLS_CHECK_NE(dynamic_cast<const BuiltinTypeAnnotation*>(type), nullptr);
   return false;
