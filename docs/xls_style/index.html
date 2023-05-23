@@ -17,7 +17,7 @@
         <link rel="next" href="../adding_ir_operation/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.13">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.14">
     
     
       
@@ -1625,6 +1625,17 @@ const Thing&amp; thing = thing_or.value();
 </code></pre></div>
 </li>
 </ul>
+<ul>
+<li>Follow the
+    <a href="https://google.github.io/styleguide/cppguide.html#Run-Time_Type_Information__RTTI_">style guide's</a>
+    decision to avoid RTTI. In practice, this means <code>down_cast&lt;&gt;</code> should be used
+    instead of <code>dynamic_cast&lt;&gt;</code>. However, the style guide says to avoid
+    hand-implementing RTTI-like workarounds. The DSLX and XLScc frontends are
+    places where avoiding RTTI would require implementing workarounds that end
+    up looking a lot like RTTI, so <code>dynamic_cast&lt;&gt;</code> is common and accepted for
+    those parts of the codebase. Elsewhere, especially with IR <code>Node</code> types,
+    <code>down_cast&lt;&gt;</code> should be used instead.</li>
+</ul>
 <h3 id="functions">Functions</h3>
 <ul>
 <li>Short or easily-explained argument lists (as defined by the developer) can
@@ -1667,7 +1678,7 @@ wrapper, so it is important to understand the mental model used for its cost.</p
 a <strong>non-ok</strong> <code>StatusOr</code> is expensive (that is, imagine the non-ok <code>Status</code>
 within a <code>StatusOr</code> is the expensive part).</p>
 <p>The implication being: if there's an API where "not found" is a reasonable
-outcome, prefer <code>absl::optional&lt;&gt;</code> as a return value to indicate that / go with
+outcome, prefer <code>std::optional&lt;&gt;</code> as a return value to indicate that / go with
 the grain of cost.</p>
 <p>Something like a filesystem API would be a classic example -- where you
 shouldn't be rooting around looking for files that aren't there -- so a
