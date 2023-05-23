@@ -347,6 +347,7 @@ xls_dslx_opt_ir(
     dslx_top = "main",
     ir_file = "proc_iota.ir",
     opt_ir_file = "proc_iota.opt.ir",
+    top = "__proc_iota__main__producer_0_next",
     tags = ["optonly"],
 )
 

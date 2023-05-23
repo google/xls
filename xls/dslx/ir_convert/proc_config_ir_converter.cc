@@ -110,7 +110,8 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   XLS_ASSIGN_OR_RETURN(
       StreamingChannel * channel,
-      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
+      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type,
+                                       /*initial_values=*/{}, /*fifo_depth=*/1));
   node_to_ir_[node] = channel;
   return absl::OkStatus();
 }
