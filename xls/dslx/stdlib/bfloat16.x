@@ -15,7 +15,7 @@
 // bfloat16 routines.
 import apfloat
 
-pub type BF16 = apfloat::APFloat<u32:8, u32:7>;
+pub type BF16 = apfloat::APFloat<8, 7>;
 pub type FloatTag = apfloat::APFloatTag;
 
 pub fn qnan() -> BF16 { apfloat::qnan<u32:8, u32:7>() }

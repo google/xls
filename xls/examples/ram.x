@@ -296,9 +296,9 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
 // writes.
 #[test_proc]
 proc RamModelWriteReadMaskedWriteReadTest {
-  read_req: chan<ReadReq<u32:8, u32:32>> out;
-  read_resp: chan<ReadResp<u32:32>> in;
-  write_req: chan<WriteReq<u32:8, u32:32, u32:32>> out;
+  read_req: chan<ReadReq<8, 32>> out;
+  read_resp: chan<ReadResp<32>> in;
+  write_req: chan<WriteReq<8, 32, 32>> out;
   write_resp: chan<WriteResp> in;
 
   terminator: chan<bool> out;
@@ -306,9 +306,9 @@ proc RamModelWriteReadMaskedWriteReadTest {
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
-    let (write_req_s, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>;
+    let (write_req_s, write_req_r) = chan<WriteReq<8, 32, 32>>;
     let (write_resp_s, write_resp_r) = chan<WriteResp>;
     spawn RamModel<
       u32:32,  // DATA_WIDTH
@@ -368,17 +368,17 @@ proc RamModelWriteReadMaskedWriteReadTest {
 // Tests that a RAM with initialization can be read.
 #[test_proc]
 proc RamModelInitializationTest {
-  read_req: chan<ReadReq<u32:8, u32:32>> out;
-  read_resp: chan<ReadResp<u32:32>> in;
+  read_req: chan<ReadReq<8, 32>> out;
+  read_resp: chan<ReadResp<32>> in;
 
   terminator: chan<bool> out;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (read_req_s, read_req_r) = chan<ReadReq<u32:8, u32:32>>;
-    let (read_resp_s, read_resp_r) = chan<ReadResp<u32:32>>;
-    let (_, write_req_r) = chan<WriteReq<u32:8, u32:32, u32:32>>;
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 32>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<32>>;
+    let (_, write_req_r) = chan<WriteReq<8, 32, 32>>;
     let (write_resp_s, _) = chan<WriteResp>;
     spawn RamModel<
       u32:32,   // DATA_WIDTH
@@ -465,16 +465,16 @@ proc SinglePortRamModel<DATA_WIDTH:u32, SIZE:u32,
 // afterwards and checking that you got what you wrote.
 #[test_proc]
 proc SinglePortRamModelTest {
-  req_out: chan<SinglePortRamReq<u32:10, u32:32, u32:0>> out;
-  resp_in: chan<SinglePortRamResp<u32:32>> in;
+  req_out: chan<SinglePortRamReq<10, 32, 0>> out;
+  resp_in: chan<SinglePortRamResp<32>> in;
   wr_comp_in: chan<()> in;
   terminator: chan<bool> out;
 
   init { () }
 
   config(terminator: chan<bool> out) {
-    let (req_s, req_r) = chan<SinglePortRamReq<u32:10, u32:32, u32:0>>;
-    let (resp_s, resp_r) = chan<SinglePortRamResp<u32:32>>;
+    let (req_s, req_r) = chan<SinglePortRamReq<10, 32, 0>>;
+    let (resp_s, resp_r) = chan<SinglePortRamResp<32>>;
     let (wr_comp_s, wr_comp_r) = chan<()>;
     spawn SinglePortRamModel<
       u32:32,   // DATA_WIDTH

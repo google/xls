@@ -184,6 +184,20 @@ fn f() -> u32 { p<u32:28>() }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, ParametricStructInstantiatedByGlobal) {
+  std::string program = R"(
+struct MyStruct<WIDTH: u32> {
+  f: bits[WIDTH]
+}
+fn p<FIELD_WIDTH: u32>(s: MyStruct<FIELD_WIDTH>) -> u15 {
+  s.f
+}
+const GLOBAL = u32:15;
+fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }
@@ -1318,6 +1332,21 @@ fn f(p: Point<3>) -> uN[6] {
   XLS_EXPECT_OK(Typecheck(kProgram));
 }
 
+// TODO(https://github.com/google/xls/issues/978) Enable types other than u32 to
+// be used in struct parametric instantiation.
+TEST(TypecheckParametricStructInstanceTest, DISABLED_NonU32Parametric) {
+  const std::string_view kProgram = R"(
+struct Point<N: u5, N_U32: u32 = {N as u32}> {
+  x: uN[N_U32],
+}
+
+fn f(p: Point<u5:3>) -> uN[3] {
+  p.y
+}
+)";
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 // Helper for parametric struct instance based tests.
 static absl::Status TypecheckParametricStructInstance(std::string program) {
   program = R"(
@@ -1447,7 +1476,7 @@ struct S<X: u32, Y: u32> {
   x: bits[X],
   y: bits[Y],
 }
-type MyS = S<u32:3, u32:4>;
+type MyS = S<3, 4>;
 fn f() -> MyS { MyS{x: bits[3]:3, y: bits[4]:4 } }
 )"));
 }

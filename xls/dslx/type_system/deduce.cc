@@ -2168,7 +2168,7 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
 
   // Now we try to constexpr evaluate it.
   const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
-  XLS_VLOG(3) << "Attempting to evaluate dimension expression: `"
+  XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
               << dim_expr->ToString()
               << "` via parametric env: " << parametric_env;
   XLS_RETURN_IF_ERROR(
@@ -2283,7 +2283,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArrayTypeAnnotation(
 //    definition (before parametrics are applied).
 static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     const TypeRefTypeAnnotation* type_annotation, const StructDef* struct_def,
-    const ConcreteType& base_type) {
+    const ConcreteType& base_type, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "ConcreteStructAnnotation; type_annotation: "
+              << type_annotation->ToString()
+              << " struct_def: " << struct_def->ToString();
+
   // Note: if there are too *few* annotated parametrics, some of them may be
   // derived.
   if (type_annotation->parametrics().size() >
@@ -2297,9 +2301,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
                         type_annotation->parametrics().size()));
   }
 
-  absl::flat_hash_map<
-      std::string, std::variant<int64_t, std::unique_ptr<ParametricExpression>>>
-      defined_to_annotated;
+  absl::flat_hash_map<std::string, ConcreteTypeDim> parametric_env;
 
   for (int64_t i = 0; i < type_annotation->parametrics().size(); ++i) {
     ParametricBinding* defined_parametric =
@@ -2307,30 +2309,12 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     ExprOrType eot = type_annotation->parametrics()[i];
     XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
     Expr* annotated_parametric = std::get<Expr*>(eot);
-    // TODO(leary): 2020-12-13 This is kind of an ad hoc
-    // constexpr-evaluate-to-int implementation, unify and consolidate it.
-    if (auto* cast = dynamic_cast<Cast*>(annotated_parametric)) {
-      Expr* expr = cast->expr();
-      if (auto* number = dynamic_cast<Number*>(expr)) {
-        XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
-        defined_to_annotated[defined_parametric->identifier()] = value;
-      } else {
-        auto* name_ref = dynamic_cast<NameRef*>(expr);
-        XLS_RET_CHECK(name_ref != nullptr);
-        defined_to_annotated[defined_parametric->identifier()] =
-            std::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                               name_ref->span());
-      }
-    } else if (auto* number = dynamic_cast<Number*>(annotated_parametric)) {
-      XLS_ASSIGN_OR_RETURN(int value, number->GetAsUint64());
-      defined_to_annotated[defined_parametric->identifier()] = value;
-    } else {
-      auto* name_ref = dynamic_cast<NameRef*>(annotated_parametric);
-      XLS_RET_CHECK(name_ref != nullptr);
-      defined_to_annotated[defined_parametric->identifier()] =
-          std::make_unique<ParametricSymbol>(name_ref->identifier(),
-                                             name_ref->span());
-    }
+    XLS_VLOG(5) << "annotated_parametric: `" << annotated_parametric->ToString()
+                << "`";
+
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim ctd,
+                         DimToConcrete(annotated_parametric, ctx));
+    parametric_env.emplace(defined_parametric->identifier(), std::move(ctd));
   }
 
   // For the remainder of the formal parameterics (i.e. after the explicitly
@@ -2350,21 +2334,17 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
     }
   }
 
-  // Convert the defined_to_annotated map to use borrowed pointers for the
-  // ParametricExpressions, as required by `ParametricExpression::Env` (so we
-  // can `ParametricExpression::Evaluate()`).
   ParametricExpression::Env env;
-  for (auto& item : defined_to_annotated) {
-    if (std::holds_alternative<int64_t>(item.second)) {
-      env[item.first] = InterpValue::MakeU32(std::get<int64_t>(item.second));
+  for (const auto& [k, ctd] : parametric_env) {
+    if (std::holds_alternative<InterpValue>(ctd.value())) {
+      env[k] = std::get<InterpValue>(ctd.value());
     } else {
-      env[item.first] =
-          std::get<std::unique_ptr<ParametricExpression>>(item.second).get();
+      env[k] = &ctd.parametric();
     }
   }
 
   // Now evaluate all the dimensions according to the values we've got.
-  return base_type.MapSize([&env](ConcreteTypeDim dim)
+  return base_type.MapSize([&](const ConcreteTypeDim& dim)
                                -> absl::StatusOr<ConcreteTypeDim> {
     if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
       auto& parametric =
@@ -2386,8 +2366,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
   if (struct_def_or.ok()) {
     auto* struct_def = struct_def_or.value();
     if (struct_def->IsParametric() && !node->parametrics().empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          base_type, ConcretizeStructAnnotation(node, struct_def, *base_type));
+      XLS_ASSIGN_OR_RETURN(base_type, ConcretizeStructAnnotation(
+                                          node, struct_def, *base_type, ctx));
     }
   }
   XLS_RET_CHECK(base_type->IsMeta());
@@ -2687,12 +2667,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceJoin(const Join* node,
 
 // Deduces the concrete types of the arguments to a parametric function or
 // proc and returns them to the caller.
-absl::Status InstantiateParametricArgs(
+static absl::Status InstantiateParametricArgs(
     const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
     DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
   for (Expr* arg : args) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
                          DeduceAndResolve(arg, ctx));
+    XLS_VLOG(5) << "InstantiateParametricArgs; arg: `" << arg->ToString()
+                << "` deduced: `" << type->ToString() << "` @ " << arg->span();
     XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
                                    << " type: " << type->ToString();
     instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
@@ -3143,6 +3125,24 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInternal(
   return std::move(visitor.result());
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveViaEnv(
+    const ConcreteType& type, const ParametricEnv& parametric_env) {
+  ParametricExpression::Env env;
+  for (const auto& [k, v] : parametric_env.bindings()) {
+    env[k] = v;
+  }
+
+  return type.MapSize([&](const ConcreteTypeDim& dim)
+                          -> absl::StatusOr<ConcreteTypeDim> {
+    if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+      const auto& parametric =
+          std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+      return ConcreteTypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
+}
+
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
@@ -3150,17 +3150,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
   XLS_RET_CHECK(!ctx->fn_stack().empty());
   const FnStackEntry& entry = ctx->fn_stack().back();
   const ParametricEnv& fn_parametric_env = entry.parametric_env();
-
-  return type.MapSize([&fn_parametric_env](ConcreteTypeDim dim)
-                          -> absl::StatusOr<ConcreteTypeDim> {
-    if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
-      const auto& parametric =
-          std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-      ParametricExpression::Env env = ToParametricEnv(fn_parametric_env);
-      return ConcreteTypeDim(parametric->Evaluate(env));
-    }
-    return dim;
-  });
+  return ResolveViaEnv(type, fn_parametric_env);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,

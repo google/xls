@@ -76,7 +76,11 @@ absl::Status ParametricBindConcreteTypeDim(const ConcreteType& param_type,
                                            const ConcreteType& arg_type,
                                            const ConcreteTypeDim& arg_dim,
                                            ParametricBindContext& ctx) {
-  XLS_RET_CHECK(!arg_dim.IsParametric());
+  XLS_VLOG(5) << "ParametricBindConcreteTypeDim;"
+              << " param_type: " << param_type << " param_dim: " << param_dim
+              << " arg_type: " << arg_type << " arg_dim: " << arg_dim;
+
+  XLS_RET_CHECK(!arg_dim.IsParametric()) << arg_dim.ToString();
 
   // See if there's a parametric symbol in the formal argument we need to bind
   // vs the actual argument.

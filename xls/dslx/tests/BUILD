@@ -252,6 +252,11 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
+xls_dslx_test(
+    name = "parametric_issue_727_test",
+    srcs = ["parametric_issue_727.x"],
+)
+
 dslx_lang_test(
     name = "parametric_value_as_nested_loop_bound",
 )

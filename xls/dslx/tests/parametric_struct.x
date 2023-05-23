@@ -19,7 +19,6 @@ struct ParametricPoint<A: u32, B: u32 = {double(A)}> {
   y: bits[B]
 }
 
-
 struct WrapperStruct<P: u32, Q: u32> {
   pp: ParametricPoint<P, Q>
 }

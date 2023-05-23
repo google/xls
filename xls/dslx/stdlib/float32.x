@@ -18,7 +18,7 @@ import apfloat
 // TODO(rspringer): Make u32:8 and u32:23 symbolic constants. Currently, such
 // constants don't propagate correctly and fail to resolve when in parametric
 // specifications.
-pub type F32 = apfloat::APFloat<u32:8, u32:23>;
+pub type F32 = apfloat::APFloat<8, 23>;
 pub type FloatTag = apfloat::APFloatTag;
 
 pub type TaggedF32 = (FloatTag, F32);

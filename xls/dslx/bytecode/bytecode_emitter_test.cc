@@ -1201,7 +1201,7 @@ pub enum ImportedEnum : u32 {
 import imported
 
 type MyEnum = imported::ImportedEnum;
-type MyStruct = imported::ImportedStruct<u32:16>;
+type MyStruct = imported::ImportedStruct<16>;
 
 #[test]
 fn main() -> u32 {

@@ -21,8 +21,8 @@ struct MyParametric<A: u32, B: u32 = {double(A)}> {
 
 // TODO(leary): 2020-12-19 This doesn't work, we have to annotate B as well.
 // We should be able to infer it.
-// fn f() -> MyParametric<u32:8> {
-fn main() -> MyParametric<u32:8, u32:16> {
+// fn f() -> MyParametric<8> {
+fn main() -> MyParametric<8, 16> {
   MyParametric { x: u8:1, y: u16:2 }
 }
 

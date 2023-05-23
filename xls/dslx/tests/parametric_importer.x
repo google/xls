@@ -14,7 +14,7 @@
 
 import xls.dslx.tests.parametric_import
 
-type LocalType = parametric_import::Type<u32:1, u32:2>;
+type LocalType = parametric_import::Type<1, 2>;
 
 #[test]
 fn parametric_importer() {

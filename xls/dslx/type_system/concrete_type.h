@@ -115,6 +115,11 @@ class ConcreteTypeDim {
   std::variant<InterpValue, OwnedParametric> value_;
 };
 
+inline std::ostream& operator<<(std::ostream& os, const ConcreteTypeDim& ctd) {
+  os << ctd.ToString();
+  return os;
+}
+
 class EnumType;
 class BitsType;
 class FunctionType;
@@ -260,7 +265,7 @@ class MetaType : public ConcreteType {
   std::vector<ConcreteTypeDim> GetAllDims() const override {
     return wrapped_->GetAllDims();
   }
-  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const;
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const MapFn& f) const override {
     XLS_ASSIGN_OR_RETURN(auto wrapped, wrapped_->MapSize(f));
