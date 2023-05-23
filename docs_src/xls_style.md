@@ -82,6 +82,16 @@ in the XLS project, with the relevant Google style guides
     };
     ```
 
+*   Follow the
+    [style guide's](https://google.github.io/styleguide/cppguide.html#Run-Time_Type_Information__RTTI_)
+    decision to avoid RTTI. In practice, this means `down_cast<>` should be used
+    instead of `dynamic_cast<>`. However, the style guide says to avoid
+    hand-implementing RTTI-like workarounds. The DSLX and XLScc frontends are
+    places where avoiding RTTI would require implementing workarounds that end
+    up looking a lot like RTTI, so `dynamic_cast<>` is common and accepted for
+    those parts of the codebase. Elsewhere, especially with IR `Node` types,
+    `down_cast<>` should be used instead.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can
@@ -130,7 +140,7 @@ a **non-ok** `StatusOr` is expensive (that is, imagine the non-ok `Status`
 within a `StatusOr` is the expensive part).
 
 The implication being: if there's an API where "not found" is a reasonable
-outcome, prefer `absl::optional<>` as a return value to indicate that / go with
+outcome, prefer `std::optional<>` as a return value to indicate that / go with
 the grain of cost.
 
 Something like a filesystem API would be a classic example -- where you

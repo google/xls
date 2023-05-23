@@ -39,9 +39,10 @@ namespace xls {
 // instead. Thus, it's important to test in debug mode to make sure the cast is
 // legal!
 //
-// This is the only place in the codebase we should use dynamic_cast.
-// In particular, you should NOT use dynamic_cast for RTTI, e.g. for
-// code like this:
+// Most other parts of the codebase should not use dynamic_cast. See the section
+// on RTTI in https://google.github.io/xls/xls_style/ for more discussion. In
+// particular, you should NOT use dynamic_cast for RTTI, e.g. for code like
+//  this:
 //    if (auto* p = dynamic_cast<Subclass1*>(foo)) HandleASubclass1Object(p);
 //    if (auto* p = dynamic_cast<Subclass2*>(foo)) HandleASubclass2Object(p);
 // You should design the code some other way not to need this.
