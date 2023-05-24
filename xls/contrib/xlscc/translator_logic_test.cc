@@ -927,6 +927,35 @@ TEST_F(TranslatorLogicTest, SwitchStmt) {
   Run({{"a", 3}}, 300, content);
 }
 
+TEST_F(TranslatorLogicTest, SwitchStmtWithUnrollInCase) {
+  const std::string content = R"(
+       long long my_package(long long a) {
+         long long ret;
+         switch(a) {
+           case 1:
+             #pragma hls_unroll yes
+             for (int i = 0; i < 4; ++i) {
+               #pragma hls_unroll yes
+               for (int j = 0; j < 3; ++j) {
+                 ret = 100;
+               }
+             }
+             break;
+           case 2:
+             ret = 200;
+             break;
+           default:
+             ret = 300;
+             break;
+         }
+         return ret;
+       })";
+
+  Run({{"a", 1}}, 100, content);
+  Run({{"a", 2}}, 200, content);
+  Run({{"a", 3}}, 300, content);
+}
+
 TEST_F(TranslatorLogicTest, SwitchConditionalBreak) {
   const std::string content = R"(
        long long my_package(long long a, long long b) {

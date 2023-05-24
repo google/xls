@@ -105,6 +105,8 @@ TranslationContext& Translator::PushContext() {
   context().propagate_up = true;
   context().propagate_break_up = true;
   context().propagate_continue_up = true;
+  // Declaration propagation does not get propagated down
+  context().propagate_declarations = false;
   return context();
 }
 
@@ -4628,6 +4630,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       context().full_switch_cond = ocond;
       // Variables declared should be visible in the outer context
       context().propagate_declarations = true;
+
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt, ctx));
 
       if (context().hit_break) {
