@@ -20,6 +20,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls::verilog {
 
@@ -50,6 +51,7 @@ class RamConfiguration {
   virtual ~RamConfiguration() = default;
 
   virtual std::unique_ptr<RamConfiguration> Clone() const = 0;
+  virtual std::vector<IOConstraint> GetIOConstraints() const = 0;
 
   std::string_view ram_name() const { return ram_name_; }
   int64_t latency() const { return latency_; }
@@ -82,6 +84,7 @@ class Ram1RWConfiguration : public RamConfiguration {
         }) {}
 
   std::unique_ptr<RamConfiguration> Clone() const override;
+  std::vector<IOConstraint> GetIOConstraints() const override;
 
   const RamRWPortConfiguration& rw_port_configuration() const {
     return rw_port_configuration_;
@@ -110,6 +113,7 @@ class Ram1R1WConfiguration : public RamConfiguration {
                 std::string{write_completion_name}}) {}
 
   std::unique_ptr<RamConfiguration> Clone() const override;
+  std::vector<IOConstraint> GetIOConstraints() const override;
 
   const RamRPortConfiguration& r_port_configuration() const {
     return r_port_configuration_;

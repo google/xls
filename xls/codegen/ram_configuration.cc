@@ -17,6 +17,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls::verilog {
 namespace {
@@ -152,8 +153,37 @@ std::unique_ptr<RamConfiguration> Ram1RWConfiguration::Clone() const {
   return std::make_unique<Ram1RWConfiguration>(*this);
 }
 
+std::vector<IOConstraint> Ram1RWConfiguration::GetIOConstraints() const {
+  return {
+      IOConstraint(rw_port_configuration_.request_channel_name,
+                   IODirection::kSend,
+                   rw_port_configuration_.response_channel_name,
+                   IODirection::kReceive, /*minimum_latency=*/latency_,
+                   /*maximum_latency=*/latency_),
+      IOConstraint(rw_port_configuration_.request_channel_name,
+                   IODirection::kSend,
+                   rw_port_configuration_.write_completion_channel_name,
+                   IODirection::kReceive, /*minimum_latency=*/latency_,
+                   /*maximum_latency=*/latency_),
+  };
+}
+
 std::unique_ptr<RamConfiguration> Ram1R1WConfiguration::Clone() const {
   return std::make_unique<Ram1R1WConfiguration>(*this);
+}
+
+std::vector<IOConstraint> Ram1R1WConfiguration::GetIOConstraints() const {
+  return {
+      IOConstraint(
+          r_port_configuration_.request_channel_name, IODirection::kSend,
+          r_port_configuration_.response_channel_name, IODirection::kReceive,
+          /*minimum_latency=*/latency_, /*maximum_latency=*/latency_),
+      IOConstraint(w_port_configuration_.request_channel_name,
+                   IODirection::kSend,
+                   w_port_configuration_.write_completion_channel_name,
+                   IODirection::kReceive,
+                   /*minimum_latency=*/latency_, /*maximum_latency=*/latency_),
+  };
 }
 
 }  // namespace xls::verilog

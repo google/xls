@@ -936,6 +936,7 @@ cc_library(
     srcs = ["ram_configuration.cc"],
     hdrs = ["ram_configuration.h"],
     deps = [
+        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

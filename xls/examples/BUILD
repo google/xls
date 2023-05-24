@@ -482,15 +482,6 @@ xls_ir_verilog(
         "module_name": "delay_top",
         "generator": "pipeline",
         "delay_model": "unit",
-        # Specify a scheduling constraint on the ram request send -> ram
-        # response recv, which is precisely 1 cycle.
-        # See https://google.github.io/xls/codegen_options/#pipelining-and-scheduling-options
-        # for more information about this option.
-        "io_constraints": "{req}:send:{resp}:recv:1:1,{req}:send:{wr_comp}:recv:1:1".format(
-            req = "delay__ram_req",
-            resp = "delay__ram_resp",
-            wr_comp = "delay__ram_wr_comp",
-        ),
         # Enable codegen pass that rewrites the req and resp channels to drive
         # an external RAM. The configuration below means that the pair of
         # channels `delay__ram_req` and `delay__ram_resp` drive a 1RW RAM

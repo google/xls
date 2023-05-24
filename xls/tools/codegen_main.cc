@@ -234,6 +234,16 @@ absl::Status RealMain(std::string_view ir_path) {
 
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                          SetUpSchedulingOptions(p.get()));
+
+    // Add IO constraints for RAMs.
+    for (const std::unique_ptr<xls::verilog::RamConfiguration>& ram_config :
+         codegen_options.ram_configurations()) {
+      for (const IOConstraint& ram_constraint :
+           ram_config->GetIOConstraints()) {
+        scheduling_options.add_constraint(ram_constraint);
+      }
+    }
+
     XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
                          SetUpDelayEstimator());
     XLS_ASSIGN_OR_RETURN(
