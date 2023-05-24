@@ -2779,8 +2779,20 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
     }
 
     if (peek->kind() == TokenKind::kIdentifier) {
-      XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
-      return ToExprNode(nocr);
+      // We have to distinguish between:
+      // simple structs "MyStruct",
+      // parametric structs "MyStruct<MyParam>",
+      // array of structs "MyStruct[10]"
+      Transaction txn(this, &bindings);
+      auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
+      XLS_RETURN_IF_ERROR(DropToken());
+      XLS_ASSIGN_OR_RETURN(const Token* next_peek, PeekToken());
+      if (!next_peek->IsKindIn({TokenKind::kOAngle, TokenKind::kOBrack})) {
+        std::move(cleanup).Invoke();
+        XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
+        return ToExprNode(nocr);
+      }
+      std::move(cleanup).Invoke();
     }
 
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
