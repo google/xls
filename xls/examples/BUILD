@@ -31,8 +31,7 @@ load(
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
-# TODO(cdleary): 2022-05-09 Re-enable use of this rule.
-# load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -569,14 +568,12 @@ verilog_library(
     srcs = [":constraint.sv"],
 )
 
-# TODO(cdleary): 2022-05-09 Get this target working as well, requires
-# addressing the dependence on openmp runtime.
-# place_and_route(
-#     name = "find_index_place_and_route",
-#     # ~64 MhZ
-#     clock_period = "15.42857143",
-#     core_padding_microns = 30,
-#     placement_density = "0.8",
-#     synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
-#     target_die_utilization_percentage = "30",
-# )
+place_and_route(
+    name = "find_index_place_and_route",
+    # ~64 MhZ
+    clock_period = "15.42857143",
+    core_padding_microns = 30,
+    placement_density = "0.8",
+    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
+    target_die_utilization_percentage = "30",
+)
