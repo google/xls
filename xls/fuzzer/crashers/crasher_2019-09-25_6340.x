@@ -11,10 +11,29 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "simulate": false, "simulator": null}
-// args: bits[1]:0x0
-// args: bits[1]:0x1
+// BEGIN_CONFIG
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: true
+//   codegen_args: "--generator=pipeline"
+//   codegen_args: "--pipeline_stages=3"
+//   codegen_args: "--reset_data_path=false"
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "bits[1]:0x0"
+//     args: "bits[1]:0x1"
+//   }
+// }
+// END_CONFIG
 fn main(x165545: bool) -> (u57, u13, u22, u13, bool, bool, u1, u2, u13, u37) {
     let x165546: bool = !(x165545);
     let x165547: bool = !(x165546);
@@ -50,5 +69,3 @@ fn main(x165545: bool) -> (u57, u13, u22, u13, bool, bool, u1, u2, u13, u37) {
     let x165577: u2 = (x165549).0x0;
     (x165563, x165561, x165553, x165555, x165545, x165571, x165573, x165577, x165555, x165560)
 }
-
-

@@ -21,28 +21,40 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/proto_adaptor_utils.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/fuzzer/scrub_crasher.h"
-#include "re2/re2.h"
+#include "xls/ir/ir_parser.h"
 
 namespace xls {
 
 using dslx::InterpValue;
 
+namespace {
+
+// Markers for the start/end of the text serialization of the CrasherConfigProto
+// in the crasher text.
+const char kStartConfig[] = "BEGIN_CONFIG";
+const char kEndConfig[] = "END_CONFIG";
+
 // Converts an interpreter value to an argument string -- we use the
 // IR-converted hex form of the value.
-static std::string ToArgString(const InterpValue& v) {
+std::string ToArgString(const InterpValue& v) {
   return v.ConvertToIr().value().ToString(FormatPreference::kHex);
 }
 
 // Converts a list of interpreter values to a string.
-static std::string InterpValueListToString(
+std::string InterpValueListToString(
     const std::vector<InterpValue>& interpv_list) {
   return absl::StrJoin(interpv_list, "; ",
                        [](std::string* out, const InterpValue& v) {
                          absl::StrAppend(out, ToArgString(v));
                        });
 }
+
+}  // namespace
 
 std::string ArgsBatchToText(
     const std::vector<std::vector<InterpValue>>& args_batch) {
@@ -69,109 +81,36 @@ std::vector<std::string> ParseIrChannelNames(
   return ir_channel_names;
 }
 
-/* static */ absl::StatusOr<SampleOptions> SampleOptions::FromJson(
-    std::string_view json_text) {
-  std::string err;
-  json11::Json parsed = json11::Json::parse(std::string(json_text), err);
+/*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromPbtxt(
+    std::string_view text) {
+  fuzzer::SampleOptionsProto proto;
+  XLS_RETURN_IF_ERROR(ParseTextProto(text,
+                                     /*file_name=*/"", &proto));
+  return FromProto(proto);
+}
+
+std::string SampleOptions::ToPbtxt() const { return proto_.DebugString(); }
+
+/*static*/ absl::StatusOr<SampleOptions> SampleOptions::FromProto(
+    const fuzzer::SampleOptionsProto& proto) {
   SampleOptions options;
-
-#define HANDLE_BOOL(__name)                                    \
-  if (!parsed[#__name].is_null()) {                            \
-    options.proto_.set_##__name(parsed[#__name].bool_value()); \
-  }
-
-  HANDLE_BOOL(input_is_dslx);
-  HANDLE_BOOL(convert_to_ir);
-  HANDLE_BOOL(optimize_ir);
-  HANDLE_BOOL(use_jit);
-  HANDLE_BOOL(codegen);
-  HANDLE_BOOL(simulate);
-  HANDLE_BOOL(use_system_verilog);
-
-#undef HANDLE_BOOL
-
-  if (!parsed["codegen_args"].is_null()) {
-    std::vector<std::string> codegen_args;
-    for (const json11::Json& item : parsed["codegen_args"].array_items()) {
-      codegen_args.push_back(item.string_value());
-    }
-    options.set_codegen_args(codegen_args);
-  }
-  if (!parsed["ir_converter_args"].is_null()) {
-    std::vector<std::string> ir_converter_args;
-    for (const json11::Json& item : parsed["ir_converter_args"].array_items()) {
-      ir_converter_args.push_back(item.string_value());
-    }
-    options.set_ir_converter_args(ir_converter_args);
-  }
-  if (!parsed["simulator"].is_null()) {
-    options.set_simulator(parsed["simulator"].string_value());
-  }
-  if (!parsed["timeout_seconds"].is_null()) {
-    options.set_timeout_seconds(parsed["timeout_seconds"].int_value());
-  }
-  if (!parsed["calls_per_sample"].is_null()) {
-    options.set_calls_per_sample(parsed["calls_per_sample"].int_value());
-  }
-  if (!parsed["proc_ticks"].is_null()) {
-    options.set_proc_ticks(parsed["proc_ticks"].int_value());
-  }
-  if (!parsed["top_type"].is_null()) {
-    options.set_sample_type(parsed["top_type"].int_value() == 0
-                                ? fuzzer::SAMPLE_TYPE_FUNCTION
-                                : fuzzer::SAMPLE_TYPE_PROC);
-  }
+  options.proto_ = proto;
   return options;
 }
 
-json11::Json SampleOptions::ToJson() const {
-  absl::flat_hash_map<std::string, json11::Json> json;
-
-#define HANDLE_BOOL(__name) json[#__name] = __name();
-
-  HANDLE_BOOL(input_is_dslx);
-  HANDLE_BOOL(convert_to_ir);
-  HANDLE_BOOL(optimize_ir);
-  HANDLE_BOOL(use_jit);
-  HANDLE_BOOL(codegen);
-  HANDLE_BOOL(simulate);
-  HANDLE_BOOL(use_system_verilog);
-
-#undef HANDLE_BOOL
-
-  if (!codegen_args().empty()) {
-    json["codegen_args"] = codegen_args();
-  } else {
-    json["codegen_args"] = nullptr;
-  }
-
-  if (!ir_converter_args().empty()) {
-    json["ir_converter_args"] = ir_converter_args();
-  } else {
-    json["ir_converter_args"] = nullptr;
-  }
-
-  if (!simulator().empty()) {
-    json["simulator"] = simulator();
-  } else {
-    json["simulator"] = nullptr;
-  }
-
-  if (timeout_seconds().has_value()) {
-    json["timeout_seconds"] = static_cast<int>(timeout_seconds().value());
-  } else {
-    json["timeout_seconds"] = nullptr;
-  }
-
-  json["calls_per_sample"] = static_cast<int>(calls_per_sample());
-
-  if (proc_ticks() > 0) {
-    json["proc_ticks"] = static_cast<int>(proc_ticks());
-  } else {
-    json["proc_ticks"] = nullptr;
-  }
-  json["top_type"] = sample_type() == fuzzer::SAMPLE_TYPE_FUNCTION ? 0 : 1;
-  return json11::Json(json);
+bool SampleOptions::operator==(const SampleOptions& other) const {
+  return (input_is_dslx() == other.input_is_dslx() &&
+          sample_type() == other.sample_type() &&
+          ir_converter_args() == other.ir_converter_args() &&
+          convert_to_ir() == other.convert_to_ir() &&
+          optimize_ir() == other.optimize_ir() &&
+          use_jit() == other.use_jit() && codegen() == other.codegen() &&
+          codegen_args() == other.codegen_args() &&
+          simulate() == other.simulate() && simulator() == other.simulator() &&
+          use_system_verilog() == other.use_system_verilog() &&
+          timeout_seconds() == other.timeout_seconds() &&
+          calls_per_sample() == other.calls_per_sample() &&
+          proc_ticks() == other.proc_ticks());
 }
 
 /*static*/ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
@@ -213,47 +152,107 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
 }
 
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
-  s = absl::StripAsciiWhitespace(s);
-  std::optional<SampleOptions> options;
-  std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
-  std::vector<std::vector<InterpValue>> args_batch;
-  std::vector<std::string_view> input_lines;
+  bool in_config = false;
+  std::vector<std::string_view> config_lines;
+  std::vector<std::string_view> dslx_lines;
   for (std::string_view line : absl::StrSplit(s, '\n')) {
-    if (RE2::FullMatch(line, "\\s*//\\s*options:(.*)", &line)) {
-      XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
-    } else if (RE2::FullMatch(line, "\\s*//\\s*ir_channel_names:(.*)", &line)) {
-      ir_channel_names = ParseIrChannelNames(line);
-    } else if (RE2::FullMatch(line, "\\s*//\\s*args:(.*)", &line)) {
-      XLS_ASSIGN_OR_RETURN(auto args, dslx::ParseArgs(line));
-      args_batch.push_back(std::move(args));
+    std::string_view stripped_line = absl::StripAsciiWhitespace(line);
+    if (stripped_line.empty()) {
+      continue;
+    }
+    if (absl::StartsWith(stripped_line, "//")) {
+      std::string_view contents =
+          absl::StripAsciiWhitespace(absl::StripPrefix(stripped_line, "//"));
+      if (contents == kStartConfig) {
+        in_config = true;
+      } else if (contents == kEndConfig) {
+        in_config = false;
+      } else if (in_config) {
+        config_lines.push_back(contents);
+      }
     } else {
-      input_lines.push_back(line);
+      dslx_lines.push_back(line);
     }
   }
-
-  if (!options.has_value()) {
+  if (config_lines.empty()) {
     return absl::InvalidArgumentError(
-        "Crasher did not have sample 'options' comment line.");
+        "Fuzz sample has a missing or empty config");
   }
+  fuzzer::CrasherConfigurationProto proto;
+  XLS_RETURN_IF_ERROR(ParseTextProto(absl::StrJoin(config_lines, "\n"),
+                                     /*file_name=*/"", &proto));
+  XLS_ASSIGN_OR_RETURN(SampleOptions options,
+                       SampleOptions::FromProto(proto.sample_options()));
 
-  std::string input_text = absl::StrJoin(input_lines, "\n");
-  return Sample(std::move(input_text), *std::move(options),
-                std::move(args_batch), std::move(ir_channel_names));
+  std::string dslx_code = absl::StrJoin(dslx_lines, "\n");
+
+  // In the serialization channel inputs are grouped by channel, but the
+  // fuzzer expects inputs to be grouped by input number.
+  // TODO(meheff): Change the fuzzer to accept inputs grouped by channel. This
+  // would enable a different number of inputs per channel.
+  std::vector<std::string> ir_channel_names;
+  std::vector<std::vector<InterpValue>> args_batch;
+  if (proto.sample_options().sample_type() == fuzzer::SAMPLE_TYPE_PROC) {
+    for (const fuzzer::ChannelInputProto& channel_input :
+         proto.inputs().channel_inputs().inputs()) {
+      ir_channel_names.push_back(channel_input.channel_name());
+      for (int i = 0; i < channel_input.values().size(); ++i) {
+        const std::string& value_str = channel_input.values(i);
+        XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(value_str));
+        XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                             dslx::ValueToInterpValue(value));
+        if (args_batch.size() <= i) {
+          args_batch.resize(i + 1);
+        }
+        args_batch[i].push_back(interp_value);
+      }
+    }
+  } else {
+    XLS_RET_CHECK(proto.inputs().has_function_args());
+    for (const std::string& arg : proto.inputs().function_args().args()) {
+      XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args, dslx::ParseArgs(arg));
+      args_batch.push_back(args);
+    }
+  }
+  return Sample(dslx_code, options, args_batch, ir_channel_names);
 }
 
-std::string Sample::Serialize() const {
+std::string Sample::Serialize(
+    std::optional<std::string_view> error_message) const {
   std::vector<std::string> lines;
-  lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
-  if (ir_channel_names_.has_value()) {
-    std::string ir_channel_names_str =
-        IrChannelNamesToText(ir_channel_names_.value());
-    lines.push_back(
-        absl::StrCat("// ir_channel_names: ", ir_channel_names_str));
+  lines.push_back(absl::StrFormat("// %s", kStartConfig));
+
+  fuzzer::CrasherConfigurationProto config;
+  if (error_message.has_value()) {
+    config.set_exception(ToProtoString(error_message.value()));
   }
-  for (const std::vector<InterpValue>& args : args_batch_) {
-    std::string args_str = InterpValueListToString(args);
-    lines.push_back(absl::StrCat("// args: ", args_str));
+  // Split the D.N.S string to avoid triggering presubmit checks.
+  config.set_issue(std::string("DO NOT ") +
+                   "SUBMIT Insert link to GitHub issue here.");
+  *config.mutable_sample_options() = options().proto();
+  if (options().IsFunctionSample()) {
+    fuzzer::FunctionArgsProto* args_proto =
+        config.mutable_inputs()->mutable_function_args();
+    for (const std::vector<InterpValue>& args : args_batch_) {
+      args_proto->add_args(InterpValueListToString(args));
+    }
+  } else {
+    XLS_CHECK(options().IsProcSample());
+    fuzzer::ChannelInputsProto* inputs_proto =
+        config.mutable_inputs()->mutable_channel_inputs();
+    for (int64_t i = 0; i < ir_channel_names_.size(); ++i) {
+      fuzzer::ChannelInputProto* input_proto = inputs_proto->add_inputs();
+      input_proto->set_channel_name(ir_channel_names_[i]);
+      for (const std::vector<InterpValue>& args : args_batch_) {
+        input_proto->add_values(ToArgString(args[i]));
+      }
+    }
   }
+  for (std::string_view line : absl::StrSplit(config.DebugString(), '\n')) {
+    lines.push_back(absl::StrFormat("// %s", line));
+  }
+  lines.push_back(absl::StrFormat("// %s", kEndConfig));
+
   std::string header = absl::StrJoin(lines, "\n");
   return absl::StrCat(header, "\n", input_text_, "\n");
 }
@@ -261,8 +260,7 @@ std::string Sample::Serialize() const {
 std::string Sample::ToCrasher(std::string_view error_message) const {
   absl::civil_year_t year =
       absl::ToCivilYear(absl::Now(), absl::TimeZone()).year();
-  std::vector<std::string> lines = {
-      absl::StrFormat(R"(// Copyright %d The XLS Authors
+  std::string license = absl::StrFormat(R"(// Copyright %d The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -276,17 +274,14 @@ std::string Sample::ToCrasher(std::string_view error_message) const {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 )",
-                      year)};
-  lines.push_back("// Exception:");
-  for (std::string_view line : absl::StrSplit(error_message, '\n')) {
-    lines.push_back(absl::StrCat("// ", line));
-  }
-  // Split the D.N.S string to avoid triggering presubmit checks.
-  lines.push_back(std::string("// Issue: DO NOT ") +
-                  "SUBMIT Insert link to GitHub issue here.");
-  lines.push_back("//");
-  std::string header = absl::StrJoin(lines, "\n");
-  return ScrubCrasher(absl::StrCat(header, "\n", Serialize()));
+                                        year);
+
+  return ScrubCrasher(absl::StrCat(license, Serialize(error_message)));
+}
+
+std::ostream& operator<<(std::ostream& os, const Sample& sample) {
+  os << sample.Serialize();
+  return os;
 }
 
 }  // namespace xls

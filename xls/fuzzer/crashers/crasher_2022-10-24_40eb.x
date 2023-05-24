@@ -11,140 +11,161 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Exception:
-// Command '['xls/tools/opt_main', 'sample.ir', '--logtostderr']' died with <Signals.SIGABRT: 6>.
-// Issue: https://github.com/google/xls/issues/758
 //
-// options: {"calls_per_sample": 128, "codegen": true, "codegen_args": ["--nouse_system_verilog", "--generator=pipeline", "--pipeline_stages=2", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "proc_ticks": null, "simulate": true, "simulator": "iverilog", "timeout_seconds": 600, "top_type": 0, "use_jit": true, "use_system_verilog": false}
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x4
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2d
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3a
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x5
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0xa
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2a
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2e
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0xb
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x32
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x38
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x32
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x10
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0xc
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x7
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3a
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x30
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x39
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x25
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2f
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x15
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x1
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x10
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x4
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x25
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x2d
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0xf
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x30
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x30
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0xb
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x3a
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x25
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x4
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3d
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x0
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x6
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0xa
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x8
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2a
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2a
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x1
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x16
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x15
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x39
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x21
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0xa
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x37
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1b
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x2a
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x10
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x2
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0xa
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x35
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0xb
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2f
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x10
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x8
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x20
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0xe
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x33
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x10
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x1
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x0
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x1d
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x29
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x15
-// args: (bits[1]:0x0); bits[1]:0x0; bits[6]:0x15
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x2a
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x35
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x10
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x0
-// args: (bits[1]:0x0); bits[1]:0x1; bits[6]:0x2d
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x9
-// args: (bits[1]:0x1); bits[1]:0x1; bits[6]:0x30
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x17
-// args: (bits[1]:0x1); bits[1]:0x0; bits[6]:0x0
+// BEGIN_CONFIG
+// exception: "// Command \'[\'xls/tools/opt_main\', \'sample.ir\', \'--logtostderr\']\' died with <Signals.SIGABRT: 6>."
+// issue: "https://github.com/google/xls/issues/758"
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: true
+//   codegen_args: "--nouse_system_verilog"
+//   codegen_args: "--generator=pipeline"
+//   codegen_args: "--pipeline_stages=2"
+//   codegen_args: "--reset_data_path=false"
+//   simulate: true
+//   simulator: "iverilog"
+//   use_system_verilog: false
+//   timeout_seconds: 600
+//   calls_per_sample: 128
+// }
+// inputs {
+//   function_args {
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x4"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2d"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3a"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x5"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0xa"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2a"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2e"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0xb"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x32"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x38"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x32"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x10"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0xc"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x7"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3a"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x30"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x39"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x25"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2f"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x15"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x1"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x10"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x4"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x25"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x2d"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0xf"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x30"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x30"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0xb"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x3a"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x25"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x4"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3d"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x0"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x6"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0xa"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x8"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2a"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2a"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x1"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x16"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x15"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x39"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x21"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0xa"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x37"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1b"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x2a"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x10"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x2"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0xa"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x35"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0xb"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2f"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x10"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x8"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x20"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0xe"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x1f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x33"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x10"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x1"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x0"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x1d"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x2a"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x29"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x3f"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x15"
+//     args: "(bits[1]:0x0); bits[1]:0x0; bits[6]:0x15"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x2a"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x35"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x10"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x0"
+//     args: "(bits[1]:0x0); bits[1]:0x1; bits[6]:0x2d"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x9"
+//     args: "(bits[1]:0x1); bits[1]:0x1; bits[6]:0x30"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x17"
+//     args: "(bits[1]:0x1); bits[1]:0x0; bits[6]:0x0"
+//   }
+// }
+// END_CONFIG
 fn main(x0: (u1,), x1: u1, x2: u6) -> (bool, bool, bool, bool, u5, bool) {
   let x3: u6 = ctz(x2);
   let x4: bool = (x1)[x3+:bool];

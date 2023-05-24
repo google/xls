@@ -14,16 +14,16 @@
 
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
-#include "libs/json11/json11.hpp"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11_abseil/statusor_caster.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/import_status_module.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample.pb.h"
 
 namespace py = pybind11;
 
@@ -51,50 +51,55 @@ PYBIND11_MODULE(cpp_sample, m) {
                       std::optional<int64_t> calls_per_sample,
                       std::optional<int64_t> proc_ticks,
                       std::optional<fuzzer::SampleType> sample_type) {
-            std::map<std::string, json11::Json> json;
+            fuzzer::SampleOptionsProto proto =
+                SampleOptions::DefaultOptionsProto();
             if (input_is_dslx) {
-              json["input_is_dslx"] = *input_is_dslx;
+              proto.set_input_is_dslx(*input_is_dslx);
             }
             if (ir_converter_args) {
-              json["ir_converter_args"] = *ir_converter_args;
+              for (const std::string& arg : ir_converter_args.value()) {
+                proto.add_ir_converter_args(arg);
+              }
             }
             if (convert_to_ir) {
-              json["convert_to_ir"] = *convert_to_ir;
+              proto.set_convert_to_ir(*convert_to_ir);
             }
             if (optimize_ir) {
-              json["optimize_ir"] = *optimize_ir;
+              proto.set_optimize_ir(*optimize_ir);
             }
             if (use_jit) {
-              json["use_jit"] = *use_jit;
+              proto.set_use_jit(*use_jit);
             }
             if (codegen) {
-              json["codegen"] = *codegen;
+              proto.set_codegen(*codegen);
             }
             if (codegen_args) {
-              json["codegen_args"] = *codegen_args;
+              for (const std::string& arg : codegen_args.value()) {
+                proto.add_codegen_args(arg);
+              }
             }
             if (simulate) {
-              json["simulate"] = *simulate;
+              proto.set_simulate(*simulate);
             }
             if (simulator) {
-              json["simulator"] = *simulator;
+              proto.set_simulator(*simulator);
             }
             if (use_system_verilog) {
-              json["use_system_verilog"] = *use_system_verilog;
+              proto.set_use_system_verilog(*use_system_verilog);
             }
             if (timeout_seconds) {
-              json["timeout_seconds"] = static_cast<int>(*timeout_seconds);
+              proto.set_timeout_seconds(*timeout_seconds);
             }
             if (calls_per_sample) {
-              json["calls_per_sample"] = static_cast<int>(*calls_per_sample);
+              proto.set_calls_per_sample(*calls_per_sample);
             }
             if (proc_ticks) {
-              json["proc_ticks"] = static_cast<int>(*proc_ticks);
+              proto.set_proc_ticks(*proc_ticks);
             }
             if (sample_type) {
-              json["top_type"] = static_cast<int>(*sample_type);
+              proto.set_sample_type(*sample_type);
             }
-            return SampleOptions::FromJson(json11::Json(json).dump()).value();
+            return SampleOptions::FromProto(proto).value();
           }),
           py::arg("input_is_dslx") = std::nullopt,
           py::arg("ir_converter_args") = std::nullopt,
@@ -111,8 +116,8 @@ PYBIND11_MODULE(cpp_sample, m) {
           py::arg("top_type") = std::nullopt)
       .def("__eq__", &SampleOptions::operator==)
       .def("__ne__", &SampleOptions::operator!=)
-      .def_static("from_json", &SampleOptions::FromJson)
-      .def("to_json", &SampleOptions::ToJsonText)
+      .def_static("from_pbtxt", &SampleOptions::FromPbtxt)
+      .def("to_pbtxt", &SampleOptions::ToPbtxt)
       .def_property_readonly("input_is_dslx", &SampleOptions::input_is_dslx)
       .def_property_readonly("ir_converter_args",
                              &SampleOptions::ir_converter_args)
@@ -149,10 +154,13 @@ PYBIND11_MODULE(cpp_sample, m) {
       // to send to the separate worker process.
       .def(py::pickle(
           [](const SampleOptions& options) {
-            return py::make_tuple(options.ToJsonText());
+            return py::make_tuple(options.proto().DebugString());
           },
           [](py::tuple t) {
-            return SampleOptions::FromJson(t[0].cast<std::string>()).value();
+            fuzzer::SampleOptionsProto proto;
+            XLS_CHECK_OK(ParseTextProto(t[0].cast<std::string>(),
+                                        /*file_name=*/"", &proto));
+            return SampleOptions::FromProto(proto).value();
           }));
 
   py::class_<Sample>(m, "Sample")
@@ -165,9 +173,13 @@ PYBIND11_MODULE(cpp_sample, m) {
                  if (args_batch.has_value()) {
                    args_batch_vec = std::move(*args_batch);
                  }
+                 std::vector<std::string> ir_channel_names_vec;
+                 if (ir_channel_names.has_value()) {
+                   ir_channel_names_vec = ir_channel_names.value();
+                 }
                  return Sample(std::move(input_text), std::move(options),
                                std::move(args_batch_vec),
-                               std::move(ir_channel_names));
+                               std::move(ir_channel_names_vec));
                }),
            py::arg("input_text"), py::arg("options"),
            py::arg("args_batch") = std::nullopt,

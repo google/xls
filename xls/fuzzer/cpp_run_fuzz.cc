@@ -59,9 +59,10 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
     return std::nullopt;
   }
 
-  auto ir_minimize_options = smp.options().ReplaceInputIsDslx(false);
-  XLS_RETURN_IF_ERROR(WriteToFile(run_dir, "ir_minimizer.options.json",
-                                  ir_minimize_options.ToJsonText()));
+  SampleOptions ir_minimize_options = smp.options();
+  ir_minimize_options.set_input_is_dslx(false);
+  XLS_RETURN_IF_ERROR(WriteToFile(run_dir, "ir_minimizer.options.pbtxt",
+                                  ir_minimize_options.proto().DebugString()));
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path sample_runner_main_path,
                        GetSampleRunnerMainPath());
@@ -69,10 +70,10 @@ absl::StatusOr<std::optional<std::filesystem::path>> MinimizeIr(
                        GetIrMinimizerMainPath());
 
   {
-    std::vector<std::string> args = {std::string{sample_runner_main_path},
-                                     "--logtostderr",
-                                     "--options_file=ir_minimizer.options.json",
-                                     "--args_file=args.txt", "--input_file=$1"};
+    std::vector<std::string> args = {
+        std::string{sample_runner_main_path}, "--logtostderr",
+        "--options_file=ir_minimizer.options.pbtxt", "--args_file=args.txt",
+        "--input_file=$1"};
     XLS_RETURN_IF_ERROR(
         WriteToFile(run_dir, "ir_minimizer_test.sh",
                     absl::StrCat("#!/bin/sh\n! ", absl::StrJoin(args, " ")),

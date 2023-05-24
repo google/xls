@@ -11,9 +11,28 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "simulate": false, "simulator": null}
-// args: bits[14]:0x3295
+// BEGIN_CONFIG
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: true
+//   codegen_args: "--generator=pipeline"
+//   codegen_args: "--pipeline_stages=3"
+//   codegen_args: "--reset_data_path=false"
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "bits[14]:0x3295"
+//   }
+// }
+// END_CONFIG
 fn main(x81: u14) -> (u22, u14, u5, u22, u5, u5, u5, u5, u5, u14) {
     let x82: u5 = (u5:0x15);
     let x83: u5 = !(x82);
@@ -26,5 +45,3 @@ fn main(x81: u14) -> (u22, u14, u5, u22, u5, u5, u5, u5, u5, u14) {
     let x90: u13 = (u13:0xfff);
     (x88, x81, x82, x88, x83, x86, x85, x84, x83, x81)
 }
-
-

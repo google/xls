@@ -52,13 +52,14 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
-        "@at_clifford_yosys//:json11",
+        "//xls/common/file:filesystem",
         "//xls/common/status:import_status_module",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value_helpers",
         "//xls/fuzzer:ast_generator",
         "//xls/fuzzer:cpp_sample",
+        "//xls/fuzzer:sample_cc_proto",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
@@ -71,7 +72,6 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
-        "@at_clifford_yosys//:json11",
         "//xls/common/status:import_status_module",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -90,7 +90,6 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/status:statusor",
-        "@at_clifford_yosys//:json11",
         "//xls/common/status:import_status_module",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

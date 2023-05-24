@@ -11,145 +11,164 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Exception:
-// Result miscompare for sample 3:
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
 // evaluated opt IR (JIT), evaluated opt IR (interpreter), evaluated unopt IR (interpreter), interpreted DSLX =
 //    (bits[2]:0x2, bits[2]:0x2, bits[2]:0x3, bits[2]:0x2)
 // evaluated unopt IR (JIT) =
 //    (bits[2]:0x2, bits[2]:0x0, bits[2]:0x3, bits[2]:0x0)
-// Issue: https://github.com/google/xls/issues/375
 //
-// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=3", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x80_0000; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x21_a196_6158; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x10; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x8000_0000; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x3f_13a0_490c; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x10_0000; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x3c_0e29_e99f; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x100_0000; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x25_d273_3fcc; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x2f_6f53_87b2; bits[1]:0x0
-// args: bits[38]:0x1e_5920_3b09; bits[1]:0x1
-// args: bits[38]:0x800_0000; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x1000_0000; bits[1]:0x1
-// args: bits[38]:0x200; bits[1]:0x1
-// args: bits[38]:0x40_0000; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x17_b9ae_e47d; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x2_0000_0000; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x800_0000; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x26_23f7_c887; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0xb_61bc_5162; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0xe_68b7_5d40; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x80_0000; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x400_0000; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0xb_a268_d3f8; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x80; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1
-// args: bits[38]:0x11_f89b_957d; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x1; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x4000_0000; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x30_ee9d_d60b; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x8000; bits[1]:0x0
-// args: bits[38]:0x0; bits[1]:0x1
-// args: bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x0; bits[1]:0x0
-// args: bits[38]:0x10_a656_1fd0; bits[1]:0x0
-// args: bits[38]:0x10; bits[1]:0x0
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x15_5555_5555; bits[1]:0x1
-// args: bits[38]:0x1f_ffff_ffff; bits[1]:0x1
-// args: bits[38]:0x200; bits[1]:0x0
-// args: bits[38]:0x1_0000_0000; bits[1]:0x0
-// args: bits[38]:0x3f_ffff_ffff; bits[1]:0x0
-// args: bits[38]:0x9_d22a_658d; bits[1]:0x0
+// BEGIN_CONFIG
+// exception: "// Result miscompare for sample 3:"
+// issue: "https://github.com/google/xls/issues/375"
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: true
+//   codegen_args: "--use_system_verilog"
+//   codegen_args: "--generator=pipeline"
+//   codegen_args: "--pipeline_stages=3"
+//   codegen_args: "--reset_data_path=false"
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x80_0000; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x21_a196_6158; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x10; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x8000_0000; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x3f_13a0_490c; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x10_0000; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x3c_0e29_e99f; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x100_0000; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x25_d273_3fcc; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x2f_6f53_87b2; bits[1]:0x0"
+//     args: "bits[38]:0x1e_5920_3b09; bits[1]:0x1"
+//     args: "bits[38]:0x800_0000; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x1000_0000; bits[1]:0x1"
+//     args: "bits[38]:0x200; bits[1]:0x1"
+//     args: "bits[38]:0x40_0000; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x17_b9ae_e47d; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x2_0000_0000; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x800_0000; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x26_23f7_c887; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0xb_61bc_5162; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0xe_68b7_5d40; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x80_0000; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x400_0000; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0xb_a268_d3f8; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x80; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x0"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1"
+//     args: "bits[38]:0x11_f89b_957d; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x1; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x4000_0000; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x30_ee9d_d60b; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x8000; bits[1]:0x0"
+//     args: "bits[38]:0x0; bits[1]:0x1"
+//     args: "bits[38]:0x2a_aaaa_aaaa; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x0; bits[1]:0x0"
+//     args: "bits[38]:0x10_a656_1fd0; bits[1]:0x0"
+//     args: "bits[38]:0x10; bits[1]:0x0"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x15_5555_5555; bits[1]:0x1"
+//     args: "bits[38]:0x1f_ffff_ffff; bits[1]:0x1"
+//     args: "bits[38]:0x200; bits[1]:0x0"
+//     args: "bits[38]:0x1_0000_0000; bits[1]:0x0"
+//     args: "bits[38]:0x3f_ffff_ffff; bits[1]:0x0"
+//     args: "bits[38]:0x9_d22a_658d; bits[1]:0x0"
+//   }
+// }
+// END_CONFIG
 type x16 = u1;
 fn main(x0: s38, x1: u1) -> (u2, u2, u2, u2) {
   let x2: u2 = one_hot(x1, bool:true);

@@ -22,7 +22,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "libs/json11/json11.hpp"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
@@ -42,28 +41,23 @@ std::vector<std::string> ParseIrChannelNames(
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
  public:
-  // Parses a JSON-encoded string and returns a SampleOptions object.
-  //
-  // Recognized field keys / expected types are those in the members of
-  // SampleOptions.
-  //
-  // TODO(https://github.com/google/xls/issues/341): 2021-03-12 Rework to be
-  // (schemaful) prototext instead.
-  static absl::StatusOr<SampleOptions> FromJson(std::string_view json_text);
+  // Convert to/from text serialized SampleOptionsProto.
+  static absl::StatusOr<SampleOptions> FromPbtxt(std::string_view text);
+  std::string ToPbtxt() const;
 
-  // Returns a JSON-encoded string describing this object.
-  //
-  // TODO(https://github.com/google/xls/issues/341): 2021-03-12 Rework to be
-  // (schemaful) prototext instead.
-  std::string ToJsonText() const { return ToJson().dump(); }
-
-  // As above, but returns the JSON object.
-  json11::Json ToJson() const;
+  static absl::StatusOr<SampleOptions> FromProto(
+      const fuzzer::SampleOptionsProto& proto);
 
   bool input_is_dslx() const { return proto_.input_is_dslx(); }
   void set_input_is_dslx(bool value) { proto_.set_input_is_dslx(value); }
 
   fuzzer::SampleType sample_type() const { return proto_.sample_type(); }
+  bool IsProcSample() const {
+    return proto_.sample_type() == fuzzer::SAMPLE_TYPE_PROC;
+  }
+  bool IsFunctionSample() const {
+    return proto_.sample_type() == fuzzer::SAMPLE_TYPE_FUNCTION;
+  }
   void set_sample_type(fuzzer::SampleType value) {
     proto_.set_sample_type(value);
   }
@@ -128,9 +122,7 @@ class SampleOptions {
   int64_t proc_ticks() const { return proto_.proc_ticks(); }
   void set_proc_ticks(int64_t value) { proto_.set_proc_ticks(value); }
 
-  bool operator==(const SampleOptions& other) const {
-    return ToJson() == other.ToJson();
-  }
+  bool operator==(const SampleOptions& other) const;
   bool operator!=(const SampleOptions& other) const {
     return !((*this) == other);
   }
@@ -141,11 +133,12 @@ class SampleOptions {
     return clone;
   }
 
+  // Return a proto with with default option values.
+  static fuzzer::SampleOptionsProto DefaultOptionsProto();
+
   const fuzzer::SampleOptionsProto& proto() const { return proto_; }
 
  private:
-  static fuzzer::SampleOptionsProto DefaultOptionsProto();
-
   fuzzer::SampleOptionsProto proto_ = DefaultOptionsProto();
 };
 
@@ -153,36 +146,28 @@ class SampleOptions {
 class Sample {
  public:
   // Serializes/deserializes a sample to/from a text representation. Used for
-  // pickling/unpickling for use in Python. ToCrasher includes this
-  // serialization as a substring.
-  // TODO(meheff): 2021-03-19 Remove this when we no longer need to
-  // pickle/depickle Samples for Python. Deserialize can be replaced with a
-  // method FromCrasher.
+  // generating crashers and pickling/unpickling for use in Python. ToCrasher
+  // includes this serialization as a substring.
+  //
+  // A serialization has the following format:
+  //  // BEGIN_CONFIG
+  //  // <CrasherConfigProto serialization>
+  //  // END_CONFIG
+  //  <code sample>
   static absl::StatusOr<Sample> Deserialize(std::string_view s);
-  std::string Serialize() const;
+  std::string Serialize(
+      std::optional<std::string_view> error_message = std::nullopt) const;
 
   // Returns "crasher" text serialization.
   //
   // A crasher is a text serialization of the sample along with a copyright
-  // message and the error message from the crash in the comments. As such, it
-  // is a valid text serialization of the sample. Crashers enable easy
-  // reproduction from a single text file. Crashers may be checked in as tests
-  // in `xls/fuzzer/crashers/`.
-  //
-  // A crasher has the following format:
-  //  // <copyright notice>
-  //  // <error message>
-  //  // options: <JSON-serialized SampleOptions>
-  //  // args: <argument set 0>
-  //  // ...
-  //  // args: <argument set 1>
-  //  <code sample>
+  // message. Crashers enable easy reproduction from a single text
+  // file. Crashers may be checked in as tests in `xls/fuzzer/crashers/`.
   std::string ToCrasher(std::string_view error_message) const;
 
-  Sample(
-      std::string input_text, SampleOptions options,
-      std::vector<std::vector<dslx::InterpValue>> args_batch,
-      std::optional<std::vector<std::string>> ir_channel_names = std::nullopt)
+  Sample(std::string input_text, SampleOptions options,
+         std::vector<std::vector<dslx::InterpValue>> args_batch,
+         std::vector<std::string> ir_channel_names = {})
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
         args_batch_(std::move(args_batch)),
@@ -193,7 +178,7 @@ class Sample {
   const std::vector<std::vector<dslx::InterpValue>>& args_batch() const {
     return args_batch_;
   }
-  const std::optional<std::vector<std::string>>& ir_channel_names() const {
+  const std::vector<std::string>& ir_channel_names() const {
     return ir_channel_names_;
   }
 
@@ -214,8 +199,10 @@ class Sample {
   // Argument values to use for interpretation and simulation.
   std::vector<std::vector<dslx::InterpValue>> args_batch_;
   // Channel names as they appear in the IR.
-  std::optional<std::vector<std::string>> ir_channel_names_;
+  std::vector<std::string> ir_channel_names_;
 };
+
+std::ostream& operator<<(std::ostream& os, const Sample& sample);
 
 }  // namespace xls
 

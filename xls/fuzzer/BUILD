@@ -320,10 +320,11 @@ cc_library(
         ":sample_cc_proto",
         ":scrub_crasher",
         "//xls/common:proto_adaptor_utils",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
-        "@at_clifford_yosys//:json11",
-        "@com_github_google_re2//:re2",
+        "//xls/ir:ir_parser",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
@@ -670,6 +671,18 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "sample_cc_test",
+    srcs = ["sample_cc_test.cc"],
+    deps = [
+        ":cpp_sample",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:interp_value",
         "@com_google_googletest//:gtest",
     ],
 )

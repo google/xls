@@ -170,23 +170,30 @@ class SampleRunner:
       input_filename = self._write_file('sample.x', smp.input_text)
     else:
       input_filename = self._write_file('sample.ir', smp.input_text)
-    json_options_filename = self._write_file('options.json',
-                                             smp.options.to_json())
-    args_filename = None
+    options_filename = self._write_file('options.pbtxt', smp.options.to_pbtxt())
     ir_channel_names_filename = None
-    if smp.args_batch:
-      args_filename = self._write_file(
-          'args.txt', sample.args_batch_to_text(smp.args_batch))
+    args_filename = self._write_file(
+        'args.txt', sample.args_batch_to_text(smp.args_batch)
+    )
     if smp.ir_channel_names is not None:
       ir_channel_names_filename = self._write_file(
           'ir_channel_names.txt',
           sample.ir_channel_names_to_text(smp.ir_channel_names))
 
-    self.run_from_files(input_filename, json_options_filename, args_filename,
-                        ir_channel_names_filename)
+    self.run_from_files(
+        input_filename,
+        options_filename,
+        args_filename,
+        ir_channel_names_filename,
+    )
 
-  def run_from_files(self, input_filename: str, json_options_filename: str,
-                     args_filename: str, ir_channel_names_filename: str):
+  def run_from_files(
+      self,
+      input_filename: str,
+      options_filename: str,
+      args_filename: str,
+      ir_channel_names_filename: str,
+  ):
     """Runs a sample which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -194,18 +201,17 @@ class SampleRunner:
 
     Args:
       input_filename: The filename of the sample code.
-      json_options_filename: The filename of the JSON-serialized SampleOptions.
+      options_filename: The filename of the serialized SampleOptions.
       args_filename: The optional filename of the serialized ArgsBatch.
-      ir_channel_names_filename: The optional filename of the serialized
-        IR channel names.
+      ir_channel_names_filename: The optional filename of the serialized IR
+        channel names.
 
     Raises:
       SampleError: If an error was encountered.
     """
     logging.vlog(1, 'Running sample in directory %s', self._run_dir)
     logging.vlog(1, 'Reading sample files.')
-    options = sample.SampleOptions.from_json(
-        self._read_file(json_options_filename))
+    options = sample.SampleOptions.from_pbtxt(self._read_file(options_filename))
 
     self._write_file('revision.txt', revision.get_revision())
 
@@ -360,13 +366,16 @@ class SampleRunner:
     if ir_channel_names_filename:
       ir_channel_names = sample.parse_ir_channel_names(
           self._read_file(ir_channel_names_filename))
+
+    ir_channel_values_file_content = ''
     if args_batch is not None and ir_channel_names is not None:
       ir_channel_values = convert_args_batch_to_ir_channel_values(
           args_batch, ir_channel_names)
       ir_channel_values_file_content = (
           eval_helpers.channel_values_to_string(ir_channel_values))
-      ir_channel_values_filename = self._write_file(
-          'channel_inputs.txt', ir_channel_values_file_content)
+    ir_channel_values_filename = self._write_file(
+        'channel_inputs.txt', ir_channel_values_file_content
+    )
 
     tick_count = len(args_batch)
     # Special case: When there no inputs for a proc, typically when there are

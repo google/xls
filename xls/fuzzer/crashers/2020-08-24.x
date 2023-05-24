@@ -11,10 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
-// args: bits[45]:0x20; bits[50]:0x2_0b70_1041_0050; bits[38]:0x1_0000; bits[8]:0x5; bits[49]:0x4000_0000_0000; bits[13]:0x1555; bits[12]:0xe9c; bits[14]:0xa08; bits[35]:0x5_5540_0000
-
+// BEGIN_CONFIG
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: false
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "bits[45]:0x20; bits[50]:0x2_0b70_1041_0050; bits[38]:0x1_0000; bits[8]:0x5; bits[49]:0x4000_0000_0000; bits[13]:0x1555; bits[12]:0xe9c; bits[14]:0xa08; bits[35]:0x5_5540_0000"
+//   }
+// }
+// END_CONFIG
 type x10 = uN[0x31];
 type x23 = uN[0x1];
 fn main(x0: s45, x1: s50, x2: s38, x3: u8, x4: u49, x5: u13, x6: u12, x7: s14, x8: s35) -> (s14, u8) {

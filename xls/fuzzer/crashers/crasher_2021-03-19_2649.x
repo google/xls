@@ -11,22 +11,41 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Exception:
-// Command '['/xls/tools/codegen_main', '--output_signature_path=module_sig.textproto', '--delay_model=unit', '--use_system_verilog', '--generator=pipeline', '--pipeline_stages=7', '--reset_data_path=false', 'sample.opt.ir', '--logtostderr']' returned non-zero exit status 1.
-// Issue: https://github.com/google/xls/issues/346
 //
-// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=7", "--reset_data_path=false"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
-// args: bits[29]:0x1654_4d1f; (); bits[53]:0x1f_ffff_ffff_ffff; bits[43]:0x2f3_aee0_d52a; bits[51]:0x2_d66d_727f_0f9e
-// args: bits[29]:0x0; (); bits[53]:0xa_aaaa_aaaa_aaaa; bits[43]:0x2aa_aaaa_aaaa; bits[51]:0x0
-// args: bits[29]:0x2; (); bits[53]:0x10_4118_de04_dd7d; bits[43]:0x3ff_ffff_ffff; bits[51]:0x0
-// args: bits[29]:0xfff_ffff; (); bits[53]:0x1f_ffff_ffff_ffff; bits[43]:0x2000; bits[51]:0x5_5555_5555_5555
-// args: bits[29]:0x0; (); bits[53]:0x1_50c9_03cd_ffff; bits[43]:0x2aa_aaaa_aaaa; bits[51]:0x1_50c9_43cd_ffff
-// args: bits[29]:0x1821_edfe; (); bits[53]:0x100_0000_0000; bits[43]:0x5cd_f7ff_bef3; bits[51]:0x0
-// args: bits[29]:0xfff_ffff; (); bits[53]:0x8_0000_0000; bits[43]:0x555_5555_5555; bits[51]:0x2000_0000_0000
-// args: bits[29]:0xbfe_ff62; (); bits[53]:0x14_3a46_5b18_dddf; bits[43]:0x26e_4b18_ddcf; bits[51]:0x2_aaaa_aaaa_aaaa
-// args: bits[29]:0xe8b_44a7; (); bits[53]:0xa_aaaa_aaaa_aaaa; bits[43]:0x38b_5969_2cea; bits[51]:0x2_0000_0000_0000
-// args: bits[29]:0x0; (); bits[53]:0x1410_2010_ca19; bits[43]:0x3ff_ffff_ffff; bits[51]:0x440_4481_8e10
+// BEGIN_CONFIG
+// exception: "// Command \'[\'/xls/tools/codegen_main\', \'--output_signature_path=module_sig.textproto\', \'--delay_model=unit\', \'--use_system_verilog\', \'--generator=pipeline\', \'--pipeline_stages=7\', \'--reset_data_path=false\', \'sample.opt.ir\', \'--logtostderr\']\' returned non-zero exit status 1."
+// issue: "https://github.com/google/xls/issues/346"
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: true
+//   codegen_args: "--use_system_verilog"
+//   codegen_args: "--generator=pipeline"
+//   codegen_args: "--pipeline_stages=7"
+//   codegen_args: "--reset_data_path=false"
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "bits[29]:0x1654_4d1f; (); bits[53]:0x1f_ffff_ffff_ffff; bits[43]:0x2f3_aee0_d52a; bits[51]:0x2_d66d_727f_0f9e"
+//     args: "bits[29]:0x0; (); bits[53]:0xa_aaaa_aaaa_aaaa; bits[43]:0x2aa_aaaa_aaaa; bits[51]:0x0"
+//     args: "bits[29]:0x2; (); bits[53]:0x10_4118_de04_dd7d; bits[43]:0x3ff_ffff_ffff; bits[51]:0x0"
+//     args: "bits[29]:0xfff_ffff; (); bits[53]:0x1f_ffff_ffff_ffff; bits[43]:0x2000; bits[51]:0x5_5555_5555_5555"
+//     args: "bits[29]:0x0; (); bits[53]:0x1_50c9_03cd_ffff; bits[43]:0x2aa_aaaa_aaaa; bits[51]:0x1_50c9_43cd_ffff"
+//     args: "bits[29]:0x1821_edfe; (); bits[53]:0x100_0000_0000; bits[43]:0x5cd_f7ff_bef3; bits[51]:0x0"
+//     args: "bits[29]:0xfff_ffff; (); bits[53]:0x8_0000_0000; bits[43]:0x555_5555_5555; bits[51]:0x2000_0000_0000"
+//     args: "bits[29]:0xbfe_ff62; (); bits[53]:0x14_3a46_5b18_dddf; bits[43]:0x26e_4b18_ddcf; bits[51]:0x2_aaaa_aaaa_aaaa"
+//     args: "bits[29]:0xe8b_44a7; (); bits[53]:0xa_aaaa_aaaa_aaaa; bits[43]:0x38b_5969_2cea; bits[51]:0x2_0000_0000_0000"
+//     args: "bits[29]:0x0; (); bits[53]:0x1410_2010_ca19; bits[43]:0x3ff_ffff_ffff; bits[51]:0x440_4481_8e10"
+//   }
+// }
+// END_CONFIG
 type x19 = s53;
 fn main(x0: s29, x1: (), x2: s53, x3: u43, x4: s51) -> ((s53, u43, u18), (), u43, u18, u43) {
   let x5: s51 = (x4) & (x4);

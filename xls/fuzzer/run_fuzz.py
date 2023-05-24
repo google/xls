@@ -99,18 +99,19 @@ def run_sample(smp: sample.Sample,
   start = time.time()
   # Create a script named 'run.sh' for rerunning the sample.
   args = [
-      SAMPLE_RUNNER_MAIN_PATH, '--logtostderr', '--input_file=sample.x',
-      '--options_file=options.json'
+      SAMPLE_RUNNER_MAIN_PATH,
+      '--logtostderr',
+      '--input_file=sample.x',
+      '--options_file=options.pbtxt',
   ]
 
   _write_to_file(run_dir, 'sample.x', smp.input_text)
-  _write_to_file(run_dir, 'options.json', smp.options.to_json())
-  args_filename = None
-  if smp.args_batch:
-    args_filename = 'args.txt'
-    _write_to_file(run_dir, args_filename,
-                   sample.args_batch_to_text(smp.args_batch))
-    args.append('--args_file=args.txt')
+  _write_to_file(run_dir, 'options.pbtxt', smp.options.to_pbtxt())
+  args_filename = 'args.txt'
+  _write_to_file(
+      run_dir, args_filename, sample.args_batch_to_text(smp.args_batch)
+  )
+  args.append('--args_file=args.txt')
   ir_channel_names_filename = None
   if smp.ir_channel_names is not None:
     ir_channel_names_filename = 'ir_channel_names.txt'
@@ -126,8 +127,9 @@ def run_sample(smp: sample.Sample,
   logging.vlog(1, 'Starting to run sample')
   logging.vlog(2, smp.input_text)
   runner = sample_runner.SampleRunner(run_dir)
-  runner.run_from_files('sample.x', 'options.json', args_filename,
-                        ir_channel_names_filename)
+  runner.run_from_files(
+      'sample.x', 'options.pbtxt', args_filename, ir_channel_names_filename
+  )
   timing = runner.timing
 
   timing.total_ns = int((time.time() - start) * 1e9)

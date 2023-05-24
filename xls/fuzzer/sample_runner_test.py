@@ -501,11 +501,14 @@ class SampleRunnerTest(test_base.TestCase):
     with self.assertRaises(sample_runner.SampleError):
       runner.run(
           sample.Sample(ir_text, sample.SampleOptions(input_is_dslx=False)))
-    self.assertIn('Expected \'package\' keyword',
-                  _read_file(sample_dir, 'opt_main.stderr'))
+    self.assertIn(
+        "Expected 'package' keyword",
+        _read_file(sample_dir, 'eval_ir_main.stderr'),
+    )
     self.assertRegex(
         _read_file(sample_dir, 'exception.txt'),
-        '.*opt_main.*returned non-zero exit status')
+        '.*eval_ir_main.*returned non-zero exit status',
+    )
 
   def test_timeout(self):
     sample_dir = self._make_sample_dir()

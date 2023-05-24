@@ -16,7 +16,6 @@
 
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
-#include "libs/json11/json11.hpp"
 #include "pybind11/chrono.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"

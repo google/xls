@@ -11,15 +11,31 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Issue: was causing an optimizer hang -- attempts to constant fold the gate op
 // would not converge.
 //
-// options: {"codegen": false, "codegen_args": null, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
-// args: (); (bits[10]:0x2aa)
-// args: (); (bits[10]:0x3ff)
-// args: (); (bits[10]:0x2aa)
-// args: (); (bits[10]:0x0)
+// BEGIN_CONFIG
+// issue: "was causing an optimizer hang -- attempts to constant fold the gate op"
+// sample_options {
+//   input_is_dslx: true
+//   sample_type: SAMPLE_TYPE_FUNCTION
+//   ir_converter_args: "--top=main"
+//   convert_to_ir: true
+//   optimize_ir: true
+//   use_jit: true
+//   codegen: false
+//   simulate: false
+//   use_system_verilog: true
+//   calls_per_sample: 1
+// }
+// inputs {
+//   function_args {
+//     args: "(); (bits[10]:0x2aa)"
+//     args: "(); (bits[10]:0x3ff)"
+//     args: "(); (bits[10]:0x2aa)"
+//     args: "(); (bits[10]:0x0)"
+//   }
+// }
+// END_CONFIG
 fn main(x0: (), x1: (s10,)) -> (u11, u11, s10, u11, u11, u11) {
   let x3: u11 = u11:0x325;
   let x4: u11 = gate!((x3) != (x3), x3);
