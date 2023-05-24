@@ -42,6 +42,7 @@ nav:
     - Floating Point: 'floating_point.md'
     - Fuzzer: 'fuzzer.md'
     - Interpreter: 'dslx_bytecode_interpreter.md'
+    - Language Server: 'dslx_language_server.md'
   - Code Generation:
     - Codegen Options: 'codegen_options.md'
     - IR Lowering: 'ir_lowering.md'

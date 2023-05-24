@@ -1,4 +1,4 @@
-# Standard Library
+# DSLX Standard Library
 
 This page documents the DSLX standard library.
 
