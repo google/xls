@@ -317,7 +317,9 @@ cc_library(
     srcs = ["sample.cc"],
     hdrs = ["sample.h"],
     deps = [
+        ":sample_cc_proto",
         ":scrub_crasher",
+        "//xls/common:proto_adaptor_utils",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "@at_clifford_yosys//:json11",
@@ -697,4 +699,20 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
+)
+
+cc_proto_library(
+    name = "sample_cc_proto",
+    deps = [":sample_proto"],
+)
+
+xls_py_proto_library(
+    name = "sample_py_pb2",
+    srcs = ["sample.proto"],
+    internal_deps = [":sample_proto"],
+)
+
+proto_library(
+    name = "sample_proto",
+    srcs = ["sample.proto"],
 )

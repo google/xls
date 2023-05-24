@@ -32,9 +32,9 @@ namespace xls::dslx {
 PYBIND11_MODULE(cpp_sample, m) {
   ImportStatusModule();
 
-  py::enum_<TopType>(m, "TopType")
-      .value("function", TopType::kFunction)
-      .value("proc", TopType::kProc);
+  py::enum_<fuzzer::SampleType>(m, "SampleType")
+      .value("function", fuzzer::SAMPLE_TYPE_FUNCTION)
+      .value("proc", fuzzer::SAMPLE_TYPE_PROC);
 
   py::class_<SampleOptions>(m, "SampleOptions")
       .def(
@@ -50,7 +50,7 @@ PYBIND11_MODULE(cpp_sample, m) {
                       std::optional<int64_t> timeout_seconds,
                       std::optional<int64_t> calls_per_sample,
                       std::optional<int64_t> proc_ticks,
-                      std::optional<TopType> top_type) {
+                      std::optional<fuzzer::SampleType> sample_type) {
             std::map<std::string, json11::Json> json;
             if (input_is_dslx) {
               json["input_is_dslx"] = *input_is_dslx;
@@ -91,8 +91,8 @@ PYBIND11_MODULE(cpp_sample, m) {
             if (proc_ticks) {
               json["proc_ticks"] = static_cast<int>(*proc_ticks);
             }
-            if (top_type) {
-              json["top_type"] = static_cast<int>(*top_type);
+            if (sample_type) {
+              json["top_type"] = static_cast<int>(*sample_type);
             }
             return SampleOptions::FromJson(json11::Json(json).dump()).value();
           }),
@@ -100,8 +100,7 @@ PYBIND11_MODULE(cpp_sample, m) {
           py::arg("ir_converter_args") = std::nullopt,
           py::arg("convert_to_ir") = std::nullopt,
           py::arg("optimize_ir") = std::nullopt,
-          py::arg("use_jit") = std::nullopt,
-          py::arg("codegen") = std::nullopt,
+          py::arg("use_jit") = std::nullopt, py::arg("codegen") = std::nullopt,
           py::arg("codegen_args") = std::nullopt,
           py::arg("simulate") = std::nullopt,
           py::arg("simulator") = std::nullopt,
@@ -130,7 +129,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("calls_per_sample",
                              &SampleOptions::calls_per_sample)
       .def_property_readonly("proc_ticks", &SampleOptions::proc_ticks)
-      .def_property_readonly("top_type", &SampleOptions::top_type)
+      .def_property_readonly("top_type", &SampleOptions::sample_type)
       .def(
           "replace",
           [](const SampleOptions& self, std::optional<bool> input_is_dslx,

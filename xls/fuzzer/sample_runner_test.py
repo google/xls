@@ -535,7 +535,7 @@ class SampleRunnerTest(test_base.TestCase):
                 codegen_args=['--generator=combinational'],
                 ir_converter_args=['--top=main'],
                 simulate=True,
-                top_type=sample.TopType.proc,
+                top_type=sample.SampleType.proc,
                 use_system_verilog=False,
             ),
             args_batch=[[
@@ -543,7 +543,8 @@ class SampleRunnerTest(test_base.TestCase):
                 interp_value_from_ir_string('bits[32]:100'),
             ]],
             ir_channel_names=['sample__operand_0', 'sample__operand_1'],
-        ))
+        )
+    )
     expected_result = 'sample__result : {\n  bits[32]:0x8e\n}'
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(), expected_result)
@@ -565,16 +566,24 @@ class SampleRunnerTest(test_base.TestCase):
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
                 codegen=True,
-                codegen_args=('--generator=pipeline', '--pipeline_stages=2',
-                              '--reset=rst', '--reset_data_path=false'),
+                codegen_args=(
+                    '--generator=pipeline',
+                    '--pipeline_stages=2',
+                    '--reset=rst',
+                    '--reset_data_path=false',
+                ),
                 ir_converter_args=['--top=main'],
                 simulate=True,
-                top_type=sample.TopType.proc,
+                top_type=sample.SampleType.proc,
                 use_system_verilog=True,
             ),
-            args_batch=[[interp_value_from_ir_string('bits[1]:1')],
-                        [interp_value_from_ir_string('bits[1]:0')]],
-            ir_channel_names=['sample__enable_counter']))
+            args_batch=[
+                [interp_value_from_ir_string('bits[1]:1')],
+                [interp_value_from_ir_string('bits[1]:0')],
+            ],
+            ir_channel_names=['sample__enable_counter'],
+        )
+    )
     expected_result = 'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}'
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(), expected_result)
@@ -598,12 +607,16 @@ class SampleRunnerTest(test_base.TestCase):
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
                   ir_converter_args=['--top=main'],
-                  top_type=sample.TopType.proc,
+                  top_type=sample.SampleType.proc,
                   optimize_ir=False,
               ),
-              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
-                          [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter']))
+              args_batch=[
+                  [interp_value_from_ir_string('bits[1]:1')],
+                  [interp_value_from_ir_string('bits[1]:0')],
+              ],
+              ir_channel_names=['sample__enable_counter'],
+          )
+      )
     error_str = ('A channel named sample__enable_counter is present in '
                  'evaluated unopt IR (JIT), but it is not present in evaluated '
                  'unopt IR (interpreter).')
@@ -621,12 +634,16 @@ class SampleRunnerTest(test_base.TestCase):
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
                   ir_converter_args=['--top=main'],
-                  top_type=sample.TopType.proc,
+                  top_type=sample.SampleType.proc,
                   optimize_ir=False,
               ),
-              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
-                          [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter']))
+              args_batch=[
+                  [interp_value_from_ir_string('bits[1]:1')],
+                  [interp_value_from_ir_string('bits[1]:0')],
+              ],
+              ir_channel_names=['sample__enable_counter'],
+          )
+      )
     error_str = (
         'Results for evaluated unopt IR (JIT) has 0 channel(s), interpreted '
         'DSLX has 1 channel(s). The IR channel names in evaluated unopt IR '
@@ -646,12 +663,16 @@ class SampleRunnerTest(test_base.TestCase):
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
                   ir_converter_args=['--top=main'],
-                  top_type=sample.TopType.proc,
+                  top_type=sample.SampleType.proc,
                   optimize_ir=False,
               ),
-              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
-                          [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter']))
+              args_batch=[
+                  [interp_value_from_ir_string('bits[1]:1')],
+                  [interp_value_from_ir_string('bits[1]:0')],
+              ],
+              ir_channel_names=['sample__enable_counter'],
+          )
+      )
     error_str = (
         'In evaluated unopt IR (JIT), channel \'sample__result\' has 1 '
         'entries. However, in interpreted DSLX, channel \'sample__result\' has'
@@ -675,12 +696,16 @@ class SampleRunnerTest(test_base.TestCase):
               PROC_COUNTER_DSLX,
               sample.SampleOptions(
                   ir_converter_args=['--top=main'],
-                  top_type=sample.TopType.proc,
+                  top_type=sample.SampleType.proc,
                   optimize_ir=False,
               ),
-              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
-                          [interp_value_from_ir_string('bits[1]:0')]],
-              ir_channel_names=['sample__enable_counter']))
+              args_batch=[
+                  [interp_value_from_ir_string('bits[1]:1')],
+                  [interp_value_from_ir_string('bits[1]:0')],
+              ],
+              ir_channel_names=['sample__enable_counter'],
+          )
+      )
     error_str = (
         'In evaluated unopt IR (JIT), at position 1 channel \'sample__result\' '
         'has value u32:42. However, in interpreted DSLX, the value is u32:43.')

@@ -210,9 +210,9 @@ class SampleRunner:
     self._write_file('revision.txt', revision.get_revision())
 
     try:
-      if options.top_type == sample.TopType.function:
+      if options.top_type == sample.SampleType.function:
         self._run_function(input_filename, options, args_filename)
-      elif options.top_type == sample.TopType.proc:
+      elif options.top_type == sample.SampleType.proc:
         self._run_proc(input_filename, options, args_filename,
                        ir_channel_names_filename)
       else:

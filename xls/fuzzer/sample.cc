@@ -75,9 +75,9 @@ std::vector<std::string> ParseIrChannelNames(
   json11::Json parsed = json11::Json::parse(std::string(json_text), err);
   SampleOptions options;
 
-#define HANDLE_BOOL(__name)                           \
-  if (!parsed[#__name].is_null()) {                   \
-    options.__name##_ = parsed[#__name].bool_value(); \
+#define HANDLE_BOOL(__name)                                    \
+  if (!parsed[#__name].is_null()) {                            \
+    options.proto_.set_##__name(parsed[#__name].bool_value()); \
   }
 
   HANDLE_BOOL(input_is_dslx);
@@ -95,29 +95,31 @@ std::vector<std::string> ParseIrChannelNames(
     for (const json11::Json& item : parsed["codegen_args"].array_items()) {
       codegen_args.push_back(item.string_value());
     }
-    options.codegen_args_ = std::move(codegen_args);
+    options.set_codegen_args(codegen_args);
   }
   if (!parsed["ir_converter_args"].is_null()) {
     std::vector<std::string> ir_converter_args;
     for (const json11::Json& item : parsed["ir_converter_args"].array_items()) {
       ir_converter_args.push_back(item.string_value());
     }
-    options.ir_converter_args_ = std::move(ir_converter_args);
+    options.set_ir_converter_args(ir_converter_args);
   }
   if (!parsed["simulator"].is_null()) {
-    options.simulator_ = parsed["simulator"].string_value();
+    options.set_simulator(parsed["simulator"].string_value());
   }
   if (!parsed["timeout_seconds"].is_null()) {
-    options.timeout_seconds_ = parsed["timeout_seconds"].int_value();
+    options.set_timeout_seconds(parsed["timeout_seconds"].int_value());
   }
   if (!parsed["calls_per_sample"].is_null()) {
-    options.calls_per_sample_ = parsed["calls_per_sample"].int_value();
+    options.set_calls_per_sample(parsed["calls_per_sample"].int_value());
   }
   if (!parsed["proc_ticks"].is_null()) {
-    options.proc_ticks_ = parsed["proc_ticks"].int_value();
+    options.set_proc_ticks(parsed["proc_ticks"].int_value());
   }
   if (!parsed["top_type"].is_null()) {
-    options.top_type_ = static_cast<TopType>(parsed["top_type"].int_value());
+    options.set_sample_type(parsed["top_type"].int_value() == 0
+                                ? fuzzer::SAMPLE_TYPE_FUNCTION
+                                : fuzzer::SAMPLE_TYPE_PROC);
   }
   return options;
 }
@@ -125,7 +127,7 @@ std::vector<std::string> ParseIrChannelNames(
 json11::Json SampleOptions::ToJson() const {
   absl::flat_hash_map<std::string, json11::Json> json;
 
-#define HANDLE_BOOL(__name) json[#__name] = __name##_;
+#define HANDLE_BOOL(__name) json[#__name] = __name();
 
   HANDLE_BOOL(input_is_dslx);
   HANDLE_BOOL(convert_to_ir);
@@ -137,39 +139,53 @@ json11::Json SampleOptions::ToJson() const {
 
 #undef HANDLE_BOOL
 
-  if (codegen_args_) {
-    json["codegen_args"] = *codegen_args_;
+  if (!codegen_args().empty()) {
+    json["codegen_args"] = codegen_args();
   } else {
     json["codegen_args"] = nullptr;
   }
 
-  if (ir_converter_args_) {
-    json["ir_converter_args"] = *ir_converter_args_;
+  if (!ir_converter_args().empty()) {
+    json["ir_converter_args"] = ir_converter_args();
   } else {
     json["ir_converter_args"] = nullptr;
   }
 
-  if (simulator_) {
-    json["simulator"] = *simulator_;
+  if (!simulator().empty()) {
+    json["simulator"] = simulator();
   } else {
     json["simulator"] = nullptr;
   }
 
-  if (timeout_seconds_) {
-    json["timeout_seconds"] = static_cast<int>(*timeout_seconds_);
+  if (timeout_seconds().has_value()) {
+    json["timeout_seconds"] = static_cast<int>(timeout_seconds().value());
   } else {
     json["timeout_seconds"] = nullptr;
   }
 
-  json["calls_per_sample"] = static_cast<int>(calls_per_sample_);
+  json["calls_per_sample"] = static_cast<int>(calls_per_sample());
 
-  if (proc_ticks_) {
-    json["proc_ticks"] = static_cast<int>(*proc_ticks_);
+  if (proc_ticks() > 0) {
+    json["proc_ticks"] = static_cast<int>(proc_ticks());
   } else {
     json["proc_ticks"] = nullptr;
   }
-  json["top_type"] = static_cast<int>(top_type_);
+  json["top_type"] = sample_type() == fuzzer::SAMPLE_TYPE_FUNCTION ? 0 : 1;
   return json11::Json(json);
+}
+
+/*static*/ fuzzer::SampleOptionsProto SampleOptions::DefaultOptionsProto() {
+  fuzzer::SampleOptionsProto proto;
+  proto.set_input_is_dslx(true);
+  proto.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
+  proto.set_convert_to_ir(true);
+  proto.set_optimize_ir(true);
+  proto.set_use_jit(true);
+  proto.set_codegen(false);
+  proto.set_simulate(false);
+  proto.set_use_system_verilog(true);
+  proto.set_calls_per_sample(1);
+  return proto;
 }
 
 bool Sample::ArgsBatchEqual(const Sample& other) const {

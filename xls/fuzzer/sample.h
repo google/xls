@@ -23,7 +23,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "libs/json11/json11.hpp"
+#include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/fuzzer/sample.pb.h"
 
 namespace xls {
 
@@ -36,12 +38,6 @@ std::string IrChannelNamesToText(
 // Returns a list of ir channel names.
 std::vector<std::string> ParseIrChannelNames(
     std::string_view ir_channel_names_text);
-
-enum class TopType : int {
-  kFunction = 0,
-  kProc,
-  // TODO(vmirian): 10-7-2022 Add block support.
-};
 
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
@@ -64,40 +60,73 @@ class SampleOptions {
   // As above, but returns the JSON object.
   json11::Json ToJson() const;
 
-  bool input_is_dslx() const { return input_is_dslx_; }
-  TopType top_type() const { return top_type_; }
+  bool input_is_dslx() const { return proto_.input_is_dslx(); }
+  void set_input_is_dslx(bool value) { proto_.set_input_is_dslx(value); }
 
-  const std::optional<std::vector<std::string>>& ir_converter_args() const {
-    return ir_converter_args_;
+  fuzzer::SampleType sample_type() const { return proto_.sample_type(); }
+  void set_sample_type(fuzzer::SampleType value) {
+    proto_.set_sample_type(value);
   }
-  bool convert_to_ir() const { return convert_to_ir_; }
-  bool optimize_ir() const { return optimize_ir_; }
-  bool use_jit() const { return use_jit_; }
-  bool codegen() const { return codegen_; }
-  bool simulate() const { return simulate_; }
-  const std::optional<std::string>& simulator() const { return simulator_; }
-  const std::optional<std::vector<std::string>>& codegen_args() const {
-    return codegen_args_;
-  }
-  bool use_system_verilog() const { return use_system_verilog_; }
-  std::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
-  int64_t calls_per_sample() const { return calls_per_sample_; }
-  std::optional<int64_t> proc_ticks() const { return proc_ticks_; }
 
-  void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
-  void set_top_type(TopType value) { top_type_ = value; }
-  void set_ir_converter_args(const std::vector<std::string>& value) {
-    ir_converter_args_ = value;
+  std::vector<std::string> ir_converter_args() const {
+    return std::vector<std::string>(proto_.ir_converter_args().begin(),
+                                    proto_.ir_converter_args().end());
   }
-  void set_codegen(bool value) { codegen_ = value; }
-  void set_simulate(bool value) { simulate_ = value; }
-  void set_codegen_args(const std::vector<std::string>& value) {
-    codegen_args_ = value;
+  void set_ir_converter_args(absl::Span<const std::string> args) {
+    for (const std::string& arg : args) {
+      proto_.add_ir_converter_args(arg);
+    }
   }
-  void set_use_system_verilog(bool value) { use_system_verilog_ = value; }
-  void set_timeout_seconds(int64_t value) { timeout_seconds_ = value; }
-  void set_calls_per_sample(int64_t value) { calls_per_sample_ = value; }
-  void set_proc_ticks(int64_t value) { proc_ticks_ = value; }
+
+  bool convert_to_ir() const { return proto_.convert_to_ir(); }
+  void set_convert_to_ir(bool value) { proto_.set_convert_to_ir(value); }
+
+  bool optimize_ir() const { return proto_.optimize_ir(); }
+  void set_optimize_ir(bool value) { proto_.set_optimize_ir(value); }
+
+  bool use_jit() const { return proto_.use_jit(); }
+  void set_use_jit(bool value) { proto_.set_use_jit(value); }
+
+  bool codegen() const { return proto_.codegen(); }
+  void set_codegen(bool value) { proto_.set_codegen(value); }
+
+  bool simulate() const { return proto_.simulate(); }
+  void set_simulate(bool value) { proto_.set_simulate(value); }
+
+  const std::string& simulator() const { return proto_.simulator(); }
+  void set_simulator(std::string_view value) {
+    proto_.set_simulator(ToProtoString(value));
+  }
+
+  std::vector<std::string> codegen_args() const {
+    return std::vector<std::string>(proto_.codegen_args().begin(),
+                                    proto_.codegen_args().end());
+  }
+  void set_codegen_args(absl::Span<const std::string> args) {
+    for (const std::string& arg : args) {
+      proto_.add_codegen_args(arg);
+    }
+  }
+
+  bool use_system_verilog() const { return proto_.use_system_verilog(); }
+  void set_use_system_verilog(bool value) {
+    proto_.set_use_system_verilog(value);
+  }
+
+  std::optional<int64_t> timeout_seconds() const {
+    return proto_.has_timeout_seconds()
+               ? std::optional<int64_t>(proto_.timeout_seconds())
+               : std::nullopt;
+  }
+  void set_timeout_seconds(int64_t value) { proto_.set_timeout_seconds(value); }
+
+  int64_t calls_per_sample() const { return proto_.calls_per_sample(); }
+  void set_calls_per_sample(int64_t value) {
+    proto_.set_calls_per_sample(value);
+  }
+
+  int64_t proc_ticks() const { return proto_.proc_ticks(); }
+  void set_proc_ticks(int64_t value) { proto_.set_proc_ticks(value); }
 
   bool operator==(const SampleOptions& other) const {
     return ToJson() == other.ToJson();
@@ -112,43 +141,12 @@ class SampleOptions {
     return clone;
   }
 
+  const fuzzer::SampleOptionsProto& proto() const { return proto_; }
+
  private:
-  // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
-  bool input_is_dslx_ = true;
-  // The type of the top.
-  TopType top_type_ = TopType::kFunction;
-  // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
-  std::optional<std::vector<std::string>> ir_converter_args_;
-  // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
-  // is true.
-  bool convert_to_ir_ = true;
-  // Optimize the XLS IR.
-  bool optimize_ir_ = true;
-  // Use LLVM JIT when evaluating the XLS IR.
-  //
-  // TODO(leary): 2021-03-16 Currently we run the unopt IR interpretation
-  // unconditionally, and the opt IR interpretation conditionally. Should we
-  // also run the opt IR interpretation unconditionally?
-  bool use_jit_ = true;
-  // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
-  bool codegen_ = false;
-  // Arguments to pass to codegen_main. Requires codegen to be true.
-  std::optional<std::vector<std::string>> codegen_args_;
-  // Run the Verilog simulator on the generated Verilog. Requires codegen to be
-  // true.
-  bool simulate_ = false;
-  // Verilog simulator to use; e.g. "iverilog".
-  std::optional<std::string> simulator_;
-  // Whether to use SystemVerilog or Verilog in codegen.
-  bool use_system_verilog_ = true;
-  // The timeout value in seconds when executing a subcommand (e.g.,
-  // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
-  // value for the entire sample run.
-  std::optional<int64_t> timeout_seconds_;
-  // Number of times to invoke the generated function.
-  int64_t calls_per_sample_ = 1;
-  // Number ticks to execute the generated proc.
-  std::optional<int64_t> proc_ticks_;
+  static fuzzer::SampleOptionsProto DefaultOptionsProto();
+
+  fuzzer::SampleOptionsProto proto_ = DefaultOptionsProto();
 };
 
 // Abstraction describing a fuzzer code sample and how to run it.

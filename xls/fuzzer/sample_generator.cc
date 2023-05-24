@@ -269,7 +269,7 @@ static absl::StatusOr<Sample> GenerateProcSample(
       TranslateConcreteTypeList(input_channel_payload_types);
 
   std::vector<std::vector<InterpValue>> channel_values_batch;
-  for (int64_t i = 0; i < sample_options.proc_ticks().value(); ++i) {
+  for (int64_t i = 0; i < sample_options.proc_ticks(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<InterpValue> channel_values,
         value_gen->GenerateInterpValues(input_channel_payload_types_ptr));
@@ -295,12 +295,11 @@ absl::StatusOr<Sample> GenerateSample(
   if (generator_options.generate_proc) {
     XLS_CHECK_EQ(sample_options.calls_per_sample(), 0)
         << "calls per sample must be zero when generating a proc sample.";
-    XLS_CHECK(sample_options.proc_ticks().has_value())
+    XLS_CHECK_GT(sample_options.proc_ticks(), 0)
         << "proc ticks must have a value when generating a proc sample.";
   } else {
-    XLS_CHECK(!sample_options.proc_ticks().has_value() ||
-              sample_options.proc_ticks().value() == 0)
-        << "proc ticks must not be set or have a zero value when generating a "
+    XLS_CHECK_EQ(sample_options.proc_ticks(), 0)
+        << "proc ticks must not have a zero value when generating a "
            "function sample.";
   }
 
@@ -313,7 +312,7 @@ absl::StatusOr<Sample> GenerateSample(
   SampleOptions sample_options_copy = sample_options;
   // The generated sample is DSLX so input_is_dslx must be true.
   sample_options_copy.set_input_is_dslx(true);
-  XLS_RET_CHECK(!sample_options_copy.codegen_args().has_value())
+  XLS_RET_CHECK(sample_options_copy.codegen_args().empty())
       << "Setting codegen arguments is not supported, they are randomly "
          "generated";
   if (sample_options_copy.codegen()) {
@@ -342,12 +341,12 @@ absl::StatusOr<Sample> GenerateSample(
 
   if (generator_options.generate_proc) {
     XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
-    sample_options_copy.set_top_type(TopType::kProc);
+    sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_PROC);
     return GenerateProcSample(std::get<dslx::Proc*>(*member), tm,
                               sample_options_copy, value_gen, dslx_text);
   }
   XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
-  sample_options_copy.set_top_type(TopType::kFunction);
+  sample_options_copy.set_sample_type(fuzzer::SAMPLE_TYPE_FUNCTION);
   return GenerateFunctionSample(std::get<dslx::Function*>(*member), tm,
                                 sample_options_copy, value_gen, dslx_text);
 }

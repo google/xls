@@ -1,0 +1,114 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls.fuzzer;
+
+enum SampleType {
+  SAMPLE_TYPE_UNKNOWN = 0;
+  SAMPLE_TYPE_FUNCTION = 1;
+  SAMPLE_TYPE_PROC = 2;
+}
+
+message SampleOptionsProto {
+  // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
+  optional bool input_is_dslx = 1;
+
+  // The type of the sample (proc or function).
+  optional SampleType sample_type = 2;
+
+  // Arguments to pass to ir_converter_main. Requires input_is_dslx to be true.
+  repeated string ir_converter_args = 3;
+
+  // Whether to convert the input code sample to XLS IR. Only meaningful if
+  // input_is_dslx is true.
+  optional bool convert_to_ir = 4;
+
+  // Whether to optimize the XLS IR.
+  optional bool optimize_ir = 5;
+
+  // Use LLVM JIT when evaluating the XLS IR.
+  //
+  // TODO(leary): 2021-03-16 Currently we run the unopt IR interpretation
+  // unconditionally, and the opt IR interpretation conditionally. Should we
+  // also run the opt IR interpretation unconditionally?
+  optional bool use_jit = 6;
+
+  // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
+  optional bool codegen = 7;
+
+  // Arguments to pass to codegen_main. Requires codegen to be true.
+  repeated string codegen_args = 8;
+
+  // Run the Verilog simulator on the generated Verilog. Requires codegen to be
+  // true.
+  optional bool simulate = 9;
+
+  // Verilog simulator to use; e.g. "iverilog".
+  optional string simulator = 10;
+
+  // Whether to use SystemVerilog or Verilog in codegen.
+  optional bool use_system_verilog = 11;
+
+  // The timeout value in seconds when executing a subcommand (e.g.,
+  // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
+  // value for the entire sample run.
+  optional int64 timeout_seconds = 12;
+
+  // Number of times to invoke the generated function. Only set for functions.
+  optional int64 calls_per_sample = 13;
+
+  // Number ticks to execute the generated proc. Only set for procs.
+  optional int64 proc_ticks = 14;
+}
+
+// Inputs fed to a single input channel of the sample proc.
+message ChannelInputProto {
+  optional string channel_name = 1;
+
+  // Values to feed into the channel. Each entry is a single xls::Value.
+  repeated string values = 2;
+}
+
+// Inputs fed to all channels of the sample proc.
+message ChannelInputsProto {
+  repeated ChannelInputProto inputs = 1;
+}
+
+// Inputs fed to as arguments to the sample function.
+message FunctionArgsProto {
+  // Each entry is a semicolon-separated list of xls::Values with one Value per
+  // function parameter. Example entry: "bits[1]:0; bits[32]:0x42"
+  repeated string args = 1;
+}
+
+message SampleInputsProto {
+  oneof input_oneof {
+    ChannelInputsProto channel_inputs = 1;
+    FunctionArgsProto function_args = 2;
+  }
+}
+
+message CrasherConfigurationProto {
+  // The error message (exception) which the crasher sample produces.
+  optional string exception = 1;
+
+  // Github issue for the problem associated with this crasher.
+  optional string issue = 2;
+
+  optional SampleOptionsProto sample_options = 3;
+
+  SampleInputsProto inputs = 4;
+}

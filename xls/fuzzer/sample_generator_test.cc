@@ -56,7 +56,7 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   EXPECT_TRUE(sample.options().optimize_ir());
   EXPECT_TRUE(sample.options().codegen());
   EXPECT_TRUE(sample.options().simulate());
-  EXPECT_FALSE(sample.options().codegen_args()->empty());
+  EXPECT_FALSE(sample.options().codegen_args().empty());
   EXPECT_TRUE(sample.args_batch().empty());
 }
 

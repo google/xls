@@ -298,11 +298,13 @@ class SampleTest(absltest.TestCase):
             convert_to_ir=True,
             ir_converter_args=['--top=main'],
             optimize_ir=False,
-            top_type=sample.TopType.proc,
+            top_type=sample.SampleType.proc,
             calls_per_sample=0,
-            proc_ticks=42),
+            proc_ticks=42,
+        ),
         sample.parse_args_batch('bits[32]:0x10; bits[1]:1'),
-        ['sample__input', 'sample__enable'])
+        ['sample__input', 'sample__enable'],
+    )
     self.assertMultiLineEqual(want.serialize(), got.serialize())
     self.assertEqual(got, want)
 
