@@ -41,6 +41,7 @@ namespace xls::dslx {
   X("add_with_carry", kAddWithCarry)     \
   X("and_reduce", kAndReduce)            \
   X("array_rev", kArrayRev)              \
+  X("array_size", kArraySize)            \
   X("assert_eq", kAssertEq)              \
   X("assert_lt", kAssertLt)              \
   X("bit_slice", kBitSlice)              \

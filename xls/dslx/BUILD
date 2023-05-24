@@ -363,10 +363,10 @@ cc_library(
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":errors",
-        "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:deduce_ctx",
+        "//xls/dslx/type_system:parametric_constraint",
         "//xls/dslx/type_system:parametric_instantiator",
         "//xls/dslx/type_system:type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",

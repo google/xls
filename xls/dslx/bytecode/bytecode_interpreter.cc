@@ -1235,6 +1235,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinRev(bytecode);
     case Builtin::kArrayRev:
       return RunBuiltinArrayRev(bytecode);
+    case Builtin::kArraySize:
+      return RunBuiltinArraySize(bytecode);
     case Builtin::kSignex:
       return RunBuiltinSignex(bytecode);
     case Builtin::kSlice:
@@ -1683,6 +1685,21 @@ absl::Status BytecodeInterpreter::RunBuiltinArrayRev(const Bytecode& bytecode) {
   const auto& values = value.GetValuesOrDie();
   std::reverse_copy(values.begin(), values.end(), std::back_inserter(reversed));
   stack_.push_back(InterpValue::MakeArray(std::move(reversed)).value());
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinArraySize(
+    const Bytecode& bytecode) {
+  XLS_RET_CHECK(!stack_.empty());
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  if (!value.IsArray()) {
+    return absl::InvalidArgumentError(
+        "Argument to `array_rev` builtin must be an array.");
+  }
+  int64_t length = value.GetLength().value();
+  auto length_u32 = static_cast<uint32_t>(length);
+  XLS_RET_CHECK_EQ(length, length_u32);
+  stack_.push_back(InterpValue::MakeU32(length_u32));
   return absl::OkStatus();
 }
 

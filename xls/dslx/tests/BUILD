@@ -335,6 +335,11 @@ xls_dslx_test(
     srcs = ["builtin_array_rev.x"],
 )
 
+xls_dslx_test(
+    name = "builtin_array_size_dslx_test",
+    srcs = ["builtin_array_size.x"],
+)
+
 # Note: no meaningful function to convert.
 xls_dslx_test(
     name = "enum_values_dslx_test",

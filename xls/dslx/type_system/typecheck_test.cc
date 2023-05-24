@@ -670,6 +670,36 @@ fn f(x: u32) -> (u1, u32) {
 )"));
 }
 
+TEST(TypecheckErrorTest, ArraySizeOfBitsType) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(x: u32) -> u32 { array_size(x) }
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Want argument 0 to 'array_size' to be an array; got uN[32]")));
+}
+
+TEST(TypecheckTest, ArraySizeOfStructs) {
+  XLS_EXPECT_OK(Typecheck(R"(
+struct MyStruct {}
+fn f(x: MyStruct[5]) -> u32 { array_size(x) }
+)"));
+}
+
+TEST(TypecheckTest, ArraySizeOfNil) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(x: ()[5]) -> u32 { array_size(x) }
+)"));
+}
+
+TEST(TypecheckTest, ArraySizeOfTupleArray) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(x: (u32, u64)[5]) -> u32 { array_size(x) }
+)"));
+}
+
 TEST(TypecheckTest, BitSliceUpdateBuiltIn) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f(x: u32, y: u17, z: u15) -> u32 {

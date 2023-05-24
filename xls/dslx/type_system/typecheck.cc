@@ -40,6 +40,7 @@
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/maybe_explain_error.h"
 #include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "re2/re2.h"
 

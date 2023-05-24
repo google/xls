@@ -34,6 +34,7 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_instantiator.h"
 
 namespace xls::dslx {
 namespace {
@@ -339,6 +340,14 @@ void PopulateSignatureToLambdaMap(
         data.arg_types[0]->CloneToUnique(), ConcreteTypeDim::CreateU32(length));
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
+  };
+  map["(T[N]) -> u32"] = [](const SignatureData& data,
+                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    auto checker =
+        Checker(data.arg_types, data.name, data.span, *ctx).Len(1).IsArray(0);
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), BitsType::MakeU32())};
   };
   map["(T[N], uN[M], T) -> T[N]"] =
       [](const SignatureData& data,

@@ -267,6 +267,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinRange(const Bytecode& bytecode);
   absl::Status RunBuiltinRev(const Bytecode& bytecode);
   absl::Status RunBuiltinArrayRev(const Bytecode& bytecode);
+  absl::Status RunBuiltinArraySize(const Bytecode& bytecode);
   absl::Status RunBuiltinSignex(const Bytecode& bytecode);
   absl::Status RunBuiltinSlice(const Bytecode& bytecode);
   absl::Status RunBuiltinSMulp(const Bytecode& bytecode);

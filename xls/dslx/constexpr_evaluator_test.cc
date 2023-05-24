@@ -514,5 +514,30 @@ fn main() -> MyStruct {
   EXPECT_EQ(value.GetValuesOrDie().at(0).GetBitValueInt64().value(), 0);
 }
 
+TEST(ConstexprEvaluatorTest, BuiltinArraySize) {
+  constexpr std::string_view kProgram = R"(
+fn p<N: u32>() -> u32 {
+  N
+}
+
+fn main() -> u32 {
+  array_size(u32[5]:[0, ...])
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, ParametricEnv(), f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 5);
+}
+
 }  // namespace
 }  // namespace xls::dslx

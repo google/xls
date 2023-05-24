@@ -73,18 +73,6 @@ absl::StatusOr<std::vector<Value>> BitsListToValueList(
   return values_list;
 }
 
-// Returns `true`, if the map is empty or all counts are zero. Otherwise,
-// returns `false`.
-bool IsEmptyOrAreAllCountsZero(
-    const absl::flat_hash_map<std::string, int64_t>& channel_counts) {
-  for (const auto& [_, count] : channel_counts) {
-    if (count != 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
 absl::Status VerifyReadyValidHoldoffs(
     const ReadyValidHoldoffs& holdoffs,
     const absl::flat_hash_map<std::string, std::vector<Bits>>& channel_inputs,

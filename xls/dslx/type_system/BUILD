@@ -204,6 +204,7 @@ cc_library(
         ":deduce_ctx",
         ":maybe_explain_error",
         ":parametric_env",
+        ":parametric_instantiator",
         ":unwrap_meta_type",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
