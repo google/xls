@@ -836,8 +836,155 @@ TEST_F(ParserTest, CmpChainParensOnLhsAndRhs) {
                 "((x) == (y)) == ((y) == (z))");
 }
 
-TEST_F(ParserTest, ZeroMacro) {
+TEST_F(ParserTest, ZeroMacroSimple) {
   RoundTripExpr("zero!<u32>()", {}, /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, ZeroMacroSimpleStruct) {
+  RoundTripExpr("zero!<MyType>()", {"MyType"}, /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, ZeroMacroSimpleArray) {
+  RoundTripExpr("zero!<u32[10]>()", {}, /*populate_dslx_builtins=*/true);
+}
+
+TEST_F(ParserTest, ZeroMacroSimpleBitsArray) {
+  RoundTripExpr("zero!<bits[32][10]>()", {}, /*populate_dslx_builtins=*/true);
+}
+
+// TODO: GH-984
+TEST_F(ParserTest, DISABLED_ZeroMacroSimpleStructArray) {
+  const char* text = R"(zero!<MyType[10]>())";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+
+  Bindings b;
+
+  Module& mod = p.module();
+  for (auto const& it : GetParametricBuiltins()) {
+    std::string name(it.first);
+    b.Add(name, mod.GetOrCreateBuiltinNameDef(name));
+  }
+
+  NameDef* name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyType"), nullptr);
+
+  using StructMember = std::pair<NameDef*, TypeAnnotation*>;
+  auto* struct_def = mod.Make<StructDef>(
+    Span::Fake(), name_def, std::vector<ParametricBinding*>(),
+    std::vector<StructMember>(), false);
+  b.Add(name_def->identifier(), struct_def);
+
+  auto expr_or = p.ParseExpression(/*bindings=*/b);
+  if (!expr_or.ok()) {
+    TryPrintError(expr_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string{text};
+                  });
+  }
+  ASSERT_TRUE(expr_or.ok());
+}
+
+// TODO: GH-984
+TEST_F(ParserTest, DISABLED_ZeroMacroParametricStruct) {
+  const char* text = R"(zero!<MyType<MyParm0, MyParm1>>())";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+
+  Bindings b;
+
+  Module& mod = p.module();
+  for (auto const& it : GetParametricBuiltins()) {
+    std::string name(it.first);
+    b.Add(name, mod.GetOrCreateBuiltinNameDef(name));
+  }
+
+  std::vector<ParametricBinding*> params;
+
+  NameDef* name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyParm0"), nullptr);
+  b.Add(name_def->identifier(), name_def);
+  BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
+  TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
+    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+
+  name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyParm1"), nullptr);
+  b.Add(name_def->identifier(), name_def);
+  builtin_type = BuiltinTypeFromString("u32").value();
+  elem_type = mod.Make<BuiltinTypeAnnotation>(
+    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+
+  name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyType"), nullptr);
+
+  using StructMember = std::pair<NameDef*, TypeAnnotation*>;
+  auto* struct_def = mod.Make<StructDef>(
+    Span::Fake(), name_def, params,
+    std::vector<StructMember>(), false);
+  b.Add(name_def->identifier(), struct_def);
+
+  auto expr_or = p.ParseExpression(/*bindings=*/b);
+  if (!expr_or.ok()) {
+    TryPrintError(expr_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string{text};
+                  });
+  }
+  ASSERT_TRUE(expr_or.ok());
+}
+
+// TODO: GH-984
+TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
+  const char* text = R"(zero!<MyType<MyParm0, MyParm1>[10]>())";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+
+  Bindings b;
+
+  Module& mod = p.module();
+  for (auto const& it : GetParametricBuiltins()) {
+    std::string name(it.first);
+    b.Add(name, mod.GetOrCreateBuiltinNameDef(name));
+  }
+
+  std::vector<ParametricBinding*> params;
+
+  NameDef* name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyParm0"), nullptr);
+  b.Add(name_def->identifier(), name_def);
+  BuiltinType builtin_type = BuiltinTypeFromString("u32").value();
+  TypeAnnotation* elem_type = mod.Make<BuiltinTypeAnnotation>(
+    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+
+  name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyParm1"), nullptr);
+  b.Add(name_def->identifier(), name_def);
+  builtin_type = BuiltinTypeFromString("u32").value();
+  elem_type = mod.Make<BuiltinTypeAnnotation>(
+    Span::Fake(), builtin_type, mod.GetOrCreateBuiltinNameDef("u32"));
+  params.push_back(mod.Make<ParametricBinding>(name_def, elem_type, nullptr));
+
+  name_def = mod.Make<NameDef>(
+    Span::Fake(), std::string("MyType"), nullptr);
+
+  using StructMember = std::pair<NameDef*, TypeAnnotation*>;
+  auto* struct_def = mod.Make<StructDef>(
+    Span::Fake(), name_def, params,
+    std::vector<StructMember>(), false);
+  b.Add(name_def->identifier(), struct_def);
+
+  auto expr_or = p.ParseExpression(/*bindings=*/b);
+  if (!expr_or.ok()) {
+    TryPrintError(expr_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string{text};
+                  });
+  }
+  ASSERT_TRUE(expr_or.ok());
 }
 
 TEST_F(ParserTest, ParseBlockWithTwoStatements) {
