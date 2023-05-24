@@ -8,20 +8,20 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/ir_overview/">
+        <link rel="canonical" href="https://google.github.io/xls/dslx_language_server/">
       
       
-        <link rel="prev" href="../tutorials/xlscc_pipelined_loops/">
+        <link rel="prev" href="../dslx_bytecode_interpreter/">
       
       
-        <link rel="next" href="../ir_semantics/">
+        <link rel="next" href="../codegen_options/">
       
       <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.14">
     
     
       
-        <title>Overview - XLS: Accelerated HW Synthesis</title>
+        <title>Language Server - XLS: Accelerated HW Synthesis</title>
       
     
     
@@ -63,7 +63,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-ir-overview" class="md-skip">
+        <a href="#dslx-language-server" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +98,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Overview
+              Language Server
             
           </span>
         </div>
@@ -506,16 +506,14 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
       
       
       
@@ -524,7 +522,7 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
         <label class="md-nav__title" for="__nav_3">
           <span class="md-nav__icon md-icon"></span>
           IR
@@ -535,21 +533,11 @@
               
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../ir_overview/" class="md-nav__link">
         Overview
       </a>
-      
     </li>
   
 
@@ -747,14 +735,16 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
       
       
-      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
       
       
       
@@ -763,7 +753,7 @@
           <span class="md-nav__icon md-icon"></span>
         </label>
       
-      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
         <label class="md-nav__title" for="__nav_4">
           <span class="md-nav__icon md-icon"></span>
           DSLX
@@ -844,11 +834,86 @@
               
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../dslx_language_server/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Language Server
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Language Server
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#building-the-dslx-language-server-binary" class="md-nav__link">
+    Building the DSLX Language Server binary
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vim" class="md-nav__link">
+    Vim
+  </a>
+  
+    <nav class="md-nav" aria-label="Vim">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    Troubleshooting
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emacs" class="md-nav__link">
+    Emacs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-editors" class="md-nav__link">
+    Other Editors
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1396,6 +1461,55 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#building-the-dslx-language-server-binary" class="md-nav__link">
+    Building the DSLX Language Server binary
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vim" class="md-nav__link">
+    Vim
+  </a>
+  
+    <nav class="md-nav" aria-label="Vim">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    Troubleshooting
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emacs" class="md-nav__link">
+    Emacs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#other-editors" class="md-nav__link">
+    Other Editors
+  </a>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1412,43 +1526,107 @@
   
 
 
-<h1 id="xls-ir-overview">XLS: IR Overview</h1>
-<div class="toc">
+<h1 id="dslx-language-server">DSLX Language Server</h1>
+<p>Many popular editors in the modern era are speaking a common protocol in order
+to understand how to display, traverse, and maniulate languages: the
+<a href="https://en.wikipedia.org/wiki/Language_Server_Protocol">"Language Server Protocol"</a>.
+This allows novel languages and DSLs, like DSLX, to expose a developer
+experience integrated in their preferred editors and IDEs.</p>
+<p><strong>To use the language server protocol in your editor you do not need to know any
+details about the language server protocol.</strong></p>
+<p>Language server feedback in the editor is useful to folks who are learning DSLX
+as well as those developing in it on a regular basis! The language server
+currently offers functionality such as:</p>
 <ul>
-<li><a href="#xls-ir-overview">XLS: IR Overview</a></li>
+<li>Go-to-definition</li>
+<li>Errors/warnings as you type</li>
+<li>An "overview" of the symbols defined in a module</li>
 </ul>
-</div>
-<p>Before providing a detailed specification of the IR, in this section we briefly
-outline the ideas and philosophy behind the IR design and explain how to build,
-modify, and navigate the IR.</p>
-<p>The XLS IR is a dataflow-oriented IR that has the static-single-assignment (SSA)
-property, but is specialized for generating circuitry. It started out as a
-purely functional IR but over time more and more side-effecting operations had
-to be introduced. Specifically:</p>
-<ul>
-<li>XLS has a single IR representation which is used from the front-end down to
-    the RTL-level. A single representation throughout the compiler enables
-    maximal resuse of analysis and transformation components. Often compilers
-    have different specialized IRs (or "dialects") for different levels of
-    abstraction which can add complexity and inhibit reusability. However, in
-    XLS this tradeoff between specialization and reusability is unnecessary
-    because we start with a dataflow representation in the front end and can
-    smoothly lower the IR down to the RTL-level which is itself dataflow.</li>
-</ul>
-<ul>
-<li>XLS IR is <em>not</em> control-flow graph (CFG) based, as many other compiler
-    infrastructures. The insight is that the CFG abstraction was developed to
-    model serial execution on a CPU. In hardware, however, everything happens at
-    all times and in parallel. A <em>sea-of-nodes</em> (SoN) representation much more
-    closely resembles this reality, which is why we have chosen it.<p>It further turns out that many optimization passes are rather trivial to
-  implement in the SoN representation, in particular as it requires no
-  explicit SSA updates. The SSA property is automatically maintained by the IR
-  being functional.</p>
-</li>
-</ul>
-<p>TODO: High-level structure, package -&gt; func,proc,block -&gt; sea of nodes</p>
-<p>TODO: How to navigate</p>
-<p>TODO: Talk about basic types</p>
+<p>For more background on what the language server protocol can do, see
+<a href="https://microsoft.github.io/language-server-protocol/">the Language Server Protocol documentation and specification</a>.</p>
+<h2 id="building-the-dslx-language-server-binary">Building the DSLX Language Server binary</h2>
+<p>The following are instructions for building the DSLX language server binary. By
+a) placing the language server binary into your <code>PATH</code> and b) configuring your
+editor to handle <code>.x</code> files by using it.</p>
+<p>Follow the
+<a href="https://google.github.io/xls/#building-from-source">XLS build setup instructions</a>
+so that the pre-requisites are available for building binaries via Bazel. Then,
+build the following <code>dslx_ls</code> binary and place it in your <code>PATH</code>:</p>
+<div class="highlight"><pre><span></span><code>~/xls$ bazel build -c opt //xls/dslx/lsp:dslx_ls
+~/xls$ mkdir ~/bin/
+~/xls$ cp -iv bazel-bin/xls/dslx/lsp/dslx_ls ~/bin/
+~/xls$ export PATH=$HOME/bin:$PATH
+</code></pre></div>
+<p>Now that the language server binary is available in your <code>PATH</code>, you must
+configure your editor to find/use it for <code>.x</code> files.</p>
+<h2 id="vim">Vim</h2>
+<p>First we must install <code>vim-plug</code> -- follow the latest instructions at
+<code>https://github.com/junegunn/vim-plug</code>; e.g.:</p>
+<div class="highlight"><pre><span></span><code>$ curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+</code></pre></div>
+<p>Add the following configuration to your <code>$HOME/.vimrc</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">call</span> plug#begin<span class="p">()</span>
+Plug <span class="s1">&#39;prabirshrestha/vim-lsp&#39;</span>
+Plug <span class="s1">&#39;prabirshrestha/asyncomplete-lsp.vim&#39;</span>
+Plug <span class="s1">&#39;mattn/vim-lsp-settings&#39;</span>
+
+<span class="k">call</span> plug#<span class="k">end</span><span class="p">()</span>
+
+<span class="k">let</span> <span class="k">g</span>:lsp_log_verbose <span class="p">=</span> <span class="m">1</span>
+<span class="k">let</span> <span class="k">g</span>:lsp_log_file <span class="p">=</span> expand<span class="p">(</span><span class="s1">&#39;~/vim-lsp.log&#39;</span><span class="p">)</span>
+
+<span class="k">if</span> executable<span class="p">(</span><span class="s1">&#39;dslx_ls&#39;</span><span class="p">)</span>
+    <span class="k">au</span> <span class="nb">User</span> lsp_setup <span class="k">call</span> <span class="nb">lsp</span>#register_server<span class="p">(</span>{
+        \ <span class="s1">&#39;name&#39;</span>: <span class="s1">&#39;dslx_ls&#39;</span><span class="p">,</span>
+        \ <span class="s1">&#39;cmd&#39;</span>: {server_info<span class="p">-&gt;</span>[<span class="s1">&#39;dslx_ls&#39;</span>]}<span class="p">,</span>
+        \ <span class="s1">&#39;allowlist&#39;</span>: [<span class="s1">&#39;dslx&#39;</span><span class="p">,</span> <span class="s1">&#39;.x&#39;</span>]<span class="p">,</span>
+        \ }<span class="p">)</span>
+<span class="k">endif</span>
+
+<span class="k">let</span> <span class="k">g</span>:lsp_diagnostics_echo_cursor <span class="p">=</span> <span class="m">1</span>
+<span class="k">let</span> <span class="k">g</span>:lsp_diagnostics_highlights_enabled <span class="p">=</span> <span class="m">1</span>
+<span class="k">let</span> <span class="k">g</span>:lsp_diagnostics_signs_enabled <span class="p">=</span> <span class="m">1</span>
+
+<span class="k">au</span> <span class="nb">BufRead</span><span class="p">,</span><span class="nb">BufNewFile</span> *.<span class="k">x</span> <span class="k">set</span> <span class="k">filetype</span><span class="p">=</span>dslx
+</code></pre></div>
+<p>Run vim and execute <code>:PlugInstall</code> to get the new LSP plugins. After that
+completes successfully, quit Vim (famously, via <code>:q</code>).</p>
+<p>Open <code>foo.x</code> in vim and then paste the following contents:</p>
+<div class="highlight"><pre><span></span><code>fn main() -&gt; u8 { u8:256 }
+</code></pre></div>
+<p>The following should show in the display line:</p>
+<div class="highlight"><pre><span></span><code>LSP: uN[8] Value &#39;256&#39; does not fit in the bitwidth of a uN[8] (8). Valid values are [0, 255].
+</code></pre></div>
+<p>If not, try using <code>:LspStatus</code> To see if any diagnostics are available.</p>
+<p>If you correct the <code>u8</code> value to be 255 (and thus in range) you can run:</p>
+<p><code>:LspDocumentSymbol</code></p>
+<p>To see the defined symbol listing -- this shows all defined symbols in the file:</p>
+<div class="highlight"><pre><span></span><code>foo.x|1 col 1| method : main
+</code></pre></div>
+<h3 id="troubleshooting">Troubleshooting</h3>
+<p>With the above <code>.vimrc</code> contents, logs should show up in <code>$HOME/vim-lsp.log</code>.</p>
+<p>Issues can be filed against
+<a href="https://github.com/google/xls/issues">https://github.com/google/xls/issues</a>
+with associated contents/logs.</p>
+<h2 id="emacs">Emacs</h2>
+<p>The following <code>.emacsrc</code> snippet wires up the language server in emacs,
+piggy-backing on the Rust major mode.</p>
+<div class="highlight"><pre><span></span><code><span class="p">(</span><span class="nv">which-key-mode</span><span class="p">)</span>
+<span class="p">(</span><span class="nb">require</span><span class="w"> </span><span class="ss">&#39;lsp-mode</span><span class="p">)</span>
+<span class="p">(</span><span class="nv">add-to-list</span><span class="w"> </span><span class="ss">&#39;auto-mode-alist</span><span class="w"> </span><span class="o">&#39;</span><span class="p">(</span><span class="s">&quot;\\.x\\&#39;&quot;</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="nv">rust-mode</span><span class="p">))</span>
+<span class="p">(</span><span class="nv">add-to-list</span><span class="w"> </span><span class="ss">&#39;lsp-language-id-configuration</span><span class="w"> </span><span class="o">&#39;</span><span class="p">(</span><span class="nv">rust-mode</span><span class="w"> </span><span class="o">.</span><span class="w"> </span><span class="s">&quot;dslx&quot;</span><span class="p">))</span>
+<span class="p">(</span><span class="nv">lsp-register-client</span>
+<span class="w"> </span><span class="p">(</span><span class="nv">make-lsp-client</span><span class="w"> </span><span class="nb">:new-connection</span><span class="w"> </span><span class="p">(</span><span class="nv">lsp-stdio-connection</span><span class="w"> </span><span class="s">&quot;~/bin/dslx_ls&quot;</span><span class="p">)</span>
+<span class="w">                  </span><span class="nb">:major-modes</span><span class="w"> </span><span class="o">&#39;</span><span class="p">(</span><span class="nv">rust-mode</span><span class="p">)</span>
+<span class="w">                  </span><span class="nb">:server-id</span><span class="w"> </span><span class="ss">&#39;dslx-ls</span><span class="p">))</span>
+<span class="p">(</span><span class="nv">add-hook</span><span class="w"> </span><span class="ss">&#39;rust-mode-hook</span><span class="w"> </span><span class="ss">&#39;lsp</span><span class="p">)</span>
+</code></pre></div>
+<p>Additional details on Emacs enablement may be available in the
+<a href="https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor">Verible editor hook-up documentation</a>.</p>
+<h2 id="other-editors">Other Editors</h2>
+<p>For non-Vim editors, see the instructions provided by
+<a href="https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor">our sister project, Verible</a>.</p>
 
 
 
