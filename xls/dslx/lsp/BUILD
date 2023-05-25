@@ -62,6 +62,8 @@ cc_test(
     deps = [
         ":language_server_adapter",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -83,7 +83,8 @@ void TextChangeHandler(const std::string& file_uri,
                        verible::lsp::JsonRpcDispatcher& dispatcher,
                        LanguageServerAdapter& adapter) {
   text_buffer.RequestContent([&](std::string_view file_content) {
-    adapter.Update(file_uri, file_content);
+    // Note: this returns a status, but we don't need to surface it from here.
+    adapter.Update(file_uri, file_content).IgnoreError();
   });
   verible::lsp::PublishDiagnosticsParams params{
       .uri = file_uri,

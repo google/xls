@@ -34,4 +34,10 @@ Pos ConvertLspPositionToPos(std::string_view file_uri,
   return Pos(std::string{file_uri}, position.line, position.character);
 }
 
+Span ConvertLspRangeToSpan(std::string_view file_uri,
+                           const verible::lsp::Range& range) {
+  return Span(ConvertLspPositionToPos(file_uri, range.start),
+              ConvertLspPositionToPos(file_uri, range.end));
+}
+
 }  // namespace xls::dslx

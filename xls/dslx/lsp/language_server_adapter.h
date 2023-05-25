@@ -38,7 +38,7 @@ class LanguageServerAdapter {
                         const std::vector<std::filesystem::path>& dslx_paths);
 
   // Note: this is parsing is triggered for every keystroke. Fine for now.
-  void Update(std::string_view file_uri, std::string_view dslx_code);
+  absl::Status Update(std::string_view file_uri, std::string_view dslx_code);
 
   // Generate LSP diagnostics for the last file update.
   std::vector<verible::lsp::Diagnostic> GenerateParseDiagnostics(
@@ -51,6 +51,11 @@ class LanguageServerAdapter {
   // supports multiple defining locations for a single reference.
   std::vector<verible::lsp::Location> FindDefinitions(
       std::string_view uri, const verible::lsp::Position& position) const;
+
+  // Implements the functionality for:
+  // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_rangeFormatting
+  absl::StatusOr<std::vector<verible::lsp::TextEdit>> FormatRange(
+      std::string_view uri, const verible::lsp::Range& range) const;
 
  private:
   const std::string stdlib_;

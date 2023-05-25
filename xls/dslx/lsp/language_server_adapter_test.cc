@@ -18,6 +18,8 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls::dslx {
 namespace {
@@ -26,11 +28,15 @@ bool operator==(const verible::lsp::Position& lhs,
                 const verible::lsp::Position& rhs) {
   return lhs.line == rhs.line && lhs.character == rhs.character;
 }
+bool operator==(const verible::lsp::Range& lhs,
+                const verible::lsp::Range& rhs) {
+  return lhs.start == rhs.start && lhs.end == rhs.end;
+}
 
 TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
   constexpr std::string_view kUri = "memfile://test.x";
-  adapter.Update(kUri, "fn f() { () }");
+  XLS_ASSERT_OK(adapter.Update(kUri, "fn f() { () }"));
   std::vector<verible::lsp::Diagnostic> diagnostics =
       adapter.GenerateParseDiagnostics(kUri);
   EXPECT_EQ(diagnostics.size(), 0);
@@ -42,8 +48,8 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
 TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
   constexpr std::string_view kUri = "memfile://test.x";
-  adapter.Update(kUri, R"(fn f() { () }
-fn main() { f() })");
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn f() { () }
+fn main() { f() })"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{1, 12};
   std::vector<verible::lsp::Location> definition_locations =
@@ -60,10 +66,10 @@ fn main() { f() })");
 TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
   constexpr std::string_view kUri = "memfile://test.x";
-  adapter.Update(kUri, R"(
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(
 type T = ();
 fn f() -> T { () }
-)");
+)"));
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
   verible::lsp::Position position{2, 10};
   std::vector<verible::lsp::Location> definition_locations =
@@ -82,7 +88,7 @@ fn f() -> T { () }
 TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
   constexpr std::string_view kUri = "memfile://test.x";
-  adapter.Update(kUri, "blahblahblah");
+  ASSERT_FALSE(adapter.Update(kUri, "blahblahblah").ok());
 
   verible::lsp::Position position{1, 12};
   std::vector<verible::lsp::Location> definition_locations =
@@ -103,6 +109,30 @@ TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
   EXPECT_TRUE(end == want_end);
   EXPECT_EQ(diag.message,
             "Expected start of top-level construct; got: 'blahblahblah'");
+}
+
+TEST(LanguageServerAdapterTest, TestFormatRange) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  XLS_ASSERT_OK(adapter.Update(kUri, R"(fn main() -> u32 {
+  { let x = u32:42; x + x }
+})"));
+
+  const auto kInputRange =
+      verible::lsp::Range{.start = verible::lsp::Position{1, 2},
+                          .end = verible::lsp::Position{1, 27}};
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<verible::lsp::TextEdit> edits,
+                           adapter.FormatRange(kUri, kInputRange));
+  ASSERT_EQ(edits.size(), 1);
+
+  const verible::lsp::TextEdit& edit = edits.at(0);
+  EXPECT_TRUE(edit.range == kInputRange);
+  // TODO(cdleary): 2023-05-25 Fix indentation and precedence requirements for
+  // parentheses.
+  EXPECT_EQ(edit.newText, R"({
+  let x = u32:42;
+  (x) + (x)
+})");
 }
 
 }  // namespace

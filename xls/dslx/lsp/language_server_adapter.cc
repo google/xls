@@ -66,8 +66,8 @@ LanguageServerAdapter::LanguageServerAdapter(
       last_parse_data_(absl::FailedPreconditionError(
           "No DSLX file has been parsed yet by the Language Server.")) {}
 
-void LanguageServerAdapter::Update(std::string_view file_uri,
-                                   std::string_view dslx_code) {
+absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
+                                           std::string_view dslx_code) {
   // TODO(hzeller): remember per file_uri for more sophisticated features.
   ImportData import_data = CreateImportData(stdlib_, dslx_paths_);
   const absl::Time start = absl::Now();
@@ -78,7 +78,7 @@ void LanguageServerAdapter::Update(std::string_view file_uri,
     LspLog() << "Could not determine module name from file URI: " << file_uri
              << " status: " << module_name_or.status() << "\n"
              << std::flush;
-    return;
+    return absl::OkStatus();
   }
 
   const std::string& module_name = module_name_or.value();
@@ -97,6 +97,7 @@ void LanguageServerAdapter::Update(std::string_view file_uri,
   } else {
     last_parse_data_ = typechecked_module_or.status();
   }
+  return last_parse_data_.status();
 }
 
 std::vector<verible::lsp::Diagnostic>
@@ -138,6 +139,35 @@ std::vector<verible::lsp::Location> LanguageServerAdapter::FindDefinitions(
     }
   }
   return {};
+}
+
+absl::StatusOr<std::vector<verible::lsp::TextEdit>>
+LanguageServerAdapter::FormatRange(std::string_view uri,
+                                   const verible::lsp::Range& range) const {
+  // TODO(cdleary): 2023-05-25 We start simple, formatting only when the
+  // requested range exactly intercepts a block.
+  const Span target = ConvertLspRangeToSpan(uri, range);
+  if (last_parse_data_.ok()) {
+    const Module& module = last_parse_data_->module();
+    const AstNode* intercepting_block =
+        module.FindNode(AstNodeKind::kBlock, target);
+    if (intercepting_block == nullptr) {
+      if (XLS_VLOG_IS_ON(5)) {
+        std::vector<const AstNode*> intercepting_start =
+            module.FindIntercepting(target.start());
+        for (const AstNode* node : intercepting_start) {
+          XLS_VLOG(5) << node->GetSpan().value() << " :: " << node->ToString();
+        }
+      }
+      return absl::NotFoundError(
+          "Could not find a formattable AST node with the target range: " +
+          target.ToString());
+    }
+    return std::vector<verible::lsp::TextEdit>{verible::lsp::TextEdit{
+        .range = range, .newText = intercepting_block->ToString()}};
+  }
+  return absl::FailedPreconditionError(
+      "Language server did not have a successful prior parse to format.");
 }
 
 }  // namespace xls::dslx
