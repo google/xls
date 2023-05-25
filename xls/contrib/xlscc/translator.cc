@@ -688,6 +688,11 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
                          TranslateTypeFromClang(stripped.base, GetLoc(*p)));
 
+    if (obj_type->Is<CPointerType>()) {
+      return absl::UnimplementedError(
+          ErrorMessage(GetLoc(*p), "Pointer function parameters unsupported"));
+    }
+
     xls::Type* xls_type = nullptr;
 
     XLS_ASSIGN_OR_RETURN(bool is_channel,

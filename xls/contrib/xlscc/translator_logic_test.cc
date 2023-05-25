@@ -406,6 +406,45 @@ TEST_F(TranslatorLogicTest, ArrayParamAssign) {
   Run({{"configured", 0}}, 40 + 3, content);
 }
 
+TEST_F(TranslatorLogicTest, DerefPointerToArrayAssign) {
+  const std::string content = R"(
+    int my_package(bool configured) {
+      (void)configured;
+      int brr[6] = {10,20,30,40,50,60};
+      int *pb = &brr[0];
+      pb[0] = 1;
+      return brr[3];
+    })";
+
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Only array subscript assignments "
+                                     "directly to arrays supported")));
+}
+
+TEST_F(TranslatorLogicTest, ArrayPointerParam) {
+  const std::string content = R"(
+    void addto(int* v) {
+      v[3] += 3;
+    }
+
+    int my_package(bool configured) {
+      (void)configured;
+      int brr[6] = {10,20,30,40,50,60};
+      addto(brr);
+      return brr[3];
+    })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Pointer function parameters unsupported")));
+}
+
 TEST_F(TranslatorLogicTest, Array2D) {
   const std::string content = R"(
        int my_package(int a, int b) {
