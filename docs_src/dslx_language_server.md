@@ -134,6 +134,48 @@ piggy-backing on the Rust major mode.
 Additional details on Emacs enablement may be available in the
 [Verible editor hook-up documentation](https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor).
 
+## Sublime Text
+
+### Create a DSLX syntax
+
+Go to `Tools > Developer > New Syntax`, then replace values in the template:
+
+*   Change the `file_extensions` value to be `x`
+*   Change scope to be `source.dslx`
+*   Replace all `example-c` in the file with `dslx`
+
+Now when you open a `.x` file it should show the syntax in the lower right-hand
+corner as `dslx`.
+
+### Install LSP package
+
+Instructions for installing the LSP package are given in the
+[Verible documentation](https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#sublime).
+
+### Add DSLX to LSP settings
+
+Open the configuration via `Preferences > Package Settings > LSP > Settings` and
+add the following client:
+
+```
+{
+    "clients": {
+        "dslx_ls": {
+          "command": ["dslx_ls"],
+          "enabled": true,
+          "selector": "source.dslx"
+        }
+    }
+}
+```
+
+Now open `foo.x` and paste in:
+
+`fn main() -> u8 { u8:256 }`
+
+There should be a red squiggle under the number `256` indicating that the value
+is out of range for a `u8`.
+
 ## Other Editors
 
 For non-Vim editors, see the instructions provided by
