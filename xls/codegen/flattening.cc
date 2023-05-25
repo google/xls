@@ -117,11 +117,9 @@ int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index) {
 }
 
 // Recursive helper for Unflatten functions.
-verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
-                                          verilog::IndexableExpression* input,
-                                          ArrayType* array_type,
-                                          verilog::VerilogFile* file,
-                                          const SourceInfo& loc) {
+static verilog::Expression* UnflattenArrayHelper(
+    int64_t flat_index_offset, verilog::IndexableExpression* input,
+    ArrayType* array_type, verilog::VerilogFile* file, const SourceInfo& loc) {
   std::vector<verilog::Expression*> elements;
   const int64_t element_width = array_type->element_type()->GetFlatBitCount();
   for (int64_t i = 0; i < array_type->size(); ++i) {
