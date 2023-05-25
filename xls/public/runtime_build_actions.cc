@@ -18,6 +18,7 @@
 
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/extract_module_name.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
@@ -45,21 +46,12 @@ absl::StatusOr<std::string> ConvertDslxToIr(
                              dslx::ConvertOptions{});
 }
 
-static absl::StatusOr<std::string> ExtractModuleName(
-    std::filesystem::path path) {
-  if (path.extension() != ".x") {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("DSL module path must end with '.x', got: '%s'", path));
-  }
-  return path.stem();
-}
-
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path, std::string_view dslx_stdlib_path,
+    const std::filesystem::path& path, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_ASSIGN_OR_RETURN(std::string dslx, GetFileContents(path));
-  XLS_ASSIGN_OR_RETURN(std::string module_name, ExtractModuleName(path));
-  return ConvertDslxToIr(dslx, std::string(path), module_name, dslx_stdlib_path,
+  XLS_ASSIGN_OR_RETURN(std::string module_name, dslx::ExtractModuleName(path));
+  return ConvertDslxToIr(dslx, std::string{path}, module_name, dslx_stdlib_path,
                          additional_search_paths);
 }
 

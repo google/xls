@@ -11,14 +11,17 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/dslx/create_import_data.h"
 
 #include <filesystem>  // NOLINT
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/types/span.h"
+#include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 
 namespace xls::dslx {
@@ -26,7 +29,7 @@ namespace xls::dslx {
 ImportData CreateImportData(
     std::string stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
-  ImportData import_data(stdlib_path, additional_search_paths);
+  ImportData import_data(std::move(stdlib_path), additional_search_paths);
   import_data.SetBytecodeCache(std::make_unique<BytecodeCache>(&import_data));
   return import_data;
 }

@@ -34,6 +34,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/dslx:create_import_data",
         "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:extract_module_name",
         "//xls/dslx:import_data",
         "//xls/dslx:mangle",
         "//xls/dslx:parse_and_typecheck",

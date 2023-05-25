@@ -19,7 +19,6 @@
 #include <string_view>
 #include <vector>
 
-#include "absl/status/statusor.h"
 #include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
@@ -30,6 +29,9 @@ namespace xls::dslx {
 // somewhere.
 inline std::ostream& LspLog() { return std::cerr; }
 
+// Note: this is a thread-compatible implementation, but not thread safe (e.g.
+// we assume the language server request handler acts as a concurrency
+// serializing entity).
 class LanguageServerAdapter {
  public:
   LanguageServerAdapter(std::string_view stdlib,
@@ -54,9 +56,16 @@ class LanguageServerAdapter {
   const std::string stdlib_;
   const std::vector<std::filesystem::path> dslx_paths_;
 
-  std::optional<ImportData> last_import_data_;
-  std::string last_dslx_code_;
-  absl::StatusOr<TypecheckedModule> last_parse_result_;
+  struct LastParseData {
+    ImportData import_data;
+    TypecheckedModule typechecked_module;
+    std::filesystem::path path;
+    std::string contents;
+
+    const Module& module() const { return *typechecked_module.module; }
+  };
+
+  absl::StatusOr<LastParseData> last_parse_data_;
 };
 
 }  // namespace xls::dslx

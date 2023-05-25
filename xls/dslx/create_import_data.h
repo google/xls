@@ -23,8 +23,6 @@
 #include <string>
 
 #include "absl/types/span.h"
-#include "xls/dslx/bytecode/bytecode.h"
-#include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/import_data.h"
 
 namespace xls::dslx {
@@ -38,6 +36,7 @@ ImportData CreateImportData(
 // Creates an ImportData with reasonable defaults (standard path to the stdlib
 // and no additional search paths).
 ImportData CreateImportDataForTest();
+
 std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
 }  // namespace xls::dslx

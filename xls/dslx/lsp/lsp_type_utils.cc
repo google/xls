@@ -31,7 +31,7 @@ verible::lsp::Location ConvertSpanToLspLocation(const Span& span) {
 
 Pos ConvertLspPositionToPos(std::string_view file_uri,
                             const verible::lsp::Position& position) {
-  return Pos("", position.line, position.character);
+  return Pos(std::string{file_uri}, position.line, position.character);
 }
 
 }  // namespace xls::dslx

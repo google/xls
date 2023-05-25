@@ -50,7 +50,6 @@ namespace {
 namespace fs = std::filesystem;
 
 using verible::lsp::BufferCollection;
-using verible::lsp::DocumentSymbol;
 using verible::lsp::EditTextBuffer;
 using verible::lsp::InitializeResult;
 using verible::lsp::JsonRpcDispatcher;
@@ -98,9 +97,12 @@ absl::Status RealMain() {
   const std::string dslx_path = absl::GetFlag(FLAGS_dslx_path);
   const std::vector<fs::path> dslx_paths = absl::StrSplit(dslx_path, ':');
 
-  LspLog() << "XLS testing language server" << std::endl;
-  LspLog() << "Path configuration:\n\tstdlib=" << stdlib_path << std::endl
-           << "\tdsxl_path=" << dslx_path << std::endl;
+  LspLog() << "XLS testing language server"
+           << "\n"
+           << std::flush;
+  LspLog() << "Path configuration:\n\tstdlib=" << stdlib_path << "\n"
+           << std::flush << "\tdsxl_path=" << dslx_path << "\n"
+           << std::flush;
 
   // Adapter that interfaces between dslx parsing and LSP
   LanguageServerAdapter language_server_adapter(stdlib_path, dslx_paths);

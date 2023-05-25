@@ -641,3 +641,13 @@ cc_library(
     name = "channel_direction",
     hdrs = ["channel_direction.h"],
 )
+
+cc_library(
+    name = "extract_module_name",
+    srcs = ["extract_module_name.cc"],
+    hdrs = ["extract_module_name.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

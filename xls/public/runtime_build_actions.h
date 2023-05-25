@@ -65,7 +65,7 @@ absl::StatusOr<std::string> ConvertDslxToIr(
 // As above, but uses a filesystem path to retrieve the DSLX module contents.
 // "path" should end with ".x" suffix, the path will determine the module name.
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path, std::string_view dslx_stdlib_path,
+    const std::filesystem::path& path, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // Optimizes the generated XLS IR with the given top-level entity (e.g.,

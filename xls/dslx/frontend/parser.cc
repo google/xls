@@ -319,7 +319,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     auto top_level_error = [peek] {
       return ParseErrorStatus(
           peek->span(),
-          absl::StrFormat("Expected start of top-level construct; got: %s'",
+          absl::StrFormat("Expected start of top-level construct; got: '%s'",
                           peek->ToString()));
     };
     if (peek->kind() != TokenKind::kKeyword) {

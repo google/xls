@@ -22,9 +22,14 @@
 namespace xls::dslx {
 namespace {
 
+bool operator==(const verible::lsp::Position& lhs,
+                const verible::lsp::Position& rhs) {
+  return lhs.line == rhs.line && lhs.character == rhs.character;
+}
+
 TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
-  constexpr std::string_view kUri = "unused-for-now";
+  constexpr std::string_view kUri = "memfile://test.x";
   adapter.Update(kUri, "fn f() { () }");
   std::vector<verible::lsp::Diagnostic> diagnostics =
       adapter.GenerateParseDiagnostics(kUri);
@@ -36,7 +41,7 @@ TEST(LanguageServerAdapterTest, TestSingleFunctionModule) {
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsFunctionRef) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
-  constexpr std::string_view kUri = "unused-for-now";
+  constexpr std::string_view kUri = "memfile://test.x";
   adapter.Update(kUri, R"(fn f() { () }
 fn main() { f() })");
   // Note: all of the line/column numbers are zero-based in the LSP protocol.
@@ -44,17 +49,17 @@ fn main() { f() })");
   std::vector<verible::lsp::Location> definition_locations =
       adapter.FindDefinitions(kUri, position);
   ASSERT_EQ(definition_locations.size(), 1);
-  verible::lsp::Location definition_location = definition_locations.at(0);
-  EXPECT_EQ(definition_location.range.start.line, 0);
-  EXPECT_EQ(definition_location.range.start.character, 3);
 
-  EXPECT_EQ(definition_location.range.end.line, 0);
-  EXPECT_EQ(definition_location.range.end.character, 4);
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  const auto want_start = verible::lsp::Position{0, 3};
+  const auto want_end = verible::lsp::Position{0, 4};
+  EXPECT_TRUE(definition_location.range.start == want_start);
+  EXPECT_TRUE(definition_location.range.end == want_end);
 }
 
 TEST(LanguageServerAdapterTest, TestFindDefinitionsTypeRef) {
   LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
-  constexpr std::string_view kUri = "unused-for-now";
+  constexpr std::string_view kUri = "memfile://test.x";
   adapter.Update(kUri, R"(
 type T = ();
 fn f() -> T { () }
@@ -64,12 +69,40 @@ fn f() -> T { () }
   std::vector<verible::lsp::Location> definition_locations =
       adapter.FindDefinitions(kUri, position);
   ASSERT_EQ(definition_locations.size(), 1);
-  verible::lsp::Location definition_location = definition_locations.at(0);
-  EXPECT_EQ(definition_location.range.start.line, 1);
-  EXPECT_EQ(definition_location.range.start.character, 5);
 
-  EXPECT_EQ(definition_location.range.end.line, 1);
-  EXPECT_EQ(definition_location.range.end.character, 6);
+  verible::lsp::Location definition_location = definition_locations.at(0);
+  const auto want_start = verible::lsp::Position{1, 5};
+  const auto want_end = verible::lsp::Position{1, 6};
+  EXPECT_TRUE(definition_location.range.start == want_start);
+  EXPECT_TRUE(definition_location.range.end == want_end);
+}
+
+// After we parse an invalid file the language server can still get requests,
+// check that works reasonably.
+TEST(LanguageServerAdapterTest, TestCallAfterInvalidParse) {
+  LanguageServerAdapter adapter(kDefaultDslxStdlibPath, {"."});
+  constexpr std::string_view kUri = "memfile://test.x";
+  adapter.Update(kUri, "blahblahblah");
+
+  verible::lsp::Position position{1, 12};
+  std::vector<verible::lsp::Location> definition_locations =
+      adapter.FindDefinitions(kUri, position);
+  EXPECT_TRUE(definition_locations.empty());
+
+  std::vector<verible::lsp::Diagnostic> diagnostics =
+      adapter.GenerateParseDiagnostics(kUri);
+  ASSERT_EQ(diagnostics.size(), 1);
+  const verible::lsp::Diagnostic& diag = diagnostics.at(0);
+  const auto want_start = verible::lsp::Position{0, 0};
+  const auto want_end = verible::lsp::Position{0, 12};
+
+  const verible::lsp::Position& start = diag.range.start;
+  const verible::lsp::Position& end = diag.range.end;
+
+  EXPECT_TRUE(start == want_start);
+  EXPECT_TRUE(end == want_end);
+  EXPECT_EQ(diag.message,
+            "Expected start of top-level construct; got: 'blahblahblah'");
 }
 
 }  // namespace
