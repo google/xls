@@ -49,7 +49,7 @@ def delay_model(
                "--model_name={model_name} --precedence={precedence} $< " +
                "| $(location @llvm_toolchain_llvm//:bin/clang-format)" +
                " > $(OUTS)").format(model_name = model_name, precedence = precedence),
-        exec_tools = [
+        tools = [
             "//xls/delay_model:generate_delay_lookup",
             "@llvm_toolchain_llvm//:bin/clang-format",
         ],
