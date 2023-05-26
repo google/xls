@@ -154,6 +154,56 @@ absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>> CheckFunctionParams(
   return param_types;
 }
 
+static absl::Status CheckIsAcceptableWideningCast(DeduceCtx* ctx,
+                                                  const Invocation* node) {
+  // Use type_info rather than ctx->Deduce as this Invocation's nodes have
+  // already been deduced and placed into type_info.
+  TypeInfo* type_info = ctx->type_info();
+  const Expr* from_expr = node->args().at(0);
+
+  std::optional<ConcreteType*> maybe_from_type = type_info->GetItem(from_expr);
+  std::optional<ConcreteType*> maybe_to_type = type_info->GetItem(node);
+
+  XLS_RET_CHECK(maybe_from_type.has_value());
+  XLS_RET_CHECK(maybe_to_type.has_value());
+
+  BitsType* from = dynamic_cast<BitsType*>(maybe_from_type.value());
+  BitsType* to = dynamic_cast<BitsType*>(maybe_to_type.value());
+
+  if (from == nullptr || to == nullptr) {
+    return ctx->TypeMismatchError(
+        node->span(), from_expr, *maybe_from_type.value(), node,
+        *maybe_to_type.value(),
+        absl::StrFormat("widening_cast must cast bits to bits, not %s to %s.",
+                        maybe_from_type.value()->ToErrorString(),
+                        maybe_to_type.value()->ToErrorString()));
+  }
+
+  bool signed_input = from->is_signed();
+  bool signed_output = to->is_signed();
+
+  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
+                       from->GetTotalBitCount().value().GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                       to->GetTotalBitCount().value().GetAsInt64());
+
+  bool can_cast =
+      ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
+      (!signed_input && signed_output && (new_bit_count > old_bit_count));
+
+  if (!can_cast) {
+    return ctx->TypeMismatchError(
+        node->span(), from_expr, *maybe_from_type.value(), node,
+        *maybe_to_type.value(),
+        absl::StrFormat("Can not cast from type %s (%d bits) to"
+                        " %s (%d bits) with widening_cast",
+                        from->ToString(), old_bit_count, to->ToString(),
+                        new_bit_count));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
     DeduceCtx* ctx, const Invocation* invocation, Function* caller) {
   Expr* callee = invocation->callee();
@@ -265,6 +315,11 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   }
 
   ctx->type_info()->SetItem(invocation, fn_type->return_type());
+
+  // Special check for additional builin type constraints.
+  if (callee_nameref->identifier() == "widening_cast") {
+    XLS_RETURN_IF_ERROR(CheckIsAcceptableWideningCast(ctx, invocation));
+  }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
   // what we actually want). We hack up `tab` to make this consistent with

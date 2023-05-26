@@ -351,11 +351,11 @@ class FunctionConverter {
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinRev(const Invocation* node);
-  absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleBuiltinSignex(const Invocation* node);
   absl::Status HandleBuiltinSMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);
   absl::Status HandleBuiltinUMulp(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
 
   // Derefences the type definition to a struct definition.

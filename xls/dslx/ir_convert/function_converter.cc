@@ -786,51 +786,18 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> input_type,
                        ResolveType(node->args()[0]));
 
-  XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
-  XLS_ASSIGN_OR_RETURN(bool signed_output, IsSigned(*output_type));
+  XLS_CHECK_NE(dynamic_cast<BitsType*>(input_type.get()), nullptr);
+  XLS_CHECK_NE(dynamic_cast<BitsType*>(output_type.get()), nullptr);
 
-  // Check that bit count to the new type does not drop any information
-  //  1. if signed to signed or unsigned to unsigned - new bitwidth is as large.
-  //  2. if unsigned to signed - new bitwidth is larger.
+  XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
+
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
       std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
 
-  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
-                       input_type->GetTotalBitCount());
-  XLS_ASSIGN_OR_RETURN(
-      int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
-
-  bool can_cast =
-      ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
-      (!signed_input && signed_output && (new_bit_count > old_bit_count));
-
-  if (!can_cast) {
-    return ConversionErrorStatus(
-        node->span(), absl::StrFormat("Can not cast from type %s (%d bits) to"
-                                      " %s (%d bits) with widening_cast",
-                                      input_type->ToString(), old_bit_count,
-                                      output_type->ToString(), new_bit_count));
-  }
-
-  // Perform actual cast.
-  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: WideningCast to and from arrays (%s) "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
-  }
-
-  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: WideningCast to and from arrays (%s) "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
-  }
-
+  // Perform actual cast. Validity is checked during type_check.
   Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
     if (signed_input) {
       return function_builder_->SignExtend(arg, new_bit_count);

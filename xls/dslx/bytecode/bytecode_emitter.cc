@@ -59,14 +59,6 @@ ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
   return MakeValueFormatDescriptor(*maybe_type.value(), field_preference);
 }
 
-// Returns a status that indicates an dslx error detected during the bytecode
-// emission process.
-absl::Status EmitterInvalidArgumentErrorStatus(const std::optional<Span>& span,
-                                               std::string_view message) {
-  return absl::InvalidArgumentError(
-      absl::StrFormat("BytecodeEmitterError: %s %s",
-                      span ? span->ToString() : "<no span>", message));
-}
 }  // namespace
 
 BytecodeEmitter::BytecodeEmitter(
@@ -424,7 +416,7 @@ static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
 
   if (bits_type == nullptr) {
     return absl::InternalError(
-        absl::StrCat("Bytecode emitter only supports safe or checked "
+        absl::StrCat("Bytecode emitter only supports widening or checked "
                      "casts from/to bits; got ",
                      node->ToString()));
   }
@@ -577,13 +569,12 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
+  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
               << node->span();
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_RETURN_IF_ERROR(GetTypeOfNodeAsBits(from_expr, type_info_).status());
   XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
 
   bytecode_.push_back(
@@ -594,38 +585,13 @@ absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
 
 absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
     const Invocation* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
+  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
               << node->span();
 
   const Expr* from_expr = node->args().at(0);
   XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  XLS_ASSIGN_OR_RETURN(BitsType * from,
-                       GetTypeOfNodeAsBits(from_expr, type_info_));
   XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
-
-  // TODO(tedhong): 2023-05-25 - This should be moved into typecheck.
-  // Before emitting bytecode, check that types are compatible.
-  bool signed_input = from->is_signed();
-  bool signed_output = to->is_signed();
-
-  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
-                       from->GetTotalBitCount().value().GetAsInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
-                       to->GetTotalBitCount().value().GetAsInt64());
-
-  bool can_cast =
-      ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
-      (!signed_input && signed_output && (new_bit_count > old_bit_count));
-
-  if (!can_cast) {
-    return EmitterInvalidArgumentErrorStatus(
-        node->GetSpan(),
-        absl::StrFormat("Can not cast from type %s (%d bits) to"
-                        " %s (%d bits) with widening_cast",
-                        from->ToString(), old_bit_count, to->ToString(),
-                        new_bit_count));
-  }
 
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kCheckedCast, to->CloneToUnique()));

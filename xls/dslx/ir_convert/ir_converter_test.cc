@@ -1898,68 +1898,9 @@ fn main(x: u8) -> u32 {
   options.verify_ir = false;
   auto import_data = CreateImportDataForTest();
   EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
+              StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Can not cast from type uN[32] (32 bits) to "
                                  "uN[4] (4 bits) with widening_cast")));
-}
-
-TEST(IrConverterTest, WideningCastsSnErrors) {
-  constexpr std::string_view kProgram =
-      R"(
-fn main(x: s8) -> s32 {
-  let x_32 = widening_cast<s32>(x);
-  let x_4  = widening_cast<s4>(x_32);
-  x_32 + widening_cast<s32>(x_4)
-}
-)";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
-                                 "sN[4] (4 bits) with widening_cast")));
-}
-
-TEST(IrConverterTest, WideningCastsUnToSnErrors) {
-  constexpr std::string_view kProgram =
-      R"(
-fn main(x: u8) -> s32 {
-  let x_9 = widening_cast<s9>(x);
-  let x_8 = widening_cast<s8>(x);
-  checked_cast<s32>(x_9) + checked_cast<s32>(x_8)
-}
-)";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Can not cast from type uN[8] (8 bits) to "
-                                 "sN[8] (8 bits) with widening_cast")));
-}
-
-TEST(IrConverterTest, WideningCastsSnToUnErrors) {
-  constexpr std::string_view kProgram =
-      R"(
-fn main(x: s8) -> s32 {
-  let x_9 = widening_cast<u9>(x);
-  checked_cast<s32>(x_9)
-}
-)";
-  ConvertOptions options;
-  options.emit_fail_as_assert = false;
-  options.emit_positions = false;
-  options.verify_ir = false;
-  auto import_data = CreateImportDataForTest();
-  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
-              StatusIs(absl::StatusCode::kInternal,
-                       HasSubstr("Can not cast from type sN[8] (8 bits) to "
-                                 "uN[9] (9 bits) with widening_cast")));
 }
 
 TEST(IrConverterTest, WideningAndCheckedCasts) {

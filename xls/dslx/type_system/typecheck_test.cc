@@ -1604,5 +1604,124 @@ fn main(x: u32) -> u64 {
                        HasSubstr("Invalid number of parametrics passed to")));
 }
 
+TEST(TypecheckTest, WideningCastToSmallerUnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  widening_cast<u33>(u32:0);
+  widening_cast<u32>(u32:0);
+  widening_cast<u31>(u32:0);
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
+                                 "uN[31] (31 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastToSmallerSnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  widening_cast<s33>(s32:0);
+  widening_cast<s32>(s32:0);
+  widening_cast<s31>(s32:0);
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
+                                 "sN[31] (31 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastToUnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  widening_cast<u4>(u3:0);
+  widening_cast<u4>(u4:0);
+  widening_cast<u4>(s1:0);
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[1] (1 bits) to "
+                                 "uN[4] (4 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastsUnError2) {
+  constexpr std::string_view kProgram =
+      R"(
+fn main(x: u8) -> u32 {
+  let x_32 = widening_cast<u32>(x);
+  let x_4  = widening_cast<u4>(x_32);
+  x_32 + widening_cast<u32>(x_4)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
+                                 "uN[4] (4 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastToSnError1) {
+  constexpr std::string_view kProgram = R"(
+fn main() {
+  widening_cast<s4>(u3:0);
+  widening_cast<s4>(s4:0);
+  widening_cast<s4>(u4:0);
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[4] (4 bits) to "
+                                 "sN[4] (4 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastsSnError2) {
+  constexpr std::string_view kProgram =
+      R"(
+fn main(x: s8) -> s32 {
+  let x_32 = widening_cast<s32>(x);
+  let x_4  = widening_cast<s4>(x_32);
+  x_32 + widening_cast<s32>(x_4)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
+                                 "sN[4] (4 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastsUnToSnError) {
+  constexpr std::string_view kProgram =
+      R"(
+fn main(x: u8) -> s32 {
+  let x_9 = widening_cast<s9>(x);
+  let x_8 = widening_cast<s8>(x);
+  checked_cast<s32>(x_9) + checked_cast<s32>(x_8)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[8] (8 bits) to "
+                                 "sN[8] (8 bits) with widening_cast")));
+}
+
+TEST(TypecheckTest, WideningCastsSnToUnError) {
+  constexpr std::string_view kProgram =
+      R"(
+fn main(x: s8) -> s32 {
+  let x_9 = widening_cast<u9>(x);
+  checked_cast<s32>(x_9)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[8] (8 bits) to "
+                                 "uN[9] (9 bits) with widening_cast")));
+}
+
 }  // namespace
 }  // namespace xls::dslx
