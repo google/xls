@@ -114,7 +114,7 @@ TEST(PackedBitViewTest, ExtractsUnalignedReallyBigs) {
   int current_bit = 0;
   int current_byte = 0;
   for (int i = 0; i < kElementWidth; i++) {
-    rope.push_back(current_byte & (1 << current_bit));
+    rope.push_back((current_byte & (1 << current_bit)) != 0);
     if (current_bit == kCharBit) {
       current_byte++;
       current_bit = 0;
@@ -216,7 +216,7 @@ TEST(PackedArrayViewTest, ExtractsUnaligned) {
   // Fill the n'th element with n (for each element).
   for (int i = 0; i < kNumElements; i++) {
     for (int j = 0; j < kElementBits; j++) {
-      rope.push_back(i & (1 << j));
+      rope.push_back((i & (1 << j)) != 0);
     }
   }
   std::vector<uint8_t> buffer = rope.Build().ToBytes();

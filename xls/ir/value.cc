@@ -160,7 +160,8 @@ int64_t Value::GetFlatBitCount() const {
 bool Value::IsAllZeros() const {
   if (kind() == ValueKind::kBits) {
     return bits().IsZero();
-  } else if (kind() == ValueKind::kTuple || kind() == ValueKind::kArray) {
+  }
+  if (kind() == ValueKind::kTuple || kind() == ValueKind::kArray) {
     for (const Value& e : elements()) {
       if (!e.IsAllZeros()) {
         return false;
@@ -175,7 +176,8 @@ bool Value::IsAllZeros() const {
 bool Value::IsAllOnes() const {
   if (kind() == ValueKind::kBits) {
     return bits().IsAllOnes();
-  } else if (kind() == ValueKind::kTuple || kind() == ValueKind::kArray) {
+  }
+  if (kind() == ValueKind::kTuple || kind() == ValueKind::kArray) {
     for (const Value& e : elements()) {
       if (!e.IsAllOnes()) {
         return false;

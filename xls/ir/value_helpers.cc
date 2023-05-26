@@ -76,11 +76,12 @@ Value AllOnesOfType(Type* type) {
 
 Value F32ToTuple(float value) {
   uint32_t x = absl::bit_cast<uint32_t>(value);
-  bool sign = x >> 31;
+  bool sign = (x >> 31) != 0u;
   uint8_t exp = x >> 23;
   uint32_t fraction = x & Mask(23);
   return Value::Tuple({
-      Value(Bits::FromBytes({sign}, /*bit_count=*/1)),
+      Value(Bits::FromBytes({static_cast<const unsigned char>(sign)},
+                            /*bit_count=*/1)),
       Value(Bits::FromBytes({exp}, /*bit_count=*/8)),
       Value(UBits(fraction, /*bit_count=*/23)),
   });
