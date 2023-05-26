@@ -285,8 +285,8 @@ class RegressionEstimator(Estimator):
 
   The curve has the form:
 
-    delay_est = P_0 + P_1 * factor_0 + P_2 * factor_0 +
-                      P_3 * factor_1 + P_4 * factor_1 +
+    delay_est = P_0 + P_1 * factor_0 + P_2 * log2(factor_0) +
+                      P_3 * factor_1 + P_4 * log2(factor_1) +
                       ...
 
   Where P_i are learned parameters and factor_i are the delay expressions
@@ -407,8 +407,12 @@ class RegressionEstimator(Estimator):
                                                     num_cross_validation_folds))
 
     # Perform validation for each training and testing set.
-    for training_dps, testing_dps in RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
-        raw_data_points, num_cross_validation_folds=num_cross_validation_folds):
+    for (
+        training_dps,
+        testing_dps
+    ) in RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
+        raw_data_points, num_cross_validation_folds=num_cross_validation_folds
+    ):
 
       # Train.
       self.delay_function, self.params = self._fit_curve(training_dps)
@@ -511,7 +515,8 @@ class BoundingBoxEstimator(Estimator):
       lines.append('if (%s) { return %d; }' %
                    (' && '.join(test_expr_terms), raw_data_point[-1]))
     lines.append(
-        'return absl::UnimplementedError("Unhandled node for delay estimation: " '
+        'return absl::UnimplementedError('
+        '"Unhandled node for delay estimation: " '
         '+ {}->ToStringWithOperandTypes());'.format(node_identifier))
     return '\n'.join(lines)
 
@@ -546,7 +551,8 @@ class LogicalEffortEstimator(Estimator):
   def cpp_delay_code(self, node_identifier: Text) -> Text:
     lines = []
     lines.append(
-        'absl::StatusOr<int64_t> delay_in_ps = DelayEstimator::GetLogicalEffortDelayInPs({}, {});'
+        'absl::StatusOr<int64_t> delay_in_ps = '
+        'DelayEstimator::GetLogicalEffortDelayInPs({}, {});'
         .format(node_identifier, self.tau_in_ps))
     lines.append('if (delay_in_ps.ok()) {')
     lines.append('  return delay_in_ps.value();')
@@ -594,7 +600,7 @@ class OpModel:
     op: The op for this model (e.g., 'kAdd').
     specializations: A map from SpecializationKind to Estimator which contains
       any specializations of the delay model of the op.
-    estimator: The non-specialized Estimator to use fo this op in the general
+    estimator: The non-specialized Estimator to use for this op in the general
       case.
   """
 
