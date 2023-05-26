@@ -244,11 +244,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
     // Create a deterministic field order
     for (const auto& [decl, _] : context().variables) {
-      const CValue& cvalue = context().variables.at(decl);
-      if (dynamic_cast<CChannelType*>(cvalue.type().get()) != nullptr) {
-        continue;
-      }
-
       XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
       variable_fields_order.push_back(decl);
     }
@@ -437,16 +432,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
       inner_channels_by_outer_channel[&enclosing_channel] = inner_channel;
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
-
-      auto channel_type = std::make_shared<CChannelType>(
-          inner_channel->item_type, inner_channel->memory_size);
-
-      auto lvalue = std::make_shared<LValue>(inner_channel);
-      XLS_RETURN_IF_ERROR(
-          DeclareVariable(decl,
-                          CValue(/*rvalue=*/xls::BValue(), channel_type,
-                                 /*disable_type_check=*/true, lvalue),
-                          loc, /*check_unique_ids=*/false));
     }
 
     // Context in

@@ -182,16 +182,16 @@ TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
 
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("in_unused1"));
+                             package_->GetChannel("in_unused1"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("in_unused2"));
+                             package_->GetChannel("in_unused2"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
 
@@ -209,7 +209,6 @@ TEST_F(TranslatorProcTest, IOProcUnusedChannels) {
     ProcTest(content, block_spec, inputs, outputs);
   }
 }
-
 
 TEST_F(TranslatorProcTest, IOProcUnusedDirectIn) {
   const std::string content = R"(
@@ -2701,6 +2700,64 @@ TEST_F(TranslatorProcTest, PipelinedLoopUsingMemberChannelAndVariable) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits, 0);
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopWithOuterRef) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int result = 0;
+          int& result_ref = result;
+          #pragma hls_pipeline_init_interval 1
+          for(int i=0;i<3;++i) {
+            result_ref += in.read();
+          }
+          out.write(result);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 + 7 + 10, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopWithOuterChannelRef) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int , __xls_channel_dir_In>& in;
+         __xls_channel<long, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          __xls_channel<int , __xls_channel_dir_In>& in_ref = in;
+          int result = 0;
+          #pragma hls_pipeline_init_interval 1
+          for(int i=0;i<3;++i) {
+            result += in_ref.read();
+          }
+          out.write(result);
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 + 7 + 10, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3);
 }
 
 TEST_F(TranslatorProcTest, IOProcClass) {

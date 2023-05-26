@@ -1238,6 +1238,21 @@ TEST_F(TranslatorIOTest, ChannelAliasWithDir) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
+TEST_F(TranslatorIOTest, ChannelRef) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+          __xls_channel<int>& out_ref = out;
+          out_ref.write(3*in.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
 }  // namespace
 
 }  // namespace xlscc
