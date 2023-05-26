@@ -43,6 +43,9 @@ from absl import logging
 
 import portpicker
 
+_SAMPLES_PATH = flags.DEFINE_string(
+    'samples_path', None, 'Path to proto providing sample points.'
+)
 _BAZEL_BIN_PATH = flags.DEFINE_string(
     'bazel_bin_path', None, 'Root directory of bazel-bin'
 )
@@ -96,6 +99,7 @@ class WorkerConfig:
   synthesis_libraries: List[str] = []
   sta_bin: str
   sta_libraries: List[str] = []
+  samples_path: str
 
   server_bin: str
   server_extra_args = []
@@ -148,10 +152,11 @@ def _do_config_task(config: WorkerConfig):
       raise app.UsageError(
           'If not using --openroad_path, then must provide --out_path.')
 
-    if _QUICK_RUN.value:
-      config.client_args.append('--max_width=2')
-    else:
-      config.client_args.append('--max_width=64')
+    if not _SAMPLES_PATH.value:
+      if _QUICK_RUN.value:
+        config.client_args.append('--max_width=2')
+      else:
+        config.client_args.append('--max_width=64')
     config.client_args.append('--min_freq_mhz=1000')
     config.client_args.append('--max_freq_mhz=30000')
 
@@ -191,11 +196,15 @@ def _do_config_task(config: WorkerConfig):
     config.server_extra_args = ['--save_temps', '--v 1', '--alsologtostderr']
     config.client_extra_args = ['--v 3']
   else:
-    config.server_extra_args = ['']
-    config.client_extra_args = ['']
+    config.server_extra_args = ['--save_temps']
+    config.client_extra_args = ['--alsologtostderr']
 
   if _QUICK_RUN.value:
     config.client_extra_args.append('--quick_run')
+
+  if _SAMPLES_PATH.value:
+    config.samples_path = os.path.realpath(_SAMPLES_PATH.value)
+    config.client_extra_args.append(f'--samples_path={config.samples_path}')
 
 
 def _do_config_asap7(config: WorkerConfig):

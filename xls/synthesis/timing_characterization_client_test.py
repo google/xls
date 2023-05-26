@@ -25,7 +25,8 @@ from xls.synthesis import timing_characterization_client as client
 class TimingCharacterizationClientMainTest(absltest.TestCase):
 
   def test_save_load_checkpoint(self):
-    model = delay_model_pb2.DelayModel()
+
+    results = delay_model_pb2.DataPoints()
     # Maps an op name to the set of bit configurations we've run that op with.
     data_points = collections.defaultdict(set)
 
@@ -44,12 +45,12 @@ class TimingCharacterizationClientMainTest(absltest.TestCase):
           result.operation.operands.append(operand)
         result.operation.bit_count = int(bit_config[0])
         result.delay = 5
-        model.data_points.append(result)
+        results.data_points.append(result)
     tf = tempfile.NamedTemporaryFile()
-    client.save_checkpoint(model, tf.name)
-    loaded_data_points, loaded_model = client.init_data(tf.name)
+    client.save_checkpoint(results, tf.name)
+    loaded_data_points, loaded_results = client.init_data(tf.name)
 
-    self.assertEqual(model, loaded_model)
+    self.assertEqual(results, loaded_results)
     # Fancy equality checking so we get clearer error messages on
     # mismatch.
     for op in ops:

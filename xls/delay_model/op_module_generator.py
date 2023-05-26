@@ -40,11 +40,11 @@ def _random_array_value(element_width: int, num_elements: int) -> str:
 def _generate_literal(literal_type: str) -> str:
   """Returns a literal value of the given type."""
   random.seed(0)
-  m = re.match(r'bits\[(\d+)\]$', literal_type)
+  m = re.search(r'bits\[(\d+)\]$', literal_type)
   if m:
     return _random_bits_value(int(m.group(1)))
   else:
-    m = re.match(r'bits\[(\d+)\]\[(\d+)\]$', literal_type)
+    m = re.search(r'bits\[(\d+)\]\[(\d+)\]$', literal_type)
     if not m:
       raise ValueError(f'Invalid or unsupported type {literal_type}')
     return _random_array_value(int(m.group(1)), int(m.group(2)))
@@ -54,7 +54,8 @@ def generate_ir_package(op: str,
                         output_type: str,
                         operand_types: Sequence[str],
                         attributes: Sequence[Tuple[str, str]] = (),
-                        literal_operand: Optional[int] = None) -> str:
+                        literal_operand: Optional[int] = None,
+                        repeated_operand: Optional[int] = None) -> str:
   """Generates an IR package containing a operation of the given op.
 
   The IR package contains a single function which has an operation with the
@@ -78,13 +79,15 @@ def generate_ir_package(op: str,
     literal_operand: Optionally specifies that the given operand number should
       be substituted with a randomly generated literal instead of a function
       parameter.
+    repeated_operand: Optionally specifies that the given operand number should
+      be substituted with the previous operand.
 
   Returns:
     The text of the IR package.
   """
   params = [
       f'op{i}: {operand_types[i]}' for i in range(len(operand_types))
-      if i != literal_operand
+      if (i != literal_operand and i != repeated_operand)
   ]
   # Some ops have named operands which appear in the argument list as
   # attributes. For example, the 'indices' attributes of array_index:
@@ -92,7 +95,12 @@ def generate_ir_package(op: str,
   #   array_index: bits[32] = array_index(a, indices=[i, j])
   #
   # Extract these out as a separate element in the argument list.
-  args = [f'op{i}' for i in range(len(operand_types))]
+  if repeated_operand:
+    args = ['op' + str(i-1 if i == repeated_operand else i)
+            for i in range(len(operand_types))
+           ]
+  else:
+    args = [f'op{i}' for i in range(len(operand_types))]
   if op == 'array_index':
     indices = args[1:]
     args = args[0:1]
@@ -104,7 +112,7 @@ def generate_ir_package(op: str,
   elif op == 'sel':
     # Determine number of selector bits.
     selector_type = operand_types[0]
-    m = re.match(r'bits\[(\d+)\]$', selector_type)
+    m = re.search(r'bits\[(\d+)\]$', selector_type)
     if not m:
       raise ValueError('Invalid or unsupported type for'
                        'sel op selector {selector_type}')
@@ -122,12 +130,16 @@ def generate_ir_package(op: str,
       cases = args[1:]
       args = args[0:1]
       args.append('cases=[%s]' % ', '.join(cases))
-  elif op == 'one_hot_sel':
+  elif op == 'one_hot_sel' or op == 'priority_sel':
     cases = args[1:]
     args = args[0:1]
     args.append('cases=[%s]' % ', '.join(cases))
 
   args.extend(f'{k}={v}' for k, v in attributes)
+
+  # Special case for kUMulp / kSMulp (dual results)
+  if op == 'umulp' or op == 'smulp':
+    output_type = f'({output_type}, {output_type})'
 
   if literal_operand is None:
     ir_text = textwrap.dedent("""\
@@ -179,8 +191,10 @@ def generate_verilog_module(
     The module signature and Verilog text (as ModuleGeneratorResult).
   """
   package = ir_parser_mod.Parser.parse_package(ir_text)
-  module_generator_result = pipeline_generator_mod.generate_pipelined_module_with_n_stages(
-      package, 1, module_name)
+  module_generator_result = (
+      pipeline_generator_mod.generate_pipelined_module_with_n_stages(
+          package, 1, module_name)
+  )
   return module_generator_result
 
 

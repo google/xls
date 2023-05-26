@@ -436,6 +436,7 @@ def xls_synthesis_metrics(
 def xls_delay_model_generation(
         name,
         standard_cells,
+        samples_file,
         **kwargs):
     """Generate an XLS delay model for one PDK corner.
 
@@ -470,7 +471,7 @@ def xls_delay_model_generation(
         executable = True,
         output_to_bindir = True,
         local = True,
-        srcs = [standard_cells],
+        srcs = [standard_cells, samples_file],
         outs = [name + ".sh"],
         tools = [
             "@at_clifford_yosys//:yosys",
@@ -495,6 +496,7 @@ def xls_delay_model_generation(
                 echo -n ' ' --synth_libs $${lib} >> $@; \
                 echo -n ' ' --client $(location //xls/synthesis:timing_characterization_client_main) >> $@; \
                 echo -n ' ' --server $(location //xls/synthesis/yosys:yosys_server_main) >> $@; \
+                echo -n ' ' --samples_path $(location " + samples_file + ") >> $@; \
                 echo -n ' ' --out_path " + name + ".textproto >> $@; \
                 echo -n ' ' \\\"\\$$\\@\\\" >> $@; \
                 echo '' >> $@",

@@ -1,0 +1,453 @@
+# Copyright 2023 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# proto-file: xls/delay_model/delay_model.proto
+# proto-message: OpSamplesList
+
+
+# This sample must be first to establish reg->reg overhead.
+# It is then used as "delay_offset" for all data points:
+#  subtracted from their delay to get the net operator delay.
+op_samples {
+  op: "kIdentity"
+  samples { result_width: 1  operand_widths: 1 }
+}
+
+op_samples {
+  op: "kNot"
+  samples { result_width: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64 }
+}
+op_samples {
+  op: "kAnd"
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+}
+# "kNand" alias "kAnd"
+op_samples {
+  op: "kOr"
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+}
+# "kNor" alias "kOr"
+op_samples {
+  op: "kXor"
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+}
+
+# reductions
+op_samples {
+  op: "kAndReduce"
+  samples { result_width: 1  operand_widths: 4 }
+  samples { result_width: 1  operand_widths: 8 }
+  samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 64 }
+  samples { result_width: 1  operand_widths: 128 }
+}
+op_samples {
+  op: "kOrReduce"
+  samples { result_width: 1  operand_widths: 4 }
+  samples { result_width: 1  operand_widths: 8 }
+  samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 64 }
+  samples { result_width: 1  operand_widths: 128 }
+}
+op_samples {
+  op: "kXorReduce"
+  samples { result_width: 1  operand_widths: 4 }
+  samples { result_width: 1  operand_widths: 8 }
+  samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 64 }
+  samples { result_width: 1  operand_widths: 128 }
+}
+
+
+# !!! These all give identical delay -- that is not right.
+# --> Yosys moves the sign bit fanout to AFTER the output flops
+#       (and eliminates the high-order output flops).
+# --> Can we turn off flop elim?
+# --> Yosys wreduce is responsible, but if you skip it,
+#     they still get removed in synth:fine.
+#     EVEN IF the wide reg is marked with "keep".
+# --> FIXME
+op_samples {
+  op: "kSignExt"
+  attributes: "new_bit_count=%r"
+  samples { result_width: 1  operand_widths: 1 }
+  samples { result_width: 4  operand_widths: 1 }
+  samples { result_width: 4  operand_widths: 2 }
+  samples { result_width: 8  operand_widths: 4 }
+  samples { result_width: 16  operand_widths: 8 }
+  samples { result_width: 16  operand_widths: 12 }
+  samples { result_width: 32  operand_widths: 16 }
+  samples { result_width: 32  operand_widths: 24 }
+  samples { result_width: 64  operand_widths: 32 }
+  samples { result_width: 64  operand_widths: 48 }
+  samples { result_width: 128  operand_widths: 64 }
+  samples { result_width: 128  operand_widths: 96 }
+}
+# "kZeroExt" free (fixed:0)
+
+
+
+op_samples {
+  op: "kShll"
+  samples { result_width: 256  operand_widths: 256  operand_widths: 8 }
+  samples { result_width: 128  operand_widths: 128  operand_widths: 7 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 6 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 5 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 4 }
+}
+# "kShra" "kShrl" alias "kShll"
+
+op_samples {
+  op: "kDynamicBitSlice"
+  attributes: "width=%r"
+  samples { result_width: 8  operand_widths: 16  operand_widths: 4 }
+  samples { result_width: 8  operand_widths: 32  operand_widths: 5 }
+  samples { result_width: 8  operand_widths: 64  operand_widths: 6 }
+  samples { result_width: 8  operand_widths: 128  operand_widths: 7 }
+  samples { result_width: 8  operand_widths: 256  operand_widths: 8 }
+  samples { result_width: 16  operand_widths: 32  operand_widths: 5 }
+  samples { result_width: 16  operand_widths: 64  operand_widths: 6 }
+  samples { result_width: 16  operand_widths: 128  operand_widths: 7 }
+  samples { result_width: 16  operand_widths: 256  operand_widths: 8 }
+}
+# "kBitSliceUpdate" alias "kDynamicBitSlice"
+
+
+op_samples {
+  op: "kArrayIndex"
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 256
+    }
+  }
+  samples {
+    result_width: 32
+    operand_widths: 32
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 5
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 32
+    }
+  }
+  samples {
+    result_width: 16
+    operand_widths: 16
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+  samples {
+    result_width: 128
+    operand_widths: 128
+    operand_widths: 4
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 16
+    }
+  }
+}
+
+
+#
+# top fn main(op0: bits[8][4][256], op1: bits[8]) -> bits[8][4] {
+#   ret result: bits[8][4] = array_index(op0, indices=[op1])
+# }
+#
+op_samples {
+  op: "kArrayIndex"
+  samples {
+    result_width: 8
+    result_element_counts: 4
+    operand_widths: 8
+    operand_widths: 8
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+      element_counts: 256
+    }
+  }
+}
+
+
+#
+# top fn main(op0: bits[8][4][256], op1: bits[8], op2: bits[2]) -> bits[8] {
+#   ret result: bits[8] = array_index(op0, indices=[op1, op2])
+# }
+#
+op_samples {
+  op: "kArrayIndex"
+  samples {
+    result_width: 8
+    operand_widths: 8
+    operand_widths: 8
+    operand_widths: 2
+    operand_element_counts {
+      operand_number: 0
+      element_counts: 4
+      element_counts: 256
+    }
+  }
+}
+
+
+# TODO kArrayUpdate
+
+op_samples {
+  op: "kSel"
+  samples { result_width: 1024  operand_widths: 1  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width: 512  operand_widths: 1  operand_widths: 512  operand_widths: 512 }
+  samples { result_width: 128  operand_widths: 1  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 1  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 1024  operand_widths: 2  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
+  samples { result_width: 512  operand_widths: 2  operand_widths: 512  operand_widths: 512  operand_widths: 512  operand_widths: 512 }
+  samples { result_width: 128  operand_widths: 2  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 2  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+}
+
+op_samples {
+  op: "kOneHotSel"
+  samples { result_width: 128  operand_widths: 4  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 8  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 16  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 4  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 64  operand_widths: 8  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 64  operand_widths: 16  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 32  operand_widths: 8  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 32  operand_widths: 16  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 16  operand_widths: 2  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 16  operand_widths: 5  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+}
+
+op_samples {
+  op: "kPrioritySel"
+  samples { result_width: 128  operand_widths: 4  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 8  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 16  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 4  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 64  operand_widths: 8  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 64  operand_widths: 16  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 32  operand_widths: 8  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 32  operand_widths: 16  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 16  operand_widths: 2  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 16  operand_widths: 5  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+}
+
+op_samples {
+  op: "kGate"
+  samples { result_width: 256  operand_widths: 1  operand_widths: 256 }
+  samples { result_width: 128  operand_widths: 1  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 1  operand_widths: 64 }
+  samples { result_width: 40  operand_widths: 1  operand_widths: 40 }
+  samples { result_width: 24  operand_widths: 1  operand_widths: 24 }
+  samples { result_width: 8  operand_widths: 1  operand_widths: 8 }
+  samples { result_width: 4  operand_widths: 1  operand_widths: 4 }
+}
+
+op_samples {
+  op: "kDecode"
+  attributes: "width=%r"
+  samples { result_width: 512  operand_widths: 9 }
+  samples { result_width: 256  operand_widths: 8 }
+  samples { result_width: 128  operand_widths: 7 }
+  samples { result_width: 64  operand_widths: 6 }
+  samples { result_width: 32  operand_widths: 5 }
+  samples { result_width: 16  operand_widths: 4 }
+}
+
+op_samples {
+  op: "kEncode"
+  samples { result_width: 9  operand_widths: 512 }
+  samples { result_width: 8  operand_widths: 256 }
+  samples { result_width: 7  operand_widths: 128 }
+  samples { result_width: 6  operand_widths: 64 }
+  samples { result_width: 5  operand_widths: 32 }
+  samples { result_width: 4  operand_widths: 16 }
+}
+
+op_samples {
+  op: "kOneHot"
+  attributes: "lsb_prio=true"
+  samples { result_width: 1025  operand_widths: 1024 }
+  samples { result_width: 513  operand_widths: 512 }
+  samples { result_width: 257  operand_widths: 256 }
+  samples { result_width: 129  operand_widths: 128 }
+  samples { result_width: 65  operand_widths: 64 }
+  samples { result_width: 48  operand_widths: 47 }
+  samples { result_width: 33  operand_widths: 32 }
+  samples { result_width: 25  operand_widths: 24 }
+  samples { result_width: 16  operand_widths: 15 }
+  samples { result_width: 9  operand_widths: 8 }
+  samples { result_width: 6  operand_widths: 5 }
+}
+
+op_samples {
+  op: "kAdd"
+  samples { result_width: 256  operand_widths: 256  operand_widths: 256 }
+  samples { result_width: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 40  operand_widths: 40  operand_widths: 40 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 24  operand_widths: 24  operand_widths: 24 }
+  samples { result_width: 20  operand_widths: 20  operand_widths: 20 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 12  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 10  operand_widths: 10  operand_widths: 10 }
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 6  operand_widths: 6  operand_widths: 6 }
+  samples { result_width: 5  operand_widths: 5  operand_widths: 5 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 3  operand_widths: 3  operand_widths: 3 }
+  samples { result_width: 2  operand_widths: 2  operand_widths: 2 }
+  samples { result_width: 1  operand_widths: 1  operand_widths: 1 }
+}
+# "kSub" alias "kAdd"
+
+op_samples {
+  op: "kNeg"
+  samples { result_width: 256  operand_widths: 256 }
+  samples { result_width: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 64 }
+  samples { result_width: 40  operand_widths: 40 }
+  samples { result_width: 32  operand_widths: 32 }
+  samples { result_width: 24  operand_widths: 24 }
+  samples { result_width: 8  operand_widths: 8 }
+  samples { result_width: 4  operand_widths: 4 }
+}
+
+op_samples {
+  op: "kUMul"
+  specialization: OPERANDS_IDENTICAL
+  samples { result_width: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 47  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 24  operand_widths: 24  operand_widths: 24 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+}
+op_samples {
+  op: "kUMul"
+  samples { result_width: 2  operand_widths: 2  operand_widths: 2 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 6  operand_widths: 6  operand_widths: 6 }
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 16  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 12  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 32  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 24  operand_widths: 24  operand_widths: 24 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 64  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 47  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+}
+# "kSMul" alias "kUMul"
+
+
+op_samples {
+  op: "kUMulp"
+  specialization: OPERANDS_IDENTICAL
+  samples { result_width: 256  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 128  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 96  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 64  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 48  operand_widths: 24  operand_widths: 24 }
+  samples { result_width: 32  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+}
+op_samples {
+  op: "kUMulp"
+  samples { result_width: 128  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 94  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 64  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 48  operand_widths: 24  operand_widths: 24 }
+  samples { result_width: 32  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 16  operand_widths: 8  operand_widths: 8 }
+}
+# kSMulp alias_op: "kUMulp"
+
+
+op_samples {
+  op: "kSLe"
+  samples { result_width: 1  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 1  operand_widths: 6  operand_widths: 6 }
+  samples { result_width: 1  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 1  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 1  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 1  operand_widths: 40  operand_widths: 40 }
+  samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
+}
+# "kSLt" "kSGe" "kSGt" "kULe" "kULt" "kUGe" "kUGt" alias "kSLe"
+
+op_samples {
+  op: "kEq"
+  samples { result_width: 1  operand_widths: 4  operand_widths: 4 }
+  samples { result_width: 1  operand_widths: 6  operand_widths: 6 }
+  samples { result_width: 1  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 1  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 1  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 1  operand_widths: 40  operand_widths: 40 }
+  samples { result_width: 1  operand_widths: 47  operand_widths: 47 }
+  samples { result_width: 1  operand_widths: 64  operand_widths: 64 }
+}
+# "kNe" alias "kEq"
+
+
+# SKIP: kUDiv, kSDiv, kUMod, kSMod
+# Skip (free): bit_slice, concat, reverse, tuple, tuple_index
+# TODO Channel ops?

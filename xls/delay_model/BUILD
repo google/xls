@@ -16,6 +16,7 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary, test, library
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+load("//xls/build_rules:xls_build_defs.bzl", "xls_delay_model_generation")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -235,3 +236,80 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
+
+py_binary(
+    name = "delay_model_join",
+    srcs = ["delay_model_join.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+        "//xls/common/file/python:filesystem",
+        "//xls/delay_model:delay_model_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "delay_model_join_test",
+    srcs = ["delay_model_join_test.py"],
+    data = [
+        ":delay_model_join",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+py_binary(
+    name = "extract_sample_points_from_delay_model",
+    srcs = ["extract_sample_points_from_delay_model.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:gfile",
+        "//xls/common/file/python:filesystem",
+        "//xls/delay_model:delay_model_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)
+
+py_test(
+    name = "extract_sample_points_from_delay_model_test",
+    srcs = ["extract_sample_points_from_delay_model_test.py"],
+    data = [
+        ":extract_sample_points_from_delay_model",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+xls_delay_model_generation(
+    name = "sky130_data_points",
+    samples_file = ":samples.textproto",
+    standard_cells = "@com_google_skywater_pdk_sky130_fd_sc_hd//:sky130_fd_sc_hd",
+)
+
+xls_delay_model_generation(
+    name = "asap7_data_points",
+    samples_file = ":samples.textproto",
+    standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
+    tags = ["manual"],
+)
+
+exports_files([
+    "samples.textproto",
+])

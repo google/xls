@@ -274,3 +274,49 @@ message DelayModel {
   // RegressionEstimator and BoundingBoxEstimator.
   repeated DataPoint data_points = 2;
 }
+
+// The op model describes the estimator for each XLS op type
+//  supported by this delay model.
+message OpModels {
+  repeated OpModel op_models = 1;
+}
+
+// Data points gathered from timing characterization
+//   (op, parameterization, specialization, result delay)
+//   used for XLS regression estimators.
+message DataPoints {
+  repeated DataPoint data_points = 1;
+}
+
+// For an operand that is an array type,
+//   there will be one or more element counts.
+// This contains
+//   * which operand these element counts apply to
+//   * the element count(s)
+message OperandElementCounts {
+  optional int64 operand_number = 1;
+  repeated int64 element_counts = 2;
+}
+
+// Detailed specification of the operand and result types
+message Parameterization {
+  optional int64 result_width = 1;
+  repeated int64 operand_widths = 2;
+  // --- anything below is used only with array types ---
+  repeated int64 result_element_counts = 3;
+  repeated OperandElementCounts operand_element_counts = 4;
+}
+
+// Specifies the set of sample points for a particular op
+message OpSamples {
+  optional string op = 1;
+  repeated Parameterization samples = 2;
+  optional SpecializationKind specialization = 3;
+  optional string attributes = 4;
+}
+
+// Multiple OpSamples messages
+// There can be multiple op_samples with the same 'op'.
+message OpSamplesList {
+  repeated OpSamples op_samples = 1;
+}
