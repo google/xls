@@ -150,8 +150,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,12,9)])
   add.12: bits[32] = add(a, b, id=12, pos=[(0,13,36)])
   tok__2: token = send(tok__1, add.12, channel_id=2, id=13)
-  after_all.15: token = after_all(__token, tok, tok__1, tok__2, id=15)
-  next (after_all.15)
+  next (tok__2)
 }
 )");
 

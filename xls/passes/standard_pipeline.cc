@@ -48,6 +48,7 @@
 #include "xls/passes/strength_reduction_pass.h"
 #include "xls/passes/table_switch_pass.h"
 #include "xls/passes/token_dependency_pass.h"
+#include "xls/passes/token_simplification_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/useless_assert_removal_pass.h"
@@ -94,6 +95,8 @@ SimplificationPass::SimplificationPass(int64_t opt_level)
   Add<ArithSimplificationPass>(opt_level);
   Add<DeadCodeEliminationPass>();
   Add<BooleanSimplificationPass>();
+  Add<DeadCodeEliminationPass>();
+  Add<TokenSimplificationPass>();
   Add<DeadCodeEliminationPass>();
   Add<CsePass>();
 }

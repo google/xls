@@ -55,6 +55,7 @@ cc_library(
         ":strength_reduction_pass",
         ":table_switch_pass",
         ":token_dependency_pass",
+        ":token_simplification_pass",
         ":tuple_simplification_pass",
         ":unroll_pass",
         ":useless_assert_removal_pass",
@@ -478,6 +479,21 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "token_simplification_pass",
+    srcs = ["token_simplification_pass.cc"],
+    hdrs = ["token_simplification_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
     ],
 )
 
@@ -1358,6 +1374,23 @@ cc_test(
     srcs = ["token_dependency_pass_test.cc"],
     deps = [
         ":token_dependency_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "token_simplification_pass_test",
+    srcs = ["token_simplification_pass_test.cc"],
+    deps = [
+        ":token_simplification_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
