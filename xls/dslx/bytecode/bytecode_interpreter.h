@@ -269,11 +269,13 @@ class ProcInstance {
  public:
   ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
                std::unique_ptr<BytecodeFunction> next_fn,
-               std::vector<InterpValue> next_args)
+               std::vector<InterpValue> next_args,
+               const TypeInfo* type_info)
       : proc_(proc),
         interpreter_(std::move(interpreter)),
         next_fn_(std::move(next_fn)),
-        next_args_(std::move(next_args)) {}
+        next_args_(std::move(next_args)),
+        type_info_(type_info) {}
 
   // Executes a single "tick" of the ProcInstance.
   absl::StatusOr<ProcRunResult> Run();
@@ -283,6 +285,7 @@ class ProcInstance {
   std::unique_ptr<BytecodeInterpreter> interpreter_;
   std::unique_ptr<BytecodeFunction> next_fn_;
   std::vector<InterpValue> next_args_;
+  const TypeInfo* type_info_;
 };
 
 }  // namespace xls::dslx

@@ -1519,6 +1519,39 @@ fn main() {
   EXPECT_TRUE(value.IsUnit());
 }
 
+// https://github.com/google/xls/issues/981
+TEST(BytecodeInterpreterTest, AssertEqFailProcIterations) {
+  constexpr std::string_view kProgram = R"(
+#[test_proc]
+proc BTester {
+    terminator: chan<bool> out;
+
+    init { (u32:0) }
+
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+
+    next(tok: token, state: u32) {
+        assert_eq(state, u32:0);
+        // ensure at least 2 `next()` iterations to create an interpreter frame.
+        let tok = send_if(tok, terminator, state > u32:1, true);
+        (state + u32:1)
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  ::testing::internal::CaptureStderr();
+  absl::StatusOr<TestResult> result = ParseAndTest(
+      kProgram, kModuleName, std::string{temp_file.path()}, options);
+  std::string stdcerr(::testing::internal::GetCapturedStderr());
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_THAT(stdcerr, HasSubstr("were not equal"));
+}
+
 TEST(BytecodeInterpreterTest, DistinctNestedParametricProcs) {
   // Tests that B, which has one set of parameters, can instantiate A, which has
   // a different set of parameters.
