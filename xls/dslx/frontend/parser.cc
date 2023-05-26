@@ -2779,9 +2779,80 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
     }
 
     if (peek->kind() == TokenKind::kIdentifier) {
+      // We have to distinguish between:
+      // type identifiers and
+      // value identifiers
       XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
-      return ToExprNode(nocr);
+      XLS_ASSIGN_OR_RETURN(bool complex_,
+          PeekTokenIn({TokenKind::kOAngle, TokenKind::kOBrack}));
+      if (!complex_) {
+        return ToExprNode(nocr);
+      }
+
+      // Complex parametrics should only be types:
+      // - imports can't be parametric.
+      // - existing code didn't allow for parametric enums
+      TypeRef* type_ref;
+      if (std::holds_alternative<ColonRef*>(nocr)) {
+        auto cr = std::get<ColonRef*>(nocr);
+        if (!cr->ResolveImportSubject().has_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              BoundNode bn,
+              bindings.ResolveNodeOrError(
+                  ToAstNode(TypeDefinitionGetNameDef(cr))->ToString(),
+                  cr->span()));
+          return ParseErrorStatus(
+              cr->span(),
+              absl::StrFormat("Expected module for module-reference; got %s",
+                              ToAstNode(bn)->ToString()));
+        }
+        type_ref = module_->Make<TypeRef>(cr->span(), cr);
+      } else {
+        auto nr = std::get<NameRef*>(nocr);
+        XLS_ASSIGN_OR_RETURN(
+            BoundNode type_def,
+            bindings.ResolveNodeOrError(nr->ToString(), nr->span()));
+        if (!IsOneOf<TypeAlias, EnumDef, StructDef>(ToAstNode(type_def))) {
+          return ParseErrorStatus(
+              nr->span(),
+              absl::StrFormat(
+                  "Expected a type, but identifier '%s' doesn't resolve to "
+                  "a type, it resolved to a %s",
+                  nr->ToString(), BoundNodeGetTypeString(type_def)));
+        }
+
+        XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
+                             BoundNodeToTypeDefinition(type_def));
+        type_ref = module_->Make<TypeRef>(nr->span(), type_definition);
+      }
+
+      std::vector<ExprOrType> parametrics;
+      XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
+      if (peek_is_oangle) {
+        XLS_ASSIGN_OR_RETURN(parametrics, ParseParametrics(bindings));
+      }
+
+      std::vector<Expr*> dims;
+      XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
+      if (peek_is_obrack) {  // Array type annotation.
+        XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
+      }
+
+      Span span(ToAstNode(nocr)->GetSpan().value().start(), GetPos());
+      XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
+                           MakeTypeRefTypeAnnotation(
+                             span, type_ref, dims,
+                             std::move(parametrics)));
+
+      {
+        XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+        if (peek->kind() == TokenKind::kColon) {
+          return ParseCast(bindings, type_annotation);
+        }
+      }
+      return type_annotation;
     }
+
 
     XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
                          ParseTypeAnnotation(bindings));
