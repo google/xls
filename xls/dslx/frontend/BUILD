@@ -281,11 +281,23 @@ cc_library(
 )
 
 cc_library(
+    name = "ast_node",
+    srcs = ["ast_node.cc"],
+    hdrs = ["ast_node.h"],
+    deps = [
+        ":pos",
+        "@com_google_absl//absl/status",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_library(
     name = "ast",
     srcs = ["ast.cc"],
     hdrs = ["ast.h"],
     deps = [
         ":ast_builtin_types",
+        ":ast_node",
         ":pos",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

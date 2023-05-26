@@ -1158,7 +1158,7 @@ TEST_F(ParserTest, MatchFreevars) {
   y => z,
 })",
                           {"x", "y", "z"}, false, std::nullopt);
-  FreeVariables fv = e->GetFreeVariables(&e->span().start());
+  FreeVariables fv = GetFreeVariables(e, &e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
 }
@@ -1169,7 +1169,7 @@ TEST_F(ParserTest, ForFreevars) {
   new_accum
 }(u32:0))",
                           {"range", "j"}, false, std::nullopt);
-  FreeVariables fv = e->GetFreeVariables(&e->span().start());
+  FreeVariables fv = GetFreeVariables(e, &e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
 }

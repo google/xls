@@ -47,27 +47,11 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/format_strings.h"
-
-namespace xls::dslx {
-
-// Helper function for downcast-based membership testing.
-//
-// Not fast, but this is not performance critical code at the moment.
-template <typename ObjT>
-bool IsOneOf(ObjT* obj) {
-  return false;
-}
-template <typename FirstT, typename... Rest, typename ObjT>
-bool IsOneOf(ObjT* obj) {
-  if (dynamic_cast<FirstT*>(obj) != nullptr) {
-    return true;
-  }
-  return IsOneOf<Rest...>(obj);
-}
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
 #define XLS_DSLX_EXPR_NODE_EACH(X) \
@@ -142,17 +126,12 @@ bool IsOneOf(ObjT* obj) {
   X(TypeRefTypeAnnotation)        \
   XLS_DSLX_EXPR_NODE_EACH(X)
 
-// Forward decl of non-leaf type.
-class Expr;
-class TypeAnnotation;
+namespace xls::dslx {
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
 XLS_DSLX_AST_NODE_EACH(FORWARD_DECL)
-
 #undef FORWARD_DECL
-
-using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
 
 // Helper type (abstract base) for double dispatch on AST nodes.
 class AstNodeVisitor {
@@ -179,13 +158,34 @@ class AstNodeVisitorWithDefault : public AstNodeVisitor {
 #undef DECLARE_HANDLER
 };
 
+// Helper function for downcast-based membership testing.
+//
+// Not fast, but this is not performance critical code at the moment.
+template <typename ObjT>
+bool IsOneOf(ObjT* obj) {
+  return false;
+}
+template <typename FirstT, typename... Rest, typename ObjT>
+bool IsOneOf(ObjT* obj) {
+  if (dynamic_cast<FirstT*>(obj) != nullptr) {
+    return true;
+  }
+  return IsOneOf<Rest...>(obj);
+}
+
+// Forward decl of non-leaf type.
+class Expr;
+class TypeAnnotation;
+
+using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
+
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
 using AnyNameDef = std::variant<const NameDef*, BuiltinNameDef*>;
 
 // Holds a mapping {identifier: NameRefs} -- this is used for accumulating free
 // variable references (the NameRefs) in the source program; see
-// AstNode::GetFreeVariables().
+// GetFreeVariables().
 //
 // Note: this is generally used as an immutable collection -- it gets built, and
 // once built it can be queried but not mutated.
@@ -227,149 +227,20 @@ class FreeVariables {
   absl::flat_hash_map<std::string, std::vector<const NameRef*>> values_;
 };
 
-// Enum with an entry for each leaf type in the AST class hierarchy -- this is
-// primarily for convenience in tasks like serialization, for most purposes
-// visitors should be used (e.g. AstNodeVisitor, ExprVisitor).
-enum class AstNodeKind {
-  kArray,
-  kAttr,
-  kBinop,
-  kBlock,
-  kBuiltinNameDef,
-  kCast,
-  kChannelDecl,
-  kColonRef,
-  kConstantDef,
-  kConstRef,
-  kEnumDef,
-  kFor,
-  kFormatMacro,
-  kFunction,
-  kImport,
-  kIndex,
-  kInstantiation,
-  kInvocation,
-  kJoin,
-  kLet,
-  kMatch,
-  kMatchArm,
-  kModule,
-  kNameDef,
-  kNameDefTree,
-  kNameRef,
-  kNumber,
-  kParam,
-  kParametricBinding,
-  kProc,
-  kQuickCheck,
-  kRange,
-  kRecv,
-  kRecvIf,
-  kRecvIfNonBlocking,
-  kRecvNonBlocking,
-  kSend,
-  kSendIf,
-  kSlice,
-  kSpawn,
-  kSplatStructInstance,
-  kStatement,
-  kString,
-  kStructDef,
-  kStructInstance,
-  kConditional,
-  kTestFunction,
-  kTestProc,
-  kTupleIndex,
-  kTypeAlias,
-  kTypeAnnotation,
-  kTypeRef,
-  kUnop,
-  kUnrollFor,
-  kWidthSlice,
-  kWildcardPattern,
-  kXlsTuple,
-  kZeroMacro,
-};
+// Retrieves all the free variables (references to names that are defined
+// prior to start_pos) that are transitively in this AST subtree.
+//
+// For example, if given the AST node for this function:
+//
+//    const FOO = u32:42;
+//    fn main(x: u32) { FOO+x }
+//
+// And using the starting point of the function as the start_pos, the FOO will
+// be flagged as a free variable and returned.
+FreeVariables GetFreeVariables(const AstNode* node,
+                               const Pos* start_pos = nullptr);
 
-std::string_view AstNodeKindToString(AstNodeKind kind);
-
-inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
-  os << AstNodeKindToString(kind);
-  return os;
-}
-
-// Abstract base class for AST nodes.
-class AstNode {
- public:
-  explicit AstNode(Module* owner) : owner_(owner) {}
-  virtual ~AstNode();
-
-  virtual AstNodeKind kind() const = 0;
-
-  // Retrieves the name of the leafmost-derived class, suitable for debugging;
-  // e.g. "NameDef", "BuiltinTypeAnnotation", etc.
-  virtual std::string_view GetNodeTypeName() const = 0;
-  virtual std::string ToString() const = 0;
-
-  // Returns a string representation of this node and (if supported by this
-  // node's actual type) attempts to return it as a single line.
-  virtual std::string ToInlineString() const { return ToString(); }
-
-  virtual std::optional<Span> GetSpan() const = 0;
-
-  AstNode* parent() const { return parent_; }
-
-  // Retrieves all the child nodes for this AST node.
-  //
-  // If want_types is false, then type annotations should be excluded from the
-  // returned child nodes. This exclusion of types is useful e.g. when
-  // attempting to find free variables that are referred to during program
-  // execution, since all type information must be resolved to constants at type
-  // inference time.
-  virtual std::vector<AstNode*> GetChildren(bool want_types) const = 0;
-
-  // Used for double-dispatch (making the actual type of an apparent AstNode
-  // available to calling code).
-  virtual absl::Status Accept(AstNodeVisitor* v) const = 0;
-
-  // Retrieves all the free variables (references to names that are defined
-  // prior to start_pos) that are transitively in this AST subtree.
-  //
-  // For example, if given the AST node for this function:
-  //
-  //    const FOO = u32:42;
-  //    fn main(x: u32) { FOO+x }
-  //
-  // And using the starting point of the function as the start_pos, the FOO will
-  // be flagged as a free variable and returned.
-  FreeVariables GetFreeVariables(const Pos* start_pos = nullptr) const;
-
-  Module* owner() const { return owner_; }
-
-  // Marks this node as the parent of all its child nodes.
-  void SetParentage();
-
- private:
-  void set_parent(AstNode* parent) { parent_ = parent; }
-
-  Module* owner_;
-  AstNode* parent_ = nullptr;
-};
-
-// Visits transitively from the root down using post-order visitation (visit
-// children, then node). want_types is as in AstNode::GetChildren().
-absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
-                           bool want_types);
-
-// Helpers for converting variants of "AstNode subtype" pointers and their
-// variants to the base `AstNode*`.
-template <typename... Types>
-inline AstNode* ToAstNode(const std::variant<Types...>& v) {
-  return absl::ConvertVariantTo<AstNode*>(v);
-}
-inline AstNode* ToAstNode(AstNode* n) { return n; }
-
-// As above, but for Expr base.
+// Analogous to ToAstNode(), but for Expr base.
 template <typename... Types>
 inline Expr* ToExprNode(const std::variant<Types...>& v) {
   return absl::ConvertVariantTo<Expr*>(v);

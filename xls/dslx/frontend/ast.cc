@@ -45,6 +45,27 @@
 namespace xls::dslx {
 namespace {
 
+class DfsIteratorNoTypes {
+ public:
+  explicit DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
+
+  bool HasNext() const { return !to_visit_.empty(); }
+
+  const AstNode* Next() {
+    const AstNode* result = to_visit_.front();
+    to_visit_.pop_front();
+    std::vector<AstNode*> children = result->GetChildren(/*want_types=*/false);
+    std::reverse(children.begin(), children.end());
+    for (AstNode* c : children) {
+      to_visit_.push_front(c);
+    }
+    return result;
+  }
+
+ private:
+  std::deque<const AstNode*> to_visit_;
+};
+
 static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
   return absl::visit(
       Visitor{
@@ -189,22 +210,6 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
 
-AstNode::~AstNode() = default;
-
-void AstNode::SetParentage() {
-  for (AstNode* kiddo : GetChildren(/*want_types=*/true)) {
-    kiddo->set_parent(this);
-  }
-}
-
-absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
-                           bool want_types) {
-  for (AstNode* child : root->GetChildren(want_types)) {
-    XLS_RETURN_IF_ERROR(WalkPostOrder(child, visitor, want_types));
-  }
-  return root->Accept(visitor);
-}
-
 absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
   if (auto* n = dynamic_cast<NameRef*>(e)) {
     return ColonRef::Subject(n);
@@ -309,6 +314,28 @@ absl::flat_hash_set<std::string> FreeVariables::Keys() const {
   return result;
 }
 
+FreeVariables GetFreeVariables(const AstNode* node, const Pos* start_pos) {
+  DfsIteratorNoTypes it(node);
+  FreeVariables freevars;
+  while (it.HasNext()) {
+    const AstNode* n = it.Next();
+    if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
+      // If a start position was given we test whether the name definition
+      // occurs before that start position. (If none was given we accept all
+      // name refs.)
+      if (start_pos == nullptr) {
+        freevars.Add(name_ref->identifier(), name_ref);
+      } else {
+        std::optional<Pos> name_def_start = name_ref->GetNameDefStart();
+        if (!name_def_start.has_value() || *name_def_start < *start_pos) {
+          freevars.Add(name_ref->identifier(), name_ref);
+        }
+      }
+    }
+  }
+  return freevars;
+}
+
 std::string BuiltinTypeToString(BuiltinType t) {
   switch (t) {
 #define CASE(__enum, B, __str, ...) \
@@ -365,49 +392,6 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s) {
 #undef CASE
   return absl::InvalidArgumentError(
       absl::StrFormat("String is not a BuiltinType: \"%s\"", s));
-}
-
-class DfsIteratorNoTypes {
- public:
-  explicit DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
-
-  bool HasNext() const { return !to_visit_.empty(); }
-
-  const AstNode* Next() {
-    const AstNode* result = to_visit_.front();
-    to_visit_.pop_front();
-    std::vector<AstNode*> children = result->GetChildren(/*want_types=*/false);
-    std::reverse(children.begin(), children.end());
-    for (AstNode* c : children) {
-      to_visit_.push_front(c);
-    }
-    return result;
-  }
-
- private:
-  std::deque<const AstNode*> to_visit_;
-};
-
-FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) const {
-  DfsIteratorNoTypes it(this);
-  FreeVariables freevars;
-  while (it.HasNext()) {
-    const AstNode* n = it.Next();
-    if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
-      // If a start position was given we test whether the name definition
-      // occurs before that start position. (If none was given we accept all
-      // name refs.)
-      if (start_pos == nullptr) {
-        freevars.Add(name_ref->identifier(), name_ref);
-      } else {
-        std::optional<Pos> name_def_start = name_ref->GetNameDefStart();
-        if (!name_def_start.has_value() || *name_def_start < *start_pos) {
-          freevars.Add(name_ref->identifier(), name_ref);
-        }
-      }
-    }
-  }
-  return freevars;
 }
 
 const absl::btree_set<BinopKind>& GetBinopSameTypeKinds() {
