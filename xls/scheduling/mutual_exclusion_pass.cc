@@ -994,6 +994,9 @@ absl::StatusOr<bool> MutualExclusionPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(bool subpass_changed, MergeNodes(&p, f, merge_class));
     changed |= subpass_changed;
   }
+
+  unit->schedule = std::nullopt;
+
   return changed;
 }
 

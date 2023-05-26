@@ -47,6 +47,7 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
+  top->Add<PipelineSchedulingPass>();
   top->Add<ChannelLegalizationPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<TokenDependencyPass>(),
                                   /*reschedule_new_nodes=*/true);
