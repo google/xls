@@ -745,6 +745,27 @@ TEST_F(XlsIntTest, Reverse) {
                     xabsl::SourceLocation::current());
 }
 
+
+TEST_F(XlsIntTest, DoubleConstructor) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<10, true> x(5.5);
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, 5, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, FloatConstructor) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package() {
+      XlsInt<10, true> x(5.5f);
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, 5, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

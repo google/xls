@@ -51,6 +51,7 @@
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "clang/include/clang/Basic/TypeTraits.h"
+#include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
@@ -3233,6 +3234,30 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
     return CValue(context().fb->Literal(lbits, loc), ctype);
   }
+  if (auto ilit = clang::dyn_cast<const clang::FloatingLiteral>(expr)) {
+    llvm::APFloat decimal_shift(pow(2, 32));
+    llvm::APFloat apf = ilit->getValue();
+    bool losesInfo;
+    apf.convert(decimal_shift.getSemantics(), llvm::RoundingMode::TowardZero,
+                &losesInfo);
+    apf.multiply(decimal_shift, llvm::RoundingMode::TowardZero);
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                         TranslateTypeFromClang(ilit->getType(), loc));
+    llvm::APSInt shifted(64);
+    bool exact = false;
+    apf.convertToInteger(shifted, llvm::RoundingMode::TowardZero, &exact);
+    // Raw data is in little endian format
+    auto api_raw = reinterpret_cast<const uint8_t*>(shifted.getRawData());
+    vector<uint8_t> truncated;
+    const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
+    truncated.reserve(truncated_n);
+    for (int i = 0; i < truncated_n; ++i) {
+      truncated.emplace_back(api_raw[i]);
+    }
+    // FromBytes() accepts little endian format
+    auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
+    return CValue(context().fb->Literal(lbits, loc), ctype);
+  }
   if (auto charlit = clang::dyn_cast<const clang::CharacterLiteral>(expr)) {
     if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
       return absl::UnimplementedError(
@@ -3664,6 +3689,9 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CIntType>()) {
     return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
+  }
+  if (t->Is<CDecimalType>()) {
+    return xls::Value(xls::UBits(0, t->As<CDecimalType>()->width()));
   }
   if (t->Is<CBitsType>()) {
     auto it = t->As<CBitsType>();
@@ -4691,6 +4719,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     if (builtin->isVoidType()) {
       return shared_ptr<CType>(new CVoidType());
     }
+    if (builtin->isFloatingType()) {
+      return shared_ptr<CType>(new CDecimalType(64, 32));
+    }
     if (!builtin->isInteger()) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "BuiltIn type other than integer"));
@@ -4833,6 +4864,10 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CIntType>()) {
     auto it = t->As<CIntType>();
+    return package_->GetBitsType(it->width());
+  }
+  if (t->Is<CDecimalType>()) {
+    auto it = t->As<CDecimalType>();
     return package_->GetBitsType(it->width());
   }
   if (t->Is<CBitsType>()) {
@@ -5010,27 +5045,38 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
   if (out_type->Is<CBoolType>()) {
     return GenBoolConvert(in, loc);
   }
+  if (out_type->Is<CDecimalType>()) {
+    return in.rvalue();
+  }
   if (out_type->Is<CIntType>()) {
-    if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
+    if (!(in.type()->Is<CDecimalType>() || in.type()->Is<CBoolType>() ||
+          in.type()->Is<CIntType>())) {
       return absl::UnimplementedError(ErrorMessage(
           loc, "Cannot convert type %s to int", std::string(*in.type())));
     }
-
-    const int expr_width = in.type()->GetBitWidth();
+    int expr_width = in.type()->GetBitWidth();
+    xls::BValue return_value = in.rvalue();
+    if (in.type()->Is<CDecimalType>()) {
+      auto decimal = in.type()->As<CDecimalType>();
+      xls::BValue shr_amount = context().fb->Literal(
+          xls::UBits(decimal->width() - decimal->integer_width(), 7), loc);
+      return_value = context().fb->Shra(in.rvalue(), shr_amount, loc);
+    }
     if (expr_width == out_type->GetBitWidth()) {
-      return in.rvalue();
+      return return_value;
     }
     if (expr_width < out_type->GetBitWidth()) {
       auto p_in_int = std::dynamic_pointer_cast<const CIntType>(in.type());
       if ((!in.type()->Is<CBoolType>()) &&
           (p_in_int != nullptr && p_in_int->is_signed())) {
-        return context().fb->SignExtend(in.rvalue(), out_type->GetBitWidth(),
+        return context().fb->SignExtend(return_value, out_type->GetBitWidth(),
                                         loc);
       }
-      return context().fb->ZeroExtend(in.rvalue(), out_type->GetBitWidth(),
+      return context().fb->ZeroExtend(return_value, out_type->GetBitWidth(),
                                       loc);
     }
-    return context().fb->BitSlice(in.rvalue(), 0, out_type->GetBitWidth(), loc);
+    return context().fb->BitSlice(return_value, 0, out_type->GetBitWidth(),
+                                  loc);
   }
   if (out_type->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));

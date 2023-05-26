@@ -49,7 +49,7 @@ static_assert(Log2Ceil<17> == 5);
 template <typename T, int Width>
 class BuiltinIntToBits {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Convert(T in) {
     __xls_bits<Width> in_bits;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_9_(aid): bits[i] = "
@@ -82,7 +82,7 @@ class ExtendBits<FromW, ToW, false> {
  public:
   static_assert(FromW < ToW);
 
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<ToW> Convert(__xls_bits<FromW> storage) {
     __xls_bits<ToW> ret;
     asm("fn (fid)(a: bits[i]) -> bits[d] { ret (aid): bits[d] = "
@@ -96,7 +96,7 @@ class ExtendBits<FromW, ToW, false> {
 template <int FromW, int ToW>
 class ExtendBits<FromW, ToW, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<ToW> Convert(__xls_bits<FromW> storage) {
     __xls_bits<ToW> ret;
     asm("fn (fid)(a: bits[i]) -> bits[d] { ret (aid): bits[d] = "
@@ -110,7 +110,7 @@ class ExtendBits<FromW, ToW, true> {
 template <int FromW, int ToW>
 class SliceBits {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<ToW> Convert(__xls_bits<FromW> storage) {
     __xls_bits<ToW> ret;
     asm("fn (fid)(a: bits[i]) -> bits[d] { ret (aid): bits[d] = "
@@ -124,7 +124,7 @@ class SliceBits {
 template <int Width>
 class PassThroughBits {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Convert(__xls_bits<Width> storage) {
     return storage;
   }
@@ -143,7 +143,7 @@ class MultiplyWithSign {};
 template <int Width>
 class MultiplyWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -158,7 +158,7 @@ class MultiplyWithSign<Width, false> {
 template <int Width>
 class MultiplyWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -191,7 +191,7 @@ class ShiftRightWithSign {};
 template <int Width, int IndexW>
 class ShiftRightWithSign<Width, false, IndexW> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<IndexW> b) {
     __xls_bits<Width> ret;
@@ -206,7 +206,7 @@ class ShiftRightWithSign<Width, false, IndexW> {
 template <int Width, int IndexW>
 class ShiftRightWithSign<Width, true, IndexW> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<IndexW> b) {
     __xls_bits<Width> ret;
@@ -224,7 +224,7 @@ class DivideWithSign {};
 template <int Width>
 class DivideWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -239,7 +239,7 @@ class DivideWithSign<Width, false> {
 template <int Width>
 class DivideWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -257,7 +257,7 @@ class ModuloWithSign {};
 template <int Width>
 class ModuloWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -272,7 +272,7 @@ class ModuloWithSign<Width, false> {
 template <int Width>
 class ModuloWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static __xls_bits<Width> Operate(__xls_bits<Width> a,
                                           __xls_bits<Width> b) {
     __xls_bits<Width> ret;
@@ -290,7 +290,7 @@ class GreaterWithSign {};
 template <int Width>
 class GreaterWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -304,7 +304,7 @@ class GreaterWithSign<Width, false> {
 template <int Width>
 class GreaterWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -321,7 +321,7 @@ class GreaterOrEqWithSign {};
 template <int Width>
 class GreaterOrEqWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -335,7 +335,7 @@ class GreaterOrEqWithSign<Width, false> {
 template <int Width>
 class GreaterOrEqWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -352,7 +352,7 @@ class LessWithSign {};
 template <int Width>
 class LessWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -366,7 +366,7 @@ class LessWithSign<Width, false> {
 template <int Width>
 class LessWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -383,7 +383,7 @@ class LessOrEqWithSign {};
 template <int Width>
 class LessOrEqWithSign<Width, false> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -397,7 +397,7 @@ class LessOrEqWithSign<Width, false> {
 template <int Width>
 class LessOrEqWithSign<Width, true> {
  public:
-  #pragma hls_synthetic_int
+#pragma hls_synthetic_int
   inline static bool Operate(__xls_bits<Width> a, __xls_bits<Width> b) {
     bool ret;
     asm("fn (fid)(a: bits[i], o: bits[i]) -> bits[1] { ret op_(aid): bits[1] = "
@@ -538,8 +538,15 @@ class XlsInt : public XlsIntBase<Width, Signed> {
       : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
             BuiltinIntToBits<unsigned long long, 64>::Convert(value))) {}
 
-  inline XlsInt(__xls_bits<Width> value)
-      : XlsIntBase<Width, Signed>(value) {}
+  inline XlsInt(const double value)
+      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
+            BuiltinIntToBits<long long, 64>::Convert(value))) {}
+
+  inline XlsInt(const float value)
+      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
+            BuiltinIntToBits<long long, 64>::Convert(value))) {}
+
+  inline XlsInt(__xls_bits<Width> value) : XlsIntBase<Width, Signed>(value) {}
 
   inline int to_int() const {
     XlsInt<32, true> ret(*this);
@@ -554,9 +561,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return reti;
   }
 
-  inline unsigned int to_uint() const {
-    return (unsigned int) to_int();
-  }
+  inline unsigned int to_uint() const { return (unsigned int)to_int(); }
 
   static const int width = Width;
   static const int i_width = Width;
@@ -652,7 +657,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return ret;                                                             \
   }                                                                         \
   template <int ToW, bool ToSign>                                           \
-  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {           \
+  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {            \
     (*this) = (*this)__OP o;                                                \
     return (*this);                                                         \
   }
@@ -668,8 +673,9 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_4_(aid): bits[i] = "         \
         "identity(a, pos=(loc)) }"                                             \
         : "=r"(ret.storage)                                                    \
-        : "i"(Result::width), "parama"(__IMPL<Result::width,                   \
-           Result::sign>::Operate(as.storage, bs.storage)));                   \
+        : "i"(Result::width),                                                  \
+          "parama"(__IMPL<Result::width, Result::sign>::Operate(as.storage,    \
+                                                                bs.storage))); \
     return ret;                                                                \
   }                                                                            \
   template <int ToW, bool ToSign>                                              \
@@ -925,4 +931,3 @@ OPS_WITH_INT(unsigned long long, 64, false)
 #undef ac_int
 
 #endif  // XLS_INT
-

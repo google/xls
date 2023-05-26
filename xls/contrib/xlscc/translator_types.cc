@@ -192,6 +192,62 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
   return absl::OkStatus();
 }
 
+CDecimalType::~CDecimalType() = default;
+
+CDecimalType::CDecimalType(int width, int integer_width)
+    : width_(width), integer_width_(integer_width) {}
+
+xls::Type* CDecimalType::GetXLSType(xls::Package* package) const {
+  return package->GetBitsType(width_);
+}
+
+bool CDecimalType::operator==(const CType& o) const {
+  if (!o.Is<CDecimalType>()) {
+    return false;
+  }
+  const auto* o_derived = o.As<CDecimalType>();
+  if (width_ != o_derived->width_) {
+    return false;
+  }
+  if (integer_width_ != o_derived->integer_width_) {
+    return false;
+  }
+  return true;
+}
+
+int CDecimalType::GetBitWidth() const { return width_; }
+
+bool CDecimalType::StoredAsXLSBits() const { return true; }
+
+CDecimalType::operator std::string() const {
+  if (width_ == 32) {
+    return "float";
+  }
+  if (width_ == 64) {
+    return "double";
+  }
+  return absl::StrFormat("native_decimal[%d]", width_);
+}
+
+absl::Status CDecimalType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  output->mutable_as_decimal()->set_width(width_);
+  output->mutable_as_decimal()->set_integer_width(integer_width_);
+  output->mutable_as_decimal()->set_is_synthetic(false);
+  return absl::OkStatus();
+}
+
+absl::Status CDecimalType::GetMetadataValue(
+    Translator& translator, const ConstValue const_value,
+    xlscc_metadata::Value* output) const {
+  auto value = const_value.rvalue();
+  XLS_CHECK(value.IsBits());
+  XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
+  output->mutable_as_decimal()->set_value(signed_value);
+  return absl::OkStatus();
+}
+
 CEnumType::~CEnumType() = default;
 
 CEnumType::CEnumType(std::string name, int width, bool is_signed,

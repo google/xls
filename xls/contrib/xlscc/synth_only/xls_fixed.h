@@ -284,6 +284,18 @@ class XlsFixed {
                 Adjust(BuiltinIntToBits<unsigned long long, 64>::Convert(
                     value)))) {}
 
+  inline XlsFixed(const double value)
+    : val(XlsInt<Width, Signed>(
+          Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
+                      Overflow>::
+              Adjust(BuiltinIntToBits<double, 64>::Convert(value)))) {}
+
+  inline XlsFixed(const float value)
+    : val(XlsInt<Width, Signed>(
+          Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
+                      Overflow>::
+              Adjust(BuiltinIntToBits<float, 64>::Convert(value)))) {}
+
   XlsInt<Width, false> val;
   static constexpr int width = Width;
   static constexpr int i_width = IntegerWidth;

@@ -4777,6 +4777,50 @@ TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
                                              /*top_level_init_interval=*/0));
 }
 
+TEST_F(TranslatorLogicTest, DoubleSupportToInt) {
+  const std::string content = R"(
+    long long my_package() {
+      auto x = 5.5;
+      return (int)x;
+    })";
+  Run({}, 5, content);
+}
+
+TEST_F(TranslatorLogicTest, FloatSupportToInt) {
+  const std::string content = R"(
+    long long my_package() {
+      auto x = 5.5f;
+      return (int)x;
+    })";
+  Run({}, 5, content);
+}
+
+TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForDouble) {
+  const std::string content = R"(
+    long long my_package() {
+      double x = 5.5;
+      return (int)(x * 3);
+    })";
+    ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Binary operators unimplemented for type")));
+}
+
+TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForFloat) {
+  const std::string content = R"(
+    long long my_package() {
+      float x = 5.5f;
+      return (int)(x * 3);
+    })";
+    ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Binary operators unimplemented for type")));
+}
+
 }  // namespace
 
 }  // namespace xlscc

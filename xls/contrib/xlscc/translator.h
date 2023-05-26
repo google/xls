@@ -168,6 +168,34 @@ class CIntType : public CType {
   const bool is_declared_as_char_;
 };
 
+// Any native decimal type: float, double, etc
+class CDecimalType : public CType {
+ public:
+  ~CDecimalType() override;
+  CDecimalType(int width, int integer_width);
+
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  bool operator==(const CType& o) const override;
+
+  xls::Type* GetXLSType(xls::Package* package) const override;
+  bool StoredAsXLSBits() const override;
+
+  inline int width() const { return width_; }
+  inline int integer_width() const { return integer_width_; }
+
+ protected:
+  const int width_;
+  const int integer_width_;
+};
+
 // C++ enum or enum class
 class CEnumType : public CIntType {
  public:

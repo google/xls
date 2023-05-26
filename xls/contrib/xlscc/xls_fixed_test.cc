@@ -945,6 +945,39 @@ TEST_F(XlsFixedTest, QuantizationModeRndConvOddNegative) {
   RunAcDatatypeTest({{"a", -7}}, -3, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsFixedTest, DoubleConstructor) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package() {
+      XlsFixed<10, 8, true> x(5.5);
+      x = x * 2;
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, 11, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, DoubleConstructor2) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package() {
+      XlsFixed<10, 2, true> x(0.34);
+      x = x * 3;
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, 1, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, FloatConstructor) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package() {
+      XlsFixed<10, 8, true> x(5.5f);
+      x = x * 2;
+      return x.to_int();
+    })";
+  RunAcDatatypeTest({}, 11, content, xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc
