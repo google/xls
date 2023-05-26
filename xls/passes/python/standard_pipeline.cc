@@ -23,7 +23,7 @@ namespace py = pybind11;
 
 namespace xls {
 
-absl::StatusOr<bool> RunPipelineAtMaxOptLevel(Package *p) {
+static absl::StatusOr<bool> RunPipelineAtMaxOptLevel(Package *p) {
   return RunStandardPassPipeline(p, kMaxOptLevel);
 }
 
