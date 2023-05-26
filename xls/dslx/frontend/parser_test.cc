@@ -421,6 +421,53 @@ proc main {
   RoundTrip(std::string(kModule));
 }
 
+// Parses the "iota" example with fifo_depth set on the internal channel.
+TEST_F(ParserTest, ParseProcNetworkWithFifoDepthOnInternalChannel) {
+  std::string_view kModule = R"(proc producer {
+  c_: chan<u32> out;
+  limit_: u32;
+  config(limit: u32, c: chan<u32> out) {
+    (c, limit)
+  }
+  init {
+    u32:0
+  }
+  next(tok: token, i: u32) {
+    let tok = send(tok, c_, i);
+    (i) + (1)
+  }
+}
+proc consumer<N: u32> {
+  c_: chan<u32> in;
+  config(c: chan<u32> in) {
+    (c,)
+  }
+  init {
+    u32:0
+  }
+  next(tok: token, i: u32) {
+    let (tok1, e) = recv(tok, c_);
+    (i) + (1)
+  }
+}
+proc main {
+  config() {
+    let (p, c) = chan<u32, 2>;
+    spawn producer(u32:10, p);
+    spawn consumer(range(10), c);
+    ()
+  }
+  init {
+    ()
+  }
+  next(tok: token, state: ()) {
+    ()
+  }
+})";
+
+  RoundTrip(std::string(kModule));
+}
+
 TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   const char* text = R"(proc producer {
   c: chan<u32> out;
@@ -1580,6 +1627,25 @@ fn main(x: u32, y: u32, z: bool) -> bool {
           absl::StatusCode::kInvalidArgument,
           HasSubstr(
               "Expected a '(' after parametrics for function invocation.")));
+}
+
+TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
+  constexpr std::string_view kProgram = R"(proc foo<N: u32, M: u32> {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  config () {
+    let (c_p, c_c) = chan<u32, {N + M}>;
+    (c_p, c_c)
+  }
+  init {}
+  next(tok: token, state: ()) {
+    ()
+  }
+}
+)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_EXPECT_OK(parser.ParseModule());
 }
 
 }  // namespace xls::dslx

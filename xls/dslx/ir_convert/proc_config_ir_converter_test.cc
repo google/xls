@@ -13,8 +13,6 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 
-#include <cstdint>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -22,12 +20,14 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/package.h"
 
@@ -140,6 +140,74 @@ proc main {
   EXPECT_THAT(f->Accept(&converter),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("not found in arg mapping")));
+}
+
+TEST(ProcConfigIrConverterTest,
+     ConvertsParametricExpressionForInternalChannelFifoDepth) {
+  constexpr std::string_view kModule = R"(
+proc passthrough {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    (c_in, c_out)
+  }
+  next(tok: token, state: ()) {
+    let (tok, data) = recv(tok, c_in);
+    let tok = send(tok, c_out, data);
+    ()
+  }
+}
+
+proc test_proc<X: u32, Y: u32> {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init {}
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    let (p, c) = chan<u32, {X + Y}>;
+    spawn passthrough(c_in, p);
+    spawn passthrough(c, c_out);
+    (c_in, c_out)
+  }
+  next(tok: token, state: ()) {
+    ()
+  }
+}
+
+proc main {
+  c_in: chan<u32> in;
+  c_out: chan<u32> out;
+  init { () }
+  config(c_in: chan<u32> in, c_out: chan<u32> out) {
+    spawn test_proc<u32:3, u32:4>(c_in, c_out);
+    (c_in, c_out)
+  }
+  next(tok: token, state: ()) {
+    ()
+  }
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+
+  ParametricEnv bindings;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kModule, "test_module.x", "test_module", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Package> package,
+      ConvertModuleToPackage(tm.module, &import_data, ConvertOptions{}));
+
+  bool found = false;
+  for (Channel* channel : package->channels()) {
+    if (absl::StartsWith(channel->name(), "main_")) {
+      found = true;
+      ASSERT_EQ(channel->kind(), ChannelKind::kStreaming);
+      EXPECT_EQ(down_cast<StreamingChannel*>(channel)->GetFifoDepth(), 7);
+    }
+  }
+  EXPECT_TRUE(found);
 }
 
 }  // namespace

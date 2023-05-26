@@ -2319,16 +2319,42 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings& bindings) {
 
   std::optional<std::vector<Expr*>> dims = std::nullopt;
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+  // For parametric instantiation we allow a form like:
+  //
+  //  chan<MyStruct<Y>>
+  //
+  // Which can require us to interpret the >> as two close-angle tokens instead
+  // of a single '>>' token.
+  DisableDoubleCAngle();
+  absl::Cleanup re_enable_double_cangle = [this] { EnableDoubleCAngle(); };
   XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));
+  Pos limit_pos = type->span().limit();
+
+  XLS_ASSIGN_OR_RETURN(bool dropped_comma, TryDropToken(TokenKind::kComma));
+  std::optional<ExprOrType> fifo_depth_parametric;
+  if (dropped_comma) {
+    XLS_ASSIGN_OR_RETURN(fifo_depth_parametric, ParseParametricArg(bindings));
+    limit_pos = ExprOrTypeSpan(fifo_depth_parametric.value()).limit();
+  }
+  XLS_ASSIGN_OR_RETURN(Token cangle_tok, PopTokenOrError(TokenKind::kCAngle));
+
+  std::optional<Expr*> fifo_depth;
+  if (fifo_depth_parametric.has_value()) {
+    if (std::holds_alternative<Expr*>(fifo_depth_parametric.value())) {
+      fifo_depth = std::get<Expr*>(fifo_depth_parametric.value());
+    } else {
+      return ParseErrorStatus(
+          ExprOrTypeSpan(fifo_depth_parametric.value()),
+          "Expected fifo depth to be expression, got type.");
+    }
+  }
 
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
   if (peek_is_obrack) {
-    Pos limit_pos;
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
   }
-  return module_->Make<ChannelDecl>(
-      Span(channel.span().start(), type->span().limit()), type, dims);
+  return module_->Make<ChannelDecl>(Span(channel.span().start(), limit_pos),
+                                    type, dims, fifo_depth);
 }
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings& bindings,
@@ -2746,6 +2772,42 @@ absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
                                            TokenKind::kCAngle);
 }
 
+absl::StatusOr<ExprOrType> Parser::ParseParametricArg(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (peek->kind() == TokenKind::kOBrace) {
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
+    // Conditional expressions are the first below the let/for/while set.
+    XLS_ASSIGN_OR_RETURN(
+        Expr * expr, ParseConditionalExpression(bindings, kNoRestrictions));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+
+    return expr;
+  }
+
+  // We permit bare numbers as parametrics for convenience.
+  if (peek->kind() == TokenKind::kNumber || peek->IsKeyword(Keyword::kTrue) ||
+      peek->IsKeyword(Keyword::kFalse)) {
+    return TokenToNumber(PopTokenOrDie());
+  }
+
+  if (peek->kind() == TokenKind::kIdentifier) {
+    XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
+    return ToExprNode(nocr);
+  }
+
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
+                       ParseTypeAnnotation(bindings));
+
+  {
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->kind() == TokenKind::kColon) {
+      return ParseCast(bindings, type_annotation);
+    }
+  }
+
+  return type_annotation;
+}
+
 absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
     Bindings& bindings) {
   XLS_VLOG(5) << "ParseParametrics @ " << GetPos();
@@ -2760,43 +2822,9 @@ absl::StatusOr<std::vector<ExprOrType>> Parser::ParseParametrics(
   DisableDoubleCAngle();
   absl::Cleanup re_enable_double_cangle = [this] { EnableDoubleCAngle(); };
 
-  auto parse_parametric = [this, &bindings]() -> absl::StatusOr<ExprOrType> {
-    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-    if (peek->kind() == TokenKind::kOBrace) {
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-      // Conditional expressions are the first below the let/for/while set.
-      XLS_ASSIGN_OR_RETURN(
-          Expr * expr, ParseConditionalExpression(bindings, kNoRestrictions));
-      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-
-      return expr;
-    }
-
-    // We permit bare numbers as parametrics for convenience.
-    if (peek->kind() == TokenKind::kNumber || peek->IsKeyword(Keyword::kTrue) ||
-        peek->IsKeyword(Keyword::kFalse)) {
-      return TokenToNumber(PopTokenOrDie());
-    }
-
-    if (peek->kind() == TokenKind::kIdentifier) {
-      XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(bindings));
-      return ToExprNode(nocr);
-    }
-
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
-                         ParseTypeAnnotation(bindings));
-
-    {
-      XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-      if (peek->kind() == TokenKind::kColon) {
-        return ParseCast(bindings, type_annotation);
-      }
-    }
-
-    return type_annotation;
-  };
-
-  return ParseCommaSeq<ExprOrType>(parse_parametric, TokenKind::kCAngle);
+  return ParseCommaSeq<ExprOrType>(
+      [this, &bindings]() { return ParseParametricArg(bindings); },
+      TokenKind::kCAngle);
 }
 
 absl::StatusOr<TestFunction*> Parser::ParseTestFunction(

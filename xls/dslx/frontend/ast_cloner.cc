@@ -144,9 +144,15 @@ class AstCloner : public AstNodeVisitor {
       new_dims = std::move(new_dims_vector);
     }
 
+    std::optional<Expr*> new_fifo_depth;
+    if (n->fifo_depth().has_value()) {
+      new_fifo_depth =
+          down_cast<Expr*>(old_to_new_.at(n->fifo_depth().value()));
+    }
+
     old_to_new_[n] = module_->Make<ChannelDecl>(
         n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
-        new_dims);
+        new_dims, new_fifo_depth);
     return absl::OkStatus();
   }
 

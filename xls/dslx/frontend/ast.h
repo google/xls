@@ -178,6 +178,8 @@ class Expr;
 class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
+Span ExprOrTypeSpan(const ExprOrType &expr_or_type);
+std::string ExprOrTypeToString(const ExprOrType &expr_or_type);
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
@@ -2980,8 +2982,12 @@ class ConstRef : public NameRef {
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
-              std::optional<std::vector<Expr*>> dims)
-      : Expr(owner, std::move(span)), type_(type), dims_(std::move(dims)) {}
+              std::optional<std::vector<Expr*>> dims,
+              std::optional<Expr*> fifo_depth)
+      : Expr(owner, std::move(span)),
+        type_(type),
+        dims_(std::move(dims)),
+        fifo_depth_(fifo_depth) {}
 
   ~ChannelDecl() override;
 
@@ -3003,10 +3009,12 @@ class ChannelDecl : public Expr {
 
   TypeAnnotation* type() const { return type_; }
   std::optional<std::vector<Expr*>> dims() const { return dims_; }
+  std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
 
  private:
   TypeAnnotation* type_;
   std::optional<std::vector<Expr*>> dims_;
+  std::optional<Expr*> fifo_depth_;
 };
 
 using ModuleMember =

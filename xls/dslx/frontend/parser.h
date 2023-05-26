@@ -500,6 +500,14 @@ class Parser : public TokenParser {
   //                       ^---------------^
   absl::StatusOr<std::vector<ExprOrType>> ParseParametrics(Bindings& bindings);
 
+  // Parses a single parametric arg.
+  //
+  // For example:
+  //
+  //    x: ParametricStruct<u32:4, N as u64>
+  //                        ^---^
+  absl::StatusOr<ExprOrType> ParseParametricArg(Bindings& bindings);
+
   // Parses a function out of the token stream.
   absl::StatusOr<Function*> ParseFunctionInternal(bool is_public,
                                                   Bindings& outer_bindings);

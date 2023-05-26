@@ -108,9 +108,25 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        TypeToIr(package_, *concrete_type.value(), bindings_));
 
-  XLS_ASSIGN_OR_RETURN(
-      StreamingChannel * channel,
-      package_->CreateStreamingChannel(name, ChannelOps::kSendReceive, type));
+  std::optional<int64_t> fifo_depth;
+  if (node->fifo_depth().has_value()) {
+    XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                         ConstexprEvaluator::EvaluateToValue(
+                             import_data_, type_info_,
+                             bindings_, node->fifo_depth().value()));
+    XLS_ASSIGN_OR_RETURN(Value fifo_depth_value, iv.ConvertToIr());
+    if (!fifo_depth_value.IsBits()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected fifo depth to be bits type, got %s.",
+                          fifo_depth_value.ToHumanString()));
+    }
+    XLS_ASSIGN_OR_RETURN(fifo_depth, fifo_depth_value.bits().ToInt64());
+  }
+
+  XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
+                       package_->CreateStreamingChannel(
+                           name, ChannelOps::kSendReceive, type,
+                           /*initial_values=*/{}, /*fifo_depth=*/fifo_depth));
   node_to_ir_[node] = channel;
   return absl::OkStatus();
 }

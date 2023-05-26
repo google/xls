@@ -740,7 +740,11 @@ std::string ChannelDecl::ToString() const {
     }
   }
 
-  return absl::StrFormat("chan<%s>%s", type_->ToString(),
+  std::string fifo_depth_str;
+  if (fifo_depth_.has_value()) {
+    fifo_depth_str = absl::StrCat(", ", fifo_depth_.value()->ToString());
+  }
+  return absl::StrFormat("chan<%s%s>%s", type_->ToString(), fifo_depth_str,
                          absl::StrJoin(dims, ""));
 }
 
@@ -2399,5 +2403,20 @@ std::vector<AstNode*> Array::GetChildren(bool want_types) const {
 
 std::vector<AstNode*> Statement::GetChildren(bool want_types) const {
   return {ToAstNode(wrapped_)};
+}
+
+Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
+  return absl::visit(Visitor{
+    [](Expr* expr) { return expr->span(); },
+    [](TypeAnnotation* type) { return type->span(); },
+  }, expr_or_type);
+}
+
+std::string ExprOrTypeToString(const ExprOrType &expr_or_type) {
+  return absl::visit(Visitor{
+                         [](Expr* expr) { return expr->ToString(); },
+                         [](TypeAnnotation* type) { return type->ToString(); },
+                     },
+                     expr_or_type);
 }
 }  // namespace xls::dslx
