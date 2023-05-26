@@ -55,6 +55,9 @@ class Bytecode {
     // Casts the element on top of the stack to the type given in the optional
     // arg.
     kCast,
+    // Casts the element on top of the stack to the type given in the optional
+    // arg.  Check that no information is lost.
+    kCheckedCast,
     // Concatenates TOS1 and TOS0, with TOS1 comprising the most significant
     // bits of the result.
     kConcat,

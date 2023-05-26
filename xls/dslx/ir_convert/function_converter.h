@@ -342,6 +342,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinArraySlice(const Invocation* node);
   absl::Status HandleBuiltinBitSlice(const Invocation* node);
   absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
+  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
   absl::Status HandleBuiltinClz(const Invocation* node);
   absl::Status HandleBuiltinCtz(const Invocation* node);
   absl::Status HandleBuiltinGate(const Invocation* node);
@@ -350,6 +351,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinRev(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleBuiltinSignex(const Invocation* node);
   absl::Status HandleBuiltinSMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);

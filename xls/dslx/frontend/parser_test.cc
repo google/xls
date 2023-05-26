@@ -992,6 +992,22 @@ TEST_F(ParserTest, CastOfCast) {
   RoundTripExpr("x as s32 as u32", {"x"}, false, "((((x) as s32)) as u32)");
 }
 
+TEST_F(ParserTest, CheckedCast) {
+  RoundTripExpr("checked_cast<u32>(foo())", {"foo"},
+                /*populate_dslx_builtins=*/true, "checked_cast<u32>(foo())");
+}
+
+TEST_F(ParserTest, WideningCast) {
+  RoundTripExpr("widening_cast<u32>(foo())", {"foo"},
+                /*populate_dslx_builtins=*/true, "widening_cast<u32>(foo())");
+}
+
+TEST_F(ParserTest, WideningCastOfCheckedCastOfCast) {
+  RoundTripExpr("widening_cast<u32>(checked_cast<u16>(x as u24))", {"x"},
+                /*populate_dslx_builtins=*/true,
+                "widening_cast<u32>(checked_cast<u16>(((x) as u24)))");
+}
+
 TEST_F(ParserTest, CastOfCastEnum) {
   // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
   // its insertion of parens to avoid the round trip target value being special

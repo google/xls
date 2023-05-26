@@ -1817,6 +1817,32 @@ signature:
 fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
 ```
 
+### `widening_cast` and `checked_cast`
+
+`widening_cast` and `checked_cast` cast bits-type values to bits-type values
+with additional checks compared to casting with `as`.
+
+`widening_cast` will report a static error if the type casted to is unable to
+respresent all values of the type casted from (ex. `widening_cast<u5>(s3:0)`
+will fail because s3:-1 cannot be respresented as an unsigned number).
+
+`checked_cast` will cause a runtime error during dslx interpretation if the
+value being casted is unable to fit within the type casted to (ex.
+`checked_cast<u5>(s3:0)` will succeed while `checked_cast<u5>(s3:-1)` will cause
+the dslx interpreter to fail.
+
+Currently both `widening_cast` and `checked_cast` will lower into a normal IR
+cast and will not generate additional assertions at the IR or Verilog level.
+
+```
+fn widening_cast<sN[N]>(value: uN[M]) -> sN[N]; where N > M
+fn widening_cast<sN[N]>(value: sN[M]) -> sN[N]; where N >= M
+fn widening_cast<uN[N]>(value: uN[M]) -> uN[N]; where N >= M
+
+fn checked_cast<xN[M]>(value: uN[N]) -> xN[M]
+fn checked_cast<xN[M]>(value: sN[N]) -> xN[M]
+```
+
 ### `smulp` and `umulp`
 
 `smulp` and `umulp` perform signed and unsigned partial multiplications. These

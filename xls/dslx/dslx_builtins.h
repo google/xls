@@ -42,6 +42,7 @@ struct SignatureData {
   // Argument types for the parametric builtin.
   const std::vector<const ConcreteType*>& arg_types;
   const std::vector<dslx::Span>& arg_spans;
+  const std::vector<ExprOrType>& arg_explicit_parametrics;
   // Name of the builtin.
   std::string_view name;
   // Span that we're invoking the builtin from (span for the entire invocation).

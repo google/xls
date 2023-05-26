@@ -1556,5 +1556,53 @@ fn main() -> u32 {
                          "or a colon reference")));
 }
 
+TEST(TypecheckTest, MissingWideningCastFromValueError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u64 {
+  widening_cast<u64>()
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of arguments passed to")));
+}
+
+TEST(TypecheckTest, MissingCheckedCastFromValueError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u64 {
+  checked_cast<u64>()
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of arguments passed to")));
+}
+
+TEST(TypecheckTest, MissingWideningCastToTypeError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u64 {
+  widening_cast(x)
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of parametrics passed to")));
+}
+
+TEST(TypecheckTest, MissingCheckedCastToTypeError) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u64 {
+  checked_cast(x)
+}
+)";
+
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid number of parametrics passed to")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

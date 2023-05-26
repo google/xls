@@ -811,6 +811,10 @@ bool InterpValue::FitsInUint64() const {
   return HasBits() && GetBitsOrDie().FitsInUint64();
 }
 
+bool InterpValue::FitsInNBitsUnsigned(int64_t n) const {
+  return HasBits() && GetBitsOrDie().FitsInNBitsUnsigned(n);
+}
+
 absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToInt64();
@@ -818,6 +822,10 @@ absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
 
 bool InterpValue::FitsInInt64() const {
   return HasBits() && GetBitsOrDie().FitsInInt64();
+}
+
+bool InterpValue::FitsInNBitsSigned(int64_t n) const {
+  return HasBits() && GetBitsOrDie().FitsInNBitsSigned(n);
 }
 
 /* static */ absl::StatusOr<std::vector<xls::Value>>

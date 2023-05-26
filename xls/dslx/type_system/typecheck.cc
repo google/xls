@@ -241,6 +241,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   XLS_ASSIGN_OR_RETURN(
       TypeAndBindings tab,
       fsignature(SignatureData{arg_type_ptrs, arg_spans,
+                               invocation->explicit_parametrics(),
                                callee_nameref->identifier(), invocation->span(),
                                /*parametric_bindings=*/{}, constexpr_eval},
                  ctx));

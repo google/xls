@@ -34,7 +34,9 @@
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -315,6 +317,28 @@ void PopulateSignatureToLambdaMap(
                             .status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
+  };
+  map["<U>(T) -> U"] = [](const SignatureData& data,
+                          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    XLS_RETURN_IF_ERROR(
+        Checker(data.arg_types, data.name, data.span, *ctx).Len(1).status());
+
+    if (data.arg_explicit_parametrics.size() != 1) {
+      return ArgCountMismatchErrorStatus(
+          data.span,
+          absl::StrFormat("Invalid number of parametrics passed to '%s', "
+                          "expected 1, got %d",
+                          data.name, data.arg_explicit_parametrics.size()));
+    }
+
+    ExprOrType param_type = data.arg_explicit_parametrics.at(0);
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> return_type,
+                         DeduceAndResolve(ToAstNode(param_type), ctx));
+    XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
+                                                     data.span, data.name));
+
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(const uN[N], const uN[N]) -> uN[N][R]"] =
       [](const SignatureData& data,

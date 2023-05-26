@@ -46,6 +46,7 @@ namespace xls::dslx {
   X("assert_lt", kAssertLt)              \
   X("bit_slice", kBitSlice)              \
   X("bit_slice_update", kBitSliceUpdate) \
+  X("checked_cast", kCheckedCast)        \
   X("clz", kClz)                         \
   X("cover!", kCover)                    \
   X("ctz", kCtz)                         \
@@ -59,6 +60,7 @@ namespace xls::dslx {
   X("priority_sel", kPriorityhSel)       \
   X("range", kRange)                     \
   X("rev", kRev)                         \
+  X("widening_cast", kWideningCast)      \
   X("select", kSelect)                   \
   X("signex", kSignex)                   \
   X("smulp", kSMulp)                     \
@@ -213,6 +215,10 @@ class InterpValue {
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
   bool IsTrue() const { return IsBool() && GetBitsOrDie().IsAllOnes(); }
 
+  bool IsNegative() const {
+    return IsSigned() && (GetBitsOrDie().GetFromMsb(0));
+  }
+
   bool IsSigned() const {
     XLS_CHECK(IsBits() || IsEnum());
     if (IsEnum()) {
@@ -243,6 +249,11 @@ class InterpValue {
   // (u)int64_t.
   bool FitsInUint64() const;
   bool FitsInInt64() const;
+
+  // Returns true if the value HasBits and the (unsigned/signed) value fits in
+  // 'n' bits.
+  bool FitsInNBitsUnsigned(int64_t n) const;
+  bool FitsInNBitsSigned(int64_t n) const;
 
   absl::StatusOr<int64_t> GetLength() const {
     if (IsTuple() || IsArray()) {

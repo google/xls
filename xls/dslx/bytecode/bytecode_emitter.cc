@@ -59,6 +59,14 @@ ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
   return MakeValueFormatDescriptor(*maybe_type.value(), field_preference);
 }
 
+// Returns a status that indicates an dslx error detected during the bytecode
+// emission process.
+absl::Status EmitterInvalidArgumentErrorStatus(const std::optional<Span>& span,
+                                               std::string_view message) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("BytecodeEmitterError: %s %s",
+                      span ? span->ToString() : "<no span>", message));
+}
 }  // namespace
 
 BytecodeEmitter::BytecodeEmitter(
@@ -391,8 +399,55 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,
-                                              BitsType* to_bits) {
+static absl::StatusOr<ConcreteType*> GetTypeOfNode(const AstNode* node,
+                                                   const TypeInfo* type_info) {
+  std::optional<ConcreteType*> maybe_type = type_info->GetItem(node);
+
+  if (!maybe_type.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("Could not find type for node ", node->ToString()));
+  }
+
+  return maybe_type.value();
+}
+
+static absl::StatusOr<BitsType*> GetTypeOfNodeAsBits(
+    const AstNode* node, const TypeInfo* type_info) {
+  std::optional<ConcreteType*> maybe_type = type_info->GetItem(node);
+
+  if (!maybe_type.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("Could not find type for node ", node->ToString()));
+  }
+
+  BitsType* bits_type = dynamic_cast<BitsType*>(maybe_type.value());
+
+  if (bits_type == nullptr) {
+    return absl::InternalError(
+        absl::StrCat("Bytecode emitter only supports safe or checked "
+                     "casts from/to bits; got ",
+                     node->ToString()));
+  }
+
+  return bits_type;
+}
+
+static absl::Status MaybeCheckArrayToBitsCast(const AstNode* node,
+                                              const ConcreteType* from,
+                                              const ConcreteType* to) {
+  const ArrayType* from_array = dynamic_cast<const ArrayType*>(from);
+  const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
+
+  if (from_array != nullptr && to_bits == nullptr) {
+    return absl::InternalError(absl::StrCat(
+        "The only valid array cast is to bits: ", node->ToString()));
+  }
+
+  if (from_array == nullptr || to_bits == nullptr) {
+    return absl::OkStatus();
+  }
+
+  // Check casting from an array to bits.
   if (from_array->element_type().GetAllDims().size() != 1) {
     return absl::InternalError(
         "Only casts to/from one-dimensional arrays are supported.");
@@ -412,13 +467,39 @@ absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,
                         array_bit_count, bits_bit_count));
   }
 
-  bytecode_.push_back(
-      Bytecode(std::move(span), Bytecode::Op::kCast, to_bits->CloneToUnique()));
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
-                                              ArrayType* to_array) {
+static absl::Status MaybeCheckEnumToBitsCast(const AstNode* node,
+                                             const ConcreteType* from,
+                                             const ConcreteType* to) {
+  const EnumType* from_enum = dynamic_cast<const EnumType*>(from);
+  const BitsType* to_bits = dynamic_cast<const BitsType*>(to);
+
+  if (from_enum != nullptr && to_bits == nullptr) {
+    return absl::InternalError(absl::StrCat(
+        "The only valid enum cast is to bits: ", node->ToString()));
+  }
+
+  return absl::OkStatus();
+}
+
+static absl::Status MaybeCheckBitsToArrayCast(const AstNode* node,
+                                              const ConcreteType* from,
+                                              const ConcreteType* to) {
+  const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
+  const ArrayType* to_array = dynamic_cast<const ArrayType*>(to);
+
+  if (to_array != nullptr && from_bits == nullptr) {
+    return absl::InternalError(absl::StrCat(
+        "The only valid array cast is from bits: ", node->ToString()));
+  }
+
+  if (from_bits == nullptr || to_array == nullptr) {
+    return absl::OkStatus();
+  }
+
+  // Casting from bits to an array.
   if (to_array->element_type().GetAllDims().size() != 1) {
     return absl::InternalError(
         "Only casts to/from one-dimensional arrays are supported.");
@@ -438,79 +519,117 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
                         bits_bit_count, array_bit_count));
   }
 
-  bytecode_.push_back(Bytecode(std::move(span), Bytecode::Op::kCast,
-                               to_array->CloneToUnique()));
+  return absl::OkStatus();
+}
+
+static absl::Status MaybeCheckBitsToEnumCast(const AstNode* node,
+                                             const ConcreteType* from,
+                                             const ConcreteType* to) {
+  const BitsType* from_bits = dynamic_cast<const BitsType*>(from);
+  const EnumType* to_enum = dynamic_cast<const EnumType*>(to);
+
+  if (to_enum != nullptr && from_bits == nullptr) {
+    return absl::InternalError(absl::StrCat(
+        "The only valid enum cast is from bits: ", node->ToString()));
+  }
+
+  return absl::OkStatus();
+}
+
+static absl::Status CheckSupportedCastTypes(const AstNode* node,
+                                            const ConcreteType* type) {
+  const BitsType* as_bits_type = dynamic_cast<const BitsType*>(type);
+  const ArrayType* as_array_type = dynamic_cast<const ArrayType*>(type);
+  const EnumType* as_enum_type = dynamic_cast<const EnumType*>(type);
+
+  if (as_bits_type == nullptr && as_array_type == nullptr &&
+      as_enum_type == nullptr) {
+    return absl::InternalError(
+        absl::StrCat("Bytecode emitter only supports casts from/to "
+                     "arrays, enums, or bits; got ",
+                     node->ToString()));
+  }
+
   return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   XLS_VLOG(5) << "BytecodeEmitter::HandleCast @ " << node->span();
-  XLS_RETURN_IF_ERROR(node->expr()->AcceptExpr(this));
 
-  std::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());
-  if (!maybe_from.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Could not find type for cast \"from\" arg: ",
-                     node->expr()->ToString()));
-  }
-  ConcreteType* from = maybe_from.value();
+  const Expr* from_expr = node->expr();
+  XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  std::optional<ConcreteType*> maybe_to = type_info_->GetItem(node);
-  XLS_RET_CHECK(maybe_to.has_value());
-  ConcreteType* to = maybe_to.value();
+  XLS_ASSIGN_OR_RETURN(ConcreteType * from,
+                       GetTypeOfNode(from_expr, type_info_));
+  XLS_ASSIGN_OR_RETURN(ConcreteType * to, GetTypeOfNode(node, type_info_));
 
-  if (ArrayType* from_array = dynamic_cast<ArrayType*>(from);
-      from_array != nullptr) {
-    BitsType* to_bits = dynamic_cast<BitsType*>(to);
-    if (to_bits == nullptr) {
-      return absl::InternalError(absl::StrCat(
-          "The only valid array cast is to bits: ", node->ToString()));
-    }
+  XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, from));
+  XLS_RETURN_IF_ERROR(CheckSupportedCastTypes(node, to));
+  XLS_RETURN_IF_ERROR(MaybeCheckArrayToBitsCast(node, from, to));
+  XLS_RETURN_IF_ERROR(MaybeCheckEnumToBitsCast(node, from, to));
+  XLS_RETURN_IF_ERROR(MaybeCheckBitsToArrayCast(node, from, to));
+  XLS_RETURN_IF_ERROR(MaybeCheckBitsToEnumCast(node, from, to));
 
-    return CastArrayToBits(node->span(), from_array, to_bits);
-  }
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kCast, to->CloneToUnique()));
 
-  if (EnumType* from_enum = dynamic_cast<EnumType*>(from);
-      from_enum != nullptr) {
-    BitsType* to_bits = dynamic_cast<BitsType*>(to);
-    if (to_bits == nullptr) {
-      return absl::InternalError(absl::StrCat(
-          "The only valid enum cast is to bits: ", node->ToString()));
-    }
+  return absl::OkStatus();
+}
 
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
-    return absl::OkStatus();
-  }
+absl::Status BytecodeEmitter::HandleBuiltinCheckedCast(const Invocation* node) {
+  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - WideningCast @ "
+              << node->span();
 
-  BitsType* from_bits = dynamic_cast<BitsType*>(from);
-  if (from_bits == nullptr) {
-    return absl::InternalError(
-        "Bytecode emitter only supports casts from arrays, enums, or bits; got "
-        "'from': " +
-        from->ToString());
-  }
+  const Expr* from_expr = node->args().at(0);
+  XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
 
-  if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
-    return CastBitsToArray(node->span(), from_bits, to_array);
-  }
+  XLS_RETURN_IF_ERROR(GetTypeOfNodeAsBits(from_expr, type_info_).status());
+  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
 
-  if (EnumType* to_enum = dynamic_cast<EnumType*>(to); to_enum != nullptr) {
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kCast, to_enum->CloneToUnique()));
-    return absl::OkStatus();
-  }
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kCheckedCast, to->CloneToUnique()));
 
-  BitsType* to_bits = dynamic_cast<BitsType*>(to);
-  if (to_bits == nullptr) {
-    return absl::InternalError(
-        "Bytecode emitter only supports casts to arrays, enums, or bits; got "
-        "'to': " +
-        to->ToString());
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleBuiltinWideningCast(
+    const Invocation* node) {
+  XLS_VLOG(5) << "BytecodeEmitter::HandleInvocation - CheckedCast @ "
+              << node->span();
+
+  const Expr* from_expr = node->args().at(0);
+  XLS_RETURN_IF_ERROR(from_expr->AcceptExpr(this));
+
+  XLS_ASSIGN_OR_RETURN(BitsType * from,
+                       GetTypeOfNodeAsBits(from_expr, type_info_));
+  XLS_ASSIGN_OR_RETURN(BitsType * to, GetTypeOfNodeAsBits(node, type_info_));
+
+  // TODO(tedhong): 2023-05-25 - This should be moved into typecheck.
+  // Before emitting bytecode, check that types are compatible.
+  bool signed_input = from->is_signed();
+  bool signed_output = to->is_signed();
+
+  XLS_ASSIGN_OR_RETURN(int64_t old_bit_count,
+                       from->GetTotalBitCount().value().GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t new_bit_count,
+                       to->GetTotalBitCount().value().GetAsInt64());
+
+  bool can_cast =
+      ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
+      (!signed_input && signed_output && (new_bit_count > old_bit_count));
+
+  if (!can_cast) {
+    return EmitterInvalidArgumentErrorStatus(
+        node->GetSpan(),
+        absl::StrFormat("Can not cast from type %s (%d bits) to"
+                        " %s (%d bits) with widening_cast",
+                        from->ToString(), old_bit_count, to->ToString(),
+                        new_bit_count));
   }
 
   bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
+      Bytecode(node->span(), Bytecode::Op::kCheckedCast, to->CloneToUnique()));
+
   return absl::OkStatus();
 }
 
@@ -849,7 +968,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
 
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
-      name_ref != nullptr) {
+      name_ref != nullptr && name_ref->IsBuiltin()) {
     if (name_ref->identifier() == "trace!") {
       if (node->args().size() != 1) {
         return absl::InternalError("`trace!` takes a single argument.");
@@ -864,6 +983,14 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
                                    Bytecode::TraceData(std::move(steps), {})));
       return absl::OkStatus();
+    }
+
+    if (name_ref->identifier() == "widening_cast") {
+      return HandleBuiltinWideningCast(node);
+    }
+
+    if (name_ref->identifier() == "checked_cast") {
+      return HandleBuiltinCheckedCast(node);
     }
   }
 

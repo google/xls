@@ -1766,5 +1766,161 @@ proc tester_proc {
           "Sent data on channel `tester_proc::terminator`:\n  1"));
 }
 
+TEST(BytecodeInterpreterTest, WideningCastToSmallerUnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let _ = widening_cast<u33>(u32:0);
+  let _ = widening_cast<u32>(u32:0);
+  let _ = widening_cast<u31>(u32:0);
+ ()
+}
+)";
+
+  EXPECT_THAT(Interpret(kProgram, "main"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[32] (32 bits) to "
+                                 "uN[31] (31 bits) with widening_cast")));
+}
+
+TEST(BytecodeInterpreterTest, WideningCastToSmallerSnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let _ = widening_cast<s33>(s32:0);
+  let _ = widening_cast<s32>(s32:0);
+  let _ = widening_cast<s31>(s32:0);
+ ()
+}
+)";
+
+  EXPECT_THAT(Interpret(kProgram, "main"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[32] (32 bits) to "
+                                 "sN[31] (31 bits) with widening_cast")));
+}
+
+TEST(BytecodeInterpreterTest, WideningCastToUnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let _ = widening_cast<u4>(u3:0);
+  let _ = widening_cast<u4>(u4:0);
+  let _ = widening_cast<u4>(s1:0);
+ ()
+}
+)";
+
+  EXPECT_THAT(Interpret(kProgram, "main"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type sN[1] (1 bits) to "
+                                 "uN[4] (4 bits) with widening_cast")));
+}
+
+TEST(BytecodeInterpreterTest, WideningCastToSnError) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  let _ = widening_cast<s4>(u3:0);
+  let _ = widening_cast<s4>(s4:0);
+  let _ = widening_cast<s4>(u4:0);
+ ()
+}
+)";
+
+  EXPECT_THAT(Interpret(kProgram, "main"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Can not cast from type uN[4] (4 bits) to "
+                                 "sN[4] (4 bits) with widening_cast")));
+}
+
+TEST(BytecodeInterpreterTest, CheckedCastSnToSn) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: s32) -> s4 {
+  checked_cast<s4>(x)
+}
+)";
+
+  for (int64_t x = -32; x <= 32; ++x) {
+    absl::StatusOr<InterpValue> value_or =
+        Interpret(kProgram, "main", {InterpValue::MakeSBits(32, x)});
+
+    if (x >= -8 && x < 8) {
+      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueInt64());
+      EXPECT_EQ(x, bit_value);
+    } else {
+      EXPECT_THAT(value_or.status(),
+                  StatusIs(absl::StatusCode::kInvalidArgument,
+                           HasSubstr("unable to cast")));
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, CheckedCastSnToUn) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: s32) -> u4 {
+  checked_cast<u4>(x)
+}
+)";
+
+  for (int64_t x = -32; x <= 32; ++x) {
+    absl::StatusOr<InterpValue> value_or =
+        Interpret(kProgram, "main", {InterpValue::MakeSBits(32, x)});
+
+    if (x >= 0 && x < 16) {
+      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueUint64());
+      EXPECT_EQ(x, bit_value);
+    } else {
+      EXPECT_THAT(value_or.status(),
+                  StatusIs(absl::StatusCode::kInvalidArgument,
+                           HasSubstr("unable to cast")));
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, CheckedCastUnToSn) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> s4 {
+  checked_cast<s4>(x)
+}
+)";
+
+  for (int64_t x = 0; x <= 32; ++x) {
+    absl::StatusOr<InterpValue> value_or =
+        Interpret(kProgram, "main", {InterpValue::MakeUBits(32, x)});
+
+    if (x < 8) {
+      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueInt64());
+      EXPECT_EQ(x, bit_value);
+    } else {
+      EXPECT_THAT(value_or.status(),
+                  StatusIs(absl::StatusCode::kInvalidArgument,
+                           HasSubstr("unable to cast")));
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, CheckedCastUnToUn) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u32) -> u4 {
+  checked_cast<u4>(x)
+}
+)";
+
+  for (int64_t x = 0; x < 32; ++x) {
+    absl::StatusOr<InterpValue> value_or =
+        Interpret(kProgram, "main", {InterpValue::MakeUBits(32, x)});
+
+    if (x < 16) {
+      XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, value_or);
+      XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_value, value.GetBitValueUint64());
+      EXPECT_EQ(x, bit_value);
+    } else {
+      EXPECT_THAT(value_or.status(),
+                  StatusIs(absl::StatusCode::kInvalidArgument,
+                           HasSubstr("unable to cast")));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

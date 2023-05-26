@@ -56,6 +56,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "cast") {
     return Bytecode::Op::kCast;
   }
+  if (s == "checked_cast") {
+    return Bytecode::Op::kCheckedCast;
+  }
   if (s == "concat") {
     return Bytecode::Op::kConcat;
   }
@@ -195,6 +198,8 @@ std::string OpToString(Bytecode::Op op) {
       return "call";
     case Bytecode::Op::kCast:
       return "cast";
+    case Bytecode::Op::kCheckedCast:
+      return "checked_cast";
     case Bytecode::Op::kConcat:
       return "concat";
     case Bytecode::Op::kCreateArray:

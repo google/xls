@@ -59,6 +59,9 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"update", {"(T[N], uN[M], T) -> T[N]", false}},
       {"enumerate", {"(T[N]) -> (u32, T)[N]", false}},
 
+      {"widening_cast", {"<U>(T) -> U", false}},
+      {"checked_cast", {"<U>(T) -> U", false}},
+
       // Require-const-argument.
       //
       // Note this is a messed up type signature to need to support and should

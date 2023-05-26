@@ -89,4 +89,13 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                       nested_import.ToString(), cycle_str));
 }
 
+absl::Status CheckedCastErrorStatus(const Span& span,
+                                    const InterpValue& from_value,
+                                    const ConcreteType* to_type) {
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "CheckedCastError: %s unable to cast value %s to type %s without "
+      "truncation.",
+      span.ToString(), from_value.ToString(), to_type->ToString()));
+}
+
 }  // namespace xls::dslx

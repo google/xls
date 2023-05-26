@@ -51,6 +51,11 @@ absl::Status RecursiveImportErrorStatus(const Span& nested_import,
                                         const Span& earlier_import,
                                         absl::Span<const ImportRecord> cycle);
 
+// To be raised when a checked_cast is unable to cast without truncation.
+absl::Status CheckedCastErrorStatus(const Span& span,
+                                    const InterpValue& from_value,
+                                    const ConcreteType* to_type);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_ERRORS_H_

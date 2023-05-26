@@ -82,6 +82,9 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleZeroMacro(const ZeroMacro* node) override;
   absl::Status HandleIndex(const Index* node) override;
   absl::Status HandleInvocation(const Invocation* node) override;
+  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  absl::Status HandleCastImpl(const Invocation* node);
   absl::Status HandleJoin(const Join* node) override;
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
@@ -107,11 +110,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleUnrollFor(const UnrollFor* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
-
-  absl::Status CastArrayToBits(Span span, ArrayType* from_array,
-                               BitsType* to_bits);
-  absl::Status CastBitsToArray(Span span, BitsType* from_bits,
-                               ArrayType* to_array);
 
   // Given a TypeAlias, determines the EnumDef to which it refers.
   absl::StatusOr<EnumDef*> ResolveTypeAliasToEnum(const TypeInfo* type_info,

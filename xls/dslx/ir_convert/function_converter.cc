@@ -718,6 +718,129 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinCheckedCast(
+    const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
+                       ResolveType(node));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> input_type,
+                       ResolveType(node->args()[0]));
+
+  XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
+
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
+                       output_type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t new_bit_count,
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
+                       input_type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t old_bit_count,
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+
+  // Perform actual cast.
+  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
+    return absl::UnimplementedError(
+        absl::StrFormat("ConversionError: CheckedCast to and from arrays (%s) "
+                        "is not currently supported for IR conversion.",
+                        node->span().ToString()));
+  }
+
+  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
+    return absl::UnimplementedError(
+        absl::StrFormat("ConversionError: Checkedast to and from arrays (%s) "
+                        "is not currently supported for IR conversion.",
+                        node->span().ToString()));
+  }
+
+  // TODO(tedhong): 2023-05-22 Add verilog assertion that cast has not
+  // lost any data.
+  if (new_bit_count < old_bit_count) {
+    Def(node, [this, arg, new_bit_count](const SourceInfo& loc) {
+      return function_builder_->BitSlice(arg, 0, new_bit_count);
+    });
+  } else {
+    Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
+      if (signed_input) {
+        return function_builder_->SignExtend(arg, new_bit_count);
+      }
+      return function_builder_->ZeroExtend(arg, new_bit_count);
+    });
+  }
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinWideningCast(
+    const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+
+  XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
+                       ResolveType(node));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> input_type,
+                       ResolveType(node->args()[0]));
+
+  XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
+  XLS_ASSIGN_OR_RETURN(bool signed_output, IsSigned(*output_type));
+
+  // Check that bit count to the new type does not drop any information
+  //  1. if signed to signed or unsigned to unsigned - new bitwidth is as large.
+  //  2. if unsigned to signed - new bitwidth is larger.
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_bit_count_ctd,
+                       output_type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t new_bit_count,
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+
+  XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
+                       input_type->GetTotalBitCount());
+  XLS_ASSIGN_OR_RETURN(
+      int64_t old_bit_count,
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+
+  bool can_cast =
+      ((signed_input == signed_output) && (new_bit_count >= old_bit_count)) ||
+      (!signed_input && signed_output && (new_bit_count > old_bit_count));
+
+  if (!can_cast) {
+    return ConversionErrorStatus(
+        node->span(), absl::StrFormat("Can not cast from type %s (%d bits) to"
+                                      " %s (%d bits) with widening_cast",
+                                      input_type->ToString(), old_bit_count,
+                                      output_type->ToString(), new_bit_count));
+  }
+
+  // Perform actual cast.
+  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
+    return absl::UnimplementedError(
+        absl::StrFormat("ConversionError: WideningCast to and from arrays (%s) "
+                        "is not currently supported for IR conversion.",
+                        node->span().ToString()));
+  }
+
+  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
+    return absl::UnimplementedError(
+        absl::StrFormat("ConversionError: WideningCast to and from arrays (%s) "
+                        "is not currently supported for IR conversion.",
+                        node->span().ToString()));
+  }
+
+  Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
+    if (signed_input) {
+      return function_builder_->SignExtend(arg, new_bit_count);
+    }
+    return function_builder_->ZeroExtend(arg, new_bit_count);
+  });
+
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleMatch(const Match* node) {
   if (node->arms().empty() ||
       !node->arms().back()->patterns()[0]->IsIrrefutable()) {
@@ -1572,6 +1695,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"and_reduce", &FunctionConverter::HandleBuiltinAndReduce},
           {"or_reduce", &FunctionConverter::HandleBuiltinOrReduce},
           {"xor_reduce", &FunctionConverter::HandleBuiltinXorReduce},
+          {"widening_cast", &FunctionConverter::HandleBuiltinWideningCast},
+          {"checked_cast", &FunctionConverter::HandleBuiltinCheckedCast},
           {"update", &FunctionConverter::HandleBuiltinUpdate},
           {"umulp", &FunctionConverter::HandleBuiltinUMulp},
           {"smulp", &FunctionConverter::HandleBuiltinSMulp},

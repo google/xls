@@ -211,6 +211,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalCast(bytecode));
       break;
     }
+    case Bytecode::Op::kCheckedCast: {
+      XLS_RETURN_IF_ERROR(EvalCast(bytecode, /*is_checked=*/true));
+      break;
+    }
     case Bytecode::Op::kConcat: {
       XLS_RETURN_IF_ERROR(EvalConcat(bytecode));
       break;
@@ -494,7 +498,8 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
+absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode,
+                                           bool is_checked) {
   if (!bytecode.data().has_value() ||
       !std::holds_alternative<std::unique_ptr<ConcreteType>>(
           bytecode.data().value())) {
@@ -570,6 +575,27 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
 
   XLS_ASSIGN_OR_RETURN(int64_t to_bit_count,
                        to_bits->GetTotalBitCount().value().GetAsInt64());
+
+  // Check if it fits.
+  // Case A: to unsigned of N-bits
+  //   Be within [0, 2^N)
+  // Case B: to signed of N-bits
+  //   Be within [-2^(N-1), 2^(N-1))
+  if (is_checked) {
+    bool does_fit = false;
+
+    if (!to_bits->is_signed()) {
+      does_fit = !from.IsNegative() && from.FitsInNBitsUnsigned(to_bit_count);
+    } else if (to_bits->is_signed() && !from.IsNegative()) {
+      does_fit = from.FitsInNBitsUnsigned(to_bit_count - 1);
+    } else {  // to_bits->is_signed() && from.IsNegative()
+      does_fit = from.FitsInNBitsSigned(to_bit_count);
+    }
+
+    if (!does_fit) {
+      return CheckedCastErrorStatus(bytecode.source_span(), from, to_bits);
+    }
+  }
 
   Bits result_bits;
   if (from_bit_count == to_bit_count) {

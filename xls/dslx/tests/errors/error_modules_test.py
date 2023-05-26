@@ -724,6 +724,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_checked_cast_bad_cast(self):
+    stderr = self._run('xls/dslx/tests/errors/checked_cast_error.x')
+    self.assertIn('unable to cast value u32:131071 to type uN[16]', stderr)
+
 
 if __name__ == '__main__':
   test_base.main()

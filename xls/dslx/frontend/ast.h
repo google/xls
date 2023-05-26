@@ -768,6 +768,10 @@ class NameRef : public Expr {
     return name_def_;
   }
 
+  bool IsBuiltin() const {
+    return std::holds_alternative<BuiltinNameDef*>(name_def_);
+  }
+
  private:
   AnyNameDef name_def_;
   std::string identifier_;
