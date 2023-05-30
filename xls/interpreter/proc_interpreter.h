@@ -89,10 +89,8 @@ class ProcInterpreter : public ProcEvaluator {
   std::unique_ptr<ProcContinuation> NewContinuation() const override;
   absl::StatusOr<TickResult> Tick(
       ProcContinuation& continuation) const override;
-  Proc* proc() const override { return proc_; }
 
  private:
-  Proc* proc_;
   ChannelQueueManager* queue_manager_;
 
   // A topological sort of the nodes of the proc which determines the execution

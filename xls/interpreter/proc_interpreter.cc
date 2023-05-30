@@ -132,7 +132,7 @@ class ProcIrInterpreter : public IrInterpreter {
 }  // namespace
 
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
-    : proc_(proc),
+    : ProcEvaluator(proc),
       queue_manager_(queue_manager),
       execution_order_(TopoSort(proc).AsVector()) {}
 

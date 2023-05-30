@@ -112,7 +112,7 @@ absl::StatusOr<int64_t> ProcRuntime::TickUntilBlocked(
   int64_t ticks = 0;
   while (!max_ticks.has_value() || ticks < max_ticks.value()) {
     XLS_ASSIGN_OR_RETURN(NetworkTickResult result, TickInternal());
-    if (!result.progress_made) {
+    if (!result.progress_made_on_io_procs) {
       return ticks;
     }
     ticks++;

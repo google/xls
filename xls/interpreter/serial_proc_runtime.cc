@@ -61,6 +61,7 @@ SerialProcRuntime::TickInternal() {
   }
 
   bool progress_made = false;
+  bool progress_made_on_io_procs = false;
   while (!ready_procs.empty()) {
     Proc* proc = ready_procs.front();
     EvaluatorContext& context = evaluator_contexts_.at(proc);
@@ -72,6 +73,8 @@ SerialProcRuntime::TickInternal() {
     XLS_VLOG(3) << "Tick result: " << tick_result;
 
     progress_made |= tick_result.progress_made;
+    progress_made_on_io_procs |=
+        (tick_result.progress_made && context.evaluator->ProcHasIoOperations());
     if (tick_result.execution_state == TickExecutionState::kSentOnChannel) {
       Channel* channel = tick_result.channel.value();
       if (blocked_procs.contains(channel)) {
@@ -103,6 +106,7 @@ SerialProcRuntime::TickInternal() {
   };
   return NetworkTickResult{
       .progress_made = progress_made,
+      .progress_made_on_io_procs = progress_made_on_io_procs,
       .blocked_channels = get_blocked_channels(),
   };
 }

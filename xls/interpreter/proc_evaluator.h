@@ -64,7 +64,7 @@ std::string ToString(TickExecutionState state);
 struct TickResult {
   TickExecutionState execution_state;
 
-  // If tick state is kBlockedOnReceive of kSentOnChannel then this field holds
+  // If tick state is kBlockedOnReceive or kSentOnChannel then this field holds
   // the respective channel.
   std::optional<Channel*> channel;
 
@@ -83,6 +83,7 @@ std::ostream& operator<<(std::ostream& os, const TickResult& result);
 // Abstract base class for evaluators of procs (e.g., interpreter or JIT).
 class ProcEvaluator {
  public:
+  explicit ProcEvaluator(Proc* proc);
   virtual ~ProcEvaluator() = default;
 
   // Creates and returns a new continuation for the proc. The continuation is
@@ -98,7 +99,14 @@ class ProcEvaluator {
   virtual absl::StatusOr<TickResult> Tick(
       ProcContinuation& continuation) const = 0;
 
-  virtual Proc* proc() const = 0;
+  Proc* proc() const { return proc_; }
+
+  // Returns true if the proc has any send or receive nodes.
+  bool ProcHasIoOperations() const { return has_io_operations_; }
+
+ private:
+  Proc* proc_;
+  bool has_io_operations_;
 };
 
 }  // namespace xls

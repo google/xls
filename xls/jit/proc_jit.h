@@ -100,7 +100,6 @@ class ProcJit : public ProcEvaluator {
   std::unique_ptr<ProcContinuation> NewContinuation() const override;
   absl::StatusOr<TickResult> Tick(
       ProcContinuation& continuation) const override;
-  Proc* proc() const override { return proc_; }
 
   JitRuntime* runtime() const { return jit_runtime_; }
 
@@ -109,9 +108,10 @@ class ProcJit : public ProcEvaluator {
  private:
   explicit ProcJit(Proc* proc, JitRuntime* jit_runtime,
                    std::unique_ptr<OrcJit> orc_jit)
-      : proc_(proc), jit_runtime_(jit_runtime), orc_jit_(std::move(orc_jit)) {}
+      : ProcEvaluator(proc),
+        jit_runtime_(jit_runtime),
+        orc_jit_(std::move(orc_jit)) {}
 
-  Proc* proc_;
   JitRuntime* jit_runtime_;
   std::unique_ptr<OrcJit> orc_jit_;
   JittedFunctionBase jitted_function_base_;

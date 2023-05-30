@@ -123,11 +123,47 @@ TEST_P(ProcRuntimeTestBase, EmptyProc) {
   // condition is trivially satisfied.
   EXPECT_THAT(runtime->TickUntilOutput({}), IsOkAndHolds(0));
 
-  // Ticking until blocked should result in an error returns (max tick count
-  // reached).
-  EXPECT_THAT(runtime->TickUntilBlocked(/*max_ticks=*/100),
+  // Ticking until blocked should immediately return because `TickUntilBlocked`
+  // only considers procs with IO to determine if the system is blocked.
+  XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+}
+
+TEST_P(ProcRuntimeTestBase, EmptyProcAndPassThroughProc) {
+  auto package = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in, package->CreateStreamingChannel(
+                                             "in", ChannelOps::kReceiveOnly,
+                                             package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out, package->CreateStreamingChannel(
+                                              "out", ChannelOps::kSendOnly,
+                                              package->GetBitsType(32)));
+  XLS_ASSERT_OK(CreatePassThroughProc("feedback", /*in_channel=*/in,
+                                      /*out_channel=*/out, package.get())
+                    .status());
+
+  // Create the empty proc in same package.
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
+
+  std::unique_ptr<ProcRuntime> runtime =
+      GetParam().CreateRuntime(package.get());
+
+  EXPECT_THAT(runtime->TickUntilOutput({{out, 1}}, /*max_ticks=*/100),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
                        HasSubstr("Exceeded limit of 100 ticks")));
+
+  // Ticking until blocked should immediately return because the proc with IO is
+  // blocked and the empty proc is not considered in the "is blocked" logic.
+  XLS_ASSERT_OK(runtime->TickUntilBlocked(/*max_ticks=*/100));
+
+  ChannelQueue& in_queue = runtime->queue_manager().GetQueue(in);
+  ChannelQueue& out_queue = runtime->queue_manager().GetQueue(out);
+
+  XLS_ASSERT_OK(in_queue.Write(Value(UBits(42, 32))));
+
+  XLS_ASSERT_OK(runtime->TickUntilOutput({{out, 1}}, /*max_ticks=*/100));
+
+  EXPECT_THAT(out_queue.Read(), Optional(Value(UBits(42, 32))));
 }
 
 TEST_P(ProcRuntimeTestBase, ProcIotaWithExplicitTicks) {

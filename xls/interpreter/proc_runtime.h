@@ -57,11 +57,11 @@ class ProcRuntime {
       absl::flat_hash_map<Channel*, int64_t> output_counts,
       std::optional<int64_t> max_ticks = std::nullopt);
 
-  // Tick until all procs are blocked on receive operations. `max_ticks` is the
-  // maximum number of ticks of the proc network before returning an
-  // error. Note: some proc networks are not guaranteed to block even if given
-  // no inputs. `max_ticks` is the maximum number of ticks of the proc network
-  // before returning an error.
+  // Tick until all procs with IO (send or receive nodes) are blocked on receive
+  // operations. `max_ticks` is the maximum number of ticks of the proc network
+  // before returning an error. Note: some proc networks are not guaranteed to
+  // block even if given no inputs. `max_ticks` is the maximum number of ticks
+  // of the proc network before returning an error.
   absl::StatusOr<int64_t> TickUntilBlocked(
       std::optional<int64_t> max_ticks = std::nullopt);
 
@@ -90,7 +90,12 @@ class ProcRuntime {
  protected:
   // Execute (up to) a single iteration of every proc in the package.
   struct NetworkTickResult {
+    // Whether any instruction on any proc executed.
     bool progress_made;
+
+    // Whether any instruction on a proc with IO executed
+    bool progress_made_on_io_procs;
+
     std::vector<Channel*> blocked_channels;
   };
   virtual absl::StatusOr<NetworkTickResult> TickInternal() = 0;
