@@ -31,7 +31,7 @@ def _type_check(arg_name, arg_value, subject_type_name, subject_type, can_be_non
     if can_be_none and not arg_value:
         return
     if (type(arg_value) != subject_type):
-        fail("Argument '%s' must be of %s type." % arg_name, subject_type_name)
+        fail("Argument '%s' must be of %s type." % (arg_name, subject_type_name))
 
 def bool_type_check(argument_name, argument_value, can_be_none = False):
     """A macro that produces a failure if the value is not of bool type.

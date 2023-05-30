@@ -359,7 +359,8 @@ def xls_dslx_opt_ir_macro(
 
 def xls_dslx_cpp_type_library(
         name,
-        src):
+        src,
+        namespace = None):
     """Creates a cc_library target for transpiled DSLX types.
 
     This macros invokes the DSLX-to-C++ transpiler and compiles the result as
@@ -368,6 +369,7 @@ def xls_dslx_cpp_type_library(
     Args:
       name: The name of the eventual cc_library.
       src: The DSLX file whose types to compile as C++.
+      namespace: The C++ namespace to generate the code in (e.g., `foo::bar`).
     """
     native.genrule(
         name = name + "_generate_sources",
@@ -382,6 +384,7 @@ def xls_dslx_cpp_type_library(
         cmd = "$(location //xls/dslx:cpp_transpiler_main) " +
               "--output_header_path=$(@D)/{}.h ".format(name) +
               "--output_source_path=$(@D)/{}.cc ".format(name) +
+              ("" if namespace == None else "--namespaces={} ".format(namespace)) +
               "$(location {})".format(src),
     )
 

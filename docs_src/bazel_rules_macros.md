@@ -610,7 +610,7 @@ currently produced should be considered INCOMPLETE.
 ## xls_dslx_cpp_type_library
 
 <pre>
-xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>)
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 Creates a cc_library target for transpiled DSLX types.
@@ -626,6 +626,7 @@ a cc_library with its target name identical to this macro.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
+| <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., <code>foo::bar</code>).   |  <code>None</code> |
 
 
 <a id="xls_dslx_ir"></a>

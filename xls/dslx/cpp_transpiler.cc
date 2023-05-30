@@ -719,7 +719,7 @@ absl::StatusOr<Sources> TranspileSingleToCpp(
 
 absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
                                        std::string_view output_header_path,
-                                       std::string namespaces) {
+                                       std::string_view namespaces) {
   constexpr std::string_view kHeaderTemplate =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #ifndef $0
@@ -744,7 +744,7 @@ $2$1$3
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 
-%s
+%s%s%s
 )";
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->GetRootTypeInfo(module));
@@ -781,11 +781,12 @@ $2$1$3
     namespace_end = absl::StrCat("\n\n}  // namespace ", namespaces);
   }
 
-  return Sources{absl::Substitute(kHeaderTemplate, header_guard,
-                                  absl::StrJoin(header, "\n\n"),
-                                  namespace_begin, namespace_end),
-                 absl::StrFormat(kSourceTemplate, output_header_path,
-                                 absl::StrJoin(body, "\n\n"))};
+  return Sources{
+      absl::Substitute(kHeaderTemplate, header_guard,
+                       absl::StrJoin(header, "\n\n"), namespace_begin,
+                       namespace_end),
+      absl::StrFormat(kSourceTemplate, output_header_path, namespace_begin,
+                      absl::StrJoin(body, "\n\n"), namespace_end)};
 }
 
 }  // namespace xls::dslx
