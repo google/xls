@@ -369,7 +369,7 @@ op_samples {
 op_samples {
   op: "kUMul"
   specialization: OPERANDS_IDENTICAL
-  samples { result_width: 128  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 96  operand_widths: 96  operand_widths: 96 }
   samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
   samples { result_width: 47  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
@@ -399,7 +399,7 @@ op_samples {
 op_samples {
   op: "kUMulp"
   specialization: OPERANDS_IDENTICAL
-  samples { result_width: 256  operand_widths: 128  operand_widths: 128 }
+  samples { result_width: 192  operand_widths: 96  operand_widths: 96 }
   samples { result_width: 128  operand_widths: 64  operand_widths: 64 }
   samples { result_width: 96  operand_widths: 47  operand_widths: 47 }
   samples { result_width: 64  operand_widths: 32  operand_widths: 32 }
