@@ -174,3 +174,46 @@ xls_benchmark_verilog(
     name = "rle_dec_verilog_benchmark",
     verilog_target = "rle_dec_verilog",
 )
+
+xls_dslx_library(
+    name = "rle_demux_dslx",
+    srcs = [
+        "demuxer.x",
+    ],
+    deps = [
+        ":rle_interface_dslx"
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_demux_dslx_test",
+    dslx_test_args = {},
+    compare_list = ["none", "interpreter", "jit"],
+    library = "rle_demux_dslx",
+)
+
+xls_dslx_verilog (
+    name = "rle_demux_verilog",
+    dslx_top = "StreamDemuxerSimple32",
+    verilog_file = "rle_demux.v",
+    library = "rle_demux_dslx",
+    opt_ir_args = {
+        "top": "__demuxer__StreamDemuxerSimple32__StreamDemuxerSimple_0__32_next",
+    },
+    codegen_args = {
+        "module_name": "rle_demux",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+    },
+)
+
+xls_benchmark_ir(
+    name = "rle_demux_ir_benchmark",
+    src = "rle_demux_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "unit",
+    }
+)
