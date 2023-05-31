@@ -125,14 +125,13 @@ def load_external_repositories():
     #        @com_google_re2 for consistency with dependency grpc
     #        which uses @com_github_google_re2.
     #          (see https://github.com/google/xls/issues/234)
-    # Commit from 2023-03-17, current as of 2023-05-08.
     http_archive(
         name = "com_github_google_re2",
-        sha256 = "d929e9f7d6d3648f98a9349770569a819d90e81cd8765b46e61bbd1de37ead9c",
-        strip_prefix = "re2-578843a516fd1da7084ae46209a75f3613b6065e",
+        sha256 = "8b4a8175da7205df2ad02e405a950a02eaa3e3e0840947cd598e92dca453199b",
+        strip_prefix = "re2-2023-06-01",
         urls = [
-            "https://github.com/google/re2/archive/578843a516fd1da7084ae46209a75f3613b6065e.tar.gz",
-            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/578843a516fd1da7084ae46209a75f3613b6065e.tar.gz",
+            "https://github.com/google/re2/archive/refs/tags/2023-06-01.tar.gz",
+            "https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/re2/archive/refs/tags/2023-06-01.tar.gz",
         ],
     )
 
