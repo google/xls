@@ -217,3 +217,49 @@ xls_benchmark_ir(
         "delay_model": "unit",
     }
 )
+
+xls_dslx_library(
+    name = "rle_dec_pipeline_dslx",
+    srcs = [
+        "rle_dec_pipeline.x",
+    ],
+    deps = [
+        ":rle_dec_dslx",
+        ":rle_demux_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "rle_dec_pipeline_dslx_test",
+    dslx_test_args = {},
+    compare_list = ["none", "interpreter", "jit"],
+    library = "rle_dec_pipeline_dslx",
+)
+
+xls_dslx_verilog (
+    name = "rle_dec_pipeline_verilog",
+    dslx_top = "RLEDecPipeline8",
+    verilog_file = "rle_dec_pipeline.v",
+    library = "rle_dec_pipeline_dslx",
+    opt_ir_args = {
+        "top": "__xls_modules_rle_rle_dec__RLEDecPipeline8__RLEDecPipeline__RLEDec_0__8_8_next",
+        "inline_procs": "true",
+    },
+    codegen_args = {
+        "module_name": "rle_dec_pipeline",
+        "delay_model": "unit",
+        "pipeline_stages": "2",
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "inline_procs": "true",
+    },
+)
+
+xls_benchmark_ir(
+    name = "rle_dec_pipeline_ir_benchmark",
+    src = "rle_dec_pipeline_verilog.opt.ir",
+    benchmark_ir_args = {
+        "pipeline_stages": "2",
+        "delay_model": "unit",
+    },
+)
