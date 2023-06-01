@@ -48,25 +48,8 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "rle_enc_dslx_test",
-    dslx_test_args = {
-        "compare": "none",
-    },
-    library = "rle_enc_dslx",
-)
-
-xls_dslx_test(
-    name = "rle_enc_dslx_ir_test",
-    dslx_test_args = {
-        "compare": "interpreter",
-    },
-    library = "rle_enc_dslx",
-)
-
-xls_dslx_test(
-    name = "rle_enc_dslx_jit_test",
-    dslx_test_args = {
-        "compare": "jit",
-    },
+    dslx_test_args = {},
+    compare_list = ["none", "interpreter", "jit"],
     library = "rle_enc_dslx",
 )
 
