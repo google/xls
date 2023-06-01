@@ -75,7 +75,64 @@ static AnyNameDef GetSubjectNameDef(const ColonRef::Subject& subject) {
       subject);
 }
 
+void Parenthesize(std::string* s) { *s = absl::StrCat("(", *s, ")"); }
+
 }  // namespace
+
+std::string_view PrecedenceToString(Precedence p) {
+  switch (p) {
+    case Precedence::kStrongest:
+      return "strongest";
+    case Precedence::kPaths:
+      return "paths";
+    case Precedence::kMethodCall:
+      return "method-call";
+
+    case Precedence::kFieldExpression:
+      return "field-expression";
+    case Precedence::kFunctionCallOrArrayIndex:
+      return "function-call-or-array-index";
+    case Precedence::kQuestionMark:
+      return "question-mark";
+    case Precedence::kUnaryOp:
+      return "unary";
+    case Precedence::kAs:
+      return "as";
+    case Precedence::kStrongArithmetic:
+      return "strong-arithmetic";
+    case Precedence::kWeakArithmetic:
+      return "weak-arithmetic";
+    case Precedence::kShift:
+      return "shift";
+
+    case Precedence::kConcat:
+      return "concat";
+
+    case Precedence::kBitwiseAnd:
+      return "bitwise-and";
+    case Precedence::kBitwiseXor:
+      return "bitwise-xor";
+    case Precedence::kBitwiseOr:
+      return "bitwise-or";
+    case Precedence::kComparison:
+      return "comparison";
+    case Precedence::kLogicalAnd:
+      return "logical-and";
+    case Precedence::kLogicalOr:
+      return "logical-or";
+    case Precedence::kRange:
+      return "range";
+    case Precedence::kEquals:
+      return "equals";
+    case Precedence::kReturn:
+      return "return";
+
+    case Precedence::kWeakest:
+      return "weakest";
+  }
+
+  XLS_LOG(FATAL) << "Invalid precedence value: " << static_cast<int>(p);
+}
 
 constexpr int64_t kTargetLineChars = 80;
 
@@ -481,7 +538,7 @@ Conditional::Conditional(Module* owner, Span span, Expr* test,
 
 Conditional::~Conditional() = default;
 
-std::string Conditional::ToString() const {
+std::string Conditional::ToStringInternal() const {
   std::string inline_str = absl::StrFormat(
       R"(if %s %s else %s)", test_->ToInlineString(),
       consequent_->ToInlineString(), ToAstNode(alternate_)->ToInlineString());
@@ -556,7 +613,7 @@ std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
   return results;
 }
 
-std::string StructInstance::ToString() const {
+std::string StructInstance::ToStringInternal() const {
   std::string type_name;
   if (std::holds_alternative<StructDef*>(struct_ref_)) {
     type_name = std::get<StructDef*>(struct_ref_)->identifier();
@@ -573,7 +630,7 @@ std::string StructInstance::ToString() const {
   return absl::StrFormat("%s { %s }", type_name, members_str);
 }
 
-std::string For::ToString() const {
+std::string For::ToStringInternal() const {
   std::string type_str;
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(": ", type_annotation_->ToString());
@@ -586,7 +643,7 @@ std::string For::ToString() const {
 UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
                      TypeAnnotation* types, Expr* iterable, Block* body,
                      Expr* init)
-    : Expr(owner, span),
+    : Expr(owner, std::move(span)),
       names_(names),
       types_(types),
       iterable_(iterable),
@@ -595,7 +652,7 @@ UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
 
 UnrollFor::~UnrollFor() = default;
 
-std::string UnrollFor::ToString() const {
+std::string UnrollFor::ToStringInternal() const {
   std::string type_str;
   if (types_ != nullptr) {
     type_str = absl::StrCat(": ", types_->ToString());
@@ -732,7 +789,7 @@ Param::~Param() = default;
 
 ChannelDecl::~ChannelDecl() = default;
 
-std::string ChannelDecl::ToString() const {
+std::string ChannelDecl::ToStringInternal() const {
   std::vector<std::string> dims;
   if (dims_.has_value()) {
     for (const Expr* dim : dims_.value()) {
@@ -1147,7 +1204,7 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   return results;
 }
 
-std::string SplatStructInstance::ToString() const {
+std::string SplatStructInstance::ToStringInternal() const {
   std::string type_name;
   if (std::holds_alternative<StructDef*>(struct_ref_)) {
     type_name = std::get<StructDef*>(struct_ref_)->identifier();
@@ -1187,7 +1244,7 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
   return results;
 }
 
-std::string Match::ToString() const {
+std::string Match::ToStringInternal() const {
   std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
   for (MatchArm* arm : arms_) {
     absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n")));
@@ -1200,9 +1257,12 @@ std::string Match::ToString() const {
 
 Index::~Index() = default;
 
-std::string Index::ToString() const {
-  return absl::StrFormat("(%s)[%s]", lhs_->ToString(),
-                         ToAstNode(rhs_)->ToString());
+std::string Index::ToStringInternal() const {
+  std::string lhs = lhs_->ToString();
+  if (WeakerThan(lhs_->GetPrecedence(), GetPrecedenceInternal())) {
+    Parenthesize(&lhs);
+  }
+  return absl::StrFormat("%s[%s]", lhs, ToAstNode(rhs_)->ToString());
 }
 
 // -- class WidthSlice
@@ -1361,7 +1421,7 @@ std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
   return {config_, next_};
 }
 
-std::string Spawn::ToString() const {
+std::string Spawn::ToStringInternal() const {
   std::string param_str;
   if (!explicit_parametrics().empty()) {
     param_str = FormatParametrics();
@@ -1389,7 +1449,7 @@ std::vector<AstNode*> ZeroMacro::GetChildren(bool want_types) const {
   return {};
 }
 
-std::string ZeroMacro::ToString() const {
+std::string ZeroMacro::ToStringInternal() const {
   return absl::StrFormat("zero!<%s>()", ToAstNode(type_)->ToString());
 }
 
@@ -1414,7 +1474,7 @@ std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   return results;
 }
 
-std::string FormatMacro::ToString() const {
+std::string FormatMacro::ToStringInternal() const {
   std::string format_string = "\"";
   for (const auto& step : format_) {
     if (std::holds_alternative<std::string>(step)) {
@@ -1546,27 +1606,13 @@ SplatStructInstance::~SplatStructInstance() = default;
 
 Unop::~Unop() = default;
 
-// -- class Binop
-
-Binop::~Binop() = default;
-
-absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
-#define HANDLE(__enum, __unused, __operator) \
-  if (s == __operator) {                     \
-    return BinopKind::__enum;                \
+std::string Unop::ToStringInternal() const {
+  std::string operand = operand_->ToString();
+  if (WeakerThan(operand_->GetPrecedence(), GetPrecedenceInternal())) {
+    Parenthesize(&operand);
   }
-  XLS_DSLX_BINOP_KIND_EACH(HANDLE)
-#undef HANDLE
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid BinopKind string: \"%s\"", s));
+  return absl::StrFormat("%s%s", UnopKindToString(unop_kind_), operand);
 }
-
-Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
-             Expr* rhs)
-    : Expr(owner, std::move(span)),
-      binop_kind_(binop_kind),
-      lhs_(lhs),
-      rhs_(rhs) {}
 
 absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s) {
   if (s == "!") {
@@ -1587,6 +1633,88 @@ std::string UnopKindToString(UnopKind k) {
       return "-";
   }
   return absl::StrFormat("<invalid UnopKind(%d)>", static_cast<int>(k));
+}
+
+// -- class Binop
+
+Binop::~Binop() = default;
+
+Precedence Binop::GetPrecedenceInternal() const {
+  switch (binop_kind_) {
+    case BinopKind::kShl:
+      return Precedence::kShift;
+    case BinopKind::kShr:
+      return Precedence::kShift;
+    case BinopKind::kLogicalAnd:
+      return Precedence::kLogicalAnd;
+    case BinopKind::kLogicalOr:
+      return Precedence::kLogicalOr;
+    // bitwise
+    case BinopKind::kXor:
+      return Precedence::kBitwiseXor;
+    case BinopKind::kOr:
+      return Precedence::kBitwiseOr;
+    case BinopKind::kAnd:
+      return Precedence::kBitwiseAnd;
+    // comparisons
+    case BinopKind::kEq:
+    case BinopKind::kNe:
+    case BinopKind::kGe:
+    case BinopKind::kGt:
+    case BinopKind::kLt:
+    case BinopKind::kLe:
+      return Precedence::kComparison;
+    // weak arithmetic
+    case BinopKind::kAdd:
+    case BinopKind::kSub:
+      return Precedence::kWeakArithmetic;
+    // strong arithmetic
+    case BinopKind::kMul:
+    case BinopKind::kDiv:
+      return Precedence::kStrongArithmetic;
+    case BinopKind::kConcat:
+      return Precedence::kConcat;
+  }
+  XLS_LOG(FATAL) << "Invalid binop kind: " << static_cast<int>(binop_kind_);
+}
+
+absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
+#define HANDLE(__enum, __unused, __operator) \
+  if (s == __operator) {                     \
+    return BinopKind::__enum;                \
+  }
+  XLS_DSLX_BINOP_KIND_EACH(HANDLE)
+#undef HANDLE
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid BinopKind string: \"%s\"", s));
+}
+
+Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
+             Expr* rhs)
+    : Expr(owner, std::move(span)),
+      binop_kind_(binop_kind),
+      lhs_(lhs),
+      rhs_(rhs) {}
+
+std::string Binop::ToStringInternal() const {
+  Precedence op_precedence = GetPrecedenceInternal();
+  std::string lhs = lhs_->ToString();
+  {
+    Precedence lhs_precedence = lhs_->GetPrecedence();
+    XLS_VLOG(10) << "lhs_expr: `" << lhs << "` precedence: " << lhs_precedence
+                 << " op_precedence: " << op_precedence;
+    if (WeakerThan(lhs_precedence, op_precedence)) {
+      Parenthesize(&lhs);
+    }
+  }
+
+  std::string rhs = rhs_->ToString();
+  {
+    if (WeakerThan(rhs_->GetPrecedence(), op_precedence)) {
+      Parenthesize(&rhs);
+    }
+  }
+  return absl::StrFormat("%s %s %s", lhs, BinopKindFormat(binop_kind_), rhs);
 }
 
 // -- class Block
@@ -1624,7 +1752,7 @@ std::string Block::ToInlineString() const {
   return s;
 }
 
-std::string Block::ToString() const {
+std::string Block::ToStringInternal() const {
   // A formatting special case: if there are no statements (and implicitly a
   // trailing semi since an empty block gives unit type) we just give back
   // braces without any semicolon inside.
@@ -1889,7 +2017,7 @@ Range::Range(Module* owner, Span span, Expr* start, Expr* end)
 
 Range::~Range() = default;
 
-std::string Range::ToString() const {
+std::string Range::ToStringInternal() const {
   return absl::StrFormat("%s..%s", start_->ToString(), end_->ToString());
 }
 
@@ -1900,7 +2028,7 @@ Recv::Recv(Module* owner, Span span, NameRef* token, Expr* channel)
 
 Recv::~Recv() = default;
 
-std::string Recv::ToString() const {
+std::string Recv::ToStringInternal() const {
   return absl::StrFormat("recv(%s, %s)", token_->identifier(),
                          channel_->ToString());
 }
@@ -1915,7 +2043,7 @@ RecvNonBlocking::RecvNonBlocking(Module* owner, Span span, NameRef* token,
 
 RecvNonBlocking::~RecvNonBlocking() = default;
 
-std::string RecvNonBlocking::ToString() const {
+std::string RecvNonBlocking::ToStringInternal() const {
   return absl::StrFormat("recv_non_blocking(%s, %s, %s)", token_->identifier(),
                          channel_->ToString(), default_value_->ToString());
 }
@@ -1932,7 +2060,7 @@ RecvIf::RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
 
 RecvIf::~RecvIf() = default;
 
-std::string RecvIf::ToString() const {
+std::string RecvIf::ToStringInternal() const {
   return absl::StrFormat("recv_if(%s, %s, %s, %s)", token_->identifier(),
                          channel_->ToString(), condition_->ToString(),
                          default_value_->ToString());
@@ -1951,7 +2079,7 @@ RecvIfNonBlocking::RecvIfNonBlocking(Module* owner, Span span, NameRef* token,
 
 RecvIfNonBlocking::~RecvIfNonBlocking() = default;
 
-std::string RecvIfNonBlocking::ToString() const {
+std::string RecvIfNonBlocking::ToStringInternal() const {
   return absl::StrFormat("recv_if_non_blocking(%s, %s, %s, %s)",
                          token_->identifier(), channel_->ToString(),
                          condition_->ToString(), default_value_->ToString());
@@ -1968,7 +2096,7 @@ Send::Send(Module* owner, Span span, NameRef* token, Expr* channel,
 
 Send::~Send() = default;
 
-std::string Send::ToString() const {
+std::string Send::ToStringInternal() const {
   return absl::StrFormat("send(%s, %s, %s)", token_->identifier(),
                          channel_->ToString(), payload_->ToString());
 }
@@ -1985,7 +2113,7 @@ SendIf::SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
 
 SendIf::~SendIf() = default;
 
-std::string SendIf::ToString() const {
+std::string SendIf::ToStringInternal() const {
   return absl::StrFormat("send_if(%s, %s, %s, %s)", token_->identifier(),
                          channel_->ToString(), condition_->ToString(),
                          payload_->ToString());
@@ -1994,11 +2122,11 @@ std::string SendIf::ToString() const {
 // -- class Join
 
 Join::Join(Module* owner, Span span, const std::vector<Expr*>& tokens)
-    : Expr(owner, span), tokens_(tokens) {}
+    : Expr(owner, std::move(span)), tokens_(tokens) {}
 
 Join::~Join() = default;
 
-std::string Join::ToString() const {
+std::string Join::ToStringInternal() const {
   std::string tokens_str =
       absl::StrJoin(tokens_, ", ", [](std::string* out, const Expr* token) {
         absl::StrAppend(out, token->ToString());
@@ -2018,6 +2146,18 @@ std::vector<AstNode*> Join::GetChildren(bool want_types) const {
 // -- class Cast
 
 Cast::~Cast() = default;
+
+std::string Cast::ToStringInternal() const {
+  std::string lhs = expr_->ToString();
+  Precedence arg_precedence = expr_->GetPrecedence();
+  if (WeakerThan(arg_precedence, Precedence::kAs)) {
+    XLS_VLOG(10) << absl::StreamFormat(
+        "expr `%s` precedence: %s weaker than 'as'", lhs,
+        PrecedenceToString(arg_precedence));
+    Parenthesize(&lhs);
+  }
+  return absl::StrFormat("%s as %s", lhs, type_annotation_->ToString());
+}
 
 // -- class TestProc
 
@@ -2156,7 +2296,7 @@ absl::Status TupleIndex::AcceptExpr(ExprVisitor* v) const {
   return v->HandleTupleIndex(this);
 }
 
-std::string TupleIndex::ToString() const {
+std::string TupleIndex::ToStringInternal() const {
   return absl::StrCat(lhs_->ToString(), ".", index_->ToString());
 }
 
@@ -2168,7 +2308,7 @@ std::vector<AstNode*> TupleIndex::GetChildren(bool want_types) const {
 
 XlsTuple::~XlsTuple() = default;
 
-std::string XlsTuple::ToString() const {
+std::string XlsTuple::ToStringInternal() const {
   std::string result = "(";
   for (int64_t i = 0; i < members_.size(); ++i) {
     absl::StrAppend(&result, members_[i]->ToString());
@@ -2291,6 +2431,14 @@ std::string Let::ToString() const {
 
 Expr::~Expr() = default;
 
+std::string Expr::ToString() const {
+  std::string s = ToStringInternal();
+  if (in_parens()) {
+    Parenthesize(&s);
+  }
+  return s;
+}
+
 // -- class String
 
 String::~String() = default;
@@ -2313,7 +2461,7 @@ std::vector<AstNode*> Number::GetChildren(bool want_types) const {
   return {type_annotation_};
 }
 
-std::string Number::ToString() const {
+std::string Number::ToStringInternal() const {
   std::string formatted_text = text_;
   if (number_kind_ == NumberKind::kCharacter) {
     if (text_[0] == '\'' || text_[0] == '\\') {
@@ -2376,7 +2524,7 @@ TypeAlias::~TypeAlias() = default;
 
 Array::~Array() = default;
 
-std::string Array::ToString() const {
+std::string Array::ToStringInternal() const {
   std::string type_prefix;
   if (type_annotation_ != nullptr) {
     type_prefix = absl::StrCat(type_annotation_->ToString(), ":");

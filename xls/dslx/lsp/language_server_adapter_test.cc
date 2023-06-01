@@ -127,11 +127,9 @@ TEST(LanguageServerAdapterTest, TestFormatRange) {
 
   const verible::lsp::TextEdit& edit = edits.at(0);
   EXPECT_TRUE(edit.range == kInputRange);
-  // TODO(cdleary): 2023-05-25 Fix indentation and precedence requirements for
-  // parentheses.
   EXPECT_EQ(edit.newText, R"({
   let x = u32:42;
-  (x) + (x)
+  x + x
 })");
 }
 

@@ -194,7 +194,7 @@ fn main() -> u32[ARRAY_SIZE] {
 
 TEST(AstClonerTest, Binops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  (u13:5) + (u13:500)
+  u13:5 + u13:500
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -208,7 +208,7 @@ TEST(AstClonerTest, Binops) {
 
 TEST(AstClonerTest, Unops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  -(u13:500)
+  -u13:500
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -222,7 +222,7 @@ TEST(AstClonerTest, Unops) {
 
 TEST(AstClonerTest, Casts) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  ((-(u17:500)) as u13)
+  -u17:500 as u13
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -245,7 +245,7 @@ TEST(AstClonerTest, Procs) {
     u19:0
   }
   next(tok: token, state: u19) {
-    (((((a) as u64)) + (b)) as u19)
+    (a as u64 + b) as u19
   }
 })";
 
@@ -287,7 +287,7 @@ proc my_test_proc {
     u64:1
   }
   next(tok: token, state: u64) {
-    ((state) + (((a) as u64))) + (((b) as u64))
+    state + a as u64 + b as u64
   }
 })";
 
@@ -334,7 +334,7 @@ TEST(AstClonerTest, TypeAlias) {
 TEST(AstClonerTest, QuickCheck) {
   constexpr std::string_view kProgram = R"(#[quickcheck(test_count=1000)]
 fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
-  (((a) + (b)) + (c)) == ((a) + ((b) + (c)))
+  (a + b) + c == a + (b + c)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -356,7 +356,7 @@ enum MyEnum : u8 {
 }
 
 fn my_function(a: u32) -> u16 {
-  (a) as u16
+  a as u16
 }
 
 proc my_proc {
@@ -369,8 +369,8 @@ proc my_proc {
     (u8:32, u32:8)
   }
   next(tok: token, state: u16) {
-    let x = my_function(((state) as u32));
-    ((((a) as u16)) + (((b) as u16))) + (x)
+    let x = my_function(state as u32);
+    a as u16 + b as u16 + x
   }
 })";
 
@@ -383,7 +383,7 @@ enum MyEnum : u8 {
   GOOD = 2,
 }
 fn my_function(a: u32) -> u16 {
-  ((a) as u16)
+  a as u16
 }
 fn my_proc.init() -> u16 {
   u16:0
@@ -392,8 +392,8 @@ fn my_proc.config() -> (u8, u32) {
   (u8:32, u32:8)
 }
 fn my_proc.next(tok: token, state: u16) -> u16 {
-  let x = my_function(((state) as u32));
-  ((((a) as u16)) + (((b) as u16))) + (x)
+  let x = my_function(state as u32);
+  a as u16 + b as u16 + x
 }
 proc my_proc {
   a: u8;
@@ -405,8 +405,8 @@ proc my_proc {
     u16:0
   }
   next(tok: token, state: u16) {
-    let x = my_function(((state) as u32));
-    ((((a) as u16)) + (((b) as u16))) + (x)
+    let x = my_function(state as u32);
+    a as u16 + b as u16 + x
   }
 })";
 
@@ -421,9 +421,9 @@ proc my_proc {
 TEST(AstClonerTest, IndexVariants) {
   constexpr std::string_view kProgram = R"(fn main() {
   let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
-  let index = (array)[2];
-  let slice = ((array)[3])[0:2];
-  let width_slice = ((array)[3])[(array)[0]+:u4];
+  let index = array[2];
+  let slice = array[3][0:2];
+  let width_slice = array[3][array[0]+:u4];
   ()
 })";
 
@@ -458,7 +458,7 @@ fn main() {
 TEST(AstClonerTest, Ternary) {
   constexpr std::string_view kProgram =
       R"(fn main(a: u32, b: u32, c: u32) -> u32 {
-  if (a) > (u32:5) { b } else { c }
+  if a > u32:5 { b } else { c }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -489,7 +489,7 @@ TEST(AstClonerTest, Match) {
 fn main(x: u32, y: u32) -> u32 {
   match (x, y) {
     (u32:0, y) => y,
-    (u32:1, a) => (a) + (u32:100),
+    (u32:1, a) => a + u32:100,
     (u32:2, _) => foo::IMPORTED_CONSTANT,
     (_, u32:100) => u32:200,
   }
@@ -517,7 +517,7 @@ TEST(AstClonerTest, String) {
 TEST(AstClonerTest, NormalFor) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
   for (i, a): (u32, u32) in range(0, u32:100) {
-    (i) + (a)
+    i + a
   }(u32:0)
 })";
 
@@ -560,7 +560,7 @@ proc MyProc {
     let (tok1, state) = recv(tok, output_c);
     let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
     let tok = join(tok1, tok2);
-    (state) + (foo)
+    state + foo
   }
 })";
   constexpr std::string_view kExpected = R"(import other_module
@@ -575,11 +575,11 @@ fn MyProc.init() -> u32 {
 }
 fn MyProc.next(tok: token, state: u32) -> u32 {
   let tok = send(tok, input_p, state);
-  let tok = send_if(tok, input_p, (state) > (u32:32), state);
+  let tok = send_if(tok, input_p, state > u32:32, state);
   let (tok1, state) = recv(tok, output_c);
-  let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32), u64:0);
+  let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
   let tok = join(tok1, tok2);
-  (state) + (foo)
+  state + foo
 }
 proc MyProc {
   input_p: chan<u32> out;
@@ -595,11 +595,11 @@ proc MyProc {
   }
   next(tok: token, state: u32) {
     let tok = send(tok, input_p, state);
-    let tok = send_if(tok, input_p, (state) > (u32:32), state);
+    let tok = send_if(tok, input_p, state > u32:32, state);
     let (tok1, state) = recv(tok, output_c);
-    let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32), u64:0);
+    let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
     let tok = join(tok1, tok2);
-    (state) + (foo)
+    state + foo
   }
 })";
 

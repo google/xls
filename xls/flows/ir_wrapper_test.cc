@@ -111,7 +111,7 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   next(tok: token, state: ()) {
     let (tok, a) = recv(tok, in_0);
     let (tok, b) = recv(tok, in_1);
-    let tok = send(tok, output, (a) + (b));
+    let tok = send(tok, output, a + b);
     ()
   }
 })";
@@ -148,7 +148,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   a: bits[32] = tuple_index(receive.4, index=1, id=7, pos=[(0,11,14)])
   b: bits[32] = tuple_index(receive.8, index=1, id=11, pos=[(0,12,14)])
   tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,12,9)])
-  add.12: bits[32] = add(a, b, id=12, pos=[(0,13,36)])
+  add.12: bits[32] = add(a, b, id=12, pos=[(0,13,34)])
   tok__2: token = send(tok__1, add.12, channel_id=2, id=13)
   next (tok__2)
 }

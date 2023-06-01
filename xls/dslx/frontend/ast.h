@@ -555,6 +555,64 @@ class ExprVisitorWithDefault : public ExprVisitor {
 #undef DECLARE_HANDLER
 };
 
+// A la
+// https://doc.rust-lang.org/reference/expressions.html#expression-precedence
+//
+// This is organized from strong to weak, so any time an expression has >
+// precedence than its child nodes, we need to use parentheses.
+enum class Precedence {
+  kStrongest = 0,
+
+  kPaths = 1,
+  kMethodCall = 2,
+  kFieldExpression = 3,
+  kFunctionCallOrArrayIndex = 4,
+
+  // Note: the DSL doesn't have a question mark operator, it's just here for
+  // completeness with respect to the Rust precedence table.
+  kQuestionMark = 5,
+
+  kUnaryOp = 6,
+  kAs = 7,
+  kStrongArithmetic = 8,
+  kWeakArithmetic = 9,
+  kShift = 10,
+
+  // Note: this is not present in Rust, but it seems the right level relative to
+  // other constructs.
+  kConcat = 11,
+
+  kBitwiseAnd = 12,
+  kBitwiseXor = 13,
+  kBitwiseOr = 14,
+  kComparison = 15,
+  kLogicalAnd = 16,
+  kLogicalOr = 17,
+  kRange = 18,
+  kEquals = 19,
+  kReturn = 20,
+  kWeakest = 21,
+};
+
+std::string_view PrecedenceToString(Precedence p);
+
+inline std::ostream& operator<<(std::ostream& os, Precedence p) {
+  os << PrecedenceToString(p);
+  return os;
+}
+
+// Returns whether x is weaker precedence (binds more loosely) than y.
+//
+// For example:
+//
+//    WeakerThan(kWeakArithmetic, kStrongArithmetic) == true
+//
+// Which would indicate that the weak arithmetic needs parens if it's inside the
+// strong arithmetic operator.
+inline bool WeakerThan(Precedence x, Precedence y) {
+  return static_cast<int>(x) > static_cast<int>(y);
+}
+
 // Abstract base class for AST node that can appear in expression positions
 // (i.e. can produce runtime values).
 class Expr : public AstNode {
@@ -569,6 +627,24 @@ class Expr : public AstNode {
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
 
+  // Implementation note: subtypes of Expr override `ToStringInternal()`
+  // instead, so that we can consolidate parenthesization of the expression at
+  // this level.
+  std::string ToString() const final;
+
+  // Returns the precedence of this expression, as observed by consumers; e.g.
+  // if the expression is marked as being enclosed in parentheses, it returns
+  // Precedence::kStrongest.
+  //
+  // To get the precedence of this operator directly (regardless of
+  // parenthesization) call GetPrecedenceInternal().
+  Precedence GetPrecedence() const {
+    if (in_parens()) {
+      return Precedence::kStrongest;
+    }
+    return GetPrecedenceInternal();
+  }
+
   // Note: this is one of the rare instances where we're ok with updating the
   // AST node after it has been formed just to note that it is enclosed in
   // parentheses. For example, we want to flag:
@@ -577,6 +653,14 @@ class Expr : public AstNode {
   //    (x == y) == z
   bool in_parens() const { return in_parens_; }
   void set_in_parens(bool enabled) { in_parens_ = enabled; }
+
+ protected:
+  // Returns the precedence of this Expr node without considering whether it is
+  // wrapped in parentheses. This is useful e.g. when determining whether
+  // operands of the operator require parenthesization, see also WeakerThan().
+  virtual Precedence GetPrecedenceInternal() const = 0;
+
+  virtual std::string ToStringInternal() const = 0;
 
  private:
   Span span_;
@@ -695,7 +779,6 @@ class Block : public Expr {
     return v->HandleBlock(this);
   }
   std::string_view GetNodeTypeName() const override { return "Block"; }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return std::vector<AstNode*>(statements_.begin(), statements_.end());
   }
@@ -714,6 +797,12 @@ class Block : public Expr {
   }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   std::vector<Statement*> statements_;
   bool trailing_semi_;
 };
@@ -744,7 +833,6 @@ class NameRef : public Expr {
   const std::string& identifier() const { return identifier_; }
 
   std::string_view GetNodeTypeName() const override { return "NameRef"; }
-  std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
@@ -775,6 +863,12 @@ class NameRef : public Expr {
   }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final { return identifier_; }
+
   AnyNameDef name_def_;
   std::string identifier_;
 };
@@ -805,8 +899,6 @@ class Number : public Expr {
   std::string_view GetNodeTypeName() const override { return "Number"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override;
-
   // Returns this number without a leading type AST node prefix (even if it is
   // present).
   std::string ToStringNoType() const;
@@ -836,6 +928,12 @@ class Number : public Expr {
   NumberKind number_kind() const { return number_kind_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   std::string text_;  // Will never be empty.
   NumberKind number_kind_;
   TypeAnnotation* type_annotation_;  // May be null.
@@ -859,13 +957,6 @@ class String : public Expr {
     return v->HandleString(this);
   }
   std::string_view GetNodeTypeName() const override { return "String"; }
-  std::string ToString() const override {
-    // We need to re-insert the escape slash for: the blackslahes and the double
-    // quotes.
-    return absl::StrFormat(
-        R"("%s")",
-        absl::StrReplaceAll(text_, {{R"(\)", R"(\\)"}, {R"(")", R"(\")"}}));
-  }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {};
   }
@@ -873,6 +964,18 @@ class String : public Expr {
   const std::string& text() const { return text_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final {
+    // We need to re-insert the escape slash for: the blackslahes and the double
+    // quotes.
+    return absl::StrFormat(
+        R"("%s")",
+        absl::StrReplaceAll(text_, {{R"(\)", R"(\\)"}, {R"(")", R"(\")"}}));
+  }
+
   std::string text_;
 };
 
@@ -934,7 +1037,6 @@ class Array : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Array"; }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<Expr*>& members() const { return members_; }
@@ -950,6 +1052,12 @@ class Array : public Expr {
   bool has_ellipsis() const { return has_ellipsis_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const override;
+
   TypeAnnotation* type_annotation_ = nullptr;
   std::vector<Expr*> members_;
   bool has_ellipsis_;
@@ -1090,9 +1198,6 @@ class ColonRef : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "ColonRef"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s::%s", ToAstNode(subject_)->ToString(), attr_);
-  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {ToAstNode(subject_)};
@@ -1109,6 +1214,12 @@ class ColonRef : public Expr {
   std::optional<Import*> ResolveImportSubject() const;
 
  private:
+  Precedence GetPrecedenceInternal() const final { return Precedence::kPaths; }
+
+  std::string ToStringInternal() const override {
+    return absl::StrFormat("%s::%s", ToAstNode(subject_)->ToString(), attr_);
+  }
+
   Subject subject_;
   std::string attr_;
 };
@@ -1178,10 +1289,6 @@ class Unop : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Unop"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s(%s)", UnopKindToString(unop_kind_),
-                           operand_->ToString());
-  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {operand_};
@@ -1191,6 +1298,12 @@ class Unop : public Expr {
   Expr* operand() const { return operand_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kUnaryOp;
+  }
+
+  std::string ToStringInternal() const final;
+
   UnopKind unop_kind_;
   Expr* operand_;
 };
@@ -1268,16 +1381,15 @@ class Binop : public Expr {
     return {lhs_, rhs_};
   }
 
-  std::string ToString() const override {
-    return absl::StrFormat("(%s) %s (%s)", lhs_->ToString(),
-                           BinopKindFormat(binop_kind_), rhs_->ToString());
-  }
-
   BinopKind binop_kind() const { return binop_kind_; }
   Expr* lhs() const { return lhs_; }
   Expr* rhs() const { return rhs_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final;
+
+  std::string ToStringInternal() const final;
+
   BinopKind binop_kind_;
   Expr* lhs_;
   Expr* rhs_;
@@ -1314,7 +1426,6 @@ class Conditional : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Conditional"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {test_, consequent_, ToAstNode(alternate_)};
@@ -1325,6 +1436,12 @@ class Conditional : public Expr {
   std::variant<Block*, Conditional*> alternate() const { return alternate_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   Expr* test_;
   Block* consequent_;
   std::variant<Block*, Conditional*> alternate_;
@@ -1598,7 +1715,6 @@ class Match : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Match"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -1606,6 +1722,12 @@ class Match : public Expr {
   Expr* matched() const { return matched_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   Expr* matched_;
   std::vector<MatchArm*> arms_;
 };
@@ -1630,9 +1752,6 @@ class Attr : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Attr"; }
-  std::string ToString() const override {
-    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
-  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {lhs_, attr_};
@@ -1645,6 +1764,14 @@ class Attr : public Expr {
   NameDef* attr() const { return attr_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kFieldExpression;
+  }
+
+  std::string ToStringInternal() const final {
+    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
+  }
+
   Expr* lhs_;
   NameDef* attr_;
 };
@@ -1700,14 +1827,18 @@ class Invocation : public Instantiation {
 
   std::string FormatArgs() const;
 
-  std::string ToString() const override {
-    return absl::StrFormat("%s%s(%s)", callee()->ToString(),
-                           FormatParametrics(), FormatArgs());
-  };
-
   absl::Span<Expr* const> args() const { return args_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kFunctionCallOrArrayIndex;
+  }
+
+  std::string ToStringInternal() const final {
+    return absl::StrFormat("%s%s(%s)", callee()->ToString(),
+                           FormatParametrics(), FormatArgs());
+  }
+
   std::vector<Expr*> args_;
 };
 
@@ -1734,13 +1865,18 @@ class Spawn : public Instantiation {
 
   std::string_view GetNodeTypeName() const override { return "Spawn"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
-  std::string ToString() const override;
 
   Invocation* config() const { return config_; }
   Invocation* next() const { return next_; }
   bool IsParametric() { return !explicit_parametrics().empty(); }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const override;
+
   Invocation* config_;
   Invocation* next_;
 };
@@ -1768,13 +1904,17 @@ class FormatMacro : public Expr {
 
   std::string FormatArgs() const;
 
-  std::string ToString() const override;
-
   const std::string& macro() const { return macro_; }
   absl::Span<Expr* const> args() const { return args_; }
   absl::Span<const FormatStep> format() const { return format_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   std::string macro_;
   std::vector<FormatStep> format_;
   std::vector<Expr*> args_;
@@ -1803,11 +1943,15 @@ class ZeroMacro : public Expr {
   std::string_view GetNodeTypeName() const override { return "ZeroMacro"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override;
-
   ExprOrType type() const { return type_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   ExprOrType type_;
 };
 
@@ -2022,8 +2166,6 @@ class StructInstance : public Expr {
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override;
-
   absl::Span<const std::pair<std::string, Expr*>> GetUnorderedMembers() const {
     return members_;
   }
@@ -2042,6 +2184,12 @@ class StructInstance : public Expr {
 
  private:
   AstNode* GetStructNode() const { return ToAstNode(struct_ref_); }
+
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
 
   StructRef struct_ref_;
   std::vector<std::pair<std::string, Expr*>> members_;
@@ -2074,8 +2222,6 @@ class SplatStructInstance : public Expr {
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  std::string ToString() const override;
-
   Expr* splatted() const { return splatted_; }
   StructRef struct_ref() const { return struct_ref_; }
   const std::vector<std::pair<std::string, Expr*>>& members() const {
@@ -2083,6 +2229,12 @@ class SplatStructInstance : public Expr {
   }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   // The struct being instantiated.
   StructRef struct_ref_;
 
@@ -2109,7 +2261,7 @@ class WidthSlice : public AstNode {
     return v->HandleWidthSlice(this);
   }
   std::string_view GetNodeTypeName() const override { return "WidthSlice"; }
-  std::string ToString() const override;
+  std::string ToString() const final;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {start_, width_};
@@ -2155,7 +2307,6 @@ class Index : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Index"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {lhs_, ToAstNode(rhs_)};
@@ -2165,6 +2316,12 @@ class Index : public Expr {
   IndexRhs rhs() const { return rhs_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kFunctionCallOrArrayIndex;
+  }
+
+  std::string ToStringInternal() const final;
+
   // Expression that yields the value being indexed into; e.g. `a` in `a[10]`.
   Expr* lhs_;
   // Index expression; e.g. `10` in `a[10]`.
@@ -2187,7 +2344,6 @@ class Range : public Expr {
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleRange(this);
   }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {start_, end_};
   }
@@ -2196,6 +2352,10 @@ class Range : public Expr {
   Expr* end() const { return end_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final { return Precedence::kRange; }
+
+  std::string ToStringInternal() const final;
+
   Expr* start_;
   Expr* end_;
 };
@@ -2218,7 +2378,6 @@ class Recv : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Recv"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_};
@@ -2228,6 +2387,12 @@ class Recv : public Expr {
   Expr* channel() const { return channel_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
 };
@@ -2254,8 +2419,6 @@ class RecvNonBlocking : public Expr {
     return "RecvNonBlocking";
   }
 
-  std::string ToString() const override;
-
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_, default_value_};
   }
@@ -2265,6 +2428,12 @@ class RecvNonBlocking : public Expr {
   Expr* default_value() const { return default_value_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
   Expr* default_value_;
@@ -2289,7 +2458,6 @@ class RecvIf : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "RecvIf"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_, condition_, default_value_};
@@ -2301,6 +2469,12 @@ class RecvIf : public Expr {
   Expr* default_value() const { return default_value_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
   Expr* condition_;
@@ -2332,8 +2506,6 @@ class RecvIfNonBlocking : public Expr {
     return "RecvIfNonBlocking";
   }
 
-  std::string ToString() const override;
-
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_, condition_, default_value_};
   }
@@ -2344,6 +2516,12 @@ class RecvIfNonBlocking : public Expr {
   Expr* default_value() const { return default_value_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
   Expr* condition_;
@@ -2370,7 +2548,6 @@ class Send : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Send"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_, payload_};
@@ -2381,6 +2558,12 @@ class Send : public Expr {
   Expr* payload() const { return payload_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
   Expr* payload_;
@@ -2405,7 +2588,6 @@ class SendIf : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "SendIf"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {token_, channel_, condition_, payload_};
@@ -2417,6 +2599,12 @@ class SendIf : public Expr {
   Expr* payload() const { return payload_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameRef* token_;
   Expr* channel_;
   Expr* condition_;
@@ -2431,6 +2619,7 @@ class Join : public Expr {
  public:
   Join(Module* owner, Span span, const std::vector<Expr*>& tokens);
   ~Join() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kJoin; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleJoin(this);
@@ -2439,12 +2628,17 @@ class Join : public Expr {
     return v->HandleJoin(this);
   }
   std::string_view GetNodeTypeName() const override { return "Join"; }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<Expr*>& tokens() const { return tokens_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   std::vector<Expr*> tokens_;
 };
 
@@ -2562,17 +2756,23 @@ class TupleIndex : public Expr {
  public:
   TupleIndex(Module* owner, Span span, Expr* lhs, Number* index);
   ~TupleIndex() override;
+
   AstNodeKind kind() const override { return AstNodeKind::kTupleIndex; }
   absl::Status Accept(AstNodeVisitor* v) const override;
   absl::Status AcceptExpr(ExprVisitor* v) const override;
   std::string_view GetNodeTypeName() const override { return "TupleIndex"; }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   Expr* lhs() const { return lhs_; }
   Number* index() const { return index_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kFieldExpression;
+  }
+
+  std::string ToStringInternal() const final;
+
   Expr* lhs_;
   Number* index_;
 };
@@ -2603,13 +2803,17 @@ class XlsTuple : public Expr {
   bool empty() const { return members_.empty(); }
   bool has_trailing_comma() const { return has_trailing_comma_; }
 
-  std::string ToString() const override;
-
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return ToAstNodes<Expr>(members_);
   }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   std::vector<Expr*> members_;
   bool has_trailing_comma_;
 };
@@ -2632,7 +2836,6 @@ class For : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "For"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2652,6 +2855,12 @@ class For : public Expr {
   Expr* init() const { return init_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameDefTree* names_;
   TypeAnnotation* type_annotation_;
   Expr* iterable_;
@@ -2674,7 +2883,6 @@ class UnrollFor : public Expr {
     return v->HandleUnrollFor(this);
   }
   std::string_view GetNodeTypeName() const override { return "unroll-for"; }
-  std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   NameDefTree* names() const { return names_; }
@@ -2684,6 +2892,12 @@ class UnrollFor : public Expr {
   Expr* init() const { return init_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   NameDefTree* names_;
   TypeAnnotation* types_;
   Expr* iterable_;
@@ -2717,10 +2931,6 @@ class Cast : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "Cast"; }
-  std::string ToString() const override {
-    return absl::StrFormat("((%s) as %s)", expr_->ToString(),
-                           type_annotation_->ToString());
-  }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     if (want_types) {
@@ -2733,6 +2943,10 @@ class Cast : public Expr {
   TypeAnnotation* type_annotation() const { return type_annotation_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final { return Precedence::kAs; }
+
+  std::string ToStringInternal() const final;
+
   Expr* expr_;
   TypeAnnotation* type_annotation_;
 };
@@ -3001,7 +3215,6 @@ class ChannelDecl : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
-  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {ToAstNode(type_)};
@@ -3012,6 +3225,12 @@ class ChannelDecl : public Expr {
   std::optional<Expr*> fifo_depth() const { return fifo_depth_; }
 
  private:
+  Precedence GetPrecedenceInternal() const final {
+    return Precedence::kStrongest;
+  }
+
+  std::string ToStringInternal() const final;
+
   TypeAnnotation* type_;
   std::optional<std::vector<Expr*>> dims_;
   std::optional<Expr*> fifo_depth_;

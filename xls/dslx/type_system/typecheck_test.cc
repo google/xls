@@ -501,7 +501,7 @@ fn bar() -> bits[5] { foo(u5:1, u11: 2) }
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Inconsistent parametric instantiation of function, first "
-                    "saw Y = u32:11; then saw Y = (X) + (X) = u32:10")));
+                    "saw Y = u32:11; then saw Y = X + X = u32:10")));
 }
 
 TEST(TypecheckTest, ParametricDerivedInstantiationVsBodyOk) {
@@ -1392,9 +1392,8 @@ TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
   EXPECT_THAT(
       TypecheckParametricStructInstance(
           "fn f() -> Point<32, 63> { Point { x: u32:5, y: u63:255 } }"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("first saw M = u32:63; then saw M = (N) + (N) = u32:64")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("first saw M = u32:63; then saw M = N + N = u32:64")));
 }
 
 TEST(TypecheckParametricStructInstanceTest, TooManyParametricArgs) {
@@ -1452,7 +1451,7 @@ fn main() {
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Inconsistent parametric instantiation of struct, first "
-                    "saw M = u32:15; then saw M = (N) + (N) = u32:28")));
+                    "saw M = u32:15; then saw M = N + N = u32:28")));
 }
 
 TEST(TypecheckParametricStructInstanceTest, BadParametricSplatInstantiation) {
@@ -1468,9 +1467,8 @@ fn main() {
   ()
 }
 )"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("first saw M = u32:10; then saw M = (N) + (N) = u32:20")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("first saw M = u32:10; then saw M = N + N = u32:20")));
 }
 
 TEST(TypecheckTest, AttrViaColonRef) {

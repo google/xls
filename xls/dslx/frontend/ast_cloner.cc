@@ -79,9 +79,14 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleBinop(const Binop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Binop>(
+    auto* new_binop = module_->Make<Binop>(
         n->span(), n->binop_kind(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
         down_cast<Expr*>(old_to_new_.at(n->rhs())));
+    // TODO(cdleary): 2023-05-30 The in_parens arguments should be given to the
+    // Expr base class so we don't need to remember to clone it explicitly here
+    // (i.e. it's given at construction naturally).
+    new_binop->set_in_parens(n->in_parens());
+    old_to_new_[n] = new_binop;
     return absl::OkStatus();
   }
 
@@ -864,9 +869,14 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleUnop(const Unop* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] =
+    auto* new_op =
         module_->Make<Unop>(n->span(), n->unop_kind(),
                             down_cast<Expr*>(old_to_new_.at(n->operand())));
+    // TODO(cdleary): 2023-05-30 The in_parens arguments should be given to the
+    // Expr base class so we don't need to remember to clone it explicitly here
+    // (i.e. it's given at construction naturally).
+    new_op->set_in_parens(n->in_parens());
+    old_to_new_[n] = new_op;
     return absl::OkStatus();
   }
 

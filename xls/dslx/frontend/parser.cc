@@ -2737,13 +2737,6 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings& bindings) {
                               last_expr_had_trailing_semi);
 }
 
-absl::StatusOr<Expr*> Parser::ParseParenthesizedExpr(Bindings& bindings) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-  return e;
-}
-
 absl::StatusOr<std::vector<ParametricBinding*>> Parser::ParseParametricBindings(
     Bindings& bindings) {
   auto parse_parametric_binding =

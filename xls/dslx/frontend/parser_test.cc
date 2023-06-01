@@ -360,7 +360,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
     u32:0
   }
   next(tok: token, addend: u32) {
-    (x) + (addend)
+    x + addend
   }
 })";
 
@@ -393,7 +393,7 @@ TEST_F(ParserTest, ParseProcNetwork) {
   }
   next(tok: token, i: u32) {
     let tok = send(tok, c_, i);
-    (i) + (1)
+    i + 1
   }
 }
 proc consumer<N: u32> {
@@ -406,7 +406,7 @@ proc consumer<N: u32> {
   }
   next(tok: token, i: u32) {
     let (tok1, e) = recv(tok, c_);
-    (i) + (1)
+    i + 1
   }
 }
 proc main {
@@ -440,7 +440,7 @@ TEST_F(ParserTest, ParseProcNetworkWithFifoDepthOnInternalChannel) {
   }
   next(tok: token, i: u32) {
     let tok = send(tok, c_, i);
-    (i) + (1)
+    i + 1
   }
 }
 proc consumer<N: u32> {
@@ -453,7 +453,7 @@ proc consumer<N: u32> {
   }
   next(tok: token, i: u32) {
     let (tok1, e) = recv(tok, c_);
-    (i) + (1)
+    i + 1
   }
 }
 proc main {
@@ -483,7 +483,7 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   //next(tok: token, (c: chan<u32> out, i: u32)) {
   next(tok: token, i: (chan<u32> out, u32)) {
     let tok = send(tok, c, i);
-    (c, (i) + (i))
+    (c, i + i)
   }
 })";
 
@@ -507,21 +507,21 @@ TEST_F(ParserTest, ChannelArraysOneD) {
   }
   next(tok: token, i: u32) {
     let _ = recv(tok, c);
-    (i) + (i)
+    i + i
   }
 }
 proc producer {
   channels: chan<u32>[32] out;
   config() {
     let (ps, cs) = chan<u32>[32];
-    spawn consumer((cs)[0]);
+    spawn consumer(cs[0]);
     (ps,)
   }
   init {
     ()
   }
   next(tok: token, state: ()) {
-    let tok = send(tok, (channels)[0], u32:0);
+    let tok = send(tok, channels[0], u32:0);
     ()
   }
 })";
@@ -540,21 +540,21 @@ TEST_F(ParserTest, ChannelArraysThreeD) {
   }
   next(tok: token, i: u32) {
     let tok = recv(tok, c);
-    (i) + (i)
+    i + i
   }
 }
 proc producer {
   channels: chan<u32>[32][64][128] out;
   config() {
     let (ps, cs) = chan<u32>[32][64][128];
-    spawn consumer((cs)[0]);
+    spawn consumer(cs[0]);
     (ps,)
   }
   init {
     ()
   }
   next(tok: token, state: ()) {
-    let tok = send(tok, (((channels)[0])[1])[2], u32:0);
+    let tok = send(tok, channels[0][1][2], u32:0);
     ()
   }
 })";
@@ -572,8 +572,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvIf) {
     false
   }
   next(tok: token, do_send: bool) {
-    let _ = send_if(tok, c, do_send, ((do_send) as u32));
-    (!(do_send),)
+    let _ = send_if(tok, c, do_send, do_send as u32);
+    (!do_send,)
   }
 }
 proc consumer {
@@ -587,7 +587,7 @@ proc consumer {
   next(tok: token, do_recv: bool) {
     let (_, foo) = recv_if(tok, c, do_recv, u32:0);
     let _ = assert_eq(foo, true);
-    (!(do_recv),)
+    (!do_recv,)
   }
 })";
 
@@ -604,8 +604,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvNb) {
     false
   }
   next(tok: token, do_send: bool) {
-    let _ = send_if(tok, c, do_send, ((do_send) as u32));
-    (!(do_send),)
+    let _ = send_if(tok, c, do_send, do_send as u32);
+    (!do_send,)
   }
 }
 proc consumer {
@@ -618,7 +618,7 @@ proc consumer {
   }
   next(tok: token, state: ()) {
     let (_, foo, valid) = recv_non_blocking(tok, c, u32:0);
-    let _ = assert_eq(!((foo) ^ (valid)), true);
+    let _ = assert_eq(!(foo ^ valid), true);
     ()
   }
 })";
@@ -657,13 +657,13 @@ TEST_F(ParserTest, ParseJoin) {
     u32:0
   }
   next(tok: token, state: u32) {
-    let tok0 = send(tok, c0, ((state) as u32));
-    let tok1 = send(tok, c1, ((state) as u32));
-    let tok2 = send(tok, c2, ((state) as u32));
-    let tok3 = send(tok0, c0, ((state) as u32));
-    let tok = join(tok0, tok1, tok2, send(tok0, c0, ((state) as u32)));
+    let tok0 = send(tok, c0, state as u32);
+    let tok1 = send(tok, c1, state as u32);
+    let tok2 = send(tok, c2, state as u32);
+    let tok3 = send(tok0, c0, state as u32);
+    let tok = join(tok0, tok1, tok2, send(tok0, c0, state as u32));
     let tok = recv(tok, c3);
-    (state) + (u32:1)
+    state + u32:1
   }
 })";
 
@@ -682,8 +682,8 @@ TEST_F(ParserTest, ParseTestProc) {
   }
   next(tok: token, x: u32) {
     let (tok, y) = recv(tok, input);
-    let tok = send(tok, output, (x) + (y));
-    ((x) + (y),)
+    let tok = send(tok, output, x + y);
+    (x + y,)
   }
 }
 #[test_proc]
@@ -713,8 +713,8 @@ proc tester {
     let _ = assert_eq(exp, u32:3);
     let (tok, exp) = recv(tok, c);
     let _ = assert_eq(exp, u32:6);
-    let tok = send_if(tok, terminator, (iter) == (u32:4), true);
-    ((iter) + (u32:1),)
+    let tok = send_if(tok, terminator, iter == u32:4, true);
+    (iter + u32:1,)
   }
 })";
 
@@ -852,41 +852,24 @@ TEST_F(ParserTest, LocalConstBinding) {
   EXPECT_EQ(definer, const_let);
 }
 
-TEST_F(ParserTest, BitSliceOfCall) {
-  // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
-  // query.
-  RoundTripExpr("id(x)[0:8]", {"id", "x"}, /*populate_dslx_builtins=*/false,
-                "(id(x))[0:8]");
-}
+TEST_F(ParserTest, ParenthesizedUnop) { RoundTripExpr("(!x)", {"x"}); }
 
-TEST_F(ParserTest, BitSliceOfBitSlice) {
-  // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
-  // query.
-  RoundTripExpr("x[0:8][4:]", {"x"}, /*populate_dslx_builtins=*/false,
-                "((x)[0:8])[4:]");
-}
+TEST_F(ParserTest, BitSliceOfCall) { RoundTripExpr("id(x)[0:8]", {"id", "x"}); }
 
-TEST_F(ParserTest, BitSliceWithWidth) {
-  // TODO(leary): 2021-01-25 Eliminate unnecessary parens with a precedence
-  // query.
-  RoundTripExpr("x[1+:u8]", {"x"}, /*populate_dslx_builtins=*/false,
-                "(x)[1+:u8]");
-}
+TEST_F(ParserTest, BitSliceOfBitSlice) { RoundTripExpr("x[0:8][4:]", {"x"}); }
+
+TEST_F(ParserTest, BitSliceWithWidth) { RoundTripExpr("x[1+:u8]", {"x"}); }
 
 TEST_F(ParserTest, CmpChainParensOnLhs) {
-  RoundTripExpr("(x == y) == z", {"x", "y", "z"},
-                /*populate_dslx_builtins=*/false, "((x) == (y)) == (z)");
+  RoundTripExpr("(x == y) == z", {"x", "y", "z"});
 }
 
 TEST_F(ParserTest, CmpChainParensOnRhs) {
-  RoundTripExpr("x == (y == z)", {"x", "y", "z"},
-                /*populate_dslx_builtins=*/false, "(x) == ((y) == (z))");
+  RoundTripExpr("x == (y == z)", {"x", "y", "z"});
 }
 
 TEST_F(ParserTest, CmpChainParensOnLhsAndRhs) {
-  RoundTripExpr("(x == y) == (y == z)", {"x", "y", "z"},
-                /*populate_dslx_builtins=*/false,
-                "((x) == (y)) == ((y) == (z))");
+  RoundTripExpr("(x == y) == (y == z)", {"x", "y", "z"});
 }
 
 TEST_F(ParserTest, ZeroMacro) {
@@ -901,19 +884,11 @@ TEST_F(ParserTest, ParseBlockWithTwoStatements) {
 }
 
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
-  // TODO(leary): 2021-01-26 This doesn't round trip properly, note the type
-  // annotation on the tuple constant is dropped.
-  std::string_view expect = R"(enum MyEnum : u2 {
-  FOO = 0,
-  BAR = 1,
-}
-const MY_TUPLE = (((MyEnum::FOO, MyEnum::BAR)) as (MyEnum, MyEnum));)";
   RoundTrip(R"(enum MyEnum : u2 {
   FOO = 0,
   BAR = 1,
 }
-const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)",
-            expect);
+const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)");
 }
 
 TEST_F(ParserTest, Struct) {
@@ -977,7 +952,7 @@ TEST_F(ParserTest, For) {
   RoundTripExpr(R"({
   let accum: u32 = 0;
   let accum: u32 = for (i, accum): (u32, u32) in range(u32:0, u32:4) {
-    let new_accum: u32 = (accum) + (i);
+    let new_accum: u32 = accum + i;
     new_accum
   }(accum);
   accum
@@ -1031,19 +1006,9 @@ TEST_F(ParserTest, TupleArrayAndInt) {
   EXPECT_NE(dynamic_cast<ConstantArray*>(array), nullptr);
 }
 
-TEST_F(ParserTest, Cast) {
-  // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
-  // its insertion of parens to avoid the round trip target value being special
-  // here.
-  RoundTripExpr("foo() as u32", {"foo"}, false, "((foo()) as u32)");
-}
+TEST_F(ParserTest, Cast) { RoundTripExpr("foo() as u32", {"foo"}); }
 
-TEST_F(ParserTest, CastOfCast) {
-  // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
-  // its insertion of parens to avoid the round trip target value being special
-  // here.
-  RoundTripExpr("x as s32 as u32", {"x"}, false, "((((x) as s32)) as u32)");
-}
+TEST_F(ParserTest, CastOfCast) { RoundTripExpr("x as s32 as u32", {"x"}); }
 
 TEST_F(ParserTest, CheckedCast) {
   RoundTripExpr("checked_cast<u32>(foo())", {"foo"},
@@ -1057,36 +1022,26 @@ TEST_F(ParserTest, WideningCast) {
 
 TEST_F(ParserTest, WideningCastOfCheckedCastOfCast) {
   RoundTripExpr("widening_cast<u32>(checked_cast<u16>(x as u24))", {"x"},
-                /*populate_dslx_builtins=*/true,
-                "widening_cast<u32>(checked_cast<u16>(((x) as u24)))");
+                /*populate_dslx_builtins=*/true);
 }
 
 TEST_F(ParserTest, CastOfCastEnum) {
-  // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
-  // its insertion of parens to avoid the round trip target value being special
-  // here.
   RoundTrip(R"(enum MyEnum : u3 {
   SOME_VALUE = 0,
 }
 fn f(x: u8) -> MyEnum {
-  ((((x) as u3)) as MyEnum)
+  x as u3 as MyEnum
 })");
 }
 
 TEST_F(ParserTest, CastToTypeAlias) {
-  // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
-  // its insertion of parens to avoid the round trip target value being special
-  // here.
   RoundTrip(R"(type u128 = bits[128];
 fn f(x: u32) -> u128 {
-  ((x) as u128)
+  x as u128
 })");
 }
 
 TEST_F(ParserTest, Enum) {
-  // TODO(leary): 2021-01-24 We'll want the formatter to be precedence-aware in
-  // its insertion of parens to avoid the round trip target value being special
-  // here.
   RoundTrip(R"(enum MyEnum : u2 {
   A = 0,
   B = 1,
@@ -1103,7 +1058,7 @@ TEST_F(ParserTest, ModuleWithSemis) {
 }
 
 TEST_F(ParserTest, ModuleWithParametric) {
-  RoundTrip(R"(fn parametric<X: u32, Y: u32 = {(X) + (X)}>() -> (u32, u32) {
+  RoundTrip(R"(fn parametric<X: u32, Y: u32 = {X + X}>() -> (u32, u32) {
   (X, Y)
 })");
 }
@@ -1199,7 +1154,7 @@ TEST_F(ParserTest, TypeAliasForTupleWithConstSizedArray) {
   RoundTrip(R"(const HOW_MANY_THINGS = u32:42;
 type MyTupleType = (u32[HOW_MANY_THINGS],);
 fn get_things(x: MyTupleType) -> u32[HOW_MANY_THINGS] {
-  (x)[0]
+  x[0]
 })");
 }
 
@@ -1234,10 +1189,10 @@ TEST_F(ParserTest, MatchFreevars) {
 
 TEST_F(ParserTest, ForFreevars) {
   Expr* e = RoundTripExpr(R"(for (i, accum): (u32, u32) in range(u32:4) {
-  let new_accum: u32 = ((accum) + (i)) + (j);
+  let new_accum: u32 = accum + i + j;
   new_accum
 }(u32:0))",
-                          {"range", "j"}, false, std::nullopt);
+                          {"range", "j"});
   FreeVariables fv = GetFreeVariables(e, &e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"j", "range"}));
@@ -1272,26 +1227,22 @@ TEST_F(ParserTest, LadderedConditional) {
 }
 
 TEST_F(ParserTest, TernaryWithComparisonTest) {
-  RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"}, false,
-                "if (a) <= (b) { u32:42 } else { u32:24 }");
+  RoundTripExpr("if a <= b { u32:42 } else { u32:24 }", {"a", "b"});
 }
 
 TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
-  RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"}, false,
-                "if (a) <= (m::b) { u32:42 } else { u32:24 }");
+  RoundTripExpr("if a <= m::b { u32:42 } else { u32:24 }", {"a", "m"});
 }
 
 TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
-  RoundTripExpr("for (x, s) in u32:0 .. m::SOME_CONST { x }(i)", {"m", "i"},
-                false,
-                R"(for (x, s) in u32:0..m::SOME_CONST {
+  RoundTripExpr(R"(for (x, s) in u32:0..m::SOME_CONST {
   x
-}(i))");
+}(i))",
+                {"m", "i"});
 }
 
 TEST_F(ParserTest, TernaryWithOrExpressionTest) {
-  RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"}, false,
-                "if (a) || (b) { u32:42 } else { u32:24 }");
+  RoundTripExpr("if a || b { u32:42 } else { u32:24 }", {"a", "b"});
 }
 
 TEST_F(ParserTest, TernaryWithComparisonStructInstanceTest) {
@@ -1305,7 +1256,7 @@ fn f(a: MyStruct) -> u32 {
   x: u32,
 }
 fn f(a: MyStruct) -> u32 {
-  if (a.x) <= (MyStruct { x: u32:42 }.x) { u32:42 } else { u32:24 }
+  if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
 })");
 }
 
@@ -1314,13 +1265,10 @@ TEST_F(ParserTest, ConstantArray) {
   ASSERT_TRUE(dynamic_cast<ConstantArray*>(e) != nullptr);
 }
 
-TEST_F(ParserTest, DoubleNegation) {
-  RoundTripExpr("!!x", {"x"}, false, "!(!(x))");
-}
+TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, false); }
 
 TEST_F(ParserTest, LogicalOperatorPrecedence) {
-  Expr* e = RoundTripExpr("!a || !b && c", {"a", "b", "c"}, false,
-                          "(!(a)) || ((!(b)) && (c))");
+  Expr* e = RoundTripExpr("!a || !b && c", {"a", "b", "c"});
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kLogicalOr);
   auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
@@ -1330,8 +1278,7 @@ TEST_F(ParserTest, LogicalOperatorPrecedence) {
 }
 
 TEST_F(ParserTest, LogicalEqualityPrecedence) {
-  Expr* e = RoundTripExpr("a ^ !b == f()", {"a", "b", "f"}, false,
-                          "((a) ^ (!(b))) == (f())");
+  Expr* e = RoundTripExpr("a ^ !b == f()", {"a", "b", "f"});
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kEq);
   auto* binop_lhs = dynamic_cast<Binop*>(binop->lhs());
@@ -1341,8 +1288,7 @@ TEST_F(ParserTest, LogicalEqualityPrecedence) {
 }
 
 TEST_F(ParserTest, CastVsComparatorPrecedence) {
-  Expr* e = RoundTripExpr("x >= y as u32", {"x", "y"}, false,
-                          "(x) >= (((y) as u32))");
+  Expr* e = RoundTripExpr("x >= y as u32", /*predefine=*/{"x", "y"});
   auto* binop = dynamic_cast<Binop*>(e);
   EXPECT_EQ(binop->binop_kind(), BinopKind::kGe);
   auto* cast = dynamic_cast<Cast*>(binop->rhs());
@@ -1353,7 +1299,7 @@ TEST_F(ParserTest, CastVsComparatorPrecedence) {
 }
 
 TEST_F(ParserTest, CastVsUnaryPrecedence) {
-  Expr* e = RoundTripExpr("-x as s32", {"x", "y"}, false, "((-(x)) as s32)");
+  Expr* e = RoundTripExpr("-x as s32", /*predefine=*/{"x", "y"});
   auto* cast = dynamic_cast<Cast*>(e);
   ASSERT_NE(cast, nullptr);
   EXPECT_EQ(cast->type_annotation()->ToString(), "s32");
@@ -1433,7 +1379,7 @@ TEST_F(ParserTest, UnrollFor) {
       R"({
   let bar = u32:0;
   let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
-    let foo = (i) + (1);
+    let foo = i + 1;
     ()
   }(u32:0);
   let baz = u32:0;
@@ -1456,9 +1402,9 @@ TEST_F(ParserTest, Range) {
 
 TEST_F(ParserTest, BuiltinFailWithLabels) {
   constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
-  let _ = if (x) == (u32:7) { fail!("x_is_7", u32:0) } else { u32:0 };
+  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
   let _ = {
-    if (x) == (u32:8) { fail!("x_is_8", u32:0) } else { u32:0 }
+    if x == u32:8 { fail!("x_is_8", u32:0) } else { u32:0 }
   };
   x
 })";
@@ -1585,7 +1531,7 @@ fn main() -> u32 {
   ASSERT_NE(foo_parent, nullptr);
   // The easiest way to verify what we've got the right node is just to do a
   // string comparison, even if it's not pretty.
-  EXPECT_EQ(foo_parent->rhs()->ToString(), "(u32:0) + (u32:1)");
+  EXPECT_EQ(foo_parent->rhs()->ToString(), "u32:0 + u32:1");
 }
 
 TEST_F(ParserTest, ChainedEqualsComparisonError) {

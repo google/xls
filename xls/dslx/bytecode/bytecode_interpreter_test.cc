@@ -1752,18 +1752,17 @@ proc tester_proc {
       XLS_ASSERT_OK(p.Run());
     }
   }
-  EXPECT_THAT(
-      trace_output,
-      testing::ElementsAre(
-          "Sent data on channel `tester_proc::(data_out)[0]`:\n  42",
-          "Received data on channel `incrementer::in_ch`:\n  42",
-          "Sent data on channel `incrementer::out_ch`:\n  43",
-          "Received data on channel `tester_proc::(data_in)[0]`:\n  43",
-          "Sent data on channel `tester_proc::(data_out)[0]`:\n  100",
-          "Received data on channel `incrementer::in_ch`:\n  100",
-          "Sent data on channel `incrementer::out_ch`:\n  101",
-          "Received data on channel `tester_proc::(data_in)[0]`:\n  101",
-          "Sent data on channel `tester_proc::terminator`:\n  1"));
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre(
+                  "Sent data on channel `tester_proc::data_out[0]`:\n  42",
+                  "Received data on channel `incrementer::in_ch`:\n  42",
+                  "Sent data on channel `incrementer::out_ch`:\n  43",
+                  "Received data on channel `tester_proc::data_in[0]`:\n  43",
+                  "Sent data on channel `tester_proc::data_out[0]`:\n  100",
+                  "Received data on channel `incrementer::in_ch`:\n  100",
+                  "Sent data on channel `incrementer::out_ch`:\n  101",
+                  "Received data on channel `tester_proc::data_in[0]`:\n  101",
+                  "Sent data on channel `tester_proc::terminator`:\n  1"));
 }
 
 TEST(BytecodeInterpreterTest, CheckedCastSnToSn) {
