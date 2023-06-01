@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gmock/gmock.h"
+#include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -52,6 +53,7 @@ class ParserTest : public ::testing::Test {
                     [&](std::string_view path) -> absl::StatusOr<std::string> {
                       return program;
                     });
+      XLS_EXPECT_OK(module_or);
       return nullptr;
     }
     std::unique_ptr<Module> module = std::move(module_or).value();
@@ -161,6 +163,10 @@ TEST(BindingsTest, BindingsStack) {
 
   EXPECT_THAT(leaf0.ResolveNodeOrError("b", span), IsOkAndHolds(b));
   EXPECT_THAT(leaf1.ResolveNodeOrError("c", span), IsOkAndHolds(c));
+}
+
+TEST_F(ParserTest, TestRoundTripFailsOnSyntaxError) {
+  EXPECT_NONFATAL_FAILURE(RoundTrip("invalid-program"), "ParseError:");
 }
 
 TEST_F(ParserTest, TestIdentityFunction) {
