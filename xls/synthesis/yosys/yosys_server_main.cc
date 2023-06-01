@@ -159,7 +159,9 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
         absl::StrFormat("dfflibmap -liberty %s; opt ;", synthesis_libraries_);
     const std::string perform_abc_mapping = absl::StrFormat(
         "abc -D %s -liberty %s -script "
-        "+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s -showtmp ;",
+        "+strash;fraig;scorr;retime,%s;strash;dch,-f;map,-M,1,%s;"
+        "topo;stime;buffer;topo;stime;minsize;"
+        "stime;upsize;stime;dnsize;stime -showtmp ;",
         delay_target, synthesis_libraries_, delay_target, delay_target);
     const std::string perform_cleanup =
         absl::StrFormat("setundef -zero ; splitnets ;");

@@ -19,6 +19,7 @@ These datapoints can be used in a delay model (where they will be interpolated)
 format.
 """
 
+import sys
 from typing import Dict, Sequence, Set, Tuple
 
 from absl import flags
@@ -100,6 +101,12 @@ def _search_for_fmax_and_synth(
             response.slack_ps,
             1e12 / response.max_frequency_hz,
         )
+      else:
+        logging.error('PASS but no maximum frequency determined.')
+        logging.error('ERROR: this occurs when '
+                      'an operator is optimized to a constant.')
+        logging.error('Source Verilog:\n%s', request.module_text)
+        sys.exit()
       low_hz = current_hz
       if current_hz >= best_result.max_frequency_hz:
         best_result = response
@@ -111,6 +118,9 @@ def _search_for_fmax_and_synth(
             response.slack_ps,
             1e12 / response.max_frequency_hz,
         )
+      else:
+        # This shouldn't happen
+        logging.info('FAIL but no maximum frequency provided')
       # Speed things up based on response
       if current_hz > (response.max_frequency_hz * 1.5):
         high_hz = response.max_frequency_hz * 1.1
@@ -121,6 +131,17 @@ def _search_for_fmax_and_synth(
       else:
         high_hz = current_hz
 
+      # Issue #1002 -- make sure our range contains the response fmax.
+      # This is necessary when the "speed up" code above narrows the range,
+      # but then Yosys changes its expected fmax to be less than low_hz.
+      #  ** This shouldn't happen any more **
+      if (not best_result.max_frequency_hz and
+          response.max_frequency_hz < low_hz):
+        logging.info('PANIC!  Resetting search range.')
+        high_hz = response.max_frequency_hz * 1.1
+        low_hz = response.max_frequency_hz * 0.89
+        current_hz = low_hz
+
   if best_result.max_frequency_hz:
     logging.info(
         'Done at slack %dps @min %dps.',
@@ -128,10 +149,10 @@ def _search_for_fmax_and_synth(
         1e12 / best_result.max_frequency_hz,
     )
   else:
-    logging.info(
-        'Done at slack %dps (no paths).',
-        best_result.slack_ps,
+    logging.error(
+        'INTERNAL ERROR: no passing run.'
     )
+    sys.exit()
   return best_result
 
 
