@@ -981,28 +981,6 @@ TEST_F(TranslatorIOTest, ConstConditionShortCircuitAnd) {
          /*outputs=*/{IOOpTest("out", 6, true)});
 }
 
-TEST_F(TranslatorIOTest, SelectChannel) {
-  const std::string content = R"(
-       #include "/xls_builtin.h"
-       int do_read(__xls_channel<int>& in) {
-        return in.read();
-       }
-       #pragma hls_top
-       void my_package(const int& sel,
-                       __xls_channel<int>& inA,
-                       __xls_channel<int>& inB,
-                       __xls_channel<int>& out) {
-         out.write(do_read(sel ? inA : inB));
-       })";
-
-  ASSERT_THAT(
-      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
-                 /* io_test_mode= */ true)
-          .status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                    testing::HasSubstr("Ternary on lvalues")));
-}
-
 TEST_F(TranslatorIOTest, NonparameterIOOps) {
   const std::string content = R"(
       #pragma hls_top
@@ -1251,6 +1229,148 @@ TEST_F(TranslatorIOTest, ChannelRef) {
   IOTest(content,
          /*inputs=*/{IOOpTest("in", 5, true)},
          /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsRead) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in, 
+                       __xls_channel<int>& in1,
+                       __xls_channel<int>& in2,
+                       __xls_channel<int>& out) {
+          const int dir = dir_in.read();
+          __xls_channel<int>& ch_r = dir?in1:in2;
+          out.write(3*ch_r.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true),
+          IOOpTest("in2", 0, false)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", 0, false),
+          IOOpTest("in2", 2, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadAssign) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in, 
+                       __xls_channel<int>& in1,
+                       __xls_channel<int>& in2,
+                       __xls_channel<int>& out) {
+          const int dir = dir_in.read();
+          __xls_channel<int>& ch_r = dir?in1:in2;
+          int val_read = 0;
+          ch_r.read(val_read);
+          out.write(3*val_read);
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true),
+          IOOpTest("in2", 0, false)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", 0, false),
+          IOOpTest("in2", 2, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsWrite) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in,
+                       __xls_channel<int>& in, 
+                       __xls_channel<int>& out1,
+                       __xls_channel<int>& out2) {
+          const int dir = dir_in.read();
+          __xls_channel<int>& ch_w = dir?out1:out2;
+          ch_w.write(5*in.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out1", 25, true), IOOpTest("out2", 0, false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in", 3, true)},
+         /*outputs=*/{IOOpTest("out1", 0, false), IOOpTest("out2", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsNonblocking) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in, 
+                       __xls_channel<int>& in1,
+                       __xls_channel<int>& in2,
+                       __xls_channel<int>& out) {
+          const int dir = dir_in.read();
+          __xls_channel<int>& ch_r = dir?in1:in2;
+          int val = 0;
+          bool received = ch_r.nb_read(val);
+          if(received) {
+            out.write(3*val);
+          }
+       })";
+
+  xls::Value value_in_5 = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 32)), xls::Value::Bool(true)});
+  xls::Value value_in_3 = xls::Value::Tuple(
+      {xls::Value(xls::SBits(3, 32)), xls::Value::Bool(true)});
+  xls::Value value_not_ready = xls::Value::Tuple(
+      {xls::Value(xls::SBits(0, 32)), xls::Value::Bool(false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", value_in_5, true),
+          IOOpTest("in2", value_not_ready, false)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", value_in_3, false),
+          IOOpTest("in2", value_not_ready, true)},
+         /*outputs=*/{IOOpTest("out", 0, false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", value_not_ready, true),
+          IOOpTest("in2", value_in_5, false)},
+         /*outputs=*/{IOOpTest("out", 0, false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", value_not_ready, false),
+          IOOpTest("in2", value_in_3, true)},
+         /*outputs=*/{IOOpTest("out", 9, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryChannelRefParam) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       int do_read(__xls_channel<int>& ch) {
+        return ch.read();
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in, 
+                       __xls_channel<int>& in1,
+                       __xls_channel<int>& in2,
+                       __xls_channel<int>& out) {
+          const int dir = dir_in.read();
+          __xls_channel<int>& ch_r = dir?in1:in2;
+          out.write(3*do_read(ch_r));
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("hannel select passed as parameter")));
 }
 
 }  // namespace

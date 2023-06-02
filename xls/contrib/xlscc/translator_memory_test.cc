@@ -1008,30 +1008,31 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
 
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("foo_unused__read_request"));
+                             package_->GetChannel("foo_unused__read_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("foo_unused__read_response"));
+                             package_->GetChannel("foo_unused__read_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
   {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("foo_unused__write_request"));
+                             package_->GetChannel("foo_unused__write_request"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
   {
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Channel * channel,
-                            package_->GetChannel("foo_unused__write_response"));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        xls::Channel * channel,
+        package_->GetChannel("foo_unused__write_response"));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Node*> ops,
-                            GetOpsForChannel(channel->id()));
+                             GetOpsForChannel(channel->id()));
     EXPECT_FALSE(ops.empty());
   }
 
@@ -1043,6 +1044,111 @@ TEST_F(TranslatorMemoryTest, MemoryUnused) {
                     xls::Value(xls::SBits(3, 32))};
 
   ProcTest(content, block_spec, inputs, outputs);
+}
+
+TEST_F(TranslatorMemoryTest, MemoryReadWithTernaryIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in,
+                       __xls_channel<int>& addr_in,
+                       __xls_memory<int, 32>& memory1,
+                       __xls_memory<int, 32>& memory2,
+                       __xls_channel<int>& out) {
+         const int dir = dir_in.read();
+         const int addr = addr_in.read();
+
+         __xls_memory<int, 32>& memory = dir ? memory1 : memory2;
+         const int val = memory[addr];
+         out.write(3*val);
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("addr_in", 7, true),
+          IOOpTest("memory1__read", 10, true),
+          IOOpTest("memory2__read", 3, false)},
+         /*outputs=*/
+         {IOOpTest("memory1__read", xls::Value(xls::UBits(7, 5)), true),
+          IOOpTest("memory2__read", xls::Value(xls::UBits(0, 5)), false),
+          IOOpTest("out", 30, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("addr_in", 9, true),
+          IOOpTest("memory1__read", 10, false),
+          IOOpTest("memory2__read", 3, true)},
+         /*outputs=*/
+         {IOOpTest("memory1__read", xls::Value(xls::UBits(0, 5)), false),
+          IOOpTest("memory2__read", xls::Value(xls::UBits(9, 5)), true),
+          IOOpTest("out", 9, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in,
+                       __xls_channel<int>& addr_in,
+                       __xls_memory<int, 32>& memory1,
+                       __xls_memory<int, 32>& memory2) {
+         const int dir = dir_in.read();
+         const int addr = addr_in.read();
+
+         __xls_memory<int, 32>& memory = dir ? memory1 : memory2;
+         memory[addr] = 33;
+       })";
+
+  auto memory_write_tuple = xls::Value::Tuple(
+      {xls::Value(xls::SBits(7, 5)), xls::Value(xls::SBits(33, 32))});
+  auto memory_write_tuple_invalid = xls::Value::Tuple(
+      {xls::Value(xls::SBits(0, 5)), xls::Value(xls::SBits(0, 32))});
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("addr_in", 7, true)},
+         /*outputs=*/
+         {IOOpTest("memory1__write", memory_write_tuple, true),
+          IOOpTest("memory2__write", memory_write_tuple_invalid, false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("addr_in", 7, true)},
+         /*outputs=*/
+         {IOOpTest("memory1__write", memory_write_tuple_invalid, false),
+          IOOpTest("memory2__write", memory_write_tuple, true)});
+}
+
+TEST_F(TranslatorMemoryTest, MemoryWriteWithTernaryMethoFormIOOp) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& dir_in,
+                       __xls_channel<int>& addr_in,
+                       __xls_memory<int, 32>& memory1,
+                       __xls_memory<int, 32>& memory2) {
+         const int dir = dir_in.read();
+         const int addr = addr_in.read();
+
+         __xls_memory<int, 32>& memory = dir ? memory1 : memory2;
+         memory.write(addr,  33);
+       })";
+
+  auto memory_write_tuple = xls::Value::Tuple(
+      {xls::Value(xls::SBits(7, 5)), xls::Value(xls::SBits(33, 32))});
+  auto memory_write_tuple_invalid = xls::Value::Tuple(
+      {xls::Value(xls::SBits(0, 5)), xls::Value(xls::SBits(0, 32))});
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("addr_in", 7, true)},
+         /*outputs=*/
+         {IOOpTest("memory1__write", memory_write_tuple, true),
+          IOOpTest("memory2__write", memory_write_tuple_invalid, false)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("addr_in", 7, true)},
+         /*outputs=*/
+         {IOOpTest("memory1__write", memory_write_tuple_invalid, false),
+          IOOpTest("memory2__write", memory_write_tuple, true)});
 }
 
 }  // namespace

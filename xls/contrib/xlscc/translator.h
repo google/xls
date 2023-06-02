@@ -179,8 +179,7 @@ class CDecimalType : public CType {
   absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
                            absl::flat_hash_set<const clang::NamedDecl*>&
                                aliases_used) const override;
-  absl::Status GetMetadataValue(Translator& translator,
-                                ConstValue const_value,
+  absl::Status GetMetadataValue(Translator& translator, ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
 
   bool operator==(const CType& o) const override;
@@ -1487,7 +1486,17 @@ class Translator {
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
                                      const xls::SourceInfo& loc);
   // Returns nullptr if the parameter isn't a channel
-  absl::StatusOr<IOChannel*> GetChannelForExprOrNull(const clang::Expr* object);
+  struct ConditionedIOChannel {
+    IOChannel* channel;
+    xls::BValue condition;
+  };
+  absl::Status GetChannelsForExprOrNull(
+      const clang::Expr* object, std::vector<ConditionedIOChannel>* output,
+      const xls::SourceInfo& loc, xls::BValue condition = xls::BValue());
+  absl::Status GetChannelsForLValue(const std::shared_ptr<LValue>& lvalue,
+                                    std::vector<ConditionedIOChannel>* output,
+                                    const xls::SourceInfo& loc,
+                                    xls::BValue condition = xls::BValue());
   // Returns nullptr if the parameter isn't a channel
   absl::StatusOr<const clang::NamedDecl*> GetChannelParamForExprOrNull(
       const clang::Expr* object);
@@ -1528,8 +1537,10 @@ class Translator {
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
       std::string_view name_prefix, IOChannel* context_out_channel,
-      IOChannel* context_in_channel, xls::Type* context_xls_type,
-      std::shared_ptr<CStructType> context_ctype,
+      IOChannel* context_in_channel, xls::Type* context_struct_xls_type,
+      xls::Type* context_lvals_xls_type,
+      const std::shared_ptr<CStructType>& context_struct_ctype,
+      const std::shared_ptr<CInternalTuple>& context_lval_conds_ctype,
       absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
           lvalues_out,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
@@ -1537,6 +1548,13 @@ class Translator {
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       std::vector<const clang::NamedDecl*>& vars_changed_in_body,
       const xls::SourceInfo& loc);
+  absl::Status SendLValueConditions(const std::shared_ptr<LValue>& lvalue,
+                                    std::vector<xls::BValue>* lvalue_conditions,
+                                    const xls::SourceInfo& loc);
+  absl::StatusOr<std::shared_ptr<LValue>> TranslateLValueConditions(
+      const std::shared_ptr<LValue>& outer_lvalue,
+      xls::BValue lvalue_conditions_tuple, const xls::SourceInfo& loc,
+      int64_t* at_index = nullptr);
   absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                  clang::ASTContext& ctx,
                                  const xls::SourceInfo& loc);
@@ -1731,7 +1749,7 @@ class Translator {
   //  struct of type "type"
   // This version cannot be static because it needs access to the
   //  FunctionBuilder from the context
-  xls::BValue GetStructFieldXLS(xls::BValue val, int index,
+  xls::BValue GetStructFieldXLS(xls::BValue val, int64_t index,
                                 const CStructType& type,
                                 const xls::SourceInfo& loc);
 

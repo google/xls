@@ -584,17 +584,19 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
         ASSERT_EQ(elements.size(), 2);
         cond_val = elements[1];
         // Check address value if condition is true
-        XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, cond_val.bits().ToUint64());
-        if (val1 == 1u) {
-          const IOOpTest addr_op = outputs.front();
-          ASSERT_EQ(elements[0], addr_op.value);
-        }
+        XLS_ASSERT_OK_AND_ASSIGN(uint64_t cond_output,
+                                 cond_val.bits().ToUint64());
+        const IOOpTest addr_op = outputs.front();
         outputs.pop_front();
+        EXPECT_EQ(addr_op.condition ? 1 : 0, cond_output);
+        if (cond_output == 1u) {
+          EXPECT_EQ(elements[0], addr_op.value);
+        }
       }
 
       ASSERT_TRUE(cond_val.IsBits());
       XLS_ASSERT_OK_AND_ASSIGN(uint64_t val, cond_val.bits().ToUint64());
-      ASSERT_EQ(val, test_op.condition ? 1 : 0);
+      EXPECT_EQ(val, test_op.condition ? 1 : 0);
 
     } else if (op.op == xlscc::OpType::kSend ||
                op.op == xlscc::OpType::kWrite) {
@@ -613,11 +615,12 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                                returns[op_idx].GetElements());
       ASSERT_EQ(elements.size(), 2);
       ASSERT_TRUE(elements[1].IsBits());
-      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
-      ASSERT_EQ(val1, test_op.condition ? 1 : 0);
+      XLS_ASSERT_OK_AND_ASSIGN(uint64_t cond_output,
+                               elements[1].bits().ToUint64());
+      EXPECT_EQ(cond_output, test_op.condition ? 1 : 0);
       // Don't check data if it wasn't sent
-      if (val1 != 0u) {
-        ASSERT_EQ(elements[0], test_op.value);
+      if (cond_output != 0u) {
+        EXPECT_EQ(elements[0], test_op.value);
       }
     } else {
       FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);

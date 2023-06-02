@@ -376,7 +376,7 @@ xls::Value Translator::MakeStructXLS(
   return ret;
 }
 
-xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int index,
+xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int64_t index,
                                           const CStructType& type,
                                           const xls::SourceInfo& loc) {
   XLSCC_CHECK_LT(index, type.fields().size(), loc);
@@ -2164,7 +2164,12 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     xls::BValue cond, CValue true_cv, CValue false_cv,
     std::shared_ptr<CType> result_type, const xls::SourceInfo& loc) {
   if (true_cv.lvalue() != nullptr || false_cv.lvalue() != nullptr) {
-    return absl::UnimplementedError(ErrorMessage(loc, "Ternary on lvalues"));
+    XLSCC_CHECK_NE(true_cv.lvalue(), nullptr, loc);
+    XLSCC_CHECK_NE(false_cv.lvalue(), nullptr, loc);
+    XLSCC_CHECK(*true_cv.type() == *false_cv.type(), loc);
+    return CValue(
+        xls::BValue(), true_cv.type(), /*disable_type_check=*/false,
+        std::make_shared<LValue>(cond, true_cv.lvalue(), false_cv.lvalue()));
   }
 
   XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
@@ -2347,6 +2352,19 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueChannels(
     const xls::SourceInfo& loc) {
   if (outer_lval == nullptr) {
     return nullptr;
+  }
+
+  if (outer_lval->is_select()) {
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<LValue> inner_true_lval,
+        TranslateLValueChannels(outer_lval->lvalue_true(),
+                                inner_channels_by_outer_channel, loc));
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<LValue> inner_false_lval,
+        TranslateLValueChannels(outer_lval->lvalue_false(),
+                                inner_channels_by_outer_channel, loc));
+    return std::make_shared<LValue>(outer_lval->cond(), inner_true_lval,
+                                    inner_false_lval);
   }
 
   if (outer_lval->channel_leaf() != nullptr) {
@@ -2569,19 +2587,52 @@ absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
   return body;
 }
 
-absl::StatusOr<IOChannel*> Translator::GetChannelForExprOrNull(
-    const clang::Expr* object) {
+absl::Status Translator::GetChannelsForExprOrNull(
+    const clang::Expr* object, std::vector<ConditionedIOChannel>* output,
+    const xls::SourceInfo& loc, xls::BValue condition) {
   MaskSideEffectsGuard guard(*this);
 
   XLS_ASSIGN_OR_RETURN(CValue cval, GenerateIR_Expr(object, GetLoc(*object)));
 
   if (cval.lvalue() == nullptr) {
-    return nullptr;
+    return absl::OkStatus();
   }
-  if (cval.lvalue()->channel_leaf() == nullptr) {
-    return nullptr;
+
+  return GetChannelsForLValue(cval.lvalue(), output, loc, condition);
+}
+
+absl::Status Translator::GetChannelsForLValue(
+    const std::shared_ptr<LValue>& lvalue,
+    std::vector<ConditionedIOChannel>* output, const xls::SourceInfo& loc,
+    xls::BValue condition) {
+  XLSCC_CHECK_NE(lvalue, nullptr, loc);
+
+  if (lvalue->is_select()) {
+    XLSCC_CHECK(lvalue->cond().valid(), loc);
+
+    xls::BValue and_condition =
+        condition.valid() ? context().fb->And(condition, lvalue->cond(), loc)
+                          : lvalue->cond();
+    XLS_RETURN_IF_ERROR(GetChannelsForLValue(lvalue->lvalue_true(), output, loc,
+                                             and_condition));
+
+    xls::BValue not_lval_cond = context().fb->Not(lvalue->cond(), loc);
+    xls::BValue and_not_condition =
+        condition.valid() ? context().fb->And(condition, not_lval_cond, loc)
+                          : not_lval_cond;
+    XLS_RETURN_IF_ERROR(GetChannelsForLValue(lvalue->lvalue_false(), output,
+                                             loc, and_not_condition));
+    return absl::OkStatus();
   }
-  return cval.lvalue()->channel_leaf();
+
+  if (lvalue->channel_leaf() == nullptr) {
+    return absl::OkStatus();
+  }
+  ConditionedIOChannel ret;
+  ret.channel = lvalue->channel_leaf();
+  ret.condition = condition;
+  output->push_back(ret);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<const clang::NamedDecl*>
@@ -2597,7 +2648,12 @@ Translator::GetChannelParamForExprOrNull(const clang::Expr* object) {
   XLS_ASSIGN_OR_RETURN(CValue cval, GenerateIR_Expr(object, loc));
 
   XLSCC_CHECK_NE(cval.lvalue(), nullptr, loc);
+  if (cval.lvalue()->is_select()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Channel select passed as parameter"));
+  }
   XLSCC_CHECK_NE(cval.lvalue()->channel_leaf(), nullptr, loc);
+
   // TODO: Merge with GetChannelForExprOrNull()
   return context().sf->decls_by_io_channel.at(cval.lvalue()->channel_leaf());
 }
@@ -3094,7 +3150,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   XLSCC_CHECK(unpacked_returns.empty(), loc);
-
   return retval;
 }
 
@@ -3687,6 +3742,7 @@ absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
 
 absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
+  XLSCC_CHECK(t != nullptr, loc);
   if (t->Is<CIntType>()) {
     return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
   }
@@ -3717,6 +3773,16 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
       args.push_back(fval);
     }
     return MakeStructXLS(args, *it);
+  }
+  if (t->Is<CInternalTuple>()) {
+    auto it = t->As<CInternalTuple>();
+    vector<xls::Value> args;
+    for (const std::shared_ptr<CType>& field_type : it->fields()) {
+      XLS_ASSIGN_OR_RETURN(xls::Value fval,
+                           CreateDefaultRawValue(field_type, loc));
+      args.push_back(fval);
+    }
+    return xls::Value::Tuple(args);
   }
   if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeInstance(t));
@@ -4896,6 +4962,16 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
       members.push_back(ft);
     }
     return GetStructXLSType(members, *it, loc);
+  }
+  if (t->Is<CInternalTuple>()) {
+    auto it = t->As<CInternalTuple>();
+    std::vector<xls::Type*> tuple_types;
+    for (const std::shared_ptr<CType>& field_type : it->fields()) {
+      XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
+                           TranslateTypeToXLS(field_type, loc));
+      tuple_types.push_back(xls_type);
+    }
+    return package_->GetTupleType(tuple_types);
   }
   if (t->Is<CArrayType>()) {
     auto it = t->As<CArrayType>();

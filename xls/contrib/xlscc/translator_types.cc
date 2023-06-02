@@ -688,7 +688,7 @@ bool CInternalTuple::operator==(const CType& o) const {
   }
   auto obj = o.As<CInternalTuple>();
   for (int i = 0; i < fields_.size(); ++i) {
-    if (obj->fields_[i] != fields_[i]) {
+    if (*obj->fields_[i] != *fields_[i]) {
       return false;
     }
   }
@@ -711,6 +711,7 @@ std::shared_ptr<CType> CField::type() const { return type_; }
 
 CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
     : element_(element), size_(size) {
+  // XLS doesn't support 0 sized arrays
   XLS_CHECK(size_ > 0);
 }
 
