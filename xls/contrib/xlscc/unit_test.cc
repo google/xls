@@ -40,6 +40,25 @@ using testing::Optional;
 
 const int determinism_test_repeat_count = 3;
 
+CapturedLogEntry::CapturedLogEntry() = default;
+
+CapturedLogEntry::CapturedLogEntry(const ::xls::LogEntry& entry)
+    : text_message(entry.text_message()),
+      log_severity(entry.log_severity()),
+      verbosity(entry.verbosity()),
+      source_filename(entry.source_filename()),
+      source_basename(entry.source_basename()),
+      source_line(entry.source_line()),
+      prefix(entry.prefix()) {}
+
+XlsccTestBase::XlsccTestBase() { ::xls::AddLogSink(this); }
+
+XlsccTestBase::~XlsccTestBase() { ::xls::RemoveLogSink(this); }
+
+void XlsccTestBase::Send(const ::xls::LogEntry& entry) {
+  log_entries_.emplace_back(entry);
+}
+
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         uint64_t expected, std::string_view cpp_source,
                         xabsl::SourceLocation loc,

@@ -15,10 +15,10 @@
 #include "xls/contrib/xlscc/cc_parser.h"
 
 #include <fstream>
-#include <iostream>
 #include <string_view>
 
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
@@ -230,21 +230,6 @@ absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
   return hls_pragmas_.at(loc);
 }
 
-static size_t match_pragma(std::string_view pragma_string,
-                           std::string_view name) {
-  size_t at = pragma_string.find(name);
-  if (at == std::string::npos) return std::string::npos;
-  size_t lcs = pragma_string.find("//");
-  if (lcs != std::string::npos) {
-    if (lcs < at) return std::string::npos;
-  }
-  size_t bcs = pragma_string.find("*/");
-  if (bcs != std::string::npos) {
-    if (bcs >= (at + name.length())) return std::string::npos;
-  }
-  return at;
-}
-
 absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
   std::ifstream fin(std::string(filename).c_str());
   if (!fin.good()) {
@@ -253,48 +238,116 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           "Unable to open file to scan for pragmas: %s\n", filename));
     }
   }
-  const std::string init_interval_pragma = "#pragma hls_pipeline_init_interval";
+  std::map<std::string, PragmaType> pragmas = {
+      {"array_allow_default_pad", Pragma_ArrayAllowDefaultPad},
+      {"design", Pragma_Top},
+      {"no_tuple", Pragma_NoTuples},
+      {"pipeline_init_interval", Pragma_InitInterval},
+      {"synthetic_int", Pragma_SyntheticInt},
+      {"top", Pragma_Top},
+      {"unroll", Pragma_Unroll},
+  };
   int lineno = 1;
+  PragmaLoc prev_location;
   for (std::string line; std::getline(fin, line); ++lineno) {
-    size_t at;
-    const PragmaLoc location(filename, lineno);
-    if ((at = line.find("#pragma")) != std::string::npos) {
-      if ((at = match_pragma(line, "#pragma hls_no_tuple")) !=
-          std::string::npos) {
-        hls_pragmas_[location] = Pragma(Pragma_NoTuples);
-      } else if ((at = match_pragma(line, "#pragma hls_unroll yes")) !=
-                 std::string::npos) {
-        hls_pragmas_[location] = Pragma(Pragma_Unroll);
-      } else if ((at = match_pragma(line,
-                                    "#pragma hls_array_allow_default_pad")) !=
-                 std::string::npos) {
-        hls_pragmas_[location] = Pragma(Pragma_ArrayAllowDefaultPad);
-      } else if ((at = match_pragma(line, "#pragma hls_top")) !=
-                     std::string::npos ||
-                 (at = match_pragma(line, "#pragma hls_design top")) !=
-                     std::string::npos) {
-        hls_pragmas_[location] = Pragma(Pragma_Top);
-      } else if ((at = match_pragma(line, "#pragma hls_synthetic_int")) !=
-                 std::string::npos) {
-        hls_pragmas_[location] = Pragma(Pragma_SyntheticInt);
-      } else if ((at = match_pragma(line, init_interval_pragma)) !=
-                 std::string::npos) {
-        const std::string after_pragma = line.substr(
-            line.find_first_of('#') + init_interval_pragma.length());
-        int64_t arg = -1;
-        if (!absl::SimpleAtoi(after_pragma, &arg) || (arg <= 0)) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Argument '%s' to pragma '%s' is not valid. Must be an integer "
-              ">= 1. At %s:%i",
-              after_pragma, init_interval_pragma, filename, lineno));
+    if (std::all_of(line.begin(), line.end(), isspace)) {
+      if (hls_pragmas_.contains(prev_location)) {
+        Pragma found_value = hls_pragmas_[prev_location];
+        hls_pragmas_[PragmaLoc(filename, lineno)] = found_value;
+        continue;
+      }
+    }
+    std::string comment;
+    std::string prefix;
+    std::string name;
+    std::string params;
+    if (RE2::FullMatch(
+            line,
+            "^\\s*(\\/\\/)*\\s*#pragma\\s+([hH][Ll][Ss]_)?([^\\s]+)\\s*(.*)$",
+            &comment, &prefix, &name, &params)) {
+      if (!comment.empty()) {
+        if (hls_pragmas_.contains(prev_location)) {
+          Pragma found_value = hls_pragmas_[prev_location];
+          hls_pragmas_[PragmaLoc(filename, lineno)] = found_value;
+          continue;
         }
-        hls_pragmas_[location] = Pragma(Pragma_InitInterval, arg);
+        continue;
+      }
+      if (absl::AsciiStrToLower(prefix) != "hls_") {
+        XLS_LOG(WARNING) << "#pragma '" << name << "' requires 'hls_' prefix";
+        continue;
+      }
+      if (name != absl::AsciiStrToLower(name)) {
+        XLS_LOG(WARNING) << "#pragma must be lowercase: " << line;
+        continue;
+      }
+      std::map<std::string, PragmaType>::iterator it = pragmas.find(name);
+      if (it != pragmas.end()) {
+        const PragmaLoc location(filename, lineno);
+        prev_location = location;
+        PragmaType pragma_val = it->second;
+        int64_t arg = -1;
+        switch (pragma_val) {
+          case Pragma_ArrayAllowDefaultPad:
+            hls_pragmas_[location] = Pragma(pragma_val);
+            break;
+          case Pragma_InitInterval:
+            if (!absl::SimpleAtoi(params, &arg) || (arg <= 0)) {
+              return absl::InvalidArgumentError(
+                  absl::StrFormat("Argument '%s' to pragma '%s' is not valid. "
+                                  "Must be an integer "
+                                  ">= 1. At %s:%i",
+                                  params, name, filename, lineno));
+            }
+
+            hls_pragmas_[location] = Pragma(pragma_val, arg);
+            break;
+          case Pragma_NoTuples:
+            hls_pragmas_[location] = Pragma(pragma_val);
+            break;
+          case Pragma_SyntheticInt:
+            hls_pragmas_[location] = Pragma(pragma_val);
+            break;
+          case Pragma_Top:
+            hls_pragmas_[location] = Pragma(pragma_val, params);
+            break;
+          case Pragma_Unroll:
+            if (params.empty() || params == "yes") {
+              hls_pragmas_[location] = Pragma(pragma_val);
+              break;
+            }
+            if (!absl::SimpleAtoi(params, &arg) || (arg <= 0)) {
+              return absl::InvalidArgumentError(
+                  absl::StrFormat("Argument '%s' to pragma '%s' is not valid. "
+                                  "Must be 'yes' or an integer "
+                                  ">= 1. At %s:%i",
+                                  params, name, filename, lineno));
+            }
+            XLS_LOG(WARNING) << "Partial unroll not yet supported: "
+                             << "fully unrolling";
+            hls_pragmas_[location] = Pragma(pragma_val, arg);
+            break;
+          case Pragma_Null:
+          case Pragma_Label:
+            prev_location = PragmaLoc("", -1);
+            break;
+        }
       }
       // Ignore unknown pragmas
     } else {
+      if (RE2::FullMatch(line, "\\s*//.*")) {
+        if (hls_pragmas_.contains(prev_location)) {
+          Pragma found_value = hls_pragmas_[prev_location];
+          hls_pragmas_[PragmaLoc(filename, lineno)] = found_value;
+          continue;
+        }
+      }
+      prev_location = PragmaLoc("", -1);
+      const PragmaLoc location(filename, lineno);
       std::string matched;
       if (RE2::PartialMatch(line, "(\\w+)[\\t\\s]*\\:", &matched)) {
         hls_pragmas_[location] = Pragma(Pragma_Label, matched);
+        prev_location = location;
       }
     }
   }
@@ -321,12 +374,16 @@ std::string CCParser::LocString(const xls::SourceInfo& loc) {
 }
 
 bool CCParser::LibToolVisitFunction(clang::FunctionDecl* func) {
-  if (libtool_visit_status_.ok()) libtool_visit_status_ = VisitFunction(func);
+  if (libtool_visit_status_.ok()) {
+    libtool_visit_status_ = VisitFunction(func);
+  }
   return libtool_visit_status_.ok();
 }
 
 bool CCParser::LibToolVisitVarDecl(clang::VarDecl* func) {
-  if (libtool_visit_status_.ok()) libtool_visit_status_ = VisitVarDecl(func);
+  if (libtool_visit_status_.ok()) {
+    libtool_visit_status_ = VisitVarDecl(func);
+  }
   return libtool_visit_status_.ok();
 }
 
@@ -511,7 +568,8 @@ void __xlscc_top_class_instance_ref2() {
 }
 
 }  // namespace
-)", top_class_name_);
+)",
+                                                               top_class_name_);
 
   const std::string top_src =
       absl::StrFormat(R"(
@@ -522,7 +580,7 @@ void __xlscc_top_class_instance_ref2() {
                       source_filename_, top_class_inst_injection);
 
   mem_fs->addFile("/xls_top.cc", 0,
-                  llvm::MemoryBuffer::getMemBuffer(top_src.c_str()));
+                  llvm::MemoryBuffer::getMemBuffer(top_src));
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> overlay_fs(
       new llvm::vfs::OverlayFileSystem(llvm::vfs::getRealFileSystem()));

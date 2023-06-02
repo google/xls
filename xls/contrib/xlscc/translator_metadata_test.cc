@@ -50,9 +50,9 @@ class TranslatorMetadataTest : public XlsccTestBase {
   }
   void clearIds(xlscc_metadata::Value* value) {
     if (value->has_as_array()) {
-      for (xlscc_metadata::Value& value :
+      for (xlscc_metadata::Value& mutable_value :
            *value->mutable_as_array()->mutable_element_values()) {
-        clearIds(&value);
+        clearIds(&mutable_value);
       }
     } else if (value->has_as_struct()) {
       clearIds(value->mutable_as_struct()->mutable_name());
@@ -1273,13 +1273,13 @@ TEST_F(TranslatorMetadataTest, ReturnReference) {
 
 TEST_F(TranslatorMetadataTest, StaticBits) {
   const std::string content = R"(
-    #pragma no_tuple
+    #pragma hls_no_tuple
     template<int W, bool S>
     struct Base {
       __xls_bits<W> val_;
     };
 
-    #pragma no_tuple
+    #pragma hls_no_tuple
     template<int W, bool S>
     struct Blah : Base<W, S> {
       Blah(int val) {
@@ -1334,7 +1334,7 @@ TEST_F(TranslatorMetadataTest, StaticBits) {
             }
           }
         }
-        no_tuple: false
+        no_tuple: true
       }
     }
     structs {
@@ -1370,7 +1370,7 @@ TEST_F(TranslatorMetadataTest, StaticBits) {
             }
           }
         }
-        no_tuple: false
+        no_tuple: true
       }
     }
     top_func_proto {
@@ -1431,11 +1431,11 @@ TEST_F(TranslatorMetadataTest, StaticBits) {
                       as_bits: "\000\000\000\034"
                     }
                   }
-                  no_tuple: false
+                  no_tuple: true
                 }
               }
             }
-            no_tuple: false
+            no_tuple: true
           }
         }
       }

@@ -23,6 +23,8 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
+#include "xls/common/logging/log_entry.h"
+#include "xls/common/logging/log_sink.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
@@ -31,10 +33,29 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 
+struct CapturedLogEntry {
+  CapturedLogEntry();
+  explicit CapturedLogEntry(const ::xls::LogEntry& entry);
+
+  std::string text_message;
+  absl::LogSeverity log_severity;
+  int verbosity = 0;
+  std::string source_filename;
+  std::string source_basename;
+  int source_line = 0;
+  bool prefix = false;
+};
+
 // Support for XLS[cc] related tests, such as invoking XLS[cc]
 //  with the appropriate parameters for the test environment
-class XlsccTestBase : public xls::IrTestBase {
+class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
  public:
+  XlsccTestBase();
+
+  ~XlsccTestBase() override;
+
+  void Send(const ::xls::LogEntry& entry) override;
+
   void Run(const absl::flat_hash_map<std::string, uint64_t>& args,
            uint64_t expected, std::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
@@ -138,6 +159,9 @@ class XlsccTestBase : public xls::IrTestBase {
   std::unique_ptr<xls::Package> package_;
   std::unique_ptr<xlscc::Translator> translator_;
   xlscc::HLSBlock block_spec_;
+
+ protected:
+    std::vector<CapturedLogEntry> log_entries_;
 };
 
 #endif  // XLS_CONTRIB_XLSCC_UNIT_TEST_H_

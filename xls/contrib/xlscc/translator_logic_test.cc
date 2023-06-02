@@ -3349,7 +3349,7 @@ TEST_F(TranslatorLogicTest, ParseFailure) {
                   testing::HasSubstr("Unable to parse text")));
 }
 
-std::string NativeOperatorTestIr(std::string op) {
+std::string NativeOperatorTestIr(const std::string& op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         return a %s b;
@@ -3357,7 +3357,7 @@ std::string NativeOperatorTestIr(std::string op) {
                          op);
 }
 
-std::string NativeOperatorTestIrEq(std::string op) {
+std::string NativeOperatorTestIrEq(const std::string& op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         a %s= b;
@@ -3633,7 +3633,7 @@ TEST_F(TranslatorLogicTest, NativeOperatorPostDec) {
   }
 }
 
-std::string NativeBoolOperatorTestIr(std::string op) {
+std::string NativeBoolOperatorTestIr(const std::string& op) {
   return absl::StrFormat(R"(
       long long my_package(long long a, long long b) {
         return (long long)(a %s b);
@@ -3641,7 +3641,7 @@ std::string NativeBoolOperatorTestIr(std::string op) {
                          op);
 }
 
-std::string NativeUnsignedBoolOperatorTestIr(std::string op) {
+std::string NativeUnsignedBoolOperatorTestIr(const std::string& op) {
   return absl::StrFormat(R"(
       long long my_package(unsigned long long a, unsigned long long b) {
         return (long long)(a %s b);
@@ -4339,9 +4339,9 @@ std::string GenerateEnumDef(std::vector<std::optional<int64_t>> variants) {
   std::stringstream ss;
   for (size_t i = 0; i < variants.size(); ++i) {
     if (variants[i]) {
-      ss << "a" << i << " = " << *variants[i] << "," << std::endl;
+      ss << "a" << i << " = " << *variants[i] << "," << '\n';
     } else {
-      ss << "a" << i << "," << std::endl;
+      ss << "a" << i << "," << '\n';
     }
   }
   auto content = absl::Substitute(src_template, ss.str());
@@ -4819,6 +4819,93 @@ TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForFloat) {
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Binary operators unimplemented for type")));
+}
+
+TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {
+  const std::string content = R"(
+  #pragma top
+  int st() {
+    return 1;
+  })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kNotFound,
+          testing::HasSubstr("No top function found")));
+  ASSERT_EQ(this->log_entries_.size(), 1);
+  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
+            "#pragma 'top' requires 'hls_' prefix"));
+}
+
+TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
+  const std::string content = R"(
+  #pragma HLS_TOP
+  int st() {
+    return 1;
+  })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kNotFound,
+          testing::HasSubstr("No top function found")));
+  ASSERT_EQ(this->log_entries_.size(), 1);
+  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
+            "#pragma must be lowercase:"));
+}
+
+TEST_F(TranslatorLogicTest, PragmaAllowsCommentsBetween) {
+  const std::string content = R"(
+  #pragma hls_top
+  // some comment
+  int st() {
+    return 1;
+  })";
+  Run({}, 1, content);
+}
+
+TEST_F(TranslatorLogicTest, PragmaAllowsBlankLines) {
+  const std::string content = R"(
+  #pragma hls_top
+
+  int st() {
+    return 1;
+  })";
+  Run({}, 1, content);
+}
+
+TEST_F(TranslatorLogicTest, PragmaIgnoresSpaces) {
+  const std::string content = R"(
+  #pragma    hls_top  
+  int st() {
+    return 1;
+  })";
+  Run({}, 1, content);
+}
+
+TEST_F(TranslatorLogicTest, PragmaHlsPartialUnrollTreatedAsFullUnroll) {
+  const std::string content = R"(
+  #pragma hls_top  
+  int st() {
+    int sum = 0;
+    #pragma hls_unroll  4
+    for (int i = 0; i < 4; i++) {
+      sum += i;
+    }
+    return sum;
+  })";
+  Run({}, 0 + 1 + 2 + 3, content);
+}
+
+TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
+  const std::string content = R"(
+  // #pragma    hls_top  
+  int st() {
+    return 1;
+  })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kNotFound,
+                  testing::HasSubstr("No top function found")));
 }
 
 }  // namespace
