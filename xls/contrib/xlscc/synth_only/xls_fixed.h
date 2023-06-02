@@ -219,13 +219,6 @@ class XlsFixed {
             Adjustment<Width, IntegerWidth, Signed, FromW, FromW, FromSign,
                        Quantization, Overflow>::Adjust(o.storage))) {}
 
-  inline XlsFixed(const BitElemRef &value)
-      : val(XlsInt<Width, Signed>(
-            Adjustment<
-                Width, IntegerWidth, Signed, 1, 1, false, Quantization,
-                Overflow>::Adjust(BuiltinIntToBits<bool, 1>::Convert(value)))) {
-  }
-
   inline XlsFixed(bool value)
       : val(XlsInt<Width, Signed>(
             Adjustment<
@@ -624,14 +617,26 @@ class XlsFixed {
 
   // --- Hack: see comments for BitElemRef
   inline BitElemRef operator[](index_t i) {
-    return BitElemRef(slc<1>(i));
+    return BitElemRef((bool)slc<1>(i));
 
-    // NOP to ensure that clang parses the set_element function
-    set_element(0, 1);
+    // NOP to ensure that clang parses the set_element functions
+    set_element_bitref(0, 1);
+    set_element_xlsint(0, 1);
+    set_element_int(0, 1);
   }
 
-  inline XlsFixed set_element(index_t i, BitElemRef rvalue) {
-    set_slc(i, XlsFixed<1, 1, false>(rvalue));
+  inline XlsFixed set_element_bitref(index_t i, BitElemRef rvalue) {
+    set_slc(i, XlsInt<1, false>(rvalue));
+    return *this;
+  }
+
+  inline XlsFixed set_element_int(index_t i, int rvalue) {
+    set_slc(i, XlsInt<1, false>(rvalue));
+    return *this;
+  }
+
+  inline XlsFixed set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
+    set_slc(i, rvalue);
     return *this;
   }
   // --- / Hack
@@ -682,11 +687,9 @@ class XlsFixed {
     return ls;
   }
 
-  template <int ToW, int ToI, bool ToSign, ac_datatypes::ac_q_mode ToQ,
-            ac_datatypes::ac_o_mode ToO>
-  XlsFixed set_slc(index_t offset,
-                   XlsFixed<ToW, ToI, ToSign, ToQ, ToO> slice_raw) {
-    // static_assert(index_t::width > 0, "Bug in Log2Ceil");
+  template <int ToW, bool ToSign>
+  XlsFixed set_slc(index_t offset, XlsInt<ToW, ToSign> slice_raw) {
+    static_assert(index_t::width > 0, "Bug in Log2Ceil");
     static_assert(Width >= ToW, "Can't set a slice wider than the source");
     static_assert(Width > 0, "Can't slice 0 bits");
     static_assert(ToW > 0, "Can't slice 0 bits");
@@ -695,7 +698,7 @@ class XlsFixed {
         "bit_slice_update(a, o, u, pos=(loc)) }"
         : "=r"(this->val.storage)
         : "i"(Width), "c"(index_t::width), "d"(ToW), "a"(this->val.storage),
-          "o"(offset.storage), "u"(slice_raw.val.storage));
+          "o"(offset.storage), "u"(slice_raw.storage));
     return *this;
   }
 

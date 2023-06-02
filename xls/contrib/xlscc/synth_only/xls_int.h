@@ -24,7 +24,7 @@
 
 #ifndef __SYNTHESIS__
 static_assert(false, "This header is only for synthesis");
-#endif  //__SYNTHESIS__
+#endif  // __SYNTHESIS__
 
 namespace {
 
@@ -467,6 +467,7 @@ class XlsIntBase<Width, true> {
 
   __xls_bits<Width> storage;
 };
+template <int W, bool S> class XlsInt;
 
 // BitElemRef is returned from XlsInt's non-const operator [].
 // It represents a reference to a certain bit inside an XlsInt.
@@ -476,12 +477,21 @@ class XlsIntBase<Width, true> {
 //   XLS[cc] contains a hack to explicitly handle this case.
 #pragma hls_synthetic_int
 struct BitElemRef {
-  template <typename T>
-  inline BitElemRef(T in) : v(in & 1) {}
+  // template <typename T>
+  inline BitElemRef(bool in) : v(in) {}
 
   inline operator bool() const { return v; }
+  template<int W2, bool S2>
+  operator XlsInt<W2, S2> () const { return operator bool (); }
 
-  inline bool operator=(BitElemRef o) { return v; }
+  inline BitElemRef operator =(int val) {
+    v = val & 1;
+    return *this;
+  }
+
+  inline BitElemRef operator =(const BitElemRef &val) {
+    return operator =((int) (bool) val);
+  }
 
   bool v;
 };
@@ -497,10 +507,6 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   inline XlsInt(const XlsInt<ToW, ToSign> &o)
       : XlsIntBase<Width, Signed>(
             ConvertBits<ToW, Width, ToSign>::Convert(o.storage)) {}
-
-  inline XlsInt(const BitElemRef &value)
-      : XlsIntBase<Width, Signed>(ConvertBits<1, Width, false>::Convert(
-            BuiltinIntToBits<bool, 1>::Convert(value))) {}
 
   inline XlsInt(bool value)
       : XlsIntBase<Width, Signed>(ConvertBits<1, Width, false>::Convert(
@@ -814,15 +820,29 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   // --- Hack: see comments for BitElemRef
   inline BitElemRef operator[](index_t i) {
-    return BitElemRef(slc<1>(i));
+    return BitElemRef((bool)slc<1>(i));
 
-    // NOP to ensure that clang parses the set_element function
-    set_element(0, 1);
+    // NOP to ensure that clang parses the set_element functions
+    set_element_bitref(0, 1);
+    set_element_xlsint(0, 1);
+    set_element_int(0, 1);
   }
-  inline XlsInt set_element(index_t i, BitElemRef rvalue) {
+
+  inline XlsInt set_element_bitref(index_t i, BitElemRef rvalue) {
     set_slc(i, XlsInt<1, false>(rvalue));
     return *this;
   }
+
+  inline XlsInt set_element_int(index_t i, int rvalue) {
+    set_slc(i, XlsInt<1, false>(rvalue));
+    return *this;
+  }
+
+  inline XlsInt set_element_xlsint(index_t i, XlsInt<1, false> rvalue) {
+    set_slc(i, rvalue);
+    return *this;
+  }
+
   // --- / Hack
 
   inline XlsInt reverse() const {

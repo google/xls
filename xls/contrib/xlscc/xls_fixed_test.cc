@@ -564,7 +564,7 @@ TEST_F(XlsFixedTest, SetSlc) {
 
     int my_package(int a) {
       XlsFixed<24, 24, false> ax = a;
-      ax.set_slc(2, XlsFixed<24, 24, false>(0b11));
+      ax.set_slc(2, XlsInt<24, false>(0b11));
       return ax.to_int();
     })";
   RunAcDatatypeTest({{"a", 0b0001}}, 0b1101, content,
@@ -976,6 +976,36 @@ TEST_F(XlsFixedTest, FloatConstructor) {
       return x.to_int();
     })";
   RunAcDatatypeTest({}, 11, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, BitElemRefCast) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    long long my_package(long long a, long long b) {
+      XlsFixed<4, 4, false> u4(2);
+      u4[2] = (a > b) ? XlsInt<1, false>(0) : u4[1];
+      return u4.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 5}, {"b", 3}}, 2, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 6, content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsFixedTest, BitElemRefCastToXlsInt) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+    typedef XlsInt<1, false> uai1;
+    long long my_package(long long a) {
+      XlsInt<1, false> result;
+      XlsFixed<4, 4, false> u4(a);
+      result = u4[1];
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 5}}, 0, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 1, content,
+                    xabsl::SourceLocation::current());
 }
 
 }  // namespace

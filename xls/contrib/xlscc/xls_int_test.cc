@@ -766,6 +766,49 @@ TEST_F(XlsIntTest, FloatConstructor) {
   RunAcDatatypeTest({}, 5, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, BitElemRefCast) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a, long long b) {
+      XlsInt<4, false> u4(2);
+      u4[2] = (a > b) ? XlsInt<1, false>(0) : u4[1];
+      return u4.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 5}, {"b", 3}}, 2, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}, {"b", 5}}, 6, content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, BitElemRefCastToXlsInt) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<1, false> result;
+      XlsInt<4, false> u4(a);
+      result = u4[1];
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 5}}, 0, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 1, content,
+                    xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, XlsIntDirectAssignLongLong) {
+  const std::string content = R"(
+    #include "xls_int.h"
+    long long my_package(long long a) {
+      XlsInt<11, false> result;
+      result = a;
+      return result.to_int();
+    })";
+  RunAcDatatypeTest({{"a", 5}}, 5, content,
+                     xabsl::SourceLocation::current());
+  RunAcDatatypeTest({{"a", 3}}, 3, content,
+                    xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

@@ -29,6 +29,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
@@ -2538,8 +2539,15 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
   if (stype == nullptr) {
     return false;
   }
+
+  std::string set_element_method = "set_element_xlsint";
+  if (absl::StrContains(rvalue->getType().getAsString(), "BitElemRef")) {
+    set_element_method = "set_element_bitref";
+  } else if (absl::StrContains(rvalue->getType().getAsString(), "int")) {
+    set_element_method = "set_element_int";
+  }
   for (auto method : stype->methods()) {
-    if (method->getNameAsString() == "set_element") {
+    if (method->getNameAsString() == set_element_method) {
       auto to_call = dynamic_cast<const clang::FunctionDecl*>(method);
 
       XLSCC_CHECK(to_call != nullptr, loc);
@@ -2557,7 +2565,7 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
       return true;
     }
   }
-  // Recognized the pattern, but no set_element() method to use
+  // Recognized the pattern, but no set_element_* method to use
   return false;
 }
 
