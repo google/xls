@@ -53,7 +53,7 @@ class ParserTest : public ::testing::Test {
                     [&](std::string_view path) -> absl::StatusOr<std::string> {
                       return program;
                     });
-      XLS_EXPECT_OK(module_or);
+      XLS_EXPECT_OK(module_or) << module_or.status();
       return nullptr;
     }
     std::unique_ptr<Module> module = std::move(module_or).value();
