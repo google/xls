@@ -15,12 +15,14 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <functional>
 #include <ios>
+#include <iterator>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -31,6 +33,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_split.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
@@ -86,6 +90,36 @@ void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
   }
 
   slots_.at(slot.value()) = value;
+}
+
+// Returns a differences string in the style of Rust's pretty_assertions.
+// All lines are indented by two positions.
+// Whenever two values differ, the lhs value is prefixed with <, the rhs with >.
+/* static */ std::string BytecodeInterpreter::HighlightLineByLineDifferences(
+    std::string_view lhs, std::string_view rhs) {
+  std::string result;
+  result.reserve(rhs.size() + lhs.size());  // Just a guess.
+  std::vector<std::string_view> rhs_split = absl::StrSplit(rhs, '\n');
+  std::vector<std::string_view> lhs_split = absl::StrSplit(lhs, '\n');
+  int i = 0;
+  for (; i < lhs_split.size() && i < rhs_split.size(); ++i) {
+    if (lhs_split[i] != rhs_split[i]) {
+       absl::StrAppend(&result, "< ", lhs_split[i], "\n"
+                                "> ", rhs_split[i], "\n");
+    } else {
+       absl::StrAppend(&result, "  ", lhs_split[i], "\n");
+    }
+  }
+  // I don't think trailers are possible right now -- but if they ever
+  // show up, let's handle them in the obvious way.
+  // (Only one of these two loops ever runs.)
+  for (; i < lhs_split.size(); ++i) {
+    absl::StrAppend(&result, "< ", lhs_split[i], "\n");
+  }
+  for (; i < rhs_split.size(); ++i) {
+    absl::StrAppend(&result, "> ", rhs_split[i], "\n");
+  }
+  return result;
 }
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
@@ -1385,8 +1419,11 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
                          PrettyPrintValue(lhs, lhs_type));
     XLS_ASSIGN_OR_RETURN(std::string pretty_rhs,
                          PrettyPrintValue(rhs, rhs_type));
-    std::string message = absl::StrFormat(
-        "\n  lhs: %s\n  rhs: %s\n  were not equal", pretty_lhs, pretty_rhs);
+    std::string message = absl::StrContains(pretty_lhs, '\n')
+      ? absl::StrCat("\n  lhs and rhs were not equal:\n",
+          HighlightLineByLineDifferences(pretty_lhs, pretty_rhs))
+      : absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were not equal",
+          pretty_lhs, pretty_rhs);
     if (lhs.IsArray() && rhs.IsArray()) {
       XLS_ASSIGN_OR_RETURN(
           std::optional<int64_t> i,

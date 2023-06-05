@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -149,6 +150,10 @@ class BytecodeInterpreter {
   // state.
   static absl::StatusOr<std::string> TraceDataToString(
       const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack);
+
+  // Helper for highlighting differences in pretty-printed representation
+  static std::string HighlightLineByLineDifferences(std::string_view lhs,
+                                                    std::string_view rhs);
 
  protected:
   BytecodeInterpreter(ImportData* import_data,

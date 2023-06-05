@@ -26,7 +26,6 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
@@ -1361,16 +1360,85 @@ fn doomed() {
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("were not equal")));
-  EXPECT_TRUE(absl::StrContains(value.status().message(),
-                                R"(lhs: MyStruct {
-    a: u32:0
-    b: uN[16][4]:[u16:1, u16:2, u16:3, u16:4]
-    c: InnerStruct {
-        x: u32:5
-        y: u32:6
-    }
-})"));
+              HasSubstr(R"(lhs and rhs were not equal:
+  MyStruct {
+<     a: u32:0
+>     a: u32:7
+<     b: uN[16][4]:[u16:1, u16:2, u16:3, u16:4]
+>     b: uN[16][4]:[u16:8, u16:8, u16:8, u16:8]
+      c: InnerStruct {
+<         x: u32:5
+>         x: u32:12
+<         y: u32:6
+>         y: u32:13
+      }
+  })")));
+}
+
+TEST(BytecodeInterpreterTest, PrettyPrintsTheStructFromIssue828) {
+  constexpr std::string_view kProgram = R"(
+struct S {
+  a: u32,
+  b: u32,
+  c: u32,
+  d: u32,
+  e: u32,
+  f: u32,
+  g: u32,
+  h: u32,
+  i: u32,
+  j: u32,
+}
+
+fn doomed() {
+  let _ = assert_eq(
+    S {
+      a: u32: 42,
+      b: u32: 42,
+      c: u32: 142,
+      d: u32: 142,
+      e: u32: 42,
+      f: u32: 42,
+      g: u32: 42,
+      h: u32: 42,
+      i: u32: 242,
+      j: u32: 42,
+    },
+    S {
+      a: u32: 42,
+      b: u32: 42,
+      c: u32: 142,
+      d: u32: 42,
+      e: u32: 42,
+      f: u32: 42,
+      g: u32: 242,
+      h: u32: 242,
+      i: u32: 42,
+      j: u32: 42,
+    });
+} )";
+
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+        AllOf(HasSubstr("were not equal"),
+              HasSubstr(
+R"(lhs and rhs were not equal:
+  S {
+      a: u32:42
+      b: u32:42
+      c: u32:142
+<     d: u32:142
+>     d: u32:42
+      e: u32:42
+      f: u32:42
+<     g: u32:42
+>     g: u32:242
+<     h: u32:42
+>     h: u32:242
+<     i: u32:242
+>     i: u32:42
+      j: u32:42
+  })"))));
 }
 
 TEST(BytecodeInterpreterTest, PrettyPrintsArrays) {
@@ -1415,19 +1483,25 @@ fn doomed() {
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("were not equal")));
-  EXPECT_TRUE(absl::StrContains(value.status().message(),
-                                R"(lhs: MyStruct {
-    c: InnerStruct[2]:[
-        InnerStruct {
-            x: u32:1
-            y: u32:2
-        },
-        InnerStruct {
-            x: u32:3
-            y: u32:4
-        }
-    ])"));
+      AllOf(
+          HasSubstr("were not equal"),
+          HasSubstr(R"(lhs and rhs were not equal:
+  MyStruct {
+      c: InnerStruct[2]:[
+          InnerStruct {
+<             x: u32:1
+>             x: u32:5
+<             y: u32:2
+>             y: u32:6
+          },
+          InnerStruct {
+<             x: u32:3
+>             x: u32:7
+<             y: u32:4
+>             y: u32:8
+          }
+      ]
+  })"))));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannels) {
@@ -1855,6 +1929,69 @@ fn main(x: u32) -> u4 {
                            HasSubstr("unable to cast")));
     }
   }
+}
+
+TEST(ByteCodeInterpreterTest, CheckHighlightLineByLineDifferences) {
+  // The basic functionality: highlight changing text in a sea of sameness.
+  EXPECT_EQ(
+      BytecodeInterpreter::HighlightLineByLineDifferences(
+        "+---------+\n"
+        "|assistant|\n"
+        "+---------+",
+        "+---------+\n"
+        "|  tiger  |\n"
+        "+---------+"),
+      "  +---------+\n"
+      "< |assistant|\n"
+      "> |  tiger  |\n"
+      "  +---------+\n");
+
+  // Single lines work, even though we don't do this in practice.
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "assistant", "tiger"),
+      "< assistant\n"
+      "> tiger\n");
+
+  // No difference, no </> (but two spaces of prefix and a newline).
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "your card", "your card"),
+      "  your card\n");
+
+  // The empty string counts as one item, which doesn't change.
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences("", ""),
+      "  \n");
+
+  // Some replacement, some production
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "hat\n(empty)", "hat\nwith a\nrabbit"),
+      "  hat\n"
+      "< (empty)\n"
+      "> with a\n"
+      "> rabbit\n");
+
+  // Just vanishing, no replacement.
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "hat\nwith a\nrabbit", "hat"),
+      "  hat\n"
+      "< with a\n"
+      "< rabbit\n");
+
+  // Pure production, no replacement.
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "hat", "hat\npigeon\nrabbit"),
+      "  hat\n"
+      "> pigeon\n"
+      "> rabbit\n");
+
+  // We do not, however, detect disappearances at the beginning --
+  // since the compared types are the same, insertions/deletions don't really
+  // happen and aren't worth the effort to print succinctly.
+  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
+      "jack\njack\nqueen", "queen"),
+      "< jack\n"
+      "> queen\n"
+      "< jack\n"
+      "< queen\n");
 }
 
 }  // namespace
