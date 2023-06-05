@@ -3908,7 +3908,8 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
     XLS_ASSIGN_OR_RETURN(Pragma pragma,
                          FindPragmaForLoc(init_list->getBeginLoc()));
     if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
-        array_t->GetSize() != init_list->getNumInits()) {
+        array_t->GetSize() != init_list->getNumInits() &&
+       init_list->getNumInits() != 0) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }

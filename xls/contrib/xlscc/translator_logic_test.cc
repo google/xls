@@ -561,15 +561,6 @@ TEST_F(TranslatorLogicTest, ArrayTooManyInitListValues) {
                   testing::HasSubstr("Unable to parse text")));
 }
 
-TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeZeros) {
-  const std::string content = R"(
-       long long my_package() {
-         long long arr[4] = {};
-         return arr[3];
-       })";
-  ASSERT_FALSE(SourceToIr(content).ok());
-}
-
 TEST_F(TranslatorLogicTest, ArrayInitListMismatchedSizeMultipleZeros) {
   const std::string content = R"(
        long long my_package() {
@@ -4906,6 +4897,16 @@ TEST_F(TranslatorLogicTest, CommentedPragmaIgnored) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kNotFound,
                   testing::HasSubstr("No top function found")));
+}
+
+TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
+  const std::string content = R"(
+  #pragma hls_top  
+  int st() {
+    int a[20] = {};
+    return a[14];
+  })";
+  Run({}, 0, content);
 }
 
 }  // namespace
