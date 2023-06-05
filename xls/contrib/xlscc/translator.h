@@ -474,6 +474,10 @@ class LValue {
   LValue() : is_null_(true) {}
   explicit LValue(const clang::Expr* leaf) : leaf_(leaf) {
     XLS_CHECK_NE(leaf_, nullptr);
+    // Should use select constructor
+    XLS_CHECK(clang::dyn_cast<clang::ConditionalOperator>(leaf_) == nullptr);
+    // Should be removed by CreateReferenceValue()
+    XLS_CHECK(clang::dyn_cast<clang::ParenExpr>(leaf_) == nullptr);
   }
   explicit LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,

@@ -1237,11 +1237,148 @@ TEST_F(TranslatorPointerTest, ReferenceToTernarySet) {
       return x;
     })";
 
+  Run({{"a", 0}}, 11, content);
+  Run({{"a", 1}}, 100, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceToTernarySetClass) {
+  const std::string content = R"(  
+    struct MyInt {
+      MyInt(int val) : val_(val) {
+      }
+      
+      operator int()const {
+        return val_;
+      }
+      
+      int val_;
+    };
+
+    int my_package(int a) {
+      MyInt x = 11, y = 15;
+      MyInt& r = a ? x : y;
+      r = 100;
+      return x;
+    })";
+
+  Run({{"a", 0}}, 11, content);
+  Run({{"a", 1}}, 100, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceToTernarySetClassNested) {
+  const std::string content = R"(  
+    struct MyInt {
+      MyInt(int val) : val_(val) {
+      }
+      
+      operator int()const {
+        return val_;
+      }
+      
+      int val_;
+    };
+
+    int my_package(int a, int b) {
+      MyInt x = 11, y = 15, z = 5;
+      MyInt& r = b ? (a ? x : y) : z;
+      r = 100;
+      return x;
+    })";
+
+  Run({{"a", 0}, {"b", 1}}, 11, content);
+  Run({{"a", 1}, {"b", 1}}, 100, content);
+  Run({{"a", 0}, {"b", 0}}, 11, content);
+  Run({{"a", 1}, {"b", 0}}, 11, content);
+}
+
+TEST_F(TranslatorPointerTest, ReferenceToTernarySetClass3) {
+  const std::string content = R"(  
+    struct MyInt {
+      MyInt(int val) : val_(val) {
+      }
+      
+      operator int()const {
+        return val_;
+      }
+      
+      MyInt& operator+=(MyInt& o) {
+        val_ += o.val_;
+        return *this;
+      }
+      
+      int val_;
+    };
+
+    int my_package(int a, int b) {
+      MyInt x = 11, y = 15, z = 20;
+      MyInt& r = b ? (a ? x : y) : z;
+      x += r;
+      return x;
+    })";
+
+  Run({{"a", 0}, {"b", 1}}, 11 + 15, content);
+  Run({{"a", 1}, {"b", 1}}, 11 + 11, content);
+  Run({{"a", 0}, {"b", 0}}, 11 + 20, content);
+  Run({{"a", 1}, {"b", 0}}, 11 + 20, content);
+}
+
+TEST_F(TranslatorPointerTest, ResolveReferenceInTernary) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& yr = y;
+      int r = a ? x : yr;
+      return r;
+    })";
+
+  Run({{"a", 0}}, 15, content);
+  Run({{"a", 1}}, 11, content);
+}
+
+TEST_F(TranslatorPointerTest, ResolveReferenceInTernary2) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& yr = y;
+      int& r = a ? x : yr;
+      x = 100;
+      return r;
+    })";
+
+  Run({{"a", 0}}, 15, content);
+  Run({{"a", 1}}, 100, content);
+}
+
+TEST_F(TranslatorPointerTest, AssignReferenceInTernaryDirect) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& xr = x;
+      int& yr = y;
+      (a ? xr : yr) = 100;
+      return x;
+    })";
+
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr(
-                      "Ternaries in lvalues only supported for pointers")));
+                  testing::HasSubstr("Ternaries in lvalues only supported for "
+                                     "pointers or references")));
+}
+
+TEST_F(TranslatorPointerTest, ResolveReferenceInTernary3) {
+  const std::string content = R"(
+    int my_package(int a) {
+      int x = 11, y = 15;
+      int& xr = x;
+      int& yr = y;
+      int& r = a ? xr : yr;
+      x = 100;
+      return r;
+    })";
+
+  Run({{"a", 0}}, 15, content);
+  Run({{"a", 1}}, 100, content);
 }
 
 TEST_F(TranslatorPointerTest, SetPointerInMethod) {

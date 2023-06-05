@@ -578,7 +578,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     const clang::FunctionDecl* funcdecl, std::string_view name_override,
     bool force_static, bool member_references_become_channels) {
   XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
-
   std::string xls_name;
 
   if (!name_override.empty()) {
@@ -1117,9 +1116,16 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateReferenceValue(
   // Remove casts
   auto nested_implicit = initializer;
 
-  while (auto as_cast =
-             clang::dyn_cast<clang::ImplicitCastExpr>(nested_implicit)) {
-    nested_implicit = as_cast->getSubExpr();
+  while (true) {
+    if (auto as_cast =
+            clang::dyn_cast<clang::ImplicitCastExpr>(nested_implicit)) {
+      nested_implicit = as_cast->getSubExpr();
+    } else if (auto as_paren =
+                   clang::dyn_cast<clang::ParenExpr>(nested_implicit)) {
+      nested_implicit = as_paren->getSubExpr();
+    } else {
+      break;
+    }
   }
 
   // TODO(seanhaskell): Remove special 'this' handling
@@ -1130,6 +1136,19 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateReferenceValue(
     // TODO(seanhaskell): Remove special this handling
     return std::make_shared<LValue>(
         clang::dyn_cast<clang::UnaryOperator>(nested_implicit)->getSubExpr());
+  }
+
+  if (auto cond_expr =
+          clang::dyn_cast<clang::ConditionalOperator>(nested_implicit)) {
+    XLS_ASSIGN_OR_RETURN(CValue cond_val,
+                         GenerateIR_Expr(cond_expr->getCond(), loc));
+    XLSCC_CHECK(cond_val.rvalue().valid(), loc);
+
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> true_lval,
+                         CreateReferenceValue(cond_expr->getTrueExpr(), loc));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> false_lval,
+                         CreateReferenceValue(cond_expr->getFalseExpr(), loc));
+    return std::make_shared<LValue>(cond_val.rvalue(), true_lval, false_lval);
   }
 
   return std::make_shared<LValue>(nested_implicit);
@@ -1782,16 +1801,20 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     XLS_ASSIGN_OR_RETURN(
         shared_ptr<CType> result_type,
         TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
-    if (!result_type->Is<CPointerType>()) {
-      return absl::UnimplementedError(ErrorMessage(
-          loc,
-          "Ternaries in lvalues only supported for pointers, type used is %s",
-          std::string(*result_type)));
+
+    if (!result_type->Is<CPointerType>() || result_type->Is<CReferenceType>()) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Ternaries in lvalues only supported for pointers or "
+                       "references, type used is %s",
+                       std::string(*result_type)));
     }
+
     XLS_ASSIGN_OR_RETURN(
         CValue lcv,
         Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
                            cond->getFalseExpr(), loc));
+
     XLSCC_CHECK_NE(lcv.lvalue().get(), nullptr, loc);
     return Assign(lcv.lvalue(), rvalue, loc);
   }
@@ -2143,6 +2166,25 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     XLS_ASSIGN_OR_RETURN(false_cv, GenerateIR_Expr(false_expr, loc));
   }
 
+  // If one is a reference but not both, then make a reference to the other
+  if (true_cv.type()->Is<CReferenceType>() !=
+      false_cv.type()->Is<CReferenceType>()) {
+    if (!true_cv.type()->Is<CReferenceType>()) {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> true_lval,
+                           CreateReferenceValue(true_expr, loc));
+      true_cv = CValue(xls::BValue(),
+                       std::make_shared<CReferenceType>(true_cv.type()),
+                       /*disable_type_check=*/false, true_lval);
+    }
+    if (!false_cv.type()->Is<CReferenceType>()) {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> false_lval,
+                           CreateReferenceValue(false_expr, loc));
+      false_cv = CValue(xls::BValue(),
+                        std::make_shared<CReferenceType>(false_cv.type()),
+                        /*disable_type_check=*/false, false_lval);
+    }
+  }
+
   if (result_type->Is<CPointerType>()) {
     if (context().lvalue_mode) {
       XLSCC_CHECK_NE(true_cv.lvalue(), nullptr, loc);
@@ -2164,13 +2206,24 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
 absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     xls::BValue cond, CValue true_cv, CValue false_cv,
     std::shared_ptr<CType> result_type, const xls::SourceInfo& loc) {
-  if (true_cv.lvalue() != nullptr || false_cv.lvalue() != nullptr) {
-    XLSCC_CHECK_NE(true_cv.lvalue(), nullptr, loc);
-    XLSCC_CHECK_NE(false_cv.lvalue(), nullptr, loc);
+  if (true_cv.lvalue() != nullptr && false_cv.lvalue() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(bool result_has_lval,
+                         result_type->ContainsLValues(*this));
+    if ((result_type->Is<CInstantiableTypeAlias>() ||
+         result_type->Is<CStructType>()) &&
+        result_has_lval) {
+      // Could be mixed rvalue and lvalue
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Ternary on structs with LValues"));
+    }
     XLSCC_CHECK(*true_cv.type() == *false_cv.type(), loc);
     return CValue(
         xls::BValue(), true_cv.type(), /*disable_type_check=*/false,
         std::make_shared<LValue>(cond, true_cv.lvalue(), false_cv.lvalue()));
+  }
+  if (true_cv.lvalue() != nullptr || false_cv.lvalue() != nullptr) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Ternary on mixed LValue type and RValue types"));
   }
 
   XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
@@ -2467,13 +2520,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
 
     // TODO(seanhaskell): Remove special this handling
     if (this_value_orig.lvalue() != nullptr) {
-      if (this_value_orig.lvalue()->leaf() != nullptr) {
-        XLS_ASSIGN_OR_RETURN(
-            this_value_orig,
-            GenerateIR_Expr(this_value_orig.lvalue()->leaf(), loc));
-      } else {
-        this_lval = this_value_orig.lvalue();
+      if (this_value_orig.lvalue()->leaf() != nullptr ||
+          this_value_orig.lvalue()->is_select()) {
+        XLS_ASSIGN_OR_RETURN(this_value_orig,
+                             GenerateIR_Expr(this_value_orig.lvalue(), loc));
       }
+      this_lval = this_value_orig.lvalue();
     }
 
     thisval = this_value_orig.rvalue();
@@ -2859,8 +2911,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (pass_type->Is<CReferenceType>()) {
       pass_type = pass_type->As<CReferenceType>()->GetPointeeType();
       XLSCC_CHECK_NE(argv.lvalue(), nullptr, loc);
-      XLSCC_CHECK_NE(argv.lvalue()->leaf(), nullptr, loc);
-      XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(argv.lvalue()->leaf(), loc));
+      if (argv.lvalue()->leaf() != nullptr || argv.lvalue()->is_select()) {
+        XLS_ASSIGN_OR_RETURN(argv, GenerateIR_Expr(argv.lvalue(), loc));
+      }
       pass_bval = argv.rvalue();
       pass_type = argv.type();
     }
