@@ -68,7 +68,28 @@ cc_library(
 
 cc_library(
     name = "foreign_function",
+    srcs = ["foreign_function.cc"],
     hdrs = ["foreign_function.h"],
+    deps = [
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_github_google_re2//:re2",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "foreign_function_test",
+    srcs = ["foreign_function_test.cc"],
+    deps = [
+        ":foreign_function",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
 )
 
 cc_library(

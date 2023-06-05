@@ -404,14 +404,26 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
         peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
   if (directive_name == "extern_verilog") {
+    Span template_span;
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    XLS_ASSIGN_OR_RETURN(std::string module_name, PopString());
+    XLS_ASSIGN_OR_RETURN(std::string ffi_annotation, PopString(&template_span));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(bool dropped_pub, TryDropKeyword(Keyword::kPub));
     XLS_ASSIGN_OR_RETURN(Function * f,
                          ParseFunction(dropped_pub, bindings, name_to_fn));
-    f->set_extern_verilog_module_name(module_name);
+    absl::StatusOr<ForeignFunctionData> parsed_ffi_annotation =
+        ForeignFunctionData::CreateFromTemplate(ffi_annotation);
+    if (!parsed_ffi_annotation.ok()) {
+      const int64_t error_at =
+          CodeTemplate::ExtractErrorColumn(parsed_ffi_annotation.status());
+      const Pos& start = template_span.start();
+      Pos error_pos{start.filename(), start.lineno(), start.colno() + error_at};
+      dslx::Span error_span(error_pos, error_pos);
+      return ParseErrorStatus(error_span,
+                              parsed_ffi_annotation.status().message());
+    }
+    f->set_extern_verilog_module(*parsed_ffi_annotation);
     return f;
   }
   if (directive_name == "test_proc") {

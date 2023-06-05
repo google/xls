@@ -1568,9 +1568,8 @@ class Function : public AstNode {
     return_type_ = return_type;
   }
 
-  void set_extern_verilog_module_name(std::string module_name) {
-    extern_verilog_module_ =
-        xls::ForeignFunctionData{.name = std::move(module_name)};
+  void set_extern_verilog_module(xls::ForeignFunctionData data) {
+    extern_verilog_module_ = std::move(data);
   }
   const std::optional<::xls::ForeignFunctionData>& extern_verilog_module()
       const {

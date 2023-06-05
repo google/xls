@@ -62,7 +62,7 @@ TEST(FunctionConverterTest, ExternFunctionAttributePreservedInIR) {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(R"(
-#[extern_verilog("extern_foobar")]
+#[extern_verilog("extern_foobar {fn} (.out({return}));")]
 fn f() -> u32 { u32:42 }
 )",
                         "test_module.x", "test_module", &import_data));
@@ -83,9 +83,11 @@ fn f() -> u32 { u32:42 }
   // We expect a single function, that contains the FFI info for "extern_foobar"
   ASSERT_FALSE(package_data.package->functions().empty());
   ASSERT_TRUE(package_data.package->functions().front()->ForeignFunctionData());
-  EXPECT_EQ(
-      package_data.package->functions().front()->ForeignFunctionData()->name,
-      "extern_foobar");
+  EXPECT_EQ(package_data.package->functions()
+                .front()
+                ->ForeignFunctionData()
+                ->code_template.ToString(),
+            "extern_foobar {fn} (.out({return}));");
 }
 
 }  // namespace

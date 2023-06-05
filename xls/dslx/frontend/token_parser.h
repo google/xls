@@ -194,7 +194,9 @@ class TokenParser {
   // When an open quotation mark is seen, characters will be consumed until an
   // unescaped quotation mark is seen. In other words, ..." will terminate the
   // string, but ...\" will not.
-  absl::StatusOr<std::string> PopString();
+  // Optional "span" is filled with the span the string occupies, exlcuding the
+  // surrounding quotes.
+  absl::StatusOr<std::string> PopString(Span* span = nullptr);
 
   void DisableDoubleCAngle() { scanner_->DisableDoubleCAngle(); }
   void EnableDoubleCAngle() { scanner_->EnableDoubleCAngle(); }
