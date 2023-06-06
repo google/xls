@@ -1607,7 +1607,8 @@ class Translator {
   absl::StatusOr<CValue> TranslateEnumConstantDecl(
       const clang::EnumConstantDecl* decl, const xls::SourceInfo& loc);
   absl::Status Assign(const clang::NamedDecl* lvalue, const CValue& rvalue,
-                      const xls::SourceInfo& loc);
+                      const xls::SourceInfo& loc,
+                      bool force_no_lvalue_assign = false);
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,
                       const xls::SourceInfo& loc);
   absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
@@ -1631,7 +1632,9 @@ class Translator {
                                bool check_unique_ids = true);
 
   absl::Status DeclareStatic(const clang::NamedDecl* lvalue,
-                             const ConstValue& init, const xls::SourceInfo& loc,
+                             const ConstValue& init,
+                             const std::shared_ptr<LValue>& init_lvalue,
+                             const xls::SourceInfo& loc,
                              bool check_unique_ids = true);
 
   // If the decl given is a forward declaration, the definition with a body will

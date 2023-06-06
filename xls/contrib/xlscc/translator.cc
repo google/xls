@@ -1257,10 +1257,10 @@ absl::StatusOr<CValue> Translator::GetOnReset(const xls::SourceInfo& loc) {
     XLSCC_CHECK(!context().sf->static_values.contains(on_reset_decl), loc);
     ConstValue init_val(xls::Value(xls::UBits(1, 1)),
                         std::make_shared<CBoolType>());
-    XLS_RETURN_IF_ERROR(DeclareStatic(on_reset_decl, init_val, loc,
+    XLS_RETURN_IF_ERROR(DeclareStatic(on_reset_decl, init_val,
+                                      /*init_lvalue=*/nullptr, loc,
                                       /*check_unique_ids=*/false));
   }
-
   context().sf->uses_on_reset = true;
 
   return context().variables.at(on_reset_decl);
@@ -1392,7 +1392,8 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
 
 absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
                                 const CValue& rvalue,
-                                const xls::SourceInfo& loc) {
+                                const xls::SourceInfo& loc,
+                                bool force_no_lvalue_assign) {
   context().any_side_effects_requested = true;
   if (context().mask_side_effects || context().mask_assignments) {
     return absl::OkStatus();
@@ -1457,7 +1458,7 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
                        rvalue.type()->ContainsLValues(*this));
 
   // TODO(seanhaskell): Remove special 'this' handling
-  if (!type_contains_lval) {
+  if (!type_contains_lval || force_no_lvalue_assign) {
     context().variables.at(lvalue) = CValue(rvalue.rvalue(), rvalue.type());
   } else {
     XLSCC_CHECK(rvalue.lvalue() != nullptr, loc);
@@ -1867,20 +1868,20 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
   return absl::OkStatus();
 }
 
-absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
-                                       const ConstValue& init,
-                                       const xls::SourceInfo& loc,
-                                       bool check_unique_ids) {
+absl::Status Translator::DeclareStatic(
+    const clang::NamedDecl* lvalue, const ConstValue& init,
+    const std::shared_ptr<LValue>& init_lvalue, const xls::SourceInfo& loc,
+    bool check_unique_ids) {
   XLSCC_CHECK(!context().sf->static_values.contains(lvalue) ||
                   context().sf->static_values.at(lvalue) == init,
               loc);
 
-  XLS_ASSIGN_OR_RETURN(bool contains_lvalues,
-                       init.type()->ContainsLValues(*this));
-
-  if (contains_lvalues) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Statics containing lvalues not yet supported"));
+  // Static declarations containing only LValues
+  if (init.rvalue().kind() == xls::ValueKind::kInvalid) {
+    return DeclareVariable(lvalue,
+                           CValue(xls::BValue(), init.type(),
+                                  /*disable_type_check=*/false, init_lvalue),
+                           loc, check_unique_ids);
   }
 
   context().sf->declaration_order_by_name_[lvalue] =
@@ -1905,8 +1906,10 @@ absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
   side_effecting_param.static_value = lvalue;
   context().sf->side_effecting_parameters.push_back(side_effecting_param);
 
-  return DeclareVariable(lvalue, CValue(bval, init.type()), loc,
-                         check_unique_ids);
+  const CValue init_cval(bval, init.type(), /*disable_type_check=*/false,
+                         init_lvalue);
+
+  return DeclareVariable(lvalue, init_cval, loc, check_unique_ids);
 }
 
 absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
@@ -2730,8 +2733,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
     std::shared_ptr<LValue>* this_lval, const xls::SourceInfo& loc) {
-  // Ensure callee has been translated
+  // Ensure callee has been parsed
   XLS_RETURN_IF_ERROR(GetFunctionBody(funcdecl).status());
+
+  bool multiple_translations_for_a_channel = false;
 
   // Translate external channels
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
@@ -2753,10 +2758,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (external_channels_by_decl_.contains(callee_param) &&
         (external_channels_by_decl_.at(callee_param) !=
          external_channels_by_decl_.at(caller_channel_param))) {
-      return absl::UnimplementedError(
-          ErrorMessage(GetLoc(*callee_param),
-                       "IO ops in pipelined loops in subroutines called "
-                       "with multiple different channel arguments"));
+      // Translation will work fine, but produce invalid results if there are
+      // IO ops
+      multiple_translations_for_a_channel = true;
     }
 
     if (external_channels_by_decl_.contains(caller_channel_param)) {
@@ -2773,6 +2777,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                        TranslateFunctionToXLS(funcdecl));
 
   XLSCC_CHECK_NE(func, nullptr, loc);
+
+  // Even if the IO ops are in a pipelined loop, this will fire due
+  // to the context exchange
+  if (multiple_translations_for_a_channel && !func->io_ops.empty()) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "IO ops in pipelined loops in subroutines called "
+                     "with multiple different channel arguments"));
+  }
 
   // Function with no outputs
   if (func->xls_func == nullptr) {
@@ -3048,7 +3061,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         if (!context().variables.contains(side_effecting_param.static_value)) {
           XLS_RETURN_IF_ERROR(DeclareStatic(
               side_effecting_param.static_value,
-              func->static_values.at(side_effecting_param.static_value), loc,
+              func->static_values.at(side_effecting_param.static_value),
+              /*init_lvalue=*/nullptr, loc,
               /* check_unique_ids= */ false));
         }
         XLS_ASSIGN_OR_RETURN(
@@ -3095,8 +3109,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (is_on_reset) {
       continue;
     }
-    XLS_RETURN_IF_ERROR(
-        Assign(namedecl, CValue(static_output, initval.type()), loc));
+    XLS_RETURN_IF_ERROR(Assign(namedecl, CValue(static_output, initval.type()),
+                               loc,
+                               /*force_no_lvalue_assign=*/true));
   }
 
   // Then this return
@@ -3916,7 +3931,7 @@ absl::StatusOr<CValue> Translator::CreateInitListValue(
                          FindPragmaForLoc(init_list->getBeginLoc()));
     if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
         array_t->GetSize() != init_list->getNumInits() &&
-       init_list->getNumInits() != 0) {
+        init_list->getNumInits() != 0) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }
@@ -4127,6 +4142,9 @@ absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval,
 
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
     const CValue& bvalue, const xls::SourceInfo& loc, bool do_check) {
+  if (!bvalue.rvalue().valid()) {
+    return ConstValue(xls::Value(), bvalue.type(), /*disable_type_check=*/true);
+  }
   XLS_ASSIGN_OR_RETURN(xls::Value const_value,
                        EvaluateBVal(bvalue.rvalue(), loc, do_check));
   return ConstValue(const_value, bvalue.type());
@@ -4166,7 +4184,6 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
     // Check for side-effects
     XLS_ASSIGN_OR_RETURN(translated_without_side_effects,
                          TranslateVarDecl(vard, loc));
-
     if (context().any_side_effects_requested) {
       use_on_reset = true;
     } else {
@@ -4196,10 +4213,18 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
     return absl::OkStatus();
   }
 
-  XLS_RETURN_IF_ERROR(DeclareStatic(namedecl, init, loc));
+  XLS_RETURN_IF_ERROR(DeclareStatic(
+      namedecl, init, translated_without_side_effects.lvalue(), loc));
 
   if (!use_on_reset) {
     return absl::OkStatus();
+  }
+
+  if (translated_without_side_effects.lvalue() != nullptr) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "Initializing statics containing LValues using "
+                     "side-effects (eg __xls_on_reset)"));
   }
 
   // Select using __xlscc_on_reset
@@ -4336,9 +4361,10 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         }
 
         if (vard->isStaticLocal() || vard->isStaticDataMember()) {
-          XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, loc));
+          XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, GetLoc(*vard)));
         } else {
-          XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
+          XLS_ASSIGN_OR_RETURN(CValue translated,
+                               TranslateVarDecl(vard, GetLoc(*vard)));
           XLS_RETURN_IF_ERROR(DeclareVariable(vard, translated, loc));
         }
       }

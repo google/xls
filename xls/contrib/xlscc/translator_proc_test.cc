@@ -3288,18 +3288,17 @@ TEST_F(TranslatorProcTest, IOProcClassSubClass2) {
          }
       };)";
 
-  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
-                         /*io_test_mode=*/false,
-                         /*error_on_init_interval=*/false));
-  package_.reset(new xls::Package("my_package"));
-  HLSBlock block_spec;
-  auto ret =
-      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(
-      ret.status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Statics containing lvalues not yet supported")));
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(7, 32)),
+                  xls::Value(xls::SBits(10, 32)),
+                 xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(2, 32)),
+                  xls::Value(xls::SBits(3, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(5 * 7 * 10, 64)),
+                    xls::Value(xls::SBits(5 * 7 * 10 * 2 * 2 * 3, 64))};
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 6);
 }
 
 TEST_F(TranslatorProcTest, IOProcClassLValueMember) {
