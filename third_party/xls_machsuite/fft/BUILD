@@ -4,7 +4,10 @@ load(
     "xls_dslx_test",
 )
 
-package(licenses = ["notice"])
+package(
+    default_applicable_licenses = ["//third_party/xls_machsuite:license"],
+    licenses = ["notice"],
+)
 
 cc_binary(
     name = "fft_reference",
