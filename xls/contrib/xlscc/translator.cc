@@ -305,10 +305,11 @@ absl::StatusOr<CValue> Translator::StructUpdate(
   XLS_ASSIGN_OR_RETURN(int64_t counted_from_type,
                        stype.count_lvalue_compounds(*this));
 
-  XLS_CHECK(
+  XLSCC_CHECK(
       (struct_before.lvalue().get() == nullptr) ||
-      (struct_before.lvalue()->get_compounds().size() == 0) ||
-      (struct_before.lvalue()->get_compounds().size() == counted_from_type));
+          (struct_before.lvalue()->get_compounds().empty()) ||
+          (struct_before.lvalue()->get_compounds().size() == counted_from_type),
+      loc);
 
   {
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> field_type,
@@ -317,10 +318,11 @@ absl::StatusOr<CValue> Translator::StructUpdate(
       XLS_ASSIGN_OR_RETURN(
           int64_t counted_from_field_type,
           field_type->As<CStructType>()->count_lvalue_compounds(*this));
-      XLS_CHECK(
-          (rvalue.lvalue().get() == nullptr) ||
-          (rvalue.lvalue()->get_compounds().size() == 0) ||
-          (rvalue.lvalue()->get_compounds().size() == counted_from_field_type));
+      XLSCC_CHECK((rvalue.lvalue().get() == nullptr) ||
+                      (rvalue.lvalue()->get_compounds().empty()) ||
+                      (rvalue.lvalue()->get_compounds().size() ==
+                       counted_from_field_type),
+                  loc);
     }
   }
 
@@ -348,8 +350,9 @@ absl::StatusOr<CValue> Translator::StructUpdate(
     lval = std::make_shared<LValue>(compounds);
   }
 
-  XLS_CHECK((lval.get() == nullptr) || (lval->get_compounds().size() == 0) ||
-            (lval->get_compounds().size() == counted_from_type));
+  XLSCC_CHECK((lval.get() == nullptr) || (lval->get_compounds().empty()) ||
+                  (lval->get_compounds().size() == counted_from_type),
+              loc);
 
   CValue ret(new_tuple, struct_before.type(), /*disable_type_check=*/false,
              lval);
@@ -539,7 +542,7 @@ absl::Status Translator::GenerateThisLValues(
 
     XLS_ASSIGN_OR_RETURN(CValue prev_this_cval, GetIdentifier(this_decl, loc));
 
-    XLS_CHECK(prev_this_cval.rvalue().valid());
+    XLSCC_CHECK(prev_this_cval.rvalue().valid(), loc);
 
     xls::BValue prev_field_rvalue;
 
@@ -593,7 +596,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     xls_name = XLSNameMangle(global_decl);
   }
 
-  XLS_CHECK(!xls_names_for_functions_generated_.contains(funcdecl));
+  XLSCC_CHECK(!xls_names_for_functions_generated_.contains(funcdecl),
+              GetLoc(*funcdecl));
 
   xls_names_for_functions_generated_[funcdecl] = xls_name;
 
@@ -651,7 +655,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> thisctype,
                            TranslateTypeFromClang(q, body_loc));
 
-      XLS_CHECK(!thisctype->Is<CChannelType>());
+      XLSCC_CHECK(!thisctype->Is<CChannelType>(), body_loc);
 
       XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                            TranslateTypeToXLS(thisctype, body_loc));
@@ -2334,7 +2338,7 @@ absl::StatusOr<bool> Translator::FunctionIsInSyntheticInt(
     if (found == inst_types_.end()) {
       return false;
     }
-    XLS_CHECK(found != inst_types_.end());
+    XLSCC_CHECK(found != inst_types_.end(), GetLoc(*decl));
     auto struct_type = dynamic_cast<const CStructType*>(found->second.get());
     XLS_CHECK_NE(struct_type, nullptr);
     if (struct_type->synthetic_int_flag()) {
