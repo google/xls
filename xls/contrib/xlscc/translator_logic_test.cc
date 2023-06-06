@@ -4909,6 +4909,56 @@ TEST_F(TranslatorLogicTest, AllowEmptyInitializerList) {
   Run({}, 0, content);
 }
 
+TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
+  const std::string content = R"(
+  #pragma unknown pragma
+  #pragma top
+  
+  #pragma hls_top  
+  int st() {
+    return 1;
+  })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kOk));
+  ASSERT_EQ(this->log_entries_.size(), 1);
+  ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
+                                "#pragma 'top' requires 'hls_' prefix"));
+}
+
+TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
+  const std::string content = R"(
+  #pragma unknown pragma
+  
+  #pragma once
+
+  #pragma hls_top
+  int st() {
+    return 1;
+  })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kOk));
+  ASSERT_EQ(this->log_entries_.size(), 0);
+}
+
+TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {
+  const std::string content = R"(
+  #pragma hls_top
+  int st() {
+    #pragma hls_array_allow_default_pad
+    int x[4] = {1,2};
+    return x[1];
+  })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kOk));
+  ASSERT_EQ(this->log_entries_.size(), 0);
+}
+
 }  // namespace
 
 }  // namespace xlscc

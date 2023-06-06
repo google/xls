@@ -286,6 +286,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
   std::string ret_text;
 
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
+    log_entries_.clear();
     XLS_RETURN_IF_ERROR(ScanFile(temp, clang_argv, io_test_mode,
                                  /*error_on_init_interval=*/false,
                                  /*loc=*/xls::SourceLocation(),
@@ -325,6 +326,7 @@ void XlsccTestBase::ProcTest(
   XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
                            xls::TempFile::CreateWithContent(content, ".cc"));
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
+    log_entries_.clear();
     XLS_ASSERT_OK(ScanFile(temp,
                            /*clang_argv=*/{},
                            /*io_test_mode=*/false,

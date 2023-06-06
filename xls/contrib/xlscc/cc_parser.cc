@@ -269,20 +269,23 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
         if (hls_pragmas_.contains(prev_location)) {
           Pragma found_value = hls_pragmas_[prev_location];
           hls_pragmas_[PragmaLoc(filename, lineno)] = found_value;
-          continue;
         }
         continue;
       }
-      if (absl::AsciiStrToLower(prefix) != "hls_") {
-        XLS_LOG(WARNING) << "#pragma '" << name << "' requires 'hls_' prefix";
-        continue;
-      }
-      if (name != absl::AsciiStrToLower(name)) {
-        XLS_LOG(WARNING) << "#pragma must be lowercase: " << line;
-        continue;
-      }
-      std::map<std::string, PragmaType>::iterator it = pragmas.find(name);
+      std::map<std::string, PragmaType>::iterator it =
+          pragmas.find(absl::AsciiStrToLower(name));
       if (it != pragmas.end()) {
+        if (name != absl::AsciiStrToLower(name) ||
+            prefix != absl::AsciiStrToLower(prefix)) {
+          XLS_LOG(WARNING) << "#pragma must be lowercase: " << line;
+          continue;
+        }
+        if (prefix != "hls_") {
+          XLS_LOG(WARNING) << "WARNING: #pragma '" << name
+                           << "' requires 'hls_' prefix";
+          prev_location = PragmaLoc("", -1);
+          continue;
+        }
         const PragmaLoc location(filename, lineno);
         prev_location = location;
         PragmaType pragma_val = it->second;
@@ -579,8 +582,7 @@ void __xlscc_top_class_instance_ref2() {
           )",
                       source_filename_, top_class_inst_injection);
 
-  mem_fs->addFile("/xls_top.cc", 0,
-                  llvm::MemoryBuffer::getMemBuffer(top_src));
+  mem_fs->addFile("/xls_top.cc", 0, llvm::MemoryBuffer::getMemBuffer(top_src));
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> overlay_fs(
       new llvm::vfs::OverlayFileSystem(llvm::vfs::getRealFileSystem()));
