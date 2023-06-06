@@ -306,6 +306,16 @@ fn simple_arith(a: bits[32], b: bits[32]) -> bits[32] {
 })");
 }
 
+TEST(IrParserTest, ParseFunctionWithFFI) {
+  ParsePackageAndCheckDump(
+      R"(package test
+
+#[ffi("verilog_module {fn} (.in({a}));")]
+fn fun(a: bits[23]) -> bits[42] {
+  ret umul.1: bits[42] = umul(a, a, id=1)
+})");
+}
+
 TEST(IrParserTest, ParseULessThan) {
   ParseFunctionAndCheckDump(
       R"(

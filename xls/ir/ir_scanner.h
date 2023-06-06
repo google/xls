@@ -63,7 +63,8 @@ class Token {
  public:
   // Returns the (singleton) set of keyword strings.
   static const absl::flat_hash_set<std::string>& GetKeywords() {
-    static auto* keywords = new absl::flat_hash_set<std::string>{
+    // TODO(google/xls#1010) 2023-06-05 Verify these never used if kIdent needed
+    static const auto* keywords = new absl::flat_hash_set<std::string>{
         "fn",    "bits",          "token", "ret",        "package",
         "proc",  "chan",          "reg",   "next",       "block",
         "clock", "instantiation", "top",   "file_number"};
@@ -194,6 +195,11 @@ class Scanner {
   // otherwise. Useful for tokens which are allowed to be arbitrary
   // identifier-like strings including keywords.
   absl::StatusOr<Token> PopKeywordOrIdentToken(std::string_view context = "");
+
+  // Pops the token if it is a literal or string otherwise.
+  // TODO(hzeller) 2023-06-05 Make a generic PopOneOfToken() for this and the
+  // method above.
+  absl::StatusOr<Token> PopLiteralOrStringToken(std::string_view context);
 
   // Wrapper around PopTokenOrError(target) above that can be used with
   // XLS_RETURN_IF_ERROR.

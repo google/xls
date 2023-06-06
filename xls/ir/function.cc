@@ -35,7 +35,14 @@ FunctionType* Function::GetType() {
 }
 
 std::string Function::DumpIr() const {
-  std::string res = "fn " + name() + "(";
+  std::string res;
+  if (ForeignFunctionData().has_value()) {
+    absl::StrAppend(&res, "#[ffi(\"",
+                    ForeignFunctionData()->code_template.ToString(), "\")]\n");
+  }
+
+  absl::StrAppend(&res, "fn " + name() + "(");
+
   std::vector<std::string> param_strings;
   param_strings.reserve(params_.size());
   for (Param* param : params_) {

@@ -1704,6 +1704,11 @@ absl::StatusOr<Function*> Parser::ParseFunction(
     if (attribute == "initiation_interval") {
       XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
       result->SetInitiationInterval(ii);
+    } else if (attribute == "ffi") {
+      XLS_ASSIGN_OR_RETURN(
+          ForeignFunctionData ffi,
+          ForeignFunctionData::CreateFromTemplate(literal.value()));
+      result->SetForeignFunctionData(ffi);
     } else {
       return absl::InvalidArgumentError(
           absl::StrFormat("Invalid attribute for function: %s", attribute));
@@ -2029,7 +2034,7 @@ absl::StatusOr<DeclAttributes> Parser::MaybeParseAttributes() {
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
     XLS_ASSIGN_OR_RETURN(Token literal,
-                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+                         scanner_.PopLiteralOrStringToken("for attributes"));
     XLS_RETURN_IF_ERROR(
         scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
     XLS_RETURN_IF_ERROR(
