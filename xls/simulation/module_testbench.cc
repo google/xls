@@ -60,6 +60,12 @@ static constexpr int64_t kSimulationCycleLimit = 10000;
 static_assert(kResetCycles < kSimulationCycleLimit,
               "Reset cycles must be less than the simulation cycle limit.");
 
+// Name of the testbench internal signal which is asserted in the last cycle
+// that the DUT is in reset. This can be used to trigger the driving of signals
+// for the first cycle out of reset.
+static constexpr std::string_view kLastResetCycleSignal =
+    "__last_cycle_of_reset";
+
 std::string GetTimeoutMessage() {
   return absl::StrFormat("ERROR: timeout, simulation ran too long (%d cycles).",
                          kSimulationCycleLimit);
@@ -587,17 +593,17 @@ void ModuleTestbenchThread::EmitInto(
   EmitAction(AdvanceCycle{.amount = 1, .end_of_cycle_event = nullptr},
              procedure->statements(), clk, signal_refs);
 
-  // The thread must wait for reset (if present).
+  // The thread must wait for reset (if present). Specifically, the thread waits
+  // until the last cycle of reset before emitting the actions. This enables the
+  // first action (e.g., Set) to occur in the first cycle out of reset.
   if (metadata_->reset_proto().has_value()) {
     EmitAction(
-        WaitForSignals{
-            .any_or_all = AnyOrAll::kAll,
-            .signal_values = {SignalValue{
-                .signal_name = metadata_->reset_proto()->name(),
-                .value =
-                    UBits(metadata_->reset_proto()->active_low() ? 1 : 0, 1)}},
-            .end_of_cycle_event = nullptr,
-            .comment = "Wait for last cycle of reset"},
+        WaitForSignals{.any_or_all = AnyOrAll::kAll,
+                       .signal_values = {SignalValue{
+                           .signal_name = std::string{kLastResetCycleSignal},
+                           .value = UBits(1, 1)}},
+                       .end_of_cycle_event = nullptr,
+                       .comment = "Wait for last cycle of reset"},
         procedure->statements(), clk, signal_refs);
   }
   // All actions occur one time unit after the pos edge of the clock.
@@ -659,7 +665,11 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
       file_type_(file_type),
       simulator_(simulator),
       includes_(includes),
-      metadata_(signature) {}
+      metadata_(signature) {
+  if (metadata_.reset_proto().has_value()) {
+    XLS_CHECK_OK(metadata_.AddInternalSignal(kLastResetCycleSignal, 1));
+  }
+}
 
 absl::StatusOr<ModuleTestbenchThread*> ModuleTestbench::CreateThread(
     std::optional<absl::flat_hash_map<std::string, std::optional<Bits>>>
@@ -951,6 +961,10 @@ std::string ModuleTestbench::GenerateVerilog() {
     if (metadata_.reset_proto().has_value()) {
       m->Add<BlankLine>(SourceInfo());
       m->Add<Comment>(SourceInfo(), "Reset generator.");
+      LogicRef* last_cycle_of_reset =
+          m->AddReg(kLastResetCycleSignal, file.BitVectorType(1, SourceInfo()),
+                    SourceInfo());
+      signal_refs[kLastResetCycleSignal] = last_cycle_of_reset;
       LogicRef* reset = signal_refs.at(metadata_.reset_proto()->name());
       Expression* zero = file.Literal(UBits(0, 1), SourceInfo());
       Expression* one = file.Literal(UBits(1, 1), SourceInfo());
@@ -961,10 +975,16 @@ std::string ModuleTestbench::GenerateVerilog() {
       Initial* initial = m->Add<Initial>(SourceInfo());
       initial->statements()->Add<BlockingAssignment>(SourceInfo(), reset,
                                                      reset_start_value);
-
-      WaitNCycles(clk, initial->statements(), kResetCycles);
+      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
+                                                     last_cycle_of_reset, zero);
+      WaitNCycles(clk, initial->statements(), kResetCycles - 1);
+      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
+                                                     last_cycle_of_reset, one);
+      WaitNCycles(clk, initial->statements(), 1);
       initial->statements()->Add<BlockingAssignment>(SourceInfo(), reset,
                                                      reset_end_value);
+      initial->statements()->Add<BlockingAssignment>(SourceInfo(),
+                                                     last_cycle_of_reset, zero);
     }
   }
 

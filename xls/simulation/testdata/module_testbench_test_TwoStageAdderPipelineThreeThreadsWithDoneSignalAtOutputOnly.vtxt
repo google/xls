@@ -41,11 +41,17 @@ module testbench;
   end
 
   // Reset generator.
+  reg __last_cycle_of_reset;
   initial begin
     reset = 1'h1;
-    repeat (5) @(posedge clk);
+    __last_cycle_of_reset = 1'h0;
+    repeat (4) @(posedge clk);
+    #1;
+    __last_cycle_of_reset = 1'h1;
+    @(posedge clk);
     #1;
     reset = 1'h0;
+    __last_cycle_of_reset = 1'h0;
   end
 
   // Watchdog timer.
@@ -72,7 +78,7 @@ module testbench;
 
     // Wait for last cycle of reset
     #8;
-    while (!(1'h1 && reset == 1'h0)) begin
+    while (!(1'h1 && __last_cycle_of_reset == 1'h1)) begin
       #10;
     end
     @(posedge clk);
@@ -109,7 +115,7 @@ module testbench;
 
     // Wait for last cycle of reset
     #8;
-    while (!(1'h1 && reset == 1'h0)) begin
+    while (!(1'h1 && __last_cycle_of_reset == 1'h1)) begin
       #10;
     end
     @(posedge clk);
@@ -146,7 +152,7 @@ module testbench;
 
     // Wait for last cycle of reset
     #8;
-    while (!(1'h1 && reset == 1'h0)) begin
+    while (!(1'h1 && __last_cycle_of_reset == 1'h1)) begin
       #10;
     end
     @(posedge clk);
