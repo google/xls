@@ -34,33 +34,32 @@ fn swap<B: u32, N: u32>(array: uN[B][N], i: u32, j: u32) -> uN[B][N] {
 
 fn bitonic_sort<N: u32, LOG_N: u32 = { std::clog2(N) }>(array: u32[N]) -> u32[N] {
     let is_size_power_of_two: bool = (N & (N - u32:1)) == u32:0;
-    match is_size_power_of_two {
-        bool:1 => {
-            let (result, _) = for (_, (array, k)) in u32:0..LOG_N {
-                let (result, _) = for (_, (array, j)) in u32:0..LOG_N {
-                    if (j == u32:0) {
-                        (array, j)
-                    } else {
-                        let result = for (i, array) in u32:0..N {
-                            let l = i ^ j;
-                            if (l <= i) {
-                                (array)
+    if (is_size_power_of_two) {
+        let (result, _) = for (_, (array, k)) in u32:0..LOG_N {
+            let (result, _) = for (_, (array, j)) in u32:0..LOG_N {
+                if (j == u32:0) {
+                    (array, j)
+                } else {
+                    let result = for (i, array) in u32:0..N {
+                        let l = i ^ j;
+                        if (l <= i) {
+                            (array)
+                        } else {
+                            if ( (((i & k) == u32:0) && (array[i] > array[l])) || (((i & k) != u32:0) && (array[i] < array[l])) ) {
+                                swap(array, i, l)
                             } else {
-                                if ( (((i & k) == u32:0) && (array[i] > array[l])) || (((i & k) != u32:0) && (array[i] < array[l])) ) {
-                                    swap(array, i, l)
-                                } else {
-                                    (array)
-                                }
+                                (array)
                             }
-                        } (array);
-                        (result, j / u32:2)
-                    }
-                } ((array, k / u32:2));
-                (result, k * u32:2)
-            } ((array, u32:2));
-            result
-        },
-        _ => fail!("array_size_not_power_of_two", array)
+                        }
+                    } (array);
+                    (result, j / u32:2)
+                }
+            } ((array, k / u32:2));
+            (result, k * u32:2)
+        } ((array, u32:2));
+        result
+    } else {
+        fail!("array_size_not_power_of_two", array)
     }
 }
 
