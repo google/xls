@@ -187,13 +187,13 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
-    # Released on 2022-12-8, current as of 2022-12-20.
-    # https://github.com/grpc/grpc/releases/tag/v1.46.3
+    # Released on 2023-06-01, current as of 2023-06-06.
+    # https://github.com/grpc/grpc/releases/tag/v1.55.1
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.49.2.tar.gz"],
-        sha256 = "cdeb805385fba23242bf87073e68d590c446751e09089f26e5e0b3f655b0f089",
-        strip_prefix = "grpc-1.49.2",
+        urls = ["https://github.com/grpc/grpc/archive/v1.55.1.tar.gz"],
+        sha256 = "9c3c0a0ad986ee4fc0a9b58fd71255010068df7d1437c425b525d68c30c85ac7",
+        strip_prefix = "grpc-1.55.1",
         # Note: repo mapping doesn't seem to work for gRPC because it
         # explicitly binds the re2 name to the com_googlesource_code_re2 repo.
         # Instead we patch it.
@@ -230,6 +230,7 @@ def load_external_repositories():
             "@com_google_xls//dependency_support/com_google_ortools:add_logging_prefix.diff",
             "@com_google_xls//dependency_support/com_google_ortools:no_glpk.diff",
             "@com_google_xls//dependency_support/com_google_ortools:no_scip_or_pdlp.diff",
+            "@com_google_xls//dependency_support/com_google_ortools:remove_abslstringify.diff",
         ],
     )
 
