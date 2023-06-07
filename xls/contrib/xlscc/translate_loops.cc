@@ -19,7 +19,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/type.h"
 
 using std::shared_ptr;
 using std::string;
@@ -313,9 +315,16 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     std::vector<std::shared_ptr<CField>> fields;
     std::vector<xls::BValue> tuple_values;
 
+    XLS_ASSIGN_OR_RETURN(const clang::VarDecl* on_reset_var_decl,
+                         parser_->GetXlsccOnReset());
+
     // Create a deterministic field order
     for (const auto& [decl, _] : context().variables) {
       XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
+      // Don't pass __xlscc_on_reset in/out
+      if (decl == on_reset_var_decl) {
+        continue;
+      }
       variable_fields_order.push_back(decl);
     }
 
@@ -361,9 +370,15 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     std::shared_ptr<CInternalTuple> context_tuple_type =
         std::make_shared<CInternalTuple>(context_tuple_elem_types);
 
-    context_tuple_out = CValue(context().fb->Tuple({context_struct_out.rvalue(),
-                                                    lvalue_conditions_tuple}),
-                               context_tuple_type);
+    // Set later if needed
+    xls::BValue outer_on_reset_value =
+        context().fb->Literal(xls::UBits(0, 1), loc);
+
+    // Must match if(uses_on_reset) below
+    context_tuple_out = CValue(
+        context().fb->Tuple({outer_on_reset_value, context_struct_out.rvalue(),
+                             lvalue_conditions_tuple}),
+        context_tuple_type);
 
     context_struct_xls_type = context_struct_out.rvalue().GetType();
     context_lval_xls_type = lvalue_conditions_tuple.GetType();
@@ -408,6 +423,34 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     context_in_channel = &context().sf->io_channels.back();
   }
 
+  // Create loop body proc
+  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
+      lvalues_out;
+  bool uses_on_reset = false;
+  std::vector<const clang::NamedDecl*> vars_changed_in_body;
+  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
+      cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
+      context_out_channel, context_in_channel, context_struct_xls_type,
+      context_lval_xls_type, context_cvars_struct_ctype,
+      context_lval_conds_ctype, &lvalues_out, variable_field_indices,
+      variable_fields_order, vars_changed_in_body, &uses_on_reset, loc));
+
+  XLS_CHECK_EQ(vars_changed_in_body.size(), lvalues_out.size());
+
+  if (uses_on_reset) {
+    XLS_ASSIGN_OR_RETURN(CValue on_reset_cval, GetOnReset(loc));
+    XLSCC_CHECK_EQ(on_reset_cval.type()->GetBitWidth(), 1, loc);
+
+    // Must match tuple creation above
+    context_tuple_out = CValue(
+        context().fb->Tuple(
+            {on_reset_cval.rvalue(),
+             context().fb->TupleIndex(context_tuple_out.rvalue(), 1, loc),
+             context().fb->TupleIndex(context_tuple_out.rvalue(), 2, loc)}),
+        context_tuple_out.type());
+  }
+
+  // Send and receive context tuples
   IOOp* ctx_out_op_ptr = nullptr;
   {
     IOOp op;
@@ -429,19 +472,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
-
-  // Create loop body proc
-  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
-      lvalues_out;
-  std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
-      cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
-      context_out_channel, context_in_channel, context_struct_xls_type,
-      context_lval_xls_type, context_cvars_struct_ctype,
-      context_lval_conds_ctype, &lvalues_out, variable_field_indices,
-      variable_fields_order, vars_changed_in_body, loc));
-
-  XLS_CHECK_EQ(vars_changed_in_body.size(), lvalues_out.size());
 
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
@@ -482,7 +512,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
         variable_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
     std::vector<const clang::NamedDecl*>& vars_changed_in_body,
-    const xls::SourceInfo& loc) {
+    bool* uses_on_reset, const xls::SourceInfo& loc) {
   const uint64_t total_context_values =
       context_cvars_struct_ctype->fields().size();
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
@@ -506,6 +536,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     xls::BValue context_lvalues_val =
         body_builder.Param(absl::StrFormat("%s_context_lvals", name_prefix),
                            context_lvals_xls_type, loc);
+    xls::BValue context_on_reset_val =
+        body_builder.Param(absl::StrFormat("%s_on_reset", name_prefix),
+                           package_->GetBitsType(1), loc);
 
     TranslationContext& prev_context = context();
     PushContextGuard context_guard(*this, loc);
@@ -541,6 +574,14 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
     }
 
+    // Declare __xlscc_on_reset
+    XLS_ASSIGN_OR_RETURN(const clang::VarDecl* on_reset_var_decl,
+                         parser_->GetXlsccOnReset());
+    XLS_RETURN_IF_ERROR(DeclareVariable(
+        on_reset_var_decl,
+        CValue(context_on_reset_val, std::make_shared<CBoolType>()), loc,
+        /*check_unique_ids=*/false));
+
     // Context in
     absl::flat_hash_map<const clang::NamedDecl*, CValue> prev_vars;
 
@@ -567,11 +608,15 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
       CValue prev_var(param_bval, outer_value.type(),
                       /*disable_type_check=*/false, inner_lval);
+      prev_vars[decl] = prev_var;
+
+      // __xlscc_on_reset handled separately
+      if (decl == on_reset_var_decl) {
+        continue;
+      }
 
       XLS_RETURN_IF_ERROR(
           DeclareVariable(decl, prev_var, loc, /*check_unique_ids=*/false));
-
-      prev_vars[decl] = prev_var;
     }
 
     xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
@@ -718,12 +763,27 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   xls::BValue token_ctx = pb.TupleIndex(receive, 0);
   xls::BValue received_context_tuple = pb.TupleIndex(receive, 1);
 
-  xls::BValue received_context = pb.TupleIndex(received_context_tuple, 0, loc);
+  xls::BValue received_on_reset = pb.TupleIndex(received_context_tuple, 0, loc);
+  xls::BValue received_context = pb.TupleIndex(received_context_tuple, 1, loc);
   xls::BValue received_lvalue_conds =
-      pb.TupleIndex(received_context_tuple, 1, loc);
+      pb.TupleIndex(received_context_tuple, 2, loc);
 
   xls::BValue lvalue_conditions_tuple = context().fb->Select(
       first_iter_state_in, received_lvalue_conds, pb.GetStateParam(1), loc);
+
+  // Deal with on_reset
+  xls::BValue on_reset_bval;
+
+  XLSCC_CHECK_NE(uses_on_reset, nullptr, loc);
+  if (generated_func.uses_on_reset) {
+    *uses_on_reset = true;
+
+    // received_on_reset is only valid in the first iteration, but that's okay
+    // as & first_iter_state_in will always be 0 in subsequent iterations.
+    on_reset_bval = pb.And(first_iter_state_in, received_on_reset, loc);
+  } else {
+    on_reset_bval = pb.Literal(xls::UBits(0, 1), loc);
+  }
 
   token = token_ctx;
 
@@ -769,6 +829,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   prepared.xls_func = &generated_func;
   prepared.args.push_back(selected_context);
   prepared.args.push_back(lvalue_conditions_tuple);
+  prepared.args.push_back(on_reset_bval);
   prepared.token = token;
 
   XLS_RETURN_IF_ERROR(
@@ -808,12 +869,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     XLS_CHECK(context().fb == &pb);
-
-    XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
-    if (is_on_reset) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "__xlscc_on_reset unsupported in pipelined loops"));
-    }
 
     next_state_values.push_back(pb.TupleIndex(
         ret_tup, prepared.return_index_for_static.at(namedecl), loc));

@@ -317,14 +317,15 @@ def gen_instrumentation_proc(
 
 #include <fstream>
 #include <cassert>
+#include <string_view>
 
 class reset_recorder {
  private:
   int ticks;
   std::ofstream stream;
  public:
-  reset_recorder(const absl::string_view& out_path)
-    : ticks(0), stream(out_path.data(), std::ios_base::app) {
+  reset_recorder(std::string_view out_path)
+    : ticks(0), stream(std::string(out_path), std::ios_base::app) {
   }
   ~reset_recorder() {
     stream << ticks << std::endl;

@@ -328,7 +328,7 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
       tb.Run(),
       StatusIs(absl::StatusCode::kFailedPrecondition,
                ContainsRegex("module_testbench_test.cc@[0-9]+: expected "
-                             "output 'out', instance #2 to have "
+                             "output `out`, instance #2 to have "
                              "value: 7, actual: 1234")));
 }
 

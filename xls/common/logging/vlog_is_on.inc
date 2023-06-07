@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdint>
+#include <string_view>
 
 #include "absl/flags/flag.h"
 #include "absl/strings/numbers.h"
@@ -34,11 +35,11 @@ ABSL_FLAG(
     " respectively including slashes."
     " <log level> overrides any value given by --v.")
     .OnUpdate([] {
-      for (absl::string_view glob_level :
+      for (std::string_view glob_level :
            absl::StrSplit(absl::GetFlag(FLAGS_vmodule), ',')) {
         const size_t eq = glob_level.rfind('=');
         if (eq == glob_level.npos) continue;
-        const absl::string_view glob = glob_level.substr(0, eq);
+        const std::string_view glob = glob_level.substr(0, eq);
         int level;
         if (!absl::SimpleAtoi(glob_level.substr(eq + 1), &level)) continue;
         xls::SetVLOGLevel(glob, level);

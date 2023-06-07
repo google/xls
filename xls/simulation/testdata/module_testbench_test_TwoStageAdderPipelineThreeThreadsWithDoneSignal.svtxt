@@ -21,20 +21,20 @@ endmodule
 
 module testbench;
   reg clk;
+  reg reset;
   reg [15:0] operand_0;
   reg [15:0] operand_1;
-  reg reset;
   wire [15:0] out;
   test_module dut (
     .clk(clk),
+    .reset(reset),
     .operand_0(operand_0),
     .operand_1(operand_1),
-    .reset(reset),
     .out(out)
   );
-  reg is_thread_0_done;
-  reg is_thread_1_done;
-  reg is_thread_2_done;
+  reg __is_thread_0_done;
+  reg __is_thread_1_done;
+  reg __is_thread_2_done;
 
   // Clock generator.
   initial begin
@@ -61,12 +61,12 @@ module testbench;
   // Monitor for input/output ports.
   initial begin
     $display("Starting. Clock rises at 5, 15, 25, ...:");
-    $monitor("%t operand_0: %d operand_1: %d reset: %d out: %d", $time, operand_0, operand_1, reset, out);
+    $monitor("%t reset: %d operand_0: %d operand_1: %d out: %d", $time, reset, operand_0, operand_1, out);
   end
 
-  // Thread 0. Drives inputs: operand_0
+  // Thread 0. Drives signals: __is_thread_0_done, operand_0
   initial begin
-    is_thread_0_done = 1'h0;
+    __is_thread_0_done = 1'h0;
 
     operand_0 = 16'dx;
 
@@ -102,12 +102,12 @@ module testbench;
 
     operand_0 = 16'dx;
 
-    is_thread_0_done = 1'h1;
+    __is_thread_0_done = 1'h1;
   end
 
-  // Thread 1. Drives inputs: operand_1
+  // Thread 1. Drives signals: __is_thread_1_done, operand_1
   initial begin
-    is_thread_1_done = 1'h0;
+    __is_thread_1_done = 1'h0;
 
     operand_1 = 16'dx;
 
@@ -143,12 +143,12 @@ module testbench;
 
     operand_1 = 16'dx;
 
-    is_thread_1_done = 1'h1;
+    __is_thread_1_done = 1'h1;
   end
 
-  // Thread 2. Drives inputs: <none>
+  // Thread 2. Drives signals: __is_thread_2_done
   initial begin
-    is_thread_2_done = 1'h0;
+    __is_thread_2_done = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
@@ -192,7 +192,7 @@ module testbench;
     @(posedge clk);
     #1;
 
-    is_thread_2_done = 1'h1;
+    __is_thread_2_done = 1'h1;
   end
 
   // Thread completion monitor.
@@ -210,7 +210,7 @@ module testbench;
 
     // Wait for all threads to complete
     #8;
-    while (!(1'h1 && is_thread_0_done == 1'h1 && is_thread_1_done == 1'h1 && is_thread_2_done == 1'h1)) begin
+    while (!(1'h1 && __is_thread_0_done == 1'h1 && __is_thread_1_done == 1'h1 && __is_thread_2_done == 1'h1)) begin
       #10;
     end
     @(posedge clk);

@@ -193,7 +193,8 @@ class StringAttribute(Attribute):
         name,
         cpp_type='std::string',
         return_cpp_type='const std::string&',
-        arg_cpp_type='absl::string_view')
+        arg_cpp_type='std::string_view',
+    )
 
 
 class OptionalStringAttribute(Attribute):
@@ -338,7 +339,7 @@ class OpClass(object):
     args.extend(a.constructor_argument for a in self.attributes)
     args.extend(self.extra_constructor_args)
     if 'name' not in [a.name for a in self.extra_constructor_args]:
-      args.append(ConstructorArgument('name', 'absl::string_view', 'name'))
+      args.append(ConstructorArgument('name', 'std::string_view', 'name'))
     args.append(ConstructorArgument('function', 'FunctionBase*', 'function()'))
     return ', '.join(a.cpp_type + ' ' + a.name for a in args)
 
@@ -821,13 +822,13 @@ OpClass.kinds['PARAM'] = OpClass(
     operands=[],
     xls_type_expression='type',
     extra_constructor_args=[ConstructorArgument(name='name',
-                                                cpp_type='absl::string_view',
+                                                cpp_type='std::string_view',
                                                 clone_expression='name()'),
                             ConstructorArgument(name='type',
                                                 cpp_type='Type*',
                                                 clone_expression='GetType()')],
     extra_methods=[Method(name='name',
-                          return_cpp_type='absl::string_view',
+                          return_cpp_type='std::string_view',
                           expression='name_')],
     custom_clone_method=True
 )
@@ -922,13 +923,13 @@ OpClass.kinds['INPUT_PORT'] = OpClass(
     operands=[],
     xls_type_expression='type',
     extra_constructor_args=[ConstructorArgument(name='name',
-                                                cpp_type='absl::string_view',
+                                                cpp_type='std::string_view',
                                                 clone_expression='name()'),
                             ConstructorArgument(name='type',
                                                 cpp_type='Type*',
                                                 clone_expression='GetType()')],
     extra_methods=[Method(name='name',
-                          return_cpp_type='absl::string_view',
+                          return_cpp_type='std::string_view',
                           expression='name_')],
 )
 
@@ -938,10 +939,10 @@ OpClass.kinds['OUTPUT_PORT'] = OpClass(
     operands=[Operand('operand')],
     xls_type_expression='function->package()->GetTupleType({})',
     extra_constructor_args=[ConstructorArgument(name='name',
-                                                cpp_type='absl::string_view',
+                                                cpp_type='std::string_view',
                                                 clone_expression='name()')],
     extra_methods=[Method(name='name',
-                          return_cpp_type='absl::string_view',
+                          return_cpp_type='std::string_view',
                           expression='name_')],
 )
 

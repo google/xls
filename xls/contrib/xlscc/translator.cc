@@ -1253,8 +1253,11 @@ absl::StatusOr<CValue> Translator::GetOnReset(const xls::SourceInfo& loc) {
     XLSCC_CHECK(!context().sf->static_values.contains(on_reset_decl), loc);
     ConstValue init_val(xls::Value(xls::UBits(1, 1)),
                         std::make_shared<CBoolType>());
-    XLS_RETURN_IF_ERROR(DeclareStatic(on_reset_decl, init_val, loc));
+    XLS_RETURN_IF_ERROR(DeclareStatic(on_reset_decl, init_val, loc,
+                                      /*check_unique_ids=*/false));
   }
+
+  context().sf->uses_on_reset = true;
 
   return context().variables.at(on_reset_decl);
 }

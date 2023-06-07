@@ -86,30 +86,30 @@ endmodule
 
 module testbench;
   reg clk;
+  reg rst;
   reg [31:0] operand_0;
   reg operand_0_vld;
   reg [31:0] operand_1;
   reg operand_1_vld;
   reg result_rdy;
-  reg rst;
-  wire operand_0_rdy;
-  wire operand_1_rdy;
   wire [31:0] result;
   wire result_vld;
+  wire operand_0_rdy;
+  wire operand_1_rdy;
   proc_adder_pipeline dut (
     .clk(clk),
+    .rst(rst),
     .operand_0(operand_0),
     .operand_0_vld(operand_0_vld),
     .operand_1(operand_1),
     .operand_1_vld(operand_1_vld),
     .result_rdy(result_rdy),
-    .rst(rst),
-    .operand_0_rdy(operand_0_rdy),
-    .operand_1_rdy(operand_1_rdy),
     .result(result),
-    .result_vld(result_vld)
+    .result_vld(result_vld),
+    .operand_0_rdy(operand_0_rdy),
+    .operand_1_rdy(operand_1_rdy)
   );
-  reg is_thread_3_done;
+  reg __is_thread_3_done;
 
   // Clock generator.
   initial begin
@@ -136,10 +136,10 @@ module testbench;
   // Monitor for input/output ports.
   initial begin
     $display("Starting. Clock rises at 5, 15, 25, ...:");
-    $monitor("%t operand_0: %d operand_0_vld: %d operand_1: %d operand_1_vld: %d result_rdy: %d rst: %d operand_0_rdy: %d operand_1_rdy: %d result: %d result_vld: %d", $time, operand_0, operand_0_vld, operand_1, operand_1_vld, result_rdy, rst, operand_0_rdy, operand_1_rdy, result, result_vld);
+    $monitor("%t rst: %d operand_0: %d operand_0_vld: %d operand_1: %d operand_1_vld: %d result_rdy: %d result: %d result_vld: %d operand_0_rdy: %d operand_1_rdy: %d", $time, rst, operand_0, operand_0_vld, operand_1, operand_1_vld, result_rdy, result, result_vld, operand_0_rdy, operand_1_rdy);
   end
 
-  // Thread 0. Drives inputs: operand_0, operand_0_vld
+  // Thread 0. Drives signals: operand_0, operand_0_vld
   initial begin
     operand_0 = 32'dx;
 
@@ -204,7 +204,7 @@ module testbench;
     operand_0 = 32'dx;
   end
 
-  // Thread 1. Drives inputs: operand_1, operand_1_vld
+  // Thread 1. Drives signals: operand_1, operand_1_vld
   initial begin
     operand_1 = 32'dx;
 
@@ -261,7 +261,7 @@ module testbench;
     operand_1 = 32'dx;
   end
 
-  // Thread 2. Drives inputs: result_rdy
+  // Thread 2. Drives signals: result_rdy
   initial begin
     result_rdy = 1'h0;
 
@@ -280,9 +280,9 @@ module testbench;
     result_rdy = 1'h1;
   end
 
-  // Thread 3. Drives inputs: <none>
+  // Thread 3. Drives signals: __is_thread_3_done
   initial begin
-    is_thread_3_done = 1'h0;
+    __is_thread_3_done = 1'h0;
 
     // Wait 1 cycle(s).
     @(posedge clk);
@@ -314,7 +314,7 @@ module testbench;
     @(posedge clk);
     #1;
 
-    is_thread_3_done = 1'h1;
+    __is_thread_3_done = 1'h1;
   end
 
   // Thread completion monitor.
@@ -332,7 +332,7 @@ module testbench;
 
     // Wait for all threads to complete
     #8;
-    while (!(1'h1 && is_thread_3_done == 1'h1)) begin
+    while (!(1'h1 && __is_thread_3_done == 1'h1)) begin
       #10;
     end
     @(posedge clk);

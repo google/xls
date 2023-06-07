@@ -119,7 +119,6 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:number_parser",
         "@com_github_google_re2//:re2",
-        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",

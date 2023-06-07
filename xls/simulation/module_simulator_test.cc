@@ -654,7 +654,7 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithoutDrivenValues) {
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
                                            ready_valid_holdoffs),
               StatusIs(absl::StatusCode::kNotFound,
-                       HasSubstr("Output monitor_data, instance #0 holds X "
+                       HasSubstr("Output `monitor_data`, instance #0 holds X "
                                  "value in Verilog simulator output")));
 }
 
@@ -713,7 +713,7 @@ TEST_P(ModuleSimulatorTest, TestValidHoldoffWithDrivenX) {
   EXPECT_THAT(simulator.RunInputSeriesProc(input_values, output_channel_counts,
                                            ready_valid_holdoffs),
               StatusIs(absl::StatusCode::kNotFound,
-                       HasSubstr("Output monitor_data, instance #0 holds X "
+                       HasSubstr("Output `monitor_data`, instance #0 holds X "
                                  "value in Verilog simulator output")));
 }
 

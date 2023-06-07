@@ -734,6 +734,8 @@ struct GeneratedFunction {
 
   bool in_synthetic_int = false;
 
+  bool uses_on_reset = false;
+
   std::shared_ptr<LValue> return_lvalue;
 
   std::shared_ptr<LValue> this_lvalue;
@@ -1551,7 +1553,7 @@ class Translator {
           variable_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       std::vector<const clang::NamedDecl*>& vars_changed_in_body,
-      const xls::SourceInfo& loc);
+      bool* uses_on_reset, const xls::SourceInfo& loc);
   absl::Status SendLValueConditions(const std::shared_ptr<LValue>& lvalue,
                                     std::vector<xls::BValue>* lvalue_conditions,
                                     const xls::SourceInfo& loc);

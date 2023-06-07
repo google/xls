@@ -636,22 +636,75 @@ TEST_F(TranslatorStaticTest, OnResetNonConstInit) {
 
 TEST_F(TranslatorStaticTest, OnResetInPipelinedLoop) {
   const std::string content = R"(
-    #include "/xls_builtin.h"
-
     #pragma hls_top
     void foo(__xls_channel<int> &out) {
-      int x = 0;
+      int total = __xlscc_on_reset;
       #pragma hls_pipeline_init_interval 1
-      for(int i=0;i<10;++i) {
-        x += (int)__xlscc_on_reset;
+      for(int i=0;i<3;++i) {
+        total += __xlscc_on_reset;
       }
-      out.write(x);
+      out.write(total);
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("unsupported in pipelined")));
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {// First outer tick
+                      xls::Value(xls::SBits(2, 32)),
+                      // Second outer tick
+                      xls::Value(xls::SBits(0, 32)),
+                      // Third outer tick
+                      xls::Value(xls::SBits(0, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorStaticTest, OnResetInPipelinedLoop2) {
+  const std::string content = R"(
+    #pragma hls_top
+    void foo(__xls_channel<int> &out) {
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<10;++i) {
+        out.write((int)__xlscc_on_reset);
+      }
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        // First outer tick
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(0, 32)),
+        // Second outer tick
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32)),
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(0, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
 }
 
 TEST_F(TranslatorStaticTest, OnResetScope) {

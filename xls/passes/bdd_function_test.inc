@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string_view>
+
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -20,7 +22,7 @@
 namespace xls {
 
 absl::StatusOr<std::vector<Value>> GenerateFunctionArguments(
-    Function* f, std::minstd_rand* engine, absl::string_view benchmark) {
+    Function* f, std::minstd_rand* engine, std::string_view benchmark) {
   return RandomFunctionArguments(f, engine);
 }
 

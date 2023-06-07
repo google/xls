@@ -3,9 +3,9 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/op.pb.h"
@@ -39,7 +39,7 @@ OpProto ToOpProto(Op op);
 std::string OpToString(Op op);
 
 // Converts a human readable op string into the "op" enumeration.
-absl::StatusOr<Op> StringToOp(absl::string_view op_str);
+absl::StatusOr<Op> StringToOp(std::string_view op_str);
 
 // Returns whether the operation is a compare operation.
 bool OpIsCompare(Op op);

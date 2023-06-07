@@ -24,7 +24,6 @@
 #include <variant>
 #include <vector>
 
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
@@ -47,35 +46,116 @@ struct IsNotX {};
 
 using BitsOrX = std::variant<Bits, IsX>;
 
-struct ModuleTestbenchData {
-  // The design-under-test module name.
-  std::string_view dut_module_name;
-  // Map of each input/output port name to its width.
-  // In a ModuleTestBench, the port names also mirror the signal name used in a
-  // connection.
-  absl::btree_map<std::string, int64_t> input_port_widths;
-  absl::btree_map<std::string, int64_t> output_port_widths;
-  // The clock and reset names are global.
-  std::string clk_name;
-  std::optional<ResetProto> reset;
+enum class TestbenchSignalType {
+  // Input port of the DUT.
+  kInputPort,
+
+  // Output port of the DUT.
+  kOutputPort,
+
+  // Internal signal in the testbench.
+  kInternal
 };
 
-// Represents signal to display during simulation using a Verilog $display
-// statement.
-struct DisplaySignal {
-  std::string signal_name;
+struct TestbenchSignal {
+  std::string name;
   int64_t width;
-  // A unique identifier which associates this display statement with a
-  // particular Capture or ExpectEq call.
-  int64_t instance;
+  TestbenchSignalType type;
 };
 
-struct Expectation {
+// Metadata about the testbench and the underlying device-under-test.
+class TestbenchMetadata {
+ public:
+  explicit TestbenchMetadata(const ModuleSignature& signature);
+
+  std::string dut_module_name() const { return dut_module_name_; }
+  absl::Span<const TestbenchSignal> signals() const { return signals_; }
+  std::optional<std::string> clk_name() const { return clk_name_; }
+  std::optional<ResetProto> reset_proto() const { return reset_proto_; }
+
+  const TestbenchSignal& GetSignal(std::string_view name) const {
+    return signals_.at(signals_by_name_.at(name));
+  }
+  int64_t GetSignalWidth(std::string_view name) const {
+    return GetSignal(name).width;
+  }
+  bool HasSignal(std::string_view name) const {
+    return signals_by_name_.contains(name);
+  }
+
+  bool IsClock(std::string_view name) const {
+    return clk_name_.has_value() && name == clk_name_.value();
+  }
+
+  // Returns a status error if the given signal is *not* readable by the
+  // testbench logic.
+  absl::Status CheckIsReadableSignal(std::string_view name) const;
+
+  // Adds information about an internal testbench signal to the metadata.
+  absl::Status AddInternalSignal(std::string_view name, int64_t width) {
+    return AddSignal(name, width, TestbenchSignalType::kInternal);
+  }
+
+ private:
+  absl::Status AddSignal(std::string_view name, int64_t width,
+                         TestbenchSignalType type);
+
+  std::string dut_module_name_;
+  std::vector<TestbenchSignal> signals_;
+
+  // Map from signal name to index in `signals_`.
+  absl::flat_hash_map<std::string, int64_t> signals_by_name_;
+
+  std::optional<std::string> clk_name_;
+  std::optional<ResetProto> reset_proto_;
+};
+
+struct TestbenchExpectation {
   BitsOrX expected;
   xabsl::SourceLocation loc;
 };
 
-class ModuleTestbenchThread;
+struct TestbenchCapture {
+  Bits* bits;
+};
+
+using SignalCaptureAction =
+    std::variant<TestbenchExpectation, TestbenchCapture>;
+
+// Represents a single instance of a signal capture. Each corresponds to a
+// particular $display statement in the testbench.
+struct SignalCapture {
+  TestbenchSignal signal;
+
+  SignalCaptureAction action;
+
+  // A unique identifier which associates this capture instance with a
+  // particular line of simulation output. This integer is emitted along side
+  // the captured value in the $display-ed string during simulation and is used
+  // to associate the value back to a particular `Capture` (or `ExpectEq`, etc)
+  // instance.
+  int64_t instance_id;
+};
+
+// Data structure which allocates capture instances so that the instance ids are
+// unique across all threads in the testbench.
+class SignalCaptureManager {
+ public:
+  // Return a capture instance associated with a Capture/ExpectEq/ExpectX
+  // action.
+  SignalCapture Capture(const TestbenchSignal& signal, Bits* bits);
+  SignalCapture ExpectEq(const TestbenchSignal& signal, const Bits& bits,
+                         xabsl::SourceLocation loc);
+  SignalCapture ExpectX(const TestbenchSignal& signal,
+                        xabsl::SourceLocation loc);
+
+  absl::Span<const SignalCapture> signal_captures() const {
+    return signal_captures_;
+  }
+
+ private:
+  std::vector<SignalCapture> signal_captures_;
+};
 
 // Data-structure representing the end of a cycle (one time unit before the
 // rising edge of the clock). In the ModuleTestbench infrastructure signals are
@@ -89,7 +169,10 @@ class ModuleTestbenchThread;
 //    testbench_thread.AtEndOfCycleWhen("foo_valid").Capture("bar", &bar);
 class EndOfCycleEvent {
  public:
-  explicit EndOfCycleEvent(ModuleTestbenchThread* thread) : thread_(thread) {}
+  explicit EndOfCycleEvent(const TestbenchMetadata* shared_data,
+                           SignalCaptureManager* capture_manager)
+      : metadata_(XLS_DIE_IF_NULL(shared_data)),
+        capture_manager_(capture_manager) {}
 
   // Captures the value of the signal. The given pointer value is written with
   // the signal value when Run is called.
@@ -110,15 +193,17 @@ class EndOfCycleEvent {
       std::string_view signal_name,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
-  absl::Span<const DisplaySignal> display_signals() const {
-    return display_signals_;
+  absl::Span<const SignalCapture> signal_captures() const {
+    return signal_captures_;
   }
 
  private:
-  ModuleTestbenchThread* thread_;
+  const TestbenchMetadata* metadata_;
+  SignalCaptureManager* capture_manager_;
 
-  // Set of signals to display during simulation.
-  std::vector<DisplaySignal> display_signals_;
+  // Set of instances of signal captures. Each corresponds to a particular
+  // $display statement in the testbench.
+  std::vector<SignalCapture> signal_captures_;
 };
 
 // The following structs define the actions which are set to occur during
@@ -166,31 +251,33 @@ struct WaitForSignals {
 using Action =
     std::variant<AdvanceCycle, SetSignal, SetSignalX, WaitForSignals>;
 
+struct DrivenSignal {
+  std::string signal_name;
+  BitsOrX initial_value;
+};
+
 // Provides a fluent interface for driving inputs, capturing outputs, and
 // setting expectations.
 class ModuleTestbenchThread {
  public:
-  // The shared_data is data that is shared amongst all threads. Cannot be
-  // nullptr.
-  //
-  // The owned_signals_to_drive_ is a name-value map with the name of the
-  // input signals mapped to their initial value after reset. A value of
-  // std::nullopt signifies an 'X' in Verilog. The names in the map are also the
-  // input signals of the design under test (DUT) that the thread is capable of
-  // driving.
+  // `driven_signals` is the set of signals which this thread can drive. A
+  // signal can only be driven by one thread.
   //
   // The done_signal_name is the name of the thread's done signal. The signal is
   // used to notify the testbench that the thread is done with its execution. If
   // its value is std::nullopt, then the thread does not emit the done signal.
   ModuleTestbenchThread(
-      const ModuleTestbenchData* shared_data,
-      const absl::flat_hash_map<std::string, std::optional<Bits>>&
-          owned_signals_to_drive,
+      const TestbenchMetadata* metadata, SignalCaptureManager* capture_manager,
+      absl::Span<const DrivenSignal> driven_signals,
       std::optional<std::string> done_signal_name = std::nullopt)
-      : shared_data_(XLS_DIE_IF_NULL(shared_data)),
-        owned_signals_to_drive_(owned_signals_to_drive.begin(),
-                                owned_signals_to_drive.end()),
-        done_signal_name_(std::move(done_signal_name)) {}
+      : metadata_(XLS_DIE_IF_NULL(metadata)),
+        capture_manager_(capture_manager),
+        driven_signals_(driven_signals.begin(), driven_signals.end()),
+        done_signal_name_(std::move(done_signal_name)) {
+    for (const DrivenSignal& signal : driven_signals) {
+      driven_signal_names_.insert(signal.signal_name);
+    }
+  }
 
   std::optional<std::string> done_signal_name() const {
     return done_signal_name_;
@@ -259,29 +346,19 @@ class ModuleTestbenchThread {
   // an input changed).
   ModuleTestbenchThread& ExpectTrace(std::string_view trace_message);
 
-  // A pair of instance number and signal name used as a key for associating a
-  // output display statement with a particular Capture or ExpectEq.
-  using InstanceSignalName = std::pair<int64_t, std::string>;
-
-  // Checks the stdout of a simulation run against expectations.
-  absl::Status CheckOutput(
-      std::string_view stdout_str,
-      const absl::flat_hash_map<InstanceSignalName, BitsOrX>& parsed_values)
-      const;
-
   // Emit the thread contents into the verilog file with the contents specified.
   void EmitInto(StructuredProcedure* procedure, LogicRef* clk,
                 const absl::flat_hash_map<std::string, LogicRef*>& signal_refs);
 
-  // Returns a sorted list of the input ports driven by this thread.
-  std::vector<std::string> GetThreadOwnedSignals() const;
+  absl::Span<const DrivenSignal> driven_signals() const {
+    return driven_signals_;
+  }
+
+  absl::Span<const std::string> expected_traces() const {
+    return expected_traces_;
+  }
 
  private:
-  friend class EndOfCycleEvent;
-
-  // Returns the width of the given signal.
-  int64_t GetSignalWidth(std::string_view name);
-
   // CHECKs whether the given name is a signal that the thread is
   // designated to drive.
   void CheckCanDriveSignal(std::string_view name);
@@ -294,13 +371,16 @@ class ModuleTestbenchThread {
       AnyOrAll any_or_all, std::vector<SignalValue> signal_values,
       std::string_view comment = "");
 
-  const ModuleTestbenchData* shared_data_;
-  // The owned_signals_to_drive_ is a name-value map with the name of the
-  // input signals mapped to their initial value after reset. A value of
-  // std::nullopt signifies an 'X' in Verilog. The names in the map are also
-  // the input signals of the design under test (DUT) that the thread is
-  // capable of driving. Use absl::btree_map for stable iteration order.
-  absl::btree_map<std::string, std::optional<Bits>> owned_signals_to_drive_;
+  const TestbenchMetadata* metadata_;
+  SignalCaptureManager* capture_manager_;
+
+  // The signals which this thread drives. This can include internal signals of
+  // the testbench of inputs to the DUT.
+  std::vector<DrivenSignal> driven_signals_;
+
+  // Set of driven signal names for easy membership testing.
+  absl::flat_hash_set<std::string> driven_signal_names_;
+
   // The name of the thread's done signal. The signal is used to notify the
   // testbench that the thread is done with its execution. If its value is
   // std::nullopt, then the thread does not emit the done signal.
@@ -308,18 +388,6 @@ class ModuleTestbenchThread {
 
   // The list of actions to perform during simulation.
   std::vector<Action> actions_;
-
-  // A map containing the pointers passed in to each Capture call. Use
-  // absl::btree_map for stable iteration order.
-  absl::btree_map<InstanceSignalName, Bits*> captures_;
-
-  // A map containing the expected values passed in to each ExpectEq call. Use
-  // absl::btree_map for stable iteration order.
-  absl::btree_map<InstanceSignalName, Expectation> expectations_;
-
-  // A increasing counter which is used to generate unique instance
-  // identifiers for DisplayOutput and InstantPort objects.
-  int64_t next_instance_ = 0;
 
   std::vector<std::string> expected_traces_;
 };
@@ -364,14 +432,18 @@ class ModuleTestbench {
 
  private:
   // Checks the stdout of a simulation run against expectations.
-  absl::Status CheckOutput(std::string_view stdout_str) const;
+  absl::Status CaptureOutputsAndCheckExpectations(
+      std::string_view stdout_str) const;
+
+  std::vector<std::string> GatherExpectedTraces() const;
 
   std::string verilog_text_;
   FileType file_type_;
   const VerilogSimulator* simulator_;
   absl::Span<const VerilogInclude> includes_;
 
-  ModuleTestbenchData shared_data_;
+  TestbenchMetadata metadata_;
+  SignalCaptureManager capture_manager_;
 
   // A list of blocks that execute concurrently in the testbench, a.k.a.
   // 'threads'. The xls::verilog::ModuleTestbench::CreateThread function

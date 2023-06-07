@@ -19,7 +19,7 @@
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
-    std::string_view input_string, std::optional<absl::string_view> filename) {
+    std::string_view input_string, std::optional<std::string_view> filename) {
   return Parser::ParsePackage(input_string, filename);
 }
 
