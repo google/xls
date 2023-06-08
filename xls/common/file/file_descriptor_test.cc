@@ -14,13 +14,18 @@
 
 #include "xls/common/file/file_descriptor.h"
 
-#include <optional>
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/temp_directory.h"
+#include "xls/common/status/matchers.h"
 
 namespace xls {
 namespace {
+
+using status_testing::IsOk;
+using status_testing::IsOkAndHolds;
+using ::testing::Not;
 
 // Global state is necessary to test FileDescriptor; it takes a plain function
 // pointer with no state as the parameterizable close function.
@@ -94,6 +99,36 @@ TEST_F(FileDescriptorTest, FileDescriptorIsClosedOnDestruction) {
   }
 
   EXPECT_EQ(recently_closed_fd, 6);
+}
+
+TEST_F(FileDescriptorTest, FileStreamOpen) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+  const std::filesystem::path& path = temp_dir.path() / "my_file";
+
+  {
+    // Test writing from a stream.
+    XLS_ASSERT_OK_AND_ASSIGN(FileStream fs, FileStream::Open(path, "w"));
+    fprintf(fs.get(), "hello!");
+    fflush(fs.get());
+    EXPECT_THAT(GetFileContents(path), IsOkAndHolds("hello!"));
+  }
+
+  {
+    // Test reading from a stream.
+    XLS_ASSERT_OK_AND_ASSIGN(FileStream fs, FileStream::Open(path, "r"));
+    const int64_t kBufferSize = 100;
+    char buffer[kBufferSize] = {0};
+    EXPECT_EQ(fgets(buffer, kBufferSize, fs.get()), buffer);
+    EXPECT_EQ(std::string(buffer), "hello!");
+  }
+}
+
+TEST_F(FileDescriptorTest, FileStreamErrors) {
+  XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
+
+  EXPECT_THAT(FileStream::Open("/not/a/file", "r"), Not(IsOk()));
+  EXPECT_THAT(FileStream::Open(temp_dir.path() / "doesnt_exist", "r"),
+              Not(IsOk()));
 }
 
 }  // namespace

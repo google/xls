@@ -24,7 +24,12 @@ package(
 
 cc_library(
     name = "file_descriptor",
+    srcs = ["file_descriptor.cc"],
     hdrs = ["file_descriptor.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:error_code_to_status",
+    ],
 )
 
 cc_test(
@@ -32,7 +37,10 @@ cc_test(
     srcs = ["file_descriptor_test.cc"],
     deps = [
         ":file_descriptor",
+        ":filesystem",
+        ":temp_directory",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -167,6 +175,36 @@ cc_library(
         "//xls/common:strerror",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+    ],
+)
+
+cc_library(
+    name = "named_pipe",
+    srcs = ["named_pipe.cc"],
+    hdrs = ["named_pipe.h"],
+    deps = [
+        ":file_descriptor",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:error_code_to_status",
+        "//xls/common/status:status_macros",
+    ],
+)
+
+cc_test(
+    name = "named_pipe_test",
+    srcs = ["named_pipe_test.cc"],
+    deps = [
+        ":filesystem",
+        ":named_pipe",
+        ":temp_directory",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:thread",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
     ],
 )
 

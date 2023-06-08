@@ -17,6 +17,10 @@
 
 #include <unistd.h>
 
+#include <filesystem>  // NOLINT
+
+#include "absl/status/statusor.h"
+
 namespace xls {
 
 // RAII wrapper for a file descriptor. Users should use the FileDescriptor type
@@ -61,6 +65,37 @@ class BasicFileDescriptor {
 };
 
 using FileDescriptor = BasicFileDescriptor<close>;
+
+// RAII wrapper around a FILE*.
+class FileStream {
+ public:
+  ~FileStream();
+
+  // Opens a file with the given mode (e.g., "r", "w+", etc) and returns a
+  // FileStream.
+  static absl::StatusOr<FileStream> Open(const std::filesystem::path& path,
+                                         const std::string& mode);
+
+  const std::filesystem::path& path() const { return path_; }
+  FILE* get() const { return file_; }
+
+  // Returns the underlying FILE* and causes causes FileStream to
+  // not delete itself when it goes out of scope.
+  FILE* Release() &&;
+
+  // FileStream is movable but not copyable.
+  FileStream(FileStream&& other);
+  FileStream& operator=(FileStream&& other);
+  FileStream(const FileStream&) = delete;
+  FileStream& operator=(const FileStream&) = delete;
+
+ public:
+  explicit FileStream(const std::filesystem::path& path, FILE* file)
+      : path_(path), file_(file) {}
+
+  std::filesystem::path path_;
+  FILE* file_;
+};
 
 }  // namespace xls
 

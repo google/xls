@@ -227,3 +227,20 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_test(
+    name = "testbench_io_test",
+    srcs = ["testbench_io_test.cc"],
+    deps = [
+        ":verilog_test_base",
+        "//xls/common:thread",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:named_pipe",
+        "//xls/common/file:temp_directory",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/ir:number_parser",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
