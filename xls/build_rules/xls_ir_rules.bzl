@@ -139,11 +139,18 @@ def _convert_to_ir(ctx, src):
     wsroot = get_xls_toolchain_info(ctx).ir_converter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
 
+    # Get workspaces for the source as well.
+    # TODO(tedhong): 2023-06-07 - Grab the workspace from each dependency as well
+    # to support dslx sources from different workspaces.
+    dslx_srcs = [src]
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in dslx_srcs])
+    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
+
     ir_conv_args = dict(ctx.attr.ir_conv_args)
     ir_conv_args["dslx_path"] = (
         ir_conv_args.get("dslx_path", "") + ":${PWD}:" +
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-        wsroot_dslx_path
+        dslx_srcs_wsroot_path + wsroot_dslx_path
     )
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)

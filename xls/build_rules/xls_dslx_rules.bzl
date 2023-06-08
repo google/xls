@@ -279,6 +279,8 @@ def _xls_dslx_library_impl(ctx):
     # e.g., Label("@repo//pkg/xls:binary").workspace_root == "external/repo"
     wsroot = get_xls_toolchain_info(ctx).dslx_interpreter_tool.label.workspace_root
     wsroot_dslx_path = ":{}".format(wsroot) if wsroot != "" else ""
+    dslx_srcs_wsroot = ":".join([s.owner.workspace_root for s in my_srcs_list])
+    dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ctx.actions.run_shell(
         outputs = [dummy_file],
@@ -298,7 +300,7 @@ def _xls_dslx_library_impl(ctx):
             "{} $file --compare=none --execute=false --dslx_path={}{}".format(
                 dslx_interpreter_tool.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path +
-                wsroot_dslx_path,
+                dslx_srcs_wsroot_path + wsroot_dslx_path,
                 " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",
             ),
             "if [ $? -ne 0 ]; then",
