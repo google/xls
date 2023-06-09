@@ -61,6 +61,7 @@ nav:
     - FPGA characterization (experimental): 'fpga_characterization.md'
     - Design Docs:
       - Legalize Multiple Channel Ops Per Channel: 'design_docs/legalize_multiple_channel_ops_per_channel.md'
+      - Proc-scoped channels: 'design_docs/proc_scoped_channels.md'
   - NoC:
     - Overview: 'noc/xls_noc_readme.md'
     - Topologies:
