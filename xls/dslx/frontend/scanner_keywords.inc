@@ -17,7 +17,6 @@
 
 // See also `XLS_DSLX_TYPE_KEYWORDS` below and `xls/dslx/ast_builtin_types.inc`
 #define XLS_DSLX_KEYWORDS(X)                                          \
-  X(kJoin, JOIN, "join")                                              \
   X(kAs, AS, "as")                                                    \
   X(kCarry, CARRY, "carry")                                           \
   X(kConst, CONST, "const")                                           \
@@ -34,12 +33,6 @@
   X(kMatch, MATCH, "match")                                           \
   X(kPub, PUB, "pub")                                                 \
   X(kProc, PROC, "proc")                                              \
-  X(kRecv, RECV, "recv")                                              \
-  X(kRecvIf, RECV_IF, "recv_if")                                      \
-  X(kRecvIfNonBlocking, RECV_IF_NON_BLOCKING, "recv_if_non_blocking") \
-  X(kRecvNonBlocking, RECV_NON_BLOCKING, "recv_non_blocking")         \
-  X(kSend, SEND, "send")                                              \
-  X(kSendIf, SEND_IF, "send_if")                                      \
   X(kSpawn, SPAWN, "spawn")                                           \
   X(kStruct, STRUCT, "struct")                                        \
   X(kTrue, TRUE, "true")                                              \

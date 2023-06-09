@@ -282,16 +282,9 @@ class FunctionConverter {
   absl::Status HandleFormatMacro(const FormatMacro* node);
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
-  absl::Status HandleJoin(const Join* node);
   absl::Status HandleLet(const Let* node);
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
-  absl::Status HandleRecv(const Recv* node);
-  absl::Status HandleRecvIf(const RecvIf* node);
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* node);
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* node);
-  absl::Status HandleSend(const Send* node);
-  absl::Status HandleSendIf(const SendIf* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
   absl::Status HandleStatement(const Statement* node);
   absl::Status HandleStructInstance(const StructInstance* node);
@@ -357,6 +350,14 @@ class FunctionConverter {
   absl::Status HandleBuiltinUMulp(const Invocation* node);
   absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
+
+  absl::Status HandleBuiltinJoin(const Invocation* node);
+  absl::Status HandleBuiltinSend(const Invocation* node);
+  absl::Status HandleBuiltinSendIf(const Invocation* node);
+  absl::Status HandleBuiltinRecv(const Invocation* node);
+  absl::Status HandleBuiltinRecvIf(const Invocation* node);
+  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
 
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);

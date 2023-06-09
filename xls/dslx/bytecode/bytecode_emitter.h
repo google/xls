@@ -82,10 +82,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleZeroMacro(const ZeroMacro* node) override;
   absl::Status HandleIndex(const Index* node) override;
   absl::Status HandleInvocation(const Invocation* node) override;
-  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
-  absl::Status HandleBuiltinWideningCast(const Invocation* node);
   absl::Status HandleCastImpl(const Invocation* node);
-  absl::Status HandleJoin(const Join* node) override;
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;
@@ -94,12 +91,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleNumber(const Number* node) override;
   absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);
   absl::Status HandleRange(const Range* node) override;
-  absl::Status HandleRecv(const Recv* node) override;
-  absl::Status HandleRecvIf(const RecvIf* node) override;
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* node) override;
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* node) override;
-  absl::Status HandleSend(const Send* node) override;
-  absl::Status HandleSendIf(const SendIf* node) override;
   absl::Status HandleSpawn(const Spawn* node) override;
   absl::Status HandleString(const String* node) override;
   absl::Status HandleStructInstance(const StructInstance* node) override;
@@ -110,6 +101,16 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleUnrollFor(const UnrollFor* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
+
+  absl::Status HandleBuiltinCheckedCast(const Invocation* node);
+  absl::Status HandleBuiltinWideningCast(const Invocation* node);
+  absl::Status HandleBuiltinSend(const Invocation* node);
+  absl::Status HandleBuiltinSendIf(const Invocation* node);
+  absl::Status HandleBuiltinRecv(const Invocation* node);
+  absl::Status HandleBuiltinRecvIf(const Invocation* node);
+  absl::Status HandleBuiltinRecvNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
+  absl::Status HandleBuiltinJoin(const Invocation* node);
 
   // Given a TypeAlias, determines the EnumDef to which it refers.
   absl::StatusOr<EnumDef*> ResolveTypeAliasToEnum(const TypeInfo* type_info,

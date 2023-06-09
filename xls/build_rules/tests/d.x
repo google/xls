@@ -21,6 +21,5 @@ pub fn d() -> u32 {
 
 #[test]
 fn d_test() {
-  let _ = assert_eq(u32:5, d());
-  ()
+  assert_eq(u32:5, d());
 }

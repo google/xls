@@ -44,22 +44,19 @@ the following:
 
 ```dslx
 fn hello_xls(hello_string: u8[11]) {
-  let _ = trace!(hello_string);
-  ()
+  trace!(hello_string);
 }
 ```
 
 Let's go over this, line-by-line:
 
 1.  This first line declares a fn (`fn`) named "`hello_xls`". This function
-    accepts an array of eleven characters (u8) called `hello_string`, and returns
-    no value (the return type would be specified after the argument list's
-    closing parenthesis and before the function-opening curly brace, if the
-    function returned a value).
+    accepts an array of eleven characters (u8) called `hello_string`, and
+    returns no value (the return type would be specified after the argument
+    list's closing parenthesis and before the function-opening curly brace, if
+    the function returned a value).
 2.  This second line invokes the built-in `trace!` directive, passing it the
-    function's input string, and throws away the result (assignment to `_`).
-3.  The final line terminates the function, exiting with the empty return value
-    `()`, representing an empty tuple.
+    function's input string, and throws away the result.
 
 ## 3. Say hello, XLS!
 

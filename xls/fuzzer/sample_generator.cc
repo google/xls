@@ -35,6 +35,7 @@
 #include "xls/fuzzer/sample.h"
 
 namespace xls {
+namespace {
 
 using dslx::AstGenerator;
 using dslx::AstGeneratorOptions;
@@ -49,18 +50,24 @@ using dslx::ModuleMember;
 using dslx::ParseModule;
 using dslx::TypecheckedModule;
 
+bool IsBuiltinNameRef(const dslx::Expr* e, std::string_view target) {
+  if (auto* name_ref = dynamic_cast<const dslx::NameRef*>(e)) {
+    std::variant<const dslx::NameDef*, dslx::BuiltinNameDef*> any_name_def =
+        name_ref->name_def();
+    return std::holds_alternative<dslx::BuiltinNameDef*>(any_name_def) &&
+           std::get<dslx::BuiltinNameDef*>(any_name_def)->identifier() ==
+               target;
+  }
+  return false;
+}
+
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
-  absl::Status HandleRecvNonBlocking(const dslx::RecvNonBlocking* n) override {
-    has_nb_recv_ = true;
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleRecvIfNonBlocking(
-      const dslx::RecvIfNonBlocking* n) override {
-    has_nb_recv_ = true;
+  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+    has_nb_recv_ = IsBuiltinNameRef(n->callee(), "recv_if") ||
+                   IsBuiltinNameRef(n->callee(), "recv_if_non_blocking");
     return absl::OkStatus();
   }
 
@@ -68,7 +75,9 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
   bool has_nb_recv_ = false;
 };
 
-static absl::StatusOr<bool> HasNonBlockingRecv(std::string dslx_text) {
+}  // namespace
+
+static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                        ParseModule(dslx_text, "sample.x", "sample"));
   XLS_RET_CHECK(module != nullptr);

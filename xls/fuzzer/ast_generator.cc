@@ -409,28 +409,36 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
 
   switch (chan_op_type) {
     case ChannelOpType::kRecv:
-      return TypedExpr{
-          module_->Make<Recv>(fake_span_, token_name_ref, chan_expr),
-          MakeTupleType({token.type, channel_type})};
+      return TypedExpr{module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("recv"),
+                           std::vector<Expr*>{token_name_ref, chan_expr}),
+                       MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kRecvNonBlocking:
-      return TypedExpr{
-          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr,
-                                         default_value.value().expr),
-          MakeTupleType(
-              {token.type, channel_type, MakeTypeAnnotation(false, 1)})};
+      return TypedExpr{module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("recv_non_blocking"),
+                           std::vector<Expr*>{token_name_ref, chan_expr,
+                                              default_value.value().expr}),
+                       MakeTupleType({token.type, channel_type,
+                                      MakeTypeAnnotation(false, 1)})};
     case ChannelOpType::kRecvIf:
-      return TypedExpr{module_->Make<RecvIf>(fake_span_, token_name_ref,
-                                             chan_expr, predicate.value().expr,
-                                             default_value.value().expr),
+      return TypedExpr{module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("recv_if"),
+                           std::vector<Expr*>{token_name_ref, chan_expr,
+                                              predicate.value().expr,
+                                              default_value.value().expr}),
                        MakeTupleType({token.type, channel_type})};
     case ChannelOpType::kSend:
-      return TypedExpr{module_->Make<Send>(fake_span_, token_name_ref,
-                                           chan_expr, payload.value().expr),
+      return TypedExpr{module_->Make<Invocation>(
+                           fake_span_, MakeBuiltinNameRef("send"),
+                           std::vector<Expr*>{token_name_ref, chan_expr,
+                                              payload.value().expr}),
                        token.type};
     case ChannelOpType::kSendIf:
       return TypedExpr{
-          module_->Make<SendIf>(fake_span_, token_name_ref, chan_expr,
-                                predicate.value().expr, payload.value().expr),
+          module_->Make<Invocation>(
+              fake_span_, MakeBuiltinNameRef("send_if"),
+              std::vector<Expr*>{token_name_ref, chan_expr,
+                                 predicate.value().expr, payload.value().expr}),
           token.type};
   }
 
@@ -449,7 +457,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
     int64_t token_index = RandRange(0, tokens.size());
     tokens_to_join[i] = tokens[token_index].expr;
   }
-  return TypedExpr{module_->Make<Join>(fake_span_, tokens_to_join),
+  return TypedExpr{module_->Make<Invocation>(
+                       fake_span_, MakeBuiltinNameRef("join"), tokens_to_join),
                    MakeTokenType()};
 }
 

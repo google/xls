@@ -47,6 +47,16 @@
 namespace xls::dslx {
 namespace {
 
+absl::Status ValidateWithinProc(std::string_view builtin_name, const Span& span,
+                                DeduceCtx* ctx) {
+  if (!ctx->WithinProc()) {
+    return TypeInferenceErrorStatus(
+        span, nullptr,
+        absl::StrFormat("Cannot %s() outside of a proc", builtin_name));
+  }
+  return absl::OkStatus();
+}
+
 // Helper type to place on the stack when we intend to pop off a FnStackEntry
 // when done, or expect a caller to pop it off for us. That is, this helps us
 // check fn_stack() invariants are as expected.
@@ -209,6 +219,25 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   Expr* callee = invocation->callee();
   NameRef* callee_nameref = dynamic_cast<NameRef*>(callee);
 
+  // Note: we already know it's a builtin invocation, so comparisons to name
+  // strings are ok here.
+  std::string callee_name = callee_nameref->identifier();
+
+  static const absl::flat_hash_set<std::string> kShouldBeInProc = {
+      "join",
+      "recv",
+      "recv_if",
+      "send",
+      "send_if",
+      "recv_non_blocking",
+      "recv_if_non_blocking",
+  };
+
+  if (kShouldBeInProc.contains(callee_name)) {
+    XLS_RETURN_IF_ERROR(
+        ValidateWithinProc(callee_name, invocation->span(), ctx));
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> arg_types;
   std::vector<Span> arg_spans;
   for (Expr* arg : invocation->args()) {
@@ -219,8 +248,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
     arg_spans.push_back(arg->span());
   }
 
-  if (callee_nameref->identifier() == "fail!" ||
-      callee_nameref->identifier() == "cover!") {
+  if (callee_name == "fail!" || callee_name == "cover!") {
     ctx->type_info()->NoteRequiresImplicitToken(caller, true);
 
     if (callee_nameref->identifier() == "cover!") {

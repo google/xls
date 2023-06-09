@@ -115,9 +115,6 @@ class NameRefCollector : public ExprVisitor {
     }
     return absl::OkStatus();
   }
-  absl::Status HandleJoin(const Join* expr) override {
-    return absl::OkStatus();
-  }
   absl::Status HandleLet(const Let* expr) override {
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
 
@@ -146,32 +143,6 @@ class NameRefCollector : public ExprVisitor {
   absl::Status HandleRange(const Range* expr) override {
     XLS_RETURN_IF_ERROR(expr->start()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->end()->AcceptExpr(this));
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecv(const Recv* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvIf(const RecvIf* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
-    XLS_RETURN_IF_ERROR(expr->default_value()->AcceptExpr(this));
-    return absl::OkStatus();
-  }
-  absl::Status HandleSend(const Send* expr) override {
-    XLS_RETURN_IF_ERROR(expr->payload()->AcceptExpr(this));
-    return absl::OkStatus();
-  }
-  absl::Status HandleSendIf(const SendIf* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    XLS_RETURN_IF_ERROR(expr->payload()->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleSpawn(const Spawn* expr) override {

@@ -37,38 +37,46 @@
 
 namespace xls::dslx {
 
-#define XLS_DSLX_BUILTIN_EACH(X)         \
-  X("add_with_carry", kAddWithCarry)     \
-  X("and_reduce", kAndReduce)            \
-  X("array_rev", kArrayRev)              \
-  X("array_size", kArraySize)            \
-  X("assert_eq", kAssertEq)              \
-  X("assert_lt", kAssertLt)              \
-  X("bit_slice", kBitSlice)              \
-  X("bit_slice_update", kBitSliceUpdate) \
-  X("checked_cast", kCheckedCast)        \
-  X("clz", kClz)                         \
-  X("cover!", kCover)                    \
-  X("ctz", kCtz)                         \
-  X("gate!", kGate)                      \
-  X("enumerate", kEnumerate)             \
-  X("fail!", kFail)                      \
-  X("map", kMap)                         \
-  X("one_hot", kOneHot)                  \
-  X("one_hot_sel", kOneHotSel)           \
-  X("or_reduce", kOrReduce)              \
-  X("priority_sel", kPriorityhSel)       \
-  X("range", kRange)                     \
-  X("rev", kRev)                         \
-  X("widening_cast", kWideningCast)      \
-  X("select", kSelect)                   \
-  X("signex", kSignex)                   \
-  X("smulp", kSMulp)                     \
-  X("slice", kSlice)                     \
-  X("trace!", kTrace)                    \
-  X("umulp", kUMulp)                     \
-  X("update", kUpdate)                   \
-  X("xor_reduce", kXorReduce)
+#define XLS_DSLX_BUILTIN_EACH(X)          \
+  X("add_with_carry", kAddWithCarry)      \
+  X("and_reduce", kAndReduce)             \
+  X("array_rev", kArrayRev)               \
+  X("array_size", kArraySize)             \
+  X("assert_eq", kAssertEq)               \
+  X("assert_lt", kAssertLt)               \
+  X("bit_slice", kBitSlice)               \
+  X("bit_slice_update", kBitSliceUpdate)  \
+  X("checked_cast", kCheckedCast)         \
+  X("clz", kClz)                          \
+  X("cover!", kCover)                     \
+  X("ctz", kCtz)                          \
+  X("gate!", kGate)                       \
+  X("enumerate", kEnumerate)              \
+  X("fail!", kFail)                       \
+  X("map", kMap)                          \
+  X("one_hot", kOneHot)                   \
+  X("one_hot_sel", kOneHotSel)            \
+  X("or_reduce", kOrReduce)               \
+  X("priority_sel", kPriorityhSel)        \
+  X("range", kRange)                      \
+  X("rev", kRev)                          \
+  X("widening_cast", kWideningCast)       \
+  X("select", kSelect)                    \
+  X("signex", kSignex)                    \
+  X("smulp", kSMulp)                      \
+  X("slice", kSlice)                      \
+  X("trace!", kTrace)                     \
+  X("umulp", kUMulp)                      \
+  X("update", kUpdate)                    \
+  X("xor_reduce", kXorReduce)             \
+  X("join", kJoin)                        \
+  /* send/recv routines */                \
+  X("send", kSend)                        \
+  X("send_if", kSendIf)                   \
+  X("recv", kRecv)                        \
+  X("recv_if", kRecvIf)                   \
+  X("recv_nonblocking", kRecvNonBlocking) \
+  X("recv_if_nonblocking", kRecvIfNonBlocking)
 
 // Enum that represents all the DSLX builtin functions.
 //

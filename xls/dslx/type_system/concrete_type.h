@@ -388,6 +388,23 @@ class StructType : public ConcreteType {
 // Represents a tuple type. Tuples have unnamed members.
 class TupleType : public ConcreteType {
  public:
+  static std::unique_ptr<TupleType> Create2(std::unique_ptr<ConcreteType> t0,
+                                            std::unique_ptr<ConcreteType> t1) {
+    std::vector<std::unique_ptr<ConcreteType>> members;
+    members.push_back(std::move(t0));
+    members.push_back(std::move(t1));
+    return std::make_unique<TupleType>(std::move(members));
+  }
+  static std::unique_ptr<TupleType> Create3(std::unique_ptr<ConcreteType> t0,
+                                            std::unique_ptr<ConcreteType> t1,
+                                            std::unique_ptr<ConcreteType> t2) {
+    std::vector<std::unique_ptr<ConcreteType>> members;
+    members.push_back(std::move(t0));
+    members.push_back(std::move(t1));
+    members.push_back(std::move(t2));
+    return std::make_unique<TupleType>(std::move(members));
+  }
+
   explicit TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
 
   absl::Status Accept(ConcreteTypeVisitor& v) const override {

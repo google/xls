@@ -58,6 +58,24 @@
 namespace xls::dslx {
 namespace {
 
+// Deduces the concrete types of the arguments to a parametric function or
+// proc and returns them to the caller.
+absl::Status InstantiateParametricArgs(
+    const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
+    DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
+  for (Expr* arg : args) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                         DeduceAndResolve(arg, ctx));
+    XLS_VLOG(5) << "InstantiateParametricArgs; arg: `" << arg->ToString()
+                << "` deduced: `" << type->ToString() << "` @ " << arg->span();
+    XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
+                                   << " type: " << type->ToString();
+    instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
+  }
+
+  return absl::OkStatus();
+}
+
 ParametricEnv GetCurrentParametricEnv(DeduceCtx* ctx) {
   return ctx->fn_stack().empty() ? ParametricEnv()
                                  : ctx->fn_stack().back().parametric_env();
@@ -2437,70 +2455,6 @@ absl::StatusOr<std::unique_ptr<ChannelType>> DeduceChannelType(
   return absl::WrapUnique(channel_type);
 }
 
-static absl::Status ValidateWithinProc(std::string_view builtin_name,
-                                       const Span& span, DeduceCtx* ctx) {
-  if (!ctx->WithinProc()) {
-    return TypeInferenceErrorStatus(
-        span, nullptr,
-        absl::StrFormat("Cannot %s() outside of a proc", builtin_name));
-  }
-  return absl::OkStatus();
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSend(const Send* node,
-                                                         DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "send";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), "send", "send(token, out chan, data)",
-                        ChannelDirection::kOut, ctx));
-
-  Expr* payload_expr = node->payload();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_expr_type,
-                       DeduceAndResolve(payload_expr, ctx));
-  XLS_RET_CHECK(!payload_expr_type->IsMeta());
-
-  if (channel_type->payload_type() != *payload_expr_type) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, channel_type->payload_type(), nullptr,
-        *payload_expr_type,
-        "send() channel type did not match the sent value type");
-  }
-
-  return std::make_unique<TokenType>();
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(const SendIf* node,
-                                                           DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "send_if";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelType> channel_type,
-                       DeduceChannelType(node->channel(), kBuiltinName,
-                                         "send_if(token, bool, out chan, data)",
-                                         ChannelDirection::kOut, ctx));
-  const ConcreteType& channel_payload_type = channel_type->payload_type();
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> payload_type,
-                       DeduceAndResolve(node->payload(), ctx));
-  if (channel_payload_type != *payload_type) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, channel_payload_type, nullptr, *payload_type,
-        "send_if() channel type did not match the sent value type");
-  }
-  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
-  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
-  if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
-                                  nullptr, *bool_type,
-                                  "send_if() predicate was not a boolean");
-  }
-
-  return std::make_unique<TokenType>();
-}
-
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
                                                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> start_type,
@@ -2541,146 +2495,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   }
   return std::make_unique<ArrayType>(std::move(start_type),
                                      ConcreteTypeDim(array_size));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
-                                                         DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "recv";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), "recv", "recv(token, in chan)",
-                        ChannelDirection::kIn, ctx));
-  std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.push_back(std::make_unique<TokenType>());
-  elements.push_back(channel_type->payload_type().CloneToUnique());
-  return std::make_unique<TupleType>(std::move(elements));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
-    const RecvNonBlocking* node, DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "recv_non_blocking";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), kBuiltinName,
-                        "recv_non_blocking(token, in chan, default)",
-                        ChannelDirection::kIn, ctx));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
-                       Deduce(node->default_value(), ctx));
-  if (*default_value_type != channel_type->payload_type()) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, *default_value_type, nullptr,
-        channel_type->payload_type(),
-        "Default value type does not match channel type");
-  }
-
-  std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.push_back(std::make_unique<TokenType>());
-  elements.push_back(std::move(default_value_type));
-  elements.push_back(BitsType::MakeU1());
-
-  return std::make_unique<TupleType>(std::move(elements));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
-                                                           DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "recv_if";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), kBuiltinName,
-                        "recv_if(token, in chan, bool, default)",
-                        ChannelDirection::kIn, ctx));
-  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
-  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
-  if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
-                                  nullptr, *bool_type,
-                                  "RecvIf condition was not of bool type.");
-  }
-
-  const ConcreteType& channel_payload_type = channel_type->payload_type();
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
-                       Deduce(node->default_value(), ctx));
-  if (*default_value_type != channel_payload_type) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, *default_value_type, nullptr,
-        channel_payload_type, "Default value type does not match channel type");
-  }
-
-  std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.push_back(std::make_unique<TokenType>());
-  elements.push_back(std::move(default_value_type));
-  return std::make_unique<TupleType>(std::move(elements));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
-    const RecvIfNonBlocking* node, DeduceCtx* ctx) {
-  constexpr std::string_view kBuiltinName = "recv_if_non_blocking";
-  XLS_RETURN_IF_ERROR(ValidateWithinProc(kBuiltinName, node->span(), ctx));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelType> channel_type,
-      DeduceChannelType(node->channel(), kBuiltinName,
-                        "recv_if_non_blocking(token, in chan, bool, default)",
-                        ChannelDirection::kIn, ctx));
-
-  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
-  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
-  if (*condition_type != *bool_type) {
-    return ctx->TypeMismatchError(node->span(), nullptr, *condition_type,
-                                  nullptr, *bool_type,
-                                  "RecvIf condition was not of bool type.");
-  }
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> default_value_type,
-                       Deduce(node->default_value(), ctx));
-
-  const ConcreteType& channel_payload_type = channel_type->payload_type();
-
-  if (*default_value_type != channel_payload_type) {
-    return ctx->TypeMismatchError(
-        node->span(), nullptr, *default_value_type, nullptr,
-        channel_payload_type, "Default value type does not match channel type");
-  }
-
-  std::vector<std::unique_ptr<ConcreteType>> elements;
-  elements.push_back(std::make_unique<TokenType>());
-  elements.push_back(std::move(default_value_type));
-  elements.push_back(std::move(bool_type));
-  return std::make_unique<TupleType>(std::move(elements));
-}
-
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceJoin(const Join* node,
-                                                         DeduceCtx* ctx) {
-  for (auto* token : node->tokens()) {
-    XLS_RETURN_IF_ERROR(Deduce(token, ctx).status());
-  }
-  return std::make_unique<TokenType>();
-}
-
-// Deduces the concrete types of the arguments to a parametric function or
-// proc and returns them to the caller.
-static absl::Status InstantiateParametricArgs(
-    const Instantiation* inst, const Expr* callee, absl::Span<Expr* const> args,
-    DeduceCtx* ctx, std::vector<InstantiateArg>* instantiate_args) {
-  for (Expr* arg : args) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                         DeduceAndResolve(arg, ctx));
-    XLS_VLOG(5) << "InstantiateParametricArgs; arg: `" << arg->ToString()
-                << "` deduced: `" << type->ToString() << "` @ " << arg->span();
-    XLS_RET_CHECK(!type->IsMeta()) << "parametric arg: " << arg->ToString()
-                                   << " type: " << type->ToString();
-    instantiate_args->push_back(InstantiateArg{std::move(type), arg->span()});
-  }
-
-  return absl::OkStatus();
 }
 
 // Generic function to do the heavy lifting of deducing the type of an
@@ -3041,7 +2855,6 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(For)
   DEDUCE_DISPATCH(Cast)
   DEDUCE_DISPATCH(StructDef)
-  DEDUCE_DISPATCH(Join)
   DEDUCE_DISPATCH(Array)
   DEDUCE_DISPATCH(Attr)
   DEDUCE_DISPATCH(Block)
@@ -3051,12 +2864,6 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Index)
   DEDUCE_DISPATCH(Match)
   DEDUCE_DISPATCH(Range)
-  DEDUCE_DISPATCH(Recv)
-  DEDUCE_DISPATCH(RecvIf)
-  DEDUCE_DISPATCH(RecvIfNonBlocking)
-  DEDUCE_DISPATCH(RecvNonBlocking)
-  DEDUCE_DISPATCH(Send)
-  DEDUCE_DISPATCH(SendIf)
   DEDUCE_DISPATCH(Spawn)
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(Statement)

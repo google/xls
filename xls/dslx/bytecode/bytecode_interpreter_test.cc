@@ -129,8 +129,7 @@ struct Point {
 }
 fn main() -> () {
   let p = Point{x: u32:42, y: u32:64};
-  let _ = trace_fmt!("{}", p);
-  ()
+  trace_fmt!("{}", p);
 }
 )";
   std::vector<std::string> trace_output;
@@ -161,8 +160,7 @@ struct Foo {
 
 fn main() -> () {
   let p = Foo { p: Point{x: u32:42, y: u32:64}, z: u32: 123 };
-  let _ = trace_fmt!("{}", p);
-  ()
+  trace_fmt!("{}", p);
 }
 )";
   std::vector<std::string> trace_output;
@@ -202,7 +200,7 @@ TEST(BytecodeInterpreterTest, AssertEqFail) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32{
   let a = u32:3;
-  let _ = assert_eq(a, u32:2);
+  assert_eq(a, u32:2);
   a
 }
 )";
@@ -216,7 +214,7 @@ TEST(BytecodeInterpreterTest, AssertLtFail) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32{
   let a = u32:3;
-  let _ = assert_lt(a, u32:2);
+  assert_lt(a, u32:2);
   a
 }
 )";
@@ -231,10 +229,10 @@ TEST(BytecodeInterpreterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
-  let _ = assert_eq(a, u4:0);
-  let _ = assert_eq(b, u8:1);
-  let _ = assert_eq(c, u16:2);
-  let _ = assert_eq(d, (u32:3, u64:4, uN[128]:5));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:3, u64:4, uN[128]:5));
   d
 })";
 
@@ -1308,7 +1306,7 @@ proc BTester {
     next(tok: token, state: ()) {
         let tok = send(tok, data_in, u32:3);
         let (tok, result) = recv(tok, data_out);
-        let _ = assert_eq(result, u32:9);
+        assert_eq(result, u32:9);
         let tok = send(tok, terminator, true);
         ()
     }

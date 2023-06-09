@@ -41,10 +41,6 @@
 namespace xls::dslx {
 namespace {
 
-using ArgTypes = const std::vector<const ConcreteType*>&;
-using ParametricBindings = std::optional<std::vector<ParametricBinding*>>;
-using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
-
 // Fluent API for checking argument type properties (and raising errors).
 //
 // Note: we use guards at the start of the check methods and assignment to
@@ -56,8 +52,10 @@ using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
 // "what if the len wasn't two?!"
 class Checker {
  public:
-  Checker(ArgTypes arg_types, std::string_view name, const Span& span,
-          DeduceCtx& deduce_ctx)
+  // TODO(cdleary): 2023-06-02 Get the spans of all the individual argument
+  // expressions for more precise error pinpointing in the resulting messages.
+  Checker(absl::Span<const ConcreteType* const> arg_types,
+          std::string_view name, const Span& span, DeduceCtx& deduce_ctx)
       : arg_types_(arg_types),
         name_(name),
         span_(span),
@@ -90,7 +88,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = *arg_types_[argno];
+    const ConcreteType& t = GetArgType(argno);
     if (auto* f = dynamic_cast<const FunctionType*>(&t)) {
       if (f->GetParamCount() == argc) {
         if (out != nullptr) {
@@ -111,11 +109,76 @@ class Checker {
     }
     return *this;
   }
+  Checker& IsToken(int64_t argno) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& t = GetArgType(argno);
+    if (auto* tok = dynamic_cast<const TokenType*>(&t); tok != nullptr) {
+      return *this;
+    }
+    status_ = TypeInferenceErrorStatus(
+        span_, &t,
+        absl::StrFormat("Want argument %d to '%s' to be a token; got %s", argno,
+                        name_, t.ToString()));
+    return *this;
+  }
+  Checker& IsRecvChan(int64_t argno, const ChannelType** out = nullptr) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& t = GetArgType(argno);
+    if (auto* c = dynamic_cast<const ChannelType*>(&t); c != nullptr) {
+      if (c->direction() != ChannelDirection::kIn) {
+        status_ = TypeInferenceErrorStatus(
+            span_, &t,
+            absl::StrFormat(
+                "Want argument %d to '%s' to be an 'in' (recv) channel; got %s",
+                argno, name_, t.ToString()));
+        return *this;
+      }
+      if (out != nullptr) {
+        *out = c;
+      }
+    } else {
+      // Not a channel type.
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to '%s' to be a channel; got %s",
+                          argno, name_, t.ToString()));
+    }
+    return *this;
+  }
+  Checker& IsSendChan(int64_t argno, const ChannelType** out = nullptr) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& t = GetArgType(argno);
+    if (auto* c = dynamic_cast<const ChannelType*>(&t)) {
+      if (c->direction() != ChannelDirection::kOut) {
+        status_ = TypeInferenceErrorStatus(
+            span_, &t,
+            absl::StrFormat("Want argument %d to '%s' to be an 'out' (send) "
+                            "channel; got %s",
+                            argno, name_, t.ToString()));
+        return *this;
+      }
+      if (out != nullptr) {
+        *out = c;
+      }
+    } else {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to '%s' to be a channel; got %s",
+                          argno, name_, t.ToString()));
+    }
+    return *this;
+  }
   Checker& IsArray(int64_t argno, const ArrayType** out = nullptr) {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = *arg_types_[argno];
+    const ConcreteType& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const ArrayType*>(&t)) {
       if (out != nullptr) {
         *out = a;
@@ -132,7 +195,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = *arg_types_[argno];
+    const ConcreteType& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const BitsType*>(&t)) {
       if (out != nullptr) {
         *out = a;
@@ -149,7 +212,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = *arg_types_[argno];
+    const ConcreteType& t = GetArgType(argno);
     if (auto* a = dynamic_cast<const BitsType*>(&t);
         a == nullptr || a->is_signed()) {
       status_ = TypeInferenceErrorStatus(
@@ -159,8 +222,21 @@ class Checker {
     }
     return *this;
   }
+  Checker& IsBool(int64_t argno) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& t = GetArgType(argno);
+    if (t != *BitsType::MakeU1()) {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to be a bool; got %s", argno,
+                          t.ToString()));
+    }
+    return *this;
+  }
   Checker& CheckIsBits(const ConcreteType& t,
-                       const std::function<std::string()> make_msg) {
+                       const std::function<std::string()>& make_msg) {
     if (!status_.ok()) {
       return *this;
     }
@@ -170,7 +246,7 @@ class Checker {
     return *this;
   }
   Checker& CheckIsLen(const ArrayType& t, int64_t target,
-                      const std::function<std::string()> make_msg) {
+                      const std::function<std::string()>& make_msg) {
     if (!status_.ok()) {
       return *this;
     }
@@ -183,7 +259,7 @@ class Checker {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& t = *arg_types_[argno];
+    const ConcreteType& t = GetArgType(argno);
     if (auto* bits = dynamic_cast<const BitsType*>(&t);
         bits == nullptr || bits->size() != ConcreteTypeDim::CreateU32(1)) {
       status_ = TypeInferenceErrorStatus(
@@ -194,7 +270,7 @@ class Checker {
     return *this;
   }
   Checker& TypesAreSame(const ConcreteType& t, const ConcreteType& u,
-                        const std::function<std::string()> make_msg) {
+                        const std::function<std::string()>& make_msg) {
     if (!status_.ok()) {
       return *this;
     }
@@ -204,12 +280,22 @@ class Checker {
     }
     return *this;
   }
+  Checker& ArgSameType(int64_t argno, const ConcreteType& want) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& got = GetArgType(argno);
+    return TypesAreSame(got, want, [&] {
+      return absl::StrFormat("Want argument %d to '%s' to have type %s; got %s",
+                             argno, name_, want.ToString(), got.ToString());
+    });
+  }
   Checker& ArgsSameType(int64_t argno0, int64_t argno1) {
     if (!status_.ok()) {
       return *this;
     }
-    const ConcreteType& lhs = *arg_types_[argno0];
-    const ConcreteType& rhs = *arg_types_[argno1];
+    const ConcreteType& lhs = GetArgType(argno0);
+    const ConcreteType& rhs = GetArgType(argno1);
     return TypesAreSame(lhs, rhs, [&] {
       return absl::StrFormat(
           "Want arguments %d and %d to '%s' to be of the same type; got %s vs "
@@ -221,12 +307,155 @@ class Checker {
   const absl::Status& status() const { return status_; }
 
  private:
-  ArgTypes arg_types_;
+  const ConcreteType& GetArgType(int64_t argno) const {
+    const ConcreteType* t = arg_types_.at(argno);
+    XLS_CHECK(t != nullptr);
+    return *t;
+  }
+
+  absl::Span<const ConcreteType* const> arg_types_;
   std::string_view name_;
   const Span& span_;
   absl::Status status_;
   DeduceCtx& deduce_ctx_;
 };
+
+absl::StatusOr<TypeAndBindings> CheckRecvSignature(const SignatureData& data,
+                                                   DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(2)
+                     .IsToken(0)
+                     .IsRecvChan(1, &chan_type);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  auto return_type = TupleType::Create2(
+      std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique());
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
+
+absl::StatusOr<TypeAndBindings> CheckRecvNonBlockingSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(3)
+                     .IsToken(0)
+                     .IsRecvChan(1, &chan_type);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  checker.ArgSameType(2, chan_type->payload_type());
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  auto return_type = TupleType::Create3(
+      std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique(),
+      BitsType::MakeU1());
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
+
+absl::StatusOr<TypeAndBindings> CheckRecvIfSignature(const SignatureData& data,
+                                                     DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(4)
+                     .IsToken(0)
+                     .IsRecvChan(1, &chan_type)
+                     .IsBool(2);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  checker.ArgSameType(3, chan_type->payload_type());
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  auto return_type = TupleType::Create2(
+      std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique());
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
+
+absl::StatusOr<TypeAndBindings> CheckRecvIfNonBlockingSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(4)
+                     .IsToken(0)
+                     .IsRecvChan(1, &chan_type)
+                     .IsBool(2);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  checker.ArgSameType(3, chan_type->payload_type());
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  auto return_type = TupleType::Create3(
+      std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique(),
+      BitsType::MakeU1());
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
+
+absl::StatusOr<TypeAndBindings> CheckSendSignature(const SignatureData& data,
+                                                   DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(3)
+                     .IsToken(0)
+                     .IsSendChan(1, &chan_type);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  checker.ArgSameType(2, chan_type->payload_type());
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::make_unique<TokenType>())};
+}
+
+absl::StatusOr<TypeAndBindings> CheckSendIfSignature(const SignatureData& data,
+                                                     DeduceCtx* ctx) {
+  const ChannelType* chan_type = nullptr;
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                     .Len(4)
+                     .IsToken(0)
+                     .IsSendChan(1, &chan_type)
+                     .IsBool(2);
+
+  // Note: we can't access chan_type if the checking failed, so we have to
+  // check for an error status / early return here.
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  checker.ArgSameType(3, chan_type->payload_type());
+  XLS_RETURN_IF_ERROR(checker.status());
+
+  auto return_type = std::make_unique<TokenType>();
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
+
+absl::StatusOr<TypeAndBindings> CheckJoinSignature(const SignatureData& data,
+                                                   DeduceCtx* ctx) {
+  auto checker = Checker(data.arg_types, data.name, data.span, *ctx);
+  for (size_t i = 0; i < data.arg_types.size(); ++i) {
+    checker.IsToken(i);
+  }
+  XLS_RETURN_IF_ERROR(checker.status());
+  auto return_type = std::make_unique<TokenType>();
+  return TypeAndBindings{std::make_unique<FunctionType>(
+      CloneToUnique(data.arg_types), std::move(return_type))};
+}
 
 void PopulateSignatureToLambdaMap(
     absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
@@ -672,6 +901,22 @@ void PopulateSignatureToLambdaMap(
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
+  // recv
+  map["(token, recv_chan<T>) -> (token, T)"] = CheckRecvSignature;
+  // recv_non_blocking
+  map["(token, recv_chan<T>, T) -> (token, T, bool)"] =
+      CheckRecvNonBlockingSignature;
+  // recv_if
+  map["(token, recv_chan<T>, bool, T) -> (token, T)"] = CheckRecvIfSignature;
+  // recv_if_non_blocking
+  map["(token, recv_chan<T>, bool, T) -> (token, T, bool)"] =
+      CheckRecvIfNonBlockingSignature;
+  // send
+  map["(token, send_chan<T>, T) -> token"] = CheckSendSignature;
+  // send_if
+  map["(token, send_chan<T>, bool, T) -> token"] = CheckSendIfSignature;
+  // join
+  map["(token...) -> token"] = CheckJoinSignature;
 }
 
 const absl::flat_hash_map<std::string, SignatureFn>& GetSignatureToLambdaMap() {

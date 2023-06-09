@@ -216,16 +216,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(FormatMacro)
   NO_TRAVERSE_DISPATCH_VISIT(Index)
   NO_TRAVERSE_DISPATCH_VISIT(Invocation)
-  NO_TRAVERSE_DISPATCH_VISIT(Join)
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Range)
-  NO_TRAVERSE_DISPATCH_VISIT(Recv)
-  NO_TRAVERSE_DISPATCH_VISIT(RecvIf)
-  NO_TRAVERSE_DISPATCH_VISIT(RecvIfNonBlocking)
-  NO_TRAVERSE_DISPATCH_VISIT(RecvNonBlocking)
-  NO_TRAVERSE_DISPATCH_VISIT(Send)
-  NO_TRAVERSE_DISPATCH_VISIT(SendIf)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Statement)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
@@ -1642,6 +1635,27 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   if (called_name == "map") {
     return HandleMap(node).status();
   }
+  if (called_name == "send") {
+    return HandleBuiltinSend(node);
+  }
+  if (called_name == "send_if") {
+    return HandleBuiltinSendIf(node);
+  }
+  if (called_name == "recv") {
+    return HandleBuiltinRecv(node);
+  }
+  if (called_name == "recv_if") {
+    return HandleBuiltinRecvIf(node);
+  }
+  if (called_name == "recv_non_blocking") {
+    return HandleBuiltinRecvNonBlocking(node);
+  }
+  if (called_name == "recv_if_non_blocking") {
+    return HandleBuiltinRecvIfNonBlocking(node);
+  }
+  if (called_name == "join") {
+    return HandleBuiltinJoin(node);
+  }
 
   // The rest of the builtins have "handle" methods we can resolve.
   absl::flat_hash_map<std::string,
@@ -1681,7 +1695,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   return (this->*f)(node);
 }
 
-absl::Status FunctionConverter::HandleSend(const Send* node) {
+absl::Status FunctionConverter::HandleBuiltinSend(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1690,26 +1704,28 @@ absl::Status FunctionConverter::HandleSend(const Send* node) {
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  XLS_RETURN_IF_ERROR(Visit(node->payload()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Send channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* payload = node->args()[2];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  XLS_RETURN_IF_ERROR(Visit(payload));
+  IrValue ir_value = node_to_ir_[channel];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  BValue result = builder_ptr->Send(std::get<Channel*>(ir_value), token, data);
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
+  BValue result =
+      builder_ptr->Send(std::get<Channel*>(ir_value), token_value, data_value);
   node_to_ir_[node] = result;
   tokens_.push_back(result);
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
+absl::Status FunctionConverter::HandleBuiltinSendIf(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1718,25 +1734,27 @@ absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Send channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  Expr* token = node->args()[0];
+  Expr* channel = node->args()[1];
+  Expr* predicate = node->args()[2];
+  Expr* payload = node->args()[3];
+
+  XLS_RETURN_IF_ERROR(Visit(token));
+  XLS_RETURN_IF_ERROR(Visit(channel));
+  IrValue ir_value = node_to_ir_[channel];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->condition()));
-  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
+  XLS_ASSIGN_OR_RETURN(BValue token_value, Use(token));
+  XLS_RETURN_IF_ERROR(Visit(predicate));
+  XLS_ASSIGN_OR_RETURN(BValue predicate_value, Use(predicate));
 
-  XLS_RETURN_IF_ERROR(Visit(node->payload()));
-  XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  BValue result =
-      builder_ptr->SendIf(std::get<Channel*>(ir_value), token, predicate, data);
+  XLS_RETURN_IF_ERROR(Visit(payload));
+  XLS_ASSIGN_OR_RETURN(BValue data_value, Use(payload));
+  BValue result = builder_ptr->SendIf(std::get<Channel*>(ir_value), token_value,
+                                      predicate_value, data_value);
   node_to_ir_[node] = result;
   tokens_.push_back(result);
   return absl::OkStatus();
@@ -1774,7 +1792,7 @@ absl::Status FunctionConverter::HandleRange(const Range* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecv(const Recv* node) {
+absl::Status FunctionConverter::HandleBuiltinRecv(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1783,18 +1801,15 @@ absl::Status FunctionConverter::HandleRecv(const Recv* node) {
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Recv channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  IrValue ir_value = node_to_ir_[node->args()[1]];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
   BValue value = builder_ptr->Receive(std::get<Channel*>(ir_value), token);
   BValue token_value = builder_ptr->TupleIndex(value, 0);
   tokens_.push_back(token_value);
@@ -1802,8 +1817,8 @@ absl::Status FunctionConverter::HandleRecv(const Recv* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecvNonBlocking(
-    const RecvNonBlocking* node) {
+absl::Status FunctionConverter::HandleBuiltinRecvNonBlocking(
+    const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1812,20 +1827,17 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Recv channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  IrValue ir_value = node_to_ir_[node->args()[1]];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
-  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[2]));
 
   BValue recv =
       builder_ptr->ReceiveNonBlocking(std::get<Channel*>(ir_value), token);
@@ -1846,7 +1858,7 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
+absl::Status FunctionConverter::HandleBuiltinRecvIf(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1855,23 +1867,20 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Recv channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  IrValue ir_value = node_to_ir_[node->args()[1]];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->condition()));
-  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[2]));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[3]));
 
   BValue recv =
       builder_ptr->ReceiveIf(std::get<Channel*>(ir_value), token, predicate);
@@ -1889,8 +1898,8 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecvIfNonBlocking(
-    const RecvIfNonBlocking* node) {
+absl::Status FunctionConverter::HandleBuiltinRecvIfNonBlocking(
+    const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1899,23 +1908,20 @@ absl::Status FunctionConverter::HandleRecvIfNonBlocking(
         "we seem to be in function conversion.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->token()));
-  XLS_RETURN_IF_ERROR(Visit(node->channel()));
-  if (!node_to_ir_.contains(node->channel())) {
-    return absl::InternalError("Recv channel not found!");
-  }
-  IrValue ir_value = node_to_ir_[node->channel()];
+  XLS_RETURN_IF_ERROR(Visit(node->args()[0]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[1]));
+  IrValue ir_value = node_to_ir_[node->args()[1]];
   if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
-  XLS_RETURN_IF_ERROR(Visit(node->condition()));
-  XLS_RETURN_IF_ERROR(Visit(node->default_value()));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[2]));
+  XLS_RETURN_IF_ERROR(Visit(node->args()[3]));
 
-  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
-  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->default_value()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[2]));
+  XLS_ASSIGN_OR_RETURN(BValue default_value, Use(node->args()[3]));
 
   BValue recv = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
                                                   token, predicate);
@@ -1935,7 +1941,7 @@ absl::Status FunctionConverter::HandleRecvIfNonBlocking(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleJoin(const Join* node) {
+absl::Status FunctionConverter::HandleBuiltinJoin(const Invocation* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -1945,8 +1951,8 @@ absl::Status FunctionConverter::HandleJoin(const Join* node) {
   }
 
   std::vector<BValue> ir_tokens;
-  ir_tokens.reserve(node->tokens().size());
-  for (auto* token : node->tokens()) {
+  ir_tokens.reserve(node->args().size());
+  for (Expr* token : node->args()) {
     XLS_RETURN_IF_ERROR(Visit(token));
     XLS_ASSIGN_OR_RETURN(BValue ir_token, Use(token));
     ir_tokens.push_back(ir_token);

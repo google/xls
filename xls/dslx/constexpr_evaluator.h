@@ -71,32 +71,11 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleZeroMacro(const ZeroMacro* expr) override;
   absl::Status HandleIndex(const Index* expr) override;
   absl::Status HandleInvocation(const Invocation* expr) override;
-  absl::Status HandleJoin(const Join* expr) override {
-    return absl::OkStatus();
-  }
   absl::Status HandleLet(const Let* expr) override { return absl::OkStatus(); }
   absl::Status HandleMatch(const Match* expr) override;
   absl::Status HandleNameRef(const NameRef* expr) override;
   absl::Status HandleNumber(const Number* expr) override;
   absl::Status HandleRange(const Range* expr) override;
-  absl::Status HandleRecv(const Recv* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvIf(const RecvIf* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleSend(const Send* expr) override {
-    return absl::OkStatus();
-  }
-  absl::Status HandleSendIf(const SendIf* expr) override {
-    return absl::OkStatus();
-  }
   absl::Status HandleSpawn(const Spawn* expr) override {
     return absl::OkStatus();
   }

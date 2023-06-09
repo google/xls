@@ -364,19 +364,6 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleJoin(const Join* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-
-    std::vector<Expr*> new_tokens;
-    new_tokens.reserve(n->tokens().size());
-    for (const Expr* token : n->tokens()) {
-      new_tokens.push_back(down_cast<Expr*>(old_to_new_.at(token)));
-    }
-
-    old_to_new_[n] = module_->Make<Join>(n->span(), new_tokens);
-    return absl::OkStatus();
-  }
-
   absl::Status HandleLet(const Let* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -563,62 +550,6 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] = module_->Make<Range>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->start())),
         down_cast<Expr*>(old_to_new_.at(n->end())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleRecv(const Recv* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Recv>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<RecvNonBlocking>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->default_value())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleRecvIf(const RecvIf* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<RecvIf>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->condition())),
-        down_cast<Expr*>(old_to_new_.at(n->default_value())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<RecvIfNonBlocking>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->condition())),
-        down_cast<Expr*>(old_to_new_.at(n->default_value())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleSend(const Send* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<Send>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->payload())));
-    return absl::OkStatus();
-  }
-
-  absl::Status HandleSendIf(const SendIf* n) override {
-    XLS_RETURN_IF_ERROR(VisitChildren(n));
-    old_to_new_[n] = module_->Make<SendIf>(
-        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
-        down_cast<Expr*>(old_to_new_.at(n->channel())),
-        down_cast<Expr*>(old_to_new_.at(n->condition())),
-        down_cast<Expr*>(old_to_new_.at(n->payload())));
     return absl::OkStatus();
   }
 

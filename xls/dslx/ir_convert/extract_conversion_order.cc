@@ -461,29 +461,6 @@ class InvocationVisitor : public ExprVisitor {
     return expr->end()->AcceptExpr(this);
   }
 
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
-    return expr->default_value()->AcceptExpr(this);
-  }
-
-  absl::Status HandleRecvIf(const RecvIf* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    return expr->default_value()->AcceptExpr(this);
-  }
-
-  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    return expr->default_value()->AcceptExpr(this);
-  }
-
-  absl::Status HandleSend(const Send* expr) override {
-    return expr->payload()->AcceptExpr(this);
-  }
-
-  absl::Status HandleSendIf(const SendIf* expr) override {
-    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
-    return expr->payload()->AcceptExpr(this);
-  }
-
   absl::Status HandleSpawn(const Spawn* expr) override {
     XLS_RETURN_IF_ERROR(expr->callee()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->config()->AcceptExpr(this));
@@ -541,10 +518,8 @@ class InvocationVisitor : public ExprVisitor {
   DEFAULT_HANDLE(ChannelDecl)
   DEFAULT_HANDLE(ColonRef)
   DEFAULT_HANDLE(ConstRef)
-  DEFAULT_HANDLE(Join)
   DEFAULT_HANDLE(NameRef)
   DEFAULT_HANDLE(Number)
-  DEFAULT_HANDLE(Recv)
   DEFAULT_HANDLE(String)
   DEFAULT_HANDLE(UnrollFor)
 #undef DEFAULT_HANDLE

@@ -682,8 +682,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/proc_recv_if_reversed.x'
     )
-    self.assertIn('proc_recv_if_reversed.x:28:33-28:38', stderr)
-    self.assertIn(' uN[1] recv_if requires a channel argument', stderr)
+    self.assertIn('proc_recv_if_reversed.x:28:27-28:51', stderr)
+    self.assertIn(
+        "Want argument 1 to 'recv_if' to be a channel; got uN[1]", stderr
+    )
 
   def test_spawn_wrong_argc(self):
     stderr = self._run('xls/dslx/tests/errors/spawn_wrong_argc.x')

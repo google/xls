@@ -1335,10 +1335,15 @@ proc Parent {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 8);
   const std::vector<std::string> kConfigExpected = {
-      "load 0 @ test.x:8:6-8:7",       "load 1 @ test.x:8:9-8:10",
-      "cast uN[32] @ test.x:8:9-8:17", "load 1 @ test.x:8:20-8:21",
-      "load 2 @ test.x:8:24-8:25",     "cast uN[64] @ test.x:8:24-8:32",
-      "add @ test.x:8:22-8:23",        "create_tuple 3 @ test.x:8:5-8:34"};
+      "load 0 @ test.x:8:6-8:7",           //
+      "load 1 @ test.x:8:9-8:10",          //
+      "cast uN[32] @ test.x:8:9-8:17",     //
+      "load 1 @ test.x:8:20-8:21",         //
+      "load 2 @ test.x:8:24-8:25",         //
+      "cast uN[64] @ test.x:8:24-8:32",    //
+      "add @ test.x:8:22-8:23",            //
+      "create_tuple 3 @ test.x:8:5-8:34",  //
+  };
   for (int i = 0; i < config_bytecodes.size(); i++) {
     ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
   }
@@ -1357,9 +1362,9 @@ proc Parent {
   const std::vector<std::string> kNextExpected = {
       "load 3 @ test.x:16:25-16:28",
       "load 0 @ test.x:16:30-16:31",
-      "literal u1:1 @ test.x:16:20-16:32",
-      "literal u32:0 @ test.x:16:20-16:32",
-      "recv Child::c @ test.x:16:20-16:32",
+      "literal u1:1 @ test.x:16:24-16:32",
+      "literal u32:0 @ test.x:16:24-16:32",
+      "recv Child::c @ test.x:16:24-16:32",
       "expand_tuple @ test.x:16:9-16:17",
       "store 5 @ test.x:16:10-16:13",
       "store 6 @ test.x:16:15-16:16",

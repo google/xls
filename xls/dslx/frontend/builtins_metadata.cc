@@ -54,8 +54,14 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"signex", {"(xN[M], xN[N]) -> xN[N]", false}},
       {"slice", {"(T[M], uN[N], T[P]) -> T[P]", false}},
       {"trace!", {"(T) -> T", false}},
+
+      // Note: the macros we have AST nodes for.
+      //
+      // TODO(cdleary): 2023-06-01 I don't remember why, but there was a reason
+      // this seemed better than built-ins at the time.
       {"zero!", {.signature = "() -> T", .is_ast_node = true}},
       {"trace_fmt!", {.signature = "(T) -> T", .is_ast_node = true}},
+
       {"update", {"(T[N], uN[M], T) -> T[N]", false}},
       {"enumerate", {"(T[N]) -> (u32, T)[N]", false}},
 
@@ -67,6 +73,32 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       // Note this is a messed up type signature to need to support and should
       // really be replaced with known-statically-sized iota syntax.
       {"range", {"(const uN[N], const uN[N]) -> uN[N][R]", false}},
+
+      // send/recv (communication) builtins that can only be used within proc
+      // scope.
+      {"send",
+       {.signature = "(token, send_chan<T>, T) -> token",
+        .is_ast_node = false}},
+      {"send_if",
+       {.signature = "(token, send_chan<T>, bool, T) -> token",
+        .is_ast_node = false}},
+
+      {"recv",
+       {.signature = "(token, recv_chan<T>) -> (token, T)",
+        .is_ast_node = false}},
+      {"recv_if",
+       {.signature = "(token, recv_chan<T>, bool, T) -> (token, T)",
+        .is_ast_node = false}},
+
+      // non-blocking variants
+      {"recv_non_blocking",
+       {.signature = "(token, recv_chan<T>, T) -> (token, T, bool)",
+        .is_ast_node = false}},
+      {"recv_if_non_blocking",
+       {.signature = "(token, recv_chan<T>, bool, T) -> (token, T, bool)",
+        .is_ast_node = false}},
+
+      {"join", {.signature = "(token...) -> token", .is_ast_node = false}},
   };
 
   return *map;

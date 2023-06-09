@@ -70,11 +70,12 @@ proc entry {
     next (tok: token, state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr(
-                      "Default value type does not match channel type")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Want argument 3 to 'recv_if' to have type uN[32]; got uN[42]")));
 }
 
 TEST(TypecheckTest, InitDoesntMatchStateParam) {
@@ -125,10 +126,12 @@ proc foo {
     }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("send requires a channel argument")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Want argument 1 to 'send' to be a channel; got uN[32]")));
 }
 
 TEST(TypecheckTest, CantSendOnNonChannel) {
@@ -145,10 +148,12 @@ proc foo {
     }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("send requires a channel argument")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr(
+              "Want argument 1 to 'send' to be a channel; got uN[32]")));
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
@@ -178,10 +183,12 @@ proc entry {
     next (tok: token, state: ()) { () }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Cannot recv on an output channel.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Want argument 1 to 'recv' to be an 'in' (recv) "
+                             "channel; got chan(uN[32], dir=out)")));
 }
 
 TEST(TypecheckTest, CantSendOnOutputChannel) {
@@ -200,10 +207,12 @@ proc entry {
     }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("Cannot send on an input channel.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      status_testing::StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          testing::HasSubstr("Want argument 1 to 'send' to be an 'out' (send) "
+                             "channel; got chan(uN[32], dir=in)")));
 }
 
 TEST(TypecheckTest, CanUseZeroMacroInInitIssue943) {
@@ -223,6 +232,29 @@ proc foo {
 }
 )";
   XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
+TEST(TypecheckTest, SendWithBadTokenType) {
+  constexpr std::string_view kProgram = R"(
+proc entry {
+    p: chan<u32> out;
+    c: chan<u32> in;
+    init { () }
+    config() {
+        let (p, c) = chan<u32>;
+        (p, c)
+    }
+    next (tok: token, state: ()) {
+        let tok = send(u32:42, p, u32:0);
+        ()
+    }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr(
+                      "Want argument 0 to 'send' to be a token; got uN[32]")));
 }
 
 }  // namespace

@@ -1312,10 +1312,21 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinUpdate(bytecode);
     case Builtin::kXorReduce:
       return RunBuiltinXorReduce(bytecode);
-    default:
-      return absl::UnimplementedError(
-          absl::StrFormat("Builtin function \"%s\" not yet implemented.",
-                          BuiltinToString(builtin)));
+    // Implementation note: some of these operations are implemented via
+    // bytecodes; e.g. see `BytecodeEmitter::HandleBuiltin*`
+    case Builtin::kJoin:
+    case Builtin::kSend:
+    case Builtin::kSendIf:
+    case Builtin::kRecv:
+    case Builtin::kRecvIf:
+    case Builtin::kRecvNonBlocking:
+    case Builtin::kRecvIfNonBlocking:
+    case Builtin::kCheckedCast:
+    case Builtin::kWideningCast:
+    case Builtin::kSelect:
+      return absl::UnimplementedError(absl::StrFormat(
+          "BytecodeInterpreter: builtin function \"%s\" not yet implemented.",
+          BuiltinToString(builtin)));
   }
 }
 
