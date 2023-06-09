@@ -286,3 +286,18 @@ def load_external_repositories():
             "https://github.com/nlohmann/json/archive/refs/tags/v3.10.2.tar.gz",
         ],
     )
+
+    # 2023-06-09
+    http_archive(
+        name = "renode",
+        sha256 = "6ea7445344d56772bf527e935383ed90d8a3e5e8bef8649acb1b56e8edcba234",
+        strip_prefix = "renode_1.14.0+20230829git57762908_portable",
+        urls = ["https://builds.renode.io/renode-1.14.0+20230829git57762908.linux-portable.tar.gz"],
+        build_file = "@com_google_xls//dependency_support/renode:bundled.BUILD.bazel",
+        workspace_file_content = "workspace(name = 'renode')",
+        patches = [
+            "@com_google_xls//dependency_support/renode:axi_include.patch",
+            "@com_google_xls//dependency_support/renode:wishbone_include.patch",
+            "@com_google_xls//dependency_support/renode:renode_imports.h.patch",
+        ],
+    )

@@ -1,0 +1,24 @@
+index b983701..3fc0358 100644
+--- plugins/VerilatorIntegrationLibrary/src/buses/axi-slave.h
++++ plugins/VerilatorIntegrationLibrary/src/buses/axi-slave.h
+@@ -7,7 +7,7 @@
+ #ifndef AxiSlave_H
+ #define AxiSlave_H
+ #include "axi.h"
+-#include <src/renode_bus.h>
++#include "../renode_bus.h"
+ 
+ enum class AxiReadState  {AR, R};
+ enum class AxiWriteState {AW, W, B};
+index 0a85275..7d7412d 100644
+--- plugins/VerilatorIntegrationLibrary/src/buses/axi.h
++++ plugins/VerilatorIntegrationLibrary/src/buses/axi.h
+@@ -7,7 +7,7 @@
+ #ifndef Axi_H
+ #define Axi_H
+ #include "bus.h"
+-#include <src/renode_bus.h>
++#include "../renode_bus.h"
+ 
+ enum class AxiBurstType  {FIXED = 0, INCR = 1, WRAP = 2, RESERVED = 3};
+ 

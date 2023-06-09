@@ -1,0 +1,12 @@
+index 71e1b4d..83962a5 100644
+--- plugins/VerilatorIntegrationLibrary/src/buses/wishbone-initiator.h
++++ plugins/VerilatorIntegrationLibrary/src/buses/wishbone-initiator.h
+@@ -8,7 +8,7 @@
+ #ifndef WishboneInitiator_H
+ #define WishboneInitiator_H
+ 
+-#include "src/renode.h"
++#include "../renode.h"
+ #include "wishbone.h"
+ 
+ template <typename data_t, typename addr_t>

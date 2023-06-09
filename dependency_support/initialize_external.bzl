@@ -16,6 +16,7 @@
 
 load("//dependency_support/boost:initialize.bzl", initialize_boost = "initialize")
 load("//dependency_support/llvm:initialize.bzl", initialize_llvm = "initialize")
+load("//dependency_support/renode:initialize.bzl", initialize_renode = "initialize")
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 load("@com_grail_bazel_compdb//:deps.bzl", "bazel_compdb_deps")
@@ -48,4 +49,5 @@ def initialize_external_repositories():
     )
     initialize_boost()
     initialize_llvm()
+    initialize_renode()
     bazel_compdb_deps()
