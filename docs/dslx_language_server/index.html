@@ -17,7 +17,7 @@
         <link rel="next" href="../codegen_options/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.14">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.85bb2934.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
       
       
 
@@ -904,6 +904,40 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sublime-text" class="md-nav__link">
+    Sublime Text
+  </a>
+  
+    <nav class="md-nav" aria-label="Sublime Text">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-a-dslx-syntax" class="md-nav__link">
+    Create a DSLX syntax
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-lsp-package" class="md-nav__link">
+    Install LSP package
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-dslx-to-lsp-settings" class="md-nav__link">
+    Add DSLX to LSP settings
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#other-editors" class="md-nav__link">
     Other Editors
   </a>
@@ -1247,6 +1281,20 @@
 
             
           
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design_docs/proc_scoped_channels/" class="md-nav__link">
+        Proc-scoped channels
+      </a>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -1502,6 +1550,40 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#sublime-text" class="md-nav__link">
+    Sublime Text
+  </a>
+  
+    <nav class="md-nav" aria-label="Sublime Text">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#create-a-dslx-syntax" class="md-nav__link">
+    Create a DSLX syntax
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-lsp-package" class="md-nav__link">
+    Install LSP package
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#add-dslx-to-lsp-settings" class="md-nav__link">
+    Add DSLX to LSP settings
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#other-editors" class="md-nav__link">
     Other Editors
   </a>
@@ -1624,6 +1706,36 @@ piggy-backing on the Rust major mode.</p>
 </code></pre></div>
 <p>Additional details on Emacs enablement may be available in the
 <a href="https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor">Verible editor hook-up documentation</a>.</p>
+<h2 id="sublime-text">Sublime Text</h2>
+<h3 id="create-a-dslx-syntax">Create a DSLX syntax</h3>
+<p>Go to <code>Tools &gt; Developer &gt; New Syntax</code>, then replace values in the template:</p>
+<ul>
+<li>Change the <code>file_extensions</code> value to be <code>x</code></li>
+<li>Change scope to be <code>source.dslx</code></li>
+<li>Replace all <code>example-c</code> in the file with <code>dslx</code></li>
+</ul>
+<p>Now when you open a <code>.x</code> file it should show the syntax in the lower right-hand
+corner as <code>dslx</code>.</p>
+<h3 id="install-lsp-package">Install LSP package</h3>
+<p>Instructions for installing the LSP package are given in the
+<a href="https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#sublime">Verible documentation</a>.</p>
+<h3 id="add-dslx-to-lsp-settings">Add DSLX to LSP settings</h3>
+<p>Open the configuration via <code>Preferences &gt; Package Settings &gt; LSP &gt; Settings</code> and
+add the following client:</p>
+<div class="highlight"><pre><span></span><code>{
+    &quot;clients&quot;: {
+        &quot;dslx_ls&quot;: {
+          &quot;command&quot;: [&quot;dslx_ls&quot;],
+          &quot;enabled&quot;: true,
+          &quot;selector&quot;: &quot;source.dslx&quot;
+        }
+    }
+}
+</code></pre></div>
+<p>Now open <code>foo.x</code> and paste in:</p>
+<p><code>fn main() -&gt; u8 { u8:256 }</code></p>
+<p>There should be a red squiggle under the number <code>256</code> indicating that the value
+is out of range for a <code>u8</code>.</p>
 <h2 id="other-editors">Other Editors</h2>
 <p>For non-Vim editors, see the instructions provided by
 <a href="https://github.com/chipsalliance/verible/blob/master/verilog/tools/ls/README.md#hooking-up-to-editor">our sister project, Verible</a>.</p>

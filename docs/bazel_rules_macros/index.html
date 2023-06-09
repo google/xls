@@ -17,7 +17,7 @@
         <link rel="next" href="../tools_quick_start/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.14">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.85bb2934.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
       
       
 
@@ -1353,6 +1353,20 @@
 
             
           
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design_docs/proc_scoped_channels/" class="md-nav__link">
+        Proc-scoped channels
+      </a>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -2622,7 +2636,7 @@ converted, we use their mangled names to refer to them in the IR namespace.</p>
 <p><a id="xls_delay_model_generation"></a></p>
 <h2 id="xls_delay_model_generation">xls_delay_model_generation</h2>
 <pre>
-xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
+xls_delay_model_generation(<a href="#xls_delay_model_generation-name">name</a>, <a href="#xls_delay_model_generation-standard_cells">standard_cells</a>, <a href="#xls_delay_model_generation-samples_file">samples_file</a>, <a href="#xls_delay_model_generation-kwargs">kwargs</a>)
 </pre>
 
 <p>Generate an XLS delay model for one PDK corner.</p>
@@ -2662,6 +2676,11 @@ currently produced should be considered INCOMPLETE.</p>
 <td align="left">none</td>
 </tr>
 <tr>
+<td align="left"><a id="xls_delay_model_generation-samples_file"></a>samples_file</td>
+<td align="left"><p align="center"> - </p></td>
+<td align="left">none</td>
+</tr>
+<tr>
 <td align="left"><a id="xls_delay_model_generation-kwargs"></a>kwargs</td>
 <td align="left">Accepts add'l keyword arguments. Passed to native.genrule().</td>
 <td align="left">none</td>
@@ -2671,7 +2690,7 @@ currently produced should be considered INCOMPLETE.</p>
 <p><a id="xls_dslx_cpp_type_library"></a></p>
 <h2 id="xls_dslx_cpp_type_library">xls_dslx_cpp_type_library</h2>
 <pre>
-xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>)
+xls_dslx_cpp_type_library(<a href="#xls_dslx_cpp_type_library-name">name</a>, <a href="#xls_dslx_cpp_type_library-src">src</a>, <a href="#xls_dslx_cpp_type_library-namespace">namespace</a>)
 </pre>
 
 <p>Creates a cc_library target for transpiled DSLX types.</p>
@@ -2696,6 +2715,11 @@ a cc_library with its target name identical to this macro.</p>
 <td align="left"><a id="xls_dslx_cpp_type_library-src"></a>src</td>
 <td align="left">The DSLX file whose types to compile as C++.</td>
 <td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_cpp_type_library-namespace"></a>namespace</td>
+<td align="left">The C++ namespace to generate the code in (e.g., <code>foo::bar</code>).</td>
+<td align="left"><code>None</code></td>
 </tr>
 </tbody>
 </table>

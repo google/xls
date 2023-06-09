@@ -17,7 +17,7 @@
         <link rel="next" href="../dslx_std/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.14">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.85bb2934.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
       
       
 
@@ -1298,6 +1298,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#widening_cast-and-checked_cast" class="md-nav__link">
+    widening_cast and checked_cast
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#smulp-and-umulp" class="md-nav__link">
     smulp and umulp
   </a>
@@ -1849,6 +1856,20 @@
     <li class="md-nav__item">
       <a href="../design_docs/legalize_multiple_channel_ops_per_channel/" class="md-nav__link">
         Legalize Multiple Channel Ops Per Channel
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../design_docs/proc_scoped_channels/" class="md-nav__link">
+        Proc-scoped channels
       </a>
     </li>
   
@@ -2569,6 +2590,13 @@
           <li class="md-nav__item">
   <a href="#add_with_carry" class="md-nav__link">
     add_with_carry
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#widening_cast-and-checked_cast" class="md-nav__link">
+    widening_cast and checked_cast
   </a>
   
 </li>
@@ -4194,6 +4222,25 @@ languages, preserving the length of the input operands, so this builtin can
 assist when easy access to the carry out value is desired. Has the following
 signature:</p>
 <div class="highlight"><pre><span></span><code>fn add_with_carry&lt;N&gt;(x: uN[N], y: uN[N]) -&gt; (u1, uN[N])
+</code></pre></div>
+<h3 id="widening_cast-and-checked_cast"><code>widening_cast</code> and <code>checked_cast</code></h3>
+<p><code>widening_cast</code> and <code>checked_cast</code> cast bits-type values to bits-type values
+with additional checks compared to casting with <code>as</code>.</p>
+<p><code>widening_cast</code> will report a static error if the type casted to is unable to
+respresent all values of the type casted from (ex. <code>widening_cast&lt;u5&gt;(s3:0)</code>
+will fail because s3:-1 cannot be respresented as an unsigned number).</p>
+<p><code>checked_cast</code> will cause a runtime error during dslx interpretation if the
+value being casted is unable to fit within the type casted to (ex.
+<code>checked_cast&lt;u5&gt;(s3:0)</code> will succeed while <code>checked_cast&lt;u5&gt;(s3:-1)</code> will cause
+the dslx interpreter to fail.</p>
+<p>Currently both <code>widening_cast</code> and <code>checked_cast</code> will lower into a normal IR
+cast and will not generate additional assertions at the IR or Verilog level.</p>
+<div class="highlight"><pre><span></span><code>fn widening_cast&lt;sN[N]&gt;(value: uN[M]) -&gt; sN[N]; where N &gt; M
+fn widening_cast&lt;sN[N]&gt;(value: sN[M]) -&gt; sN[N]; where N &gt;= M
+fn widening_cast&lt;uN[N]&gt;(value: uN[M]) -&gt; uN[N]; where N &gt;= M
+
+fn checked_cast&lt;xN[M]&gt;(value: uN[N]) -&gt; xN[M]
+fn checked_cast&lt;xN[M]&gt;(value: sN[N]) -&gt; xN[M]
 </code></pre></div>
 <h3 id="smulp-and-umulp"><code>smulp</code> and <code>umulp</code></h3>
 <p><code>smulp</code> and <code>umulp</code> perform signed and unsigned partial multiplications. These
