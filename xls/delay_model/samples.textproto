@@ -28,45 +28,42 @@ op_samples {
   op: "kNot"
   samples { result_width: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64 }
 }
 op_samples {
   op: "kAnd"
   samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
 }
 # "kNand" alias "kAnd"
 op_samples {
   op: "kOr"
   samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
 }
 # "kNor" alias "kOr"
 op_samples {
   op: "kXor"
   samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
-  samples { result_width: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
 }
 
 # reductions
@@ -75,6 +72,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 4 }
   samples { result_width: 1  operand_widths: 8 }
   samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 32 }
   samples { result_width: 1  operand_widths: 64 }
   samples { result_width: 1  operand_widths: 128 }
 }
@@ -83,6 +81,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 4 }
   samples { result_width: 1  operand_widths: 8 }
   samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 32 }
   samples { result_width: 1  operand_widths: 64 }
   samples { result_width: 1  operand_widths: 128 }
 }
@@ -91,6 +90,7 @@ op_samples {
   samples { result_width: 1  operand_widths: 4 }
   samples { result_width: 1  operand_widths: 8 }
   samples { result_width: 1  operand_widths: 16 }
+  samples { result_width: 1  operand_widths: 32 }
   samples { result_width: 1  operand_widths: 64 }
   samples { result_width: 1  operand_widths: 128 }
 }
@@ -99,11 +99,7 @@ op_samples {
 # !!! These all give identical delay -- that is not right.
 # --> Yosys moves the sign bit fanout to AFTER the output flops
 #       (and eliminates the high-order output flops).
-# --> Can we turn off flop elim?
-# --> Yosys wreduce is responsible, but if you skip it,
-#     they still get removed in synth:fine.
-#     EVEN IF the wide reg is marked with "keep".
-# --> FIXME
+# TODO(https://github.com/google/xls/issues/999)
 op_samples {
   op: "kSignExt"
   attributes: "new_bit_count=%r"
@@ -123,14 +119,18 @@ op_samples {
 # "kZeroExt" free (fixed:0)
 
 
-
 op_samples {
   op: "kShll"
   samples { result_width: 256  operand_widths: 256  operand_widths: 8 }
   samples { result_width: 128  operand_widths: 128  operand_widths: 7 }
   samples { result_width: 64  operand_widths: 64  operand_widths: 6 }
   samples { result_width: 32  operand_widths: 32  operand_widths: 5 }
+  samples { result_width: 24  operand_widths: 24  operand_widths: 5 }
   samples { result_width: 16  operand_widths: 16  operand_widths: 4 }
+  samples { result_width: 12  operand_widths: 12  operand_widths: 4 }
+  samples { result_width: 8  operand_widths: 8  operand_widths: 3 }
+  samples { result_width: 6  operand_widths: 6  operand_widths: 3 }
+  samples { result_width: 4  operand_widths: 4  operand_widths: 2 }
 }
 # "kShra" "kShrl" alias "kShll"
 
@@ -241,7 +241,6 @@ op_samples {
   }
 }
 
-
 # TODO kArrayUpdate
 
 op_samples {
@@ -250,10 +249,16 @@ op_samples {
   samples { result_width: 512  operand_widths: 1  operand_widths: 512  operand_widths: 512 }
   samples { result_width: 128  operand_widths: 1  operand_widths: 128  operand_widths: 128 }
   samples { result_width: 64  operand_widths: 1  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 32  operand_widths: 1  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 16  operand_widths: 1  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 8  operand_widths: 1  operand_widths: 8  operand_widths: 8 }
   samples { result_width: 1024  operand_widths: 2  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024  operand_widths: 1024 }
   samples { result_width: 512  operand_widths: 2  operand_widths: 512  operand_widths: 512  operand_widths: 512  operand_widths: 512 }
   samples { result_width: 128  operand_widths: 2  operand_widths: 128  operand_widths: 128  operand_widths: 128  operand_widths: 128 }
   samples { result_width: 64  operand_widths: 2  operand_widths: 64  operand_widths: 64  operand_widths: 64  operand_widths: 64 }
+  samples { result_width: 32  operand_widths: 2  operand_widths: 32  operand_widths: 32  operand_widths: 32  operand_widths: 32 }
+  samples { result_width: 16  operand_widths: 2  operand_widths: 16  operand_widths: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 8  operand_widths: 2  operand_widths: 8  operand_widths: 8  operand_widths: 8  operand_widths: 8 }
 }
 
 op_samples {
@@ -304,6 +309,7 @@ op_samples {
   samples { result_width: 64  operand_widths: 6 }
   samples { result_width: 32  operand_widths: 5 }
   samples { result_width: 16  operand_widths: 4 }
+  samples { result_width: 8  operand_widths: 3 }
 }
 
 op_samples {
@@ -314,6 +320,7 @@ op_samples {
   samples { result_width: 6  operand_widths: 64 }
   samples { result_width: 5  operand_widths: 32 }
   samples { result_width: 4  operand_widths: 16 }
+  samples { result_width: 3  operand_widths: 8 }
 }
 
 op_samples {
@@ -350,7 +357,6 @@ op_samples {
   samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 3  operand_widths: 3  operand_widths: 3 }
   samples { result_width: 2  operand_widths: 2  operand_widths: 2 }
-  samples { result_width: 1  operand_widths: 1  operand_widths: 1 }
 }
 # "kSub" alias "kAdd"
 
@@ -379,7 +385,6 @@ op_samples {
 }
 op_samples {
   op: "kUMul"
-  samples { result_width: 2  operand_widths: 2  operand_widths: 2 }
   samples { result_width: 4  operand_widths: 4  operand_widths: 4 }
   samples { result_width: 6  operand_widths: 6  operand_widths: 6 }
   samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
@@ -448,6 +453,21 @@ op_samples {
 # "kNe" alias "kEq"
 
 
-# SKIP: kUDiv, kSDiv, kUMod, kSMod
+op_samples {
+  op: "kUDiv"
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 12  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
+}
+# "kUMod" alias "kUDiv"
+op_samples {
+  op: "kSDiv"
+  samples { result_width: 8  operand_widths: 8  operand_widths: 8 }
+  samples { result_width: 12  operand_widths: 12  operand_widths: 12 }
+  samples { result_width: 16  operand_widths: 16  operand_widths: 16 }
+  samples { result_width: 32  operand_widths: 32  operand_widths: 32 }
+}
+# "kSMod" alias "kSDiv"
+
 # Skip (free): bit_slice, concat, reverse, tuple, tuple_index
-# TODO Channel ops?

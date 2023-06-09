@@ -250,6 +250,60 @@ op_models {
 op_models { op: "kSMulp" estimator { alias_op: "kUMulp" } }
 
 op_models {
+  op: "kUDiv"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+      expressions {
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+      }
+    }
+  }
+}
+op_models { op: "kUMod" estimator { alias_op: "kUDiv" } }
+
+op_models {
+  op: "kSDiv"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+      expressions {
+        bin_op: MULTIPLY
+        lhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+        rhs_expression {
+          factor {
+            source: OPERAND_BIT_COUNT
+          }
+        }
+      }
+    }
+  }
+}
+op_models { op: "kSMod" estimator { alias_op: "kSDiv" } }
+
+op_models {
   op: "kShll"
   estimator {
     regression {
