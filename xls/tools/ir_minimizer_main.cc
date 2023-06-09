@@ -27,10 +27,8 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node_util.h"
-#include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
@@ -132,6 +130,10 @@ ABSL_FLAG(std::vector<std::string>, preserve_channels, {},
 ABSL_FLAG(std::string, top, "",
           "The name of the top entity. Currently, only procs and functions are "
           "supported. Entry function to use during minimization.");
+ABSL_FLAG(int64_t, simplifications_between_tests, 1,
+          "Number of simplifications to do in-between tests. Increasing this "
+          "value may speed minimization for large designs, especially when "
+          "--test_executable is long-running.");
 
 namespace xls {
 namespace {
@@ -741,9 +743,9 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(std::string_view path,
-                      const int64_t failed_attempt_limit,
-                      const int64_t total_attempt_limit) {
+absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
+                      const int64_t total_attempt_limit,
+                      const int64_t simplifications_between_tests) {
   XLS_ASSIGN_OR_RETURN(std::string knownf_ir_text, GetFileContents(path));
   // Cache of test results to avoid duplicate invocations of the
   // test_executable.
@@ -787,9 +789,11 @@ absl::Status RealMain(std::string_view path,
   // If so, we start simplifying via this seeded RNG.
   std::mt19937 rng;  // Default constructor uses deterministic seed.
 
-  // Smallest version of the function that's known to be failing.
   int64_t failed_simplification_attempts = 0;
   int64_t total_attempts = 0;
+  int64_t simplification_iterations = 0;
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       ParsePackage(knownf_ir_text));
 
   while (true) {
     if (failed_simplification_attempts >= failed_attempt_limit) {
@@ -807,8 +811,6 @@ absl::Status RealMain(std::string_view path,
 
     XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
 
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                         ParsePackage(knownf_ir_text));
     FunctionBase* candidate = package->GetTop().value();
     XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
@@ -841,6 +843,12 @@ absl::Status RealMain(std::string_view path,
     XLS_VLOG_LINES(2, "=== After simplification [" + which_transform + "]\n" +
                           candidate->DumpIr());
 
+    simplification_iterations++;
+    if (simplification_iterations < simplifications_between_tests) {
+      continue;
+    }
+    simplification_iterations = 0;
+
     std::string candidate_ir_text = package->DumpIr();
     XLS_ASSIGN_OR_RETURN(bool still_fails,
                          StillFails(candidate_ir_text, inputs, &test_cache));
@@ -852,6 +860,7 @@ absl::Status RealMain(std::string_view path,
       // That simplification caused it to stop failing, but keep going with the
       // last known failing version and seeing if we can find something else
       // from there.
+      XLS_ASSIGN_OR_RETURN(package, ParsePackage(knownf_ir_text));
       continue;
     }
 
@@ -868,8 +877,9 @@ absl::Status RealMain(std::string_view path,
 
     std::cerr << "---\ntransform: " << which_transform << "\n"
               << (candidate->node_count() > 50 ? "" : candidate->DumpIr())
-              << "(" << candidate->node_count() << " nodes)" << std::endl;
+              << "(" << candidate->node_count() << " nodes)\n";
 
+    XLS_ASSIGN_OR_RETURN(package, ParsePackage(knownf_ir_text));
     failed_simplification_attempts = 0;
   }
 
@@ -899,9 +909,10 @@ int main(int argc, char** argv) {
              absl::GetFlag(FLAGS_test_llvm_jit))
       << "Must specify either --test_executable or --test_llvm_jit";
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0],
-                              absl::GetFlag(FLAGS_failed_attempt_limit),
-                              absl::GetFlag(FLAGS_total_attempt_limit)));
+  XLS_QCHECK_OK(xls::RealMain(
+      positional_arguments[0], absl::GetFlag(FLAGS_failed_attempt_limit),
+      absl::GetFlag(FLAGS_total_attempt_limit),
+      absl::GetFlag(FLAGS_simplifications_between_tests)));
 
   return EXIT_SUCCESS;
 }

@@ -383,6 +383,38 @@ top fn foo() -> (bits[1], (bits[42]), bits[32]) {
     # All tuple elements but bits[42] should be removed.
     self.assertIn(': ((bits[42])) = literal', minimized_ir.decode('utf-8'))
 
+  def test_proc_works_with_multiple_simplifications_between_tests(self):
+    ir_file = self.create_tempfile(content=ADD_IR)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, ['/usr/bin/env grep add $1'])
+    # Minimizing with small simplifcations_between_tests should work.
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--simplifications_between_tests=2',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
+    self.assertNotIn('not', minimized_ir)
+
+    # Minimizing with large simplifications_between_tests won't work for this
+    # small example (it will remove everything), so check that the IR is
+    # unchanged.
+    minimized_ir = subprocess.check_output(
+        [
+            IR_MINIMIZER_MAIN_PATH,
+            '--test_executable=' + test_sh_file.full_path,
+            '--can_remove_params',
+            '--simplifications_between_tests=100',
+            ir_file.full_path,
+        ],
+        encoding='utf-8',
+    )
+    self.assertEqual(ADD_IR, minimized_ir)
+
 
 if __name__ == '__main__':
   absltest.main()
