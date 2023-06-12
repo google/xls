@@ -115,7 +115,7 @@ BytecodeEmitter::~BytecodeEmitter() = default;
 
 absl::Status BytecodeEmitter::Init(const Function* f) {
   for (const auto* param : f->params()) {
-    namedef_to_slot_[param->name_def()] = namedef_to_slot_.size();
+    namedef_to_slot_[param->name_def()] = next_slotno_++;
   }
 
   return absl::OkStatus();
@@ -136,7 +136,7 @@ BytecodeEmitter::EmitProcNext(
     const std::vector<NameDef*>& proc_members) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
   for (const NameDef* name_def : proc_members) {
-    emitter.namedef_to_slot_[name_def] = emitter.namedef_to_slot_.size();
+    emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
   }
   XLS_RETURN_IF_ERROR(emitter.Init(f));
   XLS_RETURN_IF_ERROR(f->body()->AcceptExpr(&emitter));
@@ -276,7 +276,7 @@ BytecodeEmitter::EmitExpression(
       continue;
     }
 
-    int64_t slot_index = emitter.namedef_to_slot_.size();
+    int64_t slot_index = emitter.next_slotno_++;
     emitter.namedef_to_slot_[name_def] = slot_index;
     emitter.Add(Bytecode::MakeLiteral(expr->span(), env.at(identifier)));
     emitter.Add(
@@ -861,30 +861,12 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   ConcreteTypeDim iterable_size_dim = array_type->size();
   XLS_ASSIGN_OR_RETURN(int64_t iterable_size, iterable_size_dim.GetAsInt64());
 
-  // A `for` loop defines a new scope, meaning that any names defined in that
-  // scope (i.e., NameDefs) aren't valid outside the loop (i.e., they shouldn't
-  // be present in namedef_to_slot_.). To accomplish this, we create a
-  // new namedef_to_slot_ and restrict its lifetime to the loop instructions
-  // only. Once the loops scope ends, the previous map is restored.
-  absl::flat_hash_map<const NameDef*, int64_t> old_namedef_to_slot =
-      namedef_to_slot_;
-  absl::Cleanup cleanup = [this, &old_namedef_to_slot]() {
-    namedef_to_slot_ = old_namedef_to_slot;
-  };
-
-  // We need a means of referencing the loop index and accumulator in the
-  // namedef_to_slot_ map, so we pretend that they're NameDefs for uniqueness.
-  size_t iterable_slot = namedef_to_slot_.size();
-  const NameDef* fake_name_def =
-      reinterpret_cast<const NameDef*>(node->iterable());
-  namedef_to_slot_[fake_name_def] = iterable_slot;
+  size_t iterable_slot = next_slotno_++;
   XLS_RETURN_IF_ERROR(node->iterable()->AcceptExpr(this));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(iterable_slot)));
 
-  size_t index_slot = namedef_to_slot_.size();
-  fake_name_def = reinterpret_cast<const NameDef*>(node);
-  namedef_to_slot_[fake_name_def] = index_slot;
+  size_t index_slot = next_slotno_++;
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(0)));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
@@ -1168,7 +1150,7 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
               return Bytecode::MatchArmItem::MakeInterpValue(value);
             },
             [&](NameDef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
-              int64_t slot_index = namedef_to_slot_.size();
+              int64_t slot_index = next_slotno_++;
               namedef_to_slot_[n] = slot_index;
               return Bytecode::MatchArmItem::MakeStore(
                   Bytecode::SlotIndex(slot_index));
@@ -1199,7 +1181,7 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
 
     NameDef* name_def = std::get<NameDef*>(tree->leaf());
     if (!namedef_to_slot_.contains(name_def)) {
-      namedef_to_slot_.insert({name_def, namedef_to_slot_.size()});
+      namedef_to_slot_.insert({name_def, next_slotno_++});
     }
     int64_t slot = namedef_to_slot_.at(name_def);
     Add(Bytecode::MakeStore(tree->span(), Bytecode::SlotIndex(slot)));
@@ -1531,8 +1513,9 @@ absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
 
   for (size_t arm_idx = 0; arm_idx < node->arms().size(); ++arm_idx) {
     auto outer_scope_slots = namedef_to_slot_;
-    auto cleanup = absl::MakeCleanup(
-        [this, &outer_scope_slots]() { namedef_to_slot_ = outer_scope_slots; });
+    absl::Cleanup cleanup = [this, &outer_scope_slots]() {
+      namedef_to_slot_ = outer_scope_slots;
+    };
 
     MatchArm* arm = node->arms()[arm_idx];
     arm_offsets.push_back(bytecode_.size());

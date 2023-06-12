@@ -133,6 +133,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   std::vector<Bytecode> bytecode_;
   absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot_;
+  int64_t next_slotno_ = 0;
 };
 
 }  // namespace xls::dslx
