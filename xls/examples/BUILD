@@ -14,9 +14,10 @@
 
 # Build rules for XLS examples.
 
-load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
 load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 load("@rules_hdl//synthesis:build_defs.bzl", "benchmark_synth", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
@@ -454,7 +455,16 @@ verilog_library(
 )
 
 synthesize_rtl(
-    name = "find_index_5000ps_model_unit_verilog_synth",
+    name = "find_index_5000ps_model_unit_verilog_synth_sky130",
+    top_module = "find_index",
+    deps = [
+        ":find_index_5000ps_model_unit_verilog",
+    ],
+)
+
+synthesize_rtl(
+    name = "find_index_5000ps_model_unit_verilog_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt",
     top_module = "find_index",
     deps = [
         ":find_index_5000ps_model_unit_verilog",
@@ -693,13 +703,37 @@ verilog_library(
 )
 
 place_and_route(
-    name = "find_index_place_and_route",
-    # ~64 MhZ
-    clock_period = "15.42857143",
-    core_padding_microns = 30,
-    placement_density = "0.8",
-    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
-    target_die_utilization_percentage = "30",
+    name = "find_index_place_and_route_sky130",
+    # ~1.43 GHZ
+    clock_period = "0.70", # units of clock period for SKY130 are nanoseconds
+    core_padding_microns = 2,
+    placement_density = "0.95",
+    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_sky130",
+    die_width_microns = 45,
+    die_height_microns = 45,
+    min_pin_distance = "2",
+)
+
+gds_write(
+    name = "find_index_gds_sky130",
+    implemented_rtl = ":find_index_place_and_route_sky130",
+)
+
+place_and_route(
+    name = "find_index_place_and_route_asap7",
+    # ~3 GHz
+    clock_period = "325", # units of clock period for ASAP7 are picoseconds
+    core_padding_microns = 1,
+    placement_density = "0.95",
+    synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth_asap7",
+    die_width_microns = 7,
+    die_height_microns = 7,
+    min_pin_distance = "0.2",
+)
+
+gds_write(
+    name = "find_index_gds_asap7",
+    implemented_rtl = ":find_index_place_and_route_asap7",
 )
 
 xls_dslx_library(
