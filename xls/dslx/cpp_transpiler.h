@@ -20,10 +20,8 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 

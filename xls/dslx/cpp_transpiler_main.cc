@@ -18,7 +18,6 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -42,6 +41,7 @@ ABSL_FLAG(std::string, dslx_stdlib_path, xls::kDefaultDslxStdlibPath,
 
 namespace xls {
 namespace dslx {
+namespace {
 
 const char* kUsage = R"(
 Parses the specified module and emits corresponding C++ declarations for the
@@ -52,11 +52,11 @@ At present, only a single module file is supported (i.e., no colon refs to other
 modules).
 )";
 
-static absl::Status RealMain(const std::filesystem::path& module_path,
-                             const std::filesystem::path& dslx_stdlib_path,
-                             std::string_view output_header_path,
-                             std::string_view output_source_path,
-                             std::string_view namespaces) {
+absl::Status RealMain(const std::filesystem::path& module_path,
+                      const std::filesystem::path& dslx_stdlib_path,
+                      std::string_view output_header_path,
+                      std::string_view output_source_path,
+                      std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
   ImportData import_data(
@@ -74,11 +74,13 @@ static absl::Status RealMain(const std::filesystem::path& module_path,
   return absl::OkStatus();
 }
 
+}  // namespace
 }  // namespace dslx
 }  // namespace xls
 
 int main(int argc, char* argv[]) {
-  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args =
+      xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.size() != 1) {
     XLS_LOG(QFATAL) << "A single module file must be specified.";
   }

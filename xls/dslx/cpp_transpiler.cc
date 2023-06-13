@@ -73,16 +73,16 @@ std::string CheckedCamelize(std::string_view input) {
 
   size_t pos = input.find_first_of('[');
   std::string suffix;
-  if (pos != input.npos) {
+  if (pos != std::string::npos) {
     suffix = input.substr(pos);
     input = input.substr(0, pos);
   }
 
   // If this check grows much more complicated, it might make sense to RE2-ify
   // it.
-  if (input == "int8_t" || input == "uint8_t" || input == "int16_t" ||
-      input == "uint16_t" || input == "int32_t" || input == "uint32_t" ||
-      input == "int64_t" || input == "uint64_t") {
+  if (input == "bool" || input == "int8_t" || input == "uint8_t" ||
+      input == "int16_t" || input == "uint16_t" || input == "int32_t" ||
+      input == "uint32_t" || input == "int64_t" || input == "uint64_t") {
     return std::string(input) + suffix;
   }
 
@@ -156,11 +156,14 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
 absl::StatusOr<std::string> TypeAnnotationToString(
     const TranspileData& xpile_data, const TypeAnnotation* annot);
 
-absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
-    const TranspileData& xpile_data, const BuiltinTypeAnnotation* annot) {
-  int bit_count = annot->GetBitCount();
+absl::StatusOr<std::string> BuiltinBitCountToString(int64_t bit_count,
+                                                    bool signedness) {
+  if (bit_count == 1) {
+    return "bool";
+  }
+
   std::string prefix;
-  if (!annot->GetSignedness()) {
+  if (!signedness) {
     prefix = "u";
   }
   if (bit_count <= 8) {
@@ -176,9 +179,14 @@ absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
     return prefix + "int64_t";
   }
 
-  return absl::InvalidArgumentError(
-      absl::StrCat("Only bit types up to 64b wide are currently supported: ",
-                   annot->ToString()));
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Only bit types up to 64b wide are currently supported; bit count ",
+      bit_count));
+}
+
+absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
+    const TranspileData& xpile_data, const BuiltinTypeAnnotation* annot) {
+  return BuiltinBitCountToString(annot->GetBitCount(), annot->GetSignedness());
 }
 
 absl::StatusOr<std::string> ArrayTypeAnnotationToString(
@@ -189,8 +197,9 @@ absl::StatusOr<std::string> ArrayTypeAnnotationToString(
   if (as_builtin_type.has_value()) {
     XLS_ASSIGN_OR_RETURN(bool is_signed,
                          GetBuiltinTypeSignedness(as_builtin_type.value()));
-    // Just make 'em 64b. Works and is easy.
-    return absl::StrFormat("%sint64_t", is_signed ? "" : "u");
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count,
+                         GetBuiltinTypeBitCount(as_builtin_type.value()));
+    return BuiltinBitCountToString(bit_count, is_signed);
   }
   XLS_ASSIGN_OR_RETURN(
       std::string element_type,
@@ -570,7 +579,7 @@ $1$2
     // We need to split on any brackets and add them to the end of the member
     // name. This is to transform `int[32] foo` into `int foo[32]`.
     auto first_bracket = type_str.find_first_of('[');
-    if (first_bracket != type_str.npos) {
+    if (first_bracket != std::string::npos) {
       member_name.append(type_str.substr(first_bracket));
       type_str = type_str.substr(0, first_bracket);
     }
@@ -721,7 +730,7 @@ absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
                                        std::string_view output_header_path,
                                        std::string_view namespaces) {
   constexpr std::string_view kHeaderTemplate =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef $0
 #define $0
 #include <cstdint>
@@ -736,7 +745,7 @@ $2$1$3
 )";
 
   constexpr std::string_view kSourceTemplate =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "%s"
@@ -768,9 +777,9 @@ $2$1$3
   std::filesystem::path current_path = output_header_path;
   while (!current_path.empty() && current_path != current_path.root_path()) {
     std::string chunk =
-        absl::AsciiStrToUpper(std::string(current_path.filename()));
+        absl::AsciiStrToUpper(std::string{current_path.filename()});
     chunk = absl::StrReplaceAll(chunk, {{".", "_"}, {"-", "_"}});
-    header_guard = chunk + "_" + header_guard;
+    header_guard = absl::StrCat(chunk, "_", header_guard);
     current_path = current_path.parent_path();
   }
 

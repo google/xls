@@ -19,7 +19,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -45,7 +44,7 @@ pub enum MyEnum : u32 {
 )";
 
   const std::string kExpected =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -90,7 +89,8 @@ pub enum MyEnum : u32 {
 }
 )";
 
-  const std::string kExpected = R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+  const std::string kExpected =
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -131,11 +131,13 @@ type MyArrayType1 = u31[8];
 type MyArrayType2 = u31[CONST_1];
 type MyArrayType3 = MySignedType[CONST_1];
 type MyArrayType4 = s8[CONST_1];
+type MyArrayType5 = bits[1];
 
 type MyFirstTuple = (u7, s8, MyType, MySignedType, MyArrayType1, MyArrayType2);
 )";
 
-  const std::string kExpected = R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+  const std::string kExpected =
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -160,6 +162,8 @@ using MyArrayType3 = MySignedType[4];
 
 using MyArrayType4 = int8_t[4];
 
+using MyArrayType5 = bool;
+
 using MyFirstTuple = std::tuple<uint8_t, int8_t, MyType, MySignedType, MyArrayType1, MyArrayType2>;
 
 }  // namespace robs::secret::space
@@ -183,10 +187,11 @@ struct MyStruct {
   y: u15,
   z: u8,
   w: s63,
+  v: u1,
 })";
 
   const std::string kExpectedHeader =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -206,18 +211,20 @@ struct MyStruct {
   uint16_t y;
   uint8_t z;
   int64_t w;
+  bool v;
 
   static constexpr int64_t kXWidth = 32;
   static constexpr int64_t kYWidth = 15;
   static constexpr int64_t kZWidth = 8;
   static constexpr int64_t kWWidth = 63;
+  static constexpr int64_t kVWidth = 1;
 };
 
 #endif  // FAKE_PATH_H_
 )";
 
   constexpr std::string_view kExpectedBody =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "fake_path.h"
@@ -226,9 +233,9 @@ struct MyStruct {
 #include "absl/types/span.h"
 
 absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
-  if (value.size() != 4) {
+  if (value.size() != 5) {
     return absl::InvalidArgumentError(
-        "MyStruct::FromValue input must be a 4-tuple.");
+        "MyStruct::FromValue input must be a 5-tuple.");
   }
 
   MyStruct result;
@@ -236,12 +243,13 @@ absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
   result.y = value.element(1).bits().ToUint64().value();
   result.z = value.element(2).bits().ToUint64().value();
   result.w = value.element(3).bits().ToInt64().value();
+  result.v = value.element(4).bits().ToUint64().value();
   return result;
 }
 
 ::xls::Value MyStruct::ToValue() const {
   std::vector<::xls::Value> members;
-  members.reserve(4);
+  members.reserve(5);
   ::xls::Value x_value;
   x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
   members.push_back(x_value);
@@ -254,6 +262,9 @@ absl::StatusOr<MyStruct> MyStruct::FromValue(const ::xls::Value& value) {
   ::xls::Value w_value;
   w_value = ::xls::Value(::xls::SBits(w, /*bit_count=*/63));
   members.push_back(w_value);
+  ::xls::Value v_value;
+  v_value = ::xls::Value(::xls::UBits(v, /*bit_count=*/1));
+  members.push_back(v_value);
   return ::xls::Value::Tuple(members);
 }
 
@@ -265,6 +276,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
   os << "  y: " << elements[1].ToString() << "\n";
   os << "  z: " << elements[2].ToString() << "\n";
   os << "  w: " << elements[3].ToString() << "\n";
+  os << "  v: " << elements[4].ToString() << "\n";
   os << ")\n";
   return os;
 }
@@ -289,7 +301,7 @@ struct MyStruct {
 })";
 
   constexpr std::string_view kExpectedHeader =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -314,7 +326,7 @@ struct MyStruct {
 )";
 
   constexpr std::string_view kExpectedBody =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "fake_path.h"
@@ -413,7 +425,7 @@ struct OuterStruct {
 })";
 
   constexpr std::string_view kExpectedHeader =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -453,7 +465,7 @@ struct OuterStruct {
 #endif  // FAKE_PATH_H_
 )";
   constexpr std::string_view kExpectedBody =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "fake_path.h"
@@ -578,7 +590,7 @@ struct OuterStruct {
 })";
 
   constexpr std::string_view kExpectedHeader =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
 #include <cstdint>
@@ -646,7 +658,7 @@ struct OuterStruct {
 )";
 
   constexpr std::string_view kExpectedBody =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "fake_path.h"
@@ -843,7 +855,7 @@ pub enum MyEnum : u32 {
 )";
 
   const std::string kExpected =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef TMP_FAKE_PATH_H_
 #define TMP_FAKE_PATH_H_
 #include <cstdint>
@@ -902,7 +914,7 @@ struct Bar {
 )";
 
   const std::string kExpectedHeader =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #ifndef TMP_FAKE_PATH_H_
 #define TMP_FAKE_PATH_H_
 #include <cstdint>
@@ -939,7 +951,7 @@ struct Bar {
 )";
 
   constexpr std::string_view kExpectedSource =
-      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
 #include <vector>
 
 #include "/tmp/fake_path.h"
