@@ -92,6 +92,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "index") {
     return Bytecode::Op::kIndex;
   }
+  if (s == "tuple_index") {
+    return Bytecode::Op::kTupleIndex;
+  }
   if (s == "invert") {
     return Bytecode::Op::kInvert;
   }
@@ -222,6 +225,8 @@ std::string OpToString(Bytecode::Op op) {
       return "gt";
     case Bytecode::Op::kIndex:
       return "index";
+    case Bytecode::Op::kTupleIndex:
+      return "tuple_index";
     case Bytecode::Op::kInvert:
       return "invert";
     case Bytecode::Op::kJumpRel:
@@ -393,11 +398,12 @@ std::string Bytecode::MatchArmItem::ToString() const {
 
 #define DEF_UNARY_BUILDER(OP_NAME)                           \
   /* static */ Bytecode Bytecode::Make##OP_NAME(Span span) { \
-    return Bytecode(span, Op::k##OP_NAME);                   \
+    return Bytecode(std::move(span), Op::k##OP_NAME);        \
   }
 
 DEF_UNARY_BUILDER(Dup);
 DEF_UNARY_BUILDER(Index);
+DEF_UNARY_BUILDER(TupleIndex);
 DEF_UNARY_BUILDER(Invert);
 DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
@@ -409,48 +415,49 @@ DEF_UNARY_BUILDER(Swap);
 
 /* static */ Bytecode Bytecode::MakeCreateTuple(Span span,
                                                 NumElements num_elements) {
-  return Bytecode(span, Op::kCreateTuple, num_elements);
+  return Bytecode(std::move(span), Op::kCreateTuple, num_elements);
 }
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
-  return Bytecode(span, Op::kJumpRelIf, target);
+  return Bytecode(std::move(span), Op::kJumpRelIf, target);
 }
 
 /* static */ Bytecode Bytecode::MakeJumpRel(Span span, JumpTarget target) {
-  return Bytecode(span, Op::kJumpRel, target);
+  return Bytecode(std::move(span), Op::kJumpRel, target);
 }
 
 /* static */ Bytecode Bytecode::MakeLiteral(Span span, InterpValue literal) {
-  return Bytecode(span, Op::kLiteral, std::move(literal));
+  return Bytecode(std::move(span), Op::kLiteral, std::move(literal));
 }
 
 /* static */ Bytecode Bytecode::MakeLoad(Span span, SlotIndex slot_index) {
-  return Bytecode(span, Op::kLoad, slot_index);
+  return Bytecode(std::move(span), Op::kLoad, slot_index);
 }
 
 /* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmItem item) {
-  return Bytecode(span, Op::kMatchArm, std::move(item));
+  return Bytecode(std::move(span), Op::kMatchArm, std::move(item));
 }
 
 /* static */ Bytecode Bytecode::MakeRecv(Span span, ChannelData channel_data) {
-  return Bytecode(span, Op::kRecv, std::move(channel_data));
+  return Bytecode(std::move(span), Op::kRecv, std::move(channel_data));
 }
 
 /* static */ Bytecode Bytecode::MakeRecvNonBlocking(Span span,
                                                     ChannelData channel_data) {
-  return Bytecode(span, Op::kRecvNonBlocking, std::move(channel_data));
+  return Bytecode(std::move(span), Op::kRecvNonBlocking,
+                  std::move(channel_data));
 }
 
 /* static */ Bytecode Bytecode::MakeSend(Span span, ChannelData channel_data) {
-  return Bytecode(span, Op::kSend, std::move(channel_data));
+  return Bytecode(std::move(span), Op::kSend, std::move(channel_data));
 }
 
 /* static */ Bytecode Bytecode::MakeSpawn(Span span, SpawnData spawn_data) {
-  return Bytecode(span, Op::kSpawn, spawn_data);
+  return Bytecode(std::move(span), Op::kSpawn, spawn_data);
 }
 
 /* static */ Bytecode Bytecode::MakeStore(Span span, SlotIndex slot_index) {
-  return Bytecode(span, Op::kStore, slot_index);
+  return Bytecode(std::move(span), Op::kStore, slot_index);
 }
 
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {

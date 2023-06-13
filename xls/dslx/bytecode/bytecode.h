@@ -87,6 +87,8 @@ class Bytecode {
     kGt,
     // Selects the TOS0'th element of the array- or tuple-typed value at TOS1.
     kIndex,
+    // Same as kIndex but runtime checks that the the value TOS1 is a tuple.
+    kTupleIndex,
     // Inverts the bits of TOS0.
     kInvert,
     // Indicates a jump destination PC for control flow integrity checking.
@@ -317,6 +319,7 @@ class Bytecode {
   static Bytecode MakeDup(Span span);
   static Bytecode MakeFail(Span span, std::string);
   static Bytecode MakeIndex(Span span);
+  static Bytecode MakeTupleIndex(Span span);
   static Bytecode MakeInvert(Span span);
   static Bytecode MakeJumpDest(Span span);
   static Bytecode MakeJumpRelIf(Span span, JumpTarget target);
@@ -339,11 +342,11 @@ class Bytecode {
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
   Bytecode(Span source_span, Op op)
-      : source_span_(source_span), op_(op), data_(std::nullopt) {}
+      : source_span_(std::move(source_span)), op_(op), data_(std::nullopt) {}
 
   // Creates an operation with associated string or InterpValue data.
   Bytecode(Span source_span, Op op, std::optional<Data> data)
-      : source_span_(source_span), op_(op), data_(std::move(data)) {}
+      : source_span_(std::move(source_span)), op_(op), data_(std::move(data)) {}
 
   // Not copyable, but move-able.
   Bytecode(const Bytecode& other) = delete;

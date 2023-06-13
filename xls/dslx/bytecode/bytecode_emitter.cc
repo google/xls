@@ -323,10 +323,12 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
                        struct_type->GetMemberIndex(node->attr()->identifier()));
 
+  XLS_VLOG(10) << "BytecodeEmitter::HandleAttr; member_index: " << member_index;
+
   // This indexing literal needs to be unsigned since InterpValue::Index
   // requires an unsigned value.
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeU64(member_index)));
-  Add(Bytecode::MakeIndex(node->span()));
+  Add(Bytecode::MakeTupleIndex(node->span()));
   return absl::OkStatus();
 }
 
@@ -397,9 +399,18 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
 }
 
 absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
-  XLS_VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span();
+  XLS_VLOG(5) << "BytecodeEmitter::HandleBlock @ " << node->span()
+              << " trailing semi? " << node->trailing_semi();
   const Expr* last_expression = nullptr;
   for (const Statement* s : node->statements()) {
+    // Do not permit expression-statements to have a result on the stack for any
+    // subsequent expression-statement.
+    if (last_expression != nullptr) {
+      Add(Bytecode::MakePop(last_expression->span()));
+    }
+
+    XLS_VLOG(5) << "BytecodeEmitter::HandleStatement: `" << s->ToString()
+                << "`";
     XLS_RETURN_IF_ERROR(absl::visit(Visitor{[&](Expr* e) {
                                               last_expression = e;
                                               return e->AcceptExpr(this);
@@ -411,6 +422,7 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
                                             [&](TypeAlias* ta) {
                                               // Nothing to emit, should be
                                               // resolved via type inference.
+                                              last_expression = nullptr;
                                               return absl::OkStatus();
                                             }},
                                     s->wrapped()));
@@ -867,6 +879,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(iterable_slot)));
 
   size_t index_slot = next_slotno_++;
+  XLS_VLOG(10) << "BytecodeEmitter::HandleFor; index_slot: " << index_slot;
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(0)));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
@@ -965,7 +978,8 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
+static absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info,
+                                             Expr* expr) {
   std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
     return absl::InternalError(
@@ -1059,6 +1073,9 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
 absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
       name_ref != nullptr && name_ref->IsBuiltin()) {
+    XLS_VLOG(10) << "HandleInvocation; builtin name_ref: "
+                 << name_ref->ToString();
+
     if (name_ref->identifier() == "trace!") {
       if (node->args().size() != 1) {
         return absl::InternalError("`trace!` takes a single argument.");
@@ -1334,15 +1351,13 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
 }
 
 absl::Status BytecodeEmitter::HandleString(const String* node) {
-  // A string is just a fancy array literal.
-  for (const unsigned char c : node->text()) {
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kLiteral,
-                 InterpValue::MakeUBits(/*bit_count=*/8, static_cast<int>(c))));
+  std::vector<InterpValue> u8s;
+  for (unsigned char c : node->text()) {
+    u8s.push_back(InterpValue::MakeUBits(/*bit_count=*/8, static_cast<int>(c)));
   }
 
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
-                               Bytecode::NumElements(node->text().size())));
+  Add(Bytecode::MakeLiteral(node->span(),
+                            InterpValue::MakeArray(std::move(u8s)).value()));
   return absl::OkStatus();
 }
 

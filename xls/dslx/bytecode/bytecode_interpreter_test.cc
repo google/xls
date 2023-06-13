@@ -102,9 +102,11 @@ TEST(BytecodeInterpreterTest, DupLiteral) {
       auto bfunc,
       BytecodeFunction::Create(/*owner=*/nullptr, /*source_fn=*/nullptr,
                                /*type_info=*/nullptr, std::move(bytecodes)));
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
-                           BytecodeInterpreter::Interpret(
-                               /*import_data=*/nullptr, bfunc.get(), {}));
+  BytecodeInterpreterOptions options;
+  options.set_validate_final_stack_depth(false);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result, BytecodeInterpreter::Interpret(
+                                                   /*import_data=*/nullptr,
+                                                   bfunc.get(), {}, options));
   EXPECT_EQ(result.ToString(), "u32:42");
 }
 
@@ -1248,6 +1250,37 @@ fn main() -> MyU9 {
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
   EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
+}
+
+TEST(BytecodeInterpreterTest, MultipleExpressionStatements) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32 {
+  u32:42;
+  u32:64
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(64));
+}
+
+TEST(BytecodeInterpreterTest, ForWithCover) {
+  constexpr std::string_view kProgram = R"(
+struct SomeStruct {
+  some_bool: bool
+}
+
+fn f(s: SomeStruct) {
+  for  (_, _) in u32:0..u32:4 {
+    cover!("whee", s.some_bool);
+  }(())
+}
+
+fn main() {
+  f(SomeStruct{some_bool: true})
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(kProgram, "main"));
+  EXPECT_TRUE(value.IsUnit());
 }
 
 TEST(BytecodeInterpreterTest, DistinctNestedParametricProcs) {

@@ -121,11 +121,19 @@ class BytecodeInterpreterOptions {
   }
   std::optional<int64_t> max_ticks() const { return max_ticks_; }
 
+  void set_validate_final_stack_depth(bool enabled) {
+    validate_final_stack_depth_ = enabled;
+  }
+  bool validate_final_stack_depth() const {
+    return validate_final_stack_depth_;
+  }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   TraceHook trace_hook_ = nullptr;
   bool trace_channels_ = false;
   std::optional<int64_t> max_ticks_;
+  bool validate_final_stack_depth_ = true;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
@@ -198,6 +206,7 @@ class BytecodeInterpreter {
   absl::Status EvalGe(const Bytecode& bytecode);
   absl::Status EvalGt(const Bytecode& bytecode);
   absl::Status EvalIndex(const Bytecode& bytecode);
+  absl::Status EvalTupleIndex(const Bytecode& bytecode);
   absl::Status EvalInvert(const Bytecode& bytecode);
   absl::Status EvalLe(const Bytecode& bytecode);
   absl::Status EvalLiteral(const Bytecode& bytecode);
@@ -248,12 +257,12 @@ class BytecodeInterpreter {
   // TODO(rspringer): 2022-02-14: Builtins should probably go in their own file,
   // likely after removing the old interpreter.
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
-  absl::Status RunBinaryBuiltin(std::function<absl::StatusOr<InterpValue>(
-                                    const InterpValue& a, const InterpValue& b)>
-                                    fn);
+  absl::Status RunBinaryBuiltin(
+      const std::function<absl::StatusOr<InterpValue>(
+          const InterpValue& a, const InterpValue& b)>& fn);
   absl::Status RunTernaryBuiltin(
-      std::function<absl::StatusOr<InterpValue>(
-          const InterpValue& a, const InterpValue& b, const InterpValue& c)>
+      const std::function<absl::StatusOr<InterpValue>(
+          const InterpValue& a, const InterpValue& b, const InterpValue& c)>&
           fn);
   absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
   absl::Status RunBuiltinAndReduce(const Bytecode& bytecode);
@@ -262,6 +271,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinBitSlice(const Bytecode& bytecode);
   absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
+  absl::Status RunBuiltinCover(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
   absl::Status RunBuiltinEnumerate(const Bytecode& bytecode);
   absl::Status RunBuiltinGate(const Bytecode& bytecode);
@@ -321,7 +331,7 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // should be placed.
   static absl::Status InitializeProcNetwork(
       ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-      InterpValue terminator, std::vector<ProcInstance>* proc_instances,
+      const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
       const BytecodeInterpreterOptions& options = BytecodeInterpreterOptions());
 
   ~ProcConfigBytecodeInterpreter() override = default;

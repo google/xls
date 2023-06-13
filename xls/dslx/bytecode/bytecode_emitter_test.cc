@@ -845,7 +845,7 @@ fn handles_attr() -> u64 {
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
   const Bytecode* bc = &bytecodes[4];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kTupleIndex);
 }
 
 TEST(BytecodeEmitterTest, CastBitsToBits) {
@@ -1052,10 +1052,13 @@ fn main() -> u8[13] {
                            EmitBytecodes(&import_data, kProgram, "main"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 14);
+  ASSERT_EQ(bytecodes.size(), 1);
   const Bytecode* bc = bytecodes.data();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value, value.GetBitValueUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t length, value.GetLength());
+  EXPECT_EQ(13, length);
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value,
+                           value.GetValuesOrDie().at(0).GetBitValueUint64());
   EXPECT_EQ(char_value, 't');
 }
 
@@ -1145,6 +1148,66 @@ fn main() -> u32 {
   for (int i = 0; i < bytecodes.size(); i++) {
     ASSERT_EQ(bytecodes[i].ToString(), kExpected[i]);
   }
+}
+
+TEST(BytecodeEmitterTest, ForWithCover) {
+  constexpr std::string_view kProgram = R"(
+struct SomeStruct {
+  some_bool: bool
+}
+
+#[test]
+fn test_main(s: SomeStruct) {
+  for  (_, ()) in u32:0..u32:4 {
+    let _ = cover!("whee", s.some_bool);
+    ()
+  }(())
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "test_main"));
+
+  const std::string_view kWant = R"(literal u32:0 @ test.x:8:23-8:24
+literal u32:4 @ test.x:8:30-8:31
+range @ test.x:8:23-8:31
+store 1 @ test.x:8:6-11:8
+literal u32:0 @ test.x:8:6-11:8
+store 2 @ test.x:8:6-11:8
+create_tuple 0 @ test.x:11:5-11:7
+jump_dest @ test.x:8:6-11:8
+load 2 @ test.x:8:6-11:8
+literal u32:4 @ test.x:8:6-11:8
+eq @ test.x:8:6-11:8
+jump_rel_if +22 @ test.x:8:6-11:8
+load 1 @ test.x:8:6-11:8
+load 2 @ test.x:8:6-11:8
+index @ test.x:8:6-11:8
+swap @ test.x:8:6-11:8
+create_tuple 2 @ test.x:8:6-11:8
+expand_tuple @ test.x:8:8-8:15
+pop @ test.x:8:9-8:10
+expand_tuple @ test.x:8:12-8:14
+literal [u8:119, u8:104, u8:101, u8:101] @ test.x:9:20-9:26
+load 0 @ test.x:9:28-9:29
+literal u64:0 @ test.x:9:29-9:39
+tuple_index @ test.x:9:29-9:39
+literal builtin:cover! @ test.x:9:13-9:19
+call cover!("whee", s.some_bool) : {} @ test.x:9:19-9:40
+store 3 @ test.x:9:9-9:10
+create_tuple 0 @ test.x:10:5-10:7
+load 2 @ test.x:8:6-11:8
+literal u32:1 @ test.x:8:6-11:8
+add @ test.x:8:6-11:8
+store 2 @ test.x:8:6-11:8
+jump_rel -25 @ test.x:8:6-11:8
+jump_dest @ test.x:8:6-11:8)";
+  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
+                                  [](std::string* out, const Bytecode& b) {
+                                    absl::StrAppend(out, b.ToString());
+                                  });
+
+  EXPECT_EQ(kWant, got);
 }
 
 TEST(BytecodeEmitterTest, Range) {

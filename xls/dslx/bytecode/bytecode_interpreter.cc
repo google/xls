@@ -129,6 +129,9 @@ void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
   XLS_ASSIGN_OR_RETURN(auto interpreter, BytecodeInterpreter::CreateUnique(
                                              import_data, bf, args, options));
   XLS_RETURN_IF_ERROR(interpreter->Run());
+  if (options.validate_final_stack_depth()) {
+    XLS_RET_CHECK_EQ(interpreter->stack_.size(), 1);
+  }
   return interpreter->stack_.back();
 }
 
@@ -161,6 +164,13 @@ BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
 }
 
 absl::Status BytecodeInterpreter::Run(bool* progress_made) {
+  auto stack_to_string = [&] {
+    return absl::StrJoin(stack_, ", ",
+                         [](std::string* out, const InterpValue& v) {
+                           absl::StrAppend(out, v.ToString());
+                         });
+  };
+
   blocked_channel_name_ = std::nullopt;
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
@@ -169,12 +179,12 @@ absl::Status BytecodeInterpreter::Run(bool* progress_made) {
       const Bytecode& bytecode = bytecodes.at(frame->pc());
       XLS_VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
                   << bytecode.ToString();
-      XLS_VLOG(3) << " - TOS pre: "
-                  << (stack_.empty() ? "-empty-" : stack_.back().ToString());
+      XLS_VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
+                                        stack_to_string());
       int64_t old_pc = frame->pc();
       XLS_RETURN_IF_ERROR(EvalNextInstruction());
-      XLS_VLOG(3) << " - TOS post: "
-                  << (stack_.empty() ? "-empty-" : stack_.back().ToString());
+      XLS_VLOG(3) << absl::StreamFormat(" - stack depth %d [%s]", stack_.size(),
+                                        stack_to_string());
 
       if (bytecode.op() == Bytecode::Op::kCall) {
         frame = &frames_.back();
@@ -293,6 +303,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalIndex(bytecode));
       break;
     }
+    case Bytecode::Op::kTupleIndex: {
+      XLS_RETURN_IF_ERROR(EvalTupleIndex(bytecode));
+      break;
+    }
     case Bytecode::Op::kInvert: {
       XLS_RETURN_IF_ERROR(EvalInvert(bytecode));
       break;
@@ -391,6 +405,7 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kSpawn: {
       XLS_RETURN_IF_ERROR(EvalSpawn(bytecode));
+      stack_.push_back(InterpValue::MakeUnit());
       break;
     }
     case Bytecode::Op::kStore: {
@@ -754,13 +769,32 @@ absl::Status BytecodeInterpreter::EvalGt(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalTupleIndex(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+
+  if (!basis.IsTuple()) {
+    return absl::InternalError(
+        "BytecodeInterpreter type error: tuple_index bytecode can only index "
+        "on tuple value; got: " +
+        basis.ToString());
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Index(index),
+                       _ << " while processing " << bytecode.ToString());
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalIndex(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue index, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
 
   if (!basis.IsArray() && !basis.IsTuple()) {
-    return absl::InvalidArgumentError(
-        "Can only index on array or tuple values.");
+    return absl::InternalError(
+        "BytecodeInterpreter type error: can only index on array or tuple "
+        "values; got: " +
+        basis.ToString());
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Index(index),
@@ -1267,8 +1301,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kClz:
       return RunBuiltinClz(bytecode);
     case Builtin::kCover:
-      stack_.push_back(InterpValue::MakeToken());
-      return absl::OkStatus();
+      return RunBuiltinCover(bytecode);
     case Builtin::kCtz:
       return RunBuiltinCtz(bytecode);
     case Builtin::kEnumerate:
@@ -1551,6 +1584,17 @@ absl::Status BytecodeInterpreter::RunBuiltinClz(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(Bits bits, input.GetBits());
   stack_.push_back(
       InterpValue::MakeUBits(bits.bit_count(), bits.CountLeadingZeros()));
+
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinCover(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin `cover!`";
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+
+  XLS_ASSIGN_OR_RETURN(InterpValue string, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue predicate, Pop());
+  stack_.push_back(InterpValue::MakeToken());
 
   return absl::OkStatus();
 }
@@ -1867,9 +1911,8 @@ absl::Status BytecodeInterpreter::RunBuiltinXorReduce(
 }
 
 absl::Status BytecodeInterpreter::RunBinaryBuiltin(
-    std::function<absl::StatusOr<InterpValue>(const InterpValue& a,
-                                              const InterpValue& b)>
-        fn) {
+    const std::function<absl::StatusOr<InterpValue>(
+        const InterpValue& a, const InterpValue& b)>& fn) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
   XLS_ASSIGN_OR_RETURN(InterpValue b, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue a, Pop());
@@ -1879,8 +1922,8 @@ absl::Status BytecodeInterpreter::RunBinaryBuiltin(
 }
 
 absl::Status BytecodeInterpreter::RunTernaryBuiltin(
-    std::function<absl::StatusOr<InterpValue>(
-        const InterpValue& a, const InterpValue& b, const InterpValue& c)>
+    const std::function<absl::StatusOr<InterpValue>(
+        const InterpValue& a, const InterpValue& b, const InterpValue& c)>&
         fn) {
   XLS_RET_CHECK_GE(stack_.size(), 3);
   XLS_ASSIGN_OR_RETURN(InterpValue c, Pop());
@@ -1925,7 +1968,7 @@ ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
 
 absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
-    InterpValue terminator, std::vector<ProcInstance>* proc_instances,
+    const InterpValue& terminator, std::vector<ProcInstance>* proc_instances,
     const BytecodeInterpreterOptions& options) {
   return EvalSpawn(import_data, type_info, std::nullopt, std::nullopt,
                    root_proc,
@@ -1986,7 +2029,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
   XLS_RETURN_IF_ERROR(cbi.Run());
   XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
-  InterpValue constants_tuple = cbi.stack().back();
+  InterpValue constants_tuple = cbi.stack().at(0);
   XLS_RET_CHECK(constants_tuple.IsTuple());
   XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* constants,
                        constants_tuple.GetValues());
