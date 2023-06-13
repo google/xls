@@ -21,15 +21,15 @@ fn main() -> u8[31] {
 #[test]
 fn main_test() {
 
-  let _ = assert_eq("\u{0}", "\0");
+  assert_eq("\u{0}", "\0");
 
   // Test unicode with 1 through 6 digits.
-  let _ = assert_eq("\u{E}", u8[1]:[0xE]);
-  let _ = assert_eq("\u{7E}", u8[1]:[0x7E]);
-  let _ = assert_eq("\u{1FF}", u8[2]: [0xC7, 0xBF]);
-  let _ = assert_eq("\u{1FBF}", u8[3]: [0xE1, 0xBE, 0xBF]);
-  let _ = assert_eq("\u{12FBF}", u8[4]: [0xF0, 0x92, 0xBE, 0xBF]);
-  let _ = assert_eq("\u{10CB2F}", u8[4]: [0xF4, 0x8C, 0xAC, 0xAF]);
+  assert_eq("\u{E}", u8[1]:[0xE]);
+  assert_eq("\u{7E}", u8[1]:[0x7E]);
+  assert_eq("\u{1FF}", u8[2]: [0xC7, 0xBF]);
+  assert_eq("\u{1FBF}", u8[3]: [0xE1, 0xBE, 0xBF]);
+  assert_eq("\u{12FBF}", u8[4]: [0xF0, 0x92, 0xBE, 0xBF]);
+  assert_eq("\u{10CB2F}", u8[4]: [0xF4, 0x8C, 0xAC, 0xAF]);
 
   let expected_result:u8[31] = "abcdefghijklmnopqrstuvwxyz\"_XLS";
   assert_eq(expected_result, main())

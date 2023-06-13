@@ -21,10 +21,10 @@ fn main() -> u32 {
 
 #[test]
 fn clz_test() {
-  let _ = assert_eq(u3:0, clz(u3:0b111));
-  let _ = assert_eq(u3:1, clz(u3:0b011));
-  let _ = assert_eq(u3:2, clz(u3:0b001));
-  let _ = assert_eq(u3:3, clz(u3:0b000));
+  assert_eq(u3:0, clz(u3:0b111));
+  assert_eq(u3:1, clz(u3:0b011));
+  assert_eq(u3:2, clz(u3:0b001));
+  assert_eq(u3:3, clz(u3:0b000));
   ()
 }
 

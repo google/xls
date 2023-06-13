@@ -25,10 +25,10 @@ fn test_shorthand_equality() {
   let p0 = Point { x, y };
   let p1 = Point { y, x };
 
-  let _ = assert_eq(x, p0.x);
-  let _ = assert_eq(y, p0.y);
-  let _ = assert_eq(x, p1.x);
-  let _ = assert_eq(y, p1.y);
+  assert_eq(x, p0.x);
+  assert_eq(y, p0.y);
+  assert_eq(x, p1.x);
+  assert_eq(y, p1.y);
   assert_eq(p0, p1)
 }
 

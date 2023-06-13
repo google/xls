@@ -19,7 +19,7 @@ struct Point {
 
 fn f() -> () {
   let p = Point{x: u32:42, y: s32:-1};
-  let _ = trace_fmt!("point: {}", p);
+  trace_fmt!("point: {}", p);
   ()
 }
 

@@ -29,7 +29,7 @@ fn parametric_with_comparison() {
   let y = bits[16]:0xff;
   let actual = foo(x, y) as u16;
   let expected = u16:0x1fe;
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
 
   let A = u32:16;
   let B = u32:8;
@@ -37,7 +37,7 @@ fn parametric_with_comparison() {
   let y = bits[8]:0xff;
   let actual = foo(x, y) as u16;
   let expected = u16:0x1fe;
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 

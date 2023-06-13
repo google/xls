@@ -22,7 +22,7 @@ fn main(x: u8) -> MyEnum {
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(main(u8:42), MyEnum::FOO);
-  let _ = assert_eq(main(u8:64), MyEnum::BAR);
+  assert_eq(main(u8:42), MyEnum::FOO);
+  assert_eq(main(u8:64), MyEnum::BAR);
   ()
 }

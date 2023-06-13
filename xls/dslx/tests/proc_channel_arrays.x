@@ -45,7 +45,7 @@ proc producer {
   next(tok: token, state: ()) {
     let tok = send(tok, ps[0][0][0], u16:1);
     let (tok, result) = recv(tok, cs[0][1][1]);
-    let _ = assert_eq(result, u16:2);
+    assert_eq(result, u16:2);
 
     let tok = send(tok, terminator, true);
     ()

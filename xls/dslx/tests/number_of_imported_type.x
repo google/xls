@@ -25,6 +25,6 @@ fn main(a: other_type) -> noiti::my_type {
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(main(other_type:8), noiti::my_type:16);
+  assert_eq(main(other_type:8), noiti::my_type:16);
   ()
 }

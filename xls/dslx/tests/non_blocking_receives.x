@@ -80,33 +80,33 @@ proc test_main {
     // Not sending on either channel means output is 0.
     let x = u32:0;
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:0);
+    assert_eq(v, u32:0);
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:0);
+    assert_eq(v, u32:0);
 
     // Sending on on channel means output is the input.
     let tok = send(tok, in0, u32:3);
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:3);
+    assert_eq(v, u32:3);
 
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:0);
+    assert_eq(v, u32:0);
 
     let tok = send(tok, in1, u32:5);
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:5);
+    assert_eq(v, u32:5);
 
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:0);
+    assert_eq(v, u32:0);
 
     // Sending on both channels means output is the sum of inputs.
     let tok = send(tok, in0, u32:10);
     let tok = send(tok, in1, u32:20);
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:30);
+    assert_eq(v, u32:30);
 
     let (tok, v) = recv(tok, out0);
-    let _ = assert_eq(v, u32:0);
+    assert_eq(v, u32:0);
 
     let tok = send(tok, terminator, true);
     ()

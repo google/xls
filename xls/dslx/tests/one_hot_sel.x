@@ -15,11 +15,11 @@
 
 #[test]
 fn one_hot_sel_raw_nums() {
-  let _ = assert_eq(u4:0, one_hot_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:1, one_hot_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:2, one_hot_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:4, one_hot_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:7, one_hot_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:0, one_hot_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:1, one_hot_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:2, one_hot_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:4, one_hot_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:7, one_hot_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
   ()
 }
 
@@ -29,12 +29,12 @@ fn one_hot_sel_symbols() {
   const B = u4:2;
   const C = u4:4;
   let cases: u4[3] = [A, B, C];
-  let _ = assert_eq(u4:0, one_hot_sel(u3:0b000, cases));
-  let _ = assert_eq(B, one_hot_sel(u3:0b010, cases));
-  let _ = assert_eq(C, one_hot_sel(u3:0b100, cases));
-  let _ = assert_eq(u4:3, A|B);
-  let _ = assert_eq(A|B|C, one_hot_sel(u3:0b111, cases));
-  let _ = assert_eq(A|B, one_hot_sel(u3:0b011, cases));
-  let _ = assert_eq(B|C, one_hot_sel(u3:0b110, cases));
+  assert_eq(u4:0, one_hot_sel(u3:0b000, cases));
+  assert_eq(B, one_hot_sel(u3:0b010, cases));
+  assert_eq(C, one_hot_sel(u3:0b100, cases));
+  assert_eq(u4:3, A|B);
+  assert_eq(A|B|C, one_hot_sel(u3:0b111, cases));
+  assert_eq(A|B, one_hot_sel(u3:0b011, cases));
+  assert_eq(B|C, one_hot_sel(u3:0b110, cases));
   ()
 }

@@ -28,18 +28,18 @@ fn enum_values() {
   // Cast one to signed and sign extend it.
   let d_s2: s2 = MyEnum::D as s2;
   let d_signext: s3 = d_s2 as s3;
-  let _ = assert_eq(d_signext, s3:0b111);
+  assert_eq(d_signext, s3:0b111);
 
   // Extend values to u3 and sum them up.
   let sum = (a as u2 as u3) + (b_u2 as u3) + (c_u2 as u3) + (d_s2 as u2 as u3);
-  let _ = assert_eq(sum, u3:6);
+  assert_eq(sum, u3:6);
 
   // A bunch of equality/comparison checks.
-  let _ = assert_eq(a, MyEnum::A);
-  let _ = assert_eq(true, a == MyEnum::A);
-  let _ = assert_eq(false, a != MyEnum::A);
-  let _ = assert_eq(a, a as u2 as MyEnum);
-  let _ = assert_eq(a, a as u2 as MyEnum);
+  assert_eq(a, MyEnum::A);
+  assert_eq(true, a == MyEnum::A);
+  assert_eq(false, a != MyEnum::A);
+  assert_eq(a, a as u2 as MyEnum);
+  assert_eq(a, a as u2 as MyEnum);
   ()
 }
 

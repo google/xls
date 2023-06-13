@@ -77,10 +77,10 @@ proc test_main {
 
         // Receiving producer data.
         let (tok, v) = recv(tok, data0);
-        let _ = assert_eq(v, u32:1);
+        assert_eq(v, u32:1);
 
         let (tok, v) = recv(tok, data0);
-        let _ = assert_eq(v, u32:1);
+        assert_eq(v, u32:1);
 
         let tok = send(tok, terminator, true);
         ()

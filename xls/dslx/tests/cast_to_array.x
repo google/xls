@@ -29,15 +29,15 @@ fn cast_to_array_test() {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);
   let a_array = u2[3]:[1, 2, 3];
-  let _ = assert_eq(a, a_array);
+  assert_eq(a, a_array);
   // Note: converting back from array to bits gives the original value.
-  let _ = assert_eq(a_value, cast_from_array(a));
+  assert_eq(a_value, cast_from_array(a));
 
   let b_value: u6 = u6:0b111001;
   let b_array: u2[3] = u2[3]:[3, 2, 1];
   let b: u2[3] = cast_to_array(b_value);
-  let _ = assert_eq(b, b_array);
-  let _ = assert_eq(b_value, cast_from_array(b));
+  assert_eq(b, b_array);
+  assert_eq(b_value, cast_from_array(b));
 
   // Concatenation of bits is analogous to concatenation of their converted
   // arrays. That is:
@@ -45,13 +45,13 @@ fn cast_to_array_test() {
   //  convert(concat(a, b)) == concat(convert(a), convert(b))
   let concat_value: u12 = a_value ++ b_value;
   let concat_array: u2[6] = concat_value as u2[6];
-  let _ = assert_eq(concat_array, concat_arrays(a_array, b_array));
+  assert_eq(concat_array, concat_arrays(a_array, b_array));
 
   // Show a few classic "endianness" example using 8-bit array values.
   let x = u32:0xdeadbeef;
-  let _ = assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
+  assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
   let y = u16:0xbeef;
-  let _ = assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
+  assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
 
   ()
 }

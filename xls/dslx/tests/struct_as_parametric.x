@@ -33,8 +33,8 @@ fn main() -> u64{
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(u64:0xbeef, impl<MY_STRUCT>());
-  let _ = assert_eq(u64:0xfeed, impl<MY_OTHER_STRUCT>());
-  let _ = assert_eq(u64:0x1bddd, other_impl<MY_STRUCT, MY_OTHER_STRUCT>());
+  assert_eq(u64:0xbeef, impl<MY_STRUCT>());
+  assert_eq(u64:0xfeed, impl<MY_OTHER_STRUCT>());
+  assert_eq(u64:0x1bddd, other_impl<MY_STRUCT, MY_OTHER_STRUCT>());
   ()
 }

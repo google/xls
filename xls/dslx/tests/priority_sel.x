@@ -15,11 +15,11 @@
 
 #[test]
 fn priority_sel_raw_nums() {
-  let _ = assert_eq(u4:0, priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:1, priority_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:2, priority_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:4, priority_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
-  let _ = assert_eq(u4:1, priority_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:0, priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:1, priority_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:2, priority_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:4, priority_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
+  assert_eq(u4:1, priority_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
   ()
 }
 
@@ -29,12 +29,12 @@ fn priority_sel_symbols() {
   const B = u4:2;
   const C = u4:4;
   let cases: u4[3] = [A, B, C];
-  let _ = assert_eq(u4:0, priority_sel(u3:0b000, cases));
-  let _ = assert_eq(B, priority_sel(u3:0b010, cases));
-  let _ = assert_eq(C, priority_sel(u3:0b100, cases));
-  let _ = assert_eq(u4:3, A|B);
-  let _ = assert_eq(A, priority_sel(u3:0b111, cases));
-  let _ = assert_eq(A, priority_sel(u3:0b011, cases));
-  let _ = assert_eq(B, priority_sel(u3:0b110, cases));
+  assert_eq(u4:0, priority_sel(u3:0b000, cases));
+  assert_eq(B, priority_sel(u3:0b010, cases));
+  assert_eq(C, priority_sel(u3:0b100, cases));
+  assert_eq(u4:3, A|B);
+  assert_eq(A, priority_sel(u3:0b111, cases));
+  assert_eq(A, priority_sel(u3:0b011, cases));
+  assert_eq(B, priority_sel(u3:0b110, cases));
   ()
 }

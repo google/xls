@@ -30,7 +30,7 @@ proc Main {
     next(tok: token, state: ()) {
         let (tok, do_recv) = recv(tok, do_recv_in);
         let (tok, foo, foo_valid) = recv_if_non_blocking(tok, data_in, do_recv, u32:123);
-        let _ = send(tok, result_out, (foo, foo_valid));
+        send(tok, result_out, (foo, foo_valid));
         ()
     }
 }
@@ -57,24 +57,24 @@ proc Tester {
         // result of 123 (default value of recv_if_non_blocking).
         let tok = send(tok, do_recv_out, true);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:123, false));
+        assert_eq(result, (u32:123, false));
 
         // Next, tell the proc to NOT receive without data present.
         let tok = send(tok, do_recv_out, false);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:123, false));
+        assert_eq(result, (u32:123, false));
 
         // Next, tell the proc to not receive with data present.
         let tok = send(tok, data_out, u32:2);
         let tok = send(tok, do_recv_out, false);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:123, false));
+        assert_eq(result, (u32:123, false));
 
         // Finally, tell the proc to receive with data present. Expect the
         // previously-sent value.
         let tok = send(tok, do_recv_out, true);
         let (tok, result) = recv(tok, result_in);
-        let _ = assert_eq(result, (u32:2, true));
+        assert_eq(result, (u32:2, true));
 
         let tok = send(tok, terminator, true);
         ()

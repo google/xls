@@ -25,12 +25,12 @@ fn main(x: u3) -> u3 {
 // Reverse examples.
 #[test]
 fn test_reverse() {
-  let _ = assert_eq(u3:0b100, main(u3:0b001));
-  let _ = assert_eq(u3:0b001, main(u3:0b100));
-  let _ = assert_eq(bits[0]:0, rev(bits[0]:0));
-  let _ = assert_eq(u1:1, rev(u1:1));
-  let _ = assert_eq(u2:0b10, rev(u2:0b01));
-  let _ = assert_eq(u2:0b00, rev(u2:0b00));
+  assert_eq(u3:0b100, main(u3:0b001));
+  assert_eq(u3:0b001, main(u3:0b100));
+  assert_eq(bits[0]:0, rev(bits[0]:0));
+  assert_eq(u1:1, rev(u1:1));
+  assert_eq(u2:0b10, rev(u2:0b01));
+  assert_eq(u2:0b00, rev(u2:0b00));
   ()
 }
 

@@ -48,11 +48,11 @@ proc test_proc {
   next(tok: token, state: ()) {
     let tok = send(tok, input_p, u37:1);
     let (tok, result) = recv(tok, output_c);
-    let _ = assert_eq(result, u37:2);
+    assert_eq(result, u37:2);
 
     let tok = send(tok, input_p, u37:8);
     let (tok, result) = recv(tok, output_c);
-    let _ = assert_eq(result, u37:16);
+    assert_eq(result, u37:16);
 
     let tok = send(tok, terminator, true);
     ()

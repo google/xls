@@ -29,6 +29,6 @@ fn main() -> (mod_simple_enum::EnumType, mod_simple_enum::EnumTypeAlias) {
 #[test]
 fn test_main() {
   let (a, b) = main();
-  let _ = assert_eq(a, b);
+  assert_eq(a, b);
   assert_eq(a, mod_simple_enum::EnumType::FIRST)
 }

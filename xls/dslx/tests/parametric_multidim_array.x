@@ -32,10 +32,10 @@ fn different_invocations() {
                          [TypeX:4, TypeX:5, TypeX:6]];
   // Use the parametric identity function on both sides, b has an enum that
   // describes the bitwidth but that's fine.
-  let _ = assert_eq(id(a), id(b));
+  assert_eq(id(a), id(b));
   // Mix the parametric identity function and an explicit instantiated wrapper
   // one.
-  let _ = assert_eq(id(a), id_6_3_2(b));
+  assert_eq(id(a), id_6_3_2(b));
   // Create a different shape to instantiate the parametric multidimensional
   // identity function with, should be no problem with that.
   let x: u3[2][3] = [[u3:1, u3:2], [u3:3, u3:4], [u3:5, u3:6]];

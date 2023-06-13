@@ -45,9 +45,9 @@ fn main(x: bool[3]) -> bool[3] {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(main(bool[3]:[true, false, false]),
+  assert_eq(main(bool[3]:[true, false, false]),
                          bool[3]:[false, false, true]);
-  let _ = assert_eq(main(bool[3]:[false, false, true]),
+  assert_eq(main(bool[3]:[false, false, true]),
                          bool[3]:[true, false, false]);
   ()
 }

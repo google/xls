@@ -37,7 +37,7 @@ fn can_instantiate() {
   assert_eq(local_struct, local_struct_expected)
 
   //let imported_struct_expected = u32[16]:[u32:8, u32:9, u32:10, u32:11, ...];
-  //let _ = assert_eq(imported_struct, imported_struct_expected);
+  //assert_eq(imported_struct, imported_struct_expected);
 
   //let imported_instance_expected = u32[32]:[u32:8, u32:9, u32:10, u32:11, ...];
   //assert_eq(imported_instance, imported_instance_expected)

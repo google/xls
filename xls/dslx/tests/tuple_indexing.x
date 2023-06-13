@@ -21,9 +21,9 @@ fn tuple_index_all_bits_set(x: (u1, u2, u3, u4)) -> u4 {
 #[test]
 fn test_tuple_index() {
   // Perform tuple indexing without explicitly annotating the type of the index.
-  let _ = assert_eq((u32:42, u4:7).1, u4:7);
-  let _ = assert_eq((u32:42, u4:7).0, u32:42);
-  let _ = assert_eq(tuple_index_all_bits_set((u1:1, u2:2, u3:3, u4:4)), u4:4);
+  assert_eq((u32:42, u4:7).1, u4:7);
+  assert_eq((u32:42, u4:7).0, u32:42);
+  assert_eq(tuple_index_all_bits_set((u1:1, u2:2, u3:3, u4:4)), u4:4);
   ()
 }
 
@@ -37,7 +37,7 @@ fn test_tuple_index() {
 //
 //test tuple_index_parametric {
 //  let t = (u32:42, u4:7);
-//  let _ = assert_eq(index_parametric<u32:0, u32:32>(t), u32:42);
-//  let _ = assert_eq(index_parametric<u32:1, u32:4>(t), u4:7);
+//  assert_eq(index_parametric<u32:0, u32:32>(t), u32:42);
+//  assert_eq(index_parametric<u32:1, u32:4>(t), u4:7);
 //  ()
 //}

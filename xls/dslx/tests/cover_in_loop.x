@@ -18,7 +18,7 @@ struct S {
 
 fn main(s: S) {
   for (_, ()) in u32:0 .. u32:4 {
-    let _ = cover!("indirect_list_size_C",
+    cover!("indirect_list_size_C",
                    s.i);
     ()
   }(())

@@ -22,8 +22,8 @@ fn main(x: u32) -> u32 {
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(main(u32:0), u32:4);
-  let _ = assert_eq(main(u32:1), u32:5);
-  let _ = assert_eq(LOCAL_FOUR, mod_simple_const::FOUR);
+  assert_eq(main(u32:0), u32:4);
+  assert_eq(main(u32:1), u32:5);
+  assert_eq(LOCAL_FOUR, mod_simple_const::FOUR);
   ()
 }

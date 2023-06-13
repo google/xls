@@ -22,7 +22,7 @@ fn main_test() {
   let y = u32:64;
   // Make an array with "bracket notation".
   let my_array: u32[2] = [x, y];
-  let _ = assert_eq(main(my_array, u1:0), x);
-  let _ = assert_eq(main(my_array, u1:1), y);
+  assert_eq(main(my_array, u1:0), x);
+  assert_eq(main(my_array, u1:1), y);
   ()
 }

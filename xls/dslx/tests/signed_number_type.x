@@ -21,7 +21,7 @@ fn main_test() {
   let x: s8 = s8:2;
   let y: s8 = s8:3;
   let z: s8 = main(x, y);
-  let _ = assert_lt(z, s8:0);
-  let _ = assert_eq(false, z >= s8:0);
+  assert_lt(z, s8:0);
+  assert_eq(false, z >= s8:0);
   ()
 }

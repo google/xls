@@ -62,7 +62,7 @@ fn test_funcs() {
   let r = make_point(u32:1, u64:1);
 
   // main() will only accept ParametricPoints with u32s.
-  let _ = assert_eq(u32:1, main(r));
+  assert_eq(u32:1, main(r));
 
   // from_point() is also type-parametric.
   let s = from_point(p);
@@ -70,14 +70,14 @@ fn test_funcs() {
 
   // WrapperStruct wraps an instance of ParametricPoint.
   let s_wrapper = WrapperStruct { pp: r };
-  let _ = assert_eq(r, s_wrapper.pp);
+  assert_eq(r, s_wrapper.pp);
 
   let sum = accum_points([
       make_point(u8: 3, u16: 4),
       make_point(u8: 5, u16: 6),
       make_point(u8: 7, u16: 8),
   ]);
-  let _ = assert_eq(sum, make_point(u8: 15, u16: 18));
+  assert_eq(sum, make_point(u8: 15, u16: 18));
 
   ()
 }

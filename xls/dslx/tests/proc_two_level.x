@@ -76,18 +76,18 @@ proc test_proc {
   next(tok: token, state: ()) {
     let tok = send(tok, s, u32:1);
     let (tok, res) = recv(tok, r);
-    let _ = assert_eq(res, u32:0);
-    let _ = trace!(res);
+    assert_eq(res, u32:0);
+    trace!(res);
 
     let tok = send(tok, s, u32:1);
     let (tok, res) = recv(tok, r);
-    let _ = assert_eq(res, u32:2);
-    let _ = trace!(res);
+    assert_eq(res, u32:2);
+    trace!(res);
 
     let tok = send(tok, s, u32:1);
     let (tok, res) = recv(tok, r);
-    let _ = assert_eq(res, u32:6);
-    let _ = trace!(res);
+    assert_eq(res, u32:6);
+    trace!(res);
 
     let tok = send(tok, terminator, true);
     ()

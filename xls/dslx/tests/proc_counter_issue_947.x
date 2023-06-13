@@ -49,10 +49,10 @@ proc counter_test {
   next(tok: token, state: ()) {
     let increment = u8:1;
     let counter = for (i, expected) in u32:0..u32:32 {
-      let _ = assert_eq(increment, u8:1);
-      //let _ = assert_eq(state, ());
+      assert_eq(increment, u8:1);
+      //assert_eq(state, ());
       let (tok, value) = recv(tok, output_r);
-      let _ = assert_eq(value, expected);
+      assert_eq(value, expected);
       value + increment
     }(u8:0);
     let tok = send(tok, terminator, true);

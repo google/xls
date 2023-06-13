@@ -23,7 +23,7 @@ fn main(x: Foo) -> Foo {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(Foo::B, main(Foo::A));
-  let _ = assert_eq(Foo::A, main(Foo::B));
+  assert_eq(Foo::B, main(Foo::A));
+  assert_eq(Foo::A, main(Foo::B));
   ()
 }

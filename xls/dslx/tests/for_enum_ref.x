@@ -33,9 +33,9 @@ fn main(x: u2) -> MyEnum {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(MyEnum::A, main(u2:0));
-  let _ = assert_eq(MyEnum::B, main(u2:1));
-  let _ = assert_eq(MyEnum::C, main(u2:2));
-  let _ = assert_eq(MyEnum::D, main(u2:3));
+  assert_eq(MyEnum::A, main(u2:0));
+  assert_eq(MyEnum::B, main(u2:1));
+  assert_eq(MyEnum::C, main(u2:2));
+  assert_eq(MyEnum::D, main(u2:3));
   ()
 }

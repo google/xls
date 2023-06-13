@@ -26,12 +26,12 @@ fn local_clog2<N: u32>(x: bits[N]) -> bits[N] {
 fn dot_product_local<BITCOUNT: u32, LENGTH: u32,
     IDX_BITS: u32 = {local_clog2<u32:32>(LENGTH) + u32:1}>
   (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT]{
-  let _ = trace!(BITCOUNT);
-  let _ = trace!(LENGTH);
-  let _ = trace!(IDX_BITS);
+  trace!(BITCOUNT);
+  trace!(LENGTH);
+  trace!(IDX_BITS);
 
   for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT]) in bits[IDX_BITS]:0..LENGTH as bits[IDX_BITS] {
-    let _ = trace!(idx);
+    trace!(idx);
     let partial_product = a[idx] * b[idx];
     acc + partial_product
   } (u32:0)
@@ -43,7 +43,7 @@ fn parametric_call_local_parametric() {
   let b = [u32:4, u32:5, u32:6, u32:7];
   let actual = dot_product_local(a, b);
   let expected = u32:38;
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -53,7 +53,7 @@ import std
 fn dot_product_modref<BITCOUNT: u32, LENGTH: u32,
     IDX_BITS: u32 = {std::clog2<u32:32>(LENGTH) + u32:1}>
   (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT]{
-  let _ = trace!(IDX_BITS);
+  trace!(IDX_BITS);
 
   for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT])
     in bits[IDX_BITS]:0..LENGTH as bits[IDX_BITS] {
@@ -69,6 +69,6 @@ fn parametric_call_modref_parametric() {
   let b = [u32:4, u32:5, u32:6, u32:7];
   let actual = dot_product_modref(a, b);
   let expected = u32:38;
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }

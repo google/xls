@@ -40,9 +40,9 @@ fn maps() {
   let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7];
   let expected = u4[8]:[0, 2, 4, 6, 8, 10, 12, 14];
   let expected_u6 = u6[8]:[0, 2, 4, 6, 8, 10, 12, 14];
-  let _ = assert_eq(expected, map(x0, umul_2));
-  let _ = assert_eq(expected_u6, map(x0, umul_2_widening));
-  let _ = assert_eq(expected, map(x0, umul_2_parametric));
-  let _ = assert_eq(u4[8]:[4, 4, 2, 1, 1, 0, 0, 0], main());
+  assert_eq(expected, map(x0, umul_2));
+  assert_eq(expected_u6, map(x0, umul_2_widening));
+  assert_eq(expected, map(x0, umul_2_parametric));
+  assert_eq(u4[8]:[4, 4, 2, 1, 1, 0, 0, 0], main());
   ()
 }

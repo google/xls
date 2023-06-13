@@ -22,7 +22,7 @@ fn main(x: MyEnum) -> bool {
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(main(MyEnum::FOO), true);
-  let _ = assert_eq(main(MyEnum::BAR), false);
+  assert_eq(main(MyEnum::FOO), true);
+  assert_eq(main(MyEnum::BAR), false);
   ()
 }

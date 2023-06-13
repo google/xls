@@ -34,7 +34,7 @@ fn main_tuple_as_type_annotation() -> u32 {
 
 #[test]
 fn main_test() {
-  let _ = assert_eq(u32:3, main_tuple_as_type_alias());
-  let _ = assert_eq(u32:3, main_tuple_as_type_annotation());
+  assert_eq(u32:3, main_tuple_as_type_alias());
+  assert_eq(u32:3, main_tuple_as_type_annotation());
   ()
 }

@@ -29,11 +29,11 @@ fn main(x: u32) -> u5 {
 fn main_test() {
   let x = u32:0xa000_0000;
   let want = u5:0b1010_0;
-  let _ = assert_eq(f(x), g(x));
-  let _ = assert_eq(g(x), h(x));
-  let _ = assert_eq(f(x), want);
-  let _ = assert_eq(g(x), want);
-  let _ = assert_eq(h(x), want);
-  let _ = assert_eq(main(x), u5:28);
+  assert_eq(f(x), g(x));
+  assert_eq(g(x), h(x));
+  assert_eq(f(x), want);
+  assert_eq(g(x), want);
+  assert_eq(h(x), want);
+  assert_eq(main(x), u5:28);
   ()
 }

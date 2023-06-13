@@ -32,11 +32,11 @@ fn main(x: MyEnum) -> bool {
 
 #[test]
 fn parametric_enum_value() {
-  let _ = assert_eq(is_a(MyEnum::A), true);
-  let _ = assert_eq(is_a(MyEnum::B), false);
-  let _ = assert_eq(is_b(MyEnum::A), false);
-  let _ = assert_eq(is_b(MyEnum::B), true);
-  let _ = assert_eq(main(MyEnum::A), true);
-  let _ = assert_eq(main(MyEnum::B), true);
+  assert_eq(is_a(MyEnum::A), true);
+  assert_eq(is_a(MyEnum::B), false);
+  assert_eq(is_b(MyEnum::A), false);
+  assert_eq(is_b(MyEnum::B), true);
+  assert_eq(main(MyEnum::A), true);
+  assert_eq(main(MyEnum::B), true);
   ()
 }

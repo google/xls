@@ -28,14 +28,14 @@ fn umulp_with_add<M: u32, N: u32, O: u32 = {max(M, N)}>(x: uN[M], y: uN[N]) -> u
 
 #[test]
 fn smulp_examples() {
-    let _ = assert_eq(s10: 15, smulp_with_add<u32:10, u32:10>(s10: 5, s10: 3));
-    let _ = assert_eq(s12: 45, smulp_with_add(s12: 15, s12: 3));
-    let _ = assert_eq(s12: -45, smulp_with_add(s12: 15, s10: -3));
+    assert_eq(s10: 15, smulp_with_add<u32:10, u32:10>(s10: 5, s10: 3));
+    assert_eq(s12: 45, smulp_with_add(s12: 15, s12: 3));
+    assert_eq(s12: -45, smulp_with_add(s12: 15, s10: -3));
 }
 
 #[test]
 fn umulp_examples() {
-    let _ = assert_eq(u10: 15, umulp_with_add<u32:10, u32:10>(u10: 5, u10: 3));
-    let _ = assert_eq(u12: 45, umulp_with_add(u12: 15, u12: 3));
-    let _ = assert_eq(u12: 75, umulp_with_add(u12: 15, u10: 5));
+    assert_eq(u10: 15, umulp_with_add<u32:10, u32:10>(u10: 5, u10: 3));
+    assert_eq(u12: 45, umulp_with_add(u12: 15, u12: 3));
+    assert_eq(u12: 75, umulp_with_add(u12: 15, u10: 5));
 }

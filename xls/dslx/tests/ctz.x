@@ -20,12 +20,12 @@ fn main() -> u32 {
 
 #[test]
 fn ctz_test() {
-  let _ = assert_eq(u32:27, main());
-  let _ = assert_eq(u3:2, ctz(u3:0b100));
-  let _ = assert_eq(u3:1, ctz(u3:0b010));
-  let _ = assert_eq(u3:0, ctz(u3:0b001));
-  let _ = assert_eq(u3:0, ctz(u3:0b111));
-  let _ = assert_eq(u3:3, ctz(u3:0b000));
+  assert_eq(u32:27, main());
+  assert_eq(u3:2, ctz(u3:0b100));
+  assert_eq(u3:1, ctz(u3:0b010));
+  assert_eq(u3:0, ctz(u3:0b001));
+  assert_eq(u3:0, ctz(u3:0b111));
+  assert_eq(u3:3, ctz(u3:0b000));
   ()
 }
 

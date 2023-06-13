@@ -21,7 +21,7 @@ fn narrow_signed_cast() {
 #[test]
 fn widen_signed_cast() {
   let negative_one = s2:0b11;
-  let _ = assert_eq(negative_one, s2:-1);
+  assert_eq(negative_one, s2:-1);
   assert_eq(negative_one as s4, s4:-1)
 }
 
@@ -29,7 +29,7 @@ fn widen_signed_cast() {
 fn numerical_conversions() {
   let s8_m2 = s8:-2;
   // Sign extension (source type is signed).
-  let _ = assert_eq(s32:-2, s8_m2 as s32);
-  let _ = assert_eq(s16:-2, s8_m2 as s16);
+  assert_eq(s32:-2, s8_m2 as s32);
+  assert_eq(s16:-2, s8_m2 as s16);
   ()
 }

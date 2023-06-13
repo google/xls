@@ -59,16 +59,16 @@ fn shr_unsigned() -> uN[4] {
 
 #[test]
 fn test_shifts() {
-  let _ = assert_eq(s16:40, shl_unsigned_type());
-  let _ = assert_eq(s16:40, shl_literal());
-  let _ = assert_eq(s16:40, shl_binary_literal());
-  let _ = assert_eq(s16:40, shl_hex_literal());
-  let _ = assert_eq(s16:80, shl_literal_power_of_two());
-  let _ = assert_eq(s16:80, shl_parametric<u32:4>());
+  assert_eq(s16:40, shl_unsigned_type());
+  assert_eq(s16:40, shl_literal());
+  assert_eq(s16:40, shl_binary_literal());
+  assert_eq(s16:40, shl_hex_literal());
+  assert_eq(s16:80, shl_literal_power_of_two());
+  assert_eq(s16:80, shl_parametric<u32:4>());
   // TODO(https://github.com/google/xls/issues/471): 2022-01-27 Re-enable
   // (or modify) after resolving this issue.
-  // let _ = assert_eq(s4:14, shr_signed());
-  let _ = assert_eq(u4:2, shr_unsigned());
+  // assert_eq(s4:14, shr_signed());
+  assert_eq(u4:2, shr_unsigned());
   ()
 }
 
@@ -110,8 +110,8 @@ fn main() -> sN[128] {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(s32:-1, main32());
-  let _ = assert_eq(sN[1024]:-2, main1k());
-  let _ = assert_eq(sN[128]:-2, main());
+  assert_eq(s32:-1, main32());
+  assert_eq(sN[1024]:-2, main1k());
+  assert_eq(sN[128]:-2, main());
   ()
 }

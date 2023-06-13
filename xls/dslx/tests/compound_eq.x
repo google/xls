@@ -84,15 +84,15 @@ fn prop_consistent_neq(x: TestBlob[3], y: TestBlob[3]) -> bool {
 
 #[test]
 fn empty_eq_test() {
-  let _ = assert_eq (() == (), true);
-  let _ = assert_eq (() != (), false);
+  assert_eq (() == (), true);
+  assert_eq (() != (), false);
 // The following, more natural, definitions require unifying type inference.
 // TODO(amfv): 2021-05-26 Switch to them once have it.
 //  let a: u32[0] = [];
 //  let b: u32[0] = [];
   let a = u32[0]:[];
   let b = u32[0]:[];
-  let _ = assert_eq (a == b, true);
-  let _ = assert_eq (a != b, false);
+  assert_eq (a == b, true);
+  assert_eq (a != b, false);
   ()
 }

@@ -26,21 +26,21 @@ fn binop_parametric<M: u32, N: u32, R: u32 = {M+N}>(x: bits[M], y: bits[N]) -> b
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(u8:0b11000000, binop(u2:0b11, u6:0));
-  let _ = assert_eq(u8:0b00000111, binop(u2:0, u6:0b111));
-  let _ = assert_eq(u6:0b100111, binop_chain(u1:1, u2:0b00, u3:0b111));
-  let _ = assert_eq(u6:0b001000, binop_chain(u1:0, u2:0b01, u3:0b000));
-  let _ = assert_eq(u32:0xdeadbeef, binop_parametric(u16:0xdead, u16:0xbeef));
+  assert_eq(u8:0b11000000, binop(u2:0b11, u6:0));
+  assert_eq(u8:0b00000111, binop(u2:0, u6:0b111));
+  assert_eq(u6:0b100111, binop_chain(u1:1, u2:0b00, u3:0b111));
+  assert_eq(u6:0b001000, binop_chain(u1:0, u2:0b01, u3:0b000));
+  assert_eq(u32:0xdeadbeef, binop_parametric(u16:0xdead, u16:0xbeef));
   ()
 }
 
 // Example given in the docs.
 #[test]
 fn test_docs() {
-  let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
-  let _ = assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
-  let _ = assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
-  let _ = assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
-  let _ = assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
+  assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
+  assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
+  assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
+  assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
+  assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
   ()
 }

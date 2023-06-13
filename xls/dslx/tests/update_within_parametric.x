@@ -18,7 +18,7 @@ fn main<N: u32>(x: u32[N]) -> u32[N] {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(main(u32[2]:[0, 0]), u32[2]:[2, 0]);
-  let _ = assert_eq(main(u32[3]:[0, 0, 0]), u32[3]:[3, 0, 0]);
+  assert_eq(main(u32[2]:[0, 0]), u32[2]:[2, 0]);
+  assert_eq(main(u32[3]:[0, 0, 0]), u32[3]:[3, 0, 0]);
   ()
 }

@@ -28,7 +28,7 @@ fn main(p: Point) -> Point {
 fn main_test() {
   let p = Point{ x: u32:1, y: u32:2 };
   let q = main(p);
-  let _ = assert_eq(q.y, u32:42);
-  let _ = assert_eq(q.x, u32:1);
+  assert_eq(q.y, u32:42);
+  assert_eq(q.x, u32:1);
   ()
 }

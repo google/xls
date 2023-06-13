@@ -24,8 +24,8 @@ fn main(xy: u32) -> Point {
 #[test]
 fn f() {
   let p: Point = main(u32:42);
-  let _ = assert_eq(u32:42, p.x);
-  let _ = assert_eq(u32:42, p.y);
+  assert_eq(u32:42, p.x);
+  assert_eq(u32:42, p.y);
   ()
 }
 

@@ -29,10 +29,10 @@ fn main() -> (u10, u20) {
 #[test]
 fn derived_parametric_functions() {
   let arr = map([u2:1, u2:2], self_append);
-  let _ = assert_eq(u4:5, arr[u32:0]);
-  let _ = assert_eq(u4:10, arr[u32:1]);
+  assert_eq(u4:5, arr[u32:0]);
+  assert_eq(u4:10, arr[u32:1]);
 
-  let _ = assert_eq(u4:5, self_append(u2:1));
-  let _ = assert_eq(u6:18, self_append(u3:2));
+  assert_eq(u4:5, self_append(u2:1));
+  assert_eq(u6:18, self_append(u3:2));
   ()
 }
