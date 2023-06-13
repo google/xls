@@ -123,6 +123,9 @@ piggy-backing on the Rust major mode.
 (which-key-mode)
 (require 'lsp-mode)
 (add-to-list 'auto-mode-alist '("\\.x\\'" . rust-mode))
+;; DSLX can make rust-mode very slow for large files due to angle bracket
+;; matching which is inefficiently implemented. Disable the feature.
+(setq rust-match-angle-brackets nil)
 (add-to-list 'lsp-language-id-configuration '(rust-mode . "dslx"))
 (lsp-register-client
  (make-lsp-client :new-connection (lsp-stdio-connection "~/bin/dslx_ls")
