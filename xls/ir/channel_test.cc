@@ -14,11 +14,20 @@
 
 #include "xls/ir/channel.h"
 
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -45,12 +54,40 @@ TEST(ChannelTest, ChannelOpsToString) {
                        HasSubstr("Unknown channel ops")));
 }
 
+TEST(ChannelTest, ChannelStrictnessStringConversions) {
+  EXPECT_EQ(
+      ChannelStrictnessToString(ChannelStrictness::kProvenMutuallyExclusive),
+      "proven_mutually_exclusive");
+  EXPECT_EQ(
+      ChannelStrictnessToString(ChannelStrictness::kRuntimeMutuallyExclusive),
+      "runtime_mutually_exclusive");
+  EXPECT_EQ(ChannelStrictnessToString(ChannelStrictness::kRuntimeOrdered),
+            "runtime_ordered");
+  EXPECT_EQ(
+      ChannelStrictnessToString(ChannelStrictness::kProvenMutuallyExclusive),
+      "proven_mutually_exclusive");
+  EXPECT_EQ(ChannelStrictnessToString(ChannelStrictness::kTotalOrder),
+            "total_order");
+
+  EXPECT_THAT(ChannelStrictnessFromString("proven_mutually_exclusive"),
+              IsOkAndHolds(ChannelStrictness::kProvenMutuallyExclusive));
+  EXPECT_THAT(ChannelStrictnessFromString("runtime_mutually_exclusive"),
+              IsOkAndHolds(ChannelStrictness::kRuntimeMutuallyExclusive));
+  EXPECT_THAT(ChannelStrictnessFromString("runtime_ordered"),
+              IsOkAndHolds(ChannelStrictness::kRuntimeOrdered));
+  EXPECT_THAT(ChannelStrictnessFromString("proven_mutually_exclusive"),
+              IsOkAndHolds(ChannelStrictness::kProvenMutuallyExclusive));
+  EXPECT_THAT(ChannelStrictnessFromString("total_order"),
+              IsOkAndHolds(ChannelStrictness::kTotalOrder));
+}
+
 TEST(ChannelTest, ConstructStreamingChannel) {
   Package p("my_package");
-  StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
-                      p.GetBitsType(32),
-                      /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-                      FlowControl::kReadyValid, ChannelMetadataProto());
+  StreamingChannel ch(
+      "my_channel", 42, ChannelOps::kReceiveOnly, p.GetBitsType(32),
+      /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
+      FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
+      ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.kind(), ChannelKind::kStreaming);
@@ -60,6 +97,7 @@ TEST(ChannelTest, ConstructStreamingChannel) {
   EXPECT_TRUE(ch.initial_values().empty());
   EXPECT_FALSE(ch.GetFifoDepth().has_value());
   EXPECT_EQ(ch.GetFlowControl(), FlowControl::kReadyValid);
+  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, ConstructSingleValueChannel) {
@@ -76,7 +114,8 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   StreamingChannel ch(
       "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
       {Value(UBits(11, 32)), Value(UBits(22, 32))},
-      /*fifo_depth=*/std::nullopt, FlowControl::kNone, ChannelMetadataProto());
+      /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -85,13 +124,15 @@ TEST(ChannelTest, StreamingChannelWithInitialValues) {
   EXPECT_THAT(ch.initial_values(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(22, 32))));
   EXPECT_EQ(ch.GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   Package p("my_package");
-  StreamingChannel ch("my_channel", 42, ChannelOps::kSendReceive,
-                      p.GetBitsType(32), {}, /*fifo_depth=*/123,
-                      FlowControl::kNone, ChannelMetadataProto());
+  StreamingChannel ch(
+      "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32), {},
+      /*fifo_depth=*/123, FlowControl::kNone,
+      ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
   EXPECT_EQ(ch.name(), "my_channel");
   EXPECT_EQ(ch.id(), 42);
@@ -100,6 +141,7 @@ TEST(ChannelTest, StreamingChannelWithFifoDepth) {
   EXPECT_TRUE(ch.initial_values().empty());
   EXPECT_EQ(ch.GetFifoDepth(), 123);
   EXPECT_EQ(ch.GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch.GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
 }
 
 TEST(ChannelTest, StreamingToStringParses) {
@@ -110,12 +152,14 @@ TEST(ChannelTest, StreamingToStringParses) {
   StreamingChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
                       p.GetTypeForValue(initial_values.front()), initial_values,
                       /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+                      ChannelStrictness::kProvenMutuallyExclusive,
                       ChannelMetadataProto());
   std::string channel_str = ch.ToString();
   EXPECT_EQ(channel_str,
             "chan my_channel((bits[32], bits[23]), initial_values={(1234, 33), "
             "(2222, 444)}, id=42, kind=streaming, ops=receive_only, "
-            "flow_control=ready_valid, metadata=\"\"\"\"\"\")");
+            "flow_control=ready_valid, strictness=proven_mutually_exclusive, "
+            "metadata=\"\"\"\"\"\")");
 
   // Create another package and try to parse the channel into the other
   // package. We can't use the existing package because adding the channel will
@@ -166,11 +210,11 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
   Package p("my_package");
 
   {
-    StreamingChannel ch("my_channel", 42, ChannelOps::kSendReceive,
-                        p.GetBitsType(32),
-                        /*initial_values=*/{},
-                        /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
-                        ChannelMetadataProto());
+    StreamingChannel ch(
+        "my_channel", 42, ChannelOps::kSendReceive, p.GetBitsType(32),
+        /*initial_values=*/{},
+        /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
+        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
     EXPECT_FALSE(ch.HasCompletedBlockPortNames());
     ch.SetBlockName("my_block");
@@ -189,10 +233,10 @@ TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
   }
 
   {
-    StreamingChannel ch("my_channel_2", 45, ChannelOps::kSendOnly,
-                        p.GetBitsType(32),
-                        /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-                        FlowControl::kNone, ChannelMetadataProto());
+    StreamingChannel ch(
+        "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
+        /*initial_values=*/{}, /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+        ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto());
 
     EXPECT_FALSE(ch.HasCompletedBlockPortNames());
     ch.SetDataPortName("my_block_data");

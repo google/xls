@@ -14,14 +14,29 @@
 
 #include "xls/ir/ir_parser.h"
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/casts.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
-#include "xls/ir/number_parser.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -1198,7 +1213,7 @@ fn bar(to_update: bits[123], start: bits[8], value: bits[23]) -> bits[123] {
 TEST(IrParserTest, ParseSimpleProc) {
   const std::string input = R"(package test
 
-chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
+chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, strictness=proven_mutually_exclusive, metadata="""""")
 
 proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel_id=0, id=1)
@@ -1792,7 +1807,7 @@ fn foo(x: bits[8][5]) -> bits[8] {
 }
 
 TEST(IrParserTest, NicerErrorOnEmptyString) {
-  const std::string input = "";
+  const std::string input = "";  // NOLINT: emphasize empty string here.
   EXPECT_THAT(
       Parser::ParsePackage(input).status(),
       StatusIs(
@@ -2231,6 +2246,24 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
   EXPECT_TRUE(ch->metadata().module_port().flopped());
 }
 
+TEST(IrParserTest, ParseStreamingChannelWithStrictness) {
+  Package p("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch,
+      Parser::ParseChannel(
+          R"(chan foo(bits[32], id=42, kind=streaming,
+                         flow_control=none, ops=send_receive,
+                         strictness=arbitrary_static_order, metadata=""""""))",
+          &p));
+  EXPECT_EQ(ch->name(), "foo");
+  EXPECT_EQ(ch->id(), 42);
+  EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendReceive);
+  EXPECT_EQ(ch->kind(), ChannelKind::kStreaming);
+  EXPECT_EQ(ch->type(), p.GetBitsType(32));
+  EXPECT_EQ(down_cast<StreamingChannel*>(ch)->GetStrictness(),
+            ChannelStrictness::kArbitraryStaticOrder);
+}
+
 TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
   // For testing round-trip parsing.
   std::string ch_ir_text;
@@ -2438,6 +2471,16 @@ TEST(IrParserTest, ChannelParsingErrors) {
           .status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Only streaming channels can have a fifo_depth")));
+
+  // Strictness on single-value channel.
+  EXPECT_THAT(
+      Parser::ParseChannel(
+          R"(chan meh(bits[32], id=44, kind=single_value, ops=receive_only,
+                         strictness=proven_mutually_exclusive, metadata=""))",
+          &p)
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Only streaming channels can have a strictness")));
 }
 
 TEST(IrParserTest, PackageWithSingleDataElementChannels) {

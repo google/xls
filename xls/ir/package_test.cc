@@ -328,7 +328,8 @@ TEST_F(PackageTest, CreateStreamingChannel) {
       p.CreateStreamingChannel(
           "ch42", ChannelOps::kReceiveOnly, p.GetBitsType(44),
           /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-          FlowControl::kReadyValid, ChannelMetadataProto(), 42));
+          FlowControl::kReadyValid, ChannelStrictness::kProvenMutuallyExclusive,
+          ChannelMetadataProto(), 42));
   EXPECT_EQ(ch42->id(), 42);
   EXPECT_THAT(p.GetChannel(42), IsOkAndHolds(ch42));
 
@@ -342,7 +343,9 @@ TEST_F(PackageTest, CreateStreamingChannel) {
   EXPECT_THAT(p.CreateStreamingChannel(
                    "ch1_dup", ChannelOps::kReceiveOnly, p.GetBitsType(44),
                    /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-                   FlowControl::kReadyValid, ChannelMetadataProto(), 1)
+                   FlowControl::kReadyValid,
+                   ChannelStrictness::kProvenMutuallyExclusive,
+                   ChannelMetadataProto(), 1)
                   .status(),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Channel already exists with id 1")));
@@ -519,6 +522,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
           "ch0", ChannelOps::kSendOnly, p.GetBitsType(32),
           /*initial_values*/ std::vector<Value>{Value(UBits(0, 32))},
           /*fifo_depth=*/3, /*flow_control=*/FlowControl::kNone,
+          /*strictness=*/ChannelStrictness::kProvenMutuallyExclusive,
           /*metadata=*/original_metadata));
   std::vector<Value> initial_values_override;
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -527,13 +531,14 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
                      Package::CloneChannelOverrides().OverrideInitialValues(
                          initial_values_override)));
   StreamingChannel* ch1 = down_cast<StreamingChannel*>(ch1_base);
-  EXPECT_NE(ch1, nullptr);
+  ASSERT_NE(ch1, nullptr);
 
   EXPECT_EQ(ch1->name(), "ch1");
   EXPECT_THAT(ch1, op_matchers::ChannelWithType("bits[32]"));
   EXPECT_EQ(ch1->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch1->GetFifoDepth(), 3);
   EXPECT_EQ(ch1->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch1->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
   EXPECT_EQ(ch1->metadata().block_ports().block_name(), "original_name");
 
   EXPECT_EQ(ch1->initial_values(), initial_values_override);
@@ -548,13 +553,14 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
           ch0, "ch2",
           Package::CloneChannelOverrides().OverrideFifoDepth(std::nullopt)));
   StreamingChannel* ch2 = down_cast<StreamingChannel*>(ch2_base);
-  EXPECT_NE(ch2, nullptr);
+  ASSERT_NE(ch2, nullptr);
 
   EXPECT_EQ(ch2->name(), "ch2");
   EXPECT_THAT(ch2, op_matchers::ChannelWithType("bits[32]"));
   EXPECT_EQ(ch2->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch2->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch2->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch2->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
   EXPECT_EQ(ch2->metadata().block_ports().block_name(), "original_name");
 
   EXPECT_EQ(ch2->GetFifoDepth(), std::nullopt);
@@ -565,13 +571,14 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
                      Package::CloneChannelOverrides().OverrideFlowControl(
                          FlowControl::kReadyValid)));
   StreamingChannel* ch3 = down_cast<StreamingChannel*>(ch3_base);
-  EXPECT_NE(ch3, nullptr);
+  ASSERT_NE(ch3, nullptr);
 
   EXPECT_EQ(ch3->name(), "ch3");
   EXPECT_THAT(ch3, op_matchers::ChannelWithType("bits[32]"));
   EXPECT_EQ(ch3->supported_ops(), ChannelOps::kSendOnly);
   EXPECT_EQ(ch3->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch3->GetFifoDepth(), 3);
+  EXPECT_EQ(ch3->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
   EXPECT_EQ(ch3->metadata().block_ports().block_name(), "original_name");
 
   EXPECT_EQ(ch3->GetFlowControl(), FlowControl::kReadyValid);
@@ -582,7 +589,7 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
                      Package::CloneChannelOverrides().OverrideMetadata(
                          ChannelMetadataProto())));
   StreamingChannel* ch4 = down_cast<StreamingChannel*>(ch4_base);
-  EXPECT_NE(ch4, nullptr);
+  ASSERT_NE(ch4, nullptr);
 
   EXPECT_EQ(ch4->name(), "ch4");
   EXPECT_THAT(ch4, op_matchers::ChannelWithType("bits[32]"));
@@ -590,8 +597,26 @@ TEST_F(PackageTest, CloneStreamingChannelSetParams) {
   EXPECT_EQ(ch4->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
   EXPECT_EQ(ch4->GetFifoDepth(), 3);
   EXPECT_EQ(ch4->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch4->GetStrictness(), ChannelStrictness::kProvenMutuallyExclusive);
   EXPECT_EQ(ch0->metadata().block_ports().block_name(), "original_name");
   EXPECT_EQ(ch4->metadata().block_ports().block_name(), "");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch5_base,
+      p.CloneChannel(ch0, "ch5",
+                     Package::CloneChannelOverrides().OverrideStrictness(
+                         ChannelStrictness::kArbitraryStaticOrder)));
+  StreamingChannel* ch5 = down_cast<StreamingChannel*>(ch5_base);
+  ASSERT_NE(ch5, nullptr);
+
+  EXPECT_EQ(ch5->name(), "ch5");
+  EXPECT_THAT(ch5, op_matchers::ChannelWithType("bits[32]"));
+  EXPECT_EQ(ch5->supported_ops(), ChannelOps::kSendOnly);
+  EXPECT_EQ(ch5->initial_values(), std::vector<Value>{Value(UBits(0, 32))});
+  EXPECT_EQ(ch5->GetFifoDepth(), 3);
+  EXPECT_EQ(ch5->GetFlowControl(), FlowControl::kNone);
+  EXPECT_EQ(ch5->metadata().block_ports().block_name(), "original_name");
+  EXPECT_EQ(ch5->GetStrictness(), ChannelStrictness::kArbitraryStaticOrder);
 }
 
 TEST_F(PackageTest, CloneStreamingChannelSamePackageButDifferentOps) {

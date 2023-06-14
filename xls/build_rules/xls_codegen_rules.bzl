@@ -245,7 +245,6 @@ def xls_ir_verilog_impl(ctx, src):
         "gate_recvs",
         "array_index_bounds_checking",
         "mutual_exclusion_z3_rlimit",
-        "multiple_channel_ops_legalization_strictness",
         "inline_procs",
     )
 

@@ -1,7 +1,7 @@
 package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
 
 <span id="ir-function-f0" class="ir-function">top proc <span id="ir-function-def-f0" class="ir-function-identifier" data-identifier="f0">the_proc</span>(<span id="ir-node-def-f0_p1" class="ir-node-identifier ir-node-identifier-f0_p1" data-node-id="f0_p1" data-function-id="f0">tkn</span>: token, <span id="ir-node-def-f0_p2" class="ir-node-identifier ir-node-identifier-f0_p2 state-element-0" data-node-id="f0_p2" data-function-id="f0" data-state-element="0">x</span>: bits[32], <span id="ir-node-def-f0_p3" class="ir-node-identifier ir-node-identifier-f0_p3 state-element-1" data-node-id="f0_p3" data-function-id="f0" data-state-element="1">y</span>: bits[64], init={0, 42}) {
   <span id="ir-node-def-f0_4" class="ir-node-identifier ir-node-identifier-f0_4" data-node-id="f0_4" data-function-id="f0">rcv</span>: (token, bits[32]) = receive(<span class="ir-node-identifier ir-node-identifier-f0_p1 ir-edge-f0_p1-f0_4" data-node-id="f0_p1" data-function-id="f0">tkn</span>, channel_id=0, id=4)

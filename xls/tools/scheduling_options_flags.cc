@@ -72,25 +72,6 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
           "the last cycle.");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass");
-ABSL_FLAG(
-    xls::MultipleChannelOpsLegalizationStrictness,
-    multiple_channel_ops_legalization_strictness,
-    xls::MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive,
-    "The strictness with which multiple channel operations on the same channel "
-    "are legalized. The options are :\n"
-    "1. proven_mutually_exclusive (default): Requires that channel operations "
-    "   be formally proven mutually exclusive by Z3.\n"
-    "2. runtime_mutually_exclusive: Requires that channel operations be "
-    "   mutually exclusive- enforced during simulation via assertions.\n"
-    "3. total_order: For each proc, requires a total order on all operations "
-    "   on a channel. Note: operations from different procs will not  be "
-    "   ordered with respect to each other.\n"
-    "4. runtime_ordered: Requires that a total order exists on every subset of "
-    "   channel operations that fires at runtime. Adds assertions.\n"
-    "5. arbitrary_static_order: For each proc, an arbitrary (respecting "
-    "   existing token relationships) static priority is chosen for multiple "
-    "   channel operations. Operations coming from different procs must be"
-    "   mutually exclusive (enforced via assertions).");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -191,9 +172,6 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
       }
     }
   }
-
-  scheduling_options.multiple_channel_ops_legalization_strictness(
-      absl::GetFlag(FLAGS_multiple_channel_ops_legalization_strictness));
 
   return scheduling_options;
 }

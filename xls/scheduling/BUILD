@@ -422,7 +422,6 @@ cc_library(
     srcs = ["channel_legalization_pass.cc"],
     hdrs = ["channel_legalization_pass.h"],
     deps = [
-        ":scheduling_options",
         ":scheduling_pass",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -446,8 +445,6 @@ cc_library(
         "//xls/ir:op",
         "//xls/ir:source_location",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
-        "//xls/passes:proc_inlining_pass",
         "//xls/passes:token_provenance_analysis",
     ],
 )
@@ -463,6 +460,7 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -472,6 +470,7 @@ cc_test(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
         "@com_google_googletest//:gtest",

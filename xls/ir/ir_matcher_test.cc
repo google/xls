@@ -14,12 +14,21 @@
 
 #include "xls/ir/ir_matcher.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace m = xls::op_matchers;
 
@@ -325,13 +334,15 @@ TEST(IrMatchersTest, SendOps) {
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
           /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelMetadataProto(), 42));
+          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
+          42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
           /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelMetadataProto(), 123));
+          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
+          123));
 
   ProcBuilder b("proc", "my_token", &p);
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));
@@ -362,13 +373,15 @@ TEST(IrMatchersTest, ReceiveOps) {
       p.CreateStreamingChannel(
           "ch42", ChannelOps ::kSendReceive, p.GetBitsType(32), {},
           /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelMetadataProto(), 42));
+          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
+          42));
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch123,
       p.CreateStreamingChannel(
           "ch123", ChannelOps::kSendReceive, p.GetBitsType(32), {},
           /*fifo_depth=*/std::nullopt, FlowControl::kReadyValid,
-          ChannelMetadataProto(), 123));
+          ChannelStrictness::kProvenMutuallyExclusive, ChannelMetadataProto(),
+          123));
 
   ProcBuilder b("proc", "my_token", &p);
   auto state = b.StateElement("my_state", Value(UBits(333, 32)));

@@ -140,84 +140,6 @@ using SchedulingConstraint =
     std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
                  RecvsFirstSendsLastConstraint, BackedgeConstraint>;
 
-// When multiple of the same channel operations happen on the same channel,
-// scheduling legalizes them through a combination of:
-//  1. Requiring proven properties of the channel operations.
-//  2. Runtime checks (assertions) that properties of the channel are true.
-//  3. Arbitrary selection of priority between operations.
-//
-// Note that this does not apply to e.g. a send and receive on an internal
-// SendReceive channel. This only applies when multiples of the same channel
-// operation are being performed on the same channel.
-enum class MultipleChannelOpsLegalizationStrictness {
-  // Requires that channel operations be formally proven to be mutually
-  // exclusive by Z3.
-  kProvenMutuallyExclusive,
-  // Requires that channel operations be mutually exclusive- enforced during
-  // simulation via assertions.
-  kRuntimeMutuallyExclusive,
-  // For each proc, requires a total order on all operations on a channel. Note:
-  // operations from different procs will not be ordered with respect to each
-  // other.
-  kTotalOrder,
-  // Requires that a total order exists on every subset of channel operations
-  // that fires at runtime. Adds assertions.
-  kRuntimeOrdered,
-  // For each proc, an arbitrary (respecting existing token relationships)
-  // static priority is chosen for multiple channel operations. Operations
-  // coming from different procs must be mutually exclusive (enforced via
-  // assertions).
-  kArbitraryStaticOrder,
-};
-
-inline bool AbslParseFlag(std::string_view text,
-                          MultipleChannelOpsLegalizationStrictness* out,
-                          std::string* error) {
-  if (text == "proven_mutually_exclusive") {
-    *out = MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive;
-    return true;
-  }
-  if (text == "runtime_mutually_exclusive") {
-    *out = MultipleChannelOpsLegalizationStrictness::kRuntimeMutuallyExclusive;
-    return true;
-  }
-  if (text == "total_order") {
-    *out = MultipleChannelOpsLegalizationStrictness::kTotalOrder;
-    return true;
-  }
-  if (text == "runtime_ordered") {
-    *out = MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered;
-    return true;
-  }
-  if (text == "arbitrary_static_order") {
-    *out = MultipleChannelOpsLegalizationStrictness::kArbitraryStaticOrder;
-    return true;
-  }
-  *error = absl::StrFormat("Unrecognized strictness %s.", text);
-  return false;
-}
-inline std::string AbslUnparseFlag(
-    MultipleChannelOpsLegalizationStrictness in) {
-  if (in ==
-      MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive) {
-    return "proven_mutually_exclusive";
-  }
-  if (in ==
-      MultipleChannelOpsLegalizationStrictness::kRuntimeMutuallyExclusive) {
-    return "runtime_mutually_exclusive";
-  }
-  if (in == MultipleChannelOpsLegalizationStrictness::kTotalOrder) {
-    return "total_order";
-  }
-  if (in == MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered) {
-    return "runtime_ordered";
-  }
-  if (in == MultipleChannelOpsLegalizationStrictness::kArbitraryStaticOrder) {
-    return "arbitrary_static_order";
-  }
-  return "unknown";
-}
-
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. See
 // https://google.github.io/xls/scheduling/ for details on these options.
@@ -225,11 +147,7 @@ class SchedulingOptions {
  public:
   explicit SchedulingOptions(
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
-      : strategy_(strategy),
-        constraints_({BackedgeConstraint()}),
-        multiple_channel_ops_legalization_strictness_(
-            MultipleChannelOpsLegalizationStrictness::
-                kProvenMutuallyExclusive) {}
+      : strategy_(strategy), constraints_({BackedgeConstraint()}) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
@@ -311,17 +229,6 @@ class SchedulingOptions {
     return mutual_exclusion_z3_rlimit_;
   }
 
-  // The strictness setting for multiple channel ops legalization.
-  SchedulingOptions& multiple_channel_ops_legalization_strictness(
-      MultipleChannelOpsLegalizationStrictness value) {
-    multiple_channel_ops_legalization_strictness_ = value;
-    return *this;
-  }
-  MultipleChannelOpsLegalizationStrictness
-  multiple_channel_ops_legalization_strictness() const {
-    return multiple_channel_ops_legalization_strictness_;
-  }
-
  private:
   SchedulingStrategy strategy_;
   std::optional<int64_t> clock_period_ps_;
@@ -332,8 +239,6 @@ class SchedulingOptions {
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;
-  MultipleChannelOpsLegalizationStrictness
-      multiple_channel_ops_legalization_strictness_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

@@ -17,6 +17,11 @@
 
 #include <cstdint>
 #include <iosfwd>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -174,6 +179,40 @@ std::string FlowControlToString(FlowControl fc);
 absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str);
 std::ostream& operator<<(std::ostream& os, FlowControl fc);
 
+// When multiple of the same channel operations happen on the same channel,
+// scheduling legalizes them through a combination of:
+//  1. Requiring proven properties of the channel operations.
+//  2. Runtime checks (assertions) that properties of the channel are true.
+//  3. Arbitrary selection of priority between operations.
+//
+// Note that this does not apply to e.g. a send and receive on an internal
+// SendReceive channel. This only applies when multiples of the same channel
+// operation are being performed on the same channel.
+enum class ChannelStrictness {
+  // Requires that channel operations be formally proven to be mutually
+  // exclusive by Z3.
+  kProvenMutuallyExclusive,
+  // Requires that channel operations be mutually exclusive- enforced during
+  // simulation via assertions.
+  kRuntimeMutuallyExclusive,
+  // For each proc, requires a total order on all operations on a channel. Note:
+  // operations from different procs will not be ordered with respect to each
+  // other.
+  kTotalOrder,
+  // Requires that a total order exists on every subset of channel operations
+  // that fires at runtime. Adds assertions.
+  kRuntimeOrdered,
+  // For each proc, an arbitrary (respecting existing token relationships)
+  // static priority is chosen for multiple channel operations. Operations
+  // coming from different procs must be mutually exclusive (enforced via
+  // assertions).
+  kArbitraryStaticOrder,
+};
+
+absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
+    std::string_view text);
+std::string ChannelStrictnessToString(ChannelStrictness in);
+
 // A channel with FIFO semantics. Send operations add an data entry to the
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel : public Channel {
@@ -181,11 +220,13 @@ class StreamingChannel : public Channel {
   StreamingChannel(std::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
                    std::optional<int64_t> fifo_depth, FlowControl flow_control,
+                   ChannelStrictness strictness,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
                 initial_values, metadata),
         fifo_depth_(fifo_depth),
-        flow_control_(flow_control) {}
+        flow_control_(flow_control),
+        strictness_(strictness) {}
 
   bool HasCompletedBlockPortNames() const override {
     if (GetFlowControl() == FlowControl::kReadyValid) {
@@ -202,9 +243,13 @@ class StreamingChannel : public Channel {
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
+  ChannelStrictness GetStrictness() const { return strictness_; }
+  void SetStrictness(ChannelStrictness value) { strictness_ = value; }
+
  private:
   std::optional<int64_t> fifo_depth_;
   FlowControl flow_control_;
+  ChannelStrictness strictness_;
 };
 
 // A channel which holds a single value. Values are written to the channel via

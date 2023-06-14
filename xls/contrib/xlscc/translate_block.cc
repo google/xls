@@ -12,17 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <list>
 #include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclCXX.h"
+#include "clang/include/clang/AST/GlobalDecl.h"
+#include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/Basic/LLVM.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 using std::shared_ptr;
@@ -53,7 +70,10 @@ absl::Status Translator::GenerateExternalChannels(
           package_->CreateStreamingChannel(
               decl->getNameAsString(), xls_channel_op, data_type,
               /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-              xls::FlowControl::kReadyValid));
+              xls::FlowControl::kReadyValid,
+              // TODO(google/xls#1023): Make channel strictness
+              // frontend-configurable.
+              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
       XLS_CHECK(top_decl.is_input);
       XLS_ASSIGN_OR_RETURN(new_channel.regular,
@@ -72,7 +92,10 @@ absl::Status Translator::GenerateExternalChannels(
               memory_name + "__read_request", xls::ChannelOps::kSendOnly,
               read_request_type,
               /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-              xls::FlowControl::kReadyValid));
+              xls::FlowControl::kReadyValid,
+              // TODO(google/xls#1023): Make channel strictness
+              // frontend-configurable.
+              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * read_response_type,
@@ -83,7 +106,10 @@ absl::Status Translator::GenerateExternalChannels(
               memory_name + "__read_response", xls::ChannelOps::kReceiveOnly,
               read_response_type,
               /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-              xls::FlowControl::kReadyValid));
+              xls::FlowControl::kReadyValid,
+              // TODO(google/xls#1023): Make channel strictness
+              // frontend-configurable.
+              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_request_type,
@@ -94,7 +120,10 @@ absl::Status Translator::GenerateExternalChannels(
               memory_name + "__write_request", xls::ChannelOps::kSendOnly,
               write_request_type,
               /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-              xls::FlowControl::kReadyValid));
+              xls::FlowControl::kReadyValid,
+              // TODO(google/xls#1023): Make channel strictness
+              // frontend-configurable.
+              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_response_type,
@@ -105,7 +134,10 @@ absl::Status Translator::GenerateExternalChannels(
               memory_name + "__write_response", xls::ChannelOps::kReceiveOnly,
               write_response_type,
               /*initial_values=*/{}, /*fifo_depth=*/std::nullopt,
-              xls::FlowControl::kReadyValid));
+              xls::FlowControl::kReadyValid,
+              // TODO(google/xls#1023): Make channel strictness
+              // frontend-configurable.
+              /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
     } else {
       return absl::InvalidArgumentError(
           ErrorMessage(GetLoc(*decl), "Unknown interface type for channel %s",

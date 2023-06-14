@@ -147,6 +147,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:caret",
         "//xls/ir:channel",
+        "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:op",

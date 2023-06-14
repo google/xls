@@ -48,10 +48,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
-#include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/token_provenance_analysis.h"
-#include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
@@ -128,8 +125,7 @@ struct FunctionBaseNameLess {
 // Note that token params are not included from predecessor lists.
 template <typename T, typename = std::enable_if_t<std::is_base_of_v<Node, T>>>
 absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
-    const absl::flat_hash_set<T*>& operations,
-    MultipleChannelOpsLegalizationStrictness strictness) {
+    const absl::flat_hash_set<T*>& operations, ChannelStrictness strictness) {
   std::vector<NodeAndPredecessors> result;
   result.reserve(operations.size());
 
@@ -170,8 +166,7 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
       // If we choose an arbitrary static order, clear the predecessors and
       // chose the previous value. We're already iterating through in topo
       // sorted order, so this only strengthens the dependency relationship.
-      if (strictness ==
-          MultipleChannelOpsLegalizationStrictness::kArbitraryStaticOrder) {
+      if (strictness == ChannelStrictness::kArbitraryStaticOrder) {
         resolved_predecessors.clear();
         if (prev_node.has_value()) {
           if (!prev_node.value()->Is<T>() ||
@@ -269,7 +264,7 @@ absl::StatusOr<PredicateInfo> MakePredicateChannel(Node* operation) {
 // Add a new channel to communicate a channel operation's completion to the
 // adapter proc.
 // The procs with the original channel operations need to know when their
-// operation completes, so we add an empty-tuple-typed interal channel for each
+// operation completes, so we add an empty-tuple-typed internal channel for each
 // operation. This function:
 // 1) Adds the new completion channel for an operation.
 // 2) Adds a receive of the completion on this channel at the token level of the
@@ -363,14 +358,13 @@ struct ClonedChannelWithPredicate {
 // Check that the token DAG is compatible with the requested strictness.
 absl::Status CheckTokenDAG(
     absl::Span<NodeAndPredecessors const> topo_sorted_dag,
-    MultipleChannelOpsLegalizationStrictness strictness) {
-  if (strictness !=
-      MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive) {
+    ChannelStrictness strictness) {
+  if (strictness != ChannelStrictness::kProvenMutuallyExclusive) {
     XLS_RET_CHECK_GT(topo_sorted_dag.size(), 1)
         << "Legalization expected multiple channel ops.";
   }
   switch (strictness) {
-    case MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive: {
+    case ChannelStrictness::kProvenMutuallyExclusive: {
       if (topo_sorted_dag.empty()) {
         return absl::OkStatus();
       }
@@ -378,7 +372,7 @@ absl::Status CheckTokenDAG(
           "Could not prove channel operations (%s) were mutually exclusive.",
           absl::StrJoin(topo_sorted_dag, ", ")));
     }
-    case MultipleChannelOpsLegalizationStrictness::kTotalOrder: {
+    case ChannelStrictness::kTotalOrder: {
       // In topo sorted order, every node must have a single precedent (the
       // previous node in the topo sort) OR the node must be in a different,
       // not-yet-seen FunctionBase.
@@ -434,9 +428,9 @@ absl::Status CheckTokenDAG(
       }
       return absl::OkStatus();
     }
-    case MultipleChannelOpsLegalizationStrictness::kRuntimeMutuallyExclusive:
-    case MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered:
-    case MultipleChannelOpsLegalizationStrictness::kArbitraryStaticOrder: {
+    case ChannelStrictness::kRuntimeMutuallyExclusive:
+    case ChannelStrictness::kRuntimeOrdered:
+    case ChannelStrictness::kArbitraryStaticOrder: {
       // Arbitrary DAG OK. The runtime variants check things with assertions,
       // and the arbitrary static order variant is correct by construction.
       return absl::OkStatus();
@@ -484,7 +478,7 @@ struct ActivationNetwork {
 // Makes activation network and adds asserts.
 absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
     ProcBuilder& pb, absl::Span<NodeAndPredecessors const> token_dag,
-    MultipleChannelOpsLegalizationStrictness strictness) {
+    ChannelStrictness strictness) {
   ActivationNetwork activation_network;
 
   // This is the predicate on every recv on a predicate channel.
@@ -497,8 +491,7 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
     for (const auto& [node, predecessors] : token_dag) {
       ActivationNode activation;
       bool needs_state =
-          (strictness != MultipleChannelOpsLegalizationStrictness::
-                             kRuntimeMutuallyExclusive) &&
+          (strictness != ChannelStrictness::kRuntimeMutuallyExclusive) &&
           std::any_of(predecessors.begin(), predecessors.end(), [](Node* n) {
             // Proc token param is always "active".
             return !n->Is<Param>();
@@ -691,30 +684,30 @@ absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
 }
 
 absl::Status AddAdapterForMultipleReceives(
-    Package* p, int64_t channel_id, const absl::flat_hash_set<Receive*>& ops,
-    MultipleChannelOpsLegalizationStrictness strictness) {
+    Package* p, StreamingChannel* channel,
+    const absl::flat_hash_set<Receive*>& ops) {
   XLS_RET_CHECK_GT(ops.size(), 1);
 
-  XLS_ASSIGN_OR_RETURN(auto token_dags, GetProjectedTokenDAG(ops, strictness));
-  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, strictness));
+  XLS_ASSIGN_OR_RETURN(auto token_dags,
+                       GetProjectedTokenDAG(ops, channel->GetStrictness()));
+  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, channel->GetStrictness()));
 
-  XLS_ASSIGN_OR_RETURN(Channel * old_channel, p->GetChannel(channel_id));
   std::string adapter_name =
-      absl::StrFormat("chan_%s_io_receive_adapter", old_channel->name());
+      absl::StrFormat("chan_%s_io_receive_adapter", channel->name());
 
   XLS_VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.",
-                                    old_channel->name(),
+                                    channel->name(),
                                     absl::StrJoin(token_dags, ", "));
 
   ProcBuilder pb(adapter_name, "tok", p);
   BValue token = pb.GetTokenParam();
 
-  XLS_ASSIGN_OR_RETURN(auto activation_network,
-                       MakeActivationNetwork(pb, token_dags, strictness));
+  XLS_ASSIGN_OR_RETURN(
+      auto activation_network,
+      MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
 
-  BValue recv =
-      pb.ReceiveIf(old_channel, token, activation_network.network_active,
-                   SourceInfo(), "external_receive");
+  BValue recv = pb.ReceiveIf(channel, token, activation_network.network_active,
+                             SourceInfo(), "external_receive");
   BValue recv_token =
       pb.TupleIndex(recv, 0, SourceInfo(), "external_receive_token");
   BValue recv_data =
@@ -737,8 +730,7 @@ absl::Status AddAdapterForMultipleReceives(
       XLS_ASSIGN_OR_RETURN(
           Channel * new_data_channel,
           p->CloneChannel(
-              old_channel,
-              absl::StrCat(old_channel->name(), "_", send_tokens.size()),
+              channel, absl::StrCat(channel->name(), "_", send_tokens.size()),
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoDepth(1)));
@@ -776,26 +768,26 @@ absl::Status AddAdapterForMultipleReceives(
   return pb.Build(completion_after_all, next_state).status();
 }
 
-absl::Status AddAdapterForMultipleSends(
-    Package* p, int64_t channel_id, const absl::flat_hash_set<Send*>& ops,
-    MultipleChannelOpsLegalizationStrictness strictness) {
+absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
+                                        const absl::flat_hash_set<Send*>& ops) {
   XLS_RET_CHECK_GT(ops.size(), 1);
 
-  XLS_ASSIGN_OR_RETURN(auto token_dags, GetProjectedTokenDAG(ops, strictness));
-  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, strictness));
+  XLS_ASSIGN_OR_RETURN(auto token_dags,
+                       GetProjectedTokenDAG(ops, channel->GetStrictness()));
+  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, channel->GetStrictness()));
 
-  XLS_ASSIGN_OR_RETURN(Channel * old_channel, p->GetChannel(channel_id));
   std::string adapter_name =
-      absl::StrFormat("chan_%s_io_send_adapter", old_channel->name());
+      absl::StrFormat("chan_%s_io_send_adapter", channel->name());
 
   XLS_VLOG(4) << absl::StreamFormat("Channel %s has token dag %s.",
-                                    old_channel->name(),
+                                    channel->name(),
                                     absl::StrJoin(token_dags, ", "));
 
   ProcBuilder pb(adapter_name, "tok", p);
 
-  XLS_ASSIGN_OR_RETURN(auto activation_network,
-                       MakeActivationNetwork(pb, token_dags, strictness));
+  XLS_ASSIGN_OR_RETURN(
+      auto activation_network,
+      MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
 
   BValue recv_after_all;
   BValue recv_data;
@@ -816,8 +808,7 @@ absl::Status AddAdapterForMultipleSends(
       XLS_ASSIGN_OR_RETURN(
           Channel * new_data_channel,
           p->CloneChannel(
-              old_channel,
-              absl::StrCat(old_channel->name(), "_", recv_tokens.size()),
+              channel, absl::StrCat(channel->name(), "_", recv_tokens.size()),
               Package::CloneChannelOverrides()
                   .OverrideSupportedOps(ChannelOps::kSendReceive)
                   .OverrideFifoDepth(1)));
@@ -841,7 +832,7 @@ absl::Status AddAdapterForMultipleSends(
     recv_data_valid = pb.Or(recv_data_valids);
   }
 
-  BValue send_token = pb.SendIf(old_channel, recv_after_all, recv_data_valid,
+  BValue send_token = pb.SendIf(channel, recv_after_all, recv_data_valid,
                                 recv_data, SourceInfo(), "external_send");
   BValue completion_after_all;
   {
@@ -881,23 +872,31 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       }
     }
     changed = true;
+    XLS_ASSIGN_OR_RETURN(Channel * channel, unit->ir->GetChannel(channel_id));
+    if (channel->kind() != ChannelKind::kStreaming) {
+      // Don't make adapters for non-streaming channels.
+      continue;
+    }
+    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
     XLS_VLOG(3) << absl::StreamFormat(
         "Making receive channel adapter for channel %d, has receives (%s).",
         channel_id, absl::StrJoin(ops, ", "));
-    XLS_RETURN_IF_ERROR(AddAdapterForMultipleReceives(
-        unit->ir, channel_id, ops,
-        options.scheduling_options
-            .multiple_channel_ops_legalization_strictness()));
+    XLS_RETURN_IF_ERROR(
+        AddAdapterForMultipleReceives(unit->ir, streaming_channel, ops));
   }
   for (const auto& [channel_id, ops] : multiple_ops.multiple_sends) {
     changed = true;
+    XLS_ASSIGN_OR_RETURN(Channel * channel, unit->ir->GetChannel(channel_id));
+    if (channel->kind() != ChannelKind::kStreaming) {
+      // Don't make adapters for non-streaming channels.
+      continue;
+    }
+    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
     XLS_VLOG(3) << absl::StreamFormat(
         "Making send channel adapter for channel %d, has sends (%s).",
         channel_id, absl::StrJoin(ops, ", "));
-    XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(
-        unit->ir, channel_id, ops,
-        options.scheduling_options
-            .multiple_channel_ops_legalization_strictness()));
+    XLS_RETURN_IF_ERROR(
+        AddAdapterForMultipleSends(unit->ir, streaming_channel, ops));
   }
   if (changed) {
     // Reschedule everything if changed.

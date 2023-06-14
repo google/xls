@@ -13,12 +13,19 @@
 // limitations under the License.
 
 #include "xls/ir/channel.h"
+#include <cstdint>
+#include <ostream>
+#include <string>
+#include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "google/protobuf/text_format.h"
-#include "xls/common/status/ret_check.h"
+#include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -36,7 +43,8 @@ std::string ChannelKindToString(ChannelKind kind) {
 absl::StatusOr<ChannelKind> StringToChannelKind(std::string_view str) {
   if (str == "streaming") {
     return ChannelKind::kStreaming;
-  } else if (str == "single_value") {
+  }
+  if (str == "single_value") {
     return ChannelKind::kSingleValue;
   }
   return absl::InvalidArgumentError(
@@ -64,8 +72,9 @@ std::string Channel::ToString() const {
     const StreamingChannel* streaming_channel =
         down_cast<const StreamingChannel*>(this);
     absl::StrAppendFormat(
-        &result, "flow_control=%s, ",
-        FlowControlToString(streaming_channel->GetFlowControl()));
+        &result, "flow_control=%s, strictness=%s, ",
+        FlowControlToString(streaming_channel->GetFlowControl()),
+        ChannelStrictnessToString(streaming_channel->GetStrictness()));
     if (streaming_channel->GetFifoDepth().has_value()) {
       absl::StrAppendFormat(&result, "fifo_depth=%d, ",
                             streaming_channel->GetFifoDepth().value());
@@ -98,7 +107,8 @@ std::string FlowControlToString(FlowControl fc) {
 absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {
   if (str == "none") {
     return FlowControl::kNone;
-  } else if (str == "ready_valid") {
+  }
+  if (str == "ready_valid") {
     return FlowControl::kReadyValid;
   }
   return absl::InvalidArgumentError(
@@ -108,6 +118,45 @@ absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {
 std::ostream& operator<<(std::ostream& os, FlowControl fc) {
   os << FlowControlToString(fc);
   return os;
+}
+
+absl::StatusOr<ChannelStrictness> ChannelStrictnessFromString(
+    std::string_view text) {
+  if (text == "proven_mutually_exclusive") {
+    return ChannelStrictness::kProvenMutuallyExclusive;
+  }
+  if (text == "runtime_mutually_exclusive") {
+    return ChannelStrictness::kRuntimeMutuallyExclusive;
+  }
+  if (text == "total_order") {
+    return ChannelStrictness::kTotalOrder;
+  }
+  if (text == "runtime_ordered") {
+    return ChannelStrictness::kRuntimeOrdered;
+  }
+  if (text == "arbitrary_static_order") {
+    return ChannelStrictness::kArbitraryStaticOrder;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrFormat("Invalid strictness %s.", text));
+}
+std::string ChannelStrictnessToString(ChannelStrictness in) {
+  if (in == ChannelStrictness::kProvenMutuallyExclusive) {
+    return "proven_mutually_exclusive";
+  }
+  if (in == ChannelStrictness::kRuntimeMutuallyExclusive) {
+    return "runtime_mutually_exclusive";
+  }
+  if (in == ChannelStrictness::kTotalOrder) {
+    return "total_order";
+  }
+  if (in == ChannelStrictness::kRuntimeOrdered) {
+    return "runtime_ordered";
+  }
+  if (in == ChannelStrictness::kArbitraryStaticOrder) {
+    return "arbitrary_static_order";
+  }
+  return "unknown";
 }
 
 }  // namespace xls

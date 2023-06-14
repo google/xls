@@ -13,6 +13,7 @@
 // limitations under the License.
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -22,14 +23,22 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/types/optional.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel.pb.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 namespace {
@@ -83,6 +92,7 @@ proc main {
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
                            package.GetBitsType(32), {},
                            /*fifo_depth=*/std::nullopt, FlowControl::kNone,
+                           ChannelStrictness::kProvenMutuallyExclusive,
                            metadata);
 
   ProcConversionData proc_data;

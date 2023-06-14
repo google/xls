@@ -14,19 +14,30 @@
 
 #include "xls/passes/ram_rewrite_pass.h"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
-#include <utility>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/pass_base.h"
 
@@ -73,7 +84,7 @@ absl::StatusOr<std::array<Node*, N>> ExtractTupleElements(
 // Makes channels for config ram_config with the given name prefix.
 absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
     Package* p, std::string_view name_prefix, const RamConfig& ram_config,
-    Type* data_type) {
+    Type* data_type, ChannelStrictness strictness) {
   absl::flat_hash_map<RamLogicalChannel, Channel*> channels;
 
   int64_t addr_width = ram_config.addr_width();
@@ -90,20 +101,32 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::kAbstractReadReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
-                                    ChannelOps::kSendOnly, read_req_type));
+                                    ChannelOps::kSendOnly, read_req_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
 
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::kAbstractReadResp],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
-                                    ChannelOps::kReceiveOnly, read_resp_type));
+                                    ChannelOps::kReceiveOnly, read_resp_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::kAbstractWriteReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
-                                    ChannelOps::kSendOnly, write_req_type));
+                                    ChannelOps::kSendOnly, write_req_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
                            p->CreateStreamingChannel(
                                absl::StrCat(name_prefix, "_write_completion"),
-                               ChannelOps::kReceiveOnly, p->GetTupleType({})));
+                               ChannelOps::kReceiveOnly, p->GetTupleType({}),
+                               /*initial_values=*/{}, /*fifo_depth=*/0,
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     case RamKind::k1RW: {
@@ -116,16 +139,25 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::k1RWReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_req"),
-                                    ChannelOps::kSendOnly, req_type));
+                                    ChannelOps::kSendOnly, req_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::k1RWResp],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_resp"),
-                                    ChannelOps::kReceiveOnly, resp_type));
+                                    ChannelOps::kReceiveOnly, resp_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
 
       XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
                            p->CreateStreamingChannel(
                                absl::StrCat(name_prefix, "_write_completion"),
-                               ChannelOps::kReceiveOnly, empty_tuple_type));
+                               ChannelOps::kReceiveOnly, empty_tuple_type,
+                               /*initial_values=*/{}, /*fifo_depth=*/0,
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     case RamKind::k1R1W: {
@@ -137,19 +169,31 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::k1R1WReadReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_req"),
-                                    ChannelOps::kSendOnly, read_req_type));
+                                    ChannelOps::kSendOnly, read_req_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::k1R1WReadResp],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_read_resp"),
-                                    ChannelOps::kReceiveOnly, read_resp_type));
+                                    ChannelOps::kReceiveOnly, read_resp_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(
           channels[RamLogicalChannel::k1R1WWriteReq],
           p->CreateStreamingChannel(absl::StrCat(name_prefix, "_write_req"),
-                                    ChannelOps::kSendOnly, write_req_type));
+                                    ChannelOps::kSendOnly, write_req_type,
+                                    /*initial_values=*/{}, /*fifo_depth=*/0,
+                                    /*flow_control=*/FlowControl::kReadyValid,
+                                    /*strictness=*/strictness));
       XLS_ASSIGN_OR_RETURN(channels[RamLogicalChannel::kWriteCompletion],
                            p->CreateStreamingChannel(
                                absl::StrCat(name_prefix, "_write_completion"),
-                               ChannelOps::kReceiveOnly, empty_tuple_type));
+                               ChannelOps::kReceiveOnly, empty_tuple_type,
+                               /*initial_values=*/{}, /*fifo_depth=*/0,
+                               /*flow_control=*/FlowControl::kReadyValid,
+                               /*strictness=*/strictness));
       break;
     }
     default: {
@@ -170,6 +214,7 @@ absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>> MakeChannels(
 absl::StatusOr<absl::flat_hash_map<RamLogicalChannel, Channel*>>
 GetChannelsForNewRam(Package* p, std::string_view name_prefix,
                      const RamConfig& ram_config, Type* data_type,
+                     ChannelStrictness strictness,
                      std::optional<ram_model_builder_t> ram_model_builder) {
   if (ram_model_builder.has_value()) {
     auto [new_package, new_channel_mapping] = (*ram_model_builder)(ram_config);
@@ -191,7 +236,7 @@ GetChannelsForNewRam(Package* p, std::string_view name_prefix,
     }
     return resolved_channel_mapping;
   }
-  return MakeChannels(p, name_prefix, ram_config, data_type);
+  return MakeChannels(p, name_prefix, ram_config, data_type, strictness);
 }
 
 // Map channels logical names from one ram kind to another, e.g. an abstract
@@ -726,10 +771,20 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(Package* p,
     XLS_ASSIGN_OR_RETURN(Type * data_type,
                          DataTypeFromChannels(old_logical_to_channels));
 
+    std::vector<ChannelStrictness> strictnesses;
+    for (auto& [_, base_channel] : old_logical_to_channels) {
+      strictnesses.push_back(
+          down_cast<StreamingChannel*>(base_channel)->GetStrictness());
+    }
+    XLS_CHECK(!strictnesses.empty());
+    XLS_CHECK(std::equal(strictnesses.begin() + 1, strictnesses.end(),
+                         strictnesses.begin()));
+    ChannelStrictness strictness = strictnesses.front();
+
     XLS_ASSIGN_OR_RETURN(
         auto new_logical_to_channels,
         GetChannelsForNewRam(p, rewrite.to_name_prefix, rewrite.to_config,
-                             data_type, rewrite.model_builder));
+                             data_type, strictness, rewrite.model_builder));
     XLS_RETURN_IF_ERROR(ReplaceChannelReferences(
         p, old_logical_to_channels, rewrite.from_config, data_type,
         new_logical_to_channels, rewrite.to_config));

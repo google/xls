@@ -236,6 +236,8 @@ class Package {
       absl::Span<const Value> initial_values = {},
       std::optional<int64_t> fifo_depth = std::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
+      ChannelStrictness strictness =
+          ChannelStrictness::kProvenMutuallyExclusive,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = std::nullopt);
 
@@ -290,6 +292,12 @@ class Package {
       return *this;
     }
 
+    CloneChannelOverrides& OverrideStrictness(
+        ChannelStrictness strictness) {
+      strictness_ = strictness;
+      return *this;
+    }
+
     CloneChannelOverrides& OverrideMetadata(ChannelMetadataProto metadata) {
       metadata_ = std::move(metadata);
       return *this;
@@ -303,6 +311,9 @@ class Package {
       return fifo_depth_;
     }
     std::optional<FlowControl> flow_control() const { return flow_control_; }
+    std::optional<ChannelStrictness> strictness() const {
+      return strictness_;
+    }
     std::optional<ChannelMetadataProto> metadata() const { return metadata_; }
 
    private:
@@ -312,6 +323,7 @@ class Package {
     // "use the original channel's FIFO depth" and "do not set FIFO depth".
     std::optional<std::optional<int64_t>> fifo_depth_;
     std::optional<FlowControl> flow_control_;
+    std::optional<ChannelStrictness> strictness_;
     std::optional<ChannelMetadataProto> metadata_;
   };
 

@@ -68,22 +68,6 @@ control the scheduler.
     example of the use of this, see
     [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
     the associated BUILD rule.
--   `--multiple_channel_ops_legalization_strictness=...` sets the strictness
-    with which multiple channel operations on the same channel are legalized.
-    The options are :
-    1.  `proven_mutually_exclusive` (default): Requires that channel operations
-        be formally proven mutually exclusive by Z3.
-    2.  `runtime_mutually_exclusive`: Requires that channel operations be
-        mutually exclusive- enforced during simulation via assertions.
-    3.  `total_order`: For each proc, requires a total order on all operations
-        on a channel. Note: operations from different procs will not be ordered
-        with respect to each other.
-    4.  `runtime_ordered`: Requires that a total order exists on every subset of
-        channel operations that fires at runtime. Adds assertions.
-    5.  `arbitrary_static_order`: For each proc, an arbitrary (respecting
-        existing token relationships) static priority is chosen for multiple
-        channel operations. Operations coming from different procs must be
-        mutually exclusive (enforced via assertions).
 
 # Naming
 
@@ -150,8 +134,8 @@ string. These format strings use placeholders to fill in relevant information.
     `my_and gated_the_result [32-1:0] (.Z(the_result), .A(the cond),
     .B(the_data));`
 
-    To ensure valid Verilog, the insantiated template must declare a value named
-    `{output}` (e.g. `the_result` in the example).
+    To ensure valid Verilog, the instantiated template must declare a value
+    named `{output}` (e.g. `the_result` in the example).
 
 -   `--assert_format=...` sets the format string for assert statements.
     Supported placeholders are:

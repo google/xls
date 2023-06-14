@@ -14,21 +14,52 @@
 
 #include "xls/ir/ir_parser.h"
 
+#include <cstdint>
+#include <functional>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/span.h"
+#include "absl/types/variant.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/foreign_function.h"
+#include "xls/ir/fileno.h"
+#include "xls/ir/format_strings.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
+#include "xls/ir/ir_scanner.h"
 #include "xls/ir/channel.pb.h"
+#include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/number_parser.h"
 #include "xls/ir/op.h"
+#include "xls/ir/register.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -1859,6 +1890,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
   std::optional<ChannelKind> kind;
   std::optional<FlowControl> flow_control;
   std::optional<int64_t> fifo_depth;
+  std::optional<ChannelStrictness> strictness;
 
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
@@ -1955,6 +1987,19 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     XLS_ASSIGN_OR_RETURN(fifo_depth, token.GetValueInt64());
     return absl::OkStatus();
   };
+  handlers["strictness"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<ChannelStrictness> strictness_status =
+        ChannelStrictnessFromString(token.value());
+    if (!strictness_status.ok()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid strictness value \"%s\" @ %s", token.value(),
+                          token.pos().ToHumanString()));
+    }
+    strictness = strictness_status.value();
+    return absl::OkStatus();
+  };
 
   XLS_RETURN_IF_ERROR(ParseKeywordArguments(
       handlers, /*mandatory_keywords=*/{"id", "ops", "metadata", "kind"}));
@@ -1975,6 +2020,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
     return error("Only streaming channels can have a fifo_depth");
   }
 
+  if (strictness.has_value() && kind != ChannelKind::kStreaming) {
+    return error("Only streaming channels can have a strictness");
+  }
+
   switch (kind.value()) {
     case ChannelKind::kStreaming:
       if (!flow_control.has_value()) {
@@ -1982,7 +2031,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(
       }
       return package->CreateStreamingChannel(
           channel_name.value(), *supported_ops, type, initial_values,
-          fifo_depth, flow_control.value(), *metadata, *id);
+          fifo_depth, flow_control.value(),
+          // Default strictness is proven mutually exclusive.
+          strictness.value_or(ChannelStrictness::kProvenMutuallyExclusive),
+          *metadata, *id);
     case ChannelKind::kSingleValue: {
       if (!initial_values.empty()) {
         return absl::InvalidArgumentError(absl::StrFormat(

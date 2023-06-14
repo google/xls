@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <tuple>
 
@@ -25,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -32,9 +34,11 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
@@ -61,17 +65,15 @@ SchedulingPass* ChannelLegalizationPassOnly() {
 
 struct TestParam {
   using evaluation_function = std::function<absl::Status(
-      SerialProcRuntime*,
-      std::optional<MultipleChannelOpsLegalizationStrictness>)>;
+      SerialProcRuntime*, std::optional<ChannelStrictness>)>;
   std::string_view test_name;
   std::string_view ir_text;
-  absl::flat_hash_map<MultipleChannelOpsLegalizationStrictness,
+  absl::flat_hash_map<ChannelStrictness,
                       ::testing::Matcher<absl::StatusOr<bool>>>
       builder_matcher = {};
   evaluation_function evaluate =
       [](SerialProcRuntime* interpreter,
-         std::optional<MultipleChannelOpsLegalizationStrictness> strictness)
-      -> absl::Status {
+         std::optional<ChannelStrictness> strictness) -> absl::Status {
     GTEST_MESSAGE_("Evaluation is not implemented for this test!",
                    ::testing::TestPartResult::kSkip);
     return absl::OkStatus();
@@ -80,16 +82,13 @@ struct TestParam {
 
 class ChannelLegalizationPassTest
     : public testing::TestWithParam<
-          std::tuple<TestParam, SchedulingPass*,
-                     MultipleChannelOpsLegalizationStrictness>> {
+          std::tuple<TestParam, SchedulingPass*, ChannelStrictness>> {
  protected:
   absl::StatusOr<bool> Run(Package* package) {
     SchedulingPass* pass = std::get<1>(GetParam());
     SchedulingPassOptions options;
     XLS_ASSIGN_OR_RETURN(options.delay_estimator, GetDelayEstimator("unit"));
     options.scheduling_options.clock_period_ps(100);
-    options.scheduling_options.multiple_channel_ops_legalization_strictness(
-        std::get<2>(GetParam()));
     SchedulingPassResults results;
     SchedulingUnit<Package*> unit;
     unit.ir = package;
@@ -102,8 +101,8 @@ TestParam kTestParameters[] = {
         .test_name = "SingleProcBackToBackDataSwitchingOps",
         .ir_text = R"(package test
 
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc my_proc(tok: token, init={}) {
   recv0: (token, bits[32]) = receive(tok, channel_id=0)
@@ -119,25 +118,19 @@ top proc my_proc(tok: token, init={}) {
     )",
         .builder_matcher =
             {
-                {MultipleChannelOpsLegalizationStrictness::
-                     kProvenMutuallyExclusive,
+                {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("Could not prove"))},
-                {MultipleChannelOpsLegalizationStrictness::kTotalOrder,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered,
-                 IsOkAndHolds(true)},
+                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 // Build should be OK, but will fail at runtime.
-                {MultipleChannelOpsLegalizationStrictness::
-                     kRuntimeMutuallyExclusive,
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
                  IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kArbitraryStaticOrder,
-                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
-        .evaluate = [](SerialProcRuntime* interpreter,
-                       std::optional<MultipleChannelOpsLegalizationStrictness>
-                           strictness) -> absl::Status {
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
           constexpr int64_t kMaxTicks = 1000;
           constexpr int64_t kNumInputs = 32;
 
@@ -156,8 +149,8 @@ top proc my_proc(tok: token, init={}) {
           absl::Status interpreter_status =
               interpreter->TickUntilOutput(output_count, kMaxTicks).status();
           if (strictness.has_value() &&
-              strictness.value() == MultipleChannelOpsLegalizationStrictness::
-                                        kRuntimeMutuallyExclusive) {
+              strictness.value() ==
+                  ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(interpreter_status,
                         StatusIs(absl::StatusCode::kAborted,
                                  HasSubstr("was not mutually exclusive.")));
@@ -184,8 +177,8 @@ top proc my_proc(tok: token, init={}) {
     TestParam{
         .test_name = "TwoProcsMutuallyExclusive",
         .ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc proc_a(tok: token, pred: bits[1], init={1}) {
   recv: (token, bits[32]) = receive(tok, predicate=pred, channel_id=0)
@@ -207,24 +200,18 @@ proc proc_b(tok: token, pred: bits[1], init={0}) {
       )",
         .builder_matcher =
             {
-                {MultipleChannelOpsLegalizationStrictness::
-                     kProvenMutuallyExclusive,
+                {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("Could not prove"))},
-                {MultipleChannelOpsLegalizationStrictness::kTotalOrder,
+                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
                  IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kArbitraryStaticOrder,
-                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
-        .evaluate = [](SerialProcRuntime* interpreter,
-                       std::optional<MultipleChannelOpsLegalizationStrictness>
-                           strictness) -> absl::Status {
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
           constexpr int64_t kMaxTicks = 1000;
           constexpr int64_t kNumInputs = 32;
 
@@ -254,8 +241,8 @@ proc proc_b(tok: token, pred: bits[1], init={0}) {
     TestParam{
         .test_name = "TwoProcsAlwaysFiringCausesError",
         .ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc proc_a(tok: token, init={}) {
   recv: (token, bits[32]) = receive(tok, channel_id=0)
@@ -275,24 +262,18 @@ proc proc_b(tok: token, init={}) {
       )",
         .builder_matcher =
             {
-                {MultipleChannelOpsLegalizationStrictness::
-                     kProvenMutuallyExclusive,
+                {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("Could not prove"))},
-                {MultipleChannelOpsLegalizationStrictness::kTotalOrder,
+                {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
                  IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kArbitraryStaticOrder,
-                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
-        .evaluate = [](SerialProcRuntime* interpreter,
-                       std::optional<MultipleChannelOpsLegalizationStrictness>
-                           strictness) -> absl::Status {
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
           if (!strictness.has_value()) {
             // Skip evaluation before adding the adapter, the test will deadlock
             // without an adapter.
@@ -319,9 +300,9 @@ proc proc_b(tok: token, init={}) {
     TestParam{
         .test_name = "SingleProcWithPartialOrder",
         .ir_text = R"(package test
-chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
-chan pred(bits[2], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=$0, metadata="""""")
+chan pred(bits[2], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=$0, metadata="""""")
 
 top proc my_proc(tok: token, init={}) {
   pred_recv: (token, bits[2]) = receive(tok, channel_id=2)
@@ -348,25 +329,20 @@ top proc my_proc(tok: token, init={}) {
       )",
         .builder_matcher =
             {
-                {MultipleChannelOpsLegalizationStrictness::
-                     kProvenMutuallyExclusive,
+                {ChannelStrictness::kProvenMutuallyExclusive,
                  StatusIs(absl::StatusCode::kInvalidArgument,
                           HasSubstr("Could not prove"))},
-                {MultipleChannelOpsLegalizationStrictness::kTotalOrder,
+                {ChannelStrictness::kTotalOrder,
                  StatusIs(absl::StatusCode::kInternal,
                           HasSubstr("is not totally ordered"))},
-                {MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered,
+                {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
+                {ChannelStrictness::kRuntimeMutuallyExclusive,
                  IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kRuntimeMutuallyExclusive,
-                 IsOkAndHolds(true)},
-                {MultipleChannelOpsLegalizationStrictness::
-                     kArbitraryStaticOrder,
-                 IsOkAndHolds(true)},
+                {ChannelStrictness::kArbitraryStaticOrder, IsOkAndHolds(true)},
             },
-        .evaluate = [](SerialProcRuntime* interpreter,
-                       std::optional<MultipleChannelOpsLegalizationStrictness>
-                           strictness) -> absl::Status {
+        .evaluate =
+            [](SerialProcRuntime* interpreter,
+               std::optional<ChannelStrictness> strictness) -> absl::Status {
           XLS_ASSIGN_OR_RETURN(
               ChannelQueue * outq,
               interpreter->queue_manager().GetQueueByName("out"));
@@ -420,8 +396,8 @@ top proc my_proc(tok: token, init={}) {
 
           run_status = run_with_pred(true, false);
           if (strictness.has_value() &&
-              strictness.value() == MultipleChannelOpsLegalizationStrictness::
-                                        kRuntimeMutuallyExclusive) {
+              strictness.value() ==
+                  ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
                                  HasSubstr("was not mutually exclusive")));
@@ -437,8 +413,8 @@ top proc my_proc(tok: token, init={}) {
 
           run_status = run_with_pred(false, true);
           if (strictness.has_value() &&
-              strictness.value() == MultipleChannelOpsLegalizationStrictness::
-                                        kRuntimeMutuallyExclusive) {
+              strictness.value() ==
+                  ChannelStrictness::kRuntimeMutuallyExclusive) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
                                  HasSubstr("was not mutually exclusive")));
@@ -454,10 +430,9 @@ top proc my_proc(tok: token, init={}) {
 
           run_status = run_with_pred(true, true);
           if (strictness.has_value() &&
-              (strictness.value() == MultipleChannelOpsLegalizationStrictness::
-                                         kRuntimeMutuallyExclusive ||
-               strictness.value() ==
-                   MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered)) {
+              (strictness.value() ==
+                   ChannelStrictness::kRuntimeMutuallyExclusive ||
+               strictness.value() == ChannelStrictness::kRuntimeOrdered)) {
             EXPECT_THAT(run_status,
                         StatusIs(absl::StatusCode::kAborted,
                                  HasSubstr("was not mutually exclusive")));
@@ -486,11 +461,12 @@ top proc my_proc(tok: token, init={}) {
 };
 
 TEST_P(ChannelLegalizationPassTest, PassRuns) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> p,
-      Parser::ParsePackage(std::get<0>(GetParam()).ir_text));
+  ChannelStrictness strictness = std::get<2>(GetParam());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(absl::Substitute(
+                               std::get<0>(GetParam()).ir_text,
+                               ChannelStrictnessToString(strictness))));
 
-  MultipleChannelOpsLegalizationStrictness strictness = std::get<2>(GetParam());
   auto matchers = std::get<0>(GetParam()).builder_matcher;
   auto itr = matchers.find(strictness);
   if (itr == matchers.end()) {
@@ -501,11 +477,12 @@ TEST_P(ChannelLegalizationPassTest, PassRuns) {
 }
 
 TEST_P(ChannelLegalizationPassTest, WillInlineAndVerify) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> p,
-      Parser::ParsePackage(std::get<0>(GetParam()).ir_text));
+  ChannelStrictness strictness = std::get<2>(GetParam());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(absl::Substitute(
+                               std::get<0>(GetParam()).ir_text,
+                               ChannelStrictnessToString(strictness))));
   absl::StatusOr<bool> run_status;
-  MultipleChannelOpsLegalizationStrictness strictness = std::get<2>(GetParam());
   auto matchers = std::get<0>(GetParam()).builder_matcher;
   auto itr = matchers.find(strictness);
   if (itr == matchers.end()) {
@@ -520,9 +497,11 @@ TEST_P(ChannelLegalizationPassTest, WillInlineAndVerify) {
 }
 
 TEST_P(ChannelLegalizationPassTest, EvaluatesCorrectly) {
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<Package> p,
-      Parser::ParsePackage(std::get<0>(GetParam()).ir_text));
+  ChannelStrictness strictness = std::get<2>(GetParam());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(absl::Substitute(
+                               std::get<0>(GetParam()).ir_text,
+                               ChannelStrictnessToString(strictness))));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<SerialProcRuntime> interpreter,
                            CreateInterpreterSerialProcRuntime(p.get()));
 
@@ -547,16 +526,15 @@ INSTANTIATE_TEST_SUITE_P(
         testing::ValuesIn(kTestParameters),
         testing::Values(DefaultSchedulingPassPipeline(),
                         ChannelLegalizationPassOnly()),
-        testing::Values(
-            MultipleChannelOpsLegalizationStrictness::kProvenMutuallyExclusive,
-            MultipleChannelOpsLegalizationStrictness::kRuntimeMutuallyExclusive,
-            MultipleChannelOpsLegalizationStrictness::kTotalOrder,
-            MultipleChannelOpsLegalizationStrictness::kRuntimeOrdered,
-            MultipleChannelOpsLegalizationStrictness::kArbitraryStaticOrder)),
+        testing::Values(ChannelStrictness::kProvenMutuallyExclusive,
+                        ChannelStrictness::kRuntimeMutuallyExclusive,
+                        ChannelStrictness::kTotalOrder,
+                        ChannelStrictness::kRuntimeOrdered,
+                        ChannelStrictness::kArbitraryStaticOrder)),
     [](const auto& info) {
       return absl::StrCat(std::get<0>(info.param).test_name, "_",
                           std::get<1>(info.param)->short_name(), "_",
-                          AbslUnparseFlag(std::get<2>(info.param)));
+                          ChannelStrictnessToString(std::get<2>(info.param)));
     });
 
 }  // namespace

@@ -206,8 +206,6 @@ xls_ir_verilog(
 )
 
 # Read-and-write delay variant with single-port external RAM.
-# Requires setting multiple_channel_ops_legalization_strictness because reading
-# and writing to a single-port RAM in the same proc tick requires arbitration.
 xls_ir_verilog(
     name = "delay_raw_1rw_v",
     src = ":delay_raw_1rw.opt.ir",
@@ -219,7 +217,6 @@ xls_ir_verilog(
             resp = "memory__resp",
             wr_comp = "memory__write_completion",
         ),
-        "multiple_channel_ops_legalization_strictness": "arbitrary_static_order",
         "reset": "rst",
         "reset_data_path": "true",
         "reset_active_low": "false",
