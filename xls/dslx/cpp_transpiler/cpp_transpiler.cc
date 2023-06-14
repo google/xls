@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/cpp_transpiler.h"
+#include "xls/dslx/cpp_transpiler/cpp_transpiler.h"
 
 #include <cstdint>
 #include <filesystem>  // NOLINT

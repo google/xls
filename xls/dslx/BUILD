@@ -79,49 +79,6 @@ cc_test(
 )
 
 cc_library(
-    name = "cpp_transpiler",
-    srcs = ["cpp_transpiler.cc"],
-    hdrs = ["cpp_transpiler.h"],
-    deps = [
-        ":import_data",
-        "//xls/common:case_converters",
-        "//xls/common:visitor",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/dslx/bytecode",
-        "//xls/dslx/bytecode:bytecode_emitter",
-        "//xls/dslx/bytecode:bytecode_interpreter",
-        "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:type_info",
-        "//xls/dslx/type_system:typecheck",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_test(
-    name = "cpp_transpiler_test",
-    srcs = ["cpp_transpiler_test.cc"],
-    deps = [
-        ":cpp_transpiler",
-        ":create_import_data",
-        ":import_data",
-        ":parse_and_typecheck",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "create_import_data",
     srcs = ["create_import_data.cc"],
     hdrs = ["create_import_data.h"],
@@ -539,26 +496,6 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_binary(
-    name = "cpp_transpiler_main",
-    srcs = ["cpp_transpiler_main.cc"],
-    visibility = ["//xls:xls_public"],
-    deps = [
-        ":cpp_transpiler",
-        ":create_import_data",
-        ":default_dslx_stdlib_path",
-        ":import_data",
-        ":parse_and_typecheck",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/logging",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 

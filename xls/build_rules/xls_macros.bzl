@@ -379,9 +379,9 @@ def xls_dslx_cpp_type_library(
             name + ".cc",
         ],
         tools = [
-            "//xls/dslx:cpp_transpiler_main",
+            "//xls/dslx/cpp_transpiler:cpp_transpiler_main",
         ],
-        cmd = "$(location //xls/dslx:cpp_transpiler_main) " +
+        cmd = "$(location //xls/dslx/cpp_transpiler:cpp_transpiler_main) " +
               "--output_header_path=$(@D)/{}.h ".format(name) +
               "--output_source_path=$(@D)/{}.cc ".format(name) +
               ("" if namespace == None else "--namespaces={} ".format(namespace)) +

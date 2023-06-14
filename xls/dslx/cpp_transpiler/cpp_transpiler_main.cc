@@ -22,7 +22,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/dslx/cpp_transpiler.h"
+#include "xls/dslx/cpp_transpiler/cpp_transpiler.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
