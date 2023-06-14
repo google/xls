@@ -41,18 +41,18 @@ namespace xls {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(fp::Fp32FastRsqrt* jit_wrapper, float input) {
+static float ComputeExpected(fp::Fp32FastRsqrt* jit_wrapper, float input) {
   float x = FlushSubnormal(input);
   return 1.0 / sqrtf(x);
 }
 
 // Computes FP sqrt via DSLX & the JIT.
-float ComputeActual(fp::Fp32FastRsqrt* jit_wrapper, float input) {
+static float ComputeActual(fp::Fp32FastRsqrt* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
-bool CompareResults(float a, float b) {
+static bool CompareResults(float a, float b) {
   // DSLX flushes subnormal outputs, while regular FP addition does not, so
   // just check for that here.
   // We only check that results are approximately equal. Percent error
@@ -71,7 +71,7 @@ bool CompareResults(float a, float b) {
   return a == b || percent_error < 0.01;
 }
 
-absl::Status RealMain(uint64_t num_samples, int num_threads) {
+static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<float, float, fp::Fp32FastRsqrt> builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Fp32FastRsqrt::Create().value(); });

@@ -34,13 +34,13 @@ namespace xls {
 
 using Float3x32 = std::tuple<float, float, float>;
 
-uint32_t fp_sign(uint32_t f) { return f >> 31; }
+static uint32_t fp_sign(uint32_t f) { return f >> 31; }
 
-uint32_t fp_exp(uint32_t f) { return (f >> 23) & 0xff; }
+static uint32_t fp_exp(uint32_t f) { return (f >> 23) & 0xff; }
 
-uint32_t fp_fraction(uint32_t f) { return f & 0x7fffff; }
+static uint32_t fp_fraction(uint32_t f) { return f & 0x7fffff; }
 
-Float3x32 IndexToInput(uint64_t index) {
+static Float3x32 IndexToInput(uint64_t index) {
   // Skip subnormal inputs - we currently don't handle them.
   thread_local absl::BitGen bitgen;
   auto generate_non_subnormal = []() {
@@ -58,11 +58,11 @@ Float3x32 IndexToInput(uint64_t index) {
                    absl::bit_cast<float>(c));
 }
 
-float ComputeExpected(fp::Fp32Fma* jit_wrapper, Float3x32 input) {
+static float ComputeExpected(fp::Fp32Fma* jit_wrapper, Float3x32 input) {
   return fmaf(std::get<0>(input), std::get<1>(input), std::get<2>(input));
 }
 
-float ComputeActual(fp::Fp32Fma* jit_wrapper, Float3x32 input) {
+static float ComputeActual(fp::Fp32Fma* jit_wrapper, Float3x32 input) {
   float result =
       jit_wrapper
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
@@ -70,18 +70,18 @@ float ComputeActual(fp::Fp32Fma* jit_wrapper, Float3x32 input) {
   return result;
 }
 
-bool CompareResults(float a, float b) {
+static bool CompareResults(float a, float b) {
   return a == b || (std::isnan(a) && std::isnan(b)) ||
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-std::string PrintFloat(float a) {
+static std::string PrintFloat(float a) {
   uint32_t a_int = absl::bit_cast<uint32_t>(a);
   return absl::StrFormat("0x%016x (0x%01x, 0x%03x, 0x%013x)", a_int,
                          fp_sign(a_int), fp_exp(a_int), fp_fraction(a_int));
 }
 
-std::string PrintInput(const Float3x32& input) {
+static std::string PrintInput(const Float3x32& input) {
   return absl::StrFormat(
       "  A       : %s\n"
       "  B       : %s\n"
@@ -90,7 +90,7 @@ std::string PrintInput(const Float3x32& input) {
       PrintFloat(std::get<2>(input)));
 }
 
-absl::Status RealMain(int64_t num_samples, int num_threads) {
+static absl::Status RealMain(int64_t num_samples, int num_threads) {
   TestbenchBuilder<Float3x32, float, fp::Fp32Fma> builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Fp32Fma::Create().value(); });

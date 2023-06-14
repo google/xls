@@ -37,7 +37,7 @@ namespace xls {
 
 using Float2x32 = std::tuple<float, float>;
 
-float FlushSubnormals(float value) {
+static float FlushSubnormals(float value) {
   if (std::fpclassify(value) == FP_SUBNORMAL) {
     return 0;
   }
@@ -45,7 +45,7 @@ float FlushSubnormals(float value) {
   return value;
 }
 
-bool ZeroOrSubnormal(float value) {
+static bool ZeroOrSubnormal(float value) {
   return value == 0 || std::fpclassify(value) == FP_SUBNORMAL;
 }
 
@@ -54,26 +54,26 @@ bool ZeroOrSubnormal(float value) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(fp::Fp32Mul2* jit_wrapper, Float2x32 input) {
+static float ComputeExpected(fp::Fp32Mul2* jit_wrapper, Float2x32 input) {
   float x = FlushSubnormals(std::get<0>(input));
   float y = FlushSubnormals(std::get<1>(input));
   return x * y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-float ComputeActual(fp::Fp32Mul2* jit_wrapper, Float2x32 input) {
+static float ComputeActual(fp::Fp32Mul2* jit_wrapper, Float2x32 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
-bool CompareResults(float a, float b) {
+static bool CompareResults(float a, float b) {
   // DSLX flushes subnormal outputs, while regular FP addition does not, so
   // just check for that here.
   return a == b || (std::isnan(a) && std::isnan(b)) ||
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-absl::Status RealMain(uint64_t num_samples, int num_threads) {
+static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<Float2x32, float, fp::Fp32Mul2> builder(
       ComputeActual, ComputeExpected,
       []() { return fp::Fp32Mul2::Create().value(); });

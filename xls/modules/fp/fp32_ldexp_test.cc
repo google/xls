@@ -36,7 +36,7 @@ namespace xls {
 using Float32xint = std::tuple<float, int32_t>;
 
 // Generates a float with reasonably uniformly random bit patterns.
-Float32xint IndexToInput(uint64_t index) {
+static Float32xint IndexToInput(uint64_t index) {
   thread_local absl::BitGen bitgen;
   uint32_t a = absl::Uniform<uint32_t>(bitgen);
   uint32_t b = absl::Uniform<uint32_t>(bitgen);
@@ -48,27 +48,27 @@ Float32xint IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
+static float ComputeExpected(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
   float fraction = FlushSubnormal(std::get<0>(input));
   int exp = std::get<1>(input);
   return FlushSubnormal(ldexpf(fraction, exp));
 }
 
 // Computes FP ldexp via DSLX & the JIT.
-float ComputeActual(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
+static float ComputeActual(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
-bool CompareResults(float a, float b) {
+static bool CompareResults(float a, float b) {
   // DSLX flushes subnormal outputs, while regular FP addition does not, so
   // just check for that here.
   return a == b || (std::isnan(a) && std::isnan(b)) ||
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-void LogMismatch(uint64_t index, Float32xint input, float expected,
-                 float actual) {
+static void LogMismatch(uint64_t index, Float32xint input, float expected,
+                        float actual) {
   XLS_LOG(ERROR) << absl::StrFormat(
       "Value mismatch at index %d, input %f, %d:\n"
       "  Fraction:  0x%x\n"
@@ -81,7 +81,7 @@ void LogMismatch(uint64_t index, Float32xint input, float expected,
       absl::bit_cast<uint32_t>(expected), absl::bit_cast<uint32_t>(actual));
 }
 
-absl::Status RealMain(uint64_t num_samples, int num_threads) {
+static absl::Status RealMain(uint64_t num_samples, int num_threads) {
   TestbenchBuilder<Float32xint, float, fp::Fp32Ldexp> builder(
       ComputeExpected, ComputeActual,
       []() { return fp::Fp32Ldexp::Create().value(); });

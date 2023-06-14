@@ -77,7 +77,7 @@ using solvers::z3::IrTranslator;
 //
 // Returns "actual" vs. "expected" nodes (via reference) to query (via
 // QueryNode) on failure.
-absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
+static absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
     Function* function, IrTranslator* translator, bool flush_subnormals,
     Z3_ast* expected, Z3_ast* actual) {
   // Get the translated XLS function, and create its return value.
@@ -130,15 +130,16 @@ absl::StatusOr<Z3_ast> CreateReferenceComparisonFunction(
   return error;
 }
 
-absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
+static absl::StatusOr<std::unique_ptr<Package>> GetIr(bool opt_ir) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_path,
                        GetXlsRunfilePath(opt_ir ? kOptIrPath : kIrPath));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   return Parser::ParsePackage(ir_text);
 }
 
-absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
-                                bool flush_subnormals, absl::Duration timeout) {
+static absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
+                                       bool flush_subnormals,
+                                       absl::Duration timeout) {
   XLS_ASSIGN_OR_RETURN(auto package, GetIr(use_opt_ir));
   XLS_ASSIGN_OR_RETURN(auto function, package->GetFunction(kFunctionName));
 
