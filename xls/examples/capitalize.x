@@ -68,24 +68,21 @@ fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
 
 #[test]
 fn cap_test() {
-  let _ = assert_eq("HELLO FRIENDS", capitalize("HeLlO fRiEnDs"));
-  ()
+  assert_eq("HELLO FRIENDS", capitalize("HeLlO fRiEnDs"));
 }
 
 #[test]
 fn sponge_cap_test() {
-  let _ = assert_eq(
+  assert_eq(
       sponge_capitalize("You shouldn't process strings in hardware"),
       "YoU sHoUlDn'T pRoCeSs StRiNgS iN hArDwArE");
-  ()
 }
 
 #[test]
 fn escape_sequences_test() {
-  let _ = assert_eq(
+  assert_eq(
       "H\t\tE\tLLO\nFR\u{beef}IENDS",
       capitalize("H\t\te\tLlO\nfR\u{beef}iEnDs"));
-  ()
 }
 
 // Simple main driver to test IR conversion.

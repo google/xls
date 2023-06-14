@@ -53,12 +53,12 @@ fn dot_product_fixed_test() {
    let a = s32[4]:[1, 2, 3, 4];
    let b = s32[4]:[5, 6, 7, 8];
    let result = dot_product_fixed<u32:32, u32:4>(a, b);
-   let _ = assert_eq(result, s32:70);
+   assert_eq(result, s32:70);
 
    let a = s8[2]:[1, 2];
    let b = s8[2]:[5, 6];
    let result = dot_product_fixed<u32:8, u32:2>(a, b);
-   let _ = assert_eq(result, s8:17);
+   assert_eq(result, s8:17);
    ()
 }
 
@@ -67,7 +67,7 @@ fn dot_product_float32_test() {
    let a = map(s32[4]:[1, 2, 3, 4], float32::cast_from_fixed);
    let b = map(s32[4]:[5, 6, 7, 8], float32::cast_from_fixed);
    let result = dot_product_float32(a, b);
-   let _ = assert_eq(result, float32::cast_from_fixed(s32:70));
+   assert_eq(result, float32::cast_from_fixed(s32:70));
    ()
 
 }

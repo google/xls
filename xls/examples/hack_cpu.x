@@ -46,8 +46,7 @@ fn decode_a_instruction(ins: u16) -> (u15) {
 fn decode_a_test() {
   // @21
   let (value) = decode_a_instruction(u16:0b0_000000000010101);
-  let _ = assert_eq(value, u15:21);
-  _
+  assert_eq(value, u15:21);
 }
 
 const COMP_0 = u7:0b0101010;
@@ -104,20 +103,19 @@ fn decode_c_instruction(ins: u16) -> (u7, u3, u3) {
 fn decode_c_test() {
   // MD=D+1
   let (comp, dest, jump) = decode_c_instruction(u16:0b1110011111011000);
-  let _ = assert_eq(comp, COMP_D_PLUS_1);
-  let _ = assert_eq(dest, DEST_M|DEST_D);
-  let _ = assert_eq(jump, JUMP_NULL);
+  assert_eq(comp, COMP_D_PLUS_1);
+  assert_eq(dest, DEST_M|DEST_D);
+  assert_eq(jump, JUMP_NULL);
   // M=1
   let (comp, dest, jump) = decode_c_instruction(u16:0b111_0111111_001_000);
-  let _ = assert_eq(comp, COMP_1);
-  let _ = assert_eq(dest, DEST_M);
-  let _ = assert_eq(jump, JUMP_NULL);
+  assert_eq(comp, COMP_1);
+  assert_eq(dest, DEST_M);
+  assert_eq(jump, JUMP_NULL);
   // D+1;JLE
   let (comp, dest, jump) = decode_c_instruction(u16:0b111_0011111_000_110);
-  let _ = assert_eq(comp, COMP_D_PLUS_1);
-  let _ = assert_eq(dest, DEST_NULL);
-  let _ = assert_eq(jump, JUMP_JLE);
-  _
+  assert_eq(comp, COMP_D_PLUS_1);
+  assert_eq(dest, DEST_NULL);
+  assert_eq(jump, JUMP_JLE);
 }
 
 fn encode_a_instruction(a: u15) -> u16 {
@@ -127,8 +125,7 @@ fn encode_a_instruction(a: u15) -> u16 {
 #[test]
 fn encode_a_test() {
   let value = encode_a_instruction(u15:21);
-  let _ = assert_eq(value, u16:21);
-  _
+  assert_eq(value, u16:21);
 }
 
 fn encode_c_instruction(comp: u7, dest: u3, jump: u3) -> u16 {
@@ -138,12 +135,11 @@ fn encode_c_instruction(comp: u7, dest: u3, jump: u3) -> u16 {
 #[test]
 fn encode_c_test() {
   let value = encode_c_instruction(COMP_D_PLUS_1, DEST_M|DEST_D, JUMP_NULL);
-  let _ = assert_eq(value, u16:0b1110011111011000);
+  assert_eq(value, u16:0b1110011111011000);
   let value = encode_c_instruction(COMP_1, DEST_M, JUMP_NULL);
-  let _ = assert_eq(value, u16:0b111_0111111_001_000);
+  assert_eq(value, u16:0b111_0111111_001_000);
   let value = encode_c_instruction(COMP_D_PLUS_1, DEST_NULL, JUMP_JLE);
-  let _ = assert_eq(value, u16:0b111_0011111_000_110);
-  _
+  assert_eq(value, u16:0b111_0011111_000_110);
 }
 
 fn run_a_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16, u16, u16, u1) {
@@ -157,12 +153,11 @@ fn run_a_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
 fn run_a_test() {
   // @21
   let (pc, rd, ra, rm, wm) = run_a_instruction(u16:0, encode_a_instruction(u15:21), u16:1, u16:2, u16:3);
-  let _ = assert_eq(pc, u16:1);
-  let _ = assert_eq(rd, u16:1);
-  let _ = assert_eq(ra, u16:21);
-  let _ = assert_eq(rm, u16:3);
-  let _ = assert_eq(wm, u1:0);
-  _
+  assert_eq(pc, u16:1);
+  assert_eq(rd, u16:1);
+  assert_eq(ra, u16:21);
+  assert_eq(rm, u16:3);
+  assert_eq(wm, u1:0);
 }
 
 fn z_bit(z: u1, v: u16) -> u16 {
@@ -172,10 +167,9 @@ fn z_bit(z: u1, v: u16) -> u16 {
 #[test]
 fn z_bit_test() {
   let z = z_bit(u1:1, u16:42);
-  let _ = assert_eq(z, u16:0);
+  assert_eq(z, u16:0);
   let v = z_bit(u1:0, u16:42);
-  let _ = assert_eq(v, u16:42);
-  _
+  assert_eq(v, u16:42);
 }
 
 fn n_bit(n: u1, v: u16) -> u16 {
@@ -185,10 +179,9 @@ fn n_bit(n: u1, v: u16) -> u16 {
 #[test]
 fn n_bit_test() {
   let n = n_bit(u1:1, u16:42);
-  let _ = assert_eq(n, !u16:42);
+  assert_eq(n, !u16:42);
   let v = n_bit(u1:0, u16:42);
-  let _ = assert_eq(v, u16:42);
-  _
+  assert_eq(v, u16:42);
 }
 
 fn alu(x: u16, y:u16, c:u6) -> (u16, u1, u1) {
@@ -209,18 +202,17 @@ fn alu(x: u16, y:u16, c:u6) -> (u16, u1, u1) {
 #[test]
 fn alu_test() {
   let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_PLUS_1[0:6]);
-  let _ = assert_eq(output, u16:3);
-  let _ = assert_eq(zr, u1:0);
-  let _ = assert_eq(ng, u1:0);
+  assert_eq(output, u16:3);
+  assert_eq(zr, u1:0);
+  assert_eq(ng, u1:0);
   let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_AND_A[0:6]);
-  let _ = assert_eq(output, u16:0);
-  let _ = assert_eq(zr, u1:1);
-  let _ = assert_eq(ng, u1:0);
+  assert_eq(output, u16:0);
+  assert_eq(zr, u1:1);
+  assert_eq(ng, u1:0);
   let (output, zr, ng) = alu(u16:8, u16:2, COMP_A_MINUS_D[0:6]);
-  let _ = assert_eq(output, s16:-6 as u16);
-  let _ = assert_eq(zr, u1:0);
-  let _ = assert_eq(ng, u1:1);
-  _
+  assert_eq(output, s16:-6 as u16);
+  assert_eq(zr, u1:0);
+  assert_eq(ng, u1:1);
 }
 
 fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16, u16, u16, u1) {
@@ -241,23 +233,22 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
 fn run_c_test() {
   // MD=D+1
   let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b011, u3:0b000), u16:1, u16:2, u16:3);
-  let _ = assert_eq(pc, u16:1);
-  let _ = assert_eq(rd, u16:2);
-  let _ = assert_eq(ra, u16:2);
-  let _ = assert_eq(rm, u16:2);
+  assert_eq(pc, u16:1);
+  assert_eq(rd, u16:2);
+  assert_eq(ra, u16:2);
+  assert_eq(rm, u16:2);
   // D+1;JLE
   let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b000, u3:0b110), s16:-1 as u16, u16:2, u16:3);
-  let _ = assert_eq(pc, u16:2);
-  let _ = assert_eq(rd, s16:-1 as u16);
-  let _ = assert_eq(ra, u16:2);
-  let _ = assert_eq(rm, u16:3);
+  assert_eq(pc, u16:2);
+  assert_eq(rd, s16:-1 as u16);
+  assert_eq(ra, u16:2);
+  assert_eq(rm, u16:3);
   // 0;JMP
   let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0101010, u3:0b000, u3:0b111), u16:1, u16:2, u16:3);
-  let _ = assert_eq(pc, u16:2);
-  let _ = assert_eq(rd, u16:1);
-  let _ = assert_eq(ra, u16:2);
-  let _ = assert_eq(rm, u16:3);
-  _
+  assert_eq(pc, u16:2);
+  assert_eq(rd, u16:1);
+  assert_eq(ra, u16:2);
+  assert_eq(rm, u16:3);
 }
 
 
@@ -308,7 +299,6 @@ fn run_cpu() {
   let (pc'', rd'', ra'', ram'') = for (i, (pc', rd', ra', ram')): (u32, (u16, u16, u16, u16[32])) in range(u32:0, u32:100) {
     cpu(pc', rd', ra', ram', rom)
   }((pc, rd, ra, ram));
-  let _ = assert_eq(ram''[u16:1], u16:10);
-  let _ = assert_eq(pc'', u16:22);
-  _
+  assert_eq(ram''[u16:1], u16:10);
+  assert_eq(pc'', u16:22);
 }

@@ -54,10 +54,10 @@ fn main(message: u8) -> u32 {
 
 #[test]
 fn adler32_one_char_test() {
-  let _ = assert_eq(u32:0x0010001, main(u8:0x00));  // dec 0
-  let _ = assert_eq(u32:0x0310031, main(u8:0x30));  // '0'
-  let _ = assert_eq(u32:0x0620062, main(u8:0x61));  // 'a'
-  let _ = assert_eq(u32:0x07f007f, main(u8:0x7e));  // '~' (dec 126)
-  let _ = assert_eq(u32:0x0800080, main(u8:0x7f));  // 'DEL' (dec 127)
+  assert_eq(u32:0x0010001, main(u8:0x00));  // dec 0
+  assert_eq(u32:0x0310031, main(u8:0x30));  // '0'
+  assert_eq(u32:0x0620062, main(u8:0x61));  // 'a'
+  assert_eq(u32:0x07f007f, main(u8:0x7e));  // '~' (dec 126)
+  assert_eq(u32:0x0800080, main(u8:0x7f));  // 'DEL' (dec 127)
   assert_eq(u32:0x1000100, main(u8:0xFf))             // dec 255
 }

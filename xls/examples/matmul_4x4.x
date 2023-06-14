@@ -153,13 +153,13 @@ proc test_proc {
     } (tok);
 
     let (tok, value) = recv(tok, results_in[0]);
-    let _ = assert_eq(value, f32_0);
+    assert_eq(value, f32_0);
     let (tok, value) = recv(tok, results_in[1]);
-    let _ = assert_eq(value, f32_0);
+    assert_eq(value, f32_0);
     let (tok, value) = recv(tok, results_in[2]);
-    let _ = assert_eq(value, f32_0);
+    assert_eq(value, f32_0);
     let (tok, value) = recv(tok, results_in[3]);
-    let _ = assert_eq(value, f32_4);
+    assert_eq(value, f32_4);
 
     let tok = send(tok, terminator, true);
     ()

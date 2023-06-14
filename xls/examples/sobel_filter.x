@@ -74,22 +74,22 @@ fn apply_stencil_float32_test() {
                           1, -4, -3, 1,
                           1, 1, 1, 1], float32::cast_from_fixed);
 
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, X_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, X_STENCIL_F32),
                    float32::cast_from_fixed(s32:-10));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, X_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, X_STENCIL_F32),
                    float32::cast_from_fixed(s32:9));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, X_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, X_STENCIL_F32),
                    float32::cast_from_fixed(s32:-11));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, X_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, X_STENCIL_F32),
                   float32::cast_from_fixed(s32:12));
 
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, Y_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, Y_STENCIL_F32),
                    float32::cast_from_fixed(s32:-14));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, Y_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, Y_STENCIL_F32),
                    float32::cast_from_fixed(s32:-13));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, Y_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, Y_STENCIL_F32),
                    float32::cast_from_fixed(s32:7));
-  let _ = assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, Y_STENCIL_F32),
+  assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, Y_STENCIL_F32),
                   float32::cast_from_fixed(s32:8));
 
   ()
@@ -136,10 +136,10 @@ fn sobel_filter_float32_test() {
   // Truncate before comparison for simplicity.
   // Can't use map to cast_to_fixed for all elements at once because
   // map does not seem to support parametric functions.
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:2]), s32:13);
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:3]), s32:14);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:2]), s32:13);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:3]), s32:14);
 
 
   // Try non-square image.
@@ -147,8 +147,8 @@ fn sobel_filter_float32_test() {
                           1, -1, -2, 1,
                           1, -4, -3, 1], float32::cast_from_fixed);
   let sobel_out = sobel_filter_float32<u32:3, u32:4>(img1);
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
-  let _ = assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
+  assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
 
   ()
 }

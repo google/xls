@@ -89,23 +89,23 @@ fn expand_mask<DATA_WIDTH:u32, NUM_PARTITIONS:u32,
 #[test]
 fn expand_mask_test() {
   // Try expanding all 2-bit masks to 4-bit masks.
-  let _ = assert_eq(u4:0b0000, expand_mask<u32:4>(u2:0b00));
-  let _ = assert_eq(u4:0b1100, expand_mask<u32:4>(u2:0b10));
-  let _ = assert_eq(u4:0b0011, expand_mask<u32:4>(u2:0b01));
-  let _ = assert_eq(u4:0b1111, expand_mask<u32:4>(u2:0b11));
+  assert_eq(u4:0b0000, expand_mask<u32:4>(u2:0b00));
+  assert_eq(u4:0b1100, expand_mask<u32:4>(u2:0b10));
+  assert_eq(u4:0b0011, expand_mask<u32:4>(u2:0b01));
+  assert_eq(u4:0b1111, expand_mask<u32:4>(u2:0b11));
 
   // Try expanding all 2-bit masks to 3-bit masks, which are the same as the
   // 4-bit masks with the MSB dropped.
-  let _ = assert_eq(u3:0b000, expand_mask<u32:3>(u2:0b00));
-  let _ = assert_eq(u3:0b100, expand_mask<u32:3>(u2:0b10));
-  let _ = assert_eq(u3:0b011, expand_mask<u32:3>(u2:0b01));
-  let _ = assert_eq(u3:0b111, expand_mask<u32:3>(u2:0b11));
+  assert_eq(u3:0b000, expand_mask<u32:3>(u2:0b00));
+  assert_eq(u3:0b100, expand_mask<u32:3>(u2:0b10));
+  assert_eq(u3:0b011, expand_mask<u32:3>(u2:0b01));
+  assert_eq(u3:0b111, expand_mask<u32:3>(u2:0b11));
 
   // Try expanding 2-bit masks to 2-bit masks, which should be identity.
-  let _ = assert_eq(u2:0b00, expand_mask<u32:2>(u2:0b00));
-  let _ = assert_eq(u2:0b10, expand_mask<u32:2>(u2:0b10));
-  let _ = assert_eq(u2:0b01, expand_mask<u32:2>(u2:0b01));
-  let _ = assert_eq(u2:0b11, expand_mask<u32:2>(u2:0b11));
+  assert_eq(u2:0b00, expand_mask<u32:2>(u2:0b00));
+  assert_eq(u2:0b10, expand_mask<u32:2>(u2:0b10));
+  assert_eq(u2:0b01, expand_mask<u32:2>(u2:0b01));
+  assert_eq(u2:0b11, expand_mask<u32:2>(u2:0b11));
 }
 
 // Writes value `write_value` with write mask `mask` over previous value
@@ -132,27 +132,27 @@ fn write_word<DATA_WIDTH:u32, NUM_PARTITIONS:u32>(
 
 #[test]
 fn write_word_test() {
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false, false], u2:1, u2:0b11),
     (u2:1, [true, true])
   );
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false, false], u2:1, u2:0b01),
     (u2:1, [true, false])
   );
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false, false], u2:1, u2:0b10),
     (u2:0, [false, true])
   );
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false, true], u2:0, u2:0b01),
     (u2:0, [true, true])
   );
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false], u2:0, u1:0b0),
     (u2:0, [false])
   );
-  let _ = assert_eq(
+  assert_eq(
     write_word(u2:0, [false], u2:0, u1:0b1),
     (u2:0, [true])
   );
@@ -248,7 +248,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
 
     // Assert memory being read is initialized by checking that all partitions
     // have been initialized.
-    let _ = if read_req_valid && ASSERT_VALID_READ {
+    if read_req_valid && ASSERT_VALID_READ {
       assert_eq(
         mem_initialized[read_req.addr],
         std::convert_to_bools_lsb0(read_req.mask))
@@ -267,7 +267,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
         SimultaneousReadWriteBehavior::WRITE_BEFORE_READ => value_to_write,
         SimultaneousReadWriteBehavior::ASSERT_NO_CONFLICT => {
           // Assertion failure, we have a conflicting read and write.
-          let _ = assert_eq(true, false);
+          assert_eq(true, false);
           mem[read_req.addr]  // Need to return something.
         },
       }
@@ -322,7 +322,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
   next(tok: token, state: ()) {
     let NUM_OFFSETS = u32:8;
     let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
-      let _ = trace!(offset);
+      trace!(offset);
 
       // First, write the whole memory.
       let tok = for (addr, tok): (u32, token) in range(u32:0, u32:256) {
@@ -337,7 +337,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
       let tok = for (addr, tok) : (u32, token) in range(u32:0, u32:256) {
         let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
         let (tok, read_data) = recv(tok, read_resp);
-        let _ = assert_eq(read_data.data, (addr + offset) as uN[32]);
+        assert_eq(read_data.data, (addr + offset) as uN[32]);
         tok
       } (tok);
       tok
@@ -356,7 +356,7 @@ proc RamModelWriteReadMaskedWriteReadTest {
       let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
       let (tok, read_data) = recv(tok, read_resp);
       let expected = (addr + NUM_OFFSETS - u32:1) & !(u32:1 << bit_idx);
-      let _ = assert_eq(read_data.data, expected);
+      assert_eq(read_data.data, expected);
       tok
     } (tok);
 
@@ -397,7 +397,7 @@ proc RamModelInitializationTest {
     let tok = for (addr, tok) : (u32, token) in range(u32:0, u32:256) {
       let tok = send(tok, read_req, ReadWordReq<u32:32>(addr as uN[8]));
       let (tok, read_data) = recv(tok, read_resp);
-      let _ = assert_eq(read_data.data, u32:0);
+      assert_eq(read_data.data, u32:0);
       tok
     } (tok);
 
@@ -486,9 +486,9 @@ proc SinglePortRamModelTest {
 
   next(tok: token, state: ()) {
     let NUM_OFFSETS = u32:30;
-    let _ = trace!(NUM_OFFSETS);
+    trace!(NUM_OFFSETS);
     let tok = for (offset, tok): (u32, token) in range(u32:0, NUM_OFFSETS) {
-      let _ = trace!(offset);
+      trace!(offset);
       // First, write the whole memory.
       let tok = for (addr, tok): (u32, token) in range(u32:0, u32:1024) {
         let tok = send(tok, req_out, SinglePortRamReq {
@@ -514,7 +514,7 @@ proc SinglePortRamModelTest {
           re: true,
         });
         let (tok, read_data) = recv(tok, resp_in);
-        let _ = assert_eq(read_data.data, (addr + offset) as uN[32]);
+        assert_eq(read_data.data, (addr + offset) as uN[32]);
         tok
       } (tok);
       tok

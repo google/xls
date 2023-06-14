@@ -101,11 +101,11 @@ fn compute_pad_bits(bit_count: u32) -> u32 {
 
 #[test]
 fn compute_pad_bits_test() {
-  let _: () = assert_eq(u32:511, compute_pad_bits(u32:1));
-  let _: () = assert_eq(u32:1, compute_pad_bits(u32:511));
-  let _: () = assert_eq(u32:0, compute_pad_bits(u32:512));
-  let _: () = assert_eq(u32:511, compute_pad_bits(u32:513));
-  let _: () = assert_eq(u32:0, compute_pad_bits(u32:1024));
+  assert_eq(u32:511, compute_pad_bits(u32:1));
+  assert_eq(u32:1, compute_pad_bits(u32:511));
+  assert_eq(u32:0, compute_pad_bits(u32:512));
+  assert_eq(u32:511, compute_pad_bits(u32:513));
+  assert_eq(u32:0, compute_pad_bits(u32:1024));
   ()
 }
 

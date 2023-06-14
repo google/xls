@@ -67,7 +67,7 @@ proc Delay0or1<DATA_WIDTH:u32, DELAY_IS_ONE:bool, INIT_DATA:u32> {
     next (tok: token, prev_recv: bits[DATA_WIDTH]) {
         let (recv_tok, next_recv) = recv(tok, data_in);
         let to_send = if (DELAY_IS_ONE) { prev_recv } else { next_recv };
-        let _ = trace!(DELAY_IS_ONE);
+        trace!(DELAY_IS_ONE);
         let send_tok = send(tok, data_out, to_send);
         (next_recv)
     }
@@ -253,26 +253,26 @@ proc delay_smoke_test_even {
 
     next(tok: token, state: ()) {
         let stok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY*u32:5) {
-            let _ = trace!(i);
+            trace!(i);
             send(tok, data_in_r, i)
         } (tok);
         // first, receive the inits
         let rtok = for (i, tok): (u32, token) in range(u32:0, TEST0_DELAY) {
-            let _ = trace!(i);
+            trace!(i);
             let (tok, result) = recv(tok, data_out_s);
-            let _ = assert_eq(result, u32:3);
+            assert_eq(result, u32:3);
             tok
         } (tok);
         // after the inits, check the delayed outputs
         let rtok = for (i, tok) : (u32, token) in range(u32:0, TEST0_DELAY*u32:4) {
-            let _ = trace!(i);
+            trace!(i);
             let (tok, result) = recv(tok, data_out_s);
-            let _ = assert_eq(result, i);
+            assert_eq(result, i);
             tok
         } (rtok);
 
         let tok = join(stok, rtok);
-        let _ = send(tok, terminator, true);
+        send(tok, terminator, true);
 
         ()
     }
@@ -309,18 +309,18 @@ const TEST1_DELAY = u32:2047;
         // first, receive the inits
         let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
             let (tok, result) = recv(tok, data_out_s);
-            let _ = assert_eq(result, u32:3);
+            assert_eq(result, u32:3);
             tok
         } (tok);
         // after the inits, check the delayed outputs
         let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY*u32:4) {
             let (tok, result) = recv(tok, data_out_s);
-            let _ = assert_eq(result, i);
+            assert_eq(result, i);
             tok
         } (rtok);
 
         let tok = join(stok, rtok);
-        let _ = send(tok, terminator, true);
+        send(tok, terminator, true);
 
         ()
     }
