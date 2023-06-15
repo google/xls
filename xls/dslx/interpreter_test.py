@@ -12,7 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests for xls.dslx.interpreter."""
+
+"""Tests for the DSLX interpreter.
+
+Note that generally we want DSLX test to be in `xls/dslx/tests`, but this can
+test properties of the interpreter binary itself that cannot be verified in a
+normal DSLX test environment, e.g. that it flags the first failing test in a
+file, etc.
+"""
 
 import subprocess as subp
 import textwrap
@@ -26,13 +33,18 @@ _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 class InterpreterTest(test_base.TestCase):
 
-  def _parse_and_test(self,
-                      program: Text,
-                      compare: str = 'jit',
-                      want_error: bool = False) -> str:
+  def _parse_and_test(
+      self,
+      program: Text,
+      compare: str = 'jit',
+      want_error: bool = False,
+      alsologtostderr: bool = False,
+  ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
     cmd.append('--compare=%s' % compare)
+    if alsologtostderr:
+      cmd.append('--alsologtostderr')
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
       self.assertNotEqual(p.returncode, 0)
@@ -40,19 +52,8 @@ class InterpreterTest(test_base.TestCase):
       self.assertEqual(p.returncode, 0, msg=p.stderr)
     return p.stderr
 
-  def test_two_plus_two_module_test(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn two_plus_two_is_four_test() {
-      let x: u32 = u32:2;
-      let y: u32 = x + x;
-      let expected: u32 = u32:4;
-      assert_eq(y, expected)
-    }
-    """)
-    self._parse_and_test(program)
-
   def test_two_plus_two_fail_module_test(self):
+    """Tests that we fail an assertion and flag where the failure is."""
     program = textwrap.dedent("""\
     #[test]
     fn two_plus_two_is_four_test() {
@@ -65,160 +66,11 @@ class InterpreterTest(test_base.TestCase):
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(':6:12-6:25', stderr)
 
-  def test_pad_bits_via_concat(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn pad_to_four_bits_test() {
-      let x: bits[2] = bits[2]:0b10;
-      let y: bits[4] = bits[2]:0 ++ x;
-      let expected: bits[4] = bits[4]:0b0010;
-      assert_eq(y, expected)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_invocation(self):
-    program = textwrap.dedent("""\
-    fn id(x: u32) -> u32 { x }
-    #[test]
-    fn identity_invocation_test() {
-      assert_eq(u32:42, id(u32:42))
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_cast(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn cast_to_u32_test() {
-      let x: bits[3] = bits[3]:0b010;
-      assert_eq(u32:4, (x + x) as u32)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_parametric_invocation(self):
-    program = textwrap.dedent("""\
-    fn id<N: u32>(x: bits[N]) -> bits[N] { x }
-    #[test]
-    fn different_parametric_invocations_test() {
-      assert_eq(bits[5]:0b01111, id(bits[2]:0b01) ++ id(bits[3]:0b111))
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_parametric_binding(self):
-    program = textwrap.dedent("""\
-    fn add_num_bits<N: u32>(x: bits[N]) -> bits[N] { x+(N as bits[N]) }
-    #[test]
-    fn different_parametric_invocations_test() {
-      assert_eq(bits[2]:3, add_num_bits(bits[2]:1))
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_simple_subtract(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn simple_subtract_test() {
-      let x: u32 = u32:5;
-      let y: u32 = u32:4;
-      assert_eq(u32:1, x-y)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_tree_binding(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn tree_binding_test() {
-      let (w, (x,), (y, (z,))): (u32, (u32,), (u32, (u32,))) =
-        (u32:1, (u32:2,), (u32:3, (u32:4,)));
-      assert_eq(u32:10, w+x+y+z)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_add_wraparound(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn simple_add_test() {
-      let x: u32 = (u32:1<<u32:31)+((u32:1<<u32:31)-u32:1);
-      let y: u32 = u32:1;
-      assert_eq(u32:0, x+y)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_add_with_carry_u1(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn simple_add_test() {
-      let x: u1 = u1:1;
-      assert_eq((u1:1, u1:0), add_with_carry(x, x))
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_array_index(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn indexing_test() {
-      let x: u32[3] = u32[3]:[1, 2, 3];
-      let y: u32 = u32:1;
-      assert_eq(u32:2, x[y])
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_tuple_index(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn indexing_test() {
-      let t = (u1:0, u8:1, u32:2);
-      assert_eq(u32:2, t.2)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_for_over_array(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn for_over_array_test() {
-      let a: u32[3] = u32[3]:[1, 2, 3];
-      let result: u32 = for (value, accum): (u32, u32) in a {
-        accum + value
-      }(u32:0);
-      assert_eq(u32:6, result)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_for_over_range(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn for_over_array_test() {
-      let result: u32 = for (value, accum): (u32, u32) in range(u32:1, u32:4) {
-        accum + value
-      }(u32:0);
-      assert_eq(u32:6, result)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_for_over_range_u8(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn for_over_array_test() {
-      let result: u8 = for (value, accum): (u8, u8) in range(u8:1, u8:4) {
-        accum + value
-      }(u8:0);
-      assert_eq(u8:6, result)
-    }
-    """)
-    self._parse_and_test(program)
-
   def test_conflicting_parametric_bindings(self):
+    """Tests a conflict in a deduced parametric value.
+
+    Note that this is really a typecheck test.
+    """
     program = textwrap.dedent("""\
     fn parametric<N: u32>(x: bits[N], y: bits[N]) -> bits[1] {
       x == bits[N]:1 && y == bits[N]:2
@@ -235,59 +87,8 @@ class InterpreterTest(test_base.TestCase):
         'Parametric value N was bound to different values at different places in invocation; saw: 2; then: 3',
         stderr)
 
-  def test_inequality(self):
-    program = textwrap.dedent("""
-    #[test]
-    fn not_equals_test() {
-      let _: () = assert_eq(false, u32:0 != u32:0);
-      let _: () = assert_eq(true, u32:1 != u32:0);
-      let _: () = assert_eq(true, s32:1 != s32:-1);
-      let _: () = assert_eq(true, u32:1 != u32:2);
-      ()
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_array_equality(self):
-    program = textwrap.dedent("""
-    #[test]
-    fn array_equality_test() {
-      let a: u8[4] = u8[4]:[1,2,3,4];
-      assert_eq(a, a)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_derived_parametric(self):
-    program = textwrap.dedent(
-        """\
-    fn parametric<X: u32, Y: u32 = {X+X}, Z: u32 = {Y+u32:1}>(
-          x: bits[X]) -> (u32, u32, u32) {
-      (X, Y, Z)
-    }
-    #[test]
-    fn parametric_test() {
-      assert_eq((u32:2, u32:4, u32:5), parametric(bits[2]:0))
-    }
-    """
-    )
-    self._parse_and_test(program)
-
-  def test_bool_not(self):
-    program = """
-    fn bool_not(x: bool) -> bool {
-      !x
-    }
-    #[test]
-    fn bool_not_test() {
-      let _: () = assert_eq(true, bool_not(false));
-      let _: () = assert_eq(false, bool_not(true));
-      ()
-    }
-    """
-    self._parse_and_test(program)
-
   def test_fail_incomplete_match(self):
+    """Tests that interpreter runtime-fails on incomplete match pattern set."""
     program = textwrap.dedent("""\
     #[test]
     fn incomplete_match_failure_test() {
@@ -304,19 +105,8 @@ class InterpreterTest(test_base.TestCase):
         stderr)
     self.assertIn(':4:16-6:4', stderr)
 
-  def test_boolean_literal_needs_no_type_annotation(self):
-    program = """
-    fn returns_bool() -> bool {
-      false
-    }
-    #[test]
-    fn returns_bool_test() {
-      assert_eq(false, returns_bool())
-    }
-    """
-    self._parse_and_test(program)
-
   def test_failing_test_gives_error_retcode(self):
+    """Tests that a failing DSLX test results in an error return code."""
     program = """
     #[test]
     fn failing_test() {
@@ -329,6 +119,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_then_failing_test_gives_error_retcode(self):
+    """Tests that a passing test then failing test gives an error retcode."""
     program = """
     #[test]
     fn passing_test() {
@@ -361,6 +152,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertNotEqual(p.returncode, 0)
 
   def test_passing_test_returncode(self):
+    """Tests that the interpreter gives a 0 retcode for a passing test file."""
     program = """
     #[test]
     fn passing_test() {
@@ -373,6 +165,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertEqual(p.returncode, 0)
 
   def test_trace(self):
+    """Tests that we see trace output in stderr."""
     program = """
     fn fut() -> u32 {
       let x = u32:0;
@@ -398,6 +191,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('6:21-6:32: 2', result.stderr)
 
   def test_trace_s32(self):
+    """Tests that we can trace s32 values."""
     program = """
     #[test]
     fn trace_test() {
@@ -405,26 +199,21 @@ class InterpreterTest(test_base.TestCase):
       let _ = trace!(x);
       let x = s32:-1;
       let _ = trace!(x);
-      ()
     }
     """
-    program_file = self.create_tempfile(content=program)
-    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
-    cmd = [
-        _INTERP_PATH, '--compare=none', '--alsologtostderr',
-        program_file.full_path
-    ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('5:21-5:24: 4', result.stderr)
-    self.assertIn('7:21-7:24: -1', result.stderr)
+    stderr = self._parse_and_test(
+        program, want_error=False, alsologtostderr=True
+    )
+    self.assertIn('5:21-5:24: 4', stderr)
+    self.assertIn('7:21-7:24: -1', stderr)
 
   def test_trace_fmt_hello(self):
+    """Tests that basic trace formatting works."""
     program = """
     fn main() {
       let x = u8:0xF0;
-      let _ = trace_fmt!("Hello world!");
-      let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
-      ()
+      trace_fmt!("Hello world!");
+      trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
     }
 
     #[test]
@@ -432,15 +221,14 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [_INTERP_PATH, '--alsologtostderr', program_file.full_path]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    print(result.stderr)
-    self.assertIn('Hello world!', result.stderr)
-    self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',
-                  result.stderr)
+    stderr = self._parse_and_test(
+        program, want_error=False, alsologtostderr=True
+    )
+    self.assertIn('Hello world!', stderr)
+    self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary', stderr)
 
   def test_trace_fmt_struct_field_fmt_pref(self):
+    """Tests trace-formatting of a struct with a format preference."""
     program = """
     struct MyStruct {
       x: u32,
@@ -472,6 +260,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('s as bin: MyStruct {\n  x: 0b10_1010\n}', result.stderr)
 
   def test_trace_fmt_array_of_struct(self):
+    """Tests that we can apply trace formatting to an array of structs."""
     program = """
     struct MyStruct {
       x: u32,
@@ -504,6 +293,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('a as bin: [MyStruct {\n  x: 0b10_1010\n}]', result.stderr)
 
   def test_trace_fmt_array_of_enum(self):
+    """Tests we can trace-format an array of enum values."""
     program = """
     enum MyEnum : u2 {
       ONE = 1,
@@ -520,17 +310,13 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [
-        _INTERP_PATH,
-        '--alsologtostderr',
-        program_file.full_path,
-    ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    print(result.stderr)
-    self.assertIn('a: [MyEnum::ONE, MyEnum::TWO]', result.stderr)
+    stderr = self._parse_and_test(
+        program, want_error=False, alsologtostderr=True
+    )
+    self.assertIn('a: [MyEnum::ONE, MyEnum::TWO]', stderr)
 
   def test_trace_fmt_tuple_of_enum(self):
+    """Tests that we can trace format a tuple that includes enum values."""
     program = """
     enum MyEnum : u2 {
       ONE = 1,
@@ -547,109 +333,13 @@ class InterpreterTest(test_base.TestCase):
       main()
     }
     """
-    program_file = self.create_tempfile(content=program)
-    cmd = [
-        _INTERP_PATH,
-        '--alsologtostderr',
-        program_file.full_path,
-    ]
-    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=False)
-    print(result.stderr)
-    self.assertIn('t: (MyEnum::ONE, MyEnum::TWO, 0x2a)', result.stderr)
-
-  def test_bitslice_syntax(self):
-    program = """
-    #[test]
-    fn slice_test() {
-      let x = u4:0b1001;
-      let _ = assert_eq(x[0:2], u2:0b01);
-      let _ = assert_eq(x[2:4], u2:0b10);
-      ()
-    }
-    """
-    self._parse_and_test(program)
-
-  def test_slice_builtin(self):
-    program = """
-    fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
-      slice(x, start, u8[3]:[0, 0, 0])
-    }
-    #[test]
-    fn slice_test() {
-      let a: u8[4] = u8[4]:[1, 2, 3, 4];
-      let _: () = assert_eq(u8[2]:[1, 2], slice(a, u32:0, u8[2]:[0, 0]));
-      let _: () = assert_eq(u8[2]:[3, 4], slice(a, u32:2, u8[2]:[0, 0]));
-      let _: () = assert_eq(u8[3]:[2, 3, 4], slice(a, u32:1, u8[3]:[0, 0, 0]));
-      let _: () = assert_eq(u8[3]:[2, 3, 4], non_test_slice(a, u32:1));
-      ()
-    }
-    """
-    # TODO(https://github.com/google/xls/issues/312): requires IR conversion of
-    # slice.
-    self._parse_and_test(program, compare='none')
-
-  def test_array_literal_ellipsis(self):
-    program = """
-    fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
-      slice(x, start, u8[3]:[0, ...])
-    }
-    #[test]
-    fn slice_test() {
-      let a: u8[4] = u8[4]:[4, ...];
-      let _: () = assert_eq(u8[3]:[4, 4, 4], non_test_slice(a, u32:1));
-      let _: () = assert_eq(u8[3]:[4, 4, 4], u8[3]:[4, ...]);
-      let _: () = assert_eq(u8:4, (u8[3]:[4, ...])[u32:2]);
-      ()
-    }
-    """
-    # TODO(https://github.com/google/xls/issues/312): requires IR conversion of
-    # slice.
-    self._parse_and_test(program, compare='none')
-
-  def test_destructure(self):
-    program = """
-    #[test]
-    fn destructure_test() {
-      let t = (u32:2, u8:3);
-      let (a, b) = t;
-      let _ = assert_eq(u32:2, a);
-      assert_eq(u8:3, b)
-    }
-    """
-    self._parse_and_test(program)
-
-  def test_destructure_black_hole_identifier(self):
-    program = """
-    #[test]
-    fn destructure_test() {
-      let t = (u32:2, u8:3, true);
-      let (_, _, v) = t;
-      assert_eq(v, true)
-    }
-    """
-    self._parse_and_test(program)
-
-  def test_struct_with_const_sized_array(self):
-    program = """
-    const THING_COUNT = u32:2;
-    type Foo = (
-      u32[THING_COUNT]
-    );
-    fn get_thing(x: Foo, i: u32) -> u32 {
-      let things: u32[THING_COUNT] = x.0;
-      things[i]
-    }
-    #[test]
-    fn foo_test() {
-      let foo: Foo = (u32[THING_COUNT]:[42, 64],);
-      let _ = assert_eq(u32:42, get_thing(foo, u32:0));
-      let _ = assert_eq(u32:64, get_thing(foo, u32:1));
-      ()
-    }
-    """
-    self._parse_and_test(program)
+    stderr = self._parse_and_test(
+        program, want_error=False, alsologtostderr=True
+    )
+    self.assertIn('t: (MyEnum::ONE, MyEnum::TWO, 0x2a)', stderr)
 
   def test_cast_array_to_wrong_bit_count(self):
+    """Tests that casing an array to the wrong bit count causes a failure."""
     program = textwrap.dedent("""\
     #[test]
     fn cast_array_to_wrong_bit_count_test() {
@@ -663,6 +353,7 @@ class InterpreterTest(test_base.TestCase):
         stderr)
 
   def test_cast_enum_oob_causes_fail(self):
+    """Tests casting an out-of-bound value to enum causes a runtime failure."""
     program = textwrap.dedent("""\
     enum Foo : u32 {
       FOO = 1
@@ -679,44 +370,8 @@ class InterpreterTest(test_base.TestCase):
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn('Value is not valid for enum', stderr)
 
-  def test_const_array_of_enum_refs(self):
-    program = """
-    enum MyEnum: u2 {
-      FOO = 2,
-      BAR = 3,
-    }
-    const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];
-    #[test]
-    fn t_test() {
-      let _ = assert_eq(MyEnum::FOO, A[u32:0]);
-      let _ = assert_eq(MyEnum::BAR, A[u32:1]);
-      ()
-    }
-    """
-    self._parse_and_test(program)
-
-  def test_typedef_array(self):
-    program = """
-    type MyType = u2;
-    type StructLike = (
-      MyType[2],
-    );
-    fn f(s: StructLike) -> StructLike {
-      let updated: StructLike = (
-        [s.0[u32:0]+MyType:1, s.0[u32:1]+MyType:1],
-      );
-      updated
-    }
-    #[test]
-    fn t_test() {
-      let s: StructLike = (MyType[2]:[MyType:0, MyType:1],);
-      let s_2 = f(s);
-      assert_eq(s_2, (u2[2]:[u2:1, u2:2],))
-    }
-    """
-    self._parse_and_test(program)
-
   def test_assert_eq_failure_arrays(self):
+    """Tests array equality failure prints an appropriate error message."""
     program = """
     #[test]
     fn t_test() {
@@ -728,6 +383,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('first differing index: 0', stderr)
 
   def test_first_failing_test(self):
+    """Tests that we identify the first failing test in a file of tests."""
     program = textwrap.dedent("""\
     #[test] fn first_test() { assert_eq(false, true) }
     #[test] fn second_test() { assert_eq(true, true) }
@@ -738,6 +394,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('were not equal', stderr)
 
   def test_second_failing_test(self):
+    """Tests that we identify the second failing test in a file of tests."""
     program = textwrap.dedent("""\
     #[test] fn first_test() { assert_eq(true, true) }
     #[test] fn second_test() { assert_eq(false, true) }
@@ -748,6 +405,7 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('were not equal', stderr)
 
   def test_third_failing_test(self):
+    """Tests that we identify the third failing test in a file of tests."""
     program = textwrap.dedent("""\
     #[test] fn first_test() { assert_eq(true, true) }
     #[test] fn second_test() { assert_eq(true, true) }
@@ -757,38 +415,8 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn(':3:36-3:49', stderr)
     self.assertIn('were not equal', stderr)
 
-  def test_wide_shifts(self):
-    program = textwrap.dedent(
-        """\
-    #[test]
-    fn simple_add_test() {
-      let x: uN[96] = uN[96]:0xaaaa_bbbb_cccc_dddd_eeee_ffff;
-      let big: uN[96] = uN[96]:0x9999_9999_9999_9999_9999_9999;
-      let four: uN[96] = uN[96]:0x4;
-      // Test a value which fits in an int64_t as a signed number,
-      // but not in a uint64_t an unsigned number.
-      let does_not_fit_in_uint64: uN[65] = uN[65]:0x1_ffff_ffff_ffff_ffff;
-      let _ = assert_eq(x >> big, uN[96]:0);
-      let _ = assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
-      let _ = assert_eq(x << big, uN[96]:0);
-      let _ = assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
-      assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
-    }
-    """
-    )
-    self._parse_and_test(program)
-
-  def test_wide_ashr(self):
-    program = textwrap.dedent("""\
-    #[test]
-    fn simple_add_test() {
-      let x: sN[80] = sN[80]:0x8000_0000_0000_0000_0000 >> uN[80]:0x0aaa_bbbb_cccc_dddd_eeee;
-      assert_eq(sN[80]:0xffff_ffff_ffff_ffff_ffff, x)
-    }
-    """)
-    self._parse_and_test(program)
-
   def test_large_generated_function_body(self):
+    """Tests we handle a large function body without stack overflow errors."""
     # This fails at 6KiStatements in opt due to deep recursion.
     # Picked this number so it passes with ASAN.
     nesting = 1024 * 1

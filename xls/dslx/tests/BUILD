@@ -43,6 +43,137 @@ bzl_library(
 
 dslx_lang_test(name = "two_plus_two")
 
+# Simple unit tests with no meaningful main entry point.
+dslx_lang_test(
+    name = "simple_invocation",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_cast",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_subtract",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_add_overflow",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_add_with_carry_builtin",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_inequality",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_array_equality",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "wide_ashr",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "pad_bits_via_concat",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "derived_parametric",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "struct_with_const_sized_array",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "typedef_array",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "slice_builtin",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "destructure",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "wide_shifts",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "bitslice_syntax",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "destructure_wildcard",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "bool_not",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "bool_literal",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "parametric_invocation",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "for_over_range_u8",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "parametric_binding",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "tree_binding",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "array_index",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "tuple_index",
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "for_over_array",
+    convert_to_ir = False,
+)
+
 dslx_lang_test(name = "zero_macro")
 
 dslx_lang_test(name = "tuple_with_array_member")
