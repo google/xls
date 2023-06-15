@@ -72,13 +72,17 @@ for {set i 0} {$i < $max_stage} {incr i} {
 select -clear
 opt_clean -purge
 
-# ====== mapping to liberty
+# ====== mapping to liberty ======
 set liberty $::env(LIBERTY)
 dfflibmap -liberty $liberty
+
+# custom ABC script including cell resizing
+set abc_script "+strash;fraig;scorr;strash;dch,-f;map,-M,1;topo;stime;buffer;topo;stime;minsize;stime;upsize;stime;dnsize;stime"
+
 if { [info exists ::env(CLOCK_PERIOD) ] } {
-  abc -liberty $liberty -dff -g aig -D $::env(CLOCK_PERIOD)
+  abc -liberty $liberty -dff -g aig -D $::env(CLOCK_PERIOD) -script $abc_script
 } else {
-  abc -liberty $liberty -dff -g aig
+  abc -liberty $liberty -dff -g aig -script $abc_script
 }
 
 # ====== write synthesized design
