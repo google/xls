@@ -15,6 +15,7 @@
 #include "xls/interpreter/block_interpreter.h"
 
 #include "absl/status/status.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value_helpers.h"
 

@@ -835,8 +835,9 @@ absl::Status Package::RemoveChannel(Channel* channel) {
           (node->Is<Receive>() &&
            node->As<Receive>()->channel_id() == channel->id())) {
         return absl::InternalError(absl::StrFormat(
-            "Channel %s (%d) cannot be removed because it is used by node %s",
-            channel->name(), channel->id(), node->GetName()));
+            "Channel %s (id=%d) cannot be removed because it "
+            "is used by node %v in %v",
+            channel->name(), channel->id(), *node, *node->function_base()));
       }
     }
   }

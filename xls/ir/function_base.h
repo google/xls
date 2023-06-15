@@ -23,14 +23,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/iterator_range.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
 #include "xls/ir/unwrapping_iterator.h"
 #include "xls/ir/verifier.h"
 
@@ -46,14 +44,13 @@ class FunctionBase {
 
  public:
   FunctionBase(std::string_view name, Package* package)
-      : name_(name),
-        package_(package) {}
+      : name_(name), package_(package) {}
   virtual ~FunctionBase() = default;
 
   Package* package() const { return package_; }
   const std::string& name() const { return name_; }
   void SetName(std::string_view name) { name_ = name; }
-  const std::string qualified_name() const {
+  std::string qualified_name() const {
     return absl::StrCat(package_->name(), "::", name_);
   }
 
@@ -167,6 +164,11 @@ class FunctionBase {
   // call information.
   const std::optional<xls::ForeignFunctionData>& ForeignFunctionData() const {
     return foreign_function_;
+  }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const FunctionBase& fb) {
+    absl::Format(&sink, "%s", fb.name());
   }
 
  protected:
