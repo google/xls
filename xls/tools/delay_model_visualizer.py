@@ -74,7 +74,8 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
     fig, ax = pyplot.subplots()
 
     # Plot the real data points as circles.
-    x_actual, y_actual = zip(*op_model.raw_data_points)
+    x_actual = [dp.delay_factors[0] for dp in op_model.raw_data_points]
+    y_actual = [dp.delay_ps for dp in op_model.raw_data_points]
     ax.plot(x_actual, y_actual, 'o')
 
     # Plot a curve for the delay model.
@@ -90,7 +91,9 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
     pyplot.xlim(left=1)
 
   elif len(op_model.delay_expressions) == 2:
-    x_actual, y_actual, z_actual = list(zip(*op_model.raw_data_points))
+    x_actual = [dp.delay_factors[0] for dp in op_model.raw_data_points]
+    y_actual = [dp.delay_factors[1] for dp in op_model.raw_data_points]
+    z_actual = [dp.delay_ps for dp in op_model.raw_data_points]
     fig = pyplot.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
 
@@ -113,7 +116,9 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     # Plot the actual data points as circles with a line extending from the
     # model estimate.
-    for x_i, y_i, z_i in op_model.raw_data_points:
+    for rdp in op_model.raw_data_points:
+      x_i, y_i = rdp.delay_factors[0:2]
+      z_i = rdp.delay_ps
       z_est_i = delay_f(x_i, y_i)
       ax.scatter(x_i, y_i, z_i, marker='o', c='black')
       ax.plot([x_i, x_i], [y_i, y_i], [z_est_i, z_i], color='black', marker='_')

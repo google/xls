@@ -1348,3 +1348,19 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
+
+py_binary(
+    name = "delay_model_stats",
+    srcs = ["delay_model_stats.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        requirement("numpy"),
+        "//xls/delay_model",
+        "//xls/delay_model:delay_model_py_pb2",
+        "@com_google_absl_py//absl:app",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_protobuf//:protobuf_python",
+    ],
+)

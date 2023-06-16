@@ -21,9 +21,10 @@ well as provide delay estimates in Python.
 """
 
 import abc
+import dataclasses
 import random
 
-from typing import Sequence, Text, Tuple, Callable
+from typing import Sequence, List, Tuple, Callable
 import warnings
 
 import numpy as np
@@ -34,6 +35,13 @@ from xls.delay_model import delay_model_pb2
 
 class Error(Exception):
   pass
+
+
+@dataclasses.dataclass
+class RawDataPoint:
+  """Measurements used by RegressionEstimator and BoundingBoxEstimator."""
+  delay_factors: List[int]
+  delay_ps: int
 
 
 class Estimator(metaclass=abc.ABCMeta):
@@ -47,11 +55,11 @@ class Estimator(metaclass=abc.ABCMeta):
         match the name of the XLS Op enum value.  Example: 'kAdd'.
   """
 
-  def __init__(self, op: Text):
+  def __init__(self, op: str):
     self.op = op
 
   @abc.abstractmethod
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     """Returns the sequence of C++ statements which compute the delay.
 
     Args:
@@ -83,7 +91,7 @@ class FixedEstimator(Estimator):
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     return self.fixed_delay
 
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     return 'return {};'.format(self.fixed_delay)
 
 
@@ -95,11 +103,11 @@ class AliasEstimator(Estimator):
     estimator for kSub could be an AliasEstimator which refers to kAdd.
   """
 
-  def __init__(self, op, aliased_op: Text):
+  def __init__(self, op, aliased_op: str):
     super(AliasEstimator, self).__init__(op)
     self.aliased_op = aliased_op
 
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     return 'return {}Delay({});'.format(
         self.aliased_op.lstrip('k'), node_identifier)
 
@@ -107,7 +115,7 @@ class AliasEstimator(Estimator):
     raise NotImplementedError
 
 
-def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> Text:
+def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> str:
   """Returns a brief description of a delay factor."""
   e = delay_model_pb2.DelayFactor.Source
   return {
@@ -124,7 +132,7 @@ def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> Text:
   }[factor.source]
 
 
-def delay_expression_description(exp: delay_model_pb2.DelayExpression) -> Text:
+def delay_expression_description(exp: delay_model_pb2.DelayExpression) -> str:
   """Returns a brief description of a delay expression."""
   if exp.HasField('bin_op'):
     lhs = delay_expression_description(exp.lhs_expression)
@@ -202,7 +210,7 @@ def _operation_delay_expression(expression: delay_model_pb2.DelayExpression,
 
 
 def _delay_factor_cpp_expression(factor: delay_model_pb2.DelayFactor,
-                                 node_identifier: Text) -> Text:
+                                 node_identifier: str) -> str:
   """Returns a C++ expression which computes a delay factor of an XLS Node*.
 
   Args:
@@ -235,7 +243,7 @@ def _delay_factor_cpp_expression(factor: delay_model_pb2.DelayFactor,
 
 
 def _delay_expression_cpp_expression(
-    expression: delay_model_pb2.DelayExpression, node_identifier: Text) -> Text:
+    expression: delay_model_pb2.DelayExpression, node_identifier: str) -> str:
   """Returns a C++ expression which computes a delay expression of an XLS Node*.
 
   Args:
@@ -297,8 +305,9 @@ class RegressionEstimator(Estimator):
   Attributes:
     delay_expressions: The expressions used in curve fitting.
     data_points: Delay measurements used by the model as DataPoint protos.
-    raw_data_points: Delay measurements as tuples of ints. The first elements in
-      the tuple are the delay expressions and the last element is the delay.
+    raw_data_points: Delay measurements stored in RawDataPoint structures.
+      The .delay_factors list contains the delay expressions, and the 
+      .delay_ps field is the measured delay.
     delay_function: The curve-fitted function which computes the estimated delay
       given the expressions as floats.
     params: The list of learned parameters.
@@ -326,9 +335,14 @@ class RegressionEstimator(Estimator):
     self.raw_data_points = []
     for dp in self.data_points:
       self.raw_data_points.append(
-          tuple(
-              _operation_delay_expression(e, dp.operation)
-              for e in self.delay_expressions) + (dp.delay - dp.delay_offset,))
+          RawDataPoint(
+              delay_factors=[
+                  _operation_delay_expression(e, dp.operation)
+                  for e in self.delay_expressions
+              ],
+              delay_ps=(dp.delay - dp.delay_offset)
+          )
+      )
 
     self._k_fold_cross_validation(self.raw_data_points,
                                   num_cross_validation_folds,
@@ -337,7 +351,7 @@ class RegressionEstimator(Estimator):
 
   @staticmethod
   def generate_k_fold_cross_validation_train_and_test_sets(
-      raw_data_points: Sequence[Tuple[int, int]],
+      raw_data_points: Sequence[RawDataPoint],
       num_cross_validation_folds: int):
     """Yields training and testing datasets for cross validation.
 
@@ -371,7 +385,7 @@ class RegressionEstimator(Estimator):
         training_dps.extend(fold_dps)
       yield training_dps, folds[test_fold_idx]
 
-  def _k_fold_cross_validation(self, raw_data_points: Sequence[Tuple[int, int]],
+  def _k_fold_cross_validation(self, raw_data_points: Sequence[RawDataPoint],
                                num_cross_validation_folds: int,
                                max_data_point_error: float,
                                max_fold_geomean_error: float):
@@ -382,9 +396,9 @@ class RegressionEstimator(Estimator):
     partial data sets.
 
     Args:
-      raw_data_points: A sequence of tuples where each tuple is a single
-        measurement point. In each tuple, independent variables are listed first
-        and the dependent variable is last.
+      raw_data_points: A sequence of RawDataPoints, where each is a single
+        measurement point.  Independent variables are in the .delay_factors
+        field, and the dependent variable is in the .delay_ps field.
       num_cross_validation_folds: The number of folds to use for cross
         validation.
       max_data_point_error: The maximum allowable absolute error for any single
@@ -420,8 +434,8 @@ class RegressionEstimator(Estimator):
       # Test.
       error_product = 1.0
       for dp in testing_dps:
-        xdata = dp[0:-1]
-        ydata = dp[-1]
+        xdata = dp.delay_factors
+        ydata = dp.delay_ps
         predicted_delay = self.raw_delay(xdata)
         abs_dp_error = abs((predicted_delay - ydata) / ydata)
         error_product = error_product * abs_dp_error
@@ -436,24 +450,24 @@ class RegressionEstimator(Estimator):
                         self.op, geomean_error, max_fold_geomean_error))
 
   def _fit_curve(
-      self, raw_data_points: Sequence[Tuple[int]]
+      self, raw_data_points: Sequence[RawDataPoint]
   ) -> Tuple[Callable[[Sequence[float]], float], Sequence[float]]:
     """Fits a curve to the given data points.
 
     Args:
-      raw_data_points: A sequence of tuples where each tuple is a single
-        measurement point. In each tuple, independent variables are listed first
-        and the dependent variable is last.
+      raw_data_points: A sequence of RawDataPoints, where each is a single
+        measurement point.  Independent variables are in the .delay_factors
+        field, and the dependent variable is in the .delay_ps field.
 
     Returns:
       A tuple containing the fitted function and the sequence of learned
       parameters.
     """
     # Split the raw data points into independent (xdata) and dependent variables
-    # (ydata). Each raw data point has the form: (x_0, x_1, ... x_n, y)
-    data_by_dim = list(zip(*raw_data_points))
-    xdata = data_by_dim[0:-1]
-    ydata = data_by_dim[-1]
+    # (ydata).
+    raw_xdata = [pt.delay_factors for pt in raw_data_points]
+    xdata = list(zip(*raw_xdata))
+    ydata = [pt.delay_ps for pt in raw_data_points]
 
     def delay_f(x, *params) -> float:
       s = params[0]
@@ -480,7 +494,7 @@ class RegressionEstimator(Estimator):
     """Returns the delay with delay expressions passed in as floats."""
     return self.delay_function(xargs)
 
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     terms = [str(self.params[0])]
     for i, expression in enumerate(self.delay_expressions):
       e_str = _delay_expression_cpp_expression(expression, node_identifier)
@@ -501,19 +515,24 @@ class BoundingBoxEstimator(Estimator):
     self.raw_data_points = []
     for dp in self.data_points:
       self.raw_data_points.append(
-          tuple(
-              _operation_delay_factor(e, dp.operation)
-              for e in self.delay_factors) + (dp.delay - dp.delay_offset,))
+          RawDataPoint(
+              delay_factors=[
+                  _operation_delay_factor(e, dp.operation)
+                  for e in self.delay_factors
+              ],
+              delay_ps=(dp.delay - dp.delay_offset)
+          )
+      )
 
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     lines = []
     for raw_data_point in self.raw_data_points:
       test_expr_terms = []
-      for i, x_value in enumerate(raw_data_point[0:-1]):
+      for i, x_value in enumerate(raw_data_point.delay_factors):
         test_expr_terms.append('%s <= %d' % (_delay_factor_cpp_expression(
             self.delay_factors[i], node_identifier), x_value))
       lines.append('if (%s) { return %d; }' %
-                   (' && '.join(test_expr_terms), raw_data_point[-1]))
+                   (' && '.join(test_expr_terms), raw_data_point.delay_ps))
     lines.append(
         'return absl::UnimplementedError('
         '"Unhandled node for delay estimation: " '
@@ -528,9 +547,9 @@ class BoundingBoxEstimator(Estimator):
   def raw_delay(self, xargs):
     """Returns the delay with delay factors passed in as floats."""
     for raw_data_point in self.raw_data_points:
-      x_values = raw_data_point[0:-1]
+      x_values = raw_data_point.delay_factors
       if all(a <= b for (a, b) in zip(xargs, x_values)):
-        return raw_data_point[-1]
+        return raw_data_point.delay_ps
     raise Error('Operation outside bounding box')
 
 
@@ -548,7 +567,7 @@ class LogicalEffortEstimator(Estimator):
   def operation_delay(self, operation: delay_model_pb2.Operation) -> int:
     raise NotImplementedError
 
-  def cpp_delay_code(self, node_identifier: Text) -> Text:
+  def cpp_delay_code(self, node_identifier: str) -> str:
     lines = []
     lines.append(
         'absl::StatusOr<int64_t> delay_in_ps = '
@@ -561,7 +580,7 @@ class LogicalEffortEstimator(Estimator):
     return '\n'.join(lines)
 
 
-def _estimator_from_proto(op: Text, proto: delay_model_pb2.Estimator,
+def _estimator_from_proto(op: str, proto: delay_model_pb2.Estimator,
                           data_points: Sequence[delay_model_pb2.DataPoint]):
   """Create an Estimator from a proto."""
   if proto.HasField('fixed'):
@@ -621,7 +640,7 @@ class OpModel:
     self.estimator = _estimator_from_proto(self.op, proto.estimator,
                                            data_points)
 
-  def cpp_delay_function(self) -> Text:
+  def cpp_delay_function(self) -> str:
     """Return a C++ function which computes delay for an operation."""
     lines = []
     lines.append('absl::StatusOr<int64_t> %s(Node* node) {' %
@@ -642,10 +661,10 @@ class OpModel:
     lines.append('}')
     return '\n'.join(lines)
 
-  def cpp_delay_function_name(self) -> Text:
+  def cpp_delay_function_name(self) -> str:
     return self.op.lstrip('k') + 'Delay'
 
-  def cpp_delay_function_declaration(self) -> Text:
+  def cpp_delay_function_declaration(self) -> str:
     return 'absl::StatusOr<int64_t> {}(Node* node);'.format(
         self.cpp_delay_function_name())
 
@@ -668,8 +687,8 @@ class DelayModel:
       self.op_models[op_model.op] = OpModel(op_model,
                                             op_data_points.get(op_model.op, ()))
 
-  def ops(self) -> Sequence[Text]:
+  def ops(self) -> Sequence[str]:
     return sorted(self.op_models.keys())
 
-  def op_model(self, op: Text) -> OpModel:
+  def op_model(self, op: str) -> OpModel:
     return self.op_models[op]

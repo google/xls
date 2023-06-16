@@ -209,7 +209,7 @@ class DelayModelTest(absltest.TestCase):
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->operand_count()) +
               0.0 * std::log2(
-                static_cast<float>(node->operand_count()) < 1.0 ? 1.0 : 
+                static_cast<float>(node->operand_count()) < 1.0 ? 1.0 :
                 static_cast<float>(node->operand_count())
               ));
         """)
@@ -258,8 +258,8 @@ class DelayModelTest(absltest.TestCase):
               ) +
               0.0 * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) +
               0.0 * std::log2(
-                static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ? 
-                  1.0 : 
+                static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ?
+                  1.0 :
                   static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
               ));
         """)
@@ -319,10 +319,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.ADD
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -374,10 +374,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.SUB
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -429,10 +429,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.DIVIDE
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -459,9 +459,9 @@ class DelayModelTest(absltest.TestCase):
         delta=1)
 
     expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        / ( 
+        / (
           static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ?
-            1.0 :  
+            1.0 :
             static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
         ))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
@@ -487,10 +487,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MAX
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -542,10 +542,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MIN
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -597,10 +597,10 @@ class DelayModelTest(absltest.TestCase):
     ]
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MULTIPLY
-    expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -651,8 +651,8 @@ class DelayModelTest(absltest.TestCase):
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.POWER
     expression.lhs_expression.constant = 2
-    expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+    expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
 
     foo = delay_model.RegressionEstimator(
         'kFoo', (expression,),
@@ -745,12 +745,12 @@ class DelayModelTest(absltest.TestCase):
     expression = delay_model_pb2.DelayExpression()
     expression.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.MIN
     expression.lhs_expression.constant = 20
-    expression.rhs_expression.bin_op = \
-        delay_model_pb2.DelayExpression.BinaryOperation.ADD
-    expression.rhs_expression.lhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
-    expression.rhs_expression.rhs_expression.factor.source = \
-        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    expression.rhs_expression.bin_op = (
+        delay_model_pb2.DelayExpression.BinaryOperation.ADD)
+    expression.rhs_expression.lhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT)
+    expression.rhs_expression.rhs_expression.factor.source = (
+        delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT)
     expression.rhs_expression.rhs_expression.factor.operand_number = 1
 
     foo = delay_model.RegressionEstimator(
@@ -815,25 +815,36 @@ class DelayModelTest(absltest.TestCase):
             return std::round(
                 0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
                 0.0 * std::log2(
-                  static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ? 
-                   1.0 : 
+                  static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ?
+                   1.0 :
                   static_cast<float>(node->GetType()->GetFlatBitCount())
                 ));
           }
         """)
 
   def test_regression_estimator_generate_validation_sets(self):
-    raw_data_points = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5)]
-    training_dps, testing_dps = \
+
+    def gen_raw_dp(*a):
+      return delay_model.RawDataPoint(delay_factors=list(a[0:-1]),
+                                      delay_ps=a[-1])
+
+    raw_data_points = [gen_raw_dp(0, 0), gen_raw_dp(1, 1),
+                       gen_raw_dp(2, 2), gen_raw_dp(3, 3),
+                       gen_raw_dp(4, 4), gen_raw_dp(5, 5)]
+    training_dps, testing_dps = (
         zip(*delay_model.RegressionEstimator.generate_k_fold_cross_validation_train_and_test_sets(
-            raw_data_points, num_cross_validation_folds=3))
-    self.assertEqual(training_dps, ([(5, 5), (2, 2),
-                                     (0, 0), (4, 4)], [(3, 3), (1, 1), (0, 0),
-                                                       (4, 4)], [(3, 3), (1, 1),
-                                                                 (5, 5),
-                                                                 (2, 2)]))
+            raw_data_points, num_cross_validation_folds=3)))
+    self.assertEqual(training_dps,
+                     ([gen_raw_dp(5, 5), gen_raw_dp(2, 2),
+                       gen_raw_dp(0, 0), gen_raw_dp(4, 4)],
+                      [gen_raw_dp(3, 3), gen_raw_dp(1, 1),
+                       gen_raw_dp(0, 0), gen_raw_dp(4, 4)],
+                      [gen_raw_dp(3, 3), gen_raw_dp(1, 1),
+                       gen_raw_dp(5, 5), gen_raw_dp(2, 2)]))
     self.assertEqual(testing_dps,
-                     ([(3, 3), (1, 1)], [(5, 5), (2, 2)], [(0, 0), (4, 4)]))
+                     ([gen_raw_dp(3, 3), gen_raw_dp(1, 1)],
+                      [gen_raw_dp(5, 5), gen_raw_dp(2, 2)],
+                      [gen_raw_dp(0, 0), gen_raw_dp(4, 4)]))
 
   def test_regression_estimator_cross_validation_insufficient_data_for_folds(
       self):
@@ -946,9 +957,9 @@ class DelayModelTest(absltest.TestCase):
       delay_model.DelayModel(
           text_format.Parse(proto_text, delay_model_pb2.DelayModel()))
     self.assertEqualIgnoringWhitespaceAndFloats(
-        'kFoo: Regression model failed k-fold '
-        'cross validation for data point (30, 50) with absolute error 0.0'
-        ' > max 0.0', str(e.exception))
+        'kFoo: Regression model failed k-fold cross validation for '
+        'data point RawDataPoint(delay_factors=[30], delay_ps=50) '
+        'with absolute error 0.0 > max 0.0', str(e.exception))
     self.assertIn('> max 0.3', str(e.exception))
 
   def test_regression_estimator_cross_validation_data_point_exceeds_geomean_error(
