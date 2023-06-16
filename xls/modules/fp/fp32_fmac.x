@@ -56,13 +56,13 @@ proc smoke_test {
         let tok = send(tok, input_b_s, F32_ZERO);
         let tok = send(tok, reset_s, false);
         let (tok, result) = recv(tok, output_r);
-        let _ = assert_eq(result, F32_ZERO);
+        assert_eq(result, F32_ZERO);
 
         let tok = send(tok, input_a_s, F32_ONE);
         let tok = send(tok, input_b_s, F32_ZERO);
         let tok = send(tok, reset_s, false);
         let (tok, result) = recv(tok, output_r);
-        let _ = assert_eq(result, F32_ZERO);
+        assert_eq(result, F32_ZERO);
 
         let tok = send(tok, terminator, true);
         ()

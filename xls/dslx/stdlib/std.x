@@ -27,29 +27,29 @@ pub fn sizeof_unsigned<N: u32>(x : uN[N]) -> u32 {
 
 #[test]
 fn sizeof_signed_test() {
-  let _ = assert_eq(u32:0, sizeof_signed(sN[0]:0));
-  let _ = assert_eq(u32:1, sizeof_signed(sN[1]:0));
-  let _ = assert_eq(u32:2, sizeof_signed(sN[2]:0));
+  assert_eq(u32:0, sizeof_signed(sN[0]:0));
+  assert_eq(u32:1, sizeof_signed(sN[1]:0));
+  assert_eq(u32:2, sizeof_signed(sN[2]:0));
 
   //TODO(tedhong): 2023-03-15 - update frontend to support below.
-  //let _ = assert_eq(u32:0xffffffff, sizeof_signed(uN[0xffffffff]:0));
+  //assert_eq(u32:0xffffffff, sizeof_signed(uN[0xffffffff]:0));
 }
 
 #[test]
 fn sizeof_unsigned_test() {
-  let _ = assert_eq(u32:0, sizeof_unsigned(uN[0]:0));
-  let _ = assert_eq(u32:1, sizeof_unsigned(uN[1]:0));
-  let _ = assert_eq(u32:2, sizeof_unsigned(uN[2]:0));
+  assert_eq(u32:0, sizeof_unsigned(uN[0]:0));
+  assert_eq(u32:1, sizeof_unsigned(uN[1]:0));
+  assert_eq(u32:2, sizeof_unsigned(uN[2]:0));
 
   //TODO(tedhong): 2023-03-15 - update frontend to support below.
-  //let _ = assert_eq(u32:0xffffffff, sizeof_unsigned(uN[0xffffffff]:0));
+  //assert_eq(u32:0xffffffff, sizeof_unsigned(uN[0xffffffff]:0));
 }
 
 #[test]
 fn use_sizeof_test() {
   let x = uN[32]:0xffffffff;
   let y : uN[sizeof_unsigned(x) + u32:2] = x as uN[sizeof_unsigned(x) + u32:2];
-  let _ = assert_eq(y, uN[34]:0xffffffff);
+  assert_eq(y, uN[34]:0xffffffff);
 }
 
 // Returns the maximum signed value contained in N bits.
@@ -59,11 +59,10 @@ pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
 
 #[test]
 fn signed_max_value_test() {
-  let _ = assert_eq(s8:0x7f, signed_max_value<u32:8>());
-  let _ = assert_eq(s16:0x7fff, signed_max_value<u32:16>());
-  let _ = assert_eq(s17:0xffff, signed_max_value<u32:17>());
-  let _ = assert_eq(s32:0x7fffffff, signed_max_value<u32:32>());
-  ()
+  assert_eq(s8:0x7f, signed_max_value<u32:8>());
+  assert_eq(s16:0x7fff, signed_max_value<u32:16>());
+  assert_eq(s17:0xffff, signed_max_value<u32:17>());
+  assert_eq(s32:0x7fffffff, signed_max_value<u32:32>());
 }
 
 // Returns the minimum signed value contained in N bits.
@@ -73,10 +72,9 @@ pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = {N - u32:1}>() -> sN[N] {
 
 #[test]
 fn signed_min_value_test() {
-  let _ = assert_eq(s8:-128, signed_min_value<u32:8>());
-  let _ = assert_eq(s16:-32768, signed_min_value<u32:16>());
-  let _ = assert_eq(s17:-65536, signed_min_value<u32:17>());
-  ()
+  assert_eq(s8:-128, signed_min_value<u32:8>());
+  assert_eq(s16:-32768, signed_min_value<u32:16>());
+  assert_eq(s17:-65536, signed_min_value<u32:17>());
 }
 
 // Returns the maximum unsigned value contained in N bits.
@@ -86,11 +84,10 @@ pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = {N + u32:1}>() -> uN[N] {
 
 #[test]
 fn unsigned_max_value_test() {
-  let _ = assert_eq(u8:0xff, unsigned_max_value<u32:8>());
-  let _ = assert_eq(u16:0xffff, unsigned_max_value<u32:16>());
-  let _ = assert_eq(u17:0x1ffff, unsigned_max_value<u32:17>());
-  let _ = assert_eq(u32:0xffffffff, unsigned_max_value<u32:32>());
-  ()
+  assert_eq(u8:0xff, unsigned_max_value<u32:8>());
+  assert_eq(u16:0xffff, unsigned_max_value<u32:16>());
+  assert_eq(u17:0x1ffff, unsigned_max_value<u32:17>());
+  assert_eq(u32:0xffffffff, unsigned_max_value<u32:32>());
 }
 
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
@@ -105,17 +102,15 @@ pub fn smul<N: u32, M: u32, R: u32 = {N + M}>(x: sN[N], y: sN[M]) -> sN[R] {
 
 #[test]
 fn smul_test() {
-  let _ = assert_eq(s6:4, smul(s3:2, s3:2));
-  let _ = assert_eq(s4:0b1111, smul(s2:0b11, s2:0b01));
-  ()
+  assert_eq(s6:4, smul(s3:2, s3:2));
+  assert_eq(s4:0b1111, smul(s2:0b11, s2:0b01));
 }
 
 #[test]
 fn umul_test() {
-  let _ = assert_eq(u6:4, umul(u3:2, u3:2));
-  let _ = assert_eq(u4:0b0011, umul(u2:0b11, u2:0b01));
-  let _ = assert_eq(u4:0b1001, umul(u2:0b11, u2:0b11));
-  ()
+  assert_eq(u6:4, umul(u3:2, u3:2));
+  assert_eq(u4:0b0011, umul(u2:0b11, u2:0b01));
+  assert_eq(u4:0b1001, umul(u2:0b11, u2:0b11));
 }
 
 // Calculate x / y one bit at a time. This is an alternative to using
@@ -154,26 +149,25 @@ pub fn iterative_div<N: u32, DN: u32 = {N * u32:2}>(x: uN[N], y: uN[N]) -> uN[N]
 #[test]
 fn iterative_div_test() {
   // Power of 2.
-  let _ = assert_eq(u4:0, iterative_div(u4:8, u4:15));
-  let _ = assert_eq(u4:1, iterative_div(u4:8, u4:8));
-  let _ = assert_eq(u4:2, iterative_div(u4:8, u4:4));
-  let _ = assert_eq(u4:4, iterative_div(u4:8, u4:2));
-  let _ = assert_eq(u4:8, iterative_div(u4:8, u4:1));
-  let _ = assert_eq(u4:8 / u4:0, iterative_div(u4:8, u4:0));
-  let _ = assert_eq(u4:15, iterative_div(u4:8, u4:0));
+  assert_eq(u4:0, iterative_div(u4:8, u4:15));
+  assert_eq(u4:1, iterative_div(u4:8, u4:8));
+  assert_eq(u4:2, iterative_div(u4:8, u4:4));
+  assert_eq(u4:4, iterative_div(u4:8, u4:2));
+  assert_eq(u4:8, iterative_div(u4:8, u4:1));
+  assert_eq(u4:8 / u4:0, iterative_div(u4:8, u4:0));
+  assert_eq(u4:15, iterative_div(u4:8, u4:0));
 
   // Non-powers-of-2.
-  let _ = assert_eq(u32:6, iterative_div(u32:18, u32:3));
-  let _ = assert_eq(u32:6, iterative_div(u32:36, u32:6));
-  let _ = assert_eq(u32:6, iterative_div(u32:48, u32:8));
-  let _ = assert_eq(u32:20, iterative_div(u32:900, u32:45));
+  assert_eq(u32:6, iterative_div(u32:18, u32:3));
+  assert_eq(u32:6, iterative_div(u32:36, u32:6));
+  assert_eq(u32:6, iterative_div(u32:48, u32:8));
+  assert_eq(u32:20, iterative_div(u32:900, u32:45));
 
   // Results w/ remainder.
-  let _ = assert_eq(u32:6, iterative_div(u32:20, u32:3));
-  let _ = assert_eq(u32:6, iterative_div(u32:41, u32:6));
-  let _ = assert_eq(u32:6, iterative_div(u32:55, u32:8));
-  let _ = assert_eq(u32:20, iterative_div(u32:944, u32:45));
-  ()
+  assert_eq(u32:6, iterative_div(u32:20, u32:3));
+  assert_eq(u32:6, iterative_div(u32:41, u32:6));
+  assert_eq(u32:6, iterative_div(u32:55, u32:8));
+  assert_eq(u32:20, iterative_div(u32:944, u32:45));
 }
 
 // Returns the value of x-1 with saturation at 0.
@@ -188,11 +182,10 @@ pub fn lsb<N: u32>(x: uN[N]) -> u1 {
 
 #[test]
 fn lsb_test() {
-  let _ = assert_eq(u1:0, lsb(u2:0b00));
-  let _ = assert_eq(u1:1, lsb(u2:0b01));
-  let _ = assert_eq(u1:1, lsb(u2:0b11));
-  let _ = assert_eq(u1:0, lsb(u2:0b10));
-  ()
+  assert_eq(u1:0, lsb(u2:0b00));
+  assert_eq(u1:1, lsb(u2:0b01));
+  assert_eq(u1:1, lsb(u2:0b11));
+  assert_eq(u1:0, lsb(u2:0b10));
 }
 
 // Returns the absolute value of x as a signed number.
@@ -212,14 +205,13 @@ pub fn convert_to_bits_msb0<N: u32>(x: bool[N]) -> uN[N] {
 
 #[test]
 fn convert_to_bits_msb0_test() {
-  let _ = assert_eq(u3:0b000, convert_to_bits_msb0(bool[3]:[false, false, false]));
-  let _ = assert_eq(u3:0b001, convert_to_bits_msb0(bool[3]:[false, false, true]));
-  let _ = assert_eq(u3:0b010, convert_to_bits_msb0(bool[3]:[false, true, false]));
-  let _ = assert_eq(u3:0b011, convert_to_bits_msb0(bool[3]:[false, true, true]));
-  let _ = assert_eq(u3:0b100, convert_to_bits_msb0(bool[3]:[true, false, false]));
-  let _ = assert_eq(u3:0b110, convert_to_bits_msb0(bool[3]:[true, true, false]));
-  let _ = assert_eq(u3:0b111, convert_to_bits_msb0(bool[3]:[true, true, true]));
-  ()
+  assert_eq(u3:0b000, convert_to_bits_msb0(bool[3]:[false, false, false]));
+  assert_eq(u3:0b001, convert_to_bits_msb0(bool[3]:[false, false, true]));
+  assert_eq(u3:0b010, convert_to_bits_msb0(bool[3]:[false, true, false]));
+  assert_eq(u3:0b011, convert_to_bits_msb0(bool[3]:[false, true, true]));
+  assert_eq(u3:0b100, convert_to_bits_msb0(bool[3]:[true, false, false]));
+  assert_eq(u3:0b110, convert_to_bits_msb0(bool[3]:[true, true, false]));
+  assert_eq(u3:0b111, convert_to_bits_msb0(bool[3]:[true, true, true]));
 }
 
 // Converts a bits[N] values to an array of N bools.
@@ -234,17 +226,16 @@ pub fn convert_to_bools_lsb0<N:u32>(x: uN[N]) -> bool[N] {
 
 #[test]
 fn convert_to_bools_lsb0_test() {
-  let _ = assert_eq(convert_to_bools_lsb0(u1:1), bool[1]:[true]);
-  let _ = assert_eq(convert_to_bools_lsb0(u2:0b01), bool[2]:[true, false]);
-  let _ = assert_eq(convert_to_bools_lsb0(u2:0b10), bool[2]:[false, true]);
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b000), bool[3]:[false, false, false]);
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b001), bool[3]:[true, false, false] );
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b010), bool[3]:[false, true, false] );
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b011), bool[3]:[true, true, false]  );
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b100), bool[3]:[false, false, true] );
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b110), bool[3]:[false, true, true]  );
-  let _ = assert_eq(convert_to_bools_lsb0(u3:0b111), bool[3]:[true, true, true]   );
-  ()
+  assert_eq(convert_to_bools_lsb0(u1:1), bool[1]:[true]);
+  assert_eq(convert_to_bools_lsb0(u2:0b01), bool[2]:[true, false]);
+  assert_eq(convert_to_bools_lsb0(u2:0b10), bool[2]:[false, true]);
+  assert_eq(convert_to_bools_lsb0(u3:0b000), bool[3]:[false, false, false]);
+  assert_eq(convert_to_bools_lsb0(u3:0b001), bool[3]:[true, false, false] );
+  assert_eq(convert_to_bools_lsb0(u3:0b010), bool[3]:[false, true, false] );
+  assert_eq(convert_to_bools_lsb0(u3:0b011), bool[3]:[true, true, false]  );
+  assert_eq(convert_to_bools_lsb0(u3:0b100), bool[3]:[false, false, true] );
+  assert_eq(convert_to_bools_lsb0(u3:0b110), bool[3]:[false, true, true]  );
+  assert_eq(convert_to_bools_lsb0(u3:0b111), bool[3]:[true, true, true]   );
 }
 
 #[quickcheck]
@@ -275,10 +266,9 @@ pub fn find_index<BITS: u32, ELEMS: u32>(
 #[test]
 fn find_index_test() {
   let haystack = u3[4]:[0b001, 0b010, 0b100, 0b111];
-  let _ = assert_eq((true, u32:1), find_index(haystack, u3:0b010));
-  let _ = assert_eq((true, u32:3), find_index(haystack, u3:0b111));
-  let _ = assert_eq((false, u32:0), find_index(haystack, u3:0b000));
-  ()
+  assert_eq((true, u32:1), find_index(haystack, u3:0b010));
+  assert_eq((true, u32:3), find_index(haystack, u3:0b111));
+  assert_eq((false, u32:0), find_index(haystack, u3:0b000));
 }
 
 // Concatenates 3 values of arbitrary bitwidths to a single value.
@@ -289,9 +279,8 @@ pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = {X + Y + Z}>(
 
 #[test]
 fn concat3_test() {
-  let _ = assert_eq(u12:0b111000110010,
+  assert_eq(u12:0b111000110010,
                     concat3(u6:0b111000, u4:0b1100, u2:0b10));
-  ()
 }
 
 // Returns the ceiling of (x divided by y).
@@ -302,23 +291,21 @@ pub fn ceil_div<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
 
 #[test]
 fn ceil_div_test() {
-  let _ = assert_eq(ceil_div(u32:6, u32:2), u32:3);
-  let _ = assert_eq(ceil_div(u32:5, u32:2), u32:3);
-  let _ = assert_eq(ceil_div(u32:4, u32:2), u32:2);
-  let _ = assert_eq(ceil_div(u32:3, u32:2), u32:2);
-  let _ = assert_eq(ceil_div(u32:2, u32:2), u32:1);
-  let _ = assert_eq(ceil_div(u32:1, u32:2), u32:1);
-  let _ = assert_eq(ceil_div(u32:0, u32:2), u32:0);
+  assert_eq(ceil_div(u32:6, u32:2), u32:3);
+  assert_eq(ceil_div(u32:5, u32:2), u32:3);
+  assert_eq(ceil_div(u32:4, u32:2), u32:2);
+  assert_eq(ceil_div(u32:3, u32:2), u32:2);
+  assert_eq(ceil_div(u32:2, u32:2), u32:1);
+  assert_eq(ceil_div(u32:1, u32:2), u32:1);
+  assert_eq(ceil_div(u32:0, u32:2), u32:0);
 
-  let _ = assert_eq(ceil_div(u8:6, u8:3), u8:2);
-  let _ = assert_eq(ceil_div(u8:5, u8:3), u8:2);
-  let _ = assert_eq(ceil_div(u8:4, u8:3), u8:2);
-  let _ = assert_eq(ceil_div(u8:3, u8:3), u8:1);
-  let _ = assert_eq(ceil_div(u8:2, u8:3), u8:1);
-  let _ = assert_eq(ceil_div(u8:1, u8:3), u8:1);
-  let _ = assert_eq(ceil_div(u8:0, u8:3), u8:0);
-
-  _
+  assert_eq(ceil_div(u8:6, u8:3), u8:2);
+  assert_eq(ceil_div(u8:5, u8:3), u8:2);
+  assert_eq(ceil_div(u8:4, u8:3), u8:2);
+  assert_eq(ceil_div(u8:3, u8:3), u8:1);
+  assert_eq(ceil_div(u8:2, u8:3), u8:1);
+  assert_eq(ceil_div(u8:1, u8:3), u8:1);
+  assert_eq(ceil_div(u8:0, u8:3), u8:0);
 }
 
 // Returns `x` rounded up to the nearest multiple of `y`.
@@ -328,9 +315,8 @@ pub fn round_up_to_nearest(x: u32, y: u32) -> u32 {
 
 #[test]
 fn round_up_to_nearest_test() {
-  let _ = assert_eq(u32:4, round_up_to_nearest(u32:3, u32:2));
-  let _ = assert_eq(u32:4, round_up_to_nearest(u32:4, u32:2));
-  _
+  assert_eq(u32:4, round_up_to_nearest(u32:3, u32:2));
+  assert_eq(u32:4, round_up_to_nearest(u32:4, u32:2));
 }
 
 // Rotate `x` right by `y` bits.
@@ -340,9 +326,8 @@ pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
 
 #[test]
 fn rrot_test() {
-  let _ = assert_eq(bits[3]:0b101, rrot(bits[3]:0b011, bits[3]:1));
-  let _ = assert_eq(bits[3]:0b011, rrot(bits[3]:0b110, bits[3]:1));
-  _
+  assert_eq(bits[3]:0b101, rrot(bits[3]:0b011, bits[3]:1));
+  assert_eq(bits[3]:0b011, rrot(bits[3]:0b110, bits[3]:1));
 }
 
 // Returns the maximum of two signed integers.
@@ -352,10 +337,9 @@ pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
 
 #[test]
 fn smax_test() {
-  let _ = assert_eq(s2:0, smax(s2:0, s2:0));
-  let _ = assert_eq(s2:1, smax(s2:-1, s2:1));
-  let _ = assert_eq(s7:-3, smax(s7:-3, s7:-6));
-  ()
+  assert_eq(s2:0, smax(s2:0, s2:0));
+  assert_eq(s2:1, smax(s2:-1, s2:1));
+  assert_eq(s7:-3, smax(s7:-3, s7:-6));
 }
 
 // Returns the maximum of two unsigned integers.
@@ -365,10 +349,9 @@ pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
 
 #[test]
 fn umax_test() {
-  let _ = assert_eq(u1:1, umax(u1:1, u1:0));
-  let _ = assert_eq(u1:1, umax(u1:1, u1:1));
-  let _ = assert_eq(u2:3, umax(u2:3, u2:2));
-  ()
+  assert_eq(u1:1, umax(u1:1, u1:0));
+  assert_eq(u1:1, umax(u1:1, u1:1));
+  assert_eq(u2:3, umax(u2:3, u2:2));
 }
 
 // Returns the minimum of two unsigned integers.
@@ -378,10 +361,9 @@ pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
 
 #[test]
 fn umin_test() {
-  let _ = assert_eq(u1:0, umin(u1:1, u1:0));
-  let _ = assert_eq(u1:1, umin(u1:1, u1:1));
-  let _ = assert_eq(u2:2, umin(u2:3, u2:2));
-  ()
+  assert_eq(u1:0, umin(u1:1, u1:0));
+  assert_eq(u1:1, umin(u1:1, u1:1));
+  assert_eq(u2:2, umin(u2:3, u2:2));
 }
 
 // Returns `floor(log2(x))`, with one exception:
@@ -404,17 +386,16 @@ pub fn flog2<N: u32>(x: bits[N]) -> bits[N] {
 
 #[test]
 fn flog2_test() {
-  let _ = assert_eq(u32:0, flog2(u32:0));
-  let _ = assert_eq(u32:0, flog2(u32:1));
-  let _ = assert_eq(u32:1, flog2(u32:2));
-  let _ = assert_eq(u32:1, flog2(u32:3));
-  let _ = assert_eq(u32:2, flog2(u32:4));
-  let _ = assert_eq(u32:2, flog2(u32:5));
-  let _ = assert_eq(u32:2, flog2(u32:6));
-  let _ = assert_eq(u32:2, flog2(u32:7));
-  let _ = assert_eq(u32:3, flog2(u32:8));
-  let _ = assert_eq(u32:3, flog2(u32:9));
-  ()
+  assert_eq(u32:0, flog2(u32:0));
+  assert_eq(u32:0, flog2(u32:1));
+  assert_eq(u32:1, flog2(u32:2));
+  assert_eq(u32:1, flog2(u32:3));
+  assert_eq(u32:2, flog2(u32:4));
+  assert_eq(u32:2, flog2(u32:5));
+  assert_eq(u32:2, flog2(u32:6));
+  assert_eq(u32:2, flog2(u32:7));
+  assert_eq(u32:3, flog2(u32:8));
+  assert_eq(u32:3, flog2(u32:9));
 }
 
 // Returns `ceiling(log2(x))`, with one exception:
@@ -438,17 +419,16 @@ pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
 
 #[test]
 fn clog2_test() {
-  let _ = assert_eq(u32:0, clog2(u32:0));
-  let _ = assert_eq(u32:0, clog2(u32:1));
-  let _ = assert_eq(u32:1, clog2(u32:2));
-  let _ = assert_eq(u32:2, clog2(u32:3));
-  let _ = assert_eq(u32:2, clog2(u32:4));
-  let _ = assert_eq(u32:3, clog2(u32:5));
-  let _ = assert_eq(u32:3, clog2(u32:6));
-  let _ = assert_eq(u32:3, clog2(u32:7));
-  let _ = assert_eq(u32:3, clog2(u32:8));
-  let _ = assert_eq(u32:4, clog2(u32:9));
-  ()
+  assert_eq(u32:0, clog2(u32:0));
+  assert_eq(u32:0, clog2(u32:1));
+  assert_eq(u32:1, clog2(u32:2));
+  assert_eq(u32:2, clog2(u32:3));
+  assert_eq(u32:2, clog2(u32:4));
+  assert_eq(u32:3, clog2(u32:5));
+  assert_eq(u32:3, clog2(u32:6));
+  assert_eq(u32:3, clog2(u32:7));
+  assert_eq(u32:3, clog2(u32:8));
+  assert_eq(u32:4, clog2(u32:9));
 }
 
 // Returns true when x is a non-zero power-of-two.
@@ -458,28 +438,26 @@ pub fn is_pow2<N: u32>(x: uN[N]) -> bool {
 
 #[test]
 fn is_pow2_test() {
-  let _ = assert_eq(is_pow2(u32: 0), false);
-  let _ = assert_eq(is_pow2(u32: 1), true);
-  let _ = assert_eq(is_pow2(u32: 2), true);
-  let _ = assert_eq(is_pow2(u32: 3), false);
-  let _ = assert_eq(is_pow2(u32: 4), true);
-  let _ = assert_eq(is_pow2(u32: 5), false);
-  let _ = assert_eq(is_pow2(u32: 6), false);
-  let _ = assert_eq(is_pow2(u32: 7), false);
-  let _ = assert_eq(is_pow2(u32: 8), true);
+  assert_eq(is_pow2(u32: 0), false);
+  assert_eq(is_pow2(u32: 1), true);
+  assert_eq(is_pow2(u32: 2), true);
+  assert_eq(is_pow2(u32: 3), false);
+  assert_eq(is_pow2(u32: 4), true);
+  assert_eq(is_pow2(u32: 5), false);
+  assert_eq(is_pow2(u32: 6), false);
+  assert_eq(is_pow2(u32: 7), false);
+  assert_eq(is_pow2(u32: 8), true);
 
   // Test parametric bitwidth.
-  let _ = assert_eq(is_pow2(u8: 0), false);
-  let _ = assert_eq(is_pow2(u8: 1), true);
-  let _ = assert_eq(is_pow2(u8: 2), true);
-  let _ = assert_eq(is_pow2(u8: 3), false);
-  let _ = assert_eq(is_pow2(u8: 4), true);
-  let _ = assert_eq(is_pow2(u8: 5), false);
-  let _ = assert_eq(is_pow2(u8: 6), false);
-  let _ = assert_eq(is_pow2(u8: 7), false);
-  let _ = assert_eq(is_pow2(u8: 8), true);
-
-  ()
+  assert_eq(is_pow2(u8: 0), false);
+  assert_eq(is_pow2(u8: 1), true);
+  assert_eq(is_pow2(u8: 2), true);
+  assert_eq(is_pow2(u8: 3), false);
+  assert_eq(is_pow2(u8: 4), true);
+  assert_eq(is_pow2(u8: 5), false);
+  assert_eq(is_pow2(u8: 6), false);
+  assert_eq(is_pow2(u8: 7), false);
+  assert_eq(is_pow2(u8: 8), true);
 }
 
 // Returns x % y where y must be a non-zero power-of-two.
@@ -490,10 +468,9 @@ pub fn mod_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
 
 #[test]
 fn mod_pow2_test() {
-  let _ = assert_eq(u32:1, mod_pow2(u32:5, u32:4));
-  let _ = assert_eq(u32:0, mod_pow2(u32:4, u32:4));
-  let _ = assert_eq(u32:3, mod_pow2(u32:3, u32:4));
-  ()
+  assert_eq(u32:1, mod_pow2(u32:5, u32:4));
+  assert_eq(u32:0, mod_pow2(u32:4, u32:4));
+  assert_eq(u32:3, mod_pow2(u32:3, u32:4));
 }
 
 // Returns x / y where y must be a non-zero power-of-two.
@@ -504,10 +481,9 @@ pub fn div_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
 
 #[test]
 fn div_pow2_test() {
-  let _ = assert_eq(u32:1, div_pow2(u32:5, u32:4));
-  let _ = assert_eq(u32:1, div_pow2(u32:4, u32:4));
-  let _ = assert_eq(u32:0, div_pow2(u32:3, u32:4));
-  ()
+  assert_eq(u32:1, div_pow2(u32:5, u32:4));
+  assert_eq(u32:1, div_pow2(u32:4, u32:4));
+  assert_eq(u32:0, div_pow2(u32:3, u32:4));
 }
 
 // Returns a value with X bits set (of type bits[X]).
@@ -517,9 +493,8 @@ pub fn mask_bits<X: u32>() -> bits[X] {
 
 #[test]
 fn mask_bits_test() {
-  let _ = assert_eq(u8:0xff, mask_bits<u32:8>());
-  let _ = assert_eq(u13:0x1fff, mask_bits<u32:13>());
-  ()
+  assert_eq(u8:0xff, mask_bits<u32:8>());
+  assert_eq(u13:0x1fff, mask_bits<u32:13>());
 }
 
 // "Explicit signed comparison" helpers for working with unsigned values, can be
@@ -533,11 +508,10 @@ pub fn slt<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) <  (y as sN[N]) }
 
 #[test]
 fn test_scmps() {
-  let _ = assert_eq(sge(u2:3, u2:1), false);
-  let _ = assert_eq(sgt(u2:3, u2:1), false);
-  let _ = assert_eq(sle(u2:3, u2:1), true);
-  let _ = assert_eq(slt(u2:3, u2:1), true);
-  ()
+  assert_eq(sge(u2:3, u2:1), false);
+  assert_eq(sgt(u2:3, u2:1), false);
+  assert_eq(sle(u2:3, u2:1), true);
+  assert_eq(slt(u2:3, u2:1), true);
 }
 
 // Performs integer exponentiation as in Hacker's Delight, section 11-3.
@@ -568,22 +542,20 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
 
 #[test]
 fn test_upow() {
-  let _ = assert_eq(upow(u32:2, u32:2), u32:4);
-  let _ = assert_eq(upow(u32:2, u32:20), u32:0x100000);
-  let _ = assert_eq(upow(u32:3, u32:20), u32:0xcfd41b91);
-  let _ = assert_eq(upow(u32:1, u32:20), u32:0x1);
-  let _ = assert_eq(upow(u32:1, u32:20), u32:0x1);
-  ()
+  assert_eq(upow(u32:2, u32:2), u32:4);
+  assert_eq(upow(u32:2, u32:20), u32:0x100000);
+  assert_eq(upow(u32:3, u32:20), u32:0xcfd41b91);
+  assert_eq(upow(u32:1, u32:20), u32:0x1);
+  assert_eq(upow(u32:1, u32:20), u32:0x1);
 }
 
 #[test]
 fn test_spow() {
-  let _ = assert_eq(spow(s32:2, u32:2), s32:4);
-  let _ = assert_eq(spow(s32:2, u32:20), s32:0x100000);
-  let _ = assert_eq(spow(s32:3, u32:20), s32:0xcfd41b91);
-  let _ = assert_eq(spow(s32:1, u32:20), s32:0x1);
-  let _ = assert_eq(spow(s32:1, u32:20), s32:0x1);
-  ()
+  assert_eq(spow(s32:2, u32:2), s32:4);
+  assert_eq(spow(s32:2, u32:20), s32:0x100000);
+  assert_eq(spow(s32:3, u32:20), s32:0xcfd41b91);
+  assert_eq(spow(s32:1, u32:20), s32:0x1);
+  assert_eq(spow(s32:1, u32:20), s32:0x1);
 }
 
 // Count the number of bits that are 1.
@@ -598,10 +570,9 @@ pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
 
 #[test]
 fn test_popcount() {
-  let _ = assert_eq(popcount(u17:0xa5a5), u17:8);
-  let _ = assert_eq(popcount(u17:0x1a5a5), u17:9);
-  let _ = assert_eq(popcount(u1:0x0), u1:0);
-  let _ = assert_eq(popcount(u1:0x1), u1:1);
-  let _ = assert_eq(popcount(u32:0xffffffff), u32:32);
-  ()
+  assert_eq(popcount(u17:0xa5a5), u17:8);
+  assert_eq(popcount(u17:0x1a5a5), u17:9);
+  assert_eq(popcount(u1:0x0), u1:0);
+  assert_eq(popcount(u1:0x1), u1:1);
+  assert_eq(popcount(u32:0xffffffff), u32:32);
 }

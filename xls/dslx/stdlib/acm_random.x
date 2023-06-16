@@ -87,10 +87,10 @@ fn rng_next_test() {
     0x3fe4fbf9a522891b, 0x23e1a50ad6aebca3,  //
     0x1b263d39ea62be44, 0x13581d282e643b0e,  //
   ];
-  let _ = for (i, r): (u8, State) in range(u8:0, u8:20) {
+  for (i, r): (u8, State) in range(u8:0, u8:20) {
     let (new_r, got) = rng_next64(r);
     let want = expected[i];
-    let _ = assert_eq(want, got);
+    assert_eq(want, got);
     new_r
   }(r);
   ()

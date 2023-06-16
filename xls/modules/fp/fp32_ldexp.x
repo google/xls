@@ -77,79 +77,79 @@ pub fn fp32_ldexp(fraction: F32, exp: s32) -> F32 {
 #[test]
 fn fp32_ldexp_test() {
   // Test Special cases.
-  let _ = assert_eq(fp32_ldexp(float32::zero(u1:0), s32:1),
+  assert_eq(fp32_ldexp(float32::zero(u1:0), s32:1),
     float32::zero(u1:0));
-  let _ = assert_eq(fp32_ldexp(float32::zero(u1:1), s32:1),
+  assert_eq(fp32_ldexp(float32::zero(u1:1), s32:1),
     float32::zero(u1:1));
-  let _ = assert_eq(fp32_ldexp(float32::inf(u1:0), s32:-1),
+  assert_eq(fp32_ldexp(float32::inf(u1:0), s32:-1),
     float32::inf(u1:0));
-  let _ = assert_eq(fp32_ldexp(float32::inf(u1:1), s32:-1),
+  assert_eq(fp32_ldexp(float32::inf(u1:1), s32:-1),
     float32::inf(u1:1));
-  let _ = assert_eq(fp32_ldexp(float32::qnan(), s32:1),
+  assert_eq(fp32_ldexp(float32::qnan(), s32:1),
     float32::qnan());
 
   // Subnormal input.
   let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp32_ldexp(pos_denormal, s32:1),
+  assert_eq(fp32_ldexp(pos_denormal, s32:1),
     float32::zero(u1:0));
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp32_ldexp(neg_denormal, s32:1),
+  assert_eq(fp32_ldexp(neg_denormal, s32:1),
     float32::zero(u1:1));
 
   // Output subnormal, flush to zero.
   let almost_denormal = F32{sign: u1:0, bexp: u8:1, fraction: u23:99};
-  let _ = assert_eq(fp32_ldexp(pos_denormal, s32:-1),
+  assert_eq(fp32_ldexp(pos_denormal, s32:-1),
     float32::zero(u1:0));
 
   // Subnormal result rounds up to normal number.
   let frac = F32{sign: u1:0, bexp: u8:10, fraction: u23:0x7fffff};
   let expected = F32{sign: u1:0, bexp: u8:1, fraction: u23:0};
-  let _ = assert_eq(fp32_ldexp(frac, s32:-10), expected);
+  assert_eq(fp32_ldexp(frac, s32:-10), expected);
   let frac = F32{sign: u1:1, bexp: u8:10, fraction: u23:0x7fffff};
   let expected = F32{sign: u1:1, bexp: u8:1, fraction: u23:0};
-  let _ = assert_eq(fp32_ldexp(frac, s32:-10), expected);
+  assert_eq(fp32_ldexp(frac, s32:-10), expected);
 
   // Large positive input exponents.
   let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
   let frac = F32{sign: u1:0, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF), expected);
   let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF - s32:1), expected);
   let frac = F32{sign: u1:1, bexp: u8:128, fraction: u23:0x0};
   let expected = float32::inf(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7FFFFFFF), expected);
 
   // Large negative input exponents.
   let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000000 + s32:0x1), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000000 + s32:0x1), expected);
   let frac = F32{sign: u1:0, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000000), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000000), expected);
   let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000000 + s32:0x1), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000000 + s32:0x1), expected);
   let frac = F32{sign: u1:1, bexp: u8:126, fraction: u23:0x0};
   let expected = float32::zero(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000000), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000000), expected);
 
   // Other large exponents from reported bug #462.
   let frac = float32::unflatten(u32:0xd3fefd2b);
   let expected = float32::inf(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7ffffffd), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7ffffffd), expected);
   let frac = float32::unflatten(u32:0x36eba93e);
   let expected = float32::zero(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000010), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000010), expected);
   let frac = float32::unflatten(u32:0x8a87c096);
   let expected = float32::zero(u1:1);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x80000013), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x80000013), expected);
   let frac = float32::unflatten(u32:0x71694e37);
   let expected = float32::inf(u1:0);
-  let _ = assert_eq(fp32_ldexp(frac, s32:0x7fffffbe), expected);
+  assert_eq(fp32_ldexp(frac, s32:0x7fffffbe), expected);
 
   ()
 }

@@ -18,7 +18,7 @@ fn empty_eq_test() {
   // ambiguous, but not segfault.
   let a = [];
   let b = [];
-  let _ = assert_eq (a == b, true);
-  let _ = assert_eq (a != b, false);
+  assert_eq (a == b, true);
+  assert_eq (a != b, false);
   ()
  }

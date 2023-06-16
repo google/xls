@@ -337,7 +337,7 @@ pub fn trace_block(block: Block) {
     let bytes1 = block[1];
     let bytes2 = block[2];
     let bytes3 = block[3];
-    let _ = trace_fmt!(
+    trace_fmt!(
         "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
         bytes0[0], bytes0[1], bytes0[2], bytes0[3],
         bytes1[0], bytes1[1], bytes1[2], bytes1[3],
@@ -350,7 +350,7 @@ pub fn trace_block(block: Block) {
 // code!
 pub fn trace_key(key: Key) {
     let key = key as uN[256] as u32[8];
-    let _ = trace_fmt!(
+    trace_fmt!(
         "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
         key[0], key[1], key[2], key[3],
         key[4], key[5], key[6], key[7]);

@@ -22,7 +22,7 @@ proc foo {
   init { () }
 
   next(tok: token, state: ()) {
-    let _ = recv(tok, ch);
+    recv(tok, ch);
     ()
   }
 }

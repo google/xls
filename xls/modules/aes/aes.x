@@ -97,7 +97,7 @@ fn test_create_key_schedule_256() {
         u8:0x9e ++ u8:0x7c ++ u8:0x46 ++ u8:0x97,
         u8:0xb1 ++ u8:0xdd ++ u8:0x57 ++ u8:0x14,
     ];
-    let _ = assert_eq(expected_0, sched[0]);
+    assert_eq(expected_0, sched[0]);
 
     let expected_1 = RoundKey:[
         u8:0xeb ++ u8:0x11 ++ u8:0xda ++ u8:0x40,
@@ -105,7 +105,7 @@ fn test_create_key_schedule_256() {
         u8:0x15 ++ u8:0xaa ++ u8:0x4a ++ u8:0xd5,
         u8:0xde ++ u8:0x3c ++ u8:0x83 ++ u8:0x35,
     ];
-    let _ = assert_eq(expected_1, sched[1]);
+    assert_eq(expected_1, sched[1]);
 
     let expected_2 = RoundKey:[
         u8:0x46 ++ u8:0x99 ++ u8:0xdc ++ u8:0x48,
@@ -113,7 +113,7 @@ fn test_create_key_schedule_256() {
         u8:0x41 ++ u8:0x76 ++ u8:0xe4 ++ u8:0xa6,
         u8:0xf0 ++ u8:0xab ++ u8:0xb3 ++ u8:0xb2,
     ];
-    let _ = assert_eq(expected_2, sched[2]);
+    assert_eq(expected_2, sched[2]);
 
     let expected_3 = RoundKey:[
         u8:0x67 ++ u8:0x73 ++ u8:0xb7 ++ u8:0x77,
@@ -121,7 +121,7 @@ fn test_create_key_schedule_256() {
         u8:0xc3 ++ u8:0x55 ++ u8:0x55 ++ u8:0x8b,
         u8:0x1d ++ u8:0x69 ++ u8:0xd6 ++ u8:0xbe,
     ];
-    let _ = assert_eq(expected_3, sched[3]);
+    assert_eq(expected_3, sched[3]);
 
     let expected_4 = RoundKey:[
         u8:0xbd ++ u8:0x6f ++ u8:0x72 ++ u8:0xec,
@@ -129,7 +129,7 @@ fn test_create_key_schedule_256() {
         u8:0x23 ++ u8:0x13 ++ u8:0x34 ++ u8:0x7b,
         u8:0xd3 ++ u8:0xb8 ++ u8:0x87 ++ u8:0xc9,
     ];
-    let _ = assert_eq(expected_4, sched[4]);
+    assert_eq(expected_4, sched[4]);
 
     // ...and jump to the last, since results build on each other.
     let expected_14 = RoundKey:[
@@ -138,7 +138,7 @@ fn test_create_key_schedule_256() {
         u8:0xe0 ++ u8:0xe6 ++ u8:0x9d ++ u8:0xe7,
         u8:0xc4 ++ u8:0x70 ++ u8:0x42 ++ u8:0xf7,
     ];
-    let _ = assert_eq(expected_14, sched[14]);
+    assert_eq(expected_14, sched[14]);
     ()
 }
 
@@ -159,15 +159,15 @@ fn test_key_schedule_128() {
     ];
     let sched = create_key_schedule(key, KeyWidth::KEY_128);
     // Oof.
-    let _ = assert_eq(sched[0], (key as uN[256] >> 128) as uN[128] as u32[4]);
-    let _ = assert_eq(
+    assert_eq(sched[0], (key as uN[256] >> 128) as uN[128] as u32[4]);
+    assert_eq(
         sched[1],
         RoundKey:[
             u8:0x44 ++ u8:0xa2 ++ u8:0x60 ++ u8:0xa0,
             u8:0x26 ++ u8:0xc3 ++ u8:0x59 ++ u8:0x98,
             u8:0x11 ++ u8:0xf5 ++ u8:0x6c ++ u8:0xac,
             u8:0x22 ++ u8:0xc7 ++ u8:0x5d ++ u8:0x9c]);
-    let _ = assert_eq(
+    assert_eq(
         sched[2],
         RoundKey:[
             u8:0x80 ++ u8:0xee ++ u8:0xbe ++ u8:0x33,
@@ -176,7 +176,7 @@ fn test_key_schedule_128() {
             u8:0x95 ++ u8:0x1f ++ u8:0xd6 ++ u8:0x9b]);
     // Since round key N depends on round key N-1, we'll just jump ahead to
     // the last one.
-    let _ = assert_eq(
+    assert_eq(
         sched[10],
         RoundKey:[
             u8:0x71 ++ u8:0x21 ++ u8:0x06 ++ u8:0xf1,

@@ -47,11 +47,11 @@ fn test_apfloat_sub_2() {
   let three = apfloat_add_2::add<u32:8, u32:23>(one, two);
   let four = apfloat_add_2::add<u32:8, u32:23>(two, two);
 
-  let _ = assert_eq(apfloat_sub_2(four, one), three);
-  let _ = assert_eq(apfloat_sub_2(four, two), two);
-  let _ = assert_eq(apfloat_sub_2(four, three), one);
-  let _ = assert_eq(apfloat_sub_2(three, two), one);
-  let _ = assert_eq(apfloat_sub_2(two, four), neg_two);
+  assert_eq(apfloat_sub_2(four, one), three);
+  assert_eq(apfloat_sub_2(four, two), two);
+  assert_eq(apfloat_sub_2(four, three), one);
+  assert_eq(apfloat_sub_2(three, two), one);
+  assert_eq(apfloat_sub_2(two, four), neg_two);
   ()
 }
 

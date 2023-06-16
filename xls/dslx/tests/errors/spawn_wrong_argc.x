@@ -19,7 +19,7 @@ pub proc foo {
   config () { () }
 
   next(tok: token, state: ()) {
-    let _ = std::umin(u32:1, u32:2);
+    std::umin(u32:1, u32:2);
     ()
   }
 }
@@ -37,7 +37,7 @@ proc test_case {
   }
 
   next(tok: token, state: ()) {
-    let _ = std::umin(u32:1, u32:2);
+    std::umin(u32:1, u32:2);
     let tok = send(tok, terminator, true);
     ()
   }

@@ -27,7 +27,7 @@ pub fn replicate
 
 #[test]
 fn test_replicate() {
-  let _ = assert_eq(
+  assert_eq(
     replicate<u32:1>(u3:0b101), u3:0b001);
   ()
 }

@@ -33,7 +33,7 @@ proc counter {
 
 fn assert_recv_eq(tok: token, output_r: chan<u8> in, expected: u8) -> token {
   let (tok, value) = recv(tok, output_r);
-  let _ = assert_eq(value, expected);
+  assert_eq(value, expected);
   tok
 }
 

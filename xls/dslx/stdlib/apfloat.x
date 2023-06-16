@@ -54,13 +54,13 @@ fn qnan_test() {
     sign: u1:0, bexp: u8:0xff, fraction: u23:0x400000,
   };
   let actual = qnan<u32:8, u32:23>();
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
 
   let expected = APFloat<u32:4, u32:2> {
     sign: u1:0, bexp: u4:0xf, fraction: u2:0x2,
   };
   let actual = qnan<u32:4, u32:2>();
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -78,13 +78,13 @@ fn zero_test() {
     sign: u1:0, bexp: u8:0x0, fraction: u23:0x0,
   };
   let actual = zero<u32:8, u32:23>(u1:0);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
 
   let expected = APFloat<u32:4, u32:2> {
     sign: u1:1, bexp: u4:0x0, fraction: u2:0x0,
   };
   let actual = zero<u32:4, u32:2>(u1:1);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -104,13 +104,13 @@ fn one_test() {
     sign: u1:0, bexp: u8:0x7f, fraction: u23:0x0,
   };
   let actual = one<u32:8, u32:23>(u1:0);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
 
   let expected = APFloat<u32:4, u32:2> {
     sign: u1:0, bexp: u4:0x7, fraction: u2:0x0,
   };
   let actual = one<u32:4, u32:2>(u1:0);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -128,13 +128,13 @@ fn inf_test() {
     sign: u1:0, bexp: u8:0xff, fraction: u23:0x0,
   };
   let actual = inf<u32:8, u32:23>(u1:0);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
 
   let expected = APFloat<u32:4, u32:2> {
     sign: u1:0, bexp: u4:0xf, fraction: u2:0x0,
   };
   let actual = inf<u32:4, u32:2>(u1:0);
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -163,7 +163,7 @@ fn unbiased_exponent_zero_test() {
   let expected = s8:0;
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:127, fraction: u23:0 });
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -172,7 +172,7 @@ fn unbiased_exponent_positive_test() {
   let expected = s8:1;
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 });
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -181,7 +181,7 @@ fn unbiased_exponent_negative_test() {
   let expected = s8:-1;
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0 });
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -190,7 +190,7 @@ fn unbiased_exponent_subnormal_test() {
   let expected = s8:-126;
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, fraction: u23:0 });
-  let _ = assert_eq(actual, expected);
+  assert_eq(actual, expected);
   ()
 }
 
@@ -215,7 +215,7 @@ pub fn bias<EXP_SZ: u32,
 fn bias_test() {
   let expected = u8:127;
   let actual = bias<u32:8, u32:23>(s8:0);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
   ()
 }
 
@@ -295,13 +295,13 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = {EXP_SZ + u32:
 fn cast_from_fixed_test() {
   // Zero is a special case.
   let zero_float = zero<u32:4, u32:4>(u1:0);
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:0), zero_float);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:0), zero_float);
 
   // +/-1
   let one_float = one<u32:4, u32:4>(u1:0);
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:1), one_float);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:1), one_float);
   let none_float = one<u32:4, u32:4>(u1:1);
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-1), none_float);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-1), none_float);
 
   // +/-4
   let four_float =
@@ -310,14 +310,14 @@ fn cast_from_fixed_test() {
       bexp: u4:9,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:4), four_float);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:4), four_float);
   let nfour_float =
     APFloat<u32:4, u32:4>{
       sign: u1:1,
       bexp: u4:9,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-4), nfour_float);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-4), nfour_float);
 
   // Cast maximum representable exponent in target format.
   let max_representable =
@@ -326,10 +326,10 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:128), max_representable);
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:128), max_representable);
 
   // Cast minimum non-representable exponent in target format.
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:256),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:256),
                     inf<u32:4, u32:4>(u1:0));
 
   // Test rounding - maximum truncated bits that will round down, even fraction.
@@ -339,7 +339,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:131),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:131),
                     truncate);
 
   // Test rounding - maximum truncated bits that will round down, odd fraction.
@@ -349,7 +349,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:1
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:139),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:139),
                     truncate);
 
   // Test rounding - halfway and already even, round down
@@ -359,7 +359,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:132),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:132),
                     truncate);
 
   // Test rounding - halfway and odd, round up
@@ -369,7 +369,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:2
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:140),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:140),
                     round_up);
 
   // Test rounding - over halfway and even, round up
@@ -379,7 +379,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:1
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:133),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:133),
                     round_up);
 
   // Test rounding - over halfway and odd, round up
@@ -389,7 +389,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:2
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:141),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:141),
                     round_up);
 
   // Test rounding - Rounding up increases exponent.
@@ -399,15 +399,15 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:126),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:126),
                     round_inc_exponent);
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:127),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:127),
                     round_inc_exponent);
 
   // Test rounding - Rounding up overflows to infinity.
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:252),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:252),
                     inf<u32:4, u32:4>(u1:0));
-  let _ = assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:254),
+  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:254),
                     inf<u32:4, u32:4>(u1:0));
   ()
 }
@@ -497,59 +497,59 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
 #[test]
 fn cast_to_fixed_test() {
   // Cast +/-0.0
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(zero<u32:8, u32:23>(u1:0)), s32:0);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(zero<u32:8, u32:23>(u1:1)), s32:0);
 
   // Cast +/-1.0
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(one<u32:8, u32:23>(u1:0)), s32:1);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(one<u32:8, u32:23>(u1:1)), s32:-1);
 
   // Cast +/-1.5 --> +/- 1
   let one_point_five = APFloat<u32:8, u32:23>{sign: u1:0,
                                               bexp: u8:0x7f,
                                               fraction:  u1:1 ++ u22:0};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(one_point_five), s32:1);
   let n_one_point_five = APFloat<u32:8, u32:23>{sign: u1:1,
                                                 bexp: u8:0x7f,
                                                 fraction:  u1:1 ++ u22:0};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(n_one_point_five), s32:-1);
 
   // Cast +/-4.0
   let four = cast_from_fixed<u32:8, u32:23>(s32:4);
   let neg_four = cast_from_fixed<u32:8, u32:23>(s32:-4);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(four), s32:4);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(neg_four), s32:-4);
 
   // Cast 7
   let seven = cast_from_fixed<u32:8, u32:23>(s32:7);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(seven), s32:7);
 
   // Cast big number (more digits left of decimal than hidden bit + fraction).
   let big_num = (u1:0 ++ std::mask_bits<u32:23>() ++ u8:0) as s32;
   let fp_big_num = cast_from_fixed<u32:8, u32:23>(big_num);
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(fp_big_num), big_num);
 
   // Cast large, non-overflowing numbers.
   let big_fit = APFloat<u32:8, u32:23>{sign: u1:0,
                                        bexp: u8:127 + u8:30,
                                        fraction: u23:0x7fffff};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(big_fit),
     (u1:0 ++ u24:0xffffff ++ u7:0) as s32);
   let big_fit = APFloat<u32:8, u32:23>{sign: u1:1,
                                        bexp: u8:127 + u8:30,
                                        fraction: u23:0x7fffff};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(big_fit),
     (s32:0 - (u1:0 ++ u24:0xffffff ++ u7:0) as s32));
 
@@ -558,7 +558,7 @@ fn cast_to_fixed_test() {
   let big_overflow = APFloat<u32:8, u32:23>{sign: u1:0,
                                             bexp: u8:127 + u8:31,
                                             fraction: u23:0x0};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(big_overflow),
     (u1:1 ++ u31:0) as s32);
 
@@ -568,7 +568,7 @@ fn cast_to_fixed_test() {
   let max_negative = APFloat<u32:8, u32:23>{sign: u1:1,
                                             bexp: u8:127 + u8:31,
                                             fraction: u23:0x0};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(max_negative),
     (u1:1 ++ u31:0) as s32);
 
@@ -577,13 +577,13 @@ fn cast_to_fixed_test() {
   let negative_overflow = APFloat<u32:8, u32:23>{sign: u1:1,
                                             bexp: u8:127 + u8:31,
                                             fraction: u23:0x1};
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(negative_overflow),
     (u1:1 ++ u31:0) as s32);
 
 
   // NaN input.
-  let _ = assert_eq(
+  assert_eq(
     cast_to_fixed<u32:32>(qnan<u32:8, u32:23>()),
     (u1:1 ++ u31:0) as s32);
 
@@ -618,37 +618,37 @@ fn test_fp_eq_2() {
   let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
 
   // Test unequal.
-  let _ = assert_eq(eq_2(one, two), u1:0);
-  let _ = assert_eq(eq_2(two, one), u1:0);
+  assert_eq(eq_2(one, two), u1:0);
+  assert_eq(eq_2(two, one), u1:0);
 
   // Test equal.
-  let _ = assert_eq(eq_2(neg_zero, zero), u1:1);
-  let _ = assert_eq(eq_2(one, one), u1:1);
-  let _ = assert_eq(eq_2(two, two), u1:1);
+  assert_eq(eq_2(neg_zero, zero), u1:1);
+  assert_eq(eq_2(one, one), u1:1);
+  assert_eq(eq_2(two, two), u1:1);
 
   // Test equal (subnormals and zero).
-  let _ = assert_eq(eq_2(zero, zero), u1:1);
-  let _ = assert_eq(eq_2(zero, neg_zero), u1:1);
-  let _ = assert_eq(eq_2(zero, denormal_1), u1:1);
-  let _ = assert_eq(eq_2(denormal_2, denormal_1), u1:1);
+  assert_eq(eq_2(zero, zero), u1:1);
+  assert_eq(eq_2(zero, neg_zero), u1:1);
+  assert_eq(eq_2(zero, denormal_1), u1:1);
+  assert_eq(eq_2(denormal_2, denormal_1), u1:1);
 
   // Test negatives.
-  let _ = assert_eq(eq_2(one, neg_one), u1:0);
-  let _ = assert_eq(eq_2(neg_one, one), u1:0);
-  let _ = assert_eq(eq_2(neg_one, neg_one), u1:1);
+  assert_eq(eq_2(one, neg_one), u1:0);
+  assert_eq(eq_2(neg_one, one), u1:0);
+  assert_eq(eq_2(neg_one, neg_one), u1:1);
 
   // Special case - inf.
-  let _ = assert_eq(eq_2(inf, one), u1:0);
-  let _ = assert_eq(eq_2(neg_inf, inf), u1:0);
-  let _ = assert_eq(eq_2(inf, inf), u1:1);
-  let _ = assert_eq(eq_2(neg_inf, neg_inf), u1:1);
+  assert_eq(eq_2(inf, one), u1:0);
+  assert_eq(eq_2(neg_inf, inf), u1:0);
+  assert_eq(eq_2(inf, inf), u1:1);
+  assert_eq(eq_2(neg_inf, neg_inf), u1:1);
 
   // Special case - NaN (always returns false).
-  let _ = assert_eq(eq_2(one, nan), u1:0);
-  let _ = assert_eq(eq_2(neg_one, nan), u1:0);
-  let _ = assert_eq(eq_2(inf, nan), u1:0);
-  let _ = assert_eq(eq_2(nan, inf), u1:0);
-  let _ = assert_eq(eq_2(nan, nan), u1:0);
+  assert_eq(eq_2(one, nan), u1:0);
+  assert_eq(eq_2(neg_one, nan), u1:0);
+  assert_eq(eq_2(inf, nan), u1:0);
+  assert_eq(eq_2(nan, inf), u1:0);
+  assert_eq(eq_2(nan, nan), u1:0);
 
   ()
 }
@@ -697,44 +697,44 @@ fn test_fp_gt_2() {
   let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
 
   // Test unequal.
-  let _ = assert_eq(gt_2(one, two), u1:0);
-  let _ = assert_eq(gt_2(two, one), u1:1);
+  assert_eq(gt_2(one, two), u1:0);
+  assert_eq(gt_2(two, one), u1:1);
 
   // Test equal.
-  let _ = assert_eq(gt_2(one, one), u1:0);
-  let _ = assert_eq(gt_2(two, two), u1:0);
-  let _ = assert_eq(gt_2(denormal_1, denormal_2), u1:0);
-  let _ = assert_eq(gt_2(denormal_2, denormal_1), u1:0);
-  let _ = assert_eq(gt_2(denormal_1, zero), u1:0);
+  assert_eq(gt_2(one, one), u1:0);
+  assert_eq(gt_2(two, two), u1:0);
+  assert_eq(gt_2(denormal_1, denormal_2), u1:0);
+  assert_eq(gt_2(denormal_2, denormal_1), u1:0);
+  assert_eq(gt_2(denormal_1, zero), u1:0);
 
   // Test negatives.
-  let _ = assert_eq(gt_2(zero, neg_one), u1:1);
-  let _ = assert_eq(gt_2(neg_one, zero), u1:0);
-  let _ = assert_eq(gt_2(one, neg_one), u1:1);
-  let _ = assert_eq(gt_2(neg_one, one), u1:0);
-  let _ = assert_eq(gt_2(neg_one, neg_one), u1:0);
-  let _ = assert_eq(gt_2(neg_two, neg_two), u1:0);
-  let _ = assert_eq(gt_2(neg_one, neg_two), u1:1);
-  let _ = assert_eq(gt_2(neg_two, neg_one), u1:0);
+  assert_eq(gt_2(zero, neg_one), u1:1);
+  assert_eq(gt_2(neg_one, zero), u1:0);
+  assert_eq(gt_2(one, neg_one), u1:1);
+  assert_eq(gt_2(neg_one, one), u1:0);
+  assert_eq(gt_2(neg_one, neg_one), u1:0);
+  assert_eq(gt_2(neg_two, neg_two), u1:0);
+  assert_eq(gt_2(neg_one, neg_two), u1:1);
+  assert_eq(gt_2(neg_two, neg_one), u1:0);
 
   // Special case - inf.
-  let _ = assert_eq(gt_2(inf, one), u1:1);
-  let _ = assert_eq(gt_2(inf, neg_one), u1:1);
-  let _ = assert_eq(gt_2(inf, two), u1:1);
-  let _ = assert_eq(gt_2(neg_two, neg_inf), u1:1);
-  let _ = assert_eq(gt_2(inf, inf), u1:0);
-  let _ = assert_eq(gt_2(neg_inf, inf), u1:0);
-  let _ = assert_eq(gt_2(inf, neg_inf), u1:1);
-  let _ = assert_eq(gt_2(neg_inf, neg_inf), u1:0);
+  assert_eq(gt_2(inf, one), u1:1);
+  assert_eq(gt_2(inf, neg_one), u1:1);
+  assert_eq(gt_2(inf, two), u1:1);
+  assert_eq(gt_2(neg_two, neg_inf), u1:1);
+  assert_eq(gt_2(inf, inf), u1:0);
+  assert_eq(gt_2(neg_inf, inf), u1:0);
+  assert_eq(gt_2(inf, neg_inf), u1:1);
+  assert_eq(gt_2(neg_inf, neg_inf), u1:0);
 
   // Special case - NaN (always returns false).
-  let _ = assert_eq(gt_2(one, nan), u1:0);
-  let _ = assert_eq(gt_2(nan, one), u1:0);
-  let _ = assert_eq(gt_2(neg_one, nan), u1:0);
-  let _ = assert_eq(gt_2(nan, neg_one), u1:0);
-  let _ = assert_eq(gt_2(inf, nan), u1:0);
-  let _ = assert_eq(gt_2(nan, inf), u1:0);
-  let _ = assert_eq(gt_2(nan, nan), u1:0);
+  assert_eq(gt_2(one, nan), u1:0);
+  assert_eq(gt_2(nan, one), u1:0);
+  assert_eq(gt_2(neg_one, nan), u1:0);
+  assert_eq(gt_2(nan, neg_one), u1:0);
+  assert_eq(gt_2(inf, nan), u1:0);
+  assert_eq(gt_2(nan, inf), u1:0);
+  assert_eq(gt_2(nan, nan), u1:0);
 
   ()
 }
@@ -762,44 +762,44 @@ fn test_fp_gte_2() {
   let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
 
   // Test unequal.
-  let _ = assert_eq(gte_2(one, two), u1:0);
-  let _ = assert_eq(gte_2(two, one), u1:1);
+  assert_eq(gte_2(one, two), u1:0);
+  assert_eq(gte_2(two, one), u1:1);
 
   // Test equal.
-  let _ = assert_eq(gte_2(one, one), u1:1);
-  let _ = assert_eq(gte_2(two, two), u1:1);
-  let _ = assert_eq(gte_2(denormal_1, denormal_2), u1:1);
-  let _ = assert_eq(gte_2(denormal_2, denormal_1), u1:1);
-  let _ = assert_eq(gte_2(denormal_1, zero), u1:1);
+  assert_eq(gte_2(one, one), u1:1);
+  assert_eq(gte_2(two, two), u1:1);
+  assert_eq(gte_2(denormal_1, denormal_2), u1:1);
+  assert_eq(gte_2(denormal_2, denormal_1), u1:1);
+  assert_eq(gte_2(denormal_1, zero), u1:1);
 
   // Test negatives.
-  let _ = assert_eq(gte_2(zero, neg_one), u1:1);
-  let _ = assert_eq(gte_2(neg_one, zero), u1:0);
-  let _ = assert_eq(gte_2(one, neg_one), u1:1);
-  let _ = assert_eq(gte_2(neg_one, one), u1:0);
-  let _ = assert_eq(gte_2(neg_one, neg_one), u1:1);
-  let _ = assert_eq(gte_2(neg_two, neg_two), u1:1);
-  let _ = assert_eq(gte_2(neg_one, neg_two), u1:1);
-  let _ = assert_eq(gte_2(neg_two, neg_one), u1:0);
+  assert_eq(gte_2(zero, neg_one), u1:1);
+  assert_eq(gte_2(neg_one, zero), u1:0);
+  assert_eq(gte_2(one, neg_one), u1:1);
+  assert_eq(gte_2(neg_one, one), u1:0);
+  assert_eq(gte_2(neg_one, neg_one), u1:1);
+  assert_eq(gte_2(neg_two, neg_two), u1:1);
+  assert_eq(gte_2(neg_one, neg_two), u1:1);
+  assert_eq(gte_2(neg_two, neg_one), u1:0);
 
   // Special case - inf.
-  let _ = assert_eq(gte_2(inf, one), u1:1);
-  let _ = assert_eq(gte_2(inf, neg_one), u1:1);
-  let _ = assert_eq(gte_2(inf, two), u1:1);
-  let _ = assert_eq(gte_2(neg_two, neg_inf), u1:1);
-  let _ = assert_eq(gte_2(inf, inf), u1:1);
-  let _ = assert_eq(gte_2(neg_inf, inf), u1:0);
-  let _ = assert_eq(gte_2(inf, neg_inf), u1:1);
-  let _ = assert_eq(gte_2(neg_inf, neg_inf), u1:1);
+  assert_eq(gte_2(inf, one), u1:1);
+  assert_eq(gte_2(inf, neg_one), u1:1);
+  assert_eq(gte_2(inf, two), u1:1);
+  assert_eq(gte_2(neg_two, neg_inf), u1:1);
+  assert_eq(gte_2(inf, inf), u1:1);
+  assert_eq(gte_2(neg_inf, inf), u1:0);
+  assert_eq(gte_2(inf, neg_inf), u1:1);
+  assert_eq(gte_2(neg_inf, neg_inf), u1:1);
 
   // Special case - NaN (always returns false).
-  let _ = assert_eq(gte_2(one, nan), u1:0);
-  let _ = assert_eq(gte_2(nan, one), u1:0);
-  let _ = assert_eq(gte_2(neg_one, nan), u1:0);
-  let _ = assert_eq(gte_2(nan, neg_one), u1:0);
-  let _ = assert_eq(gte_2(inf, nan), u1:0);
-  let _ = assert_eq(gte_2(nan, inf), u1:0);
-  let _ = assert_eq(gte_2(nan, nan), u1:0);
+  assert_eq(gte_2(one, nan), u1:0);
+  assert_eq(gte_2(nan, one), u1:0);
+  assert_eq(gte_2(neg_one, nan), u1:0);
+  assert_eq(gte_2(nan, neg_one), u1:0);
+  assert_eq(gte_2(inf, nan), u1:0);
+  assert_eq(gte_2(nan, inf), u1:0);
+  assert_eq(gte_2(nan, nan), u1:0);
 
   ()
 }
@@ -828,44 +828,44 @@ fn test_fp_lte_2() {
   let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
 
   // Test unequal.
-  let _ = assert_eq(lte_2(one, two), u1:1);
-  let _ = assert_eq(lte_2(two, one), u1:0);
+  assert_eq(lte_2(one, two), u1:1);
+  assert_eq(lte_2(two, one), u1:0);
 
   // Test equal.
-  let _ = assert_eq(lte_2(one, one), u1:1);
-  let _ = assert_eq(lte_2(two, two), u1:1);
-  let _ = assert_eq(lte_2(denormal_1, denormal_2), u1:1);
-  let _ = assert_eq(lte_2(denormal_2, denormal_1), u1:1);
-  let _ = assert_eq(lte_2(denormal_1, zero), u1:1);
+  assert_eq(lte_2(one, one), u1:1);
+  assert_eq(lte_2(two, two), u1:1);
+  assert_eq(lte_2(denormal_1, denormal_2), u1:1);
+  assert_eq(lte_2(denormal_2, denormal_1), u1:1);
+  assert_eq(lte_2(denormal_1, zero), u1:1);
 
   // Test negatives.
-  let _ = assert_eq(lte_2(zero, neg_one), u1:0);
-  let _ = assert_eq(lte_2(neg_one, zero), u1:1);
-  let _ = assert_eq(lte_2(one, neg_one), u1:0);
-  let _ = assert_eq(lte_2(neg_one, one), u1:1);
-  let _ = assert_eq(lte_2(neg_one, neg_one), u1:1);
-  let _ = assert_eq(lte_2(neg_two, neg_two), u1:1);
-  let _ = assert_eq(lte_2(neg_one, neg_two), u1:0);
-  let _ = assert_eq(lte_2(neg_two, neg_one), u1:1);
+  assert_eq(lte_2(zero, neg_one), u1:0);
+  assert_eq(lte_2(neg_one, zero), u1:1);
+  assert_eq(lte_2(one, neg_one), u1:0);
+  assert_eq(lte_2(neg_one, one), u1:1);
+  assert_eq(lte_2(neg_one, neg_one), u1:1);
+  assert_eq(lte_2(neg_two, neg_two), u1:1);
+  assert_eq(lte_2(neg_one, neg_two), u1:0);
+  assert_eq(lte_2(neg_two, neg_one), u1:1);
 
   // Special case - inf.
-  let _ = assert_eq(lte_2(inf, one), u1:0);
-  let _ = assert_eq(lte_2(inf, neg_one), u1:0);
-  let _ = assert_eq(lte_2(inf, two), u1:0);
-  let _ = assert_eq(lte_2(neg_two, neg_inf), u1:0);
-  let _ = assert_eq(lte_2(inf, inf), u1:1);
-  let _ = assert_eq(lte_2(neg_inf, inf), u1:1);
-  let _ = assert_eq(lte_2(inf, neg_inf), u1:0);
-  let _ = assert_eq(lte_2(neg_inf, neg_inf), u1:1);
+  assert_eq(lte_2(inf, one), u1:0);
+  assert_eq(lte_2(inf, neg_one), u1:0);
+  assert_eq(lte_2(inf, two), u1:0);
+  assert_eq(lte_2(neg_two, neg_inf), u1:0);
+  assert_eq(lte_2(inf, inf), u1:1);
+  assert_eq(lte_2(neg_inf, inf), u1:1);
+  assert_eq(lte_2(inf, neg_inf), u1:0);
+  assert_eq(lte_2(neg_inf, neg_inf), u1:1);
 
   // Special case - NaN (always returns false).
-  let _ = assert_eq(lte_2(one, nan), u1:0);
-  let _ = assert_eq(lte_2(nan, one), u1:0);
-  let _ = assert_eq(lte_2(neg_one, nan), u1:0);
-  let _ = assert_eq(lte_2(nan, neg_one), u1:0);
-  let _ = assert_eq(lte_2(inf, nan), u1:0);
-  let _ = assert_eq(lte_2(nan, inf), u1:0);
-  let _ = assert_eq(lte_2(nan, nan), u1:0);
+  assert_eq(lte_2(one, nan), u1:0);
+  assert_eq(lte_2(nan, one), u1:0);
+  assert_eq(lte_2(neg_one, nan), u1:0);
+  assert_eq(lte_2(nan, neg_one), u1:0);
+  assert_eq(lte_2(inf, nan), u1:0);
+  assert_eq(lte_2(nan, inf), u1:0);
+  assert_eq(lte_2(nan, nan), u1:0);
 
   ()
 }
@@ -894,44 +894,44 @@ fn test_fp_lt_2() {
   let denormal_2 = unflatten<u32:8, u32:23>(u32:2);
 
   // Test unequal.
-  let _ = assert_eq(lt_2(one, two), u1:1);
-  let _ = assert_eq(lt_2(two, one), u1:0);
+  assert_eq(lt_2(one, two), u1:1);
+  assert_eq(lt_2(two, one), u1:0);
 
   // Test equal.
-  let _ = assert_eq(lt_2(one, one), u1:0);
-  let _ = assert_eq(lt_2(two, two), u1:0);
-  let _ = assert_eq(lt_2(denormal_1, denormal_2), u1:0);
-  let _ = assert_eq(lt_2(denormal_2, denormal_1), u1:0);
-  let _ = assert_eq(lt_2(denormal_1, zero), u1:0);
+  assert_eq(lt_2(one, one), u1:0);
+  assert_eq(lt_2(two, two), u1:0);
+  assert_eq(lt_2(denormal_1, denormal_2), u1:0);
+  assert_eq(lt_2(denormal_2, denormal_1), u1:0);
+  assert_eq(lt_2(denormal_1, zero), u1:0);
 
   // Test negatives.
-  let _ = assert_eq(lt_2(zero, neg_one), u1:0);
-  let _ = assert_eq(lt_2(neg_one, zero), u1:1);
-  let _ = assert_eq(lt_2(one, neg_one), u1:0);
-  let _ = assert_eq(lt_2(neg_one, one), u1:1);
-  let _ = assert_eq(lt_2(neg_one, neg_one), u1:0);
-  let _ = assert_eq(lt_2(neg_two, neg_two), u1:0);
-  let _ = assert_eq(lt_2(neg_one, neg_two), u1:0);
-  let _ = assert_eq(lt_2(neg_two, neg_one), u1:1);
+  assert_eq(lt_2(zero, neg_one), u1:0);
+  assert_eq(lt_2(neg_one, zero), u1:1);
+  assert_eq(lt_2(one, neg_one), u1:0);
+  assert_eq(lt_2(neg_one, one), u1:1);
+  assert_eq(lt_2(neg_one, neg_one), u1:0);
+  assert_eq(lt_2(neg_two, neg_two), u1:0);
+  assert_eq(lt_2(neg_one, neg_two), u1:0);
+  assert_eq(lt_2(neg_two, neg_one), u1:1);
 
   // Special case - inf.
-  let _ = assert_eq(lt_2(inf, one), u1:0);
-  let _ = assert_eq(lt_2(inf, neg_one), u1:0);
-  let _ = assert_eq(lt_2(inf, two), u1:0);
-  let _ = assert_eq(lt_2(neg_two, neg_inf), u1:0);
-  let _ = assert_eq(lt_2(inf, inf), u1:0);
-  let _ = assert_eq(lt_2(neg_inf, inf), u1:1);
-  let _ = assert_eq(lt_2(inf, neg_inf), u1:0);
-  let _ = assert_eq(lt_2(neg_inf, neg_inf), u1:0);
+  assert_eq(lt_2(inf, one), u1:0);
+  assert_eq(lt_2(inf, neg_one), u1:0);
+  assert_eq(lt_2(inf, two), u1:0);
+  assert_eq(lt_2(neg_two, neg_inf), u1:0);
+  assert_eq(lt_2(inf, inf), u1:0);
+  assert_eq(lt_2(neg_inf, inf), u1:1);
+  assert_eq(lt_2(inf, neg_inf), u1:0);
+  assert_eq(lt_2(neg_inf, neg_inf), u1:0);
 
   // Special case - NaN (always returns false).
-  let _ = assert_eq(lt_2(one, nan), u1:0);
-  let _ = assert_eq(lt_2(nan, one), u1:0);
-  let _ = assert_eq(lt_2(neg_one, nan), u1:0);
-  let _ = assert_eq(lt_2(nan, neg_one), u1:0);
-  let _ = assert_eq(lt_2(inf, nan), u1:0);
-  let _ = assert_eq(lt_2(nan, inf), u1:0);
-  let _ = assert_eq(lt_2(nan, nan), u1:0);
+  assert_eq(lt_2(one, nan), u1:0);
+  assert_eq(lt_2(nan, one), u1:0);
+  assert_eq(lt_2(neg_one, nan), u1:0);
+  assert_eq(lt_2(nan, neg_one), u1:0);
+  assert_eq(lt_2(inf, nan), u1:0);
+  assert_eq(lt_2(nan, inf), u1:0);
+  assert_eq(lt_2(nan, nan), u1:0);
 
   ()
 }
@@ -961,15 +961,15 @@ pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32,
 #[test]
 fn round_towards_zero_test() {
   // Special cases.
-  let _ = assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:0)),
+  assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:0)),
     zero<u32:8, u32:23>(u1:0));
-  let _ = assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:1)),
+  assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:1)),
     zero<u32:8, u32:23>(u1:1));
-  let _ = assert_eq(round_towards_zero(qnan<u32:8, u32:23>()),
+  assert_eq(round_towards_zero(qnan<u32:8, u32:23>()),
     qnan<u32:8, u32:23>());
-  let _ = assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:0)),
+  assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:0)),
     inf<u32:8, u32:23>(u1:0));
-  let _ = assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:1)),
+  assert_eq(round_towards_zero(inf<u32:8, u32:23>(u1:1)),
     inf<u32:8, u32:23>(u1:1));
 
   // Truncate all.
@@ -978,7 +978,7 @@ fn round_towards_zero_test() {
                     bexp: u8:50,
                     fraction:  u23: 0x7fffff
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     zero<u32:8, u32:23>(u1:0));
 
   let fraction = APFloat<u32:8, u32:23> {
@@ -986,7 +986,7 @@ fn round_towards_zero_test() {
                     bexp: u8:126,
                     fraction:  u23: 0x7fffff
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     zero<u32:8, u32:23>(u1:0));
 
   // Truncate all but hidden bit.
@@ -995,7 +995,7 @@ fn round_towards_zero_test() {
                     bexp: u8:127,
                     fraction:  u23: 0x7fffff
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     one<u32:8, u32:23>(u1:0));
 
   // Truncate some.
@@ -1009,7 +1009,7 @@ fn round_towards_zero_test() {
                     bexp: u8:128,
                     fraction:  u23: 0x400000
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     trunc_fraction);
 
   let fraction = APFloat<u32:8, u32:23> {
@@ -1022,7 +1022,7 @@ fn round_towards_zero_test() {
                     bexp: u8:149,
                     fraction:  u23: 0x7ffffe
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     trunc_fraction);
 
   // Truncate none.
@@ -1031,7 +1031,7 @@ fn round_towards_zero_test() {
                     bexp: u8:200,
                     fraction:  u23: 0x7fffff
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     fraction);
 
   let fraction = APFloat<u32:8, u32:23> {
@@ -1039,7 +1039,7 @@ fn round_towards_zero_test() {
                     bexp: u8:200,
                     fraction:  u23: 0x7fffff
                   };
-  let _ = assert_eq(round_towards_zero(fraction),
+  assert_eq(round_towards_zero(fraction),
     fraction);
 
   ()
@@ -1096,82 +1096,82 @@ fn to_int_test() {
   let expected = s32:0;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x1, fraction: u23:0x0});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:1;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x7f, fraction: u23:0xa5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:2;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x80, fraction: u23:0xa5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:0xa5a5;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x8e, fraction: u23:0x25a500});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:23;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x83, fraction: u23:0x380000});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0xa5a;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x8a, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0xa5;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x86, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0x14b;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x87, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0x296;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x88, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0x8000;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x8f, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s24:0x14b4b;
   let actual = to_int<u32:8, u32:23, u32:24>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x8f, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:0x14b4b;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x8f, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0xa;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x82, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s16:0x5;
   let actual = to_int<u32:8, u32:23, u32:16>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x81, fraction: u23:0x25a5a5});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:0x80000000;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0x9e, fraction: u23:0x0});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = s32:0x80000000;
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0xff, fraction: u23:0x0});
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
   ()
 }
 

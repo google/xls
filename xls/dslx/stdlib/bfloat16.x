@@ -106,25 +106,25 @@ pub fn increment_fraction(input: BF16) -> BF16 {
 #[test]
 fn increment_fraction_bf16_test() {
   // No normalization required.
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:0 }),
+  assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:0 }),
                     BF16 { sign: u1:0, bexp: u8:42, fraction: u7:1 });
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:42, fraction: u7:0 }),
+  assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:42, fraction: u7:0 }),
                     BF16 { sign: u1:1, bexp: u8:42, fraction: u7:1 });
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:12 }),
+  assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:12 }),
                     BF16 { sign: u1:0, bexp: u8:42, fraction: u7:13 });
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x3f }),
+  assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x3f }),
                     BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x40 });
 
   // Normalization required.
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:1, fraction: u7:0x7f }),
+  assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:1, fraction: u7:0x7f }),
                     BF16 { sign: u1:1, bexp: u8:2, fraction: u7:0 });
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:123, fraction: u7:0x7f }),
+  assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:123, fraction: u7:0x7f }),
                     BF16 { sign: u1:0, bexp: u8:124, fraction: u7:0 });
 
   // Overflow to infinity.
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x7f }),
+  assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:254, fraction: u7:0x7f }),
                     inf(u1:0));
-  let _ = assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:254, fraction: u7:0x7f }),
+  assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:254, fraction: u7:0x7f }),
                     inf(u1:1));
   ()
 }

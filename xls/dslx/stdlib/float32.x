@@ -97,70 +97,70 @@ fn normalize_test() {
   let expected = F32 {
       sign: u1:0, bexp: u8:0x12, fraction: u23:0x7e_dcba };
   let actual = normalize(u1:0, u8:0x12, u24:0xfe_dcba);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 {
       sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
   let actual = normalize(u1:0, u8:0x1, u24:0x0);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 {
       sign: u1:0, bexp: u8:0x0, fraction: u23:0x0 };
   let actual = normalize(u1:0, u8:0xfe, u24:0x0);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 {
       sign: u1:1, bexp: u8:77, fraction: u23:0x0 };
   let actual = normalize(u1:1, u8:100, u24:1);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 {
       sign: u1:1, bexp: u8:2, fraction: u23:0b000_1111_0000_0101_0000_0000 };
   let actual = normalize(
       u1:1, u8:10, u24:0b0000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 {
       sign: u1:1, bexp: u8:10, fraction: u23:0b000_0000_1000_1111_0000_0101};
   let actual = normalize(
       u1:1, u8:10, u24:0b1000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   // Denormals should be flushed to zero.
   let expected = zero(u1:1);
   let actual = normalize(
       u1:1, u8:5, u24:0b0000_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = zero(u1:0);
   let actual = normalize(
       u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
   ()
 }
 
 #[test]
 fn tag_test() {
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
-  let _ = assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
-  let _ = assert_eq(tag(zero(u1:1)), FloatTag::ZERO);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
+  assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
+  assert_eq(tag(zero(u1:0)), FloatTag::ZERO);
+  assert_eq(tag(zero(u1:1)), FloatTag::ZERO);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:1 }), FloatTag::SUBNORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0x7f_ffff }), FloatTag::SUBNORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:1 }), FloatTag::SUBNORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0x7f_ffff }), FloatTag::SUBNORMAL);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:12, fraction: u23:0 }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:254, fraction: u23:0x7f_ffff }), FloatTag::NORMAL);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:1, fraction: u23:1 }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:12, fraction: u23:0 }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:1, bexp: u8:254, fraction: u23:0x7f_ffff }), FloatTag::NORMAL);
+  assert_eq(tag(F32 { sign: u1:1, bexp: u8:1, fraction: u23:1 }), FloatTag::NORMAL);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
-  let _ = assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
-  let _ = assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
+  assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0 }), FloatTag::INFINITY);
+  assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
+  assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
 
-  let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
-  let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
-  let _ = assert_eq(tag(qnan()), FloatTag::NAN);
+  assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
+  assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
+  assert_eq(tag(qnan()), FloatTag::NAN);
   ()
 }
 
@@ -240,50 +240,50 @@ pub fn from_int32(x: s32) -> F32 {
 fn from_int32_test() {
   let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
   let actual = from_int32(s32:0);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
   let actual = from_int32(s32:0);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:127, fraction: u23:0 };
   let actual = from_int32(s32:1);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:1, bexp: u8:127, fraction: u23:0 };
   let actual = from_int32(s32:-1);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
   let actual = from_int32(s32:2);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:1, bexp: u8:128, fraction: u23:0 };
   let actual = from_int32(s32:-2);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x7fffff };
   let actual = from_int32(s32:1073741760);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:156, fraction: u23:0x3fffff };
   let actual = from_int32(s32:805306304);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:157, fraction: u23:0x7fffff };
   let actual = from_int32(s32:2147483583);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:0, bexp: u8:158, fraction: u23:0x0 };
   let actual = from_int32(s32:2147483647);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
   let actual = from_int32(s32:-2147483647);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
 
   let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
   let actual = from_int32(s32:-2147483648);
-  let _ = assert_eq(expected, actual);
+  assert_eq(expected, actual);
   ()
 }

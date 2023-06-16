@@ -80,7 +80,7 @@ fn gf128_mul_test() {
         [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
         [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
     ];
-    let _ = assert_eq(gf128_mul(a, b), b);
+    assert_eq(gf128_mul(a, b), b);
 
     // By the identity.
     let key = aes_common::Key:[u8:0, ...];
@@ -92,7 +92,7 @@ fn gf128_mul_test() {
         [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
     ];
     let z = gf128_mul(a, b);
-    let _ = assert_eq(z, a);
+    assert_eq(z, a);
 
     // By two.
     let a = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
@@ -115,11 +115,11 @@ fn gf128_mul_test() {
         [u8:0xe5, u8:0x1a, u8:0x15, u8:0x97],
     ];
     let z = gf128_mul(a, b);
-    let _ = assert_eq(z, expected);
+    assert_eq(z, expected);
 
     // Verify commutativity.
     let z = gf128_mul(b, a);
-    let _ = assert_eq(z, expected);
+    assert_eq(z, expected);
 
     // Mul of complicated values.
     let b = Block:[
@@ -135,7 +135,7 @@ fn gf128_mul_test() {
         [u8:0xcd, u8:0x72, u8:0xa1, u8:0x93],
     ];
     let z = gf128_mul(a, b);
-    let _ = assert_eq(z, expected);
+    assert_eq(z, expected);
 
     // Verify commutativity _harder_.
     let z = gf128_mul(b, a);
@@ -330,7 +330,7 @@ proc ghash_test {
             [u8:0xfa, u8:0xe9, u8:0x0d, u8:0x93],
             [u8:0x9e, u8:0x5e, u8:0x57, u8:0x14],
         ];
-        let _ = assert_eq(tag, expected);
+        assert_eq(tag, expected);
 
         // Test 2: two AAD blocks, three ctxt blocks. Random data.
         let key = Key:[
@@ -390,9 +390,9 @@ proc ghash_test {
             [u8:0x0a, u8:0xb8, u8:0xb1, u8:0xc2],
             [u8:0x9d, u8:0x13, u8:0xae, u8:0x52],
         ];
-        let _ = assert_eq(tag, expected);
+        assert_eq(tag, expected);
 
-        let _ = send(tok, terminator, true);
+        send(tok, terminator, true);
         ()
     }
 }

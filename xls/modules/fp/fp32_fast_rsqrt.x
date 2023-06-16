@@ -88,23 +88,23 @@ pub fn fp32_fast_rsqrt(x: F32) -> F32 {
 #[test]
 fn fast_sqrt_test() {
   // Test Special cases.
-  let _ = assert_eq(fp32_fast_rsqrt(float32::zero(u1:0)),
+  assert_eq(fp32_fast_rsqrt(float32::zero(u1:0)),
     float32::inf(u1:0));
-  let _ = assert_eq(fp32_fast_rsqrt(float32::zero(u1:1)),
+  assert_eq(fp32_fast_rsqrt(float32::zero(u1:1)),
     float32::inf(u1:1));
-  let _ = assert_eq(fp32_fast_rsqrt(float32::inf(u1:0)),
+  assert_eq(fp32_fast_rsqrt(float32::inf(u1:0)),
     float32::zero(u1:0));
-  let _ = assert_eq(fp32_fast_rsqrt(float32::inf(u1:1)),
+  assert_eq(fp32_fast_rsqrt(float32::inf(u1:1)),
     float32::qnan());
-  let _ = assert_eq(fp32_fast_rsqrt(float32::qnan()),
+  assert_eq(fp32_fast_rsqrt(float32::qnan()),
     float32::qnan());
-  let _ = assert_eq(fp32_fast_rsqrt(float32::one(u1:1)),
+  assert_eq(fp32_fast_rsqrt(float32::one(u1:1)),
     float32::qnan());
   let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp32_fast_rsqrt(pos_denormal),
+  assert_eq(fp32_fast_rsqrt(pos_denormal),
     float32::inf(u1:0));
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fp32_fast_rsqrt(neg_denormal),
+  assert_eq(fp32_fast_rsqrt(neg_denormal),
     float32::inf(u1:1));
   ()
 }

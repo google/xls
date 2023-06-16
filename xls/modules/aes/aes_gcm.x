@@ -338,7 +338,7 @@ proc aes_gcm_test_smoke_128 {
             [u8:0xf3, u8:0x28, u8:0xc2, u8:0xb9],
             [u8:0x71, u8:0xb2, u8:0xfe, u8:0x78],
         ];
-        let _ = assert_eq(ctxt, expected_ctxt);
+        assert_eq(ctxt, expected_ctxt);
 
         let (tok, tag) = recv(tok, result_out);
         let expected_tag = Block:[
@@ -347,7 +347,7 @@ proc aes_gcm_test_smoke_128 {
             [u8:0x1c, u8:0x71, u8:0xb3, u8:0x5d],
             [u8:0x98, u8:0x7b, u8:0x86, u8:0x57],
         ];
-        let _ = assert_eq(tag, expected_tag);
+        assert_eq(tag, expected_tag);
 
         let tok = send(tok, terminator, true);
         ()
@@ -439,7 +439,7 @@ proc aes_gcm_multi_block_gcm {
             [u8:0xcb, u8:0xeb, u8:0xa2, u8:0x79],
             [u8:0xc9, u8:0xe3, u8:0xef, u8:0xef],
         ];
-        let _ = assert_eq(ctxt, expected_ctxt);
+        assert_eq(ctxt, expected_ctxt);
 
         let (tok, ctxt) = recv(tok, result_out);
         let expected_ctxt = Block:[
@@ -448,7 +448,7 @@ proc aes_gcm_multi_block_gcm {
             [u8:0xd6, u8:0xea, u8:0x78, u8:0xce],
             [u8:0x7d, u8:0xfc, u8:0x08, u8:0xb0],
         ];
-        let _ = assert_eq(ctxt, expected_ctxt);
+        assert_eq(ctxt, expected_ctxt);
 
         let (tok, ctxt) = recv(tok, result_out);
         let expected_ctxt = Block:[
@@ -457,7 +457,7 @@ proc aes_gcm_multi_block_gcm {
             [u8:0xee, u8:0xe2, u8:0xab, u8:0xf9],
             [u8:0x52, u8:0x08, u8:0xd7, u8:0x7c],
         ];
-        let _ = assert_eq(ctxt, expected_ctxt);
+        assert_eq(ctxt, expected_ctxt);
 
         // And finally verify the tag.
         let (tok, tag) = recv(tok, result_out);
@@ -467,7 +467,7 @@ proc aes_gcm_multi_block_gcm {
             [u8:0x99, u8:0x93, u8:0x64, u8:0xaa],
             [u8:0x42, u8:0x8c, u8:0xeb, u8:0x65],
         ];
-        let _ = assert_eq(tag, expected_tag);
+        assert_eq(tag, expected_tag);
 
         let tok = send(tok, terminator, true);
     }
@@ -587,7 +587,7 @@ proc aes_128_gcm_zero_block_commands {
             [u8:0xf3, u8:0x28, u8:0xc2, u8:0xb9],
             [u8:0x71, u8:0xb2, u8:0xfe, u8:0x78],
         ];
-        let _ = assert_eq(ctxt, expected_ctxt);
+        assert_eq(ctxt, expected_ctxt);
 
         let (tok, tag) = recv(tok, result_in);
         let expected_tag = Block:[
@@ -596,9 +596,9 @@ proc aes_128_gcm_zero_block_commands {
             [u8:0x1c, u8:0x71, u8:0xb3, u8:0x5d],
             [u8:0x98, u8:0x7b, u8:0x86, u8:0x57],
         ];
-        let _ = assert_eq(tag, expected_tag);
+        assert_eq(tag, expected_tag);
 
-        let _ = send(tok, terminator, true);
+        send(tok, terminator, true);
         ()
     }
 }
@@ -680,11 +680,11 @@ proc sample_generator_test {
         let tok = send(tok, input_out, aad[1]);
         let tok = send(tok, input_out, msg);
         let (tok, ctxt) = recv(tok, result_in);
-        let _ = assert_eq(ctxt, expected_msg);
+        assert_eq(ctxt, expected_msg);
 
         let (tok, tag) = recv(tok, result_in);
-        let _ = assert_eq(tag, expected_auth_tag);
+        assert_eq(tag, expected_auth_tag);
 
-        let _ = send(tok, terminator, true);
+        send(tok, terminator, true);
     }
 }

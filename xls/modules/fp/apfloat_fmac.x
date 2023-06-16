@@ -47,7 +47,7 @@ pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
         let acc = if do_reset { zero } else { acc };
 
         let tok3 = join(tok0, tok1, tok2);
-        let _ = send(tok3, output, acc);
+        send(tok3, output, acc);
         acc
     }
 }

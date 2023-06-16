@@ -191,7 +191,7 @@ proc aes_ctr_test_128 {
             u8[4]:[u8:0x34, u8:0xc5, u8:0x43, u8:0x73],
             u8[4]:[u8:0xc7, u8:0x99, u8:0xd2, u8:0x19],
         ];
-        let _ = assert_eq(ctxt, expected);
+        assert_eq(ctxt, expected);
 
         let plaintext_1 = Block:[
             u8[4]:[u8:0x30, u8:0x31, u8:0x32, u8:0x33],
@@ -207,7 +207,7 @@ proc aes_ctr_test_128 {
             u8[4]:[u8:0x61, u8:0xe9, u8:0x34, u8:0x5a],
             u8[4]:[u8:0x8d, u8:0xaf, u8:0x6a, u8:0x2f],
         ];
-        let _ = assert_eq(ctxt, expected);
+        assert_eq(ctxt, expected);
 
         // Command #2.
         let cmd = Command {
@@ -234,7 +234,7 @@ proc aes_ctr_test_128 {
             u8[4]:[u8:0x34, u8:0xc5, u8:0x43, u8:0x73],
             u8[4]:[u8:0xc7, u8:0x99, u8:0xd2, u8:0x19],
         ];
-        let _ = assert_eq(ctxt, expected);
+        assert_eq(ctxt, expected);
 
         // Now test decryption! Just do a single block.
         let cmd = Command {
@@ -260,7 +260,7 @@ proc aes_ctr_test_128 {
             u8[4]:[u8:0x28, u8:0x29, u8:0x2a, u8:0x2b],
             u8[4]:[u8:0x2c, u8:0x2d, u8:0x2e, u8:0x2f],
         ];
-        let _ = assert_eq(ptxt, expected);
+        assert_eq(ptxt, expected);
 
         let tok = send(tok, terminator, true);
         ()
