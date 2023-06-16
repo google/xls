@@ -50,14 +50,14 @@ cc_library(
 cc_test(
     name = "ir_wrapper_test",
     srcs = ["ir_wrapper_test.cc"],
+    data = glob(["testdata/*.ir"]),
     deps = [
         ":ir_wrapper",
-        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:golden_files",
         "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:value_view",

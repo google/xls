@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #ifndef XLS_DSLX_FRONTEND_AST_UTILS_H_
 #define XLS_DSLX_FRONTEND_AST_UTILS_H_
 
@@ -105,6 +106,15 @@ inline std::variant<ToTypes...> WidenVariant(
     const std::variant<FromTypes...>& v) {
   return TryWidenVariant<sizeof...(FromTypes) - 1, ToTypes...>(v);
 }
+
+// Returns the indentation level of the given AST node.
+//
+// That is, the contents of the AST node when formatted (flat) should be
+// indented by kSpacesPerIndent * $retval.
+//
+// This is used for determining indentation level at an arbitrary point in the
+// AST for formatting.
+int64_t DetermineIndentLevel(const AstNode& n);
 
 }  // namespace xls::dslx
 

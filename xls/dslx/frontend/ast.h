@@ -47,7 +47,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/channel_direction.h"
-#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/foreign_function.h"
@@ -120,6 +120,8 @@
   XLS_DSLX_EXPR_NODE_EACH(X)
 
 namespace xls::dslx {
+
+constexpr int64_t kRustSpacesPerIndent = 4;
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
@@ -1520,6 +1522,7 @@ class Function : public AstNode {
            std::vector<ParametricBinding*> parametric_bindings,
            std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
            Tag tag, bool is_public);
+
   ~Function() override;
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
   std::optional<Span> GetSpan() const override { return span_; }

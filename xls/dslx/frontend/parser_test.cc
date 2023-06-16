@@ -171,14 +171,14 @@ TEST_F(ParserTest, TestRoundTripFailsOnSyntaxError) {
 
 TEST_F(ParserTest, TestIdentityFunction) {
   RoundTrip(R"(fn f(x: u32) -> u32 {
-  x
+    x
 })");
 }
 
 TEST_F(ParserTest, TestIdentityFunctionWithLet) {
   std::unique_ptr<Module> module = RoundTrip(R"(fn f(x: u32) -> u32 {
-  let y = x;
-  y
+    let y = x;
+    y
 })");
   std::optional<Function*> maybe_f = module->GetFunction("f");
   ASSERT_TRUE(maybe_f.has_value());
@@ -190,20 +190,20 @@ TEST_F(ParserTest, TestIdentityFunctionWithLet) {
 
 TEST_F(ParserTest, TestBlockOfUnitNoSemi) {
   RoundTripExpr(R"({
-  ()
+    ()
 })");
 }
 
 TEST_F(ParserTest, TestBlockOfUnitWithSemi) {
   RoundTripExpr(R"({
-  ();
+    ();
 })");
 }
 
 TEST_F(ParserTest, TestBlockOfTwoUnits) {
   Expr* e = RoundTripExpr(R"({
-  ();
-  ()
+    ();
+    ()
 })");
   ASSERT_NE(e, nullptr);
   auto* block = dynamic_cast<Block*>(e);
@@ -217,14 +217,14 @@ TEST_F(ParserTest, TestBlockOfTwoUnits) {
 
 TEST_F(ParserTest, TestTokenIdentity) {
   RoundTrip(R"(fn f(t: token) -> token {
-  t
+    t
 })");
 }
 
 TEST_F(ParserTest, StructDefRoundTrip) {
   RoundTrip(R"(pub struct foo<A: u32, B: bits[16]> {
-  a: bits[A],
-  b: bits[16][B],
+    a: bits[A],
+    b: bits[16][B],
 })");
 }
 
@@ -254,8 +254,8 @@ TEST_F(ParserTest, EmptyTupleWithComma) {
 
 TEST_F(ParserTest, ParseLetExpression) {
   const char* text = R"({
-  let x: u32 = 2;
-  x
+    let x: u32 = 2;
+    x
 })";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
@@ -279,9 +279,9 @@ TEST_F(ParserTest, ParseLetExpression) {
 
 TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
   const char* text = R"({
-  let x: u32 = 2;
-  let x: u32 = 4;
-  x
+    let x: u32 = 2;
+    let x: u32 = 4;
+    x
 })";
   Scanner s{"test.x", std::string{text}};
   Parser p{"test", &s};
@@ -303,9 +303,9 @@ TEST_F(ParserTest, ParseLetExpressionWithShadowing) {
 
 TEST_F(ParserTest, ParseBlockMultiLet) {
   const char* kProgram = R"({
-  let x = f();
-  let y = g(x);
-  x + y
+    let x = f();
+    let y = g(x);
+    x + y
 })";
   Scanner s{"test.x", std::string{kProgram}};
   Parser p{"test", &s};
@@ -352,16 +352,16 @@ TEST_F(ParserTest, ParseIdentityFunction) {
 
 TEST_F(ParserTest, ParseSimpleProc) {
   const char* text = R"(proc simple {
-  x: u32;
-  config() {
-    ()
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, addend: u32) {
-    x + addend
-  }
+    x: u32;
+    config() {
+        ()
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, addend: u32) {
+        x + addend
+    }
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -383,45 +383,45 @@ TEST_F(ParserTest, ParseSimpleProc) {
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
   std::string_view kModule = R"(proc producer {
-  c_: chan<u32> out;
-  limit_: u32;
-  config(limit: u32, c: chan<u32> out) {
-    (c, limit)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, i: u32) {
-    let tok = send(tok, c_, i);
-    i + 1
-  }
+    c_: chan<u32> out;
+    limit_: u32;
+    config(limit: u32, c: chan<u32> out) {
+        (c, limit)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, i: u32) {
+        let tok = send(tok, c_, i);
+        i + 1
+    }
 }
 proc consumer<N: u32> {
-  c_: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, i: u32) {
-    let (tok1, e) = recv(tok, c_);
-    i + 1
-  }
+    c_: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, i: u32) {
+        let (tok1, e) = recv(tok, c_);
+        i + 1
+    }
 }
 proc main {
-  config() {
-    let (p, c) = chan<u32>;
-    spawn producer(u32:10, p);
-    spawn consumer(range(10), c);
-    ()
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    ()
-  }
+    config() {
+        let (p, c) = chan<u32>;
+        spawn producer(u32:10, p);
+        spawn consumer(range(10), c);
+        ()
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        ()
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -430,45 +430,45 @@ proc main {
 // Parses the "iota" example with fifo_depth set on the internal channel.
 TEST_F(ParserTest, ParseProcNetworkWithFifoDepthOnInternalChannel) {
   std::string_view kModule = R"(proc producer {
-  c_: chan<u32> out;
-  limit_: u32;
-  config(limit: u32, c: chan<u32> out) {
-    (c, limit)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, i: u32) {
-    let tok = send(tok, c_, i);
-    i + 1
-  }
+    c_: chan<u32> out;
+    limit_: u32;
+    config(limit: u32, c: chan<u32> out) {
+        (c, limit)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, i: u32) {
+        let tok = send(tok, c_, i);
+        i + 1
+    }
 }
 proc consumer<N: u32> {
-  c_: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, i: u32) {
-    let (tok1, e) = recv(tok, c_);
-    i + 1
-  }
+    c_: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, i: u32) {
+        let (tok1, e) = recv(tok, c_);
+        i + 1
+    }
 }
 proc main {
-  config() {
-    let (p, c) = chan<u32, 2>;
-    spawn producer(u32:10, p);
-    spawn consumer(range(10), c);
-    ()
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    ()
-  }
+    config() {
+        let (p, c) = chan<u32, 2>;
+        spawn producer(u32:10, p);
+        spawn consumer(range(10), c);
+        ()
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        ()
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -476,15 +476,14 @@ proc main {
 
 TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   const char* text = R"(proc producer {
-  c: chan<u32> out;
-  config(c: chan<u32> out) {
-    (c,)
-  }
-  //next(tok: token, (c: chan<u32> out, i: u32)) {
-  next(tok: token, i: (chan<u32> out, u32)) {
-    let tok = send(tok, c, i);
-    (c, i + i)
-  }
+    c: chan<u32> out;
+    config(c: chan<u32> out) {
+        (c,)
+    }
+    next(tok: token, i: (chan<u32> out, u32)) {
+        let tok = send(tok, c, i);
+        (c, i + i)
+    }
 })";
 
   Scanner s{"test.x", std::string{text}};
@@ -498,32 +497,31 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
 
 TEST_F(ParserTest, ChannelArraysOneD) {
   constexpr std::string_view kModule = R"(proc consumer {
-  c: chan<u32> out;
-  config(c: chan<u32> out) {
-    (c,)
-  }
-  init {
-    u32:100
-  }
-  next(tok: token, i: u32) {
-    let _ = recv(tok, c);
-    i + i
-  }
+    c: chan<u32> out;
+    config(c: chan<u32> out) {
+        (c,)
+    }
+    init {
+        u32:100
+    }
+    next(tok: token, i: u32) {
+        recv(tok, c);
+        i + i
+    }
 }
 proc producer {
-  channels: chan<u32>[32] out;
-  config() {
-    let (ps, cs) = chan<u32>[32];
-    spawn consumer(cs[0]);
-    (ps,)
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    let tok = send(tok, channels[0], u32:0);
-    ()
-  }
+    channels: chan<u32>[32] out;
+    config() {
+        let (ps, cs) = chan<u32>[32];
+        spawn consumer(cs[0]);
+        (ps,)
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        send(tok, channels[0], u32:0);
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -531,32 +529,31 @@ proc producer {
 
 TEST_F(ParserTest, ChannelArraysThreeD) {
   constexpr std::string_view kModule = R"(proc consumer {
-  c: chan<u32> out;
-  config(c: chan<u32> out) {
-    (c,)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, i: u32) {
-    let tok = recv(tok, c);
-    i + i
-  }
+    c: chan<u32> out;
+    config(c: chan<u32> out) {
+        (c,)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, i: u32) {
+        let tok = recv(tok, c);
+        i + i
+    }
 }
 proc producer {
-  channels: chan<u32>[32][64][128] out;
-  config() {
-    let (ps, cs) = chan<u32>[32][64][128];
-    spawn consumer(cs[0]);
-    (ps,)
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    let tok = send(tok, channels[0][1][2], u32:0);
-    ()
-  }
+    channels: chan<u32>[32][64][128] out;
+    config() {
+        let (ps, cs) = chan<u32>[32][64][128];
+        spawn consumer(cs[0]);
+        (ps,)
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        send(tok, channels[0][1][2], u32:0);
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -564,31 +561,31 @@ proc producer {
 
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   constexpr std::string_view kModule = R"(proc producer {
-  c: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    false
-  }
-  next(tok: token, do_send: bool) {
-    let _ = send_if(tok, c, do_send, do_send as u32);
-    (!do_send,)
-  }
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        false
+    }
+    next(tok: token, do_send: bool) {
+        send_if(tok, c, do_send, do_send as u32);
+        (!do_send,)
+    }
 }
 proc consumer {
-  c: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    false
-  }
-  next(tok: token, do_recv: bool) {
-    let (_, foo) = recv_if(tok, c, do_recv, u32:0);
-    let _ = assert_eq(foo, true);
-    (!do_recv,)
-  }
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        false
+    }
+    next(tok: token, do_recv: bool) {
+        let (_, foo) = recv_if(tok, c, do_recv, u32:0);
+        let _ = assert_eq(foo, true);
+        (!do_recv,)
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -596,31 +593,30 @@ proc consumer {
 
 TEST_F(ParserTest, ParseSendIfAndRecvNb) {
   constexpr std::string_view kModule = R"(proc producer {
-  c: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    false
-  }
-  next(tok: token, do_send: bool) {
-    let _ = send_if(tok, c, do_send, do_send as u32);
-    (!do_send,)
-  }
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        false
+    }
+    next(tok: token, do_send: bool) {
+        let _ = send_if(tok, c, do_send, do_send as u32);
+        (!do_send,)
+    }
 }
 proc consumer {
-  c: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    let (_, foo, valid) = recv_non_blocking(tok, c, u32:0);
-    let _ = assert_eq(!(foo ^ valid), true);
-    ()
-  }
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        let (_, foo, valid) = recv_non_blocking(tok, c, u32:0);
+        assert_eq(!(foo ^ valid), true);
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -628,17 +624,16 @@ proc consumer {
 
 TEST_F(ParserTest, ParseRecvIfNb) {
   constexpr std::string_view kModule = R"(proc foo {
-  c: chan<u32> in;
-  config(c: chan<u32> in) {
-    (c,)
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    let tok = recv_if_non_blocking(tok, c, true, u32:0);
-    ()
-  }
+    c: chan<u32> in;
+    config(c: chan<u32> in) {
+        (c,)
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        recv_if_non_blocking(tok, c, true, u32:0);
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -646,25 +641,25 @@ TEST_F(ParserTest, ParseRecvIfNb) {
 
 TEST_F(ParserTest, ParseJoin) {
   constexpr std::string_view kModule = R"(proc foo {
-  c0: chan<u32> out;
-  c1: chan<u32> out;
-  c2: chan<u32> out;
-  c3: chan<u32> in;
-  config(c0: chan<u32> out, c1: chan<u32> out, c2: chan<u32> out, c3: chan<u32> in) {
-    (c0, c1, c2, c3)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, state: u32) {
-    let tok0 = send(tok, c0, state as u32);
-    let tok1 = send(tok, c1, state as u32);
-    let tok2 = send(tok, c2, state as u32);
-    let tok3 = send(tok0, c0, state as u32);
-    let tok = join(tok0, tok1, tok2, send(tok0, c0, state as u32));
-    let tok = recv(tok, c3);
-    state + u32:1
-  }
+    c0: chan<u32> out;
+    c1: chan<u32> out;
+    c2: chan<u32> out;
+    c3: chan<u32> in;
+    config(c0: chan<u32> out, c1: chan<u32> out, c2: chan<u32> out, c3: chan<u32> in) {
+        (c0, c1, c2, c3)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, state: u32) {
+        let tok0 = send(tok, c0, state as u32);
+        let tok1 = send(tok, c1, state as u32);
+        let tok2 = send(tok, c2, state as u32);
+        let tok3 = send(tok0, c0, state as u32);
+        let tok = join(tok0, tok1, tok2, send(tok0, c0, state as u32));
+        let tok = recv(tok, c3);
+        state + u32:1
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -672,50 +667,50 @@ TEST_F(ParserTest, ParseJoin) {
 
 TEST_F(ParserTest, ParseTestProc) {
   constexpr std::string_view kModule = R"(proc testee {
-  input: chan<u32> in;
-  output: chan<u32> out;
-  config(input: chan<u32> in, output: chan<u32> out) {
-    (input, output)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, x: u32) {
-    let (tok, y) = recv(tok, input);
-    let tok = send(tok, output, x + y);
-    (x + y,)
-  }
+    input: chan<u32> in;
+    output: chan<u32> out;
+    config(input: chan<u32> in, output: chan<u32> out) {
+        (input, output)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, x: u32) {
+        let (tok, y) = recv(tok, input);
+        let tok = send(tok, output, x + y);
+        (x + y,)
+    }
 }
 #[test_proc]
 proc tester {
-  p: chan<u32> out;
-  c: chan<u32> in;
-  terminator: chan<u32> out;
-  config(terminator: chan<u32> out) {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u32>;
-    spawn testee(input_c, output_p);
-    (input_p, output_c, terminator)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, iter: u32) {
-    let tok = send(tok, p, u32:0);
-    let tok = send(tok, p, u32:1);
-    let tok = send(tok, p, u32:2);
-    let tok = send(tok, p, u32:3);
-    let (tok, exp) = recv(tok, c);
-    let _ = assert_eq(exp, u32:0);
-    let (tok, exp) = recv(tok, c);
-    let _ = assert_eq(exp, u32:1);
-    let (tok, exp) = recv(tok, c);
-    let _ = assert_eq(exp, u32:3);
-    let (tok, exp) = recv(tok, c);
-    let _ = assert_eq(exp, u32:6);
-    let tok = send_if(tok, terminator, iter == u32:4, true);
-    (iter + u32:1,)
-  }
+    p: chan<u32> out;
+    c: chan<u32> in;
+    terminator: chan<u32> out;
+    config(terminator: chan<u32> out) {
+        let (input_p, input_c) = chan<u32>;
+        let (output_p, output_c) = chan<u32>;
+        spawn testee(input_c, output_p);
+        (input_p, output_c, terminator)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, iter: u32) {
+        let tok = send(tok, p, u32:0);
+        let tok = send(tok, p, u32:1);
+        let tok = send(tok, p, u32:2);
+        let tok = send(tok, p, u32:3);
+        let (tok, exp) = recv(tok, c);
+        assert_eq(exp, u32:0);
+        let (tok, exp) = recv(tok, c);
+        assert_eq(exp, u32:1);
+        let (tok, exp) = recv(tok, c);
+        assert_eq(exp, u32:3);
+        let (tok, exp) = recv(tok, c);
+        assert_eq(exp, u32:6);
+        let tok = send_if(tok, terminator, iter == u32:4, true);
+        (iter + u32:1,)
+    }
 })";
 
   RoundTrip(std::string(kModule));
@@ -723,11 +718,11 @@ proc tester {
 
 TEST_F(ParserTest, ParseStructSplat) {
   const char* text = R"(struct Point {
-  x: u32,
-  y: u32,
+    x: u32,
+    y: u32,
 }
 fn f(p: Point) -> Point {
-  Point { x: u32:42, ..p }
+    Point { x: u32:42, ..p }
 })";
   Scanner s{"test.x", std::string{text}};
   Parser parser{"test", &s};
@@ -777,6 +772,8 @@ TEST_F(ParserTest, ConcatFunction) {
   EXPECT_EQ(rhs->identifier(), "y");
 }
 
+// Verifies that the parameter sequence to a function can have a trailing comma
+// and it's not a parse error.
 TEST_F(ParserTest, TrailingParameterComma) {
   const char* text = R"(
 fn concat(
@@ -824,8 +821,8 @@ fn f(x: u32) -> u8 {
 
 TEST_F(ParserTest, LocalConstBinding) {
   const char* text = R"(fn f() -> u8 {
-  const FOO = u8:42;
-  FOO
+    const FOO = u8:42;
+    FOO
 })";
   RoundTrip(text);
   Scanner s{"test.x", std::string{text}};
@@ -1025,84 +1022,84 @@ TEST_F(ParserTest, DISABLED_ZeroMacroParametricStructArray) {
 
 TEST_F(ParserTest, ParseBlockWithTwoStatements) {
   RoundTripExpr(R"({
-  type MyU32 = u32;
-  MyU32:42
+    type MyU32 = u32;
+    MyU32:42
 })");
 }
 
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
   RoundTrip(R"(enum MyEnum : u2 {
-  FOO = 0,
-  BAR = 1,
+    FOO = 0,
+    BAR = 1,
 }
 const MY_TUPLE = (MyEnum::FOO, MyEnum::BAR) as (MyEnum, MyEnum);)");
 }
 
 TEST_F(ParserTest, Struct) {
   const char* text = R"(struct Point {
-  x: u32,
-  y: u32,
+    x: u32,
+    y: u32,
 })";
   RoundTrip(text);
 }
 
 TEST_F(ParserTest, StructWithAccessFn) {
   const char* text = R"(struct Point {
-  x: u32,
-  y: u32,
+    x: u32,
+    y: u32,
 }
 fn f(p: Point) -> u32 {
-  p.x
+    p.x
 }
 fn g(xy: u32) -> Point {
-  Point { x: xy, y: xy }
+    Point { x: xy, y: xy }
 })";
   RoundTrip(text);
 }
 
 TEST_F(ParserTest, ParametricWithEnumColonRefInvocation) {
   const char* text = R"(enum OneValue : u3 {
-  ONE = 4,
+    ONE = 4,
 }
 fn p<X: OneValue>() -> OneValue {
-  X
+    X
 }
 fn main() {
-  p<OneValue::ONE>()
+    p<OneValue::ONE>()
 })";
   RoundTrip(text);
 }
 
 TEST_F(ParserTest, LetDestructureFlat) {
   RoundTripExpr(R"({
-  let (x, y, z): (u32, u32, u32) = (1, 2, 3);
-  y
+    let (x, y, z): (u32, u32, u32) = (1, 2, 3);
+    y
 })");
 }
 
 TEST_F(ParserTest, LetDestructureNested) {
   RoundTripExpr(
       R"({
-  let (w, (x, (y)), z): (u32, (u32, (u32,)), u32) = (1, (2, (3,)), 4);
-  y
+    let (w, (x, (y)), z): (u32, (u32, (u32,)), u32) = (1, (2, (3,)), 4);
+    y
 })");
 }
 
 TEST_F(ParserTest, LetDestructureWildcard) {
   RoundTripExpr(R"({
-  let (x, y, _): (u32, u32, u32) = (1, 2, 3);
-  y
+    let (x, y, _): (u32, u32, u32) = (1, 2, 3);
+    y
 })");
 }
 
 TEST_F(ParserTest, For) {
   RoundTripExpr(R"({
-  let accum: u32 = 0;
-  let accum: u32 = for (i, accum): (u32, u32) in range(u32:0, u32:4) {
-    let new_accum: u32 = accum + i;
-    new_accum
-  }(accum);
-  accum
+    let accum: u32 = 0;
+    let accum: u32 = for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+        let new_accum: u32 = accum + i;
+        new_accum
+    }(accum);
+    accum
 })",
                 {"range"});
 }
@@ -1110,10 +1107,10 @@ TEST_F(ParserTest, For) {
 TEST_F(ParserTest, ForSansTypeAnnotation) {
   RoundTripExpr(
       R"({
-  let init = ();
-  for (i, accum) in range(u32:0, u32:4) {
-    accum
-  }(init)
+    let init = ();
+    for (i, accum) in range(u32:0, u32:4) {
+        accum
+    }(init)
 })",
       {"range"});
 }
@@ -1121,10 +1118,10 @@ TEST_F(ParserTest, ForSansTypeAnnotation) {
 TEST_F(ParserTest, MatchWithConstPattern) {
   RoundTrip(R"(const FOO = u32:64;
 fn f(x: u32) {
-  match x {
-    FOO => u32:64,
-    _ => u32:42,
-  }
+    match x {
+        FOO => u32:64,
+        _ => u32:42,
+    }
 })");
 }
 
@@ -1174,39 +1171,39 @@ TEST_F(ParserTest, WideningCastOfCheckedCastOfCast) {
 
 TEST_F(ParserTest, CastOfCastEnum) {
   RoundTrip(R"(enum MyEnum : u3 {
-  SOME_VALUE = 0,
+    SOME_VALUE = 0,
 }
 fn f(x: u8) -> MyEnum {
-  x as u3 as MyEnum
+    x as u3 as MyEnum
 })");
 }
 
 TEST_F(ParserTest, CastToTypeAlias) {
   RoundTrip(R"(type u128 = bits[128];
 fn f(x: u32) -> u128 {
-  x as u128
+    x as u128
 })");
 }
 
 TEST_F(ParserTest, Enum) {
   RoundTrip(R"(enum MyEnum : u2 {
-  A = 0,
-  B = 1,
-  C = 2,
-  D = 3,
+    A = 0,
+    B = 1,
+    C = 2,
+    D = 3,
 })");
 }
 
 TEST_F(ParserTest, ModuleWithSemis) {
   RoundTrip(R"(fn f() -> s32 {
-  let x: s32 = 42;
-  x
+    let x: s32 = 42;
+    x
 })");
 }
 
 TEST_F(ParserTest, ModuleWithParametric) {
   RoundTrip(R"(fn parametric<X: u32, Y: u32 = {X + X}>() -> (u32, u32) {
-  (X, Y)
+    (X, Y)
 })");
 }
 
@@ -1226,8 +1223,8 @@ TEST_F(ParserTest, ModuleWithImportAs) { RoundTrip("import thing as other"); }
 
 TEST_F(ParserTest, ConstArrayOfEnumRefs) {
   RoundTrip(R"(enum MyEnum : u3 {
-  FOO = 1,
-  BAR = 2,
+    FOO = 1,
+    BAR = 2,
 }
 const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];)");
 }
@@ -1236,8 +1233,8 @@ TEST_F(ParserTest, ImplicitWidthEnum) {
   RoundTrip(R"(const A = u32:42;
 const B = u32:64;
 enum ImplicitWidthEnum {
-  FOO = A,
-  BAR = B,
+    FOO = A,
+    BAR = B,
 })");
 }
 
@@ -1257,14 +1254,14 @@ const ARR = u32[2]:[MOL, ZERO, ...];)");
 TEST_F(ParserTest, QuickCheckDirective) {
   RoundTrip(R"(#[quickcheck]
 fn foo(x: u5) -> bool {
-  true
+    true
 })");
 }
 
 TEST_F(ParserTest, QuickCheckDirectiveWithTestCount) {
   RoundTrip(R"(#[quickcheck(test_count=1024)]
 fn foo(x: u5) -> bool {
-  true
+    true
 })");
 }
 
@@ -1276,24 +1273,24 @@ type MyTupleType = (MyType[2],);)");
 TEST_F(ParserTest, ModuleWithEmptyTestFunction) {
   RoundTrip(R"(#[test]
 fn example() {
-  ()
+    ()
 })");
 }
 
 TEST_F(ParserTest, ModuleWithEmptyExternVerilogFunction) {
   RoundTrip(R"(#[extern_verilog("unit")]
 fn example() {
-  ()
+    ()
 })");
 }
 
 TEST_F(ParserTest, ModuleWithTestFunction) {
   RoundTrip(R"(fn id(x: u32) -> u32 {
-  x
+    x
 }
 #[test]
 fn id_4() {
-  assert_eq(u32:4, id(u32:4))
+    assert_eq(u32:4, id(u32:4))
 })");
 }
 
@@ -1301,7 +1298,7 @@ TEST_F(ParserTest, TypeAliasForTupleWithConstSizedArray) {
   RoundTrip(R"(const HOW_MANY_THINGS = u32:42;
 type MyTupleType = (u32[HOW_MANY_THINGS],);
 fn get_things(x: MyTupleType) -> u32[HOW_MANY_THINGS] {
-  x[0]
+    x[0]
 })");
 }
 
@@ -1318,17 +1315,17 @@ TEST_F(ParserTest, EmptyTuple) {
 
 TEST_F(ParserTest, Match) {
   RoundTripExpr(R"(match x {
-  u32:42 => u32:64,
-  _ => u32:42,
+    u32:42 => u32:64,
+    _ => u32:42,
 })",
                 /*predefine=*/{"x"});
 }
 
 TEST_F(ParserTest, MatchFreevars) {
   Expr* e = RoundTripExpr(R"(match x {
-  y => z,
+    y => z,
 })",
-                          {"x", "y", "z"}, false, std::nullopt);
+                          {"x", "y", "z"});
   FreeVariables fv = GetFreeVariables(e, &e->span().start());
   EXPECT_THAT(fv.Keys(), testing::ContainerEq(
                              absl::flat_hash_set<std::string>{"x", "y", "z"}));
@@ -1336,8 +1333,8 @@ TEST_F(ParserTest, MatchFreevars) {
 
 TEST_F(ParserTest, ForFreevars) {
   Expr* e = RoundTripExpr(R"(for (i, accum): (u32, u32) in range(u32:4) {
-  let new_accum: u32 = accum + i + j;
-  new_accum
+    let new_accum: u32 = accum + i + j;
+    new_accum
 }(u32:0))",
                           {"range", "j"});
   FreeVariables fv = GetFreeVariables(e, &e->span().start());
@@ -1351,9 +1348,9 @@ TEST_F(ParserTest, TernaryConditional) {
   RoundTripExpr("if true { u32:42 } else { u32:24 }", {});
 
   RoundTripExpr(R"(if really_long_identifier_so_that_this_is_too_many_chars {
-  u32:42
+    u32:42
 } else {
-  u32:24
+    u32:24
 })",
                 {"really_long_identifier_so_that_this_is_too_many_chars"});
 }
@@ -1363,11 +1360,11 @@ TEST_F(ParserTest, LadderedConditional) {
 
   RoundTripExpr(
       R"(if really_long_identifier_so_that_this_is_too_many_chars {
-  u32:42
+    u32:42
 } else if another_really_long_identifier_so_that_this_is_too_many_chars {
-  u32:22
+    u32:22
 } else {
-  u32:24
+    u32:24
 })",
       {"really_long_identifier_so_that_this_is_too_many_chars",
        "another_really_long_identifier_so_that_this_is_too_many_chars"});
@@ -1383,7 +1380,7 @@ TEST_F(ParserTest, TernaryWithComparisonToColonRefTest) {
 
 TEST_F(ParserTest, ForInWithColonRefAsRangeLimit) {
   RoundTripExpr(R"(for (x, s) in u32:0..m::SOME_CONST {
-  x
+    x
 }(i))",
                 {"m", "i"});
 }
@@ -1394,16 +1391,16 @@ TEST_F(ParserTest, TernaryWithOrExpressionTest) {
 
 TEST_F(ParserTest, TernaryWithComparisonStructInstanceTest) {
   RoundTrip(R"(struct MyStruct {
-  x: u32
+    x: u32
 }
 fn f(a: MyStruct) -> u32 {
-  if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
+    if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
 })",
             /*target=*/R"(struct MyStruct {
-  x: u32,
+    x: u32,
 }
 fn f(a: MyStruct) -> u32 {
-  if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
+    if a.x <= MyStruct { x: u32:42 }.x { u32:42 } else { u32:24 }
 })");
 }
 
@@ -1454,27 +1451,27 @@ TEST_F(ParserTest, CastVsUnaryPrecedence) {
 
 TEST_F(ParserTest, NameDefTree) {
   RoundTripExpr(R"({
-  let (a, (b, (c, d), e), f) = x;
-  a
+    let (a, (b, (c, d), e), f) = x;
+    a
 })",
                 {"x"});
 }
 
 TEST_F(ParserTest, Strings) {
   RoundTripExpr(R"({
-  let x = "dummy --> \" <-- string";
-  x
+    let x = "dummy --> \" <-- string";
+    x
 })");
   RoundTripExpr(R"({
-  let x = "dummy --> \"";
-  x
+    let x = "dummy --> \"";
+    x
 })");
 }
 
 TEST_F(ParserTest, TupleIndex) {
   const char* text = R"(
 fn f(x: u32) -> u8 {
-  (u32:6, u32:7).1
+    (u32:6, u32:7).1
 }
 )";
   Scanner s{"test.x", std::string{text}};
@@ -1498,25 +1495,25 @@ fn f(x: u32) -> u8 {
   EXPECT_EQ(index->ToString(), "1");
 
   RoundTripExpr(R"({
-  let foo = tuple.0;
-  foo
+    let foo = tuple.0;
+    foo
 })",
                 {"tuple"});
   RoundTripExpr(R"({
-  let foo = (u32:6, u32:7).1;
-  foo
+    let foo = (u32:6, u32:7).1;
+    foo
 })",
                 {"tuple"});
 }
 
 TEST_F(ParserTest, BlockWithinBlock) {
   const char* kInput = R"({
-  let a = u32:0;
-  let b = {
-    let c = u32:1;
-    c
-  };
-  let d = u32:2;
+    let a = u32:0;
+    let b = {
+        let c = u32:1;
+        c
+    };
+    let d = u32:2;
 })";
   RoundTripExpr(kInput);
 }
@@ -1524,52 +1521,51 @@ TEST_F(ParserTest, BlockWithinBlock) {
 TEST_F(ParserTest, UnrollFor) {
   RoundTripExpr(
       R"({
-  let bar = u32:0;
-  let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
-    let foo = i + 1;
-    ()
-  }(u32:0);
-  let baz = u32:0;
-  res
+    let bar = u32:0;
+    let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
+        let foo = i + 1;
+    }(u32:0);
+    let baz = u32:0;
+    res
 })",
       /*predefine=*/{"range"});
 }
 
 TEST_F(ParserTest, Range) {
   RoundTripExpr(R"({
-  let foo = u32:8..u32:16;
-  foo
+    let foo = u32:8..u32:16;
+    foo
 })");
   RoundTripExpr(R"({
-  let foo = a..b;
-  foo
+    let foo = a..b;
+    foo
 })",
                 {"a", "b"});
 }
 
 TEST_F(ParserTest, BuiltinFailWithLabels) {
   constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
-  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
-  let _ = {
-    if x == u32:8 { fail!("x_is_8", u32:0) } else { u32:0 }
-  };
-  x
+    let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
+    let _ = {
+        if x == u32:8 { fail!("x_is_8", u32:0) } else { u32:0 }
+    };
+    x
 })";
   RoundTrip(std::string(kProgram));
 }
 
 TEST_F(ParserTest, ProcWithInit) {
   constexpr std::string_view kProgram = R"(proc foo {
-  member: u32;
-  config() {
-    (u32:1,)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, state: u32) {
-    state
-  }
+    member: u32;
+    config() {
+        (u32:1,)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, state: u32) {
+        state
+    }
 })";
 
   RoundTrip(std::string(kProgram));
@@ -1580,31 +1576,31 @@ TEST_F(ParserTest, ProcWithInit) {
 TEST_F(ParserTest, BadEnumRef) {
   const char* text = R"(
 enum MyEnum : u1 {
-  FOO = 0
+    FOO = 0
 }
 
 fn my_fun() -> MyEnum {
-  FOO  // Should be qualified as MyEnum::FOO!
+    FOO  // Should be qualified as MyEnum::FOO!
 }
 )";
   Scanner s{"test.x", std::string{text}};
   Parser parser{"test", &s};
   auto module_status = parser.ParseModule();
   ASSERT_THAT(module_status, StatusIs(absl::StatusCode::kInvalidArgument,
-                                      "ParseError: test.x:7:3-7:6 Cannot find "
+                                      "ParseError: test.x:7:5-7:8 Cannot find "
                                       "a definition for name: \"FOO\""));
 }
 
 TEST_F(ParserTest, ProcConfigCantSeeMembers) {
   constexpr std::string_view kProgram = R"(
 proc main {
-  x12: chan<u8> in;
-  config(x27: chan<u8> in) {
-    (x12,)
-  }
-  next(x0: token) {
-    ()
-  }
+    x12: chan<u8> in;
+    config(x27: chan<u8> in) {
+        (x12,)
+    }
+    next(x0: token) {
+        ()
+    }
 })";
   Scanner s{"test.x", std::string{kProgram}};
   Parser parser{"test", &s};
@@ -1612,7 +1608,7 @@ proc main {
   ASSERT_THAT(
       module_status,
       StatusIs(absl::StatusCode::kInvalidArgument,
-               "ParseError: test.x:5:6-5:9 "
+               "ParseError: test.x:5:10-5:13 "
                "Cannot find a definition for name: \"x12\"; "
                "\"x12\" is a proc member, but those cannot be referenced "
                "from within a proc config function."));
@@ -1630,9 +1626,9 @@ TEST_F(ParserTest, NumberSpan) {
 TEST_F(ParserTest, DetectsDuplicateFailLabels) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
-  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
-  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
-  x
+    let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
+    let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
+    x
 }
 )";
 
@@ -1651,10 +1647,10 @@ fn main(x: u32) -> u32 {
 TEST(ParserBackrefTest, CanFindDefiner) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
-  let foo = u32:0 + u32:1;
-  let bar = u32:3 + foo;
-  let baz = bar + foo;
-  foo
+    let foo = u32:0 + u32:1;
+    let bar = u32:3 + foo;
+    let baz = bar + foo;
+    foo
 }
 )";
 
@@ -1684,7 +1680,7 @@ fn main() -> u32 {
 TEST_F(ParserTest, ChainedEqualsComparisonError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: bool) -> bool {
-  x == y == z
+    x == y == z
 }
 )";
 
@@ -1692,14 +1688,14 @@ fn main(x: u32, y: u32, z: bool) -> bool {
   Parser parser{"test", &s};
   EXPECT_THAT(parser.ParseModule(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("ParseError: test.x:3:10-3:12 comparison "
+                       HasSubstr("ParseError: test.x:3:12-3:14 comparison "
                                  "operators cannot be chained")));
 }
 
 TEST_F(ParserTest, ChainedLtComparisonError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: bool) -> bool {
-  x < y < z
+    x < y < z
 }
 )";
 
@@ -1707,14 +1703,14 @@ fn main(x: u32, y: u32, z: bool) -> bool {
   Parser parser{"test", &s};
   EXPECT_THAT(parser.ParseModule(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("ParseError: test.x:3:9-3:10 comparison "
+                       HasSubstr("ParseError: test.x:3:11-3:12 comparison "
                                  "operators cannot be chained")));
 }
 
 TEST_F(ParserTest, ChainedLtGtComparisonError) {
   constexpr std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: bool) -> bool {
-  x < y > z
+    x < y > z
 }
 )";
 
@@ -1730,16 +1726,16 @@ fn main(x: u32, y: u32, z: bool) -> bool {
 
 TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
   constexpr std::string_view kProgram = R"(proc foo<N: u32, M: u32> {
-  c_in: chan<u32> in;
-  c_out: chan<u32> out;
-  config () {
-    let (c_p, c_c) = chan<u32, {N + M}>;
-    (c_p, c_c)
-  }
-  init {}
-  next(tok: token, state: ()) {
-    ()
-  }
+    c_in: chan<u32> in;
+    c_out: chan<u32> out;
+    config () {
+        let (c_p, c_c) = chan<u32, {N + M}>;
+        (c_p, c_c)
+    }
+    init {}
+    next(tok: token, state: ()) {
+      ()
+    }
 }
 )";
   Scanner s{"test.x", std::string(kProgram)};

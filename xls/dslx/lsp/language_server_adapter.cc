@@ -14,8 +14,18 @@
 
 #include "xls/dslx/lsp/language_server_adapter.h"
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
+#include "xls/common/indent.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/extract_module_name.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/lsp/document_symbols.h"
 #include "xls/dslx/lsp/find_definition.h"
@@ -35,7 +45,7 @@ void AppendDiagnosticFromStatus(
   absl::StatusOr<PositionalErrorData> extracted_error_or =
       GetPositionalErrorData(status, std::nullopt);
   if (!extracted_error_or.ok()) {
-    LspLog() << extracted_error_or.status() << "\n" << std::flush;
+    LspLog() << extracted_error_or.status() << "\n";
     return;  // best effort. Ignore.
   }
   const PositionalErrorData& err = *extracted_error_or;
@@ -76,8 +86,7 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
   absl::StatusOr<std::string> module_name_or = ExtractModuleName(file_uri);
   if (!module_name_or.ok()) {
     LspLog() << "Could not determine module name from file URI: " << file_uri
-             << " status: " << module_name_or.status() << "\n"
-             << std::flush;
+             << " status: " << module_name_or.status() << "\n";
     return absl::OkStatus();
   }
 
@@ -86,8 +95,7 @@ absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
       contents, /*path=*/file_uri, /*module_name=*/module_name, &import_data);
   const absl::Duration duration = absl::Now() - start;
   if (duration > absl::Milliseconds(200)) {
-    LspLog() << "Parsing " << file_uri << " took " << duration << "\n"
-             << std::flush;
+    LspLog() << "Parsing " << file_uri << " took " << duration << "\n";
   }
 
   if (typechecked_module_or.ok()) {
@@ -146,6 +154,10 @@ LanguageServerAdapter::FormatRange(std::string_view uri,
                                    const verible::lsp::Range& range) const {
   // TODO(cdleary): 2023-05-25 We start simple, formatting only when the
   // requested range exactly intercepts a block.
+  //
+  // Note: At least in vim the visual range selected is an exclusive limit in
+  // `:LspDocumentRangeFormat`, so if you want the last character in a line to
+  // be included it's not clear what you can do. This is annoying!
   const Span target = ConvertLspRangeToSpan(uri, range);
   if (last_parse_data_.ok()) {
     const Module& module = last_parse_data_->module();
@@ -159,12 +171,16 @@ LanguageServerAdapter::FormatRange(std::string_view uri,
           XLS_VLOG(5) << node->GetSpan().value() << " :: " << node->ToString();
         }
       }
-      return absl::NotFoundError(
+      return absl::NotFoundError(absl::StrCat(
           "Could not find a formattable AST node with the target range: " +
-          target.ToString());
+              target.ToString(),
+          " -- note that currently only single blocks are supported"));
     }
-    return std::vector<verible::lsp::TextEdit>{verible::lsp::TextEdit{
-        .range = range, .newText = intercepting_block->ToString()}};
+    std::string new_text = intercepting_block->ToString();
+    int64_t indent_level = DetermineIndentLevel(*intercepting_block->parent());
+    new_text = Indent(new_text, indent_level * kRustSpacesPerIndent);
+    return std::vector<verible::lsp::TextEdit>{
+        verible::lsp::TextEdit{.range = range, .newText = new_text}};
   }
   return absl::FailedPreconditionError(
       "Language server did not have a successful prior parse to format.");

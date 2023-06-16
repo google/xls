@@ -15,15 +15,16 @@
 #include "xls/flows/ir_wrapper.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/golden_files.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/value_view.h"
@@ -31,15 +32,25 @@
 namespace xls {
 namespace {
 
+void ExpectIr(std::string_view got, std::string_view test_name) {
+  ExpectEqualToGoldenFile(
+      absl::StrFormat("xls/flows/testdata/ir_wrapper_test_%s.ir", test_name),
+      got);
+}
+
+std::string TestName() {
+  return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+}
+
 TEST(IrWrapperTest, DslxToIrOk) {
   constexpr std::string_view kParamsDslx = R"(pub struct ParamsProto {
-  latency: sN[64],
+    latency: sN[64],
 }
 pub const params = ParamsProto { latency: sN[64]:7 };)";
 
   constexpr std::string_view kTopDslx = R"(import param
 pub fn GetLatency() -> s64 {
-  param::params.latency
+    param::params.latency
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -72,22 +83,10 @@ pub fn GetLatency() -> s64 {
                            ir_wrapper.GetIrFunction("GetLatency"));
 
   XLS_VLOG_LINES(3, get_latency->DumpIr());
-  EXPECT_EQ(get_latency->DumpIr(),
-            R"(fn __top__GetLatency() -> bits[64] {
-  ret params_latency: bits[64] = literal(value=7, id=3, pos=[(0,2,15)])
-}
-)");
+  ExpectIr(get_latency->DumpIr(), TestName() + "_get_latency");
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
-  EXPECT_EQ(package->DumpIr(),
-            R"(package test_package
-
-file_number 0 "top_module.x"
-
-fn __top__GetLatency() -> bits[64] {
-  ret params_latency: bits[64] = literal(value=7, id=3, pos=[(0,2,15)])
-}
-)");
+  ExpectIr(package->DumpIr(), TestName() + "_package");
 
   // Test that that the jit for the function can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -99,21 +98,21 @@ fn __top__GetLatency() -> bits[64] {
 
 TEST(IrWrapperTest, DslxProcsToIrOk) {
   constexpr std::string_view kTopDslx = R"(proc foo {
-  in_0: chan<u32> in;
-  in_1: chan<u32> in;
-  output: chan<u32> out;
-  config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
-    (in_0, in_1, output)
-  }
-  init {
-    ()
-  }
-  next(tok: token, state: ()) {
-    let (tok, a) = recv(tok, in_0);
-    let (tok, b) = recv(tok, in_1);
-    let tok = send(tok, output, a + b);
-    ()
-  }
+    in_0: chan<u32> in;
+    in_1: chan<u32> in;
+    output: chan<u32> out;
+    config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
+        (in_0, in_1, output)
+    }
+    init {
+        ()
+    }
+    next(tok: token, state: ()) {
+        let (tok, a) = recv(tok, in_0);
+        let (tok, b) = recv(tok, in_1);
+        let tok = send(tok, output, a + b);
+        ()
+    }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
@@ -132,27 +131,7 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
   XLS_VLOG_LINES(3, top_proc->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
-  EXPECT_EQ(package->DumpIr(),
-            R"(package test_package
-
-file_number 0 "top_module.x"
-
-chan test_package__in_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan test_package__in_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-chan test_package__output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, strictness=proven_mutually_exclusive, metadata="""""")
-
-proc __top__foo_0_next(__token: token, init={}) {
-  receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
-  tok: token = tuple_index(receive.4, index=0, id=6, pos=[(0,11,9)])
-  receive.8: (token, bits[32]) = receive(tok, channel_id=1, id=8)
-  a: bits[32] = tuple_index(receive.4, index=1, id=7, pos=[(0,11,14)])
-  b: bits[32] = tuple_index(receive.8, index=1, id=11, pos=[(0,12,14)])
-  tok__1: token = tuple_index(receive.8, index=0, id=10, pos=[(0,12,9)])
-  add.12: bits[32] = add(a, b, id=12, pos=[(0,13,34)])
-  tok__2: token = send(tok__1, add.12, channel_id=2, id=13)
-  next (tok__2)
-}
-)");
+  ExpectIr(package->DumpIr(), TestName());
 
   // Test that that the jit for the proc can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(SerialProcRuntime * proc_runtime,

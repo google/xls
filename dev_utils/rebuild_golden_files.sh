@@ -7,18 +7,19 @@
 # be called with a list of test targets to rebuild.
 
 TARGETS=(
-"//xls/dslx/type_system:type_info_to_proto_test"
-"//xls/dslx/ir_convert:ir_converter_test"
+"//xls/codegen:block_generator_test"
 "//xls/codegen:combinational_generator_test"
 "//xls/codegen:finite_state_machine_test"
 "//xls/codegen:module_builder_test"
 "//xls/codegen:pipeline_generator_test"
-"//xls/codegen:block_generator_test"
 "//xls/contrib/xlscc:translator_verilog_test"
+"//xls/dslx/ir_convert:ir_converter_test"
+"//xls/dslx/type_system:type_info_to_proto_test"
+"//xls/flows:ir_wrapper_test"
 "//xls/simulation:module_testbench_test"
 "//xls/simulation:verilog_test_base_test"
-"//xls/tools:wrap_io_test"
 "//xls/tools:codegen_main_test"
+"//xls/tools:wrap_io_test"
 "//xls/visualization/ir_viz:ir_to_json_test"
 )
 

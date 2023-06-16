@@ -51,11 +51,11 @@ messages: {
       std::string dslx,
       ProtoToDslx(kProtoDef, kMessageName, kTextProto, kBindingName));
   EXPECT_EQ(dslx, R"(pub struct TestMessage {
-  test_field: sN[32],
+    test_field: sN[32],
 }
 pub struct TestRepeatedMessage {
-  messages: TestMessage[2],
-  messages_count: u32,
+    messages: TestMessage[2],
+    messages_count: u32,
 }
 pub const MY_TEST_MESSAGE = TestRepeatedMessage { messages: [TestMessage { test_field: sN[32]:42 }, TestMessage { test_field: sN[32]:64 }], messages_count: u32:2 };)");
 }

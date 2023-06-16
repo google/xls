@@ -67,6 +67,7 @@ InitializeResult InitializeServer(const nlohmann::json& params) {
       {"dynamicRegistration", false},
       {"linkSupport", true},
   };
+  capabilities["documentRangeFormattingProvider"] = true;
   return InitializeResult{
       .capabilities = std::move(capabilities),
       .serverInfo =
@@ -99,11 +100,9 @@ absl::Status RealMain() {
   const std::vector<fs::path> dslx_paths = absl::StrSplit(dslx_path, ':');
 
   LspLog() << "XLS testing language server"
-           << "\n"
-           << std::flush;
+           << "\n";
   LspLog() << "Path configuration:\n\tstdlib=" << stdlib_path << "\n"
-           << std::flush << "\tdsxl_path=" << dslx_path << "\n"
-           << std::flush;
+           << "\tdsxl_path=" << dslx_path << "\n";
 
   // Adapter that interfaces between dslx parsing and LSP
   LanguageServerAdapter language_server_adapter(stdlib_path, dslx_paths);
@@ -173,6 +172,19 @@ absl::Status RealMain() {
                                                        params.position);
       });
 
+  dispatcher.AddRequestHandler(
+      "textDocument/rangeFormatting",
+      [&](const verible::lsp::DocumentFormattingParams& params) {
+        auto text_edits_or = language_server_adapter.FormatRange(
+            params.textDocument.uri, params.range);
+        if (text_edits_or.ok()) {
+          return text_edits_or.value();
+        }
+        LspLog() << "could not format requested range: "
+                 << text_edits_or.status() << "\n";
+        return std::vector<verible::lsp::TextEdit>{};
+      });
+
   // Main loop. Feeding the stream-splitter that then calls the dispatcher.
   absl::Status status = absl::OkStatus();
   while (status.ok() && !shutdown_requested) {
@@ -181,7 +193,7 @@ absl::Status RealMain() {
     });
   }
 
-  LspLog() << status << std::endl;
+  LspLog() << status << "\n";
   return status;
 }
 

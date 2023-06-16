@@ -33,7 +33,7 @@ class Pos {
  public:
   static absl::StatusOr<Pos> FromString(std::string_view s);
 
-  Pos() : filename_(""), lineno_(0), colno_(0) {}
+  Pos() : lineno_(0), colno_(0) {}
   Pos(std::string filename, int64_t lineno, int64_t colno)
       : filename_(std::move(filename)), lineno_(lineno), colno_(colno) {}
 

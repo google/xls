@@ -45,6 +45,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr std::string_view kRustOneIndent = "    ";
+
 class DfsIteratorNoTypes {
  public:
   explicit DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
@@ -1247,7 +1249,8 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
 std::string Match::ToStringInternal() const {
   std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
   for (MatchArm* arm : arms_) {
-    absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n")));
+    absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n"),
+                                    kRustSpacesPerIndent));
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1350,7 +1353,8 @@ std::string EnumDef::ToString() const {
   };
 
   for (const auto& item : values_) {
-    absl::StrAppendFormat(&result, "  %s = %s,\n", item.name_def->identifier(),
+    absl::StrAppendFormat(&result, "%s%s = %s,\n", kRustOneIndent,
+                          item.name_def->identifier(),
                           value_to_string(item.value));
   }
   absl::StrAppend(&result, "}");
@@ -1535,8 +1539,8 @@ std::string StructDef::ToString() const {
   std::string result = absl::StrFormat(
       "%sstruct %s%s {\n", public_ ? "pub " : "", identifier(), parametric_str);
   for (const auto& item : members_) {
-    absl::StrAppendFormat(&result, "  %s: %s,\n", item.first->ToString(),
-                          item.second->ToString());
+    absl::StrAppendFormat(&result, "%s%s: %s,\n", kRustOneIndent,
+                          item.first->ToString(), item.second->ToString());
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1775,7 +1779,7 @@ std::string Block::ToStringInternal() const {
     }
   }
   return absl::StrFormat(
-      "{\n%s\n}", Indent(absl::StrJoin(stmts, "\n"), kDefaultIndentSpaces));
+      "{\n%s\n}", Indent(absl::StrJoin(stmts, "\n"), kRustSpacesPerIndent));
 }
 
 // -- class For
@@ -1812,8 +1816,8 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
-      parametric_bindings_(parametric_bindings),
-      params_(params),
+      parametric_bindings_(std::move(parametric_bindings)),
+      params_(std::move(params)),
       return_type_(return_type),
       body_(body),
       tag_(tag),
@@ -1957,18 +1961,20 @@ std::string Proc::ToString() const {
 
   // Init functions are special, since they shouldn't be printed with
   // parentheses (since they can't take args).
-  std::string init_str =
-      Indent(absl::StrCat("init ", init_->body()->ToString()));
+  std::string init_str = Indent(
+      absl::StrCat("init ", init_->body()->ToString()), kRustSpacesPerIndent);
 
   constexpr std::string_view kTemplate = R"(%sproc %s%s {
 %s%s
 %s
 %s
 })";
-  return absl::StrFormat(kTemplate, pub_str, name_def()->identifier(),
-                         parametric_str, Indent(members_str),
-                         Indent(config_->ToUndecoratedString("config")),
-                         init_str, Indent(next_->ToUndecoratedString("next")));
+  return absl::StrFormat(
+      kTemplate, pub_str, name_def()->identifier(), parametric_str,
+      Indent(members_str, kRustSpacesPerIndent),
+      Indent(config_->ToUndecoratedString("config"), kRustSpacesPerIndent),
+      init_str,
+      Indent(next_->ToUndecoratedString("next"), kRustSpacesPerIndent));
 }
 
 std::vector<std::string> Proc::GetFreeParametricKeys() const {

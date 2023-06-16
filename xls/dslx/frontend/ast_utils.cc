@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/dslx/frontend/ast_utils.h"
 
 #include <cstdint>
@@ -26,6 +27,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
@@ -387,6 +390,33 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
   }
   return absl::InvalidArgumentError(
       absl::StrFormat("Invalid attribute of builtin array type: %s", attr));
+}
+
+int64_t DetermineIndentLevel(const AstNode& n) {
+  switch (n.kind()) {
+    case AstNodeKind::kModule:
+      return 0;
+    case AstNodeKind::kBlock: {
+      XLS_CHECK(n.parent() != nullptr);
+      return DetermineIndentLevel(*n.parent()) + 1;
+    }
+    case AstNodeKind::kFunction: {
+      const Function* function = down_cast<const Function*>(&n);
+      switch (function->tag()) {
+        case Function::Tag::kProcInit:
+        case Function::Tag::kProcNext:
+        case Function::Tag::kProcConfig:
+          return 1;
+        case Function::Tag::kNormal:
+          return 0;
+      }
+    }
+    default: {
+      AstNode* parent = n.parent();
+      XLS_CHECK(parent != nullptr);
+      return DetermineIndentLevel(*parent);
+    }
+  }
 }
 
 }  // namespace xls::dslx

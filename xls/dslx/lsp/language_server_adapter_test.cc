@@ -127,10 +127,10 @@ TEST(LanguageServerAdapterTest, TestFormatRange) {
 
   const verible::lsp::TextEdit& edit = edits.at(0);
   EXPECT_TRUE(edit.range == kInputRange);
-  EXPECT_EQ(edit.newText, R"({
-  let x = u32:42;
-  x + x
-})");
+  EXPECT_EQ(edit.newText, R"(    {
+        let x = u32:42;
+        x + x
+    })");
 }
 
 }  // namespace

@@ -29,15 +29,15 @@ namespace {
 TEST(AstClonerTest, BasicOperation) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
-  let a = u32:0;
-  let b = u32:1;
-  u32:3
+    let a = u32:0;
+    let b = u32:1;
+    u32:3
 })";
 
   constexpr std::string_view kExpected = R"({
-  let a = u32:0;
-  let b = u32:1;
-  u32:3
+    let a = u32:0;
+    let b = u32:1;
+    u32:3
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -53,13 +53,13 @@ fn main() -> u32 {
 TEST(AstClonerTest, NameRefs) {
   constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
-  let a = u32:0;
-  a
+    let a = u32:0;
+    a
 })";
 
   constexpr std::string_view kExpected = R"({
-  let a = u32:0;
-  a
+    let a = u32:0;
+    a
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -75,16 +75,16 @@ fn main() -> u32 {
 TEST(AstClonerTest, XlsTuple) {
   constexpr std::string_view kProgram = R"(
 fn main() -> (u32, u32) {
-  let a = u32:0;
-  let b = u32:1;
-  (a, b)
+    let a = u32:0;
+    let b = u32:1;
+    (a, b)
 }
 )";
 
   constexpr std::string_view kExpected = R"({
-  let a = u32:0;
-  let b = u32:1;
-  (a, b)
+    let a = u32:0;
+    let b = u32:1;
+    (a, b)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -99,9 +99,9 @@ fn main() -> (u32, u32) {
 
 TEST(AstClonerTest, BasicFunction) {
   constexpr std::string_view kProgram = R"(fn main() -> (u32, u32) {
-  let a = u32:0;
-  let b = u32:1;
-  (a, b)
+    let a = u32:0;
+    let b = u32:1;
+    (a, b)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -116,22 +116,22 @@ TEST(AstClonerTest, BasicFunction) {
 TEST(AstClonerTest, StructDefAndInstance) {
   constexpr std::string_view kProgram = R"(
 struct MyStruct {
-  a: u32,
-  b: s64
+    a: u32,
+    b: s64
 }
 
 fn main() -> MyStruct {
-  MyStruct { a: u32:0, b: s64:0xbeef }
+    MyStruct { a: u32:0, b: s64:0xbeef }
 }
 )";
 
   constexpr std::string_view kExpectedStructDef = R"(struct MyStruct {
-  a: u32,
-  b: s64,
+    a: u32,
+    b: s64,
 })";
 
   constexpr std::string_view kExpectedFunction = R"(fn main() -> MyStruct {
-  MyStruct { a: u32:0, b: s64:0xbeef }
+    MyStruct { a: u32:0, b: s64:0xbeef }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -152,14 +152,14 @@ TEST(AstClonerTest, ColonRefToImportedStruct) {
 import my.module as foo
 
 fn main() -> foo::ImportedStruct {
-  let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
-  bar.b
+    let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
+    bar.b
 })";
 
   constexpr std::string_view kExpectedFunction =
       R"(fn main() -> foo::ImportedStruct {
-  let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
-  bar.b
+    let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
+    bar.b
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -175,12 +175,12 @@ TEST(AstClonerTest, ArraysAndConstantDefs) {
   constexpr std::string_view kProgram = R"(
 const ARRAY_SIZE = uN[32]:5;
 fn main() -> u32[ARRAY_SIZE] {
-  u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
+    u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
 
   constexpr std::string_view kExpectedFunction =
       R"(fn main() -> u32[ARRAY_SIZE] {
-  u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
+    u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -194,7 +194,7 @@ fn main() -> u32[ARRAY_SIZE] {
 
 TEST(AstClonerTest, Binops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  u13:5 + u13:500
+    u13:5 + u13:500
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -208,7 +208,7 @@ TEST(AstClonerTest, Binops) {
 
 TEST(AstClonerTest, Unops) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  -u13:500
+    -u13:500
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -222,7 +222,7 @@ TEST(AstClonerTest, Unops) {
 
 TEST(AstClonerTest, Casts) {
   constexpr std::string_view kProgram = R"(fn main() -> u13 {
-  -u17:500 as u13
+    -u17:500 as u13
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -236,17 +236,17 @@ TEST(AstClonerTest, Casts) {
 
 TEST(AstClonerTest, Procs) {
   constexpr std::string_view kProgram = R"(proc MyProc {
-  a: u32;
-  b: u64;
-  config() {
-    (u32:7, u64:0xfffffffffffff)
-  }
-  init {
-    u19:0
-  }
-  next(tok: token, state: u19) {
-    (a as u64 + b) as u19
-  }
+    a: u32;
+    b: u64;
+    config() {
+        (u32:7, u64:0xfffffffffffff)
+    }
+    init {
+        u19:0
+    }
+    next(tok: token, state: u19) {
+        (a as u64 + b) as u19
+    }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -260,9 +260,9 @@ TEST(AstClonerTest, Procs) {
 TEST(AstClonerTest, TestFunctions) {
   constexpr std::string_view kProgram = R"(#[test]
 fn my_test() {
-  let a = u32:0;
-  let _ = assert_eq(u32:0, a);
-  ()
+    let a = u32:0;
+    let _ = assert_eq(u32:0, a);
+    ()
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -277,18 +277,18 @@ fn my_test() {
 TEST(AstClonerTest, TestProcs) {
   constexpr std::string_view kProgram = R"(#[test_proc]
 proc my_test_proc {
-  a: u32;
-  b: uN[127];
-  terminator: chan<bool> out;
-  config(terminator: chan<bool> out) {
-    (u32:0, uN[127]:127, terminator)
-  }
-  init {
-    u64:1
-  }
-  next(tok: token, state: u64) {
-    state + a as u64 + b as u64
-  }
+    a: u32;
+    b: uN[127];
+    terminator: chan<bool> out;
+    config(terminator: chan<bool> out) {
+        (u32:0, uN[127]:127, terminator)
+    }
+    init {
+        u64:1
+    }
+    next(tok: token, state: u64) {
+        state + a as u64 + b as u64
+    }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -302,10 +302,10 @@ proc my_test_proc {
 
 TEST(AstClonerTest, EnumDef) {
   constexpr std::string_view kProgram = R"(enum MyEnum : u32 {
-  PET = 0,
-  ALL = 1,
-  DOGS = 2,
-  FOREVER = 3,
+    PET = 0,
+    ALL = 1,
+    DOGS = 2,
+    FOREVER = 3,
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -334,7 +334,7 @@ TEST(AstClonerTest, TypeAlias) {
 TEST(AstClonerTest, QuickCheck) {
   constexpr std::string_view kProgram = R"(#[quickcheck(test_count=1000)]
 fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
-  (a + b) + c == a + (b + c)
+    (a + b) + c == a + (b + c)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -350,64 +350,64 @@ fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
 TEST(AstClonerTest, CloneModule) {
   constexpr std::string_view kProgram = R"(import my_import
 enum MyEnum : u8 {
-  DOGS = 0,
-  ARE = 1,
-  GOOD = 2,
+    DOGS = 0,
+    ARE = 1,
+    GOOD = 2,
 }
 
 fn my_function(a: u32) -> u16 {
-  a as u16
+    a as u16
 }
 
 proc my_proc {
-  a: u8;
-  b: u32;
-  init {
-    u16:0
-  }
-  config() {
-    (u8:32, u32:8)
-  }
-  next(tok: token, state: u16) {
-    let x = my_function(state as u32);
-    a as u16 + b as u16 + x
-  }
+    a: u8;
+    b: u32;
+    init {
+        u16:0
+    }
+    config() {
+        (u8:32, u32:8)
+    }
+    next(tok: token, state: u16) {
+        let x = my_function(state as u32);
+        a as u16 + b as u16 + x
+    }
 })";
 
   // Note that we're dealing with a post-parsing AST, which means that the proc
   // config and next functions will be present as top-level functions.
   constexpr std::string_view kExpected = R"(import my_import
 enum MyEnum : u8 {
-  DOGS = 0,
-  ARE = 1,
-  GOOD = 2,
+    DOGS = 0,
+    ARE = 1,
+    GOOD = 2,
 }
 fn my_function(a: u32) -> u16 {
-  a as u16
+    a as u16
 }
 fn my_proc.init() -> u16 {
-  u16:0
+    u16:0
 }
 fn my_proc.config() -> (u8, u32) {
-  (u8:32, u32:8)
+    (u8:32, u32:8)
 }
 fn my_proc.next(tok: token, state: u16) -> u16 {
-  let x = my_function(state as u32);
-  a as u16 + b as u16 + x
-}
-proc my_proc {
-  a: u8;
-  b: u32;
-  config() {
-    (u8:32, u32:8)
-  }
-  init {
-    u16:0
-  }
-  next(tok: token, state: u16) {
     let x = my_function(state as u32);
     a as u16 + b as u16 + x
-  }
+}
+proc my_proc {
+    a: u8;
+    b: u32;
+    config() {
+        (u8:32, u32:8)
+    }
+    init {
+        u16:0
+    }
+    next(tok: token, state: u16) {
+        let x = my_function(state as u32);
+        a as u16 + b as u16 + x
+    }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -420,11 +420,11 @@ proc my_proc {
 
 TEST(AstClonerTest, IndexVariants) {
   constexpr std::string_view kProgram = R"(fn main() {
-  let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
-  let index = array[2];
-  let slice = array[3][0:2];
-  let width_slice = array[3][array[0]+:u4];
-  ()
+    let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
+    let index = array[2];
+    let slice = array[3][0:2];
+    let width_slice = array[3][array[0]+:u4];
+    ()
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -437,14 +437,14 @@ TEST(AstClonerTest, IndexVariants) {
 
 TEST(AstClonerTest, SplatStructInstance) {
   constexpr std::string_view kProgram = R"(struct MyStruct {
-  a: u32,
-  b: u33,
-  c: u34,
+    a: u32,
+    b: u33,
+    c: u34,
 }
 fn main() {
-  let x: MyStruct = MyStruct { a: u32:0, b: u33:1, c: u34:0xbeef };
-  let y: MyStruct = MyStruct { a: u32:0xf00d, c: u34:0xbef0, ..x };
-  ()
+    let x: MyStruct = MyStruct { a: u32:0, b: u33:1, c: u34:0xbeef };
+    let y: MyStruct = MyStruct { a: u32:0xf00d, c: u34:0xbef0, ..x };
+    ()
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -458,7 +458,7 @@ fn main() {
 TEST(AstClonerTest, Ternary) {
   constexpr std::string_view kProgram =
       R"(fn main(a: u32, b: u32, c: u32) -> u32 {
-  if a > u32:5 { b } else { c }
+    if a > u32:5 { b } else { c }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -471,8 +471,8 @@ TEST(AstClonerTest, Ternary) {
 
 TEST(AstClonerTest, FormatMacro) {
   constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
-  let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
-  ()
+    let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
+    ()
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -487,12 +487,12 @@ TEST(AstClonerTest, Match) {
   // WildcardPattern, Number, ColonRef).
   constexpr std::string_view kProgram = R"(import foo
 fn main(x: u32, y: u32) -> u32 {
-  match (x, y) {
-    (u32:0, y) => y,
-    (u32:1, a) => a + u32:100,
-    (u32:2, _) => foo::IMPORTED_CONSTANT,
-    (_, u32:100) => u32:200,
-  }
+    match (x, y) {
+        (u32:0, y) => y,
+        (u32:1, a) => a + u32:100,
+        (u32:2, _) => foo::IMPORTED_CONSTANT,
+        (_, u32:100) => u32:200,
+    }
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -504,7 +504,7 @@ fn main(x: u32, y: u32) -> u32 {
 
 TEST(AstClonerTest, String) {
   constexpr std::string_view kProgram = R"(fn main() -> u8[13] {
-  "dogs are good"
+    "dogs are good"
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -516,9 +516,9 @@ TEST(AstClonerTest, String) {
 
 TEST(AstClonerTest, NormalFor) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
-  for (i, a): (u32, u32) in range(0, u32:100) {
-    i + a
-  }(u32:0)
+    for (i, a): (u32, u32) in range(0, u32:100) {
+        i + a
+    }(u32:0)
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -530,7 +530,7 @@ TEST(AstClonerTest, NormalFor) {
 
 TEST(AstClonerTest, TupleIndex) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
-  (u8:8, u16:16, u32:32, u64:64).2
+    (u8:8, u16:16, u32:32, u64:64).2
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -543,64 +543,64 @@ TEST(AstClonerTest, TupleIndex) {
 TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
   constexpr std::string_view kProgram = R"(import other_module
 proc MyProc {
-  input_p: chan<u32> out;
-  output_c: chan<u64> out;
-  config() {
-    let (input_p, input_c) = chan<u32>;
-    let (output_p, output_c) = chan<u64>;
-    spawn other_module::OtherProc(input_c, output_p);
-    (input_p, output_c)
-  }
-  init {
-    u32:0
-  }
-  next(tok: token, state: u32) {
-    let tok = send(tok, input_p, state);
-    let tok = send_if(tok, input_p, state > u32:32, state);
-    let (tok1, state) = recv(tok, output_c);
-    let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
-    let tok = join(tok1, tok2);
-    state + foo
-  }
+    input_p: chan<u32> out;
+    output_c: chan<u64> out;
+    config() {
+        let (input_p, input_c) = chan<u32>;
+        let (output_p, output_c) = chan<u64>;
+        spawn other_module::OtherProc(input_c, output_p);
+        (input_p, output_c)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, state: u32) {
+        let tok = send(tok, input_p, state);
+        let tok = send_if(tok, input_p, state > u32:32, state);
+        let (tok1, state) = recv(tok, output_c);
+        let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
+        let tok = join(tok1, tok2);
+        state + foo
+    }
 })";
   constexpr std::string_view kExpected = R"(import other_module
 fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
-  let (input_p, input_c) = chan<u32>;
-  let (output_p, output_c) = chan<u64>;
-  spawn other_module::OtherProc(input_c, output_p);
-  (input_p, output_c)
-}
-fn MyProc.init() -> u32 {
-  u32:0
-}
-fn MyProc.next(tok: token, state: u32) -> u32 {
-  let tok = send(tok, input_p, state);
-  let tok = send_if(tok, input_p, state > u32:32, state);
-  let (tok1, state) = recv(tok, output_c);
-  let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
-  let tok = join(tok1, tok2);
-  state + foo
-}
-proc MyProc {
-  input_p: chan<u32> out;
-  output_c: chan<u64> out;
-  config() {
     let (input_p, input_c) = chan<u32>;
     let (output_p, output_c) = chan<u64>;
     spawn other_module::OtherProc(input_c, output_p);
     (input_p, output_c)
-  }
-  init {
+}
+fn MyProc.init() -> u32 {
     u32:0
-  }
-  next(tok: token, state: u32) {
+}
+fn MyProc.next(tok: token, state: u32) -> u32 {
     let tok = send(tok, input_p, state);
     let tok = send_if(tok, input_p, state > u32:32, state);
     let (tok1, state) = recv(tok, output_c);
     let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
     let tok = join(tok1, tok2);
     state + foo
-  }
+}
+proc MyProc {
+    input_p: chan<u32> out;
+    output_c: chan<u64> out;
+    config() {
+        let (input_p, input_c) = chan<u32>;
+        let (output_p, output_c) = chan<u64>;
+        spawn other_module::OtherProc(input_c, output_p);
+        (input_p, output_c)
+    }
+    init {
+        u32:0
+    }
+    next(tok: token, state: u32) {
+        let tok = send(tok, input_p, state);
+        let tok = send_if(tok, input_p, state > u32:32, state);
+        let (tok1, state) = recv(tok, output_c);
+        let (tok2, foo) = recv_if(tok, output_c, state > u32:32, u64:0);
+        let tok = join(tok1, tok2);
+        state + foo
+    }
 })";
 
   absl::StatusOr<std::unique_ptr<Module>> module_or =
