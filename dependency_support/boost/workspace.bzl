@@ -21,9 +21,9 @@ def repo():
     maybe(
         http_archive,
         name = "com_github_nelhage_rules_boost",
-        url = "https://github.com/nelhage/rules_boost/archive/1e3a69bf2d5cd10c34b74f066054cd335d033d71.tar.gz",
-        strip_prefix = "rules_boost-1e3a69bf2d5cd10c34b74f066054cd335d033d71",
-        sha256 = "b3cbdceaa95b8cfe3a69ff37f8ad0e53a77937433234f6b9a6add2eff5bde333",
+        url = "https://github.com/nelhage/rules_boost/archive/1217caae292dc9f14e8109777ba43c988cf89c5b.tar.gz",
+        strip_prefix = "rules_boost-1217caae292dc9f14e8109777ba43c988cf89c5b",
+        sha256 = "b3280ba677fb53c08dfe9fc3d77504c53efd31288c3b8445711c2e7b82281315",
         patches = [
             # rules_boost does not include Boost Python, see
             # https://github.com/nelhage/rules_boost/issues/67

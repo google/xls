@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-diff --git BUILD.boost BUILD.boost
-index e6b28cf..99470c5 100644
---- BUILD.boost
-+++ BUILD.boost
-@@ -2268,3 +2268,41 @@ boost_library(
-         ":utility",
+diff --git boost.BUILD boost.BUILD
+index e5d0b60..4f52d3c 100644
+--- boost.BUILD
++++ boost.BUILD
+@@ -2642,3 +2642,41 @@ boost_library(
+         ":variant2",
      ],
  )
 +
