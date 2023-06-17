@@ -150,6 +150,7 @@ cc_library(
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir:bits_ops",
     ],

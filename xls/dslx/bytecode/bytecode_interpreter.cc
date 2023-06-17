@@ -30,10 +30,10 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/optional.h"
 #include "absl/types/span.h"
@@ -44,6 +44,7 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -1436,6 +1437,21 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
     return absl::StrFormat("%s {\n%s\n%s}",
                            struct_type->nominal_type().identifier(),
                            absl::StrJoin(members, "\n"), indent_str);
+  }
+  if (const auto* enum_type = dynamic_cast<const EnumType*>(type);
+      enum_type != nullptr) {
+    const EnumDef& enum_def = enum_type->nominal_type();
+    int member_index = 0;
+    for (const InterpValue& member : enum_type->members()) {
+      if (member == value) {
+        return absl::StrFormat("%s::%s (%s)", enum_def.identifier(),
+            enum_def.GetMemberName(member_index), member.ToString());
+      }
+      ++member_index;
+    }
+    XLS_RET_CHECK_FAIL()
+        << "Unexpected value " << value.ToString() << " as enum "
+        << enum_def.identifier();
   }
   return value.ToString();
 }

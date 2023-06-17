@@ -1535,6 +1535,25 @@ fn doomed() {
   })"))));
 }
 
+TEST(BytecodeInterpreterTest, PrettyPrintsEnums) {
+  constexpr std::string_view kProgram = R"(
+enum Flowers {
+    ROSES = u24:0xFF007F,
+    VIOLETS = u24:0xEE82EE,
+}
+
+fn doomed() {
+    let a = Flowers::ROSES;
+    let b = Flowers::VIOLETS;
+    assert_eq(a, b)
+})";
+  absl::StatusOr<InterpValue> value = Interpret(kProgram, "doomed");
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+      AllOf(
+          HasSubstr("Flowers::ROSES (u24:16711807"),
+          HasSubstr("Flowers::VIOLETS (u24:15631086"))));
+}
+
 TEST(BytecodeInterpreterTest, TraceChannels) {
   constexpr std::string_view kProgram = R"(
 proc incrementer {
