@@ -54,7 +54,6 @@ cc_library(
     deps = [
         ":bit_push_buffer",
         ":format_preference",
-        "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/data_structures:inline_bitmap",
@@ -314,7 +313,6 @@ cc_library(
         "verifier.h",
     ],
     deps = [
-        ":bits",
         ":caret",
         ":channel",
         ":channel_cc_proto",
@@ -334,11 +332,9 @@ cc_library(
         "//xls/common:casts",
         "//xls/common:iterator_range",
         "//xls/common:math_util",
-        "//xls/common:strong_int",
         "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/algorithm:container",
@@ -1308,7 +1304,6 @@ cc_library(
     hdrs = ["value_conversion_utils.h"],
     deps = [
         ":bits",
-        ":ir",
         ":type",
         ":value",
         ":value_helpers",
