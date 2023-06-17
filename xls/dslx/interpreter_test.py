@@ -53,7 +53,7 @@ class InterpreterTest(test_base.TestCase):
     return p.stderr
 
   def test_two_plus_two_fail_module_test(self):
-    """Tests that we fail an assertion and flag where the failure is."""
+    """Tests that we flag assertion failure locations with no highlighting."""
     program = textwrap.dedent("""\
     #[test]
     fn two_plus_two_is_four_test() {
@@ -65,6 +65,16 @@ class InterpreterTest(test_base.TestCase):
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(':6:12-6:25', stderr)
+    self.assertIn(textwrap.dedent("""\
+    0004:   let y: u32 = x + x;
+    0005:   let expected: u32 = u32:5;
+    0006:   assert_eq(y, expected)
+    ~~~~~~~~~~~~~~~~~^-----------^ FailureError: The program being interpreted failed!
+      lhs: u32:4
+      rhs: u32:5
+      were not equal
+    0007: }
+    """), stderr)
 
   def test_conflicting_parametric_bindings(self):
     """Tests a conflict in a deduced parametric value.
@@ -348,9 +358,13 @@ class InterpreterTest(test_base.TestCase):
     }
     """)
     stderr = self._parse_and_test(program, want_error=True)
-    self.assertIn(
-        'uN[2][2] vs uN[3]: Cannot cast from expression type uN[2][2] to uN[3].',
-        stderr)
+    self.assertIn(textwrap.dedent("""\
+    0002: fn cast_array_to_wrong_bit_count_test() {
+    0003:   let x = u2[2]:[2, 3];
+    0004:   assert_eq(u3:0, x as u3)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^-----^ XlsTypeError: uN[2][2] vs uN[3]: Cannot cast from expression type uN[2][2] to uN[3].
+    0005: }
+    """), stderr)
 
   def test_cast_enum_oob_causes_fail(self):
     """Tests casting an out-of-bound value to enum causes a runtime failure."""

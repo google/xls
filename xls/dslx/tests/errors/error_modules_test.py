@@ -288,7 +288,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_scan_error_pretty_printed(self):
     stderr = self._run('xls/dslx/tests/errors/no_radix.x')
     self.assertIn(
-        '^^ ScanError: Invalid radix for number, expect 0b or 0x because of leading 0.',
+        '^ ScanError: Invalid radix for number, ' +
+        'expect 0b or 0x because of leading 0.',
         stderr)
 
   def test_negative_shift_amount_shl(self):

@@ -29,8 +29,9 @@ absl::Status ArgCountMismatchErrorStatus(const Span& span,
 
 absl::Status FailureErrorStatus(const Span& span, std::string_view message) {
   return absl::InternalError(absl::StrFormat(
-      "FailureError: %s The program being interpreted failed! %s",
-      span.ToString(), message));
+      "FailureError: %s The program being interpreted failed!%s%s",
+      span.ToString(),
+      message.empty() || message[0] == '\n' ? "" : " ", message));
 }
 
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
