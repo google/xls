@@ -33,6 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
@@ -49,9 +50,12 @@ using std::vector;
 namespace xlscc {
 
 absl::Status Translator::GenerateExternalChannels(
-    const std::list<ExternalChannelInfo>& top_decls,
+    std::list<ExternalChannelInfo>& top_decls,
+    absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>*
+        top_channel_injections,
     const xls::SourceInfo& loc) {
-  for (const ExternalChannelInfo& top_decl : top_decls) {
+  XLS_CHECK_NE(top_channel_injections, nullptr);
+  for (ExternalChannelInfo& top_decl : top_decls) {
     const clang::NamedDecl* decl = top_decl.decl;
     std::shared_ptr<CChannelType> channel_type = top_decl.channel_type;
     XLS_CHECK_NE(channel_type, nullptr);
@@ -143,8 +147,10 @@ absl::Status Translator::GenerateExternalChannels(
           ErrorMessage(GetLoc(*decl), "Unknown interface type for channel %s",
                        decl->getNameAsString()));
     }
-    XLS_CHECK(!external_channels_by_decl_.contains(decl));
-    external_channels_by_decl_[decl] = new_channel;
+    top_decl.external_channels = new_channel;
+    if (top_decl.interface_type != InterfaceType::kDirect) {
+      (*top_channel_injections)[decl] = new_channel;
+    }
     unused_external_channels_.push_back(new_channel);
   }
   return absl::OkStatus();
@@ -250,9 +256,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     xls::Package* package, const HLSBlock& block,
     const std::shared_ptr<CType>& this_type,
     const clang::CXXRecordDecl* this_decl,
-    const std::list<ExternalChannelInfo>& top_decls,
-    const xls::SourceInfo& body_loc, int top_level_init_interval,
-    bool force_static, bool member_references_become_channels) {
+    std::list<ExternalChannelInfo>& top_decls, const xls::SourceInfo& body_loc,
+    int top_level_init_interval, bool force_static,
+    bool member_references_become_channels) {
   XLS_CHECK_NE(package_, nullptr);
 
   // Create external channels
@@ -260,16 +266,21 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
       CheckInitIntervalValidity(top_level_init_interval, body_loc));
 
   XLS_RETURN_IF_ERROR(GenerateIRBlockCheck(block, top_decls, body_loc));
-  XLS_RETURN_IF_ERROR(GenerateExternalChannels(top_decls, body_loc));
+  absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
+      top_channel_injections;
+  XLS_RETURN_IF_ERROR(
+      GenerateExternalChannels(top_decls, &top_channel_injections, body_loc));
 
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
   PreparedBlock prepared;
 
-  XLS_ASSIGN_OR_RETURN(prepared.xls_func, GenerateIR_Top_Function(
-                                              package, force_static,
-                                              member_references_become_channels,
-                                              top_level_init_interval));
+  XLS_ASSIGN_OR_RETURN(
+      prepared.xls_func,
+      GenerateIR_Top_Function(package,
+                              /*top_channel_injections=*/top_channel_injections,
+                              force_static, member_references_become_channels,
+                              top_level_init_interval));
 
   xls::ProcBuilder pb(block.name() + "_proc", /*token_name=*/"tkn", package);
 
@@ -844,7 +855,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    const ChannelBundle& bundle = external_channels_by_decl_.at(top_decl.decl);
+    const ChannelBundle& bundle = top_decl.external_channels;
     xls::Channel* xls_channel = bundle.regular;
     unused_external_channels_.remove(bundle);
 
@@ -872,11 +883,13 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    const clang::NamedDecl* decl =
-        prepared.xls_func->decls_by_io_channel.at(op.channel);
-
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      const ChannelBundle bundle = external_channels_by_decl_.at(decl);
+      XLSCC_CHECK_EQ(
+          external_channels_by_internal_channel_.contains(op.channel) &&
+              external_channels_by_internal_channel_.count(op.channel),
+          1, body_loc);
+      const ChannelBundle bundle =
+          external_channels_by_internal_channel_.find(op.channel)->second;
       prepared.xls_channel_by_function_channel[op.channel] = bundle;
     }
   }

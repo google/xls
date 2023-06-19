@@ -12,15 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 
 using std::shared_ptr;
@@ -302,7 +310,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   // Pack context tuple
-
   std::shared_ptr<CStructType> context_cvars_struct_ctype;
   std::shared_ptr<CInternalTuple> context_lval_conds_ctype;
 
@@ -428,12 +435,17 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       lvalues_out;
   bool uses_on_reset = false;
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
-      cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
-      context_out_channel, context_in_channel, context_struct_xls_type,
-      context_lval_xls_type, context_cvars_struct_ctype,
-      context_lval_conds_ctype, &lvalues_out, variable_field_indices,
-      variable_fields_order, vars_changed_in_body, &uses_on_reset, loc));
+  XLS_ASSIGN_OR_RETURN(
+      PipelinedLoopSubProc sub_proc,
+      GenerateIR_PipelinedLoopBody(
+          cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
+          context_out_channel, context_in_channel, context_struct_xls_type,
+          context_lval_xls_type, context_cvars_struct_ctype,
+          context_lval_conds_ctype, &lvalues_out, variable_field_indices,
+          variable_fields_order, vars_changed_in_body, &uses_on_reset, loc));
+
+  // Record sub-proc for generation later
+  context().sf->sub_procs.push_back(std::move(sub_proc));
 
   XLS_CHECK_EQ(vars_changed_in_body.size(), lvalues_out.size());
 
@@ -498,7 +510,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_PipelinedLoopBody(
+absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     const clang::Expr* cond_expr, const clang::Stmt* inc,
     const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
     std::string_view name_prefix, IOChannel* context_out_channel,
@@ -517,15 +529,15 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       context_cvars_struct_ctype->fields().size();
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
 
+  GeneratedFunction& enclosing_func = *context().sf;
+
   // Generate body function
-  GeneratedFunction generated_func;
+  auto generated_func = std::make_unique<GeneratedFunction>();
   XLS_CHECK_NE(context().sf, nullptr);
   XLS_CHECK_NE(context().sf->clang_decl, nullptr);
-  generated_func.clang_decl = context().sf->clang_decl;
+  generated_func->clang_decl = context().sf->clang_decl;
   uint64_t extra_return_count = 0;
   {
-    GeneratedFunction& enclosing_func = *context().sf;
-
     // Set up IR generation
     xls::FunctionBuilder body_builder(absl::StrFormat("%s_func", name_prefix),
                                       package_);
@@ -547,7 +559,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     context().propagate_up = false;
 
     context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
-    context().sf = &generated_func;
+    context().sf = generated_func.get();
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
 
@@ -559,19 +571,35 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       if (enclosing_channel.generated != nullptr) {
         continue;
       }
-      // TODO(seanhaskell): Merge with AddChannel
-      generated_func.io_channels.push_back(enclosing_channel);
-      IOChannel* inner_channel = &generated_func.io_channels.back();
+      generated_func->io_channels.push_back(enclosing_channel);
+      IOChannel* inner_channel = &generated_func->io_channels.back();
       inner_channel->total_ops = 0;
-
-      const clang::NamedDecl* decl =
-          enclosing_func.decls_by_io_channel.at(&enclosing_channel);
-
-      generated_func.io_channels_by_decl[decl] = inner_channel;
-      generated_func.decls_by_io_channel[inner_channel] = decl;
 
       inner_channels_by_outer_channel[&enclosing_channel] = inner_channel;
       outer_channels_by_inner_channel[inner_channel] = &enclosing_channel;
+
+      XLSCC_CHECK(
+          external_channels_by_internal_channel_.contains(&enclosing_channel),
+          loc);
+
+      if (external_channels_by_internal_channel_.count(&enclosing_channel) >
+          1) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc,
+                         "IO ops in pipelined loops in subroutines called "
+                         "with multiple different channel arguments"));
+      }
+
+      const ChannelBundle enclosing_bundle =
+          external_channels_by_internal_channel_.find(&enclosing_channel)
+              ->second;
+
+      // Don't use = .at(), avoid compiler bug
+      std::pair<const IOChannel*, ChannelBundle> pair(inner_channel,
+                                                      enclosing_bundle);
+      if (!ContainsKeyValuePair(external_channels_by_internal_channel_, pair)) {
+        external_channels_by_internal_channel_.insert(pair);
+      }
     }
 
     // Declare __xlscc_on_reset
@@ -596,7 +624,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       }
 
       std::shared_ptr<LValue> inner_lval;
-
       XLS_ASSIGN_OR_RETURN(
           inner_lval,
           TranslateLValueChannels(outer_value.lvalue(),
@@ -683,20 +710,20 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
     // First static returns
     for (const clang::NamedDecl* decl :
-         generated_func.GetDeterministicallyOrderedStaticValues()) {
+         generated_func->GetDeterministicallyOrderedStaticValues()) {
       XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
       return_bvals.push_back(value.rvalue());
     }
 
     // IO returns
-    for (IOOp& op : generated_func.io_ops) {
+    for (IOOp& op : generated_func->io_ops) {
       XLS_CHECK(op.ret_value.valid());
       return_bvals.push_back(op.ret_value);
     }
 
     xls::BValue ret_val = MakeFlexTuple(return_bvals, loc);
-    generated_func.return_value_count = return_bvals.size();
-    XLS_ASSIGN_OR_RETURN(generated_func.xls_func,
+    generated_func->return_value_count = return_bvals.size();
+    XLS_ASSIGN_OR_RETURN(generated_func->xls_func,
                          body_builder.BuildWithReturnValue(ret_val));
 
     // Analyze context variables changed
@@ -720,6 +747,55 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     vars_to_save_between_iters = variable_fields_order;
   }
 
+  XLSCC_CHECK_NE(uses_on_reset, nullptr, loc);
+  if (generated_func->uses_on_reset) {
+    *uses_on_reset = true;
+  }
+
+  PipelinedLoopSubProc pipelined_loop_proc = {
+      .name_prefix = name_prefix.data(),
+      .context_out_channel = context_out_channel,
+      .context_in_channel = context_in_channel,
+      .context_cvars_struct_ctype = context_cvars_struct_ctype,
+      .context_lval_conds_ctype = context_lval_conds_ctype,
+      .loc = loc,
+
+      .vars_to_save_between_iters = vars_to_save_between_iters,
+      .enclosing_func = context().sf,
+      .outer_variables = context().variables,
+      .variable_field_indices = variable_field_indices,
+      .total_context_values = total_context_values,
+      .extra_return_count = extra_return_count,
+      .generated_func = std::move(generated_func)};
+
+  // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
+  // with multiple different sets of IO ops
+  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(pipelined_loop_proc));
+
+  return pipelined_loop_proc;
+}
+
+absl::Status Translator::GenerateIR_PipelinedLoopProc(
+    const PipelinedLoopSubProc& pipelined_loop_proc) {
+  const std::string& name_prefix = pipelined_loop_proc.name_prefix;
+  IOChannel* context_out_channel = pipelined_loop_proc.context_out_channel;
+  IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
+  const std::shared_ptr<CStructType>& context_cvars_struct_ctype =
+      pipelined_loop_proc.context_cvars_struct_ctype;
+  const std::shared_ptr<CInternalTuple>& context_lval_conds_ctype =
+      pipelined_loop_proc.context_lval_conds_ctype;
+  const xls::SourceInfo& loc = pipelined_loop_proc.loc;
+
+  const std::vector<const clang::NamedDecl*>& vars_to_save_between_iters =
+      pipelined_loop_proc.vars_to_save_between_iters;
+  const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
+      variable_field_indices = pipelined_loop_proc.variable_field_indices;
+
+  const uint64_t total_context_values =
+      pipelined_loop_proc.total_context_values;
+  const uint64_t extra_return_count = pipelined_loop_proc.extra_return_count;
+  const GeneratedFunction& generated_func = *pipelined_loop_proc.generated_func;
+
   // Generate body proc
   xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
                       /*token_name=*/"tkn", package_);
@@ -740,7 +816,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     if (!variable_field_indices.contains(decl)) {
       continue;
     }
-    const CValue& prev_value = context().variables.at(decl);
+    const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
     XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
                                              prev_value.type(), GetLoc(*decl)));
     pb.StateElement(decl->getNameAsString(), def);
@@ -774,10 +850,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   // Deal with on_reset
   xls::BValue on_reset_bval;
 
-  XLSCC_CHECK_NE(uses_on_reset, nullptr, loc);
   if (generated_func.uses_on_reset) {
-    *uses_on_reset = true;
-
     // received_on_reset is only valid in the first iteration, but that's okay
     // as & first_iter_state_in will always be 0 in subsequent iterations.
     on_reset_bval = pb.And(first_iter_state_in, received_on_reset, loc);
@@ -819,9 +892,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     if (op.channel->generated != nullptr) {
       continue;
     }
-    const clang::NamedDecl* param =
-        generated_func.decls_by_io_channel.at(op.channel);
-    XLS_CHECK(io_test_mode_ || external_channels_by_decl_.contains(param));
+    XLS_CHECK(io_test_mode_ ||
+              external_channels_by_internal_channel_.contains(op.channel));
   }
 
   // Invoke loop over IOs

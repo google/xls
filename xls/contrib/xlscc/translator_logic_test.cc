@@ -20,6 +20,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
@@ -4792,7 +4793,7 @@ TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForDouble) {
       double x = 5.5;
       return (int)(x * 3);
     })";
-    ASSERT_THAT(
+  ASSERT_THAT(
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
@@ -4805,7 +4806,7 @@ TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForFloat) {
       float x = 5.5f;
       return (int)(x * 3);
     })";
-    ASSERT_THAT(
+  ASSERT_THAT(
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
@@ -4818,14 +4819,13 @@ TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kNotFound,
-          testing::HasSubstr("No top function found")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kNotFound,
+                  testing::HasSubstr("No top function found")));
   ASSERT_EQ(this->log_entries_.size(), 1);
   ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
-            "#pragma 'top' requires 'hls_' prefix"));
+                                "#pragma 'top' requires 'hls_' prefix"));
 }
 
 TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
@@ -4834,14 +4834,13 @@ TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIsUppercase) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kNotFound,
-          testing::HasSubstr("No top function found")));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kNotFound,
+                  testing::HasSubstr("No top function found")));
   ASSERT_EQ(this->log_entries_.size(), 1);
   ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
-            "#pragma must be lowercase:"));
+                                "#pragma must be lowercase:"));
 }
 
 TEST_F(TranslatorLogicTest, PragmaAllowsCommentsBetween) {
@@ -4918,10 +4917,8 @@ TEST_F(TranslatorLogicTest, UnknownPragmasIgnored) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kOk));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kOk));
   ASSERT_EQ(this->log_entries_.size(), 1);
   ASSERT_TRUE(absl::StrContains(this->log_entries_[0].text_message,
                                 "#pragma 'top' requires 'hls_' prefix"));
@@ -4937,10 +4934,8 @@ TEST_F(TranslatorLogicTest, OnlyUnknownPragmasGiveNoWarnings) {
   int st() {
     return 1;
   })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kOk));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kOk));
   ASSERT_EQ(this->log_entries_.size(), 0);
 }
 
@@ -4952,11 +4947,58 @@ TEST_F(TranslatorLogicTest, OnlyValidPragmasGiveNoWarnings) {
     int x[4] = {1,2};
     return x[1];
   })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kOk));
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kOk));
   ASSERT_EQ(this->log_entries_.size(), 0);
+}
+
+TEST_F(TranslatorLogicTest, MultipleCallsInTree) {
+  const std::string content = R"(
+    int xls_int(int x) {
+      return x;
+    }
+
+    int xls_adjust(int x) {
+      return xls_int(x);
+    }
+
+    int my_package(int a) {
+      return xls_int(xls_adjust(a));
+    })";
+  Run({{"a", 100}}, 100, content);
+}
+
+TEST_F(TranslatorLogicTest, Recursion) {
+  const std::string content = R"(
+      int do_something(int a) {
+        if(a > 100) {
+          return do_something(a / 2);
+        }
+        return a;
+      }
+      int my_package(int a) {
+        return do_something(a);
+      })";
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("ecursion")));
+}
+
+TEST_F(TranslatorLogicTest, TopRecursion) {
+  const std::string content = R"(
+      int my_package(int a) {
+        if(a > 100) {
+          return my_package(a / 2);
+        }
+        return a;
+      })";
+  auto ret = SourceToIr(content);
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("ecursion")));
 }
 
 }  // namespace

@@ -20,10 +20,12 @@
 #include <fstream>
 #include <streambuf>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
@@ -193,7 +195,11 @@ absl::Status Run(std::string_view cpp_path) {
   std::cerr << "Generating IR..." << std::endl;
   xls::Package package(package_name);
   if (block_pb_name.empty()) {
-    XLS_RETURN_IF_ERROR(translator.GenerateIR_Top_Function(&package).status());
+    absl::flat_hash_map<const clang::NamedDecl*, ChannelBundle>
+        top_channel_injections = {};
+    XLS_RETURN_IF_ERROR(
+        translator.GenerateIR_Top_Function(&package, top_channel_injections)
+            .status());
     // TODO(seanhaskell): Simplify IR
     XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
     translator.AddSourceInfoToPackage(package);

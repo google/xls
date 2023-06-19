@@ -19,6 +19,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "google/protobuf/message.h"
@@ -307,8 +308,8 @@ TEST_F(TranslatorIOTest, TernaryReadConditional2) {
 TEST_F(TranslatorIOTest, Subroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
-       int sub_recv(__xls_channel<int>& in, int &v) {
-         return in.read() - v;
+       int sub_recv(__xls_channel<int>& in_sub, int &v) {
+         return in_sub.read() - v;
        }
        void sub_send(int v, __xls_channel<int>& out) {
          out.write(v);
@@ -1367,10 +1368,73 @@ TEST_F(TranslatorIOTest, TernaryChannelRefParam) {
           out.write(3*do_read(ch_r));
        })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
+  xlscc::GeneratedFunction* func;
+  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
+                         /* io_test_mode= */ true)
+                  .status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("hannel select passed as parameter")));
+}
+
+TEST_F(TranslatorIOTest, ChannelRefInStructSubroutineRef) {
+  const std::string content = R"(
+       class SenderThing {
+       public:
+        SenderThing(__xls_channel<int>& ch, int out_init = 3)
+          : ch(ch), out(out_init)
+        {}
+       
+        void send(int offset) {
+          ch.write(offset + out);
+        }
+       private:
+        __xls_channel<int>& ch;
+        int out;
+       };
+       
+       void SubSend(SenderThing& sender, int val) {
+        sender.send(val);
+       }
+
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+          SenderThing sender(out);
+          const int val = in.read();
+          SubSend(sender, val);
+       })";
+
+  xlscc::GeneratedFunction* func;
+  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
+                         /* io_test_mode= */ true)
+                  .status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("arameters containing LValues")));
+}
+
+TEST_F(TranslatorIOTest, TopParameterStructWithChannel) {
+  const std::string content = R"(
+      struct Block {
+        int x;
+        __xls_channel<int> ch;
+        int y;
+      }; 
+      #include "/xls_builtin.h"
+      #pragma hls_top
+      void my_package(Block in,
+                       __xls_channel<int>& out) {
+        out.write(3*in.ch.read());
+      })";
+
+  xlscc::GeneratedFunction* func;
+  ASSERT_THAT(SourceToIr(content, &func, /* clang_argv= */ {},
+                         /* io_test_mode= */ true)
+                  .status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("lvalues in nested structs")));
 }
 
 }  // namespace

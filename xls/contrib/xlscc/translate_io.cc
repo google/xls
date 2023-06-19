@@ -12,18 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/source_location.h"
 
 namespace xlscc {
 
@@ -54,6 +60,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   XLS_CHECK_NE(channel, nullptr);
   XLS_CHECK_EQ(op.channel, nullptr);
   op.channel_op_index = channel->total_ops++;
+
   op.channel = channel;
   op.op_location = loc;
 
@@ -204,25 +211,6 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
                        TranslateTypeFromClang(arg.getAsType(), loc));
 
   return std::make_shared<CChannelType>(item_type, memory_size, op_type);
-}
-
-absl::Status Translator::CreateChannelParam(
-    const clang::NamedDecl* channel_name,
-    const std::shared_ptr<CChannelType>& channel_type,
-    const xls::SourceInfo& loc) {
-  IOChannel new_channel;
-
-  new_channel.item_type = channel_type->GetItemType();
-  new_channel.unique_name = channel_name->getNameAsString();
-  new_channel.memory_size = channel_type->GetMemorySize();
-
-  auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
-  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
-              /*disable_type_check=*/true, lvalue);
-
-  XLS_RETURN_IF_ERROR(DeclareVariable(channel_name, cval, loc));
-
-  return absl::OkStatus();
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
@@ -500,12 +488,41 @@ IOChannel* Translator::AddChannel(const clang::NamedDecl* decl,
   context().sf->io_channels.push_back(new_channel);
   IOChannel* ret = &context().sf->io_channels.back();
 
-  if (decl != nullptr) {
-    context().sf->io_channels_by_decl[decl] = ret;
-    context().sf->decls_by_io_channel[ret] = decl;
+  return ret;
+}
+
+absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
+    const clang::NamedDecl* channel_name,
+    const std::shared_ptr<CChannelType>& channel_type, bool declare_variable,
+    const xls::SourceInfo& loc) {
+  XLSCC_CHECK_NE(channel_name, nullptr, loc);
+  IOChannel new_channel;
+
+  new_channel.item_type = channel_type->GetItemType();
+  new_channel.unique_name = channel_name->getNameAsString();
+  new_channel.memory_size = channel_type->GetMemorySize();
+
+  auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
+
+  if (!new_channel.generated) {
+    XLS_CHECK_NE(channel_name, nullptr);
+    XLS_CHECK(!context().sf->lvalues_by_param.contains(channel_name));
+
+    if (channel_name != nullptr) {
+      context().sf->lvalues_by_param[channel_name] = lvalue;
+    }
   }
 
-  return ret;
+  if (!declare_variable) {
+    return lvalue;
+  }
+
+  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
+              /*disable_type_check=*/true, lvalue);
+
+  XLS_RETURN_IF_ERROR(DeclareVariable(channel_name, cval, loc));
+
+  return lvalue;
 }
 
 absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(

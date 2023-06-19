@@ -14,7 +14,9 @@
 
 #include "xls/contrib/xlscc/unit_test.h"
 
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -33,6 +35,7 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value_helpers.h"
 
@@ -271,16 +274,19 @@ absl::Status XlsccTestBase::ScanFile(
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     std::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    const std::vector<std::string_view>& clang_argv, bool io_test_mode,
     int64_t max_unroll_iters) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return SourceToIr(temp, pfunc, clang_argv, io_test_mode, max_unroll_iters);
+  XLS_ASSIGN_OR_RETURN(
+      std::string ir,
+      SourceToIr(temp, pfunc, clang_argv, io_test_mode, max_unroll_iters));
+  return ir;
 }
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     xls::TempFile& temp, xlscc::GeneratedFunction** pfunc,
-    std::vector<std::string_view> clang_argv, bool io_test_mode,
+    const std::vector<std::string_view>& clang_argv, bool io_test_mode,
     int64_t max_unroll_iters) {
   std::list<std::string> ir_texts;
   std::string ret_text;
@@ -292,8 +298,11 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
                                  /*loc=*/xls::SourceLocation(),
                                  /*fail_xlscc_check=*/false, max_unroll_iters));
     package_.reset(new xls::Package("my_package"));
+    absl::flat_hash_map<const clang::NamedDecl*, xlscc::ChannelBundle>
+        top_channel_injections = {};
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
-                         translator_->GenerateIR_Top_Function(package_.get()));
+                         translator_->GenerateIR_Top_Function(
+                             package_.get(), top_channel_injections));
     XLS_RETURN_IF_ERROR(package_->SetTopByName(func->xls_func->name()));
     if (pfunc != nullptr) {
       *pfunc = func;
@@ -438,17 +447,18 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
     std::string_view name_cont) {
   XLS_CHECK_NE(nullptr, package_.get());
   uint64_t ret = 0;
-  bool already_found = false;
+  xls::Proc* already_found = nullptr;
   for (std::unique_ptr<xls::Proc>& proc : package_->procs()) {
     if (absl::StrContains(proc->name(), name_cont)) {
-      if (already_found) {
+      if (already_found != nullptr) {
         return absl::NotFoundError(absl::StrFormat(
-            "Proc with name containing %s already found", name_cont));
+            "Proc with name containing %s already found, %s vs %s", name_cont,
+            already_found->name(), proc->name()));
       }
       for (xls::Param* state_param : proc->StateParams()) {
         ret += state_param->GetType()->GetFlatBitCount();
       }
-      already_found = true;
+      already_found = proc.get();
     }
   }
   return ret;

@@ -1092,7 +1092,7 @@ TEST_F(TranslatorStaticTest, StaticChannelRefInStructAssign) {
                   .status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("ompound lvalue not present")));
+                  testing::HasSubstr("parameters containing LValues")));
 }
 
 TEST_F(TranslatorStaticTest, StaticChannelRefInStructWithOnReset) {

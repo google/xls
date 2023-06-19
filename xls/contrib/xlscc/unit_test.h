@@ -113,13 +113,13 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false,
-      int64_t max_unroll_iters = 0);
+      const std::vector<std::string_view>& clang_argv = {},
+      bool io_test_mode = false, int64_t max_unroll_iters = 0);
 
   absl::StatusOr<std::string> SourceToIr(
       std::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false,
-      int64_t max_unroll_iters = 0);
+      const std::vector<std::string_view>& clang_argv = {},
+      bool io_test_mode = false, int64_t max_unroll_iters = 0);
 
   struct IOOpTest {
     IOOpTest(std::string name, int value, bool condition)
@@ -161,7 +161,7 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
   xlscc::HLSBlock block_spec_;
 
  protected:
-    std::vector<CapturedLogEntry> log_entries_;
+  std::vector<CapturedLogEntry> log_entries_;
 };
 
 #endif  // XLS_CONTRIB_XLSCC_UNIT_TEST_H_
