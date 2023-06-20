@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "absl/flags/parse.h"
+#include "absl/flags/usage.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/logging.h"
 
@@ -25,6 +26,8 @@ namespace xls {
 
 std::vector<std::string_view> InitXls(std::string_view usage, int argc,
                                        char* argv[]) {
+  // Comply with xls/common/init_xls.h:32
+  absl::SetProgramUsageMessage(usage);
   // Copy the argv array to ensure this method doesn't clobber argv.
   std::vector<char*> arguments(argv, argv + argc);
   std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
