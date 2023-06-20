@@ -118,7 +118,9 @@ absl::Status CBitsType::GetMetadataValue(Translator& translator,
 bool CBitsType::StoredAsXLSBits() const { return true; }
 
 bool CBitsType::operator==(const CType& o) const {
-  if (!o.Is<CBitsType>()) return false;
+  if (!o.Is<CBitsType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CBitsType>();
   return width_ == o_derived->width_;
 }
@@ -135,9 +137,13 @@ xls::Type* CIntType::GetXLSType(xls::Package* package) const {
 }
 
 bool CIntType::operator==(const CType& o) const {
-  if (!o.Is<CIntType>()) return false;
+  if (!o.Is<CIntType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CIntType>();
-  if (width_ != o_derived->width_) return false;
+  if (width_ != o_derived->width_) {
+    return false;
+  }
   return is_signed_ == o_derived->is_signed_;
 }
 
@@ -469,7 +475,9 @@ int CInstantiableTypeAlias::GetBitWidth() const {
 }
 
 bool CInstantiableTypeAlias::operator==(const CType& o) const {
-  if (!o.Is<CInstantiableTypeAlias>()) return false;
+  if (!o.Is<CInstantiableTypeAlias>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CInstantiableTypeAlias>();
   return base_ == o_derived->base_;
 }
@@ -716,7 +724,9 @@ CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
 }
 
 bool CArrayType::operator==(const CType& o) const {
-  if (!o.Is<CArrayType>()) return false;
+  if (!o.Is<CArrayType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CArrayType>();
   return *element_ == *o_derived->element_ && size_ == o_derived->size_;
 }
@@ -771,7 +781,9 @@ CPointerType::CPointerType(std::shared_ptr<CType> pointee_type)
     : pointee_type_(pointee_type) {}
 
 bool CPointerType::operator==(const CType& o) const {
-  if (!o.Is<CPointerType>()) return false;
+  if (!o.Is<CPointerType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CPointerType>();
   return *pointee_type_ == *o_derived->pointee_type_;
 }
@@ -809,7 +821,9 @@ CReferenceType::CReferenceType(std::shared_ptr<CType> pointee_type)
     : pointee_type_(pointee_type) {}
 
 bool CReferenceType::operator==(const CType& o) const {
-  if (!o.Is<CReferenceType>()) return false;
+  if (!o.Is<CReferenceType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CReferenceType>();
   return *pointee_type_ == *o_derived->pointee_type_;
 }
@@ -854,7 +868,9 @@ CChannelType::CChannelType(std::shared_ptr<CType> item_type,
     : item_type_(item_type), op_type_(op_type), memory_size_(memory_size) {}
 
 bool CChannelType::operator==(const CType& o) const {
-  if (!o.Is<CChannelType>()) return false;
+  if (!o.Is<CChannelType>()) {
+    return false;
+  }
   const auto* o_derived = o.As<CChannelType>();
   return *item_type_ == *o_derived->item_type_ &&
          op_type_ == o_derived->op_type_ &&
