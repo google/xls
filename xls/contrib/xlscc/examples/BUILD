@@ -115,6 +115,9 @@ xls_ir_opt_ir(
 xls_ir_opt_ir(
     name = "delay1rw_raw_opt_ir",
     src = ":delay_raw.ir",
+    opt_ir_args = {
+        "inline_procs": "true",
+    },
     opt_ir_file = "delay_raw_1rw.opt.ir",
     ram_rewrites = [
         ":delay_raw_ram1rw_rewrites.textproto",
@@ -124,6 +127,9 @@ xls_ir_opt_ir(
 xls_ir_opt_ir(
     name = "delay1rw_rxw_opt_ir",
     src = ":delay_rxw.ir",
+    opt_ir_args = {
+        "inline_procs": "true",
+    },
     opt_ir_file = "delay_rxw_1rw.opt.ir",
     ram_rewrites = [
         ":delay_rxw_ram1rw_rewrites.textproto",
@@ -228,7 +234,6 @@ xls_ir_verilog(
         "streaming_channel_valid_suffix": "_valid",
         "use_system_verilog": "true",
         "pipeline_stages": "2",
-        "inline_procs": "true",
     },
     verilog_file = "delay_raw_1rw.sv",
 )

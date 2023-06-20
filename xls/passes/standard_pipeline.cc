@@ -17,6 +17,9 @@
 
 #include "xls/passes/standard_pipeline.h"
 
+#include <algorithm>
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
@@ -25,6 +28,7 @@
 #include "xls/passes/bit_slice_simplification_pass.h"
 #include "xls/passes/boolean_simplification_pass.h"
 #include "xls/passes/canonicalization_pass.h"
+#include "xls/passes/channel_legalization_pass.h"
 #include "xls/passes/comparison_simplification_pass.h"
 #include "xls/passes/concat_simplification_pass.h"
 #include "xls/passes/conditional_specialization_pass.h"
@@ -144,7 +148,12 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   // Run ConditionalSpecializationPass before TokenDependencyPass to remove
   // false data dependencies
   top->Add<ConditionalSpecializationPass>(/*use_bdd=*/true);
+  // Legalize multiple channel operations before proc inlining. The legalization
+  // can add an adapter proc that should be inlined.
+  top->Add<ChannelLegalizationPass>();
   top->Add<TokenDependencyPass>();
+  // Simplify the adapter procs before inlining.
+  top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<ProcInliningPass>();
 
   // After proc inlining flatten and optimize the proc state. Run tuple

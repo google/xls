@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/scheduling/channel_legalization_pass.h"
+#include "xls/passes/channel_legalization_pass.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -48,8 +48,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
-#include "xls/scheduling/scheduling_pass.h"
 
 namespace xls {
 
@@ -857,11 +857,10 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 }  // namespace
 
 absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
-    SchedulingUnit<>* unit, const SchedulingPassOptions& options,
-    SchedulingPassResults* results) const {
+    Package* p, const PassOptions& options, PassResults* results) const {
   XLS_VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
-  MultipleChannelOps multiple_ops = FindMultipleChannelOps(unit->ir);
+  MultipleChannelOps multiple_ops = FindMultipleChannelOps(p);
   for (const auto& [channel_id, ops] : multiple_ops.multiple_receives) {
     for (Receive* recv : ops) {
       if (!recv->is_blocking()) {
@@ -872,35 +871,42 @@ absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
       }
     }
     changed = true;
-    XLS_ASSIGN_OR_RETURN(Channel * channel, unit->ir->GetChannel(channel_id));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
       continue;
     }
     StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+    if (streaming_channel->GetStrictness() ==
+        ChannelStrictness::kProvenMutuallyExclusive) {
+      // Don't make adapters for channels that must be proven to be mutually
+      // exclusive- they will be handled during scheduling.
+      continue;
+    }
     XLS_VLOG(3) << absl::StreamFormat(
         "Making receive channel adapter for channel %d, has receives (%s).",
         channel_id, absl::StrJoin(ops, ", "));
     XLS_RETURN_IF_ERROR(
-        AddAdapterForMultipleReceives(unit->ir, streaming_channel, ops));
+        AddAdapterForMultipleReceives(p, streaming_channel, ops));
   }
   for (const auto& [channel_id, ops] : multiple_ops.multiple_sends) {
     changed = true;
-    XLS_ASSIGN_OR_RETURN(Channel * channel, unit->ir->GetChannel(channel_id));
+    XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
     if (channel->kind() != ChannelKind::kStreaming) {
       // Don't make adapters for non-streaming channels.
       continue;
     }
     StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+    if (streaming_channel->GetStrictness() ==
+        ChannelStrictness::kProvenMutuallyExclusive) {
+      // Don't make adapters for channels that must be proven to be mutually
+      // exclusive- they will be handled during scheduling.
+      continue;
+    }
     XLS_VLOG(3) << absl::StreamFormat(
         "Making send channel adapter for channel %d, has sends (%s).",
         channel_id, absl::StrJoin(ops, ", "));
-    XLS_RETURN_IF_ERROR(
-        AddAdapterForMultipleSends(unit->ir, streaming_channel, ops));
-  }
-  if (changed) {
-    // Reschedule everything if changed.
-    unit->schedule = std::nullopt;
+    XLS_RETURN_IF_ERROR(AddAdapterForMultipleSends(p, streaming_channel, ops));
   }
   // If we've added an adapter, we likely want to inline it.
   // TODO(google/xls#950): remove this warning when multi-proc codegen is an

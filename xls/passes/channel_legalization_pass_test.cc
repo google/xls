@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/scheduling/channel_legalization_pass.h"
+#include "xls/passes/channel_legalization_pass.h"
 
 #include <cstdint>
 #include <functional>
@@ -26,10 +26,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/substitute.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimators.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
@@ -39,9 +41,9 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
-#include "xls/scheduling/scheduling_options.h"
-#include "xls/scheduling/scheduling_pass.h"
-#include "xls/scheduling/scheduling_pass_pipeline.h"
+#include "xls/passes/pass_base.h"
+#include "xls/passes/passes.h"
+#include "xls/passes/standard_pipeline.h"
 
 namespace xls {
 namespace {
@@ -53,14 +55,38 @@ using testing::Eq;
 using testing::HasSubstr;
 using testing::Optional;
 
-SchedulingPass* DefaultSchedulingPassPipeline() {
-  static SchedulingPass* singleton = CreateSchedulingPassPipeline().release();
+Pass* StandardPipelinePass() {
+  static Pass* singleton = CreateStandardPassPipeline(3).release();
   return singleton;
 }
 
-SchedulingPass* ChannelLegalizationPassOnly() {
-  static SchedulingPass* singleton = new ChannelLegalizationPass();
+Pass* ChannelLegalizationPassOnly() {
+  static Pass* singleton = new ChannelLegalizationPass();
   return singleton;
+}
+
+enum class PassVariant {
+  RunStandardPipelineNoInlineProcs,
+  RunStandardPipelineInlineProcs,
+  RunChannelLegalizationPassOnly,
+};
+
+std::string_view PassVariantName(PassVariant pass_variant) {
+  switch (pass_variant) {
+    case PassVariant::RunStandardPipelineNoInlineProcs:
+      return "RunStandardPipelineNoInlineProcs";
+    case PassVariant::RunStandardPipelineInlineProcs:
+      return "RunStandardPipelineInlineProcs";
+    case PassVariant::RunChannelLegalizationPassOnly:
+      return "RunChannelLegalizationPassOnly";
+  }
+  XLS_LOG(ERROR) << absl::StreamFormat("Unexpected value for PassVariant: %d",
+                                       static_cast<int>(pass_variant));
+  return "<unknown>";
+}
+
+bool PassVariantInlinesProcs(PassVariant pass_variant) {
+  return pass_variant == PassVariant::RunStandardPipelineInlineProcs;
 }
 
 struct TestParam {
@@ -82,17 +108,26 @@ struct TestParam {
 
 class ChannelLegalizationPassTest
     : public testing::TestWithParam<
-          std::tuple<TestParam, SchedulingPass*, ChannelStrictness>> {
+          std::tuple<TestParam, PassVariant, ChannelStrictness>> {
  protected:
   absl::StatusOr<bool> Run(Package* package) {
-    SchedulingPass* pass = std::get<1>(GetParam());
-    SchedulingPassOptions options;
-    XLS_ASSIGN_OR_RETURN(options.delay_estimator, GetDelayEstimator("unit"));
-    options.scheduling_options.clock_period_ps(100);
-    SchedulingPassResults results;
-    SchedulingUnit<Package*> unit;
-    unit.ir = package;
-    return pass->Run(&unit, options, &results);
+    PassVariant pass_variant = std::get<1>(GetParam());
+    Pass* pass;
+    switch (pass_variant) {
+      case PassVariant::RunStandardPipelineNoInlineProcs:
+      case PassVariant::RunStandardPipelineInlineProcs: {
+        pass = StandardPipelinePass();
+        break;
+      }
+      case PassVariant::RunChannelLegalizationPassOnly: {
+        pass = ChannelLegalizationPassOnly();
+        break;
+      }
+    }
+
+    PassOptions options{.inline_procs = PassVariantInlinesProcs(pass_variant)};
+    PassResults results;
+    return pass->Run(package, options, &results);
   }
 };
 
@@ -118,9 +153,9 @@ top proc my_proc(tok: token, init={}) {
     )",
         .builder_matcher =
             {
-                {ChannelStrictness::kProvenMutuallyExclusive,
-                 StatusIs(absl::StatusCode::kInvalidArgument,
-                          HasSubstr("Could not prove"))},
+                // Mutually exclusive OK- channel legalization pass skips them.
+                // They are ultimately handled them in scheduling.
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 // Build should be OK, but will fail at runtime.
@@ -200,9 +235,7 @@ proc proc_b(tok: token, pred: bits[1], init={0}) {
       )",
         .builder_matcher =
             {
-                {ChannelStrictness::kProvenMutuallyExclusive,
-                 StatusIs(absl::StatusCode::kInvalidArgument,
-                          HasSubstr("Could not prove"))},
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -262,9 +295,7 @@ proc proc_b(tok: token, init={}) {
       )",
         .builder_matcher =
             {
-                {ChannelStrictness::kProvenMutuallyExclusive,
-                 StatusIs(absl::StatusCode::kInvalidArgument,
-                          HasSubstr("Could not prove"))},
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeOrdered, IsOkAndHolds(true)},
                 {ChannelStrictness::kRuntimeMutuallyExclusive,
@@ -274,13 +305,15 @@ proc proc_b(tok: token, init={}) {
         .evaluate =
             [](SerialProcRuntime* interpreter,
                std::optional<ChannelStrictness> strictness) -> absl::Status {
-          if (!strictness.has_value()) {
-            // Skip evaluation before adding the adapter, the test will deadlock
-            // without an adapter.
-            return absl::OkStatus();
-          }
           constexpr int64_t kMaxTicks = 1000;
           constexpr int64_t kNumInputs = 32;
+
+          XLS_ASSIGN_OR_RETURN(
+              ChannelQueue * inq,
+              interpreter->queue_manager().GetQueueByName("in"));
+          for (int64_t i = 0; i < kNumInputs; ++i) {
+            XLS_RET_CHECK_OK(inq->Write(Value(UBits(i, /*bit_count=*/32))));
+          }
 
           XLS_ASSIGN_OR_RETURN(
               ChannelQueue * outq,
@@ -288,11 +321,26 @@ proc proc_b(tok: token, init={}) {
 
           absl::flat_hash_map<Channel*, int64_t> output_count{
               {outq->channel(), kNumInputs}};
+          // Adapters assert that only one proc fires on a channel per adapter
+          // proc tick. The 'proven mutually exclusive' case doesn't insert an
+          // adapter, so exclude that case.
+          if (strictness.has_value() &&
+              strictness.value() !=
+                  ChannelStrictness::kProvenMutuallyExclusive) {
+            EXPECT_THAT(
+                interpreter->TickUntilOutput(output_count, kMaxTicks).status(),
+                StatusIs(absl::StatusCode::kAborted,
+                         HasSubstr("Activation for node recv was not mutually "
+                                   "exclusive.")));
+            return absl::OkStatus();
+          }
           EXPECT_THAT(
               interpreter->TickUntilOutput(output_count, kMaxTicks).status(),
-              StatusIs(absl::StatusCode::kAborted,
-                       HasSubstr("Activation for node recv was not mutually "
-                                 "exclusive.")));
+              IsOk());
+
+          for (int64_t i = 0; i < kNumInputs; ++i) {
+            EXPECT_EQ(outq->Read(), Value(UBits(i, /*bit_count=*/32)));
+          }
 
           return absl::OkStatus();
         },
@@ -329,9 +377,7 @@ top proc my_proc(tok: token, init={}) {
       )",
         .builder_matcher =
             {
-                {ChannelStrictness::kProvenMutuallyExclusive,
-                 StatusIs(absl::StatusCode::kInvalidArgument,
-                          HasSubstr("Could not prove"))},
+                {ChannelStrictness::kProvenMutuallyExclusive, IsOk()},
                 {ChannelStrictness::kTotalOrder,
                  StatusIs(absl::StatusCode::kInternal,
                           HasSubstr("is not totally ordered"))},
@@ -467,21 +513,6 @@ TEST_P(ChannelLegalizationPassTest, PassRuns) {
                                std::get<0>(GetParam()).ir_text,
                                ChannelStrictnessToString(strictness))));
 
-  auto matchers = std::get<0>(GetParam()).builder_matcher;
-  auto itr = matchers.find(strictness);
-  if (itr == matchers.end()) {
-    GTEST_SKIP();
-  }
-  ::testing::Matcher<absl::StatusOr<bool>> matcher = itr->second;
-  EXPECT_THAT(Run(p.get()), matcher);
-}
-
-TEST_P(ChannelLegalizationPassTest, WillInlineAndVerify) {
-  ChannelStrictness strictness = std::get<2>(GetParam());
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
-                           Parser::ParsePackage(absl::Substitute(
-                               std::get<0>(GetParam()).ir_text,
-                               ChannelStrictnessToString(strictness))));
   absl::StatusOr<bool> run_status;
   auto matchers = std::get<0>(GetParam()).builder_matcher;
   auto itr = matchers.find(strictness);
@@ -491,8 +522,9 @@ TEST_P(ChannelLegalizationPassTest, WillInlineAndVerify) {
   ::testing::Matcher<absl::StatusOr<bool>> matcher = itr->second;
   EXPECT_THAT((run_status = Run(p.get())), matcher);
   // If we expect the pass to complete, the result should be codegen'able.
+  bool inline_procs = PassVariantInlinesProcs(std::get<1>(GetParam()));
   if (run_status.ok()) {
-    EXPECT_THAT(VerifyPackage(p.get(), /*codegen=*/true), IsOk());
+    EXPECT_THAT(VerifyPackage(p.get(), /*codegen=*/inline_procs), IsOk());
   }
 }
 
@@ -524,8 +556,12 @@ INSTANTIATE_TEST_SUITE_P(
     ChannelLegalizationPassTestInstantiation, ChannelLegalizationPassTest,
     ::testing::Combine(
         testing::ValuesIn(kTestParameters),
-        testing::Values(DefaultSchedulingPassPipeline(),
-                        ChannelLegalizationPassOnly()),
+        testing::Values(
+            // TODO(google/xls#1018): Enable proc inlining variant when cycle
+            // problems are solved.
+            // PassVariant::RunStandardPipelineInlineProcs,
+            PassVariant::RunStandardPipelineNoInlineProcs,
+            PassVariant::RunChannelLegalizationPassOnly),
         testing::Values(ChannelStrictness::kProvenMutuallyExclusive,
                         ChannelStrictness::kRuntimeMutuallyExclusive,
                         ChannelStrictness::kTotalOrder,
@@ -533,7 +569,7 @@ INSTANTIATE_TEST_SUITE_P(
                         ChannelStrictness::kArbitraryStaticOrder)),
     [](const auto& info) {
       return absl::StrCat(std::get<0>(info.param).test_name, "_",
-                          std::get<1>(info.param)->short_name(), "_",
+                          PassVariantName(std::get<1>(info.param)), "_",
                           ChannelStrictnessToString(std::get<2>(info.param)));
     });
 

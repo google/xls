@@ -16,7 +16,7 @@
 #define XLS_PASSES_CHANNEL_LEGALIZATION_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/scheduling/scheduling_pass.h"
+#include "xls/passes/passes.h"
 
 namespace xls {
 
@@ -73,17 +73,16 @@ namespace xls {
 // │  proc_0 │              │  adapter_proc    │
 // └─────────┘              └──────────────────┘
 //
-class ChannelLegalizationPass : public SchedulingPass {
+class ChannelLegalizationPass : public Pass {
  public:
   ChannelLegalizationPass()
-      : SchedulingPass("channel_legalization",
-                       "Legalize multiple send/recvs per channel") {}
+      : Pass("channel_legalization",
+             "Legalize multiple send/recvs per channel") {}
   ~ChannelLegalizationPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(
-      SchedulingUnit<>* unit, const SchedulingPassOptions& options,
-      SchedulingPassResults* results) const override;
+  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+                                   PassResults* results) const override;
 };
 
 }  // namespace xls
