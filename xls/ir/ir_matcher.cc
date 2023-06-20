@@ -14,8 +14,15 @@
 
 #include "xls/ir/ir_matcher.h"
 
+#include <ostream>
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
 
@@ -468,6 +475,53 @@ void RegisterMatcher::DescribeTo(::std::ostream* os) const {
     q_matcher_->DescribeTo(os);
   }
   *os << ")";
+}
+bool FunctionBaseMatcher::MatchAndExplain(
+    const ::xls::FunctionBase* fb,
+    ::testing::MatchResultListener* listener) const {
+  if (fb == nullptr) {
+    return false;
+  }
+  *listener << fb->name();
+  if (name_.has_value() && fb->name() != *name_) {
+    *listener << absl::StreamFormat(" has incorrect name %s, expected: %s",
+                                    fb->name(), *name_);
+    return false;
+  }
+  return true;
+}
+
+void FunctionBaseMatcher::DescribeTo(::std::ostream* os) const {
+  if (name_.has_value()) {
+    *os << absl::StreamFormat("FunctionBase(name=%s)", *name_);
+  } else {
+    *os << "FunctionBase()";
+  }
+}
+
+void ProcMatcher::DescribeTo(::std::ostream* os) const {
+  *os << absl::StreamFormat("proc %s { ... }", name_.value_or("<unspecified>"));
+}
+
+void ProcMatcher::DescribeNegationTo(std::ostream* os) const {
+  if (name_.has_value()) {
+    *os << absl::StreamFormat("FunctionBase was not a proc named %s.", *name_);
+  } else {
+    *os << "FunctionBase was not a proc.";
+  }
+}
+
+void FunctionMatcher::DescribeTo(::std::ostream* os) const {
+  *os << absl::StreamFormat("fn %s { ... }", name_.value_or("<unspecified>"));
+}
+
+void FunctionMatcher::DescribeNegationTo(std::ostream* os) const {
+  if (name_.has_value()) {
+    *os << absl::StreamFormat("FunctionBase was not a function named %s.",
+                              *name_);
+  } else {
+    *os << "FunctionBase was not a function.";
+  }
 }
 
 }  // namespace op_matchers

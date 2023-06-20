@@ -1015,6 +1015,134 @@ inline ::testing::Matcher<const ::xls::Node*> Register(
       new ::xls::op_matchers::RegisterMatcher(std::move(input), register_name));
 }
 
+// Matcher for FunctionBase. Supported form:
+//
+//   m::FunctionBase(/*name=*/"foo");
+//
+class FunctionBaseMatcher
+    : public ::testing::MatcherInterface<const ::xls::FunctionBase*> {
+ public:
+  explicit FunctionBaseMatcher(std::optional<std::string> name)
+      : name_(std::move(name)) {}
+
+  bool MatchAndExplain(const ::xls::FunctionBase* fb,
+                       ::testing::MatchResultListener* listener) const override;
+
+  void DescribeTo(::std::ostream* os) const override;
+
+ protected:
+  std::optional<std::string> name_;
+};
+
+inline ::testing::Matcher<const ::xls::FunctionBase*> FunctionBase(
+    std::optional<std::string> name = std::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::FunctionBaseMatcher(std::move(name)));
+}
+
+// Matcher for functions. Supported forms:
+//
+//   m::Function(/*name=*/"foo");
+//   m::Function();
+//
+class FunctionMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit FunctionMatcher(std::optional<std::string> name)
+      : name_(std::move(name)) {}
+
+  template <typename T, typename = absl::enable_if_t<
+                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  bool MatchAndExplain(const T* fb,
+                       ::testing::MatchResultListener* listener) const {
+    if (fb == nullptr) {
+      return false;
+    }
+    *listener << fb->name();
+    if (!fb->IsFunction()) {
+      *listener << " is not a function.";
+      return false;
+    }
+    // Now, match on FunctionBase.
+    if (!FunctionBase(name_).MatchAndExplain(fb, listener)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  template <typename T, typename = absl::enable_if_t<
+                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  bool MatchAndExplain(const std::unique_ptr<T>& fb,
+                       ::testing::MatchResultListener* listener) const {
+    return MatchAndExplain(fb.get(), listener);
+  }
+
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
+
+ protected:
+  std::optional<std::string> name_;
+};
+
+inline ::testing::PolymorphicMatcher<FunctionMatcher> Function(
+    std::optional<std::string> name = std::nullopt) {
+  return testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::FunctionMatcher(std::move(name)));
+}
+
+// Matcher for procs. Supported forms:
+//
+//   m::Proc(/*name=*/"foo");
+//   m::Proc();
+//
+class ProcMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit ProcMatcher(std::optional<std::string> name)
+      : name_(std::move(name)) {}
+
+  template <typename T, typename = absl::enable_if_t<
+                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  bool MatchAndExplain(const T* fb,
+                       ::testing::MatchResultListener* listener) const {
+    if (fb == nullptr) {
+      return false;
+    }
+    *listener << fb->name();
+    if (!fb->IsProc()) {
+      *listener << " is not a proc.";
+      return false;
+    }
+    // Now, match on FunctionBase.
+    if (!FunctionBase(name_).MatchAndExplain(fb, listener)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  template <typename T, typename = absl::enable_if_t<
+                            std::is_convertible_v<T*, ::xls::FunctionBase*>>>
+  bool MatchAndExplain(const std::unique_ptr<T>& fb,
+                       ::testing::MatchResultListener* listener) const {
+    return MatchAndExplain(fb.get(), listener);
+  }
+
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
+
+ protected:
+  std::optional<std::string> name_;
+};
+
+inline ::testing::PolymorphicMatcher<ProcMatcher> Proc(
+    std::optional<std::string> name = std::nullopt) {
+  return ::testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::ProcMatcher(std::move(name)));
+}
 }  // namespace op_matchers
 }  // namespace xls
 

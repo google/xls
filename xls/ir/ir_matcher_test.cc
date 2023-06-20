@@ -37,8 +37,9 @@ namespace {
 
 using ::testing::_;
 using ::testing::AllOf;
-using ::testing::Eq;
+using ::testing::Contains;
 using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 template <typename M, typename T>
 std::string Explain(const T& t, const M& m) {
@@ -476,6 +477,45 @@ TEST(IrMatchersTest, RegisterMatcher) {
               HasSubstr("has incorrect op (input_port), expected: add"));
   EXPECT_THAT(Explain(in_d.node(), m::Register("wrong-reg", m::InputPort())),
               HasSubstr("has incorrect register (reg), expected: wrong-reg"));
+}
+
+TEST(IrMatchersTest, FunctionBaseMatcher) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  auto x = fb.Param("x", p.GetBitsType(32));
+  auto y = fb.Param("y", p.GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ch0,
+      p.CreateStreamingChannel("ch0", ChannelOps::kReceiveOnly,
+                               p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      StreamingChannel * ch1,
+      p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
+                               p.GetBitsType(32)));
+  ProcBuilder pb("test_proc", "tok", &p);
+  BValue rcv = pb.Receive(ch0, pb.GetTokenParam());
+  BValue rcv_token = pb.TupleIndex(rcv, 0);
+  BValue rcv_data = pb.TupleIndex(rcv, 1);
+  BValue f_of_data = pb.Invoke({rcv_data, rcv_data}, f);
+  BValue send_token = pb.Send(ch1, rcv_token, f_of_data);
+  XLS_ASSERT_OK(pb.Build(send_token, {}).status());
+
+  // Match FunctionBases.
+  EXPECT_THAT(
+      p.GetFunctionBases(),
+      UnorderedElementsAre(m::FunctionBase("f"), m::FunctionBase("test_proc")));
+  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::FunctionBase("foobar"))));
+
+  // Match Function and Proc.
+  EXPECT_THAT(p.GetFunctionBases(),
+              UnorderedElementsAre(m::Function("f"), m::Proc("test_proc")));
+  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Function("test_proc"))));
+  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Proc("f"))));
+
+  EXPECT_THAT(p.procs(), UnorderedElementsAre(m::Proc("test_proc")));
+  EXPECT_THAT(p.functions(), UnorderedElementsAre(m::Function("f")));
 }
 
 }  // namespace
