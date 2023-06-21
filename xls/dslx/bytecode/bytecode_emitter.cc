@@ -300,6 +300,13 @@ BytecodeEmitter::EmitExpression(
 }
 
 absl::Status BytecodeEmitter::HandleArray(const Array* node) {
+  if (type_info_->IsKnownConstExpr(node)) {
+    auto const_expr_or = type_info_->GetConstExpr(node);
+    XLS_RET_CHECK_OK(const_expr_or.status());
+    Add(Bytecode::MakeLiteral(node->span(), const_expr_or.value()));
+    return absl::OkStatus();
+  }
+
   size_t num_members = node->members().size();
   for (auto* member : node->members()) {
     XLS_RETURN_IF_ERROR(member->AcceptExpr(this));

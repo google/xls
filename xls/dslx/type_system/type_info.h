@@ -234,8 +234,8 @@ class TypeInfo {
   // Note that these index over AstNodes instead of Exprs so that NameDefs can
   // be used as constexpr keys.
   void NoteConstExpr(const AstNode* const_expr, InterpValue value);
-  bool IsKnownConstExpr(const AstNode* node);
-  bool IsKnownNonConstExpr(const AstNode* node);
+  bool IsKnownConstExpr(const AstNode* node) const;
+  bool IsKnownNonConstExpr(const AstNode* node) const;
   absl::StatusOr<InterpValue> GetConstExpr(const AstNode* const_expr) const;
 
   // Retrieves a string that shows the module associated with this type info and

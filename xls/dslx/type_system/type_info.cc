@@ -29,6 +29,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/optional.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
 
@@ -103,7 +104,7 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
                       SpanToString(const_expr->GetSpan())));
 }
 
-bool TypeInfo::IsKnownConstExpr(const AstNode* node) {
+bool TypeInfo::IsKnownConstExpr(const AstNode* node) const {
   if (const_exprs_.contains(node)) {
     return const_exprs_.at(node).has_value();
   }
@@ -115,7 +116,7 @@ bool TypeInfo::IsKnownConstExpr(const AstNode* node) {
   return false;
 }
 
-bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) {
+bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) const {
   if (const_exprs_.contains(node)) {
     return !const_exprs_.at(node).has_value();
   }

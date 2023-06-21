@@ -502,6 +502,24 @@ fn arrays() -> u32[3] {
   ASSERT_EQ(num_elements.value(), 3);
 }
 
+// Tests large constexpr 2D array creation doesn't create a skillion bytecodes.
+TEST(BytecodeEmitterTest, TwoDimensionalArrayLiteral) {
+  constexpr std::string_view kProgram = R"(#[test]
+fn make_2d_array() -> u32[1024][1024] {
+  const A: u32[1024][1024] = u32[1024][1024]:[u32[1024]:[0, ...], ...];
+  A
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      EmitBytecodes(&import_data, kProgram, "make_2d_array"));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 3);
+}
+
 // Tests emission of kIndex ops on arrays.
 TEST(BytecodeEmitterTest, IndexArray) {
   constexpr std::string_view kProgram = R"(#[test]
@@ -519,12 +537,26 @@ fn index_array() -> u32 {
       EmitBytecodes(&import_data, kProgram, "index_array"));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 17);
-  const Bytecode* bc = &bytecodes[12];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+  ASSERT_EQ(bytecodes.size(), 11);
 
-  bc = &bytecodes[15];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kIndex);
+  const std::string_view kWant =
+      R"(literal [u32:0, u32:1, u32:2] @ test.x:3:18-3:27
+store 0 @ test.x:3:7-3:8
+literal [u32:3, u32:4, u32:5] @ test.x:4:23-4:32
+store 1 @ test.x:4:7-4:8
+load 0 @ test.x:6:3-6:4
+literal u32:0 @ test.x:6:9-6:10
+index @ test.x:6:4-6:11
+load 1 @ test.x:6:14-6:15
+literal u32:1 @ test.x:6:20-6:21
+index @ test.x:6:15-6:22
+add @ test.x:6:12-6:13)";
+  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
+                                  [](std::string* out, const Bytecode& b) {
+                                    absl::StrAppend(out, b.ToString());
+                                  });
+
+  EXPECT_EQ(kWant, got);
 }
 
 // Tests emission of kIndex ops on tuples.
@@ -878,9 +910,19 @@ fn cast_array_to_bits() -> u32 {
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "cast_array_to_bits"));
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 8);
-  const Bytecode* bc = &bytecodes[7];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCast);
+  ASSERT_EQ(bytecodes.size(), 4);
+
+  const std::string_view kWant =
+      R"(literal [u8:12, u8:10, u8:15, u8:14] @ test.x:3:17-3:37
+store 0 @ test.x:3:7-3:8
+load 0 @ test.x:4:3-4:4
+cast uN[32] @ test.x:4:3-4:11)";
+  std::string got = absl::StrJoin(bf->bytecodes(), "\n",
+                                  [](std::string* out, const Bytecode& b) {
+                                    absl::StrAppend(out, b.ToString());
+                                  });
+
+  EXPECT_EQ(kWant, got);
 }
 
 TEST(BytecodeEmitterTest, CastBitsToArray) {
