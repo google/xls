@@ -39,6 +39,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
@@ -46,6 +47,7 @@
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
@@ -60,7 +62,8 @@ absl::StatusOr<std::string> ToStringMaybeFormatted(
                          value.ToFormattedString(*value_fmt_desc, indentation));
     return std::string(indentation, ' ') + value_str;
   }
-  return std::string(indentation, ' ') + value.ToString(/*humanize=*/false);
+  return std::string(indentation, ' ') +
+         value.ToString(/*humanize=*/false, FormatPreference::kDefault);
 }
 
 }  // namespace
@@ -1388,6 +1391,7 @@ absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
 
 absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
                                              const ConcreteType* type,
+                                             FormatPreference format_preference,
                                              int indent = 0) {
   std::string indent_str(indent * 4, ' ');
   if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
@@ -1395,9 +1399,9 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
     const ConcreteType* element_type = &array_type->element_type();
     std::vector<std::string> elements;
     for (const auto& element_value : value.GetValuesOrDie()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::string element,
-          PrettyPrintValue(element_value, element_type, indent + 1));
+      XLS_ASSIGN_OR_RETURN(std::string element,
+                           PrettyPrintValue(element_value, element_type,
+                                            format_preference, indent + 1));
       elements.push_back(element);
     }
 
@@ -1426,9 +1430,10 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
     for (int i = 0; i < struct_type->size(); i++) {
       std::string sub_indent_str((indent + 1) * 4, ' ');
       const ConcreteType& member_type = struct_type->GetMemberType(i);
-      XLS_ASSIGN_OR_RETURN(std::string member_value,
-                           PrettyPrintValue(value.GetValuesOrDie()[i],
-                                            &member_type, indent + 1));
+      XLS_ASSIGN_OR_RETURN(
+          std::string member_value,
+          PrettyPrintValue(value.GetValuesOrDie()[i], &member_type,
+                           format_preference, indent + 1));
       members.push_back(absl::StrFormat("%s%s: %s", sub_indent_str,
                                         struct_type->GetMemberName(i),
                                         member_value));
@@ -1453,7 +1458,7 @@ absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
         << "Unexpected value " << value.ToString() << " as enum "
         << enum_def.identifier();
   }
-  return value.ToString();
+  return value.ToString(/*humanize=*/false, format_preference);
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
@@ -1475,10 +1480,12 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * rhs_type,
         type_info->GetItemOrError(invocation_data.invocation->args()[1]));
-    XLS_ASSIGN_OR_RETURN(std::string pretty_lhs,
-                         PrettyPrintValue(lhs, lhs_type));
-    XLS_ASSIGN_OR_RETURN(std::string pretty_rhs,
-                         PrettyPrintValue(rhs, rhs_type));
+    XLS_ASSIGN_OR_RETURN(
+        std::string pretty_lhs,
+        PrettyPrintValue(lhs, lhs_type, options_.format_preference()));
+    XLS_ASSIGN_OR_RETURN(
+        std::string pretty_rhs,
+        PrettyPrintValue(rhs, rhs_type, options_.format_preference()));
     std::string message = absl::StrContains(pretty_lhs, '\n')
       ? absl::StrCat("\n  lhs and rhs were not equal:\n",
           HighlightLineByLineDifferences(pretty_lhs, pretty_rhs))
@@ -1520,10 +1527,12 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertLt(const Bytecode& bytecode) {
     XLS_ASSIGN_OR_RETURN(
         ConcreteType * rhs_type,
         type_info->GetItemOrError(invocation_data.invocation->args()[1]));
-    XLS_ASSIGN_OR_RETURN(std::string pretty_lhs,
-                         PrettyPrintValue(lhs, lhs_type));
-    XLS_ASSIGN_OR_RETURN(std::string pretty_rhs,
-                         PrettyPrintValue(rhs, rhs_type));
+    XLS_ASSIGN_OR_RETURN(
+        std::string pretty_lhs,
+        PrettyPrintValue(lhs, lhs_type, options_.format_preference()));
+    XLS_ASSIGN_OR_RETURN(
+        std::string pretty_rhs,
+        PrettyPrintValue(rhs, rhs_type, options_.format_preference()));
     std::string message = absl::StrFormat(
         "\n  lhs: %s\n was not less than rhs: %s", pretty_lhs, pretty_rhs);
     if (lhs.IsArray() && rhs.IsArray()) {
@@ -2037,9 +2046,12 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                                                   caller_bindings));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> config_bf,
-                       BytecodeEmitter::Emit(import_data, type_info,
-                                             proc->config(), caller_bindings));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> config_bf,
+      BytecodeEmitter::Emit(
+          import_data, type_info, proc->config(), caller_bindings,
+          BytecodeEmitterOptions{.format_preference =
+                                     options.format_preference()}));
 
   ProcConfigBytecodeInterpreter cbi(import_data, proc_instances, options);
   XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args, type_info));
@@ -2085,8 +2097,10 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> next_bf,
-      BytecodeEmitter::EmitProcNext(import_data, type_info, proc->next(),
-                                    caller_bindings, member_defs));
+      BytecodeEmitter::EmitProcNext(
+          import_data, type_info, proc->next(), caller_bindings, member_defs,
+          BytecodeEmitterOptions{.format_preference =
+                                     options.format_preference()}));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeInterpreter> next_interpreter,
       CreateUnique(import_data, next_bf.get(), full_next_args, options));

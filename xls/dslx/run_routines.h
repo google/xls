@@ -83,7 +83,7 @@ struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
   std::optional<std::string_view> test_filter = std::nullopt;
-  FormatPreference trace_format_preference = FormatPreference::kDefault;
+  FormatPreference format_preference = FormatPreference::kDefault;
   AbstractRunComparator* run_comparator = nullptr;
   bool execute = true;
   std::optional<int64_t> seed = std::nullopt;

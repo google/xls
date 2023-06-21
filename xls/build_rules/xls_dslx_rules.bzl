@@ -105,6 +105,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         "dslx_path",
         "warnings_as_errors",
         "max_ticks",
+        "format_preference",
     )
 
     dslx_test_args = dict(_dslx_test_args)

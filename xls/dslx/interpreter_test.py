@@ -23,7 +23,7 @@ file, etc.
 
 import subprocess as subp
 import textwrap
-from typing import Text
+from typing import Sequence
 
 from xls.common import runfiles
 from xls.common import test_base
@@ -35,16 +35,18 @@ class InterpreterTest(test_base.TestCase):
 
   def _parse_and_test(
       self,
-      program: Text,
+      program: str,
       compare: str = 'jit',
       want_error: bool = False,
       alsologtostderr: bool = False,
+      extra_flags: Sequence[str] = (),
   ) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
     cmd.append('--compare=%s' % compare)
     if alsologtostderr:
       cmd.append('--alsologtostderr')
+    cmd.extend(extra_flags)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
       self.assertNotEqual(p.returncode, 0)
@@ -453,6 +455,32 @@ class InterpreterTest(test_base.TestCase):
     }
     """) % (rest, nesting - 1)
     self._parse_and_test(program)
+
+  def test_default_format_preference(self):
+    """Tests the error message from an assert_eq is formatted correctly."""
+    program = textwrap.dedent("""\
+    #[test]
+    fn failing_test() {
+      assert_eq(u32:20, u32:30)
+    }
+    """)
+    stderr = self._parse_and_test(program, want_error=True)
+    self.assertIn('lhs: u32:20', stderr)
+    self.assertIn('rhs: u32:30', stderr)
+
+  def test_hex_format_preference(self):
+    """Tests the error message from an assert_eq is formatted correctly."""
+    program = textwrap.dedent("""\
+    #[test]
+    fn failing_test() {
+      assert_eq(u32:20, u32:30)
+    }
+    """)
+    stderr = self._parse_and_test(
+        program, want_error=True, extra_flags=('--format_preference=hex',)
+    )
+    self.assertIn('lhs: u32:0x14', stderr)
+    self.assertIn('rhs: u32:0x1e', stderr)
 
 
 if __name__ == '__main__':

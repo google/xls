@@ -14,7 +14,6 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <cstdint>
-#include <filesystem>  // NOLINT
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,6 +34,8 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/run_routines.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
@@ -85,7 +86,10 @@ static absl::StatusOr<InterpValue> Interpret(
                        tm.module->GetMemberOrError<Function>(entry));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, ParametricEnv()));
+      BytecodeEmitter::Emit(
+          &import_data, tm.type_info, f, ParametricEnv(),
+          BytecodeEmitterOptions{.format_preference =
+                                     options.format_preference()}));
 
   return BytecodeInterpreter::Interpret(&import_data, bf.get(), args, options);
 }
@@ -123,7 +127,100 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
                ::testing::HasSubstr("!stack_.empty()")));
 }
 
-TEST(BytecodeInterpreterTest, TraceFmtStructValue) {
+TEST(BytecodeInterpreterTest, TraceBitsValueDefaultFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  trace!(u32:42);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
+                                   BytecodeInterpreterOptions().trace_hook(
+                                       [&](std::string_view s) {
+                                         trace_output.push_back(std::string{s});
+                                       })));
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre("trace of u32:42 @ test.x:3:9-3:17: 42"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceBitsValueHexFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  trace!(u32:42);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kHex)));
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre("trace of u32:42 @ test.x:3:9-3:17: 0x2a"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtBitsValueDefaultFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  trace_fmt!("{}", u32:42);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value, Interpret(kProgram, "main", /*args=*/{},
+                                   BytecodeInterpreterOptions().trace_hook(
+                                       [&](std::string_view s) {
+                                         trace_output.push_back(std::string{s});
+                                       })));
+  EXPECT_THAT(trace_output, testing::ElementsAre("42"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtBitsValueHexFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  trace_fmt!("{}", u32:42);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kHex)));
+  EXPECT_THAT(trace_output, testing::ElementsAre("0x2a"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtBitsValueBinaryFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> () {
+  trace_fmt!("{}", u32:42);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kBinary)));
+  EXPECT_THAT(trace_output, testing::ElementsAre("0b10_1010"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtStructValueDefaultFormat) {
   constexpr std::string_view kProgram = R"(
 struct Point {
   x: u32,
@@ -148,7 +245,61 @@ fn main() -> () {
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
-TEST(BytecodeInterpreterTest, NestedTraceFmtStructValue) {
+TEST(BytecodeInterpreterTest, TraceFmtStructValueHexFormat) {
+  constexpr std::string_view kProgram = R"(
+struct Point {
+  x: u32,
+  y: u32,
+}
+fn main() -> () {
+  let p = Point{x: u32:42, y: u32:64};
+  trace_fmt!("{}", p);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kHex)));
+  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+  x: 0x2a,
+  y: 0x40
+})"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, TraceFmtStructValueBinaryFormat) {
+  constexpr std::string_view kProgram = R"(
+struct Point {
+  x: u32,
+  y: u32,
+}
+fn main() -> () {
+  let p = Point{x: u32:42, y: u32:64};
+  trace_fmt!("{}", p);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kBinary)));
+  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Point {
+  x: 0b10_1010,
+  y: 0b100_0000
+})"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
+TEST(BytecodeInterpreterTest, NestedTraceFmtStructValueDefaultFormat) {
   constexpr std::string_view kProgram = R"(
 struct Point {
   x: u32,
@@ -182,6 +333,43 @@ fn main() -> () {
   EXPECT_EQ(value, InterpValue::MakeUnit());
 }
 
+TEST(BytecodeInterpreterTest, NestedTraceFmtStructValueHexFormat) {
+  constexpr std::string_view kProgram = R"(
+struct Point {
+  x: u32,
+  y: u32,
+}
+
+struct Foo {
+  p: Point,
+  z: u32,
+}
+
+fn main() -> () {
+  let p = Foo { p: Point{x: u32:42, y: u32:64}, z: u32: 123 };
+  trace_fmt!("{}", p);
+}
+)";
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      Interpret(kProgram, "main", /*args=*/{},
+                BytecodeInterpreterOptions()
+                    .trace_hook([&](std::string_view s) {
+                      trace_output.push_back(std::string{s});
+                    })
+                    .format_preference(FormatPreference::kHex)));
+
+  EXPECT_THAT(trace_output, testing::ElementsAre(R"(Foo {
+  p: Point {
+    x: 0x2a,
+    y: 0x40
+  },
+  z: 0x7b
+})"));
+  EXPECT_EQ(value, InterpValue::MakeUnit());
+}
+
 // Interprets a nearly-minimal bytecode program; the same from
 // BytecodeEmitterTest.SimpleTranslation.
 TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
@@ -208,8 +396,30 @@ fn main() -> u32{
 )";
 
   absl::StatusOr<InterpValue> value = Interpret(kProgram, "main");
-  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
-                                       HasSubstr("were not equal")));
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("were not equal"),
+                                      HasSubstr("lhs: u32:3"),
+                                      HasSubstr("rhs: u32:2"))));
+}
+
+TEST(BytecodeInterpreterTest, AssertEqFailHexFormat) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u32{
+  let a = u32:10;
+  assert_eq(a, u32:20);
+  a
+}
+)";
+
+  absl::StatusOr<InterpValue> value = Interpret(
+      kProgram, "main", {},
+      BytecodeInterpreterOptions().format_preference(FormatPreference::kHex));
+  EXPECT_THAT(value.status(),
+              StatusIs(absl::StatusCode::kInternal,
+                       testing::AllOf(HasSubstr("were not equal"),
+                                      HasSubstr("lhs: u32:0xa"),
+                                      HasSubstr("rhs: u32:0x14"))));
 }
 
 TEST(BytecodeInterpreterTest, AssertLtFail) {
@@ -1636,6 +1846,92 @@ proc tester_proc {
                   "Sent data on channel `incrementer::out_ch`:\n  101",
                   "Received data on channel `tester_proc::data_in`:\n  101",
                   "Sent data on channel `tester_proc::terminator`:\n  1"));
+}
+
+TEST(BytecodeInterpreterTest, TraceChannelsHexValues) {
+  constexpr std::string_view kProgram = R"(
+proc incrementer {
+  in_ch: chan<u32> in;
+  out_ch: chan<u32> out;
+
+  init { () }
+
+  config(in_ch: chan<u32> in,
+         out_ch: chan<u32> out) {
+    (in_ch, out_ch)
+  }
+  next(tok: token, _: ()) {
+    let (tok, i) = recv(tok, in_ch);
+    let tok = send(tok, out_ch, i + u32:1);
+    ()
+  }
+}
+
+#[test_proc]
+proc tester_proc {
+  data_out: chan<u32> out;
+  data_in: chan<u32> in;
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u32>;
+    spawn incrementer(input_c, output_p);
+    (input_p, output_c, terminator)
+  }
+
+  next(tok: token, state: ()) {
+    let tok = send(tok, data_out, u32:42);
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, data_out, u32:100);
+    let (tok, result) = recv(tok, data_in);
+
+    let tok = send(tok, terminator, true);
+    ()
+ }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, ParseAndTypecheckOrPrintError(
+                                                     kProgram, &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(TestProc * test_proc,
+                           tm.module->GetTestProc("tester_proc"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeInfo * ti, tm.type_info->GetTopLevelProcTypeInfo(test_proc->proc()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue terminator,
+      ti->GetConstExpr(test_proc->proc()->config()->params()[0]));
+  std::vector<ProcInstance> proc_instances;
+  std::vector<std::string> trace_output;
+  XLS_ASSERT_OK(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      &import_data, ti, test_proc->proc(), terminator, &proc_instances,
+      BytecodeInterpreterOptions()
+          .trace_channels(true)
+          .trace_hook([&](std::string_view s) {
+            trace_output.push_back(std::string{s});
+          })
+          .format_preference(FormatPreference::kHex)));
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_ASSERT_OK(p.Run());
+    }
+  }
+  EXPECT_THAT(trace_output,
+              testing::ElementsAre(
+                  "Sent data on channel `tester_proc::data_out`:\n  0x2a",
+                  "Received data on channel `incrementer::in_ch`:\n  0x2a",
+                  "Sent data on channel `incrementer::out_ch`:\n  0x2b",
+                  "Received data on channel `tester_proc::data_in`:\n  0x2b",
+                  "Sent data on channel `tester_proc::data_out`:\n  0x64",
+                  "Received data on channel `incrementer::in_ch`:\n  0x64",
+                  "Sent data on channel `incrementer::out_ch`:\n  0x65",
+                  "Received data on channel `tester_proc::data_in`:\n  0x65",
+                  "Sent data on channel `tester_proc::terminator`:\n  0x1"));
 }
 
 TEST(BytecodeInterpreterTest, TraceChannelsWithNonblockingReceive) {

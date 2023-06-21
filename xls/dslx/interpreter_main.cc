@@ -29,16 +29,20 @@
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/run_comparator.h"
 #include "xls/dslx/run_routines.h"
+#include "xls/ir/format_preference.h"
 
 // LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(
-    std::string, trace_format_preference, "default",
-    "Preference for display of trace!() output: default|binary|hex|decimal");
+    std::string, format_preference, "",
+    "Default format preference to use when one is not specified. Used for "
+    "`trace!`, `{}` format strings in `trace_fmt!`, traced channel values, "
+    "`assert_*` statements and elsewhere. Valid values: binary|hex|decimal");
 ABSL_FLAG(bool, execute, true, "Execute tests within the entry module.");
 ABSL_FLAG(std::string, compare, "jit",
           "Compare DSL-interpreted results with an IR execution for each"
@@ -75,7 +79,7 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 absl::Status RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       const std::optional<std::string>& test_filter,
-                      FormatPreference trace_format_preference,
+                      FormatPreference format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
                       bool trace_channels, std::optional<int64_t> max_ticks,
@@ -96,16 +100,15 @@ absl::Status RealMain(std::string_view entry_module_path,
       break;
   }
 
-  ParseAndTestOptions options = {
-      .dslx_paths = dslx_paths,
-      .test_filter = test_filter,
-      .trace_format_preference = trace_format_preference,
-      .run_comparator = run_comparator.get(),
-      .execute = execute,
-      .seed = seed,
-      .warnings_as_errors = warnings_as_errors,
-      .trace_channels = trace_channels,
-      .max_ticks = max_ticks};
+  ParseAndTestOptions options = {.dslx_paths = dslx_paths,
+                                 .test_filter = test_filter,
+                                 .format_preference = format_preference,
+                                 .run_comparator = run_comparator.get(),
+                                 .execute = execute,
+                                 .seed = seed,
+                                 .warnings_as_errors = warnings_as_errors,
+                                 .trace_channels = trace_channels,
+                                 .max_ticks = max_ticks};
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
@@ -166,17 +169,21 @@ int main(int argc, char* argv[]) {
     test_filter = std::move(flag);
   }
 
-  absl::StatusOr<xls::FormatPreference> preference =
-      xls::FormatPreferenceFromString(
-          absl::GetFlag(FLAGS_trace_format_preference));
-  XLS_QCHECK_OK(preference.status())
-      << "-trace_format_preference accepts default|binary|hex|decimal";
+  xls::FormatPreference preference = xls::FormatPreference::kDefault;
+  if (!absl::GetFlag(FLAGS_format_preference).empty()) {
+    absl::StatusOr<xls::FormatPreference> flag_preference =
+        xls::FormatPreferenceFromString(absl::GetFlag(FLAGS_format_preference));
+    // `default` is not a legal overriding format preference.
+    XLS_QCHECK(flag_preference.ok() &&
+               absl::GetFlag(FLAGS_format_preference) != "default")
+        << "-format_preference accepts binary|hex|decimal";
+    preference = flag_preference.value();
+  }
 
   bool printed_error = false;
-  absl::Status status =
-      xls::dslx::RealMain(args[0], dslx_paths, test_filter, preference.value(),
-                          compare_flag, execute, warnings_as_errors, seed,
-                          trace_channels, max_ticks, &printed_error);
+  absl::Status status = xls::dslx::RealMain(
+      args[0], dslx_paths, test_filter, preference, compare_flag, execute,
+      warnings_as_errors, seed, trace_channels, max_ticks, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

@@ -35,13 +35,17 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/make_value_format_descriptor.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/value_format_descriptor.h"
+#include "xls/ir/format_preference.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value
@@ -71,13 +75,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
 }
 
 absl::StatusOr<Bytecode::ChannelData> CreateChannelData(
-    const Expr* channel, const TypeInfo* type_info) {
+    const Expr* channel, const TypeInfo* type_info,
+    FormatPreference format_preference) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
                        GetChannelPayloadType(type_info, channel));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ValueFormatDescriptor> struct_fmt_desc,
                        MakeValueFormatDescriptor(*channel_payload_type.get(),
-                                                 FormatPreference::kDefault));
+                                                 format_preference));
 
   // Determine the owning proc by walking the parent links.
   AstNode* proc_node = channel->parent();
@@ -106,10 +111,12 @@ ExprToValueFormatDescriptor(const Expr* expr, const TypeInfo* type_info,
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
-    const std::optional<ParametricEnv>& caller_bindings)
+    const std::optional<ParametricEnv>& caller_bindings,
+    const BytecodeEmitterOptions& options)
     : import_data_(import_data),
       type_info_(type_info),
-      caller_bindings_(caller_bindings) {}
+      caller_bindings_(caller_bindings),
+      options_(options) {}
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
@@ -124,17 +131,19 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function* f,
-                      const std::optional<ParametricEnv>& caller_bindings) {
+                      const std::optional<ParametricEnv>& caller_bindings,
+                      const BytecodeEmitterOptions& options) {
   return EmitProcNext(import_data, type_info, f, caller_bindings,
-                      /*proc_members=*/{});
+                      /*proc_members=*/{}, options);
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitProcNext(
     ImportData* import_data, const TypeInfo* type_info, const Function* f,
     const std::optional<ParametricEnv>& caller_bindings,
-    const std::vector<NameDef*>& proc_members) {
-  BytecodeEmitter emitter(import_data, type_info, caller_bindings);
+    const std::vector<NameDef*>& proc_members,
+    const BytecodeEmitterOptions& options) {
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
   for (const NameDef* name_def : proc_members) {
     emitter.namedef_to_slot_[name_def] = emitter.next_slotno_++;
   }
@@ -259,8 +268,9 @@ class NameDefCollector : public AstNodeVisitor {
 BytecodeEmitter::EmitExpression(
     ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
     const absl::flat_hash_map<std::string, InterpValue>& env,
-    const std::optional<ParametricEnv>& caller_bindings) {
-  BytecodeEmitter emitter(import_data, type_info, caller_bindings);
+    const std::optional<ParametricEnv>& caller_bindings,
+    const BytecodeEmitterOptions& options) {
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings, options);
 
   NameDefCollector collector;
   XLS_RETURN_IF_ERROR(expr->Accept(&collector));
@@ -624,8 +634,9 @@ absl::Status BytecodeEmitter::HandleBuiltinRecv(const Invocation* node) {
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   // All receives need a predicate. Set to true for unconditional receive..
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   // Default value which is unused because the predicate is always
   // true. Required because the Recv bytecode has a predicate and default value
   // operand.
@@ -652,8 +663,9 @@ absl::Status BytecodeEmitter::HandleBuiltinRecvNonBlocking(
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
   XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -668,8 +680,9 @@ absl::Status BytecodeEmitter::HandleBuiltinRecvIf(const Invocation* node) {
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(condition->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   Add(Bytecode::MakeRecv(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -685,8 +698,9 @@ absl::Status BytecodeEmitter::HandleBuiltinRecvIfNonBlocking(
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(condition->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(default_value->AcceptExpr(this));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   Add(Bytecode::MakeRecvNonBlocking(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -700,8 +714,9 @@ absl::Status BytecodeEmitter::HandleBuiltinSend(const Invocation* node) {
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(payload->AcceptExpr(this));
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   Add(Bytecode::MakeSend(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -716,8 +731,9 @@ absl::Status BytecodeEmitter::HandleBuiltinSendIf(const Invocation* node) {
   XLS_RETURN_IF_ERROR(channel->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(payload->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(condition->AcceptExpr(this));
-  XLS_ASSIGN_OR_RETURN(Bytecode::ChannelData channel_data,
-                       CreateChannelData(channel, type_info_));
+  XLS_ASSIGN_OR_RETURN(
+      Bytecode::ChannelData channel_data,
+      CreateChannelData(channel, type_info_, options_.format_preference));
   Add(Bytecode::MakeSend(node->span(), std::move(channel_data)));
   return absl::OkStatus();
 }
@@ -960,7 +976,15 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   std::vector<FormatPreference> preferences =
       OperandPreferencesFromFormat(node->format());
   XLS_RET_CHECK_EQ(preferences.size(), node->args().size());
-
+  // Replace kDefault values with the format specified in the options if it is
+  // not kDefault. This enables user override of default format preference.
+  if (options_.format_preference != FormatPreference::kDefault) {
+    for (FormatPreference& preference : preferences) {
+      preference = preference == FormatPreference::kDefault
+                       ? options_.format_preference
+                       : preference;
+    }
+  }
   std::vector<std::unique_ptr<ValueFormatDescriptor>> value_fmt_descs;
   for (size_t i = 0; i < node->args().size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
@@ -1086,7 +1110,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
       std::vector<FormatStep> steps;
       steps.push_back(absl::StrCat("trace of ", node->args()[0]->ToString(),
                                    " @ ", node->span().ToString(), ": "));
-      steps.push_back(FormatPreference::kDefault);
+      steps.push_back(options_.format_preference);
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kTrace,
                                    Bytecode::TraceData(std::move(steps), {})));
       return absl::OkStatus();

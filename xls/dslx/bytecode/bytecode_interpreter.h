@@ -128,12 +128,22 @@ class BytecodeInterpreterOptions {
     return validate_final_stack_depth_;
   }
 
+  // The format preference to use when one is not otherwise specified. This is
+  // used for `{}` in `trace_fmt`, in `assert_eq` messages, with the
+  // `trace_channels` options and elsewhere.
+  BytecodeInterpreterOptions& format_preference(FormatPreference value) {
+    format_preference_ = value;
+    return *this;
+  }
+  FormatPreference format_preference() const { return format_preference_; }
+
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   TraceHook trace_hook_ = nullptr;
   bool trace_channels_ = false;
   std::optional<int64_t> max_ticks_;
   bool validate_final_stack_depth_ = true;
+  FormatPreference format_preference_ = FormatPreference::kDefault;
 };
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"

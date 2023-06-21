@@ -34,6 +34,11 @@
 
 namespace xls::dslx {
 
+struct BytecodeEmitterOptions {
+  // The format preference to use when one is not otherwise specified.
+  FormatPreference format_preference;
+};
+
 // Translates a DSLX expression tree into a linear sequence of bytecode
 // (bytecodes?).
 // TODO(rspringer): Handle the rest of the Expr node types.
@@ -44,24 +49,28 @@ class BytecodeEmitter : public ExprVisitor {
   // `f` itself. It will be nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
-      const std::optional<ParametricEnv>& caller_bindings);
+      const std::optional<ParametricEnv>& caller_bindings,
+      const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
   // TODO(rspringer): 2022-03-16: I think we can delete `caller_bindings`.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitExpression(
       ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
       const absl::flat_hash_map<std::string, InterpValue>& env,
-      const std::optional<ParametricEnv>& caller_bindings);
+      const std::optional<ParametricEnv>& caller_bindings,
+      const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
   // Emits a function, just as the above, but reserves the first N slots for
   // the given proc members.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcNext(
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
       const std::optional<ParametricEnv>& caller_bindings,
-      const std::vector<NameDef*>& proc_members);
+      const std::vector<NameDef*>& proc_members,
+      const BytecodeEmitterOptions& options = BytecodeEmitterOptions());
 
  private:
   BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
-                  const std::optional<ParametricEnv>& caller_bindings);
+                  const std::optional<ParametricEnv>& caller_bindings,
+                  const BytecodeEmitterOptions& options);
   ~BytecodeEmitter() override;
   absl::Status Init(const Function* f);
 
@@ -130,6 +139,7 @@ class BytecodeEmitter : public ExprVisitor {
   ImportData* import_data_;
   const TypeInfo* type_info_;
   const std::optional<ParametricEnv>& caller_bindings_;
+  BytecodeEmitterOptions options_;
 
   std::vector<Bytecode> bytecode_;
   absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot_;

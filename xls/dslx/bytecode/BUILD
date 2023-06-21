@@ -105,6 +105,7 @@ cc_library(
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
         "//xls/dslx/type_system:type_info",
+        "//xls/ir:format_preference",
     ],
 )
 
@@ -153,6 +154,7 @@ cc_library(
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
     ],
 )
 
@@ -174,6 +176,8 @@ cc_test(
         "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:run_routines",
+        "//xls/dslx/type_system:type_info",
+        "//xls/ir:format_preference",
         "@com_google_googletest//:gtest",
     ],
 )

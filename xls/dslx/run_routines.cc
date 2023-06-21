@@ -18,7 +18,6 @@
 
 #include <cstdint>
 #include <ctime>
-#include <filesystem>  // NOLINT
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -48,8 +47,6 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/type_system/typecheck.h"
-#include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 
 namespace xls::dslx {
@@ -66,7 +63,10 @@ absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), std::nullopt));
+      BytecodeEmitter::Emit(
+          import_data, type_info, tf->fn(), std::nullopt,
+          BytecodeEmitterOptions{.format_preference =
+                                     options.format_preference()}));
   return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
                                         options)
       .status();
@@ -357,7 +357,8 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
     interpreter_options.post_fn_eval_hook(post_fn_eval_hook)
         .trace_hook(InfoLoggingTraceHook)
         .trace_channels(options.trace_channels)
-        .max_ticks(options.max_ticks);
+        .max_ticks(options.max_ticks)
+        .format_preference(options.format_preference);
     if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,
