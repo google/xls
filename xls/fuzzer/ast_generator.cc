@@ -1026,6 +1026,7 @@ ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
     NameDef* name_def =
         module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
     constant_def = module_->Make<ConstantDef>(fake_span_, name_def,
+                                              /*type_annotation=*/nullptr,
                                               GenerateNumber(value, size_type),
                                               /*is_public=*/false);
     name_def->set_definer(constant_def);

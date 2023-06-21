@@ -334,6 +334,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   ctx->type_info()->SetItem(node, *result);
   ctx->type_info()->SetItem(node->name_def(), *result);
 
+  if (node->type_annotation() != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> annotated,
+                         ctx->Deduce(node->type_annotation()));
+    XLS_ASSIGN_OR_RETURN(
+        annotated,
+        UnwrapMetaType(std::move(annotated), node->type_annotation()->span(),
+                       "numeric literal type-prefix"));
+    if (*annotated != *result) {
+      return ctx->TypeMismatchError(node->span(), node->type_annotation(),
+                                    *annotated, node->value(), *result,
+                                    "Constant definition's annotated type did "
+                                    "not match its expression's type");
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
       ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),

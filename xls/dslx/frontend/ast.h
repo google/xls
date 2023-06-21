@@ -508,9 +508,6 @@ class NameDef : public AstNode {
     return {};
   }
   std::string ToString() const override { return identifier_; }
-  std::string ToReprString() const {
-    return absl::StrFormat("NameDef(identifier=\"%s\")", identifier_);
-  }
 
   void set_definer(AstNode* definer) { definer_ = definer; }
   AstNode* definer() const { return definer_; }
@@ -1478,8 +1475,6 @@ class ParametricBinding : public AstNode {
     return "ParametricBinding";
   }
   std::string ToString() const override;
-
-  std::string ToReprString() const;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2670,8 +2665,8 @@ class Cast : public Expr {
 //    (applicable to module level constant definitions only)
 class ConstantDef : public AstNode {
  public:
-  ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
-              bool is_public);
+  ConstantDef(Module* owner, Span span, NameDef* name_def,
+              TypeAnnotation* type_annotation, Expr* value, bool is_public);
 
   ~ConstantDef() override;
 
@@ -2683,14 +2678,17 @@ class ConstantDef : public AstNode {
 
   std::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
-  std::string ToReprString() const;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
+    if (want_types && type_annotation_ != nullptr) {
+      return {name_def_, type_annotation_, value_};
+    }
     return {name_def_, value_};
   }
 
   const std::string& identifier() const { return name_def_->identifier(); }
   NameDef* name_def() const { return name_def_; }
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
   Expr* value() const { return value_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
@@ -2699,6 +2697,7 @@ class ConstantDef : public AstNode {
  private:
   Span span_;
   NameDef* name_def_;
+  TypeAnnotation* type_annotation_;
   Expr* value_;
   bool is_public_;
 };
@@ -3005,10 +3004,6 @@ class Module : public AstNode {
                          [](std::string* out, const ModuleMember& member) {
                            absl::StrAppend(out, ToAstNode(member)->ToString());
                          });
-  }
-  // As in Python's "repr", a short code-like unique string representation.
-  std::string ToRepr() const {
-    return absl::StrFormat("Module(name='%s', id=%p)", name(), this);
   }
 
   template <typename T, typename... Args>

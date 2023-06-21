@@ -580,13 +580,6 @@ std::string ParametricBinding::ToString() const {
                          type_annotation_->ToString(), suffix);
 }
 
-std::string ParametricBinding::ToReprString() const {
-  return absl::StrFormat("ParametricBinding(name_def=%s, type=%s, expr=%s)",
-                         name_def_->ToReprString(),
-                         type_annotation_->ToString(),
-                         expr_ == nullptr ? "null" : expr_->ToString());
-}
-
 std::vector<AstNode*> ParametricBinding::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_};
   if (want_types) {
@@ -673,10 +666,12 @@ std::vector<AstNode*> UnrollFor::GetChildren(bool want_types) const {
 }
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
-                         Expr* value, bool is_public)
+                         TypeAnnotation* type_annotation, Expr* value,
+                         bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
+      type_annotation_(type_annotation),
       value_(value),
       is_public_(is_public) {}
 
@@ -687,12 +682,12 @@ std::string ConstantDef::ToString() const {
   if (is_public_) {
     privacy = "pub ";
   }
-  return absl::StrFormat("%sconst %s = %s;", privacy, name_def_->ToString(),
-                         value_->ToString());
-}
-
-std::string ConstantDef::ToReprString() const {
-  return absl::StrFormat("ConstantDef(%s)", name_def_->ToReprString());
+  std::string type_annotation_str;
+  if (type_annotation_ != nullptr) {
+    type_annotation_str = absl::StrCat(": ", type_annotation_->ToString());
+  }
+  return absl::StrFormat("%sconst %s%s = %s;", privacy, name_def_->ToString(),
+                         type_annotation_str, value_->ToString());
 }
 
 Array::Array(Module* owner, Span span, std::vector<Expr*> members,

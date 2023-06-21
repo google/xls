@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
@@ -219,6 +220,7 @@ class AstCloner : public AstNodeVisitor {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<ConstantDef>(
         n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         down_cast<Expr*>(old_to_new_.at(n->value())), n->is_public());
     return absl::OkStatus();
   }

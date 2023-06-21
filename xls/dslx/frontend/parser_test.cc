@@ -1238,6 +1238,10 @@ enum ImplicitWidthEnum {
 })");
 }
 
+TEST_F(ParserTest, ConstWithTypeAnnotation) {
+  RoundTrip(R"(const MOL: u32 = u32:42;)");
+}
+
 TEST_F(ParserTest, ConstArrayOfConstRefs) {
   RoundTrip(R"(const MOL = u32:42;
 const ZERO = u32:0;

@@ -198,6 +198,24 @@ fn f(s: MyStruct<GLOBAL>) -> u15 { p(s) }
   XLS_EXPECT_OK(Typecheck(program));
 }
 
+TEST(TypecheckTest, TopLevelConstTypeMismatch) {
+  std::string program = R"(
+const GLOBAL: u64 = u32:4;
+)";
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("uN[64] vs uN[32]: Constant definition's annotated "
+                         "type did not match its expression's type")));
+}
+
+TEST(TypecheckTest, TopLevelConstTypeMatch) {
+  std::string program = R"(
+const GLOBAL: u32 = u32:4;
+)";
+  XLS_EXPECT_OK(Typecheck(program));
+}
+
 TEST(TypecheckErrorTest, ParametricInvocationConflictingArgs) {
   std::string program = R"(
 fn id<N: u32>(x: bits[N], y: bits[N]) -> bits[N] { x }

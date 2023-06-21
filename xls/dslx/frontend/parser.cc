@@ -1886,11 +1886,18 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
             span.ToString()));
   }
 
+  XLS_ASSIGN_OR_RETURN(bool dropped_colon, TryDropToken(TokenKind::kColon));
+  TypeAnnotation* annotated_type = nullptr;
+  if (dropped_colon) {
+    XLS_ASSIGN_OR_RETURN(annotated_type, ParseTypeAnnotation(bindings));
+  }
+
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
-  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public);
+  auto* result = module_->Make<ConstantDef>(span, name_def, annotated_type,
+                                            expr, is_public);
   name_def->set_definer(result);
   bindings.Add(name_def->identifier(), result);
   return result;
