@@ -67,19 +67,18 @@ pub fn hsv2rgb(h: u16, s: u8, v: u8) -> (u8, u8, u8) {
 
 #[test]
 fn hsv2rgb_test() {
-  let _= assert_eq(hsv2rgb(u16:0, u8:0, u8:0), (u8:0, u8:0, u8:0));
-  let _= assert_eq(hsv2rgb(u16:0, u8:0, u8:255), (u8:255, u8:255, u8:255));
-  let _= assert_eq(hsv2rgb(u16:300, u8:0, u8:127), (u8:127, u8:127, u8:127));
-  let _= assert_eq(hsv2rgb(u16:0, u8:255, u8:255), (u8:255, u8:0, u8:0));
-  let _= assert_eq(hsv2rgb(u16:128, u8:255, u8:255), (u8:255, u8:127, u8:0));
-  let _= assert_eq(hsv2rgb(u16:256, u8:255, u8:255), (u8:255, u8:255, u8:0));
-  let _= assert_eq(hsv2rgb(u16:384, u8:255, u8:255), (u8:127, u8:255, u8:0));
-  let _= assert_eq(hsv2rgb(u16:512, u8:255, u8:255), (u8:0, u8:255, u8:0));
-  let _= assert_eq(hsv2rgb(u16:640, u8:255, u8:255), (u8:0, u8:255, u8:127));
-  let _= assert_eq(hsv2rgb(u16:768, u8:255, u8:255), (u8:0, u8:255, u8:255));
-  let _= assert_eq(hsv2rgb(u16:896, u8:255, u8:255), (u8:0, u8:127, u8:255));
-  let _= assert_eq(hsv2rgb(u16:1024, u8:255, u8:255), (u8:0, u8:0, u8:255));
-  let _= assert_eq(hsv2rgb(u16:1152, u8:255, u8:255), (u8:127, u8:0, u8:255));
-  let _= assert_eq(hsv2rgb(u16:1280, u8:255, u8:255), (u8:255, u8:0, u8:255));
-  _
+  assert_eq(hsv2rgb(u16:0, u8:0, u8:0), (u8:0, u8:0, u8:0));
+  assert_eq(hsv2rgb(u16:0, u8:0, u8:255), (u8:255, u8:255, u8:255));
+  assert_eq(hsv2rgb(u16:300, u8:0, u8:127), (u8:127, u8:127, u8:127));
+  assert_eq(hsv2rgb(u16:0, u8:255, u8:255), (u8:255, u8:0, u8:0));
+  assert_eq(hsv2rgb(u16:128, u8:255, u8:255), (u8:255, u8:127, u8:0));
+  assert_eq(hsv2rgb(u16:256, u8:255, u8:255), (u8:255, u8:255, u8:0));
+  assert_eq(hsv2rgb(u16:384, u8:255, u8:255), (u8:127, u8:255, u8:0));
+  assert_eq(hsv2rgb(u16:512, u8:255, u8:255), (u8:0, u8:255, u8:0));
+  assert_eq(hsv2rgb(u16:640, u8:255, u8:255), (u8:0, u8:255, u8:127));
+  assert_eq(hsv2rgb(u16:768, u8:255, u8:255), (u8:0, u8:255, u8:255));
+  assert_eq(hsv2rgb(u16:896, u8:255, u8:255), (u8:0, u8:127, u8:255));
+  assert_eq(hsv2rgb(u16:1024, u8:255, u8:255), (u8:0, u8:0, u8:255));
+  assert_eq(hsv2rgb(u16:1152, u8:255, u8:255), (u8:127, u8:0, u8:255));
+  assert_eq(hsv2rgb(u16:1280, u8:255, u8:255), (u8:255, u8:0, u8:255));
 }

@@ -436,7 +436,7 @@ subsequent use. See `a` and `b` in the following:
 fn test_tuple_destructure() {
   let t = (u32:2, u8:3);
   let (a, b) = t;
-  let _ = assert_eq(u32:2, a);
+  assert_eq(u32:2, a);
   assert_eq(u8:3, b)
 }
 ```
@@ -650,9 +650,8 @@ fn test_main() {
   let y = u32:64;
   // Make an array with "bracket notation".
   let my_array: u32[2] = [x, y];
-  let _ = assert_eq(main(my_array, u1:0), x);
-  let _ = assert_eq(main(my_array, u1:1), y);
-  ()
+  assert_eq(main(my_array, u1:0), x);
+  assert_eq(main(my_array, u1:1), y);
 }
 ```
 
@@ -669,9 +668,8 @@ fn make_array(x: u32) -> u32[3] {
 
 #[test]
 fn test_make_array() {
-  let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
-  let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
-  ()
+  assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
+  assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
 }
 ```
 
@@ -744,9 +742,8 @@ fn main(x: u8) -> MyEnum {
 
 #[test]
 fn test_main() {
-  let _ = assert_eq(main(u8:42), MyEnum::FOO);
-  let _ = assert_eq(main(u8:64), MyEnum::BAR);
-  ()
+  assert_eq(main(u8:42), MyEnum::FOO);
+  assert_eq(main(u8:64), MyEnum::BAR);
 }
 ```
 
@@ -1067,10 +1064,9 @@ fn match_const(x: u8) -> u8 {
 
 #[test]
 fn test_match_const_not_binding() {
-  let _ = assert_eq(u8:42, match_const(u8:0));
-  let _ = assert_eq(u8:42, match_const(u8:1));
-  let _ = assert_eq(u8:0, match_const(u8:42));
-  ()
+  assert_eq(u8:42, match_const(u8:0));
+  assert_eq(u8:42, match_const(u8:1));
+  assert_eq(u8:0, match_const(u8:42));
 }
 
 fn h(t: (u8, (u16, u32))) -> u32 {
@@ -1083,10 +1079,9 @@ fn h(t: (u8, (u16, u32))) -> u32 {
 
 #[test]
 fn test_match_nested() {
-  let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
-  let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
-  let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
-  ()
+  assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
+  assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
+  assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
 }
 ```
 
@@ -1104,9 +1099,8 @@ DSLX supports initializing using binary, hex or decimal syntax. So
 ```dslx
 #[test]
 fn test_literal_initialization() {
-  let _ = assert_eq(u8:12, u8:0b00001100);
-  let _ = assert_eq(u8:12, u8:0x0c);
-  ()
+  assert_eq(u8:12, u8:0b00001100);
+  assert_eq(u8:12, u8:0x0c);
 }
 ```
 
@@ -1123,9 +1117,8 @@ integer cannot represent it. The following code offers a clue.
 ```dslx
 #[test]
 fn test_signed_literal_initialization() {
-  let _ = assert_eq(s8:128, s8:-128);
-  let _ = assert_eq(s8:128, s8:0b10000000);
-  ()
+  assert_eq(s8:128, s8:-128);
+  assert_eq(s8:128, s8:0b10000000);
 }
 ```
 
@@ -1205,12 +1198,11 @@ below:
 ```dslx
 #[test]
 fn test_bits_concat() {
-  let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
-  let _ = assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
-  let _ = assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
-  let _ = assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
-  let _ = assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
-  ()
+  assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
+  assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
+  assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
+  assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
+  assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
 }
 ```
 
@@ -1525,19 +1517,18 @@ fn test_numerical_conversions() {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:0xfe;
   // Sign extension (source type is signed).
-  let _ = assert_eq(s32:-2, s8_m2 as s32);
-  let _ = assert_eq(u32:0xfffffffe, s8_m2 as u32);
-  let _ = assert_eq(s16:-2, s8_m2 as s16);
-  let _ = assert_eq(u16:0xfffe, s8_m2 as u16);
+  assert_eq(s32:-2, s8_m2 as s32);
+  assert_eq(u32:0xfffffffe, s8_m2 as u32);
+  assert_eq(s16:-2, s8_m2 as s16);
+  assert_eq(u16:0xfffe, s8_m2 as u16);
   // Zero extension (source type is unsigned).
-  let _ = assert_eq(u32:0xfe, u8_m2 as u32);
-  let _ = assert_eq(s32:0xfe, u8_m2 as s32);
+  assert_eq(u32:0xfe, u8_m2 as u32);
+  assert_eq(s32:0xfe, u8_m2 as s32);
   // Nop (bitwidth is unchanged).
-  let _ = assert_eq(s8:-2, s8_m2 as s8);
-  let _ = assert_eq(s8:-2, u8_m2 as s8);
-  let _ = assert_eq(u8:0xfe, u8_m2 as u8);
-  let _ = assert_eq(s8:-2, u8_m2 as s8);
-  ()
+  assert_eq(s8:-2, s8_m2 as s8);
+  assert_eq(s8:-2, u8_m2 as s8);
+  assert_eq(u8:0xfe, u8_m2 as u8);
+  assert_eq(s8:-2, u8_m2 as s8);
 }
 ```
 
@@ -1570,15 +1561,15 @@ fn test_cast_to_array() {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);
   let a_array = u2[3]:[1, 2, 3];
-  let _ = assert_eq(a, a_array);
+  assert_eq(a, a_array);
   // Note: converting back from array to bits gives the original value.
-  let _ = assert_eq(a_value, cast_from_array(a));
+  assert_eq(a_value, cast_from_array(a));
 
   let b_value: u6 = u6:0b111001;
   let b_array: u2[3] = u2[3]:[3, 2, 1];
   let b: u2[3] = cast_to_array(b_value);
-  let _ = assert_eq(b, b_array);
-  let _ = assert_eq(b_value, cast_from_array(b));
+  assert_eq(b, b_array);
+  assert_eq(b_value, cast_from_array(b));
 
   // Concatenation of bits is analogous to concatenation of their converted
   // arrays. That is:
@@ -1586,15 +1577,13 @@ fn test_cast_to_array() {
   //  convert(concat(a, b)) == concat(convert(a), convert(b))
   let concat_value: u12 = a_value ++ b_value;
   let concat_array: u2[6] = concat_value as u2[6];
-  let _ = assert_eq(concat_array, concat_arrays(a_array, b_array));
+  assert_eq(concat_array, concat_arrays(a_array, b_array));
 
   // Show a few classic "endianness" example using 8-bit array values.
   let x = u32:0xdeadbeef;
-  let _ = assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
+  assert_eq(x as u8[4], u8[4]:[0xde, 0xad, 0xbe, 0xef]);
   let y = u16:0xbeef;
-  let _ = assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
-
-  ()
+  assert_eq(y as u8[2], u8[2]:[0xbe, 0xef]);
 }
 ```
 
@@ -1661,9 +1650,8 @@ bits) and `-2:` (the two most significant bits):
 fn slice_into_two_pieces() {
   let x = u5:0b11000;
   let (lo, hi): (u3, u2) = (x[:-2], x[-2:]);
-  let _ = assert_eq(hi, u2:0b11);
-  let _ = assert_eq(lo, u3:0b000);
-  ()
+  assert_eq(hi, u2:0b11);
+  assert_eq(lo, u3:0b000);
 }
 ```
 
@@ -1688,58 +1676,57 @@ fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn test_bit_slice_syntax() {
   let x = u6:0b100111;
   // Slice out two bits.
-  let _ = assert_eq(u2:0b11, x[0:2]);
-  let _ = assert_eq(u2:0b11, x[1:3]);
-  let _ = assert_eq(u2:0b01, x[2:4]);
-  let _ = assert_eq(u2:0b00, x[3:5]);
+  assert_eq(u2:0b11, x[0:2]);
+  assert_eq(u2:0b11, x[1:3]);
+  assert_eq(u2:0b01, x[2:4]);
+  assert_eq(u2:0b00, x[3:5]);
 
   // Slice out three bits.
-  let _ = assert_eq(u3:0b111, x[0:3]);
-  let _ = assert_eq(u3:0b011, x[1:4]);
-  let _ = assert_eq(u3:0b001, x[2:5]);
-  let _ = assert_eq(u3:0b100, x[3:6]);
+  assert_eq(u3:0b111, x[0:3]);
+  assert_eq(u3:0b011, x[1:4]);
+  assert_eq(u3:0b001, x[2:5]);
+  assert_eq(u3:0b100, x[3:6]);
 
   // Slice out from the end.
-  let _ = assert_eq(u1:0b1, x[-1:]);
-  let _ = assert_eq(u1:0b1, x[-1:6]);
-  let _ = assert_eq(u2:0b10, x[-2:]);
-  let _ = assert_eq(u2:0b10, x[-2:6]);
-  let _ = assert_eq(u3:0b100, x[-3:]);
-  let _ = assert_eq(u3:0b100, x[-3:6]);
-  let _ = assert_eq(u4:0b1001, x[-4:]);
-  let _ = assert_eq(u4:0b1001, x[-4:6]);
+  assert_eq(u1:0b1, x[-1:]);
+  assert_eq(u1:0b1, x[-1:6]);
+  assert_eq(u2:0b10, x[-2:]);
+  assert_eq(u2:0b10, x[-2:6]);
+  assert_eq(u3:0b100, x[-3:]);
+  assert_eq(u3:0b100, x[-3:6]);
+  assert_eq(u4:0b1001, x[-4:]);
+  assert_eq(u4:0b1001, x[-4:6]);
 
   // Slice both relative to the end (MSb).
-  let _ = assert_eq(u2:0b01, x[-4:-2]);
-  let _ = assert_eq(u2:0b11, x[-6:-4]);
+  assert_eq(u2:0b01, x[-4:-2]);
+  assert_eq(u2:0b11, x[-6:-4]);
 
   // Slice out from the beginning (LSb).
-  let _ = assert_eq(u5:0b00111, x[:-1]);
-  let _ = assert_eq(u4:0b0111, x[:-2]);
-  let _ = assert_eq(u3:0b111, x[:-3]);
-  let _ = assert_eq(u2:0b11, x[:-4]);
-  let _ = assert_eq(u1:0b1, x[:-5]);
+  assert_eq(u5:0b00111, x[:-1]);
+  assert_eq(u4:0b0111, x[:-2]);
+  assert_eq(u3:0b111, x[:-3]);
+  assert_eq(u2:0b11, x[:-4]);
+  assert_eq(u1:0b1, x[:-5]);
 
   // Slicing past the end just means we hit the end (as in Python).
-  let _ = assert_eq(u1:0b1, x[5:7]);
-  let _ = assert_eq(u1:0b1, x[-7:1]);
-  let _ = assert_eq(bits[0]:0, x[-7:-6]);
-  let _ = assert_eq(bits[0]:0, x[-6:-6]);
-  let _ = assert_eq(bits[0]:0, x[6:6]);
-  let _ = assert_eq(bits[0]:0, x[6:7]);
-  let _ = assert_eq(u1:1, x[-6:-5]);
+  assert_eq(u1:0b1, x[5:7]);
+  assert_eq(u1:0b1, x[-7:1]);
+  assert_eq(bits[0]:0, x[-7:-6]);
+  assert_eq(bits[0]:0, x[-6:-6]);
+  assert_eq(bits[0]:0, x[6:6]);
+  assert_eq(bits[0]:0, x[6:7]);
+  assert_eq(u1:1, x[-6:-5]);
 
   // Slice of a slice.
-  let _ = assert_eq(u2:0b11, x[:4][1:3]);
+  assert_eq(u2:0b11, x[:4][1:3]);
 
   // Slice of an invocation.
-  let _ = assert_eq(u2:0b01, id(x)[2:4]);
+  assert_eq(u2:0b01, id(x)[2:4]);
 
   // Explicit-width slices.
-  let _ = assert_eq(u2:0b01, x[2+:u2]);
-  let _ = assert_eq(s3:0b100, x[3+:s3]);
-  let _ = assert_eq(u3:0b001, x[5+:u3]);
-  ()
+  assert_eq(u2:0b01, x[2+:u2]);
+  assert_eq(s3:0b100, x[3+:s3]);
+  assert_eq(u3:0b001, x[5+:u3]);
 }
 ```
 
@@ -1895,12 +1882,11 @@ Note: Novel higher order functions (e.g. if a user wanted to write their own
 ```dslx
 #[test]
 fn test_array_rev() {
-  let _ = assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
-  let _ = assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
-  let _ = assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
-  let _ = assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
-  let _ = assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
-  ()
+  assert_eq(array_rev(u8[1]:[42]), u8[1]:[42]);
+  assert_eq(array_rev(u3[2]:[1, 2]), u3[2]:[2, 1]);
+  assert_eq(array_rev(u3[3]:[2, 3, 4]), u3[3]:[4, 3, 2]);
+  assert_eq(array_rev(u4[3]:[0xf, 0, 0]), u4[3]:[0, 0, 0xf]);
+  assert_eq(array_rev(u3[0]:[]), u3[0]:[]);
 }
 ```
 
@@ -1913,7 +1899,7 @@ functions:
   let x0 = u32:0x0FFFFFF8;
   let x1 = clz(x0);
   let x2 = ctz(x0);
-  let _ = assert_eq(u32:4, x1);
+  assert_eq(u32:4, x1);
   assert_eq(u32:3, x2)
 ```
 
@@ -1992,13 +1978,12 @@ fn main(x: u3) -> u3 {
 // Reverse examples.
 #[test]
 fn test_reverse() {
-  let _ = assert_eq(u3:0b100, main(u3:0b001));
-  let _ = assert_eq(u3:0b001, main(u3:0b100));
-  let _ = assert_eq(bits[0]:0, rev(bits[0]:0));
-  let _ = assert_eq(u1:1, rev(u1:1));
-  let _ = assert_eq(u2:0b10, rev(u2:0b01));
-  let _ = assert_eq(u2:0b00, rev(u2:0b00));
-  ()
+  assert_eq(u3:0b100, main(u3:0b001));
+  assert_eq(u3:0b001, main(u3:0b100));
+  assert_eq(bits[0]:0, rev(bits[0]:0));
+  assert_eq(u1:1, rev(u1:1));
+  assert_eq(u2:0b10, rev(u2:0b01));
+  assert_eq(u2:0b00, rev(u2:0b00));
 }
 ```
 
@@ -2029,10 +2014,9 @@ trivial (0 bit wide) inputs:
 ```dslx
 #[test]
 fn test_trivial_reduce() {
-  let _ = assert_eq(and_reduce(bits[0]:0), true);
-  let _ = assert_eq(or_reduce(bits[0]:0), false);
-  let _ = assert_eq(xor_reduce(bits[0]:0), false);
-  ()
+  assert_eq(and_reduce(bits[0]:0), true);
+  assert_eq(or_reduce(bits[0]:0), false);
+  assert_eq(xor_reduce(bits[0]:0), false);
 }
 ```
 
@@ -2045,7 +2029,7 @@ that this is *not* an in-place update of the array, it is an "evolution" of
 instead of copying, when it's safe to do. The compiler makes a best effort to do
 this, but can't guarantee the optimization is always made.
 
-### assert_eq, assert_lt
+### `assert_eq`, `assert_lt`
 
 In a unit test pseudo function all valid DSLX code is allowed. To evaluate test
 results DSLX provides the `assert_eq` primitive (we'll add more of those in the
@@ -2059,19 +2043,15 @@ fn divceil(x: u32, y: u32) -> u32 {
 
 #[test]
 fn test_divceil() {
-  let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
-  let _ = assert_eq(u32:2, divceil(u32:3, u32:2));
-  let _ = assert_eq(u32:1, divceil(u32:2, u32:2));
-  _
+  assert_eq(u32:3, divceil(u32:5, u32:2));
+  assert_eq(u32:2, divceil(u32:4, u32:2));
+  assert_eq(u32:2, divceil(u32:3, u32:2));
+  assert_eq(u32:1, divceil(u32:2, u32:2));
 }
 ```
 
-Note that in this example, the final `let _ = ... in _` construct could be
-omitted.
-
-`assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
-recommended to use it within `test` constructs (interpretation) only.
+`assert_eq` cannot currently be synthesized into equivalent Verilog. Because of
+that it is recommended to use it within `test` constructs (interpretation) only.
 
 ### `zero!<T>`
 
@@ -2091,10 +2071,9 @@ enum MyEnum : u2 {
 
 #[test]
 fn test_zero_macro() {
-  let _ = assert_eq(zero!<u32>(), u32:0);
-  let _ = assert_eq(zero!<MyPoint>(), MyPoint{x: u32:0, y: u32:0});
-  let _ = assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
-  ()
+  assert_eq(zero!<u32>(), u32:0);
+  assert_eq(zero!<MyPoint>(), MyPoint{x: u32:0, y: u32:0});
+  assert_eq(zero!<MyEnum>(), MyEnum::ZERO);
 }
 ```
 
@@ -2127,17 +2106,16 @@ dumping of current values to stdout. For example:
 // bazel run -c opt //xls/dslx:interpreter_main  /path/to/dslx/file.x -- --alsologtostderr
 
 fn shifty(x: u8, y: u3) -> u8 {
-  let _ = trace_fmt!("x: {:x} y: {}", x, y);
+  trace_fmt!("x: {:x} y: {}", x, y);
   // Note: y looks different as a negative number when the high bit is set.
-  let _ = trace_fmt!("y as s8: {}", y as s2);
+  trace_fmt!("y as s8: {}", y as s2);
   x << y
 }
 
 #[test]
 fn test_shifty() {
-  let _ = assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
-  let _ = assert_eq(shifty(u8:0x42, u3:7), u8:0);
-  ()
+  assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
+  assert_eq(shifty(u8:0x42, u3:7), u8:0);
 }
 ```
 
@@ -2266,10 +2244,9 @@ Unit tests are specified by the `test` directive, as seen below:
 ```dslx
 #[test]
 fn test_reverse() {
-  let _ = assert_eq(u1:1, rev(u1:1));
-  let _ = assert_eq(u2:0b10, rev(u2:0b01));
-  let _ = assert_eq(u2:0b00, rev(u2:0b00));
-  ()
+  assert_eq(u1:1, rev(u1:1));
+  assert_eq(u2:0b10, rev(u2:0b01));
+  assert_eq(u2:0b00, rev(u2:0b00));
 }
 ```
 

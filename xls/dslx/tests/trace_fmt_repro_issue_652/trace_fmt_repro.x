@@ -14,11 +14,11 @@
 
 pub const TWENTYFIVE = u8:25;
 pub fn foo() -> u8 {
-  let _ = trace_fmt!("{}", TWENTYFIVE);
+  trace_fmt!("{}", TWENTYFIVE);
   u8:1
 }
 
 #[test]
 fn foo_test() {
-  assert_eq(u8:1, foo())
+  assert_eq(u8:1, foo());
 }

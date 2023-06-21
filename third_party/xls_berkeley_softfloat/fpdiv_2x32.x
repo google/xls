@@ -154,58 +154,58 @@ fn special_cases_tests() {
   let one  = float32::one(u1:0);
 
   let result = fpdiv_2x32(zero, zero);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(zero, inf);
-  let _ = assert_eq(result, zero);
+  assert_eq(result, zero);
 
   let result = fpdiv_2x32(zero, nan);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(zero, one);
-  let _ = assert_eq(result, zero);
+  assert_eq(result, zero);
 
   let result = fpdiv_2x32(inf, zero);
-  let _ = assert_eq(result, inf);
+  assert_eq(result, inf);
 
   let result = fpdiv_2x32(inf, inf);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(inf, nan);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(inf, one);
-  let _ = assert_eq(result, inf);
+  assert_eq(result, inf);
 
   let result = fpdiv_2x32(nan, zero);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(nan, inf);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(nan, nan);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(nan, one);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(one, zero);
-  let _ = assert_eq(result, inf);
+  assert_eq(result, inf);
 
   let result = fpdiv_2x32(one, inf);
-  let _ = assert_eq(result, zero);
+  assert_eq(result, zero);
 
   let result = fpdiv_2x32(one, nan);
-  let _ = assert_eq(result, nan);
+  assert_eq(result, nan);
 
   let result = fpdiv_2x32(one, one);
-  let _ = assert_eq(result, one);
+  assert_eq(result, one);
 
   // Check dividing inf by non-one, non-nan,
   // non-zero, non-inf number.
   let two  = F32 { sign: u1:0, bexp: u8:128, fraction: u23:0 };
   let result = fpdiv_2x32(inf, two);
-  let _ = assert_eq(result, inf);
+  assert_eq(result, inf);
 
   ()
 }
