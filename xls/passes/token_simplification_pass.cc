@@ -14,9 +14,13 @@
 
 #include "xls/passes/token_simplification_pass.h"
 
+#include <algorithm>
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
@@ -46,6 +50,31 @@ absl::flat_hash_set<Node*> DependenciesOf(Node* root) {
   return discovered;
 }
 
+absl::StatusOr<bool> SimplifyTrivialMinDelay(MinDelay* node) {
+  // MinDelay(x, delay=0) = x
+  // and
+  // MinDelay(AfterAll(), delay=…) = AfterAll()
+  FunctionBase* f = node->function_base();
+
+  if (node->delay() == 0) {
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(node->operand(0)));
+    XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+    return true;
+  }
+
+  Node* operand_node = node->operand(0);
+  if (!operand_node->Is<AfterAll>()) {
+    return false;
+  }
+  AfterAll* operand = operand_node->As<AfterAll>();
+  if (operand->operand_count() == 0) {
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(operand));
+    XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+    return true;
+  }
+  return false;
+}
+
 absl::StatusOr<bool> SimplifyTrivialAfterAll(AfterAll* node) {
   // AfterAll([x]) = x
 
@@ -56,6 +85,83 @@ absl::StatusOr<bool> SimplifyTrivialAfterAll(AfterAll* node) {
     return true;
   }
   return false;
+}
+
+absl::StatusOr<bool> CollapseMinDelay(MinDelay* node) {
+  // If all users of a MinDelay are MinDelays, then we can collapse them
+  // together, e.g.:
+  // MinDelay(MinDelay(…, delay=1), delay=2) = MinDelay(…, delay=3)
+
+  if (!node->operand(0)->Is<MinDelay>()) {
+    return false;
+  }
+
+  FunctionBase* f = node->function_base();
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<MinDelay>(
+              node->operand(0)->operand(0),
+              node->delay() + node->operand(0)->As<MinDelay>()->delay())
+          .status());
+  XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+  return true;
+}
+
+absl::StatusOr<bool> PushDownMinDelay(AfterAll* node) {
+  // If all operands of an AfterAll are MinDelays, then we can push the smallest
+  // delay through the AfterAll, canonicalizing our delay graph & simplifying
+  // later passes. (This also reduces the number of MinDelays if more than one
+  // has the minimum delay specified.)
+  // e,g.:
+  //
+  // AfterAll(MinDelay(…, delay=1), MinDelay(…, delay=1), MinDelay(…, delay=3))
+  //   =
+  // MinDelay(AfterAll(…, …, MinDelay(…, delay=2)), delay=1)
+
+  FunctionBase* f = node->function_base();
+
+  if (node->operand_count() == 0) {
+    return false;
+  }
+
+  int64_t least_delay = std::numeric_limits<int64_t>::max();
+  for (Node* operand : node->operands()) {
+    if (!operand->Is<MinDelay>()) {
+      return false;
+    }
+    least_delay = std::min(least_delay, operand->As<MinDelay>()->delay());
+  }
+  if (least_delay <= 0) {
+    return false;
+  }
+
+  // Retain these so we can clean them up if we're the only user.
+  const std::vector<Node*> operands(node->operands().begin(),
+                                    node->operands().end());
+  // Prevents iterator invalidation
+  const std::vector<Node*> users(node->users().begin(), node->users().end());
+
+  std::vector<Node*> new_operands;
+  new_operands.reserve(operands.size());
+  for (Node* input_node : operands) {
+    MinDelay* input = input_node->As<MinDelay>();
+    int64_t new_delay = input->delay() - least_delay;
+
+    Node* new_input = nullptr;
+    if (new_delay > 0) {
+      XLS_ASSIGN_OR_RETURN(
+          new_input,
+          f->MakeNode<MinDelay>(SourceInfo(), input->operand(0), new_delay));
+    } else {
+      new_input = input->operand(0);
+    }
+    new_operands.push_back(new_input);
+  }
+  XLS_ASSIGN_OR_RETURN(Node * new_node,
+                       f->MakeNode<AfterAll>(SourceInfo(), new_operands));
+  XLS_RETURN_IF_ERROR(
+      node->ReplaceUsesWithNew<MinDelay>(new_node, least_delay).status());
+  XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+  return true;
 }
 
 absl::StatusOr<bool> CollapseAfterAll(AfterAll* node) {
@@ -173,6 +279,33 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
 
+  for (Node* node : TopoSort(f)) {
+    if (!node->Is<MinDelay>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                         SimplifyTrivialMinDelay(node->As<MinDelay>()));
+    changed |= subpass_changed;
+  }
+
+  for (Node* node : TopoSort(f)) {
+    if (!node->Is<MinDelay>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                         CollapseMinDelay(node->As<MinDelay>()));
+    changed |= subpass_changed;
+  }
+
+  for (Node* node : TopoSort(f)) {
+    if (!node->Is<AfterAll>()) {
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(bool subpass_changed,
+                         PushDownMinDelay(node->As<AfterAll>()));
+    changed |= subpass_changed;
+  }
+
   for (Node* node : ReverseTopoSort(f)) {
     if (!node->Is<AfterAll>()) {
       continue;
@@ -207,6 +340,15 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          SimplifyTrivialAfterAll(node->As<AfterAll>()));
     changed |= subpass_changed;
+  }
+
+  if (changed) {
+    for (Node* node : TopoSort(f)) {
+      if (!node->Is<MinDelay>()) {
+        continue;
+      }
+      XLS_RETURN_IF_ERROR(CollapseMinDelay(node->As<MinDelay>()).status());
+    }
   }
 
   return changed;
