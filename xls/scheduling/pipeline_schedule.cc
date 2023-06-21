@@ -410,6 +410,10 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     XLS_RET_CHECK(!options.pipeline_stages().has_value());
     // Just schedule everything as soon as possible.
     for (Node* node : f->nodes()) {
+      if (node->Is<MinDelay>()) {
+        return absl::InternalError(
+            "The ASAP scheduler doesn't support min_delay nodes.");
+      }
       cycle_map[node] = bounds.lb(node);
     }
   }
@@ -496,6 +500,11 @@ absl::Status PipelineSchedule::Verify() const {
   for (Node* node : function_base()->nodes()) {
     for (Node* operand : node->operands()) {
       XLS_RET_CHECK_LE(cycle(operand), cycle(node));
+
+      if (node->Is<MinDelay>()) {
+        XLS_RET_CHECK_LE(cycle(operand),
+                         cycle(node) - node->As<MinDelay>()->delay());
+      }
     }
   }
   if (function_base()->IsProc()) {

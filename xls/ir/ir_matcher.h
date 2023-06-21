@@ -18,6 +18,7 @@
 #include <optional>
 #include <utility>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
@@ -1013,6 +1014,39 @@ inline ::testing::Matcher<const ::xls::Node*> Register(
     ::testing::Matcher<const Node*> input) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterMatcher(std::move(input), register_name));
+}
+
+// MinDelay matcher. Supported forms:
+//
+//   EXPECT_THAT(x, m::MinDelay());
+//   EXPECT_THAT(x, m::MinDelay(/*token=*/_));
+//   EXPECT_THAT(x, m::MinDelay(/*delay=*/1));
+//   EXPECT_THAT(x, m::MinDelay(/*token=*/_, /*delay=*/1));
+class MinDelayMatcher : public NodeMatcher {
+ public:
+  explicit MinDelayMatcher(::testing::Matcher<const ::xls::Node*> token,
+                           ::testing::Matcher<int64_t> delay = ::testing::_)
+      : NodeMatcher(Op::kMinDelay, /*operands=*/{std::move(token)}),
+        delay_(std::move(delay)) {}
+
+  bool MatchAndExplain(const Node* node,
+                       ::testing::MatchResultListener* listener) const override;
+  void DescribeTo(::std::ostream* os) const override;
+
+ private:
+  ::testing::Matcher<int64_t> delay_;
+};
+
+inline ::testing::Matcher<const ::xls::Node*> MinDelay(
+    ::testing::Matcher<const ::xls::Node*> data = ::testing::_,
+    ::testing::Matcher<int64_t> delay = ::testing::_) {
+  return ::testing::MakeMatcher(new ::xls::op_matchers::MinDelayMatcher(
+      std::move(data), std::move(delay)));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> MinDelay(int64_t delay) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::MinDelayMatcher(::testing::_, delay));
 }
 
 // Matcher for FunctionBase. Supported form:

@@ -183,6 +183,7 @@ class RangeQueryVisitor : public DfsVisitor {
 
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
+  absl::Status HandleMinDelay(MinDelay* min_delay) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayConcat(ArrayConcat* array_concat) override;
@@ -643,6 +644,12 @@ absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
 
 absl::Status RangeQueryVisitor::HandleAfterAll(AfterAll* after_all) {
   engine_->InitializeNode(after_all);
+  // Produces a token, so maximal range is okay.
+  return absl::OkStatus();
+}
+
+absl::Status RangeQueryVisitor::HandleMinDelay(MinDelay* min_delay) {
+  engine_->InitializeNode(min_delay);
   // Produces a token, so maximal range is okay.
   return absl::OkStatus();
 }

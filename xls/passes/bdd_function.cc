@@ -216,6 +216,7 @@ bool ShouldEvaluate(Node* node) {
 
     // Weirdo ops.
     case Op::kAfterAll:
+    case Op::kMinDelay:
     case Op::kArray:
     case Op::kArrayConcat:
     case Op::kArrayIndex:

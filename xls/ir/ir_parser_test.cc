@@ -839,6 +839,43 @@ fn after_all_func() -> token {
                        HasSubstr("Expected token type @")));
 }
 
+TEST(IrParserTest, ParseMinDelay) {
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all(id=1)
+  min_delay.2: token = min_delay(after_all.1, delay=3, id=2)
+  ret min_delay.3: token = min_delay(min_delay.2, delay=0, id=3)
+}
+)";
+  ParseFunctionAndCheckDump(input);
+}
+
+TEST(IrParserTest, ParseMinDelayNonToken) {
+  Package p("my_package");
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all(id=1)
+  ret min_delay.2: bits[2] = min_delay(after_all.1, delay=3, id=2)
+}
+)";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected token type @")));
+}
+
+TEST(IrParserTest, ParseMinDelayNegative) {
+  Package p("my_package");
+  std::string input = R"(
+fn after_all_func() -> token {
+  after_all.1: token = after_all(id=1)
+  ret min_delay.2: token = min_delay(after_all.1, delay=-1, id=2)
+}
+)";
+  EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Delay cannot be negative")));
+}
+
 TEST(IrParserTest, ParseArray) {
   std::string input = R"(
 fn array_and_array(x: bits[32], y: bits[32], z: bits[32]) -> bits[32][3] {

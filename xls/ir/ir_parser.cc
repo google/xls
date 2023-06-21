@@ -829,6 +829,16 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->AfterAll(operands, *loc, node_name);
       break;
     }
+    case Op::kMinDelay: {
+      if (!type->IsToken()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Expected token type @ %s", op_token.pos().ToHumanString()));
+      }
+      int64_t* delay = arg_parser.AddKeywordArg<int64_t>("delay");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      bvalue = fb->MinDelay(operands[0], *delay, *loc, node_name);
+      break;
+    }
     case Op::kArray: {
       if (!type->IsArray()) {
         return absl::InvalidArgumentError(absl::StrFormat(

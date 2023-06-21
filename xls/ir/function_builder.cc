@@ -315,6 +315,19 @@ BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,
   return AddNode<xls::AfterAll>(loc, nodes, name);
 }
 
+BValue BuilderBase::MinDelay(BValue token, int64_t delay, const SourceInfo& loc,
+                             std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!GetType(token)->IsToken()) {
+    return SetError(absl::StrFormat("Input type %s is not a token.",
+                                    GetType(token)->ToString()),
+                    loc);
+  }
+  return AddNode<xls::MinDelay>(loc, token.node(), delay, name);
+}
+
 BValue BuilderBase::Tuple(absl::Span<const BValue> elements,
                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
@@ -1431,6 +1444,11 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
   }
   return AddNode<xls::Send>(loc, token.node(), data.node(), pred.node(),
                             channel->id(), name);
+}
+
+void TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
+                                    std::string_view name) {
+  last_token_ = ProcBuilder::MinDelay(last_token_, delay, loc, name);
 }
 
 BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,

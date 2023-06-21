@@ -59,6 +59,10 @@ absl::Status DfsVisitorWithDefault::HandleAfterAll(AfterAll* after_all) {
   return DefaultHandler(after_all);
 }
 
+absl::Status DfsVisitorWithDefault::HandleMinDelay(MinDelay* min_delay) {
+  return DefaultHandler(min_delay);
+}
+
 absl::Status DfsVisitorWithDefault::HandleArray(Array* array) {
   return DefaultHandler(array);
 }

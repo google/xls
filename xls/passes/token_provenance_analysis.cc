@@ -50,6 +50,7 @@ inline bool OpHasTokenProvenance(Op op) {
     case Op::kReceive:
     case Op::kSend:
     case Op::kAfterAll:
+    case Op::kMinDelay:
       return true;
     default:
       return false;
@@ -81,7 +82,8 @@ class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
 class TokenProvenanceWithTopoSortVisitor : public TokenProvenanceVisitor {
  public:
   absl::Status DefaultHandler(Node* node) override {
-    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll) {
+    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll ||
+        node->op() == Op::kMinDelay) {
       if (!(node->op() == Op::kParam && !TypeHasToken(node->GetType()))) {
         // Don't include normal state, just the proc token param.
         topo_sorted_token_nodes_.push_back(node);
@@ -133,7 +135,8 @@ absl::StatusOr<TokenDAG> ComputeTokenDAG(FunctionBase* f) {
 
   TokenDAG dag;
   for (Node* node : f->nodes()) {
-    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll) {
+    if (OpIsSideEffecting(node->op()) || node->op() == Op::kAfterAll ||
+        node->op() == Op::kMinDelay) {
       for (Node* operand : node->operands()) {
         if (operand->GetType()->IsToken()) {
           Node* child = provenance.at(operand).Get({});

@@ -141,6 +141,12 @@ absl::Status IrInterpreter::HandleAfterAll(AfterAll* after_all) {
   return SetValueResult(after_all, Value::Token());
 }
 
+absl::Status IrInterpreter::HandleMinDelay(MinDelay* min_delay) {
+  // MinDelay is only meaningful to the compiler and does not actually perform
+  // any computation.
+  return SetValueResult(min_delay, Value::Token());
+}
+
 absl::Status IrInterpreter::HandleReceive(Receive* receive) {
   return absl::UnimplementedError("Receive not implemented in IrInterpreter");
 }

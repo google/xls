@@ -864,6 +864,64 @@ fn f() -> bits[32] {
   }
 }
 
+TEST_F(Z3IrTranslatorTest, BasicMinDelayTokenTest) {
+  const std::string program = R"(
+package p
+
+fn f() -> bits[32] {
+  literal.1: bits[32] = literal(value=1)
+  after_all.10: token = after_all()
+  literal.2: bits[32] = literal(value=2)
+  min_delay.11: token = min_delay(after_all.10, delay=1)
+  literal.3: bits[32] = literal(value=4)
+  min_delay.12: token = min_delay(min_delay.11, delay=2)
+  literal.4: bits[32] = literal(value=8)
+  min_delay.13: token = min_delay(min_delay.12, delay=4)
+  literal.5: bits[32] = literal(value=16)
+  array.6: bits[32][5] = array(literal.1, literal.2, literal.3, literal.4, literal.5)
+  ret result: bits[32] = array_index(array.6, indices=[literal.3])
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("f"));
+
+  // Check that non-token logic is not affected.
+  Node* eq_node = FindNode("literal.5", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(bool proven_eq, TryProve(f, f->return_value(),
+                                                    Predicate::EqualTo(eq_node),
+                                                    absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_eq);
+
+  std::vector<Node*> token_nodes;
+  for (Node* node : f->nodes()) {
+    if (node->GetType()->IsToken()) {
+      token_nodes.push_back(node);
+    }
+  }
+  assert(token_nodes.size() == 4);
+
+  for (int l_idx = 0; l_idx < token_nodes.size(); ++l_idx) {
+    for (int r_idx = l_idx + 1; r_idx < token_nodes.size(); ++r_idx) {
+      // All tokens are equal to each other.
+      XLS_ASSERT_OK_AND_ASSIGN(
+          bool proven_eq, TryProve(f, token_nodes.at(l_idx),
+                                   Predicate::EqualTo(token_nodes.at(r_idx)),
+                                   absl::InfiniteDuration()));
+      EXPECT_TRUE(proven_eq);
+    }
+    // Can't prove a token is 0 or non-zero because it is a non-bit type.
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::EqualToZero(),
+                          absl::InfiniteDuration())
+                     .status()
+                     .ok());
+    EXPECT_FALSE(TryProve(f, token_nodes.at(l_idx), Predicate::NotEqualToZero(),
+                          absl::InfiniteDuration())
+                     .status()
+                     .ok());
+  }
+}
+
 TEST_F(Z3IrTranslatorTest, TokensNotEqualToEmptyTuples) {
   const std::string program = R"(
 package p

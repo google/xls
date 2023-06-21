@@ -80,4 +80,5 @@ enum OpProto {
   OP_ZERO_EXT = 71;
   OP_GATE = 72;
   OP_TRACE = 73;
-}
+  OP_MIN_DELAY = 74;
+  }

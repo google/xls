@@ -125,6 +125,17 @@ class NodeChecker : public DfsVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleMinDelay(MinDelay* min_delay) override {
+    XLS_RETURN_IF_ERROR(ExpectHasTokenType(min_delay));
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(min_delay, 1));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(min_delay, /*operand_no=*/0));
+    if (min_delay->delay() < 0) {
+      return absl::InternalError(
+          StrFormat("Delay cannot be negative: %s", min_delay->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleReceive(Receive* receive) override {
     XLS_RETURN_IF_ERROR(ExpectOperandCountRange(receive, 1, 2));
     XLS_RETURN_IF_ERROR(ExpectOperandHasTokenType(receive, /*operand_no=*/0));

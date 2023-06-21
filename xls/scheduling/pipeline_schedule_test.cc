@@ -22,6 +22,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -695,6 +696,35 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue delay = pb.MinDelay(send, /*delay=*/3);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(5)));
+  EXPECT_EQ(schedule.length(), 5);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 3);
 }
 
 // Proc next state does not depend on param. Force schedule of a param node in a

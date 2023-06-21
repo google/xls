@@ -114,6 +114,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kAfterAll:
       XLS_RETURN_IF_ERROR(visitor->HandleAfterAll(down_cast<AfterAll*>(this)));
       break;
+    case Op::kMinDelay:
+      XLS_RETURN_IF_ERROR(visitor->HandleMinDelay(down_cast<MinDelay*>(this)));
+      break;
     case Op::kArray:
       XLS_RETURN_IF_ERROR(visitor->HandleArray(down_cast<Array*>(this)));
       break;
@@ -605,6 +608,9 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
           absl::StrFormat("instantiation=%s, port_name=%s",
                           As<InstantiationOutput>()->instantiation()->name(),
                           As<InstantiationOutput>()->port_name()));
+      break;
+    case Op::kMinDelay:
+      args.push_back(absl::StrFormat("delay=%d", As<MinDelay>()->delay()));
       break;
     default:
       break;

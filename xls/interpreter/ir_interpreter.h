@@ -67,6 +67,7 @@ class IrInterpreter : public DfsVisitor {
 
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
+  absl::Status HandleMinDelay(MinDelay* min_delay) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayConcat(ArrayConcat* concat) override;

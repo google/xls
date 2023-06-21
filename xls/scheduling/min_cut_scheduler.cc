@@ -29,6 +29,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/scheduling/function_partition.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -165,6 +166,13 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
       return absl::InternalError(
           "MinCutScheduler doesn't support constraints "
           "other than receives-first-sends-last.");
+    }
+  }
+
+  for (Node* node : f->nodes()) {
+    if (node->Is<MinDelay>()) {
+      return absl::InternalError(
+          "MinCutScheduler doesn't support min_delay nodes.");
     }
   }
 

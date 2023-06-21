@@ -73,6 +73,7 @@ class TestDelayEstimator : public DelayEstimator {
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kAfterAll:
+      case Op::kMinDelay:
       case Op::kParam:
       case Op::kInputPort:
       case Op::kOutputPort:

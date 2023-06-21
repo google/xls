@@ -604,6 +604,12 @@ op_models {
   }
 }
 op_models {
+  op: "kMinDelay"
+  estimator {
+    fixed: 0
+  }
+}
+op_models {
   op: "kCover"
   estimator {
     fixed: 0

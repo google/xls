@@ -169,6 +169,7 @@ cc_test(
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",

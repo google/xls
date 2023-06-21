@@ -304,18 +304,24 @@ absl::Status ConstraintBuilder::AddCausalConstraint(Node* node,
   or_tools::MPVariable* cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
+  // Explicit delay nodes must lag their inputs by a certain number of cycles.
+  int64_t min_delay = 0;
+  if (user.has_value() && user.value()->Is<MinDelay>()) {
+    min_delay = user.value()->As<MinDelay>()->delay();
+  }
+
   std::string user_str = user.has_value() ? user.value()->GetName() : "«sink»";
 
-  // Constraint: cycle[node] - cycle[node_user] <= 0
+  // Constraint: cycle[node] - cycle[node_user] <= -min_delay
   or_tools::MPConstraint* causal = solver_->MakeRowConstraint(
-      -infinity_, 0.0,
+      -infinity_, -min_delay,
       absl::StrFormat("causal_%s_%s", node->GetName(), user_str));
   causal->SetCoefficient(cycle_at_node, 1);
   causal->SetCoefficient(cycle_at_user, -1);
 
   XLS_VLOG(2) << "Setting causal constraint: "
-              << absl::StrFormat("cycle[%s] - cycle[%s] ≥ 0", user_str,
-                                 node->GetName());
+              << absl::StrFormat("cycle[%s] - cycle[%s] ≥ %d", user_str,
+                                 node->GetName(), min_delay);
 
   return absl::OkStatus();
 }

@@ -255,6 +255,50 @@ TEST(FunctionBuilderTest, AfterAllNonTokenArg) {
           testing::HasSubstr("Dependency type bits[32] is not a token.")));
 }
 
+TEST(FunctionBuilderTest, MinDelay) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BValue token = fb.AfterAll({});
+  fb.MinDelay(token, /*delay=*/3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(f->return_value(), m::MinDelay(m::AfterAll(), /*delay=*/3));
+}
+
+TEST(FunctionBuilderTest, MinDelayZero) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BValue token = fb.AfterAll({});
+  fb.MinDelay(token, /*delay=*/0);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  EXPECT_THAT(f->return_value(), m::MinDelay(m::AfterAll(), /*delay=*/0));
+}
+
+TEST(FunctionBuilderTest, MinDelayNonTokenArg) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BitsType* value_type = p.GetBitsType(32);
+  BValue x = fb.Param("x", value_type);
+  fb.MinDelay(x, /*delay=*/1);
+
+  EXPECT_THAT(fb.Build(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("Input type bits[32] is not a token.")));
+}
+
+TEST(FunctionBuilderTest, MinDelayNegative) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  BValue token = fb.AfterAll({});
+  fb.MinDelay(token, /*delay=*/-5);
+
+  EXPECT_THAT(fb.Build(), status_testing::StatusIs(
+                              absl::StatusCode::kInvalidArgument,
+                              testing::HasSubstr("Delay cannot be negative")));
+}
+
 TEST(FunctionBuilderTest, ArrayIndexBits) {
   Package p("p");
   FunctionBuilder b("f", &p);
@@ -762,12 +806,13 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
   TokenlessProcBuilder pb("the_proc", "tkn", &p);
   BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
+  pb.MinDelay(5);
   pb.Send(out_ch, pb.Add(state, a_plus_b));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({a_plus_b}));
 
-  EXPECT_THAT(proc->NextToken(),
-              m::Send(m::TupleIndex(m::Receive(m::TupleIndex(m::Receive()))),
-                      m::Add()));
+  EXPECT_THAT(proc->NextToken(), m::Send(m::MinDelay(m::TupleIndex(m::Receive(
+                                             m::TupleIndex(m::Receive())))),
+                                         m::Add()));
 
   EXPECT_THAT(proc->GetNextStateElement(0),
               m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),

@@ -252,6 +252,7 @@ BomKindProto OpToBomKind(Op op) {
     case Op::kAssert:
     case Op::kCover:
     case Op::kAfterAll:
+    case Op::kMinDelay:
     case Op::kArray:
     case Op::kArrayConcat:
     case Op::kBitSlice:

@@ -677,6 +677,17 @@ absl::Status IrTranslator::HandleAfterAll(AfterAll* after_all) {
   return seh.status();
 }
 
+absl::Status IrTranslator::HandleMinDelay(MinDelay* min_delay) {
+  ScopedErrorHandler seh(ctx_);
+  // Token types don't contain any data. A 0-field tuple is a convenient
+  // way to let (most of) the rest of the z3 infrastructure treat a
+  // token like a normal data-type.
+  NoteTranslation(min_delay,
+                  CreateTuple(TypeToSort(ctx_, *min_delay->GetType()),
+                              /*elements=*/{}));
+  return seh.status();
+}
+
 absl::Status IrTranslator::HandleArray(Array* array) {
   ScopedErrorHandler seh(ctx_);
   std::vector<Z3_ast> elements;

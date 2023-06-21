@@ -518,5 +518,35 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
   EXPECT_THAT(p.functions(), UnorderedElementsAre(m::Function("f")));
 }
 
+TEST(IrMatchersTest, MinDelayMatcher) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto token = fb.AfterAll({});
+  auto x = fb.MinDelay(token, 1);
+  auto y = fb.MinDelay(token, 3);
+  XLS_ASSERT_OK(fb.Build().status());
+
+  EXPECT_THAT(x.node(), m::MinDelay());
+  EXPECT_THAT(x.node(), m::MinDelay(token.node()));
+  EXPECT_THAT(x.node(), m::MinDelay(token.node(), 1));
+  EXPECT_THAT(x.node(), m::MinDelay(1));
+
+  EXPECT_THAT(y.node(), m::MinDelay());
+  EXPECT_THAT(y.node(), m::MinDelay(token.node()));
+  EXPECT_THAT(y.node(), m::MinDelay(token.node(), 3));
+  EXPECT_THAT(y.node(), m::MinDelay(3));
+
+  EXPECT_THAT(Explain(x.node(), m::MinDelay(3)),
+              HasSubstr("delay 1 isn't equal to 3"));
+  EXPECT_THAT(Explain(x.node(), m::MinDelay(token.node(), 3)),
+              HasSubstr("delay 1 isn't equal to 3"));
+
+  EXPECT_THAT(Explain(y.node(), m::MinDelay(0)),
+              HasSubstr("delay 3 isn't equal to 0"));
+  EXPECT_THAT(Explain(y.node(), m::MinDelay(token.node(), 0)),
+              HasSubstr("delay 3 isn't equal to 0"));
+}
+
 }  // namespace
 }  // namespace xls

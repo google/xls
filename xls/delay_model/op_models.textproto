@@ -472,6 +472,7 @@ op_models { op: "kTupleIndex" estimator { fixed: 0 } }
 op_models { op: "kZeroExt" estimator { fixed: 0 } }
 op_models { op: "kAssert" estimator { fixed: 0 } }
 op_models { op: "kAfterAll" estimator { fixed: 0 } }
+op_models { op: "kMinDelay" estimator { fixed: 0 } }
 op_models { op: "kCover" estimator { fixed: 0 } }
 
 op_models { op: "kReceive" estimator { fixed: 0 } }

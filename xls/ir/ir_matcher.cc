@@ -15,11 +15,13 @@
 #include "xls/ir/ir_matcher.h"
 
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/ir/function_base.h"
@@ -522,6 +524,28 @@ void FunctionMatcher::DescribeNegationTo(std::ostream* os) const {
   } else {
     *os << "FunctionBase was not a function.";
   }
+}
+
+bool MinDelayMatcher::MatchAndExplain(
+    const Node* node, ::testing::MatchResultListener* listener) const {
+  if (!NodeMatcher::MatchAndExplain(node, listener)) {
+    return false;
+  }
+  int64_t delay = node->As<::xls::MinDelay>()->delay();
+  if (delay_.Matches(delay)) {
+    return true;
+  }
+  if (listener->IsInterested()) {
+    *listener << "delay " << delay << " ";
+    delay_.DescribeNegationTo(listener->stream());
+  }
+  return false;
+}
+
+void MinDelayMatcher::DescribeTo(::std::ostream* os) const {
+  std::stringstream delay_description;
+  delay_.DescribeTo(&delay_description);
+  DescribeToHelper(os, {absl::StrCat("delay=", delay_description.str())});
 }
 
 }  // namespace op_matchers

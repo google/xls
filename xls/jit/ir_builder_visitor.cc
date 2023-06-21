@@ -893,6 +893,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleAdd(BinOp* binop) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* op) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
+  absl::Status HandleMinDelay(MinDelay* min_delay) override;
   absl::Status HandleArray(Array* array) override;
   absl::Status HandleArrayIndex(ArrayIndex* index) override;
   absl::Status HandleArraySlice(ArraySlice* slice) override;
@@ -1075,6 +1076,15 @@ absl::Status IrBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
                                      llvm::IRBuilder<>& b) {
     return type_converter()->GetToken();
   });
+}
+
+absl::Status IrBuilderVisitor::HandleMinDelay(MinDelay* min_delay) {
+  // MinDelay is only meaningful to the compiler and does not actually perform
+  // any computation.
+  return HandleUnaryOp(min_delay,
+                       [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
+                         return type_converter()->GetToken();
+                       });
 }
 
 absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {

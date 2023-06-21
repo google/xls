@@ -371,6 +371,11 @@ class BuilderBase {
                   const SourceInfo& loc = SourceInfo(),
                   std::string_view name = "");
 
+  // Creates a MinDelay constraint operation.
+  BValue MinDelay(BValue token, int64_t delay,
+                  const SourceInfo& loc = SourceInfo(),
+                  std::string_view name = "");
+
   // Creates an array of values. Each value in element must be the same type
   // which is given by element_type.
   BValue Array(absl::Span<const BValue> elements, Type* element_type,
@@ -746,6 +751,11 @@ class TokenlessProcBuilder : public ProcBuilder {
   // operands are all of the tokens from the send(if)/receive(if) operations in
   // the proc.
   absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
+
+  // Add a MinDelay constraint operation.
+  using ProcBuilder::MinDelay;
+  void MinDelay(int64_t delay, const SourceInfo& loc = SourceInfo(),
+                std::string_view name = "");
 
   // Add a receive operation. The type of the data value received is determined
   // by the channel. The returned BValue is the received data itself (*not* the

@@ -67,9 +67,10 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   BValue t4 = pb.Trace(t3, pb.Literal(UBits(1, 1)), {}, "");
   BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
   BValue t6 = pb.AfterAll({t3, t4, t5});
+  BValue t7 = pb.MinDelay(t6, 42);
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(t6, {pb.Literal(UBits(0, 0))}));
+                           pb.Build(t7, {pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 
@@ -86,6 +87,7 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   EXPECT_EQ(provenance.at(t4.node()).Get({}), t4.node());
   EXPECT_EQ(provenance.at(t5.node()).Get({}), t5.node());
   EXPECT_EQ(provenance.at(t6.node()).Get({}), t6.node());
+  EXPECT_EQ(provenance.at(t7.node()).Get({}), t7.node());
 }
 
 TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {

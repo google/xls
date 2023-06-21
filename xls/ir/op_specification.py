@@ -417,6 +417,14 @@ OpClass.kinds['AFTER_ALL'] = OpClass(
     xls_type_expression='function->package()->GetTokenType()',
 )
 
+OpClass.kinds['MIN_DELAY'] = OpClass(
+    name='MinDelay',
+    op='Op::kMinDelay',
+    operands=[Operand('token')],
+    xls_type_expression='function->package()->GetTokenType()',
+    attributes=[Int64Attribute('delay')],
+)
+
 OpClass.kinds['ARRAY'] = OpClass(
     name='Array',
     op='Op::kArray',
@@ -1511,6 +1519,12 @@ OPS = [
         name='trace',
         op_class=OpClass.kinds['TRACE'],
         properties=[Property.SIDE_EFFECTING],
+    ),
+    Op(
+        enum_name='kMinDelay',
+        name='min_delay',
+        op_class=OpClass.kinds['MIN_DELAY'],
+        properties=[],
     ),
 
 ]
