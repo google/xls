@@ -140,9 +140,6 @@ cc_test(
     name = "standard_pipeline_test",
     srcs = ["standard_pipeline_test.cc"],
     deps = [
-        ":arith_simplification_pass",
-        ":dce_pass",
-        ":dump_pass",
         ":standard_pipeline",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -153,9 +150,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
-        "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
-        "//xls/ir:type",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -399,17 +394,6 @@ cc_library(
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:node_util",
-    ],
-)
-
-cc_library(
-    name = "dump_pass",
-    srcs = ["dump_pass.cc"],
-    hdrs = ["dump_pass.h"],
-    deps = [
-        ":passes",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/ir",
     ],
 )
 

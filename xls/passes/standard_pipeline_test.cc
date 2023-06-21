@@ -24,13 +24,8 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/ir/type.h"
-#include "xls/passes/arith_simplification_pass.h"
-#include "xls/passes/dce_pass.h"
-#include "xls/passes/dump_pass.h"
 
 namespace m = ::xls::op_matchers;
 
