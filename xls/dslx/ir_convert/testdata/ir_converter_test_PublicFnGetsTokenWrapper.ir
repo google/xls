@@ -9,7 +9,7 @@ fn __itok__test_module__callee_callee(__token: token, __activated: bits[1], x: b
   ugt.6: bits[1] = ugt(x, literal.5, id=6)
   after_all.10: token = after_all(assert.8, id=10)
   literal.4: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=4)
-  _: bits[1] = identity(ugt.6, id=9)
+  identity.9: bits[1] = identity(ugt.6, id=9)
   ret tuple.11: (token, bits[32]) = tuple(after_all.10, x, id=11)
 }
 

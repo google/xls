@@ -13,6 +13,6 @@
 // limitations under the License.
 
 pub fn die_if_odd(x: u32) -> u32 {
-  let _ = if (x & u32:1) as bool { fail!("x_is_odd", u32:0) } else { x };
+  if (x & u32:1) as bool { fail!("x_is_odd", u32:0) } else { x };
   x
 }

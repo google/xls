@@ -2781,6 +2781,10 @@ class NameDefTree : public AstNode {
     });
   }
 
+  bool IsWildcardLeaf() const {
+    return is_leaf() && std::holds_alternative<WildcardPattern*>(leaf());
+  }
+
   // Performs a preorder traversal under this node in the NameDefTree.
   //
   // Args:

@@ -30,7 +30,10 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {
 
@@ -252,7 +255,7 @@ TEST_F(ParserTest, EmptyTupleWithComma) {
                    "fake.x:1:2-1:3 Expected start of an expression; got: ,")));
 }
 
-TEST_F(ParserTest, ParseLetExpression) {
+TEST_F(ParserTest, ParseLet) {
   const char* text = R"({
     let x: u32 = 2;
     x
@@ -275,6 +278,30 @@ TEST_F(ParserTest, ParseLetExpression) {
   Expr* e = std::get<Expr*>(stmts.at(1)->wrapped());
   auto* name_ref = dynamic_cast<NameRef*>(e);
   EXPECT_EQ(name_ref->ToString(), "x");
+}
+
+TEST_F(ParserTest, ParseLetWildcardBinding) {
+  const char* text = R"({
+  let _ = 2;
+})";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings b;
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           p.ParseBlockExpression(/*bindings=*/b));
+
+  ASSERT_TRUE(block->trailing_semi());
+  absl::Span<Statement* const> stmts = block->statements();
+  ASSERT_EQ(stmts.size(), 1);
+
+  Let* let = std::get<Let*>(stmts.at(0)->wrapped());
+  EXPECT_EQ(
+      AstNodeKindToString(ToAstNode(let->name_def_tree()->leaf())->kind()),
+      "wildcard pattern");
+  WildcardPattern* wildcard =
+      std::get<WildcardPattern*>(let->name_def_tree()->leaf());
+  ASSERT_NE(wildcard, nullptr);
+  ASSERT_TRUE(let->name_def_tree()->IsWildcardLeaf());
 }
 
 TEST_F(ParserTest, ParseLetExpressionWithShadowing) {

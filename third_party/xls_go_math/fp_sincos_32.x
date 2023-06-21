@@ -259,21 +259,21 @@ fn test_fp_sincos_32() {
   let denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:1};
 
   // Inf.
-  let _ = assert_eq(fp_sincos_32(float32::inf(u1:0)),
+  assert_eq(fp_sincos_32(float32::inf(u1:0)),
             (float32::qnan(), float32::qnan()));
-  let _ = assert_eq(fp_sincos_32(float32::inf(u1:1)),
+  assert_eq(fp_sincos_32(float32::inf(u1:1)),
             (float32::qnan(), float32::qnan()));
   // NaN
-  let _ = assert_eq(fp_sincos_32(non_canonical_nan),
+  assert_eq(fp_sincos_32(non_canonical_nan),
             (float32::qnan(), float32::qnan()));
   // 0
-  let _ = assert_eq(fp_sincos_32(float32::zero(u1:0)),
+  assert_eq(fp_sincos_32(float32::zero(u1:0)),
             (float32::zero(u1:0), float32::one(u1:0)));
-  let _ = assert_eq(fp_sincos_32(float32::zero(u1:1)),
+  assert_eq(fp_sincos_32(float32::zero(u1:1)),
             (float32::zero(u1:1), float32::one(u1:0)));
 
   // denormal
-  let _ = assert_eq(fp_sincos_32(denormal),
+  assert_eq(fp_sincos_32(denormal),
             (float32::zero(u1:0), float32::one(u1:0)));
 
   ()
@@ -288,7 +288,7 @@ pub fn fp_sin_32(x: F32) -> F32 {
 #[test]
 fn test_fp_sin_32() {
   // Just testing that we got the wiring right.
-  let _ = assert_eq(fp_sin_32(float32::zero(u1:0)),
+  assert_eq(fp_sin_32(float32::zero(u1:0)),
             float32::zero(u1:0));
   ()
 }
@@ -302,7 +302,7 @@ pub fn fp_cos_32(x: F32) -> F32 {
 #[test]
 fn test_fp_cos_32() {
   // Just testing that we got the wiring right.
-  let _ = assert_eq(fp_cos_32(float32::zero(u1:0)),
+  assert_eq(fp_cos_32(float32::zero(u1:0)),
             float32::one(u1:0));
   ()
 }

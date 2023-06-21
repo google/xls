@@ -2365,7 +2365,12 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings& bindings) {
     XLS_ASSIGN_OR_RETURN(name_def_tree, ParseNameDefTree(new_bindings));
   } else {
     XLS_ASSIGN_OR_RETURN(name_def, ParseNameDef(new_bindings));
-    name_def_tree = module_->Make<NameDefTree>(name_def->span(), name_def);
+    if (name_def->identifier() == "_") {
+      name_def_tree = module_->Make<NameDefTree>(
+          name_def->span(), module_->Make<WildcardPattern>(name_def->span()));
+    } else {
+      name_def_tree = module_->Make<NameDefTree>(name_def->span(), name_def);
+    }
   }
 
   if (const_) {

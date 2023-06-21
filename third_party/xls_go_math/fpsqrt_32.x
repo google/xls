@@ -174,28 +174,28 @@ pub fn fpsqrt_32(x: F32) -> F32 {
 #[test]
 fn sqrt_test() {
   // Test Special cases.
-  let _ = assert_eq(fpsqrt_32(float32::zero(u1:0)),
+  assert_eq(fpsqrt_32(float32::zero(u1:0)),
     float32::zero(u1:0));
-  let _ = assert_eq(fpsqrt_32(float32::zero(u1:1)),
+  assert_eq(fpsqrt_32(float32::zero(u1:1)),
     float32::zero(u1:1));
-  let _ = assert_eq(fpsqrt_32(float32::inf(u1:0)),
+  assert_eq(fpsqrt_32(float32::inf(u1:0)),
     float32::inf(u1:0));
-  let _ = assert_eq(fpsqrt_32(float32::inf(u1:1)),
+  assert_eq(fpsqrt_32(float32::inf(u1:1)),
     float32::qnan());
-  let _ = assert_eq(fpsqrt_32(float32::qnan()),
+  assert_eq(fpsqrt_32(float32::qnan()),
     float32::qnan());
-  let _ = assert_eq(fpsqrt_32(float32::one(u1:1)),
+  assert_eq(fpsqrt_32(float32::one(u1:1)),
     float32::qnan());
   let pos_denormal = F32{sign: u1:0, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fpsqrt_32(pos_denormal),
+  assert_eq(fpsqrt_32(pos_denormal),
     float32::zero(u1:0));
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
-  let _ = assert_eq(fpsqrt_32(neg_denormal),
+  assert_eq(fpsqrt_32(neg_denormal),
     float32::zero(u1:1));
 
   // Try some simple numbers.
   // sqrt(1).
-  let _ = assert_eq(fpsqrt_32(float32::one(u1:0)),
+  assert_eq(fpsqrt_32(float32::one(u1:0)),
     fpsqrt_32(float32::one(u1:0)));
   // sqrt(4).
   let four = F32 {sign: u1:0, bexp:
@@ -204,7 +204,7 @@ fn sqrt_test() {
   let two = F32 {sign: u1:0, bexp:
                   float32::bias(s8:1),
                   fraction: u23:0};
-  let _ = assert_eq(fpsqrt_32(four), two);
+  assert_eq(fpsqrt_32(four), two);
   // sqrt(9).
   let nine = F32 {sign: u1:0, bexp:
                   float32::bias(s8:3),
@@ -212,7 +212,7 @@ fn sqrt_test() {
   let three = F32 {sign: u1:0, bexp:
                   float32::bias(s8:1),
                   fraction: u1:1 ++ u22:0};
-  let _ = assert_eq(fpsqrt_32(nine), three);
+  assert_eq(fpsqrt_32(nine), three);
   // sqrt(25).
   let twenty_five = F32 {sign: u1:0, bexp:
                   float32::bias(s8:4),
@@ -220,7 +220,7 @@ fn sqrt_test() {
   let five = F32 {sign: u1:0, bexp:
                   float32::bias(s8:2),
                   fraction: u2:1 ++ u21:0};
-  let _ = assert_eq(fpsqrt_32(twenty_five), five);
+  assert_eq(fpsqrt_32(twenty_five), five);
   ()
 }
 

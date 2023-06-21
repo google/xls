@@ -24,7 +24,6 @@ fn main(offset: u32) -> u32 {
 
 #[test]
 fn test_main_value() {
-  let _ = assert_eq(main(u32: 0), u32:15);
-  let _ = assert_eq(main(u32: 1), u32:16);
-  ()
+  assert_eq(main(u32: 0), u32:15);
+  assert_eq(main(u32: 1), u32:16);
 }

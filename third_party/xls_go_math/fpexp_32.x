@@ -201,17 +201,17 @@ pub fn fpexp_32(x: F32) -> F32 {
 #[test]
 fn fpexp_32_test() {
   // Special cases.
-  let _ = assert_eq(float32::qnan(), fpexp_32(float32::qnan()));
-  let _ = assert_eq(float32::inf(u1:0), fpexp_32(float32::inf(u1:0)));
-  let _ = assert_eq(float32::zero(u1:0), fpexp_32(float32::inf(u1:1)));
+  assert_eq(float32::qnan(), fpexp_32(float32::qnan()));
+  assert_eq(float32::inf(u1:0), fpexp_32(float32::inf(u1:0)));
+  assert_eq(float32::zero(u1:0), fpexp_32(float32::inf(u1:1)));
 
   // Very big positive input.
   let input = float32::unflatten(u32:0x5d5538f0);
-  let _ = assert_eq(float32::inf(u1:0), fpexp_32(input));
+  assert_eq(float32::inf(u1:0), fpexp_32(input));
 
   // Very big negative input.
   let input = float32::unflatten(u32:0xf12d483f);
-  let _ = assert_eq(float32::zero(u1:0), fpexp_32(input));
+  assert_eq(float32::zero(u1:0), fpexp_32(input));
   ()
 }
 

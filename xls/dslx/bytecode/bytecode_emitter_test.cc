@@ -103,7 +103,7 @@ TEST(BytecodeEmitterTest, AssertEq) {
   constexpr std::string_view kProgram = R"(#[test]
 fn expect_fail() -> u32{
   let foo = u32:3;
-  let _ = assert_eq(foo, u32:2);
+  assert_eq(foo, u32:2);
   foo
 })";
 
@@ -112,63 +112,15 @@ fn expect_fail() -> u32{
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "expect_fail"));
 
-  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 8);
-  const Bytecode* bc = bytecodes.data();
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(3));
-
-  bc = &bytecodes[1];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 0);
-
-  bc = &bytecodes[2];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 0);
-
-  bc = &bytecodes[3];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeU32(2));
-
-  bc = &bytecodes[4];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
-  XLS_ASSERT_OK_AND_ASSIGN(InterpValue call_fn, bc->value_data());
-  ASSERT_TRUE(call_fn.IsFunction());
-  ASSERT_TRUE(std::holds_alternative<Builtin>(call_fn.GetFunctionOrDie()));
-  Builtin builtin = std::get<Builtin>(call_fn.GetFunctionOrDie());
-  // How meta!
-  ASSERT_EQ(builtin, Builtin::kAssertEq);
-
-  bc = &bytecodes[5];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCall);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::InvocationData invocation_data,
-                           bc->invocation_data());
-  NameRef* name_ref =
-      dynamic_cast<NameRef*>(invocation_data.invocation->callee());
-  ASSERT_NE(name_ref, nullptr);
-  ASSERT_TRUE(std::holds_alternative<BuiltinNameDef*>(name_ref->name_def()));
-  BuiltinNameDef* builtin_name_def =
-      std::get<BuiltinNameDef*>(name_ref->name_def());
-  EXPECT_EQ(builtin_name_def->identifier(), "assert_eq");
-
-  bc = &bytecodes[6];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 1);
-
-  bc = &bytecodes[7];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 0);
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+            R"(000 literal u32:3
+001 store 0
+002 load 0
+003 literal u32:2
+004 literal builtin:assert_eq
+005 call assert_eq(foo, u32:2) : {}
+006 pop
+007 load 0)");
 }
 
 // Validates emission of Let nodes with structured bindings.
@@ -176,10 +128,10 @@ TEST(BytecodeEmitterTest, DestructuringLet) {
   constexpr std::string_view kProgram = R"(#[test]
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
-  let _ = assert_eq(a, u4:0);
-  let _ = assert_eq(b, u8:1);
-  let _ = assert_eq(c, u16:2);
-  let _ = assert_eq(d, (u32:3, u64:4, uN[128]:5));
+  assert_eq(a, u4:0);
+  assert_eq(b, u8:1);
+  assert_eq(c, u16:2);
+  assert_eq(d, (u32:3, u64:4, uN[128]:5));
   d
 })";
 
@@ -188,87 +140,46 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
       std::unique_ptr<BytecodeFunction> bf,
       EmitBytecodes(&import_data, kProgram, "has_name_def_tree"));
 
-  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
-  ASSERT_EQ(bytecodes.size(), 39);
-  const Bytecode* bc = bytecodes.data();
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeUBits(4, 0));
-
-  bc = &bytecodes[5];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
-  ASSERT_TRUE(bc->has_data());
-  ASSERT_EQ(bc->value_data().value(), InterpValue::MakeUBits(128, 5));
-
-  bc = &bytecodes[6];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::NumElements num_elements,
-                           bc->num_elements());
-  ASSERT_EQ(num_elements.value(), 3);
-
-  bc = &bytecodes[7];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
-  ASSERT_EQ(num_elements.value(), 2);
-
-  bc = &bytecodes[8];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
-  ASSERT_EQ(num_elements.value(), 3);
-
-  bc = &bytecodes[9];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
-  ASSERT_FALSE(bc->has_data());
-
-  bc = &bytecodes[10];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::SlotIndex slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 0);
-
-  bc = &bytecodes[11];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 1);
-
-  bc = &bytecodes[12];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kExpandTuple);
-  ASSERT_FALSE(bc->has_data());
-
-  bc = &bytecodes[13];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 2);
-
-  bc = &bytecodes[14];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 3);
-
-  // Skip the uninteresting comparisons.
-  bc = &bytecodes[30];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 3);
-
-  bc = &bytecodes[34];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kCreateTuple);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(num_elements, bc->num_elements());
-  ASSERT_EQ(num_elements.value(), 3);
-
-  bc = &bytecodes[38];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kLoad);
-  ASSERT_TRUE(bc->has_data());
-  XLS_ASSERT_OK_AND_ASSIGN(slot_index, bc->slot_index());
-  ASSERT_EQ(slot_index.value(), 3);
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+            R"(000 literal u4:0
+001 literal u8:1
+002 literal u16:2
+003 literal u32:3
+004 literal u64:4
+005 literal u128:0x5
+006 create_tuple 3
+007 create_tuple 2
+008 create_tuple 3
+009 expand_tuple
+010 store 0
+011 store 1
+012 expand_tuple
+013 store 2
+014 store 3
+015 load 0
+016 literal u4:0
+017 literal builtin:assert_eq
+018 call assert_eq(a, u4:0) : {}
+019 pop
+020 load 1
+021 literal u8:1
+022 literal builtin:assert_eq
+023 call assert_eq(b, u8:1) : {}
+024 pop
+025 load 2
+026 literal u16:2
+027 literal builtin:assert_eq
+028 call assert_eq(c, u16:2) : {}
+029 pop
+030 load 3
+031 literal u32:3
+032 literal u64:4
+033 literal u128:0x5
+034 create_tuple 3
+035 literal builtin:assert_eq
+036 call assert_eq(d, (u32:3, u64:4, uN[128]:5)) : {}
+037 pop
+038 load 3)");
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
@@ -1236,7 +1147,7 @@ literal u64:0 @ test.x:9:29-9:39
 tuple_index @ test.x:9:29-9:39
 literal builtin:cover! @ test.x:9:13-9:19
 call cover!("whee", s.some_bool) : {} @ test.x:9:19-9:40
-store 3 @ test.x:9:9-9:10
+pop @ test.x:9:9-9:10
 create_tuple 0 @ test.x:10:5-10:7
 load 2 @ test.x:8:6-11:8
 literal u32:1 @ test.x:8:6-11:8

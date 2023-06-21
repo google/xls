@@ -122,8 +122,8 @@ pub fn fp_trig_reduce_32(x: F32) -> (u3, F32) {
 fn fp_trig_reduce_32_test() {
   let num = float32::unflatten(u32:0x45492679);
   let (j, fraction) = fp_trig_reduce_32(num);
-  let _ = assert_eq(j, u3:2);
-  let _ = assert_eq(fraction, float32::unflatten(u32:0xbe20e760));
+  assert_eq(j, u3:2);
+  assert_eq(fraction, float32::unflatten(u32:0xbe20e760));
   ()
 }
 
@@ -132,8 +132,8 @@ fn fp_trig_reduce_32_test() {
 fn fp_trig_reduce_64_test() {
   let num = float64::unflatten(u64:0x40a924cf20000000);
   let (j, fraction) = fp_trig_reduce_64(num);
-  let _ = assert_eq(j, u3:2);
-  let _ = assert_eq(fraction, float64::unflatten(u64:0xbfc41cebad677a69));
+  assert_eq(j, u3:2);
+  assert_eq(fraction, float64::unflatten(u64:0xbfc41cebad677a69));
   ()
 }
 

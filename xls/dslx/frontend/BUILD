@@ -107,8 +107,11 @@ cc_test(
     name = "parser_test",
     srcs = ["parser_test.cc"],
     deps = [
+        ":ast",
+        ":bindings",
         ":builtins_metadata",
         ":parser",
+        ":scanner",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

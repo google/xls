@@ -26,8 +26,7 @@ fn main(value: u32) -> u32 {
 
 #[test]
 fn test_main_value() {
-  let _ = assert_eq(double(u32: 2), u32:4);
-  let _ = assert_eq(triple(u32: 2), u32:6);
-  let _ = assert_eq(main(u32: 2), u32:10);
-  ()
+  assert_eq(double(u32: 2), u32:4);
+  assert_eq(triple(u32: 2), u32:6);
+  assert_eq(main(u32: 2), u32:10);
 }
