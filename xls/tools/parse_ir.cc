@@ -26,7 +26,7 @@
 namespace xls {
 namespace tools {
 
-absl::Status RealMain(absl::Span<const std::string_view> args) {
+static absl::Status RealMain(absl::Span<const std::string_view> args) {
   if (args.empty()) {
     // If no arguments are given, read from stdin.
     return Parser::ParsePackage(

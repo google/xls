@@ -63,10 +63,10 @@ namespace xls {
 // Converts the given LLVM type into a corresponding XLS type.
 using TypeStore = absl::flat_hash_map<llvm::Type*, std::unique_ptr<Type>>;
 
-absl::Status RealMain(const std::string& input_path,
-                      const std::string& output_path,
-                      const std::string& entry_function_name,
-                      const std::string& xls_output_type_string) {
+static absl::Status RealMain(const std::string& input_path,
+                             const std::string& output_path,
+                             const std::string& entry_function_name,
+                             const std::string& xls_output_type_string) {
   // 1. Load LLVM IR.
   llvm::LLVMContext context;
   llvm::SMDiagnostic parse_error;

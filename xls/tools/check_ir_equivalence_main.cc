@@ -65,7 +65,7 @@ namespace xls {
 using solvers::z3::IrTranslator;
 
 // To compare, simply take the output nodes of each function and compare them.
-absl::StatusOr<Z3_ast> CreateComparisonFunction(
+static absl::StatusOr<Z3_ast> CreateComparisonFunction(
     absl::Span<std::unique_ptr<IrTranslator>> translators,
     const std::vector<Function*>& functions) {
   Z3_context ctx = translators[0]->ctx();
@@ -79,8 +79,8 @@ absl::StatusOr<Z3_ast> CreateComparisonFunction(
   return Z3_mk_eq(ctx, result1, result2);
 }
 
-absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
-                      const std::string& entry, absl::Duration timeout) {
+static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
+                             const std::string& entry, absl::Duration timeout) {
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));

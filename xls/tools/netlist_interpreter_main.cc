@@ -56,7 +56,7 @@ ABSL_FLAG(std::string, netlist, "", "Path to the netlist to interpret.");
 
 namespace xls {
 
-absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
+static absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     const std::string& cell_library_path,
     const std::string& cell_library_proto_path) {
   if (!cell_library_proto_path.empty()) {
@@ -77,13 +77,13 @@ absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
   }
 }
 
-absl::Status RealMain(const std::string& netlist_path,
-                      const std::string& cell_library_path,
-                      const std::string& cell_library_proto_path,
-                      const std::string& module_name,
-                      absl::Span<const std::string> inputs,
-                      const std::string& output_type_string,
-                      absl::Span<const std::string> dump_cells) {
+static absl::Status RealMain(const std::string& netlist_path,
+                             const std::string& cell_library_path,
+                             const std::string& cell_library_proto_path,
+                             const std::string& module_name,
+                             absl::Span<const std::string> inputs,
+                             const std::string& output_type_string,
+                             absl::Span<const std::string> dump_cells) {
   XLS_ASSIGN_OR_RETURN(
       netlist::CellLibrary cell_library,
       GetCellLibrary(cell_library_path, cell_library_proto_path));

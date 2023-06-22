@@ -37,10 +37,10 @@ ABSL_FLAG(
 
 namespace xls {
 
-absl::Status RealMain(const std::string& ir_path,
-                      std::optional<std::string> function_name,
-                      const std::string& schedule_path, int stage,
-                      const std::string& output_path) {
+static absl::Status RealMain(const std::string& ir_path,
+                             std::optional<std::string> function_name,
+                             const std::string& schedule_path, int stage,
+                             const std::string& output_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   FunctionBase* function;

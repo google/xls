@@ -221,7 +221,7 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
 
 }  // namespace
 
-absl::Status RealMain(
+static absl::Status RealMain(
     std::string_view ir_path, std::string_view entry_function_name,
     std::string_view netlist_module_name, std::string_view cell_lib_path,
     std::string_view cell_proto_path, std::string_view netlist_path,

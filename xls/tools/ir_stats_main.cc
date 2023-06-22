@@ -35,8 +35,8 @@ ABSL_FLAG(
 
 namespace xls {
 
-absl::Status RealMain(std::string_view ir_path,
-                      std::optional<std::string> restrict_fn) {
+static absl::Status RealMain(std::string_view ir_path,
+                             std::optional<std::string> restrict_fn) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(contents));
 

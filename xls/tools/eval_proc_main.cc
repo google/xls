@@ -123,7 +123,7 @@ ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
 
 namespace xls {
 
-absl::Status EvaluateProcs(
+static absl::Status EvaluateProcs(
     Package* package, bool use_jit, const std::vector<int64_t>& ticks,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
@@ -240,7 +240,7 @@ struct ChannelInfo {
   std::string channel_data;
 };
 
-absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
+static absl::StatusOr<absl::flat_hash_map<std::string, ChannelInfo>>
 InterpretBlockSignature(
     const verilog::ModuleSignatureProto& signature,
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
@@ -330,15 +330,15 @@ InterpretBlockSignature(
   return channel_info;
 }
 
-Value XsForWidth(uint64_t width) {
+static Value XsForWidth(uint64_t width) {
   xls::BitsType type(width);
   Value ret = AllOnesOfType(&type);
   return ret;
 }
 
-Value XsOfType(Type* type) { return AllOnesOfType(type); }
+static Value XsOfType(Type* type) { return AllOnesOfType(type); }
 
-absl::Status RunBlockInterpreter(
+static absl::Status RunBlockInterpreter(
     Package* package, const std::vector<int64_t>& ticks,
     const verilog::ModuleSignatureProto& signature,
     const int64_t max_cycles_no_output,
@@ -532,8 +532,8 @@ absl::Status RunBlockInterpreter(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
-                                                   uint64_t max_lines) {
+static absl::StatusOr<std::vector<Value>> ParseValuesFile(
+    std::string_view filename, uint64_t max_lines) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(filename));
   std::vector<Value> ret;
   uint64_t li = 0;
@@ -552,7 +552,7 @@ absl::StatusOr<std::vector<Value>> ParseValuesFile(std::string_view filename,
   return ret;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
+static absl::StatusOr<absl::flat_hash_map<std::string, std::string>>
 ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   absl::flat_hash_map<std::string, std::string> ret;
   for (const std::string& file : files_raw) {
@@ -567,7 +567,7 @@ ParseChannelFilenames(absl::Span<const std::string> files_raw) {
   return ret;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
+static absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
 GetValuesForEachChannels(
     absl::Span<const std::string> filenames_for_each_channel,
     const int64_t total_ticks) {
@@ -584,7 +584,7 @@ GetValuesForEachChannels(
   return values_for_channels;
 }
 
-absl::Status RealMain(
+static absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
     const int64_t max_cycles_no_output,

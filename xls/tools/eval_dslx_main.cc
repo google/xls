@@ -51,7 +51,7 @@ ABSL_FLAG(std::string, input, "",
 
 namespace xls {
 
-absl::Status RealMain(
+static absl::Status RealMain(
     std::filesystem::path dslx_path,
     const std::vector<std::filesystem::path>& additional_search_paths,
     std::string_view entry_fn_name, std::string_view args_text) {
