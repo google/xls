@@ -184,12 +184,6 @@ class Token {
         std::optional<std::string> payload = std::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
-  std::string ToString() const {
-    return absl::StrFormat("Token(%s, %s, \"%s\")", pos_.ToHumanString(),
-                           TokenKindToString(kind_),
-                           payload_.has_value() ? payload_.value() : "null");
-  }
-
   TokenKind kind() const { return kind_; }
   const Pos& pos() const { return pos_; }
   std::string_view payload() const { return payload_.value(); }
@@ -200,11 +194,6 @@ class Token {
   Pos pos_;
   std::optional<std::string> payload_;
 };
-
-inline std::ostream& operator<<(std::ostream& os, const Token& token) {
-  os << token.ToString();
-  return os;
-}
 
 // Converts a stream of characters to a stream of tokens.
 class Scanner {

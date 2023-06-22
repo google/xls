@@ -110,7 +110,6 @@ class AbstractCell {
   absl::Span<const Pin> inputs() const { return inputs_; }
   absl::Span<const OutputPin> outputs() const { return outputs_; }
   absl::Span<const Pin> internal_pins() const { return internal_pins_; }
-  const std::optional<AbstractNetRef<EvalT>>& clock() const { return clock_; }
 
   absl::Status SetOutputEvalFn(std::string_view output_pin_name,
                                CellOutputEvalFn<EvalT> fn) {
@@ -512,12 +511,6 @@ class AbstractNetlist {
       XLS_RETURN_IF_ERROR(module->AddCellEvaluationFns(fns));
     }
     return absl::OkStatus();
-  }
-
-  template <typename = std::is_constructible<EvalT, bool>>
-  absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
-  GetOrCreateLut4CellEntry(int64_t lut_mask) {
-    return GetOrCreateLut4CellEntry(lut_mask, EvalT{false}, EvalT{true});
   }
 
  private:

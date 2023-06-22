@@ -91,8 +91,6 @@ class AbstractInterpreter {
  private:
   // Returns true if the specified AbstractNetRef is an output of the given
   // cell.
-  bool IsCellOutput(const rtl::AbstractCell<EvalT>& cell,
-                    const rtl::AbstractNetRef<EvalT> ref);
 
   absl::StatusOr<AbstractNetRef2Value<EvalT>> InterpretCell(
       const rtl::AbstractCell<EvalT>* cell,
@@ -599,19 +597,6 @@ absl::StatusOr<EvalT> AbstractInterpreter<EvalT>::InterpretStateTable(
 
   return absl::NotFoundError(
       absl::StrFormat("Signal %s not found in state table!", pin_name));
-}
-
-template <typename EvalT>
-bool AbstractInterpreter<EvalT>::IsCellOutput(
-    const rtl::AbstractCell<EvalT>& cell,
-    const rtl::AbstractNetRef<EvalT> ref) {
-  for (const auto& output : cell.outputs()) {
-    if (ref == output.netref) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 }  // namespace netlist

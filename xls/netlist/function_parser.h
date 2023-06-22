@@ -139,7 +139,6 @@ class Ast {
       : kind_(kind), pos_(pos), name_(name) {}
 
   Kind kind() const { return kind_; }
-  int64_t pos() const { return pos_; }
   std::string name() const { return name_; }
   const std::vector<Ast>& children() const { return children_; }
 

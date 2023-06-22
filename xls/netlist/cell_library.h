@@ -66,13 +66,6 @@ struct OutputPin {
   std::string name;
   std::string function;
 };
-inline bool operator==(const OutputPin& lhs, const OutputPin& rhs) {
-  return lhs.name == rhs.name && lhs.function == rhs.function;
-}
-template <typename H>
-H AbslHashValue(H state, const OutputPin& p) {
-  return H::combine(std::move(state), p.name, p.function);
-}
 
 // AbstractStateTable provides methods for querying Liberty "statetable"
 // attributes, as captured by the StateTableProto structure.  This table does
@@ -175,12 +168,6 @@ class AbstractCellLibraryEntry {
 
   static absl::StatusOr<AbstractCellLibraryEntry> FromProto(
       const CellLibraryEntryProto& proto, EvalT zero, EvalT one);
-
-  template <typename = std::is_constructible<EvalT, bool>>
-  static absl::StatusOr<AbstractCellLibraryEntry> FromProto(
-      const CellLibraryEntryProto& proto) {
-    return FromProto(proto, EvalT{false}, EvalT{true});
-  }
 
   // InputNamesContainer and OutputNamesContainer are expected to be containers
   // of std::strings.
