@@ -30,9 +30,9 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/source_location.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -43,6 +43,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
@@ -51,6 +52,8 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/pass_base.h"
 
+namespace m = xls::op_matchers;
+
 namespace xls {
 namespace {
 
@@ -58,6 +61,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
+using ::testing::UnorderedElementsAre;
 
 class ProcInliningPassTest : public IrTestBase {
  protected:
@@ -3530,17 +3534,24 @@ TEST_F(ProcInliningPassTest, ProcsWithNonblockingReceivesWithDroppingProc) {
   XLS_ASSERT_OK(
       MakeArbiterProc("arb", {drop_to_arb, in1}, out, p.get()).status());
 
-  EXPECT_EQ(p->procs().size(), 2);
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Proc("drop"), m::Proc("arb")));
   XLS_EXPECT_OK(EvalAndExpect(p.get(),
                               {{"in0", {100, 3, 5, 7, 9, 11}},
                                {"in1", {0, 2, 4, 6, 8, 10}}},
                               {{"out", {100, 0, 2, 4, 6, 8, 10}}})
                     .status());
-  EXPECT_THAT(
-      Run(p.get(), /*top=*/"arb"),
-      StatusIs(
-          absl::StatusCode::kUnimplemented,
-          HasSubstr("Proc inlining does not support non-blocking receives.")));
+  XLS_EXPECT_OK(Run(p.get(), /*top=*/"arb"));
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("arb")));
+  // TODO(google/xls#949): "in0" needs lots of extra inputs here that shouldn't
+  // be necessary: if the 'drop' proc blocks, the arbiter proc should still tick
+  // and make forward progress.
+  XLS_EXPECT_OK(
+      EvalAndExpect(p.get(),
+                    {{"in0", {100, 3, 5, 7, 9, 11, 100, 100, 100, 100}},
+                     {"in1", {0, 2, 4, 6, 8, 10}}},
+                    {{"out", {100, 0, 2, 4, 6, 8, 10}}})
+          .status());
 }
 
 TEST_F(ProcInliningPassTest,
@@ -3568,17 +3579,21 @@ TEST_F(ProcInliningPassTest,
   XLS_ASSERT_OK(
       MakeArbiterProc("arb", {accum_to_arb, in1}, out, p.get()).status());
 
-  EXPECT_EQ(p->procs().size(), 2);
+  EXPECT_THAT(p->GetFunctionBases(),
+              UnorderedElementsAre(m::Proc("accum"), m::Proc("arb")));
   XLS_EXPECT_OK(
       EvalAndExpect(p.get(),
                     {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}},
                     {{"out", {0, 2, 103, 4, 6, 203, 8, 10, 303}}})
           .status());
-  EXPECT_THAT(
-      Run(p.get(), /*top=*/"arb"),
-      StatusIs(
-          absl::StatusCode::kUnimplemented,
-          HasSubstr("Proc inlining does not support non-blocking receives.")));
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"arb"), IsOkAndHolds(true));
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("arb")));
+  XLS_EXPECT_OK(
+      EvalAndExpect(p.get(),
+                    {{"in0", {100, 200, 300}}, {"in1", {0, 2, 4, 6, 8, 10}}},
+                    {{"out", {0, 2, 103, 4, 6, 203, 8, 10, 303}}})
+          .status());
 }
 
 TEST_F(ProcInliningPassTest, ProcWithAssert) {
@@ -3788,6 +3803,166 @@ TEST_F(ProcInliningPassTest, ProcWithTrace) {
       ElementsAre(HasSubstr("data: 100"), HasSubstr("data: 200"),
                   HasSubstr("data: 300"), HasSubstr("data: 400"),
                   HasSubstr("data: 500")));
+}
+
+TEST_F(ProcInliningPassTest, ProcWithNonblockingReceivesWithPassthrough) {
+  // Constructs two procs:
+  //  foo: a counter that counts down to zero and then receives on 'in',
+  //   sending the value to 'internal' and counting down from that value.
+  //  output_passthrough: a passthrough block that non-blocking receives on
+  //   'internal'. If a value is present, it passes it through; otherwise, it
+  //   sends a literal 1000.
+  // Together, the procs function such that if you send a value n to 'in', you
+  // will see n as the output followed by n repetitions of 1000.
+  // Note the '$0' in the declaration of chan internal. This lets us substitute
+  // different values for fifo_depth to be sure that does impact proc
+  // inlinining's correctness.
+  constexpr std::string_view ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, metadata="")
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+top proc foo(tkn: token, count: bits[32], init={0}) {
+  lit0: bits[32] = literal(value=0)
+  lit1: bits[32] = literal(value=1)
+  pred: bits[1] = eq(count, lit0)
+  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel_id=0)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  count_minus_one: bits[32] = sub(count, lit1)
+  next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
+  send_token: token = send(recv_token, recv_data, predicate=pred, channel_id=1)
+  next (send_token, next_count)
+}
+
+proc output_passthrough(tkn: token, state:(), init={()}) {
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, channel_id=1)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  recv_valid: bits[1] = tuple_index(recv, index=2)
+  literal1000: bits[32] = literal(value=1000)
+  send_data: bits[32] = sel(recv_valid, cases=[literal1000, recv_data])
+  send_token: token = send(recv_token, send_data, channel_id=2)
+  next(send_token, state)
+}
+  )";
+
+  for (int64_t fifo_depth : {0, 1}) {
+    XLS_LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Package> p,
+        ParsePackage(absl::Substitute(ir_text, fifo_depth)));
+    EXPECT_THAT(
+        p->GetFunctionBases(),
+        UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));
+
+    XLS_ASSERT_OK(
+        EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                      {{"out",
+                        {5, 1000, 1000, 1000, 1000, 1000, 10, 1000, 1000, 1000,
+                         1000, 1000, 1000, 1000, 1000, 1000, 1000}}})
+            .status());
+
+    ASSERT_THAT(Run(p.get(), /*top=*/"foo"), IsOkAndHolds(true));
+    EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("foo")));
+    XLS_ASSERT_OK(
+        EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                      {{"out",
+                        {5, 1000, 1000, 1000, 1000, 1000, 10, 1000, 1000, 1000,
+                         1000, 1000, 1000, 1000, 1000, 1000, 1000}}})
+            .status());
+  }
+}
+
+TEST_F(ProcInliningPassTest, ProcWithConditionalNonblockingReceives) {
+  // Similar to ProcWithNonblockingReceivesWithPassthrough, except the
+  // passthrough proc has a state bit which alternates between 0 and 1. When the
+  // state is 0, it does not perform the non-blocking receive and instead sends
+  // 500.
+  // Note the '$0' in the declaration of chan internal. This lets us substitute
+  // different values for fifo_depth to be sure that does impact proc
+  // inlinining's correctness.
+  constexpr std::string_view ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=$0, metadata="")
+chan out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+top proc foo(tkn: token, count: bits[32], init={0}) {
+  lit0: bits[32] = literal(value=0)
+  lit1: bits[32] = literal(value=1)
+  pred: bits[1] = eq(count, lit0)
+  recv: (token, bits[32]) = receive(tkn, predicate=pred, channel_id=0)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  count_minus_one: bits[32] = sub(count, lit1)
+  next_count: bits[32] = sel(pred, cases=[count_minus_one, recv_data])
+  send_token: token = send(recv_token, recv_data, predicate=pred, channel_id=1)
+  next (send_token, next_count)
+}
+
+proc output_passthrough(tkn: token, state: bits[1], init={1}) {
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=state, channel_id=1)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  recv_valid: bits[1] = tuple_index(recv, index=2)
+  literal500: bits[32] = literal(value=500)
+  literal1000: bits[32] = literal(value=1000)
+  recv_data_or_literal: bits[32] = sel(recv_valid, cases=[literal1000, recv_data])
+  send_data: bits[32] = sel(state, cases=[literal500, recv_data_or_literal])
+  send_token: token = send(recv_token, send_data, channel_id=2)
+  next_state: bits[1] = not(state)
+  next(send_token, next_state)
+}
+  )";
+
+  for (int64_t fifo_depth : {0, 1}) {
+    XLS_LOG(INFO) << "fifo_depth: " << fifo_depth << "\n";
+    XLS_ASSERT_OK_AND_ASSIGN(
+        std::unique_ptr<Package> p,
+        ParsePackage(absl::Substitute(ir_text, fifo_depth)));
+    EXPECT_THAT(
+        p->GetFunctionBases(),
+        UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));
+
+    // No backpressure.
+    XLS_ASSERT_OK(
+        EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                      {{"out",
+                        {5, 500, 1000, 500, 1000, 500, 10, 500, 1000, 500, 1000,
+                         500, 1000, 500, 1000, 500, 1000}}})
+            .status());
+
+    // Yes backpressure.
+    XLS_ASSERT_OK(EvalAndExpect(p.get(), {{"in", {4, 10}}},
+                                {{"out",
+                                  {4, 500, 1000, 500, 1000, 500, 10, 500, 1000,
+                                   500, 1000, 500, 1000, 500, 1000, 500}}})
+                      .status());
+
+    ASSERT_THAT(Run(p.get(), /*top=*/"foo"), IsOkAndHolds(true));
+    EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("foo")));
+
+    // No backpressure.
+    XLS_ASSERT_OK(
+        EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                      {{"out",
+                        {5, 500, 1000, 500, 1000, 500, 10, 500, 1000, 500, 1000,
+                         500, 1000, 500, 1000, 500, 1000}}})
+            .status());
+
+    // Yes backpressure- only test w/ fifo_depth != 0 because backpressure
+    // results in data loss when fifo_depth=0.
+    if (fifo_depth != 0) {
+      XLS_ASSERT_OK(
+          EvalAndExpect(p.get(), {{"in", {4, 10}}},
+                        {{"out",
+                          {4, 500, 1000, 500, 1000, 500, 10, 500, 1000, 500,
+                           1000, 500, 1000, 500, 1000, 500}}})
+              .status());
+    }
+  }
 }
 
 }  // namespace

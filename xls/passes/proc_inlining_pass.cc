@@ -148,7 +148,8 @@ absl::StatusOr<Send*> AddSendPredicate(Send* send, Node* predicate) {
   if (send->predicate().has_value()) {
     XLS_ASSIGN_OR_RETURN(Node * new_predicate,
                          And(send->predicate().value(), predicate));
-    XLS_RETURN_IF_ERROR(send->ReplaceOperandNumber(2, new_predicate));
+    XLS_RETURN_IF_ERROR(
+        send->ReplaceOperandNumber(Send::kPredicateOperand, new_predicate));
     return send;
   }
   XLS_ASSIGN_OR_RETURN(Send * new_send, send->ReplaceUsesWithNew<Send>(
@@ -166,7 +167,8 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
   if (receive->predicate().has_value()) {
     XLS_ASSIGN_OR_RETURN(Node * new_predicate,
                          And(receive->predicate().value(), predicate));
-    XLS_RETURN_IF_ERROR(receive->ReplaceOperandNumber(1, new_predicate));
+    XLS_RETURN_IF_ERROR(receive->ReplaceOperandNumber(
+        Receive::kPredicateOperand, new_predicate));
     return receive;
   }
   XLS_ASSIGN_OR_RETURN(Receive * new_receive,
@@ -867,7 +869,7 @@ class ProcThread {
       std::optional<Node*> original_node);
 
   // Sets the next state of the proc thread to the given value. This value is
-  // commited to the corresponding element of container proc when the proc
+  // committed to the corresponding element of container proc when the proc
   // thread tick is complete.
   absl::Status SetNextState(absl::Span<Node* const> next_state) {
     XLS_VLOG(3) << "SetNextState proc thread for: " << inlined_proc_->name();
@@ -1424,25 +1426,48 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
   //   receive_fired = predicate && activation_out
   Node* stall;
   Node* receive_fired;
+  // Only used for non-blocking receives.
+  Node* receive_valid = nullptr;
+  std::string stall_name = absl::StrFormat("%s_receive_stall", channel->name());
+  std::string receive_fired_name =
+      absl::StrFormat("%s_receive_fired", channel->name());
+  std::string receive_valid_name =
+      absl::StrFormat("%s_receive_valid", channel->name());
   if (receive->predicate().has_value()) {
-    XLS_ASSIGN_OR_RETURN(
-        stall,
-        AndNot(receive->predicate().value(), virtual_channel.GetValidOut(),
-               absl::StrFormat("%s_receive_stall", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        receive_fired,
-        And(activation_node->activation_out, receive->predicate().value(),
-            absl::StrFormat("%s_receive_fired", channel->name())));
+    if (receive->is_blocking()) {
+      XLS_ASSIGN_OR_RETURN(stall,
+                           AndNot(receive->predicate().value(),
+                                  virtual_channel.GetValidOut(), stall_name));
+    } else {
+      XLS_ASSIGN_OR_RETURN(stall,
+                           container_proc_->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 1)), stall_name));
+      XLS_ASSIGN_OR_RETURN(receive_valid, And(receive->predicate().value(),
+                                              virtual_channel.GetValidOut(),
+                                              receive_valid_name));
+    }
+    XLS_ASSIGN_OR_RETURN(receive_fired,
+                         And(activation_node->activation_out,
+                             receive->predicate().value(), receive_fired_name));
   } else {
-    // Receive is unconditional. The activation is stalled iff the
-    // !data_valid.
-    XLS_ASSIGN_OR_RETURN(
-        stall, Not(virtual_channel.GetValidOut(),
-                   absl::StrFormat("%s_receive_stall", channel->name())));
+    if (receive->is_blocking()) {
+      // Receive is unconditional. The activation is stalled iff the
+      // !data_valid.
+      XLS_ASSIGN_OR_RETURN(stall,
+                           Not(virtual_channel.GetValidOut(), stall_name));
+    } else {
+      // Receive is unconditional. The activation is never stalled for
+      // non-blocking.
+      XLS_ASSIGN_OR_RETURN(stall,
+                           container_proc_->MakeNodeWithName<Literal>(
+                               SourceInfo(), Value(UBits(0, 1)), stall_name));
+      XLS_ASSIGN_OR_RETURN(
+          receive_valid,
+          Identity(virtual_channel.GetValidOut(), receive_valid_name));
+    }
     XLS_ASSIGN_OR_RETURN(
         receive_fired,
-        Identity(activation_node->activation_out,
-                 absl::StrFormat("%s_receive_fired", channel->name())));
+        Identity(activation_node->activation_out, receive_fired_name));
   }
   XLS_RETURN_IF_ERROR(virtual_channel.AttachReceive(receive_fired));
   XLS_RETURN_IF_ERROR(SetStallCondition(activation_node, stall));
@@ -1464,12 +1489,18 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
                        /*default_case=*/std::nullopt,
                        absl::StrFormat("%s_receive_data", channel->name())));
 
+  std::vector<Node*> result_tuple{receive->token(), data};
+  if (!receive->is_blocking()) {
+    // Add the valid signal as the third entry in a non-blocking receive.
+    XLS_CHECK_NE(receive_valid, nullptr);
+    result_tuple.push_back(receive_valid);
+  }
+
   // The output of a receive operation is a tuple of (token, data).
-  XLS_ASSIGN_OR_RETURN(
-      Node * result,
-      container_proc_->MakeNodeWithName<Tuple>(
-          SourceInfo(), std::vector<Node*>{receive->token(), data},
-          absl::StrFormat("%s_receive", channel->name())));
+  XLS_ASSIGN_OR_RETURN(Node * result,
+                       container_proc_->MakeNodeWithName<Tuple>(
+                           SourceInfo(), result_tuple,
+                           absl::StrFormat("%s_receive", channel->name())));
   XLS_RETURN_IF_ERROR(receive->ReplaceUsesWith(result));
 
   return result;
@@ -1526,10 +1557,18 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
 
   XLS_ASSIGN_OR_RETURN(Node * token, container_proc_->MakeNode<TupleIndex>(
                                          SourceInfo(), activated_receive, 0));
+  std::vector<Node*> saved_receive_operands{token, data};
+  if (!receive->is_blocking()) {
+    XLS_ASSIGN_OR_RETURN(Node * valid,
+                         container_proc_->MakeNodeWithName<TupleIndex>(
+                             SourceInfo(), activated_receive, 2,
+                             absl::StrFormat("%s_valid_in", channel->name())));
+    saved_receive_operands.push_back(valid);
+  }
   XLS_ASSIGN_OR_RETURN(
       Node * saved_receive,
       container_proc_->MakeNodeWithName<Tuple>(
-          SourceInfo(), std::vector<Node*>{token, data},
+          SourceInfo(), saved_receive_operands,
           absl::StrFormat("%s_saved_receive", channel->name())));
 
   // Replace uses of the original receive with the newly created receive.
@@ -1665,18 +1704,6 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
   procs_to_inline.reserve(p->procs().size());
   for (const std::unique_ptr<Proc>& proc : p->procs()) {
     procs_to_inline.push_back(proc.get());
-  }
-
-  for (Proc* proc : procs_to_inline) {
-    // Check for any non-blocking receives, which are not supported.
-    // Error out early: inlining creates new receives, and erroring out later
-    // can lead to weird verifier errors from leftover state.
-    for (Node* node : proc->nodes()) {
-      if (node->Is<Receive>() && !node->As<Receive>()->is_blocking()) {
-        return absl::UnimplementedError(
-            "Proc inlining does not support non-blocking receives.");
-      }
-    }
   }
 
   {
