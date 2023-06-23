@@ -443,8 +443,9 @@ class TupleType : public ConcreteType {
 // These will nest in the case of multidimensional arrays.
 class ArrayType : public ConcreteType {
  public:
-  ArrayType(std::unique_ptr<ConcreteType> element_type, ConcreteTypeDim size)
-      : element_type_(std::move(element_type)), size_(std::move(size)) {
+  ArrayType(std::unique_ptr<ConcreteType> element_type,
+            const ConcreteTypeDim& size)
+      : element_type_(std::move(element_type)), size_(size) {
     XLS_CHECK(!element_type_->IsMeta()) << element_type_->ToString();
   }
 

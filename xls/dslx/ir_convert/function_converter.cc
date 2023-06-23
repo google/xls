@@ -14,13 +14,20 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
+#include <cstdint>
+#include <memory>
+
 #include "absl/status/status.h"
+#include "xls/common/casts.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/ir_convert/convert_format_macro.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
+#include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {
@@ -2642,13 +2649,11 @@ absl::Status FunctionConverter::HandleBuiltinArraySlice(
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
 
-  auto* width_array = dynamic_cast<Array*>(node->args()[2]);
-  XLS_RET_CHECK_NE(width_array, nullptr);
-  XLS_RET_CHECK_NE(width_array->type_annotation(), nullptr);
-  auto* width_type =
-      dynamic_cast<ArrayTypeAnnotation*>(width_array->type_annotation());
-  XLS_ASSIGN_OR_RETURN(uint64_t width,
-                       dynamic_cast<Number*>(width_type->dim())->GetAsUint64());
+  const Expr* arg2 = node->args()[2];
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
+                       ResolveType(arg2));
+  const auto* array_type = down_cast<const ArrayType*>(output_type.get());
+  XLS_ASSIGN_OR_RETURN(int64_t width, array_type->size().GetAsInt64());
 
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArraySlice(arg, start, width, loc);

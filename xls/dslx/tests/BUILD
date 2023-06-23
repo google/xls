@@ -240,6 +240,8 @@ dslx_lang_test(name = "constexpr_types_via_stdlib_invocation")
 
 dslx_lang_test(name = "constexpr_slice")
 
+dslx_lang_test(name = "constexpr_pad_via_slice")
+
 dslx_lang_test(
     name = "explicit_parametric",
     dslx_entry = "instantiates_indirect_foo",
