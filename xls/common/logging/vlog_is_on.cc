@@ -35,7 +35,7 @@ namespace logging_internal {
 // Likewise backslash-escaping is not supported but we don't promise
 // not to change that.
 // It's not a static function for the unittest.
-bool SafeFNMatch(std::string_view pattern, std::string_view str) {
+static bool SafeFNMatch(std::string_view pattern, std::string_view str) {
   while (true) {
     if (pattern.empty()) {
       // `pattern` is exhausted; succeed if all of `str` was consumed matching
