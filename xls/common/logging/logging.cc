@@ -35,7 +35,7 @@ std::string* CheckOpMessageBuilder::NewString() {
   return new std::string(stream_->str());
 }
 
-static void MakeCheckOpValueString(std::ostream* os, const char v) {
+void MakeCheckOpValueString(std::ostream* os, const char v) {
   if (v >= 32 && v <= 126) {
     (*os) << "'" << v << "'";
   } else {
@@ -43,7 +43,7 @@ static void MakeCheckOpValueString(std::ostream* os, const char v) {
   }
 }
 
-static void MakeCheckOpValueString(std::ostream* os, const signed char v) {
+void MakeCheckOpValueString(std::ostream* os, const signed char v) {
   if (v >= 32 && v <= 126) {
     (*os) << "'" << v << "'";
   } else {
@@ -51,7 +51,7 @@ static void MakeCheckOpValueString(std::ostream* os, const signed char v) {
   }
 }
 
-static void MakeCheckOpValueString(std::ostream* os, const unsigned char v) {
+void MakeCheckOpValueString(std::ostream* os, const unsigned char v) {
   if (v >= 32 && v <= 126) {
     (*os) << "'" << v << "'";
   } else {
@@ -59,7 +59,7 @@ static void MakeCheckOpValueString(std::ostream* os, const unsigned char v) {
   }
 }
 
-static void MakeCheckOpValueString(std::ostream* os, const void* p) {
+void MakeCheckOpValueString(std::ostream* os, const void* p) {
   if (p == nullptr) {
     (*os) << "(null)";
   } else {
