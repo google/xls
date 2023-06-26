@@ -141,41 +141,39 @@ fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
 #[test]
 fn iterative_div_mod_test() {
   // Power of 2.
-  let _ = assert_eq((u4:0, u4:8), iterative_div_mod(u4:8, u4:15));
-  let _ = assert_eq((u4:1, u4:0), iterative_div_mod(u4:8, u4:8));
-  let _ = assert_eq((u4:2, u4:0), iterative_div_mod(u4:8, u4:4));
-  let _ = assert_eq((u4:4, u4:0), iterative_div_mod(u4:8, u4:2));
-  let _ = assert_eq((u4:8, u4:0), iterative_div_mod(u4:8, u4:1));
-  let _ = assert_eq((u4:8 / u4:0, u4:8), iterative_div_mod(u4:8, u4:0));
-  let _ = assert_eq((u4:15, u4:8), iterative_div_mod(u4:8, u4:0));
+  assert_eq((u4:0, u4:8), iterative_div_mod(u4:8, u4:15));
+  assert_eq((u4:1, u4:0), iterative_div_mod(u4:8, u4:8));
+  assert_eq((u4:2, u4:0), iterative_div_mod(u4:8, u4:4));
+  assert_eq((u4:4, u4:0), iterative_div_mod(u4:8, u4:2));
+  assert_eq((u4:8, u4:0), iterative_div_mod(u4:8, u4:1));
+  assert_eq((u4:8 / u4:0, u4:8), iterative_div_mod(u4:8, u4:0));
+  assert_eq((u4:15, u4:8), iterative_div_mod(u4:8, u4:0));
 
   // Non-powers-of-2.
-  let _ = assert_eq((u32:6, u32:0), iterative_div_mod(u32:18, u32:3));
-  let _ = assert_eq((u32:6, u32:0), iterative_div_mod(u32:36, u32:6));
-  let _ = assert_eq((u32:6, u32:0), iterative_div_mod(u32:48, u32:8));
-  let _ = assert_eq((u32:20, u32:0), iterative_div_mod(u32:900, u32:45));
+  assert_eq((u32:6, u32:0), iterative_div_mod(u32:18, u32:3));
+  assert_eq((u32:6, u32:0), iterative_div_mod(u32:36, u32:6));
+  assert_eq((u32:6, u32:0), iterative_div_mod(u32:48, u32:8));
+  assert_eq((u32:20, u32:0), iterative_div_mod(u32:900, u32:45));
 
   // Results w/ remainder.
-  let _ = assert_eq((u32:6, u32:2), iterative_div_mod(u32:20, u32:3));
-  let _ = assert_eq((u32:6, u32:5), iterative_div_mod(u32:41, u32:6));
-  let _ = assert_eq((u32:6, u32:7), iterative_div_mod(u32:55, u32:8));
-  let _ = assert_eq((u32:20, u32:44), iterative_div_mod(u32:944, u32:45));
+  assert_eq((u32:6, u32:2), iterative_div_mod(u32:20, u32:3));
+  assert_eq((u32:6, u32:5), iterative_div_mod(u32:41, u32:6));
+  assert_eq((u32:6, u32:7), iterative_div_mod(u32:55, u32:8));
+  assert_eq((u32:20, u32:44), iterative_div_mod(u32:944, u32:45));
 
   // Arbitrary width.
-  let _ = assert_eq((u5:6, u3:2), iterative_div_mod(u5:20, u3:3));
-  let _ = assert_eq((u6:6, u4:5), iterative_div_mod(u6:41, u4:6));
-  let _ = assert_eq((u6:6, u4:7), iterative_div_mod(u6:55, u4:8));
-  let _ = assert_eq((u10:20, u6:44), iterative_div_mod(u10:944, u6:45));
-  ()
+  assert_eq((u5:6, u3:2), iterative_div_mod(u5:20, u3:3));
+  assert_eq((u6:6, u4:5), iterative_div_mod(u6:41, u4:6));
+  assert_eq((u6:6, u4:7), iterative_div_mod(u6:55, u4:8));
+  assert_eq((u10:20, u6:44), iterative_div_mod(u10:944, u6:45));
 }
 
 #[test]
 fn iterative_div_test() {
-  let _ = assert_eq(u4:1, iterative_div(u4:8, u4:8));
-  let _ = assert_eq(u32:6, iterative_div(u32:36, u32:6));
-  let _ = assert_eq(u32:6, iterative_div(u32:41, u32:6));
-  let _ = assert_eq(u6:6, iterative_div(u6:55, u4:8));
-  ()
+  assert_eq(u4:1, iterative_div(u4:8, u4:8));
+  assert_eq(u32:6, iterative_div(u32:36, u32:6));
+  assert_eq(u32:6, iterative_div(u32:41, u32:6));
+  assert_eq(u6:6, iterative_div(u6:55, u4:8));
 }
 
 // Returns the value of x-1 with saturation at 0.
