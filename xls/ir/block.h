@@ -15,6 +15,9 @@
 #ifndef XLS_IR_BLOCK_H_
 #define XLS_IR_BLOCK_H_
 
+#include <memory>
+
+#include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
@@ -125,6 +128,9 @@ class Block : public FunctionBase {
   // added to connect the instantation to the data-flow graph.
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
       std::string_view name, Block* instantiated_block);
+
+  absl::StatusOr<Instantiation*> AddInstantiation(
+      std::string_view name, std::unique_ptr<Instantiation> instantiation);
 
   // Removes the given instantiation from the block. InstantationInput or
   // InstantationOutput operations for this instantation should be removed prior

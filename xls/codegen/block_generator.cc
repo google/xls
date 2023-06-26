@@ -15,8 +15,11 @@
 #include "xls/codegen/block_generator.h"
 
 #include <deque>
+#include <variant>
+#include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
@@ -27,10 +30,13 @@
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -669,12 +675,10 @@ class BlockGenerator {
   // expressions.
   absl::Status DeclareInstantiationOutputs() {
     for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
-      if (dynamic_cast<BlockInstantiation*>(instantiation) != nullptr) {
-        for (InstantiationOutput* output :
-             block_->GetInstantiationOutputs(instantiation)) {
-          node_exprs_[output] =
-              mb_.DeclareVariable(output->GetName(), output->GetType());
-        }
+      for (InstantiationOutput* output :
+           block_->GetInstantiationOutputs(instantiation)) {
+        node_exprs_[output] =
+            mb_.DeclareVariable(output->GetName(), output->GetType());
       }
     }
     return absl::OkStatus();
@@ -684,25 +688,26 @@ class BlockGenerator {
   // section.
   absl::Status EmitInstantiations() {
     for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
+      std::vector<Connection> connections;
+      for (InstantiationInput* input :
+           block_->GetInstantiationInputs(instantiation)) {
+        XLS_RET_CHECK(std::holds_alternative<Expression*>(
+            node_exprs_.at(input->operand(0))));
+        connections.push_back(Connection{
+            input->port_name(),
+            std::get<Expression*>(node_exprs_.at(input->operand(0)))});
+      }
+      for (InstantiationOutput* output :
+           block_->GetInstantiationOutputs(instantiation)) {
+        XLS_RET_CHECK(
+            std::holds_alternative<Expression*>(node_exprs_.at(output)));
+        connections.push_back(
+            Connection{output->port_name(),
+                       std::get<Expression*>(node_exprs_.at(output))});
+      }
+
       if (xls::BlockInstantiation* block_instantiation =
               dynamic_cast<BlockInstantiation*>(instantiation)) {
-        std::vector<Connection> connections;
-        for (InstantiationInput* input :
-             block_->GetInstantiationInputs(instantiation)) {
-          XLS_RET_CHECK(std::holds_alternative<Expression*>(
-              node_exprs_.at(input->operand(0))));
-          connections.push_back(Connection{
-              input->port_name(),
-              std::get<Expression*>(node_exprs_.at(input->operand(0)))});
-        }
-        for (InstantiationOutput* output :
-             block_->GetInstantiationOutputs(instantiation)) {
-          XLS_RET_CHECK(
-              std::holds_alternative<Expression*>(node_exprs_.at(output)));
-          connections.push_back(
-              Connection{output->port_name(),
-                         std::get<Expression*>(node_exprs_.at(output))});
-        }
         std::optional<Block::ClockPort> port =
             block_instantiation->instantiated_block()->GetClockPort();
         if (port.has_value()) {
@@ -717,6 +722,12 @@ class BlockGenerator {
             SourceInfo(), block_instantiation->instantiated_block()->name(),
             block_instantiation->name(),
             /*parameters=*/std::vector<Connection>(), connections);
+      } else if (xls::ExternInstantiation* ffi_instantiation =
+                     dynamic_cast<ExternInstantiation*>(instantiation)) {
+        mb_.instantiation_section()->Add<TemplateInstantiation>(
+            SourceInfo(), ffi_instantiation->name(),
+            ffi_instantiation->function()->ForeignFunctionData()->code_template,
+            connections);
       }
     }
     return absl::OkStatus();
@@ -746,15 +757,20 @@ absl::Status DfsVisitBlocks(Block* block, absl::flat_hash_set<Block*>& visited,
     return absl::OkStatus();
   }
   for (xls::Instantiation* instantiation : block->GetInstantiations()) {
-    xls::BlockInstantiation* block_instantiation =
-        dynamic_cast<BlockInstantiation*>(instantiation);
-    if (block_instantiation == nullptr) {
-      return absl::UnimplementedError(absl::StrFormat(
-          "Instantiations of kind `%s` are not supported in code generation",
-          InstantiationKindToString(instantiation->kind())));
+    if (xls::BlockInstantiation* block_instantiation =
+            dynamic_cast<BlockInstantiation*>(instantiation)) {
+      XLS_RETURN_IF_ERROR(DfsVisitBlocks(
+          block_instantiation->instantiated_block(), visited, post_order));
+      continue;
     }
-    XLS_RETURN_IF_ERROR(DfsVisitBlocks(
-        block_instantiation->instantiated_block(), visited, post_order));
+    if (instantiation->kind() == InstantiationKind::kExtern) {
+      // An external block is a leaf from our perspective.
+      continue;
+    }
+
+    return absl::UnimplementedError(absl::StrFormat(
+        "Instantiations of kind `%s` are not supported in code generation",
+        InstantiationKindToString(instantiation->kind())));
   }
   post_order.push_back(block);
   return absl::OkStatus();

@@ -14,13 +14,16 @@
 
 #include "xls/passes/inlining_pass.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/nodes.h"
 #include "xls/passes/dce_pass.h"
 
 namespace m = ::xls::op_matchers;
@@ -64,6 +67,27 @@ fn caller() -> bits[32] {
   EXPECT_THAT(f->return_value(), m::Add(m::Literal(2), m::Literal(2)));
 }
 
+TEST_F(InliningPassTest, FfiFunctionsNotInlined) {
+  const std::string program = R"(
+package some_package
+
+#[ffi("verilog_module {fn} (.a({x}), .b({y}), .out({return}));")]
+fn ffi_callee(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn caller() -> bits[32] {
+  literal.2: bits[32] = literal(value=2)
+  ret invoke.3: bits[32] = invoke(literal.2, literal.2, to_apply=ffi_callee)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+  // No modification expected as the ffi-function is not inlined.
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(false));
+  Function* f = FindFunction("caller", package.get());
+  EXPECT_THAT(f->return_value(), m::Invoke(m::Literal(2), m::Literal(2)));
+}
+
 TEST_F(InliningPassTest, Transitive) {
   const std::string program = R"(
 package some_package
@@ -86,6 +110,43 @@ fn caller() -> bits[32] {
   ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
   Function* f = FindFunction("caller", package.get());
   EXPECT_THAT(f->return_value(), m::Add(m ::Literal(2), m::Literal(2)));
+}
+
+TEST_F(InliningPassTest, TransitiveWithFfiLeafFunction) {
+  const std::string program = R"(
+package some_package
+
+#[ffi("verilog_module {fn} (.a({x}), .b({y}), .out({return}));")]
+fn ffi_callee(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+fn callee1(x: bits[32], y: bits[32]) -> bits[32] {
+  ret invoke.2: bits[32] = invoke(x, y, to_apply=ffi_callee)
+}
+
+fn caller() -> bits[32] {
+  literal.3: bits[32] = literal(value=2)
+  ret invoke.4: bits[32] = invoke(literal.3, literal.3, to_apply=callee1)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, ParsePackage(program));
+
+  // One round of inlining expected
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(true));
+
+  // Now there is still an invoke left, but it is FFI. So re-running inlining
+  // should not change anything.
+  ASSERT_THAT(Inline(package.get()), IsOkAndHolds(false));
+
+  // The caller now contains the inlined function callee1, which invokes ffi. So
+  // that invoke is all that is expected to be left in the toplevel function.
+  Function* f = FindFunction("caller", package.get());
+  EXPECT_THAT(f->return_value(), m::Invoke(m::Literal(2), m::Literal(2)));
+
+  // The invoke that was not inlined points to the ffi_callee
+  EXPECT_EQ(f->return_value()->As<Invoke>()->to_apply()->name(), "ffi_callee");
 }
 
 TEST_F(InliningPassTest, NamePropagation) {

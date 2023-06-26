@@ -14,11 +14,16 @@
 
 #include "xls/ir/block.h"
 
+#include <memory>
+#include <string_view>
+
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -565,14 +570,21 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
 
 absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
     std::string_view name, Block* instantiated_block) {
+  XLS_ASSIGN_OR_RETURN(
+      absl::StatusOr<Instantiation*> instantiation,
+      AddInstantiation(name, std::make_unique<BlockInstantiation>(
+                                 name, instantiated_block)));
+  return down_cast<BlockInstantiation*>(instantiation.value());
+}
+
+absl::StatusOr<Instantiation*> Block::AddInstantiation(
+    std::string_view name, std::unique_ptr<Instantiation> instantiation) {
   if (instantiations_.contains(name)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Instantiation already exists with name %s", name));
   }
 
-  auto instantiation =
-      std::make_unique<BlockInstantiation>(name, instantiated_block);
-  BlockInstantiation* instantiation_ptr = instantiation.get();
+  Instantiation* instantiation_ptr = instantiation.get();
   instantiations_[name] = std::move(instantiation);
 
   instantiation_vec_.push_back(instantiation_ptr);

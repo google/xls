@@ -20,6 +20,7 @@
 #include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
+#include "xls/codegen/ffi_instantiation_pass.h"
 #include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/ram_rewrite_pass.h"
@@ -61,6 +62,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // Eliminate no-longer-needed partial product operations by turning them into
   // normal multiplies.
   top->Add<MulpCombiningPass>();
+
+  // Create instantiations from ffi invocations.
+  top->Add<FfiInstantiationPass>();
 
   // Remove any identity ops which might have been added earlier in the
   // pipeline.

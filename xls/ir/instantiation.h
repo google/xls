@@ -15,7 +15,9 @@
 #ifndef XLS_IR_INSTANTIATION_H_
 #define XLS_IR_INSTANTIATION_H_
 
-#include "absl/container/flat_hash_map.h"
+#include <string>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/ir/type.h"
@@ -23,6 +25,7 @@
 namespace xls {
 
 class Block;
+class Function;
 
 enum class InstantiationKind {
   // Instantiation of an IR block in the same package.
@@ -89,6 +92,22 @@ class BlockInstantiation : public Instantiation {
 
  private:
   Block* instantiated_block_;
+};
+
+class ExternInstantiation : public Instantiation {
+ public:
+  ExternInstantiation(std::string_view name, Function* function)
+      : Instantiation(name, InstantiationKind::kExtern), function_(function) {}
+
+  Function* function() const { return function_; }
+
+  absl::StatusOr<InstantiationPort> GetInputPort(std::string_view name) final;
+  absl::StatusOr<InstantiationPort> GetOutputPort(std::string_view name) final;
+
+  std::string ToString() const final;
+
+ private:
+  Function* function_;
 };
 
 }  // namespace xls

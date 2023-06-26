@@ -28,10 +28,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {
@@ -719,11 +721,32 @@ class Instantiation : public VastNode {
 
   std::string Emit(LineInfo* line_info) const override;
 
- private:
+ protected:
   std::string module_name_;
   std::string instance_name_;
   std::vector<Connection> parameters_;
   std::vector<Connection> connections_;
+};
+
+// Template instantiation for FFI.
+// TODO(hzeller) 2023-06-12 Longer term, this should not be needed.
+class TemplateInstantiation : public Instantiation {
+ public:
+  TemplateInstantiation(std::string_view instance_name,
+                        const CodeTemplate& code_template,
+                        absl::Span<const Connection> connections,
+                        VerilogFile* file, const SourceInfo& loc)
+      : Instantiation("", instance_name,
+                      /*parameters=*/{}, connections, file, loc),
+        code_template_(code_template) {
+    // Not using module name as this is provided in user-template
+    // Not using parameters, they are indistinguishable from other connections.
+  }
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  CodeTemplate code_template_;
 };
 
 // Represents a reference to an already-defined macro.

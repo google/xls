@@ -14,6 +14,10 @@
 
 #include "xls/codegen/vast.h"
 
+#include <algorithm>
+#include <string>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -1227,5 +1231,26 @@ std::string Instantiation::Emit(LineInfo* line_info) const {
   return result;
 }
 
+std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  std::vector<std::string> replacements;
+  for (const std::string& original : code_template_.Expressions()) {
+    if (original == "fn") {
+      replacements.push_back(instance_name_);
+      continue;
+    }
+    auto found = std::find_if(
+        connections_.begin(), connections_.end(),
+        [&](const Connection& c) { return c.port_name == original; });
+    XLS_CHECK(found != connections_.end())
+        << "ExternInstantiation: cant map: template value '" << original << "'";
+    replacements.push_back(found->expression->Emit(line_info));
+  }
+  std::string result = code_template_.FillTemplate(replacements).value();
+  absl::StrAppend(&result, ";");
+  LineInfoIncrease(line_info, NumberOfNewlines(result));
+  LineInfoEnd(line_info, this);
+  return result;
+}
 }  // namespace verilog
 }  // namespace xls

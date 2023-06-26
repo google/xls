@@ -14,8 +14,16 @@
 
 #include "xls/ir/instantiation.h"
 
+#include <string>
+#include <string_view>
+
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/function.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 
@@ -74,6 +82,27 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
     }
   }
   return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
+}
+
+absl::StatusOr<InstantiationPort> ExternInstantiation::GetInputPort(
+    std::string_view name) {
+  XLS_ASSIGN_OR_RETURN(Param * param, function_->GetParamByName(name));
+  return InstantiationPort{std::string{name}, param->GetType()};
+}
+
+absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
+    std::string_view name) {
+  // TODO(hzeller) 2023-06-12: handle tuples, such as return.1, return.2
+  if (name != "return") {
+    return absl::NotFoundError(
+        absl::StrFormat("No such output port `%s`", name));
+  }
+  return InstantiationPort{"return", function_->GetType()->return_type()};
+}
+
+std::string ExternInstantiation::ToString() const {
+  return absl::StrFormat("instantiation %s(foreign_function=%s, kind=extern)",
+                         name(), function_->name());
 }
 
 }  // namespace xls

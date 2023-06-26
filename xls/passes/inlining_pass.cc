@@ -17,9 +17,11 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/call_graph.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 
 namespace xls {
 namespace {
@@ -73,6 +75,11 @@ std::string GetPrefixedLabel(Invoke* invoke, std::string_view label,
                       invoke->to_apply()->name(), "_", label);
 }
 
+static bool IsInlineable(const Invoke* invoke) {
+  // Foreign functions can not and should not be inlined.
+  return !invoke->to_apply()->ForeignFunctionData().has_value();
+}
+
 // Inlines the node "invoke" by replacing it with the contents of the called
 // function.
 absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
@@ -88,9 +95,10 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
       // Already taken care of (e.g. parameters above).
       continue;
     }
-    XLS_RET_CHECK(!node->Is<Invoke>())
-        << "No invokes should remain in function to inline: "
-        << node->GetName();
+    XLS_RET_CHECK(  // All invokes before us should've been inlined (except ffi)
+        !node->Is<Invoke>() || !IsInlineable(node->As<Invoke>()))
+        << "No invokes that are not FFI should remain in function to inline: "
+        << node->GetName() << ": " << node->As<Invoke>()->to_apply()->name();
     std::vector<Node*> new_operands;
     for (Node* operand : node->operands()) {
       new_operands.push_back(invoked_node_to_replacement.at(operand));
@@ -187,7 +195,7 @@ absl::StatusOr<bool> InliningPass::RunInternal(Package* p,
     // during inlining.
     std::vector<Node*> nodes(f->nodes().begin(), f->nodes().end());
     for (Node* node : nodes) {
-      if (node->Is<Invoke>()) {
+      if (node->Is<Invoke>() && IsInlineable(node->As<Invoke>())) {
         XLS_RETURN_IF_ERROR(InlineInvoke(node->As<Invoke>(), inline_count++));
         changed = true;
       }

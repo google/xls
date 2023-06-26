@@ -14,11 +14,15 @@
 
 #include "xls/codegen/vast.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/number_parser.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -828,6 +832,34 @@ TEST_P(VastTest, InstantiationTest) {
   .clk(my_clk),
   .tx_byte(my_tx_byte)
 );)");
+}
+
+TEST_P(VastTest, TemplateInstantiationTest) {
+  VerilogFile f(GetFileType());
+  auto* a_def =
+      f.Make<WireDef>(SourceInfo(), "i_a", f.BitVectorType(32, SourceInfo()));
+  auto* a_ref = f.Make<LogicRef>(SourceInfo(), a_def);
+
+  auto* ret_def =
+      f.Make<WireDef>(SourceInfo(), "o_ret", f.BitVectorType(32, SourceInfo()));
+  auto* ret_ref = f.Make<LogicRef>(SourceInfo(), ret_def);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      CodeTemplate code_template,
+      CodeTemplate::Create("foo {fn} (.x({a}), .out({return}))"));
+
+  auto* instantiation =
+      f.Make<TemplateInstantiation>(SourceInfo(),
+                                    /*instance_name=*/"template_inst_42",
+                                    /*code_template=*/code_template,
+                                    /*connections=*/
+                                    std::vector<Connection>{
+                                        {"a", a_ref},
+                                        {"return", ret_ref},
+                                    });
+
+  EXPECT_EQ(instantiation->Emit(nullptr),
+            "foo template_inst_42 (.x(i_a), .out(o_ret));");
 }
 
 TEST_P(VastTest, BlockingAndNonblockingAssignments) {

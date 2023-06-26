@@ -14,10 +14,17 @@
 
 #include "xls/ir/verifier.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -27,7 +34,9 @@
 #include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/function.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
@@ -1910,6 +1919,49 @@ static absl::Status VerifyBlockInstantiation(BlockInstantiation* instantiation,
   return absl::OkStatus();
 }
 
+static absl::Status VerifyExternInstantiation(
+    ExternInstantiation* instantiation) {
+  Function* const fun = instantiation->function();
+  if (!fun->ForeignFunctionData().has_value()) {
+    return absl::NotFoundError(
+        "Extern function instantation expects ffi template information");
+  }
+  const CodeTemplate& code_template = fun->ForeignFunctionData()->code_template;
+  int64_t instance_name_parameter_count = 0;
+  int64_t return_value_count = 0;
+  std::vector<std::string> replacements;
+  for (const std::string& original : code_template.Expressions()) {
+    if (original == "fn") {
+      ++instance_name_parameter_count;
+      continue;
+    }
+    if (original == "return") {
+      ++return_value_count;
+      continue;
+    }
+    auto found =
+        std::find_if(fun->params().begin(), fun->params().end(),
+                     [&](const Param* p) { return p->name() == original; });
+    if (found == fun->params().end()) {
+      return absl::NotFoundError(absl::StrCat(
+          "In FFI template for ", fun->name(), "(): template wants '", original,
+          "', but that is not a parameter of the function"));
+    }
+  }
+  if (instance_name_parameter_count != 1) {
+    return absl::NotFoundError(absl::StrCat(
+        "In FFI template for ", fun->name(),
+        "(): Expected one {fn} template parameter for the instance name"));
+  }
+  // TODO(hzeller) 2023-06-16 modify when tuples are supported.
+  if (return_value_count != 1) {
+    return absl::NotFoundError(
+        absl::StrCat("In FFI template for ", fun->name(),
+                     "(): Expected exactly one {return} template parameter."));
+  }
+  return absl::OkStatus();
+}
+
 absl::Status VerifyBlock(Block* block, bool codegen) {
   XLS_VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
@@ -2009,13 +2061,22 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
   }
 
   for (Instantiation* instantiation : block->GetInstantiations()) {
-    // Verify each instantiation is a block instantation and the block is owned
-    // the package.
-    XLS_RET_CHECK(instantiation->kind() == InstantiationKind::kBlock)
-        << "Only block instantiations are supported: "
-        << instantiation->ToString();
-    XLS_RETURN_IF_ERROR(VerifyBlockInstantiation(
-        down_cast<BlockInstantiation*>(instantiation), block));
+    switch (instantiation->kind()) {
+      case InstantiationKind::kBlock:
+        // Verify each instantiation is a block instantation and the block is
+        // owned the package.
+        XLS_RETURN_IF_ERROR(VerifyBlockInstantiation(
+            down_cast<BlockInstantiation*>(instantiation), block));
+        break;
+      case InstantiationKind::kExtern:
+        XLS_RETURN_IF_ERROR(VerifyExternInstantiation(
+            down_cast<ExternInstantiation*>(instantiation)));
+        break;
+      default:
+        XLS_RET_CHECK_FAIL()
+            << "Only block or ffi instantiations are supported: "
+            << instantiation->ToString();
+    }
   }
 
   return absl::OkStatus();
