@@ -3965,5 +3965,59 @@ proc output_passthrough(tkn: token, state: bits[1], init={1}) {
   }
 }
 
+TEST_F(ProcInliningPassTest, ProcWithExternalConditionalNonblockingReceives) {
+  // Uses a send on a single-value channel to force inlining to save data. This
+  // can also happen when users of a receive are not active in the same tick as
+  // the receive. In these cases, the non-blocking receive's valid signal also
+  // needs to be saved, which is exercised here by using the valid signal as a
+  // predicate.
+  constexpr std::string_view ir_text = R"(package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan internal(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, fifo_depth=1, metadata="")
+chan out0(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan out1(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
+
+top proc foo(tkn: token, count: bits[2], init={0}) {
+  lit0: bits[2] = literal(value=0)
+  lit1: bits[2] = literal(value=1)
+  pred: bits[1] = eq(count, lit0)
+  recv: (token, bits[32], bits[1]) = receive(tkn, blocking=false, predicate=pred, channel_id=0)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  recv_valid: bits[1] = tuple_index(recv, index=2)
+  send0_token: token = send(recv_token, recv_data, predicate=recv_valid, channel_id=1)
+  send1_token: token = send(send0_token, recv_data, predicate=recv_valid, channel_id=3)
+  next_count: bits[2] = add(count, lit1)
+  next (send1_token, next_count)
+}
+
+proc output_passthrough(tkn: token, state:bits[1], init={0}) {
+  recv: (token, bits[32]) = receive(tkn, predicate=state, channel_id=1)
+  recv_token: token = tuple_index(recv, index=0)
+  recv_data: bits[32] = tuple_index(recv, index=1)
+  send_token: token = send(recv_token, recv_data, predicate=state, channel_id=2)
+  next_state: bits[1] = not(state)
+  next(send_token, next_state)
+}
+  )";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(ir_text));
+  EXPECT_THAT(
+      p->GetFunctionBases(),
+      UnorderedElementsAre(m::Proc("foo"), m::Proc("output_passthrough")));
+
+  XLS_ASSERT_OK(EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                              {{"out0", {5, 10}}, {"out1", {10}}})
+                    .status());
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"foo"), IsOkAndHolds(true));
+  EXPECT_THAT(p->GetFunctionBases(), UnorderedElementsAre(m::Proc("foo")));
+
+  XLS_ASSERT_OK(EvalAndExpect(p.get(), {{"in", {5, 10}}},
+                              {{"out0", {5, 10}}, {"out1", {10}}})
+                    .status());
+}
+
 }  // namespace
 }  // namespace xls

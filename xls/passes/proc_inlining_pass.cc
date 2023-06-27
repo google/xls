@@ -984,7 +984,7 @@ class ProcThread {
         //     channels are considered to be invariant (changing them during
         //     execution has undefined behavior) so no need to save them.
         //
-        // (2) Internal single-value channnels: we assume that the proc network
+        // (2) Internal single-value channels: we assume that the proc network
         //     is not racy. That is, order of the excution of the procs does not
         //     affect the visible output. Under this condition, all
         //     side-effecting uses of received data must fire before the
@@ -1075,10 +1075,35 @@ class ProcThread {
                            container_proc_->MakeNodeWithName<TupleIndex>(
                                SourceInfo(), receive_out, 0,
                                absl::StrFormat("%s_token", channel->name())));
+      std::vector<Node*> saved_receive_elements{receive_token,
+                                                maybe_saved_data};
+      if (!original_receive->is_blocking()) {
+        XLS_ASSIGN_OR_RETURN(
+            StateElement * valid_state,
+            AllocateState(
+                absl::StrFormat("%s_valid_state", channel->name()),
+                ZeroOfType(container_proc_->package()->GetBitsType(1))));
+        XLS_ASSIGN_OR_RETURN(Node * receive_valid,
+                             container_proc_->MakeNodeWithName<TupleIndex>(
+                                 SourceInfo(), receive_out, 2,
+                                 absl::StrFormat("%s_valid", channel->name())));
+        XLS_ASSIGN_OR_RETURN(
+            Node * maybe_saved_valid,
+            container_proc_->MakeNodeWithName<Select>(
+                SourceInfo(),
+                /*selector=*/anode.activation_out, /*cases=*/
+                std::vector<Node*>{valid_state->GetState(), receive_valid},
+                /*default_case=*/std::nullopt,
+                absl::StrFormat("%s_valid", channel->name())));
+        XLS_RETURN_IF_ERROR(valid_state->SetNext(maybe_saved_valid));
+        saved_receive_elements.push_back(maybe_saved_valid);
+      }
+      XLS_CHECK_EQ(receive_out->operands().size(),
+                   saved_receive_elements.size());
       XLS_ASSIGN_OR_RETURN(
           Node * saved_receive_out,
           container_proc_->MakeNodeWithName<Tuple>(
-              SourceInfo(), std::vector{receive_token, maybe_saved_data},
+              SourceInfo(), saved_receive_elements,
               absl::StrFormat("%s_receive_out", channel->name())));
 
       for (Node* old_user : old_users) {
