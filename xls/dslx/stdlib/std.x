@@ -113,7 +113,8 @@ fn umul_test() {
   assert_eq(u4:0b1001, umul(u2:0b11, u2:0b11));
 }
 
-// Returns unsigned division of n (N bits) and d (M bits) as quotient (N bits) and remainder (M bits).
+// Returns unsigned division of `n` (N bits) and `d` (M bits) as quotient (N bits) and remainder (M bits).
+// If dividing by `0`, returns alls `1`s for quotient and `n` for remainder.
 fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
   // Zero extend divisor by 1 bit.
   let divisor = d as uN[M+u32:1];
@@ -166,6 +167,11 @@ fn iterative_div_mod_test() {
   assert_eq((u6:6, u4:5), iterative_div_mod(u6:41, u4:6));
   assert_eq((u6:6, u4:7), iterative_div_mod(u6:55, u4:8));
   assert_eq((u10:20, u6:44), iterative_div_mod(u10:944, u6:45));
+
+  // Divide by 0.
+  assert_eq((u4:0xf, u4:8), iterative_div_mod(u4:8, u4:0));
+  assert_eq((u8:0xff, u8:64), iterative_div_mod(u8:64, u8:0));
+  assert_eq((u1:1, u1:0), iterative_div_mod(u1:0, u1:0));
 }
 
 #[test]
