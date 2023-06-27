@@ -115,6 +115,9 @@ fn umul_test() {
 
 // Returns unsigned division of `n` (N bits) and `d` (M bits) as quotient (N bits) and remainder (M bits).
 // If dividing by `0`, returns alls `1`s for quotient and `n` for remainder.
+// Based on the implementation in //xls/ir/abstract_evaluator:UDivMod;
+// should be expected to use a large number of gates and have a slow
+// critical path when using combinational codegen.
 fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
   // Zero extend divisor by 1 bit.
   let divisor = d as uN[M+u32:1];
