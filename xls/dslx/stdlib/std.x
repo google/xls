@@ -134,6 +134,7 @@ fn iterative_div_mod<N: u32, M: u32>(n: uN[N], d: uN[M]) -> (uN[N], uN[M]) {
 }
 
 // Returns unsigned division of n (N bits) and d (M bits) as quotient (N bits).
+// If dividing by `0`, returns alls `1`s for quotient.
 fn iterative_div<N: u32, M: u32>(n: uN[N], d: uN[M]) -> uN[N] {
    let (q, r) =  iterative_div_mod(n, d);
    q
@@ -180,6 +181,7 @@ fn iterative_div_test() {
   assert_eq(u32:6, iterative_div(u32:36, u32:6));
   assert_eq(u32:6, iterative_div(u32:41, u32:6));
   assert_eq(u6:6, iterative_div(u6:55, u4:8));
+  assert_eq(u8:0xff, iterative_div(u8:64, u8:0));  
 }
 
 // Returns the value of x-1 with saturation at 0.
