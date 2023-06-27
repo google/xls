@@ -207,7 +207,7 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(diff, lhs.bit_count());
 }
 
-Bits Mul(const Bits& lhs, const Bits& rhs) {
+static Bits Mul(const Bits& lhs, const Bits& rhs) {
   XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
   if (lhs.bit_count() <= 64) {
     uint64_t lhs_int = lhs.ToUint64().value();
