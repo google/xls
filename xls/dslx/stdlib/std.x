@@ -576,3 +576,41 @@ fn test_popcount() {
   assert_eq(popcount(u1:0x1), u1:1);
   assert_eq(popcount(u32:0xffffffff), u32:32);
 }
+
+// Converts an unsigned number to a signed number of the same width.
+//
+// This is the moral equivalent of:
+//
+//     x as sN[std::sizeof_unsigned(x)]
+//
+// That is, you might use it when you don't want to figure out the width of x
+// in order to perform a cast, you just know that the unsigned number you have
+// you want to turn signed.
+pub fn to_signed<N: u32>(x: uN[N]) -> sN[N] {
+  x as sN[N]
+}
+
+#[test]
+fn test_to_signed() {
+  let x = u32:42;
+  assert_eq(s32:42, to_signed(x));
+  assert_eq(x as sN[sizeof_unsigned(x)], to_signed(x));
+  let x = u8:42;
+  assert_eq(s8:42, to_signed(x));
+  assert_eq(x as sN[sizeof_unsigned(x)], to_signed(x));
+}
+
+// As with to_signed but for signed-to-unsigned conversion.
+pub fn to_unsigned<N: u32>(x: sN[N]) -> uN[N] {
+  x as uN[N]
+}
+
+#[test]
+fn test_to_unsigned() {
+  let x = s32:42;
+  assert_eq(u32:42, to_unsigned(x));
+  assert_eq(x as uN[sizeof_signed(x)], to_unsigned(x));
+  let x = s8:42;
+  assert_eq(u8:42, to_unsigned(x));
+  assert_eq(x as uN[sizeof_signed(x)], to_unsigned(x));
+}

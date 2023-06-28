@@ -37,6 +37,21 @@ Returns the number of bits (sizeof) of unsigned or signed bit value.
 
 ## Bit Manipulation Functions
 
+### `std::to_signed` & `std::to_unsigned`
+
+```dslx-snippet
+pub fn to_signed<N: u32>(x: uN[N]) -> sN[N]
+pub fn to_unsigned<N: u32>(x: sN[N]) -> uN[N] {
+```
+
+Convenience helper that converts an unsigned bits argument to its same-sized
+signed type, or visa-versa. This is morally equivalent to (but slightly more
+convenient than) a pattern like:
+
+```dslx-snippet
+    x as sN[std::sizeof_unsigned(x)]
+```
+
 ### `std::lsb`
 
 ```dslx-snippet
