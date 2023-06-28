@@ -8,6 +8,10 @@
 #    a valid assertion. Running the check every now and then manually and
 #    fixing all the non-iterator cases is useful though. Off by default.
 #
+# readability-use-anyofallof is overly aggressive, suggesting conversion of for
+#    loops into std::any_of/all_of in cases where it makes the code less
+#    readable.
+#
 # misc-const-correctness: useful, but it seems to be overzealous at times,
 #    arriving at incorrect conclusions.
 #
@@ -43,6 +47,7 @@ Checks: >
   -readability-simplify-boolean-expr,
   -readability-static-definition-in-anonymous-namespace,
   -readability-uppercase-literal-suffix,
+  -readability-use-anyofallof,
   google-*,
   -google-readability-braces-around-statements,
   -google-readability-todo,
