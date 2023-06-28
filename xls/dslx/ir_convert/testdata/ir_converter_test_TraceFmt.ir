@@ -19,7 +19,7 @@ fn __itok__test_module__assert_trace_and_add(__token: token, __activated: bits[1
   not.17: bits[1] = not(and.16, id=17)
   invoke.22: (token, bits[32]) = invoke(__token, __activated, x, to_apply=__itok__test_module__trace_and_add, id=22)
   literal.15: bits[32] = literal(value=0, id=15)
-  assert.18: token = assert(__token, not.17, message="Assertion failure via fail! @ test_module.x:8:36-8:57", id=18)
+  assert.18: token = assert(__token, not.17, message="Assertion failure via fail! @ test_module.x:8:28-8:49", id=18)
   tuple_index.23: token = tuple_index(invoke.22, index=0, id=23)
   literal.20: bits[32] = literal(value=0, id=20)
   identity.19: bits[32] = identity(literal.15, id=19)

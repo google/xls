@@ -30,6 +30,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_system/typecheck_test_helpers.h"
 
@@ -1544,6 +1545,29 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "'Splatted' struct instance has all members of struct defined, "
             "consider removing the `..s`");
+  XLS_ASSERT_OK(PrintPositionalError(
+      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      std::cerr,
+      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
+      PositionalErrorColor::kWarningColor));
+}
+
+TEST(TypecheckTest, LetWithWildcardMatchGivesWarning) {
+  const std::string program = R"(
+fn f(x: u32) -> u32 {
+  let _ = x + x;
+  x
+}
+)";
+  TypecheckedModule tm;
+  XLS_EXPECT_OK(Typecheck(program, &tm));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).span,
+            Span(Pos(filename, 2, 6), Pos(filename, 2, 7)));
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "`let _ = expr;` statement can be simplified to `expr;` -- there "
+            "is no need for a `let` binding here");
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,

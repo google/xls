@@ -918,6 +918,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
   XLS_RETURN_IF_ERROR(
       BindNames(node->name_def_tree(), *rhs, ctx, maybe_constexpr_value));
 
+  if (node->name_def_tree()->IsWildcardLeaf()) {
+    ctx->warnings()->Add(
+        node->name_def_tree()->span(),
+        "`let _ = expr;` statement can be simplified to `expr;` -- there is no "
+        "need for a `let` binding here");
+  }
+
   if (node->is_const()) {
     TypeInfo* ti = ctx->type_info();
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,

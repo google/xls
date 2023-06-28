@@ -18,8 +18,8 @@ fn non_test_slice(x: u8[4], start: u32) -> u8[3] {
 #[test]
 fn slice_test() {
   let a: u8[4] = u8[4]:[4, ...];
-  let _: () = assert_eq(u8[3]:[4, 4, 4], non_test_slice(a, u32:1));
-  let _: () = assert_eq(u8[3]:[4, 4, 4], u8[3]:[4, ...]);
-  let _: () = assert_eq(u8:4, (u8[3]:[4, ...])[u32:2]);
+  assert_eq(u8[3]:[4, 4, 4], non_test_slice(a, u32:1));
+  assert_eq(u8[3]:[4, 4, 4], u8[3]:[4, ...]);
+  assert_eq(u8:4, (u8[3]:[4, ...])[u32:2]);
   ()
 }

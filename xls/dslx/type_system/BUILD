@@ -245,6 +245,7 @@ cc_test(
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:pos",
         "@com_google_googletest//:gtest",
     ],
 )

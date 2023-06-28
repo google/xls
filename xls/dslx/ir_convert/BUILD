@@ -115,6 +115,7 @@ cc_test(
     srcs = ["ir_converter_test.cc"],
     data = glob(["testdata/*.ir"]),
     deps = [
+        ":convert_options",
         ":ir_converter",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -122,7 +123,9 @@ cc_test(
         "//xls/common:golden_files",
         "//xls/common:init_xls",
         "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
         "@com_google_googletest//:gtest",
     ],

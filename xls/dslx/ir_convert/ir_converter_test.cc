@@ -32,7 +32,10 @@
 #include "xls/common/golden_files.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -1436,7 +1439,7 @@ fn main() -> s32[4] {
 TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {
-  let _ = fail!("failure", x > u32:3);
+  fail!("failure", x > u32:3);
   x
 }
 
@@ -1457,7 +1460,7 @@ fn callee(x:u32) -> u32 {
 TEST(IrConverterTest, NonpublicFnDoesNotGetTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {
-  let _ = fail!("failure", x > u32:3);
+  fail!("failure", x > u32:3);
   x
 }
 
@@ -1570,7 +1573,7 @@ TEST(IrConverterTest, SendIfRecvIf) {
   }
 
   next(tok: token, do_send: bool) {
-    let _ = send_if(tok, c, do_send, ((do_send) as u32));
+    send_if(tok, c, do_send, ((do_send) as u32));
     !do_send
   }
 }
@@ -1721,8 +1724,7 @@ proc main {
 
 TEST(IrConverterTest, FormatMacro) {
   constexpr std::string_view kProgram = R"(fn main() {
-  let _ = trace_fmt!("Look! I don't explode!");
-  ()
+  trace_fmt!("Look! I don't explode!");
 })";
   ConvertOptions options;
   options.emit_fail_as_assert = false;
@@ -1744,8 +1746,7 @@ struct Point {
 
 fn main() {
   let p = Point{x: u32:42, y: s8:7};
-  let _ = trace_fmt!("Look! I don't explode *and* I can trace a struct: {}", p);
-  ()
+  trace_fmt!("Look! I don't explode *and* I can trace a struct: {}", p);
 })";
   ConvertOptions options;
   options.emit_fail_as_assert = false;
@@ -1771,8 +1772,7 @@ struct Point {
 
 fn main() {
   let p = Point{x: U32Wrapper{v: u32:42}, y: s8:7};
-  let _ = trace_fmt!("Look! I don't explode *and* I can trace a nested struct: {}", p);
-  ()
+  trace_fmt!("Look! I don't explode *and* I can trace a nested struct: {}", p);
 })";
   ConvertOptions options;
   options.emit_fail_as_assert = false;
@@ -1848,12 +1848,12 @@ TEST(IrConverterTest, EmptyArray) {
 TEST(IrConverterTest, TraceFmt) {
   constexpr std::string_view kProgram = R"(
     fn trace_and_add(x: u32) -> u32 {
-      let _ = trace_fmt!("x = {}", x);
+      trace_fmt!("x = {}", x);
       x + u32:1
     }
 
     fn assert_trace_and_add(x: u32) -> u32 {
-      let _ = if x == u32:5 { fail!("x_is_now_5", u32:0) } else { u32:0 };
+      if x == u32:5 { fail!("x_is_now_5", u32:0) } else { u32:0 };
       trace_and_add(x)
     }
 

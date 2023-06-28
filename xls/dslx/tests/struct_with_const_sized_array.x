@@ -23,7 +23,6 @@ fn get_thing(x: Foo, i: u32) -> u32 {
 #[test]
 fn foo_test() {
   let foo: Foo = (u32[THING_COUNT]:[42, 64],);
-  let _ = assert_eq(u32:42, get_thing(foo, u32:0));
-  let _ = assert_eq(u32:64, get_thing(foo, u32:1));
-  ()
+  assert_eq(u32:42, get_thing(foo, u32:0));
+  assert_eq(u32:64, get_thing(foo, u32:1));
 }

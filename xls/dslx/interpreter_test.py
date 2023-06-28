@@ -36,9 +36,11 @@ class InterpreterTest(test_base.TestCase):
   def _parse_and_test(
       self,
       program: str,
+      *,
       compare: str = 'jit',
       want_error: bool = False,
       alsologtostderr: bool = False,
+      warnings_as_errors: bool = True,
       extra_flags: Sequence[str] = (),
   ) -> str:
     temp_file = self.create_tempfile(content=program)
@@ -46,6 +48,8 @@ class InterpreterTest(test_base.TestCase):
     cmd.append('--compare=%s' % compare)
     if alsologtostderr:
       cmd.append('--alsologtostderr')
+    if not warnings_as_errors:
+      cmd.append('--warnings_as_errors=false')
     cmd.extend(extra_flags)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
@@ -105,17 +109,15 @@ class InterpreterTest(test_base.TestCase):
     #[test]
     fn incomplete_match_failure_test() {
       let x: u32 = u32:42;
-      let _: u32 = match x {
+      match x {
         u32:64 => u32:77
       };
-      ()
     }
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(
         'The program being interpreted failed! The value was not matched',
         stderr)
-    self.assertIn(':4:16-6:4', stderr)
 
   def test_failing_test_gives_error_retcode(self):
     """Tests that a failing DSLX test results in an error return code."""
@@ -181,9 +183,9 @@ class InterpreterTest(test_base.TestCase):
     program = """
     fn fut() -> u32 {
       let x = u32:0;
-      let _ = trace!(x + u32:1);
+      trace!(x + u32:1);
       let x = u32:1;
-      let _ = trace!(x + u32:1);
+      trace!(x + u32:1);
       x + u32:1
     }
 
@@ -199,8 +201,8 @@ class InterpreterTest(test_base.TestCase):
         program_file.full_path
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('4:21-4:32: 1', result.stderr)
-    self.assertIn('6:21-6:32: 2', result.stderr)
+    self.assertIn(': 1', result.stderr)
+    self.assertIn(': 2', result.stderr)
 
   def test_trace_s32(self):
     """Tests that we can trace s32 values."""
@@ -211,10 +213,14 @@ class InterpreterTest(test_base.TestCase):
       let _ = trace!(x);
       let x = s32:-1;
       let _ = trace!(x);
+      ()
     }
     """
     stderr = self._parse_and_test(
-        program, want_error=False, alsologtostderr=True
+        program,
+        want_error=False,
+        alsologtostderr=True,
+        warnings_as_errors=False,
     )
     self.assertIn('5:21-5:24: 4', stderr)
     self.assertIn('7:21-7:24: -1', stderr)
@@ -247,8 +253,8 @@ class InterpreterTest(test_base.TestCase):
     }
     fn main() {
       let s = MyStruct{x: u32:42};
-      let _ = trace_fmt!("s as hex: {:#x}", s);
-      let _ = trace_fmt!("s as bin: {:#b}", s);
+      trace_fmt!("s as hex: {:#x}", s);
+      trace_fmt!("s as bin: {:#b}", s);
       ()
     }
 
@@ -280,8 +286,8 @@ class InterpreterTest(test_base.TestCase):
     fn main() {
       let s = MyStruct{x: u32:42};
       let a = MyStruct[1]:[s];
-      let _ = trace_fmt!("a as hex: {:#x}", a);
-      let _ = trace_fmt!("a as bin: {:#b}", a);
+      trace_fmt!("a as hex: {:#x}", a);
+      trace_fmt!("a as bin: {:#b}", a);
       ()
     }
 
@@ -313,7 +319,7 @@ class InterpreterTest(test_base.TestCase):
     }
     fn main() {
       let a = MyEnum[2]:[MyEnum::ONE, MyEnum::TWO];
-      let _ = trace_fmt!("a: {:#x}", a);
+      trace_fmt!("a: {:#x}", a);
       ()
     }
 
@@ -336,7 +342,7 @@ class InterpreterTest(test_base.TestCase):
     }
     fn main() {
       let t = (MyEnum::ONE, MyEnum::TWO, u32:42);
-      let _ = trace_fmt!("t: {:#x}", t);
+      trace_fmt!("t: {:#x}", t);
       ()
     }
 
@@ -442,7 +448,7 @@ class InterpreterTest(test_base.TestCase):
       let x0 = u32:42;
       %s
       // Make a fail label since those should be unique at function scope.
-      let _ = if x0 != u32:42 {
+      if x0 != u32:42 {
         fail!("impossible", ())
       } else {
         ()

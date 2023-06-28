@@ -20,9 +20,9 @@ fn main_test() {
   // Test a value which fits in an int64_t as a signed number,
   // but not in a uint64_t an unsigned number.
   let does_not_fit_in_uint64: uN[65] = uN[65]:0x1_ffff_ffff_ffff_ffff;
-  let _ = assert_eq(x >> big, uN[96]:0);
-  let _ = assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
-  let _ = assert_eq(x << big, uN[96]:0);
-  let _ = assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
+  assert_eq(x >> big, uN[96]:0);
+  assert_eq(x >> four, uN[96]:0x0aaa_abbb_bccc_cddd_deee_efff);
+  assert_eq(x << big, uN[96]:0);
+  assert_eq(x << does_not_fit_in_uint64, uN[96]:0);
   assert_eq(x << four, uN[96]:0xaaab_bbbc_cccd_ddde_eeef_fff0)
 }
