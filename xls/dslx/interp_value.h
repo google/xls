@@ -164,6 +164,9 @@ class InterpValue {
   static InterpValue MakeSigned(Bits bits) {
     return InterpValue(InterpValueTag::kSBits, std::move(bits));
   }
+  static InterpValue MakeUnsigned(Bits bits) {
+    return InterpValue(InterpValueTag::kUBits, std::move(bits));
+  }
   static InterpValue MakeBits(bool is_signed, Bits bits) {
     return InterpValue(
         is_signed ? InterpValueTag::kSBits : InterpValueTag::kUBits,

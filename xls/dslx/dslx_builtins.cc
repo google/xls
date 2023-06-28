@@ -31,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/concrete_type.h"
@@ -222,6 +223,23 @@ class Checker {
     }
     return *this;
   }
+  Checker& IsSN(int64_t argno, const BitsType** type_out = nullptr) {
+    if (!status_.ok()) {
+      return *this;
+    }
+    const ConcreteType& t = GetArgType(argno);
+    auto* a = dynamic_cast<const BitsType*>(&t);
+    if (a == nullptr || !a->is_signed()) {
+      status_ = TypeInferenceErrorStatus(
+          span_, &t,
+          absl::StrFormat("Want argument %d to be signed bits; got %s", argno,
+                          t.ToString()));
+    }
+    if (type_out != nullptr) {
+      *type_out = a;
+    }
+    return *this;
+  }
   Checker& IsBool(int64_t argno) {
     if (!status_.ok()) {
       return *this;
@@ -247,10 +265,12 @@ class Checker {
   }
   Checker& CheckIsLen(const ArrayType& t, int64_t target,
                       const std::function<std::string()>& make_msg) {
+    uint32_t target_u32 = static_cast<uint32_t>(target);
+    XLS_CHECK_EQ(target_u32, target);
     if (!status_.ok()) {
       return *this;
     }
-    if (t.size() != ConcreteTypeDim::CreateU32(target)) {
+    if (t.size() != ConcreteTypeDim::CreateU32(target_u32)) {
       status_ = TypeInferenceErrorStatus(span_, &t, make_msg());
     }
     return *this;
@@ -846,8 +866,6 @@ void PopulateSignatureToLambdaMap(
                        .Len(2)
                        .IsBits(0, &lhs_type)
                        .IsBits(1, &rhs_type);
-    XLS_CHECK(!lhs_type->is_signed());
-    XLS_CHECK(!rhs_type->is_signed());
     XLS_RETURN_IF_ERROR(checker.status());
 
     checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {
@@ -869,17 +887,15 @@ void PopulateSignatureToLambdaMap(
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
-  map["(sN[N], sN[N]) -> (sN[N], sN[N])"] =
+  map["(sN[N], sN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
     const BitsType* lhs_type;
     const BitsType* rhs_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
-                       .IsBits(0, &lhs_type)
-                       .IsBits(1, &rhs_type);
-    XLS_CHECK(lhs_type->is_signed());
-    XLS_CHECK(rhs_type->is_signed());
+                       .IsSN(0, &lhs_type)
+                       .IsSN(1, &rhs_type);
     XLS_RETURN_IF_ERROR(checker.status());
 
     checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {
@@ -892,9 +908,9 @@ void PopulateSignatureToLambdaMap(
 
     std::vector<std::unique_ptr<ConcreteType>> return_type_elems(2);
     return_type_elems[0] =
-        std::make_unique<BitsType>(/*is_signed=*/true, /*size=*/n);
+        std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
     return_type_elems[1] =
-        std::make_unique<BitsType>(/*is_signed=*/true, /*size=*/n);
+        std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
 
     auto return_type =
         std::make_unique<TupleType>(std::move(return_type_elems));

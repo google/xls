@@ -21,14 +21,21 @@ normal DSLX test environment, e.g. that it flags the first failing test in a
 file, etc.
 """
 
+import dataclasses
 import subprocess as subp
+import sys
 import textwrap
-from typing import Sequence
+from typing import List, Sequence, Tuple, Union
 
 from xls.common import runfiles
 from xls.common import test_base
 
 _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
+
+
+@dataclasses.dataclass
+class WantError:
+  kind: str  # e.g. ArgCountMismatch
 
 
 class InterpreterTest(test_base.TestCase):
@@ -487,6 +494,39 @@ class InterpreterTest(test_base.TestCase):
     )
     self.assertIn('lhs: u32:0x14', stderr)
     self.assertIn('rhs: u32:0x1e', stderr)
+
+  def test_smulp_value_or_type_error(self):
+    cases: List[Tuple[Union[WantError, str], List[str]]] = [
+        (WantError('ArgCountMismatch'), []),  # nullary
+        (WantError('ArgCountMismatch'), ['s32:42']),  # unary
+        ('u32:2688', ['s32:42', 's32:64']),  # signed
+        (WantError('TypeInferenceError'), ['u32:42', 'u32:64']),  # unsigned
+        (
+            WantError('ArgCountMismatch'),
+            ['s32:42', 's32:64', 's32:96'],
+        ),  # ternary
+    ]
+    for want, args in cases:
+      print('args:', args, file=sys.stderr)
+      print('want:', want, file=sys.stderr)
+
+      args_str = ', '.join(args)
+      want_str = 's32:0' if isinstance(want, WantError) else want
+      assert isinstance(want_str, str), want_str
+
+      program = textwrap.dedent("""\
+      #[test]
+      fn smulp_test() {
+        let (p0, p1) = smulp(%s);
+        let sum = (p0 + p1);
+        assert_eq(%s, sum)
+      }
+      """ % (args_str, want_str))
+      if isinstance(want, WantError):
+        stderr = self._parse_and_test(program, want_error=True)
+        self.assertIn(want.kind, stderr)
+      else:
+        stderr = self._parse_and_test(program, want_error=False)
 
 
 if __name__ == '__main__':

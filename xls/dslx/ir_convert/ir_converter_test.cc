@@ -749,7 +749,8 @@ TEST(IrConverterTest, SMulp) {
   constexpr std::string_view program = R"(
 fn main(x: s10, y: s10) -> s10 {
   let product = smulp(x, y);
-  product.0 + product.1
+  let sum = product.0 + product.1;
+  sum as s10
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(

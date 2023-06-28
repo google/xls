@@ -40,7 +40,12 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"priority_sel", {"(xN[N], xN[M][N]) -> xN[M]", false}},
       {"rev", {"(uN[N]) -> uN[N]", false}},
       {"umulp", {"(uN[N], uN[N]) -> (uN[N], uN[N])", false}},
-      {"smulp", {"(sN[N], sN[N]) -> (sN[N], sN[N])", false}},
+
+      // Note: the result tuple from `smulp` are two "bags of bits" that must be
+      // added together in order to arrive at the signed product. So we give
+      // them back as unsigned and users should cast the sum of these elements
+      // to a signed number.
+      {"smulp", {"(sN[N], sN[N]) -> (uN[N], uN[N])", false}},
 
       {"array_rev", {"(T[N]) -> T[N]", false}},
       {"array_size", {"(T[N]) -> u32", false}},

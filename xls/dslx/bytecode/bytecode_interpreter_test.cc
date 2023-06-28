@@ -1376,7 +1376,8 @@ TEST(BytecodeInterpreterTest, BuiltinSMulp) {
   constexpr std::string_view kProgram = R"(
 fn main(x: s10, y: s10) -> s10 {
   let mulp = smulp(x, y);
-  mulp.0 + mulp.1
+  let sum: u10 = mulp.0 + mulp.1;
+  sum as s10
 })";
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            Interpret(kProgram, "main",

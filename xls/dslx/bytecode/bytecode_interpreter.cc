@@ -1893,9 +1893,9 @@ absl::Status BytecodeInterpreter::RunBuiltinSMulp(const Bytecode& bytecode) {
         XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
         int64_t product_bitwidth = lhs_bitwidth;
         std::vector<InterpValue> outputs;
-        outputs.push_back(InterpValue::MakeSBits(product_bitwidth, 0));
+        outputs.push_back(InterpValue::MakeUBits(product_bitwidth, 0));
         XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
-        outputs.push_back(product);
+        outputs.push_back(InterpValue::MakeUnsigned(product.GetBitsOrDie()));
         return InterpValue::MakeTuple(outputs);
       });
 }

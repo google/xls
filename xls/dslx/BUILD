@@ -314,6 +314,8 @@ cc_library(
     hdrs = ["dslx_builtins.h"],
     deps = [
         ":errors",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:deduce",

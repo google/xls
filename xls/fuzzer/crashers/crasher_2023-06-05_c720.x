@@ -205,8 +205,8 @@ proc main {
       let x19: u19 = -x8;
       let x20: u30 = x14 as u30 * x18;
       let x22: s19 = {
-        let x21: (s19, s19) = smulp(x18 as u19 as s19, x13 as s19);
-        x21.0 + x21.1
+        let x21: (u19, u19) = smulp(x18 as u19 as s19, x13 as s19);
+        (x21.0 + x21.1) as s19
       };
       let x23: u19 = bit_slice_update(x2, x14, x2);
       let x24: x4[8] = x17 ++ x5;
@@ -222,8 +222,8 @@ proc main {
       let x31: u19 = one_hot_sel(x14, [x26]);
       let x32: u15 = (x30 as u19)[x25+:u15];
       let x34: s19 = {
-        let x33: (s19, s19) = smulp(x3 as s19, x7 as s19);
-        x33.0 + x33.1
+        let x33: (u19, u19) = smulp(x3 as s19, x7 as s19);
+        (x33.0 + x33.1) as s19
       };
       let x35: u19 = -x3;
       x20

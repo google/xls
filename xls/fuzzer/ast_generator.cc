@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 #include <set>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -815,7 +816,7 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   TypedExpr rhs = pair.second;
   bool is_signed = RandomBool();
 
-  std::string op = (is_signed) ? "smulp" : "umulp";
+  std::string op = is_signed ? "smulp" : "umulp";
 
   XLS_CHECK(IsBits(lhs.type));
   XLS_CHECK(IsBits(rhs.type));
@@ -836,10 +837,14 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
     rhs_cast.expr = module_->Make<Cast>(fake_span_, rhs.expr, rhs_cast.type);
   }
 
+  TypeAnnotation* unsigned_type =
+      MakeTypeAnnotation(false, GetTypeBitCount(lhs.type));
+  TypeAnnotation* signed_type =
+      MakeTypeAnnotation(true, GetTypeBitCount(lhs.type));
   auto mulp = TypedExpr{module_->Make<Invocation>(
                             fake_span_, MakeBuiltinNameRef(op),
                             std::vector<Expr*>{lhs_cast.expr, rhs_cast.expr}),
-                        MakeTupleType({lhs_cast.type, rhs_cast.type})};
+                        MakeTupleType({unsigned_type, unsigned_type})};
   std::string mulp_identifier = GenSym();
   auto* mulp_name_def =
       module_->Make<NameDef>(fake_span_, mulp_identifier, /*definer=*/nullptr);
@@ -849,8 +854,11 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
                                             /*index=*/MakeNumber(0));
   auto mulp_rhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
                                             /*index=*/MakeNumber(1));
-  auto* sum =
+  Expr* sum =
       module_->Make<Binop>(fake_span_, BinopKind::kAdd, mulp_lhs, mulp_rhs);
+  if (is_signed) {  // For smul we have to cast the summation to signed.
+    sum = module_->Make<Cast>(fake_span_, sum, signed_type);
+  }
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/mulp.type, /*rhs=*/mulp.expr,
                                  /*is_const=*/false);
