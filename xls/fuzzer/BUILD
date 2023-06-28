@@ -330,7 +330,6 @@ cc_library(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -662,6 +661,7 @@ cc_library(
         "//xls/ir:number_parser",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 

@@ -17,10 +17,10 @@
 
 #include <filesystem>  // NOLINT
 #include <iostream>
+#include <optional>
 
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 
 namespace xls {

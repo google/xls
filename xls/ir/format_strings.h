@@ -15,7 +15,8 @@
 #ifndef XLS_IR_FORMAT_STRINGS_H_
 #define XLS_IR_FORMAT_STRINGS_H_
 
-#include "absl/types/variant.h"
+#include <variant>
+
 #include "xls/ir/format_preference.h"
 
 namespace xls {

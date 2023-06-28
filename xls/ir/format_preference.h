@@ -16,9 +16,9 @@
 #define XLS_IR_FORMAT_PREFERENCE_H_
 
 #include <ostream>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 
 namespace xls {
 

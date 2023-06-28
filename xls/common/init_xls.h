@@ -15,9 +15,8 @@
 #ifndef XLS_COMMON_INIT_XLS_H_
 #define XLS_COMMON_INIT_XLS_H_
 
+#include <string_view>
 #include <vector>
-
-#include "absl/strings/string_view.h"
 
 namespace xls {
 

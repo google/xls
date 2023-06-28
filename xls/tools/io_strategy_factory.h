@@ -17,10 +17,10 @@
 
 #include <functional>
 #include <memory>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/tools/io_strategy.h"
 
 namespace xls {

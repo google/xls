@@ -14,7 +14,8 @@
 
 #include "xls/common/logging/log_lines.h"
 
-#include "absl/strings/string_view.h"
+#include <string_view>
+
 #include "xls/common/logging/logging.h"
 
 namespace xls {

@@ -15,8 +15,7 @@
 #define XLS_COMMON_CASE_CONVERTERS_H_
 
 #include <string>
-
-#include "absl/strings/string_view.h"
+#include <string_view>
 
 namespace xls {
 

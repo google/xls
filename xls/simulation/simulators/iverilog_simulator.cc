@@ -13,10 +13,10 @@
 // limitations under the License.
 
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"

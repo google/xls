@@ -16,11 +16,11 @@
 #define XLS_PASSES_UNION_QUERY_ENGINE_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/nodes.h"

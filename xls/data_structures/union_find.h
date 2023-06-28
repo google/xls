@@ -16,12 +16,12 @@
 #define XLS_DATA_STRUCTURES_UNION_FIND_H_
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find_map.h"
 

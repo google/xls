@@ -17,6 +17,7 @@
 #ifndef XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 #define XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,7 +29,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/frontend/ast.h"
 

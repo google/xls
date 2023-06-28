@@ -19,7 +19,6 @@
 
 #include <cstdint>
 
-#include "absl/strings/string_view.h"
 #include "xls/common/strong_int.h"
 
 namespace xls {

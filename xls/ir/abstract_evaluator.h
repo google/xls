@@ -16,10 +16,10 @@
 #define XLS_IR_ABSTRACT_EVALUATOR_H_
 
 #include <cstdint>
+#include <optional>
 #include <queue>
 #include <vector>
 
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"

@@ -16,11 +16,11 @@
 // representation, i.e., consisting of only AND/OR/NOT ops.
 
 #include <filesystem>
+#include <optional>
 #include <string>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

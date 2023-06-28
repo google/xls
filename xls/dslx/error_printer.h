@@ -19,11 +19,10 @@
 #include <functional>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/warning_collector.h"
 

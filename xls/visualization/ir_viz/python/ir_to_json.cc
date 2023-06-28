@@ -15,9 +15,9 @@
 #include "xls/visualization/ir_viz/ir_to_json.h"
 
 #include <memory>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "pybind11/pybind11.h"
 #include "pybind11_abseil/absl_casters.h"
 #include "pybind11_abseil/statusor_caster.h"

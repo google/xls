@@ -17,10 +17,10 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/simulation/verilog_simulator.h"
 
 namespace xls {

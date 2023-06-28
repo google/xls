@@ -16,9 +16,9 @@
 #define XLS_IR_VISUALIZATION_IR_TO_JSON_H_
 
 #include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {

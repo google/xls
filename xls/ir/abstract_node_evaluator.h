@@ -15,9 +15,10 @@
 #ifndef XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
 #define XLS_IR_ABSTRACT_NODE_EVALUATOR_H_
 
+#include <optional>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"

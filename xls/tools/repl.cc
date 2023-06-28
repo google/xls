@@ -19,7 +19,9 @@
 #include <initializer_list>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -31,9 +33,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 // TODO(taktoa): 2021-03-10 maybe switch to https://github.com/injinj/linecook
 #include "linenoise.h"

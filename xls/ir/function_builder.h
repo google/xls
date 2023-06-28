@@ -21,8 +21,9 @@
 //
 // To this end, DO NOT add node/function headers here.
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"

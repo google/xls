@@ -15,9 +15,10 @@
 #ifndef XLS_CODEGEN_CODEGEN_OPTIONS_H_
 #define XLS_CODEGEN_CODEGEN_OPTIONS_H_
 
+#include <optional>
+#include <string_view>
+
 #include "absl/container/flat_hash_map.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/op_override.h"
 #include "xls/codegen/ram_configuration.h"

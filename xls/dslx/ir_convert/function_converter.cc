@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "absl/status/status.h"
+#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"

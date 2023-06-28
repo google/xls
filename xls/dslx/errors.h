@@ -14,8 +14,9 @@
 #ifndef XLS_DSLX_ERRORS_H_
 #define XLS_DSLX_ERRORS_H_
 
+#include <string_view>
+
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/type_system/concrete_type.h"

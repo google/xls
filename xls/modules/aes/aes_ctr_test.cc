@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -25,7 +26,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "openssl/aes.h"
 #include "xls/common/file/filesystem.h"

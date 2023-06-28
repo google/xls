@@ -16,7 +16,6 @@
 #define XLS_PASSES_MAP_INLINING_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/passes/passes.h"
 
 namespace xls {

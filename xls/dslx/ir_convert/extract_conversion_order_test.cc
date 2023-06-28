@@ -16,12 +16,12 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"

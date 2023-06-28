@@ -21,6 +21,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <string_view>
@@ -33,7 +34,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/dslx/bytecode/bytecode_cache.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"

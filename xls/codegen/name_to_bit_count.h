@@ -24,7 +24,6 @@
 #include <cstdint>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/strings/string_view.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 

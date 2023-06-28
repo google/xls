@@ -19,10 +19,10 @@
 // TODO(rspringer): No array support yet. Should be pretty trivial to add.
 
 #include <filesystem>
+#include <optional>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

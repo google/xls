@@ -21,13 +21,13 @@
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"

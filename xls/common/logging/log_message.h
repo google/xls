@@ -17,10 +17,10 @@
 
 #include <memory>
 #include <ostream>
+#include <string_view>
 
 #include "absl/base/attributes.h"
 #include "absl/base/log_severity.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/logging/errno_saver.h"
 #include "xls/common/logging/log_sink.h"
 #include "xls/common/logging/null_guard.h"

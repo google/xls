@@ -15,15 +15,15 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/create_import_data.h"

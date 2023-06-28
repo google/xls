@@ -23,7 +23,6 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"

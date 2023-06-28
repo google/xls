@@ -19,12 +19,12 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/variant.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"

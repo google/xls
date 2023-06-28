@@ -121,12 +121,12 @@
 #include <iosfwd>
 #include <limits>
 #include <ostream>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/meta/type_traits.h"
-#include "absl/strings/string_view.h"
 
 namespace xls {
 

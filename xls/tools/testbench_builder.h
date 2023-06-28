@@ -39,9 +39,9 @@
 #include <cstdint>
 #include <functional>
 #include <iostream>
+#include <optional>
 
 #include "absl/strings/str_format.h"
-#include "absl/types/optional.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder_helpers.h"
 

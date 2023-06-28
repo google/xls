@@ -15,9 +15,9 @@
 #include "xls/common/logging/log_lines.h"
 
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/logging/scoped_mock_log.h"
 
 namespace {

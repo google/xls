@@ -16,6 +16,7 @@
 
 #include <cctype>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -30,7 +31,6 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls::dslx {

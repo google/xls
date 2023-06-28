@@ -19,8 +19,8 @@
 #define XLS_COMMON_GOLDEN_FILES_H_
 
 #include <filesystem>
+#include <string_view>
 
-#include "absl/strings/string_view.h"
 #include "xls/common/source_location.h"
 
 namespace xls {

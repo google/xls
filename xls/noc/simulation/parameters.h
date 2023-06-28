@@ -16,11 +16,11 @@
 #define XLS_NOC_SIMULATION_PARAMETERS_H_
 
 #include <cstdint>
+#include <variant>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/noc/config/network_config.pb.h"

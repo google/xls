@@ -15,7 +15,8 @@
 #ifndef XLS_NOC_CONFIG_CHANNEL_OPTIONS_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_CHANNEL_OPTIONS_PROTO_BUILDER_H_
 
-#include "absl/strings/string_view.h"
+#include <string_view>
+
 #include "xls/noc/config_ng/topology_options_network_config_builder.pb.h"
 
 namespace xls::noc {

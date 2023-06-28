@@ -26,7 +26,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -36,7 +35,6 @@ cc_test(
     deps = [
         ":union_find_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:optional",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -50,7 +48,6 @@ cc_library(
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/logging:log_message",
     ],
@@ -63,8 +60,6 @@ cc_test(
         ":graph_contraction",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:variant",
         "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
@@ -231,7 +226,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "//xls/common:strong_int",
         "//xls/common/logging",
@@ -278,7 +272,6 @@ cc_library(
         ":union_find_map",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
     ],
 )
@@ -360,7 +353,6 @@ cc_test(
     deps = [
         ":path_cut",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:optional",
         "//xls/common:strong_int",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

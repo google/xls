@@ -15,12 +15,12 @@
 // Prints summary information about an IR file to the terminal.
 // Output will be added as needs warrant, so feel free to make additions!
 
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"

@@ -18,7 +18,6 @@
 #include <string>
 
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"

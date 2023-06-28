@@ -301,7 +301,6 @@ cc_library(
     deps = [
         ":pipeline_schedule",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/passes:pass_base",

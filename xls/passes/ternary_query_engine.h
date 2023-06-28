@@ -15,8 +15,9 @@
 #ifndef XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 #define XLS_PASSES_TERNARY_QUERY_ENGINE_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"

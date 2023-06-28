@@ -43,9 +43,9 @@
 #define XLS_EXAMPLES_JPEG_STREAMS_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/status_macros.h"
 
 namespace xls::jpeg {

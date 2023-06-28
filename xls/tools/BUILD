@@ -107,7 +107,6 @@ cc_binary(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -151,7 +150,6 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -296,7 +294,6 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:variant",
         # protobuf compiler import
         "//xls/common:proto_adaptor_utils",
         "//xls/common/file:filesystem",
@@ -353,7 +350,6 @@ cc_binary(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/types:optional",
         "@z3//:api",
     ],
 )
@@ -377,7 +373,6 @@ cc_library(
         ":testbench",
         ":testbench_builder_helpers",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -1195,7 +1190,6 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "@linenoise",
     ],

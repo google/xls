@@ -17,7 +17,8 @@
 
 #include <unistd.h>
 
-#include "absl/strings/string_view.h"
+#include <string_view>
+
 #include "xls/common/logging/log_sink.h"
 #include "xls/common/source_location.h"
 

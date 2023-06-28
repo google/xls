@@ -16,13 +16,12 @@
 #define XLS_IR_IR_MATCHER_H_
 
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/match.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"

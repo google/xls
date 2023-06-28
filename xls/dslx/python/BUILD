@@ -112,7 +112,6 @@ xls_pybind_extension(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:optional",
         "//xls/common/logging",
         "//xls/common/status:import_status_module",
         "//xls/common/status:ret_check",

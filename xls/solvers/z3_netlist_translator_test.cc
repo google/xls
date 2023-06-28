@@ -14,13 +14,14 @@
 
 #include "xls/solvers/z3_netlist_translator.h"
 
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"

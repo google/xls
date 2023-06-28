@@ -15,10 +15,10 @@
 #include "xls/ir/big_int.h"
 
 #include <memory>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/number_parser.h"

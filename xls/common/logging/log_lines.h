@@ -16,10 +16,10 @@
 #define XLS_COMMON_LOGGING_LOG_LINES_H_
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/log_severity.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/logging/logging_internal.h"
 #include "xls/common/logging/vlog_is_on.h"
 

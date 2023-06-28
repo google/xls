@@ -44,11 +44,11 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
-#include "absl/strings/string_view.h"
 
 ABSL_DECLARE_FLAG(int32_t, v);
 // Note: Setting vmodule with absl::SetFlag is not supported. Instead use

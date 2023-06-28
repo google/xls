@@ -16,13 +16,13 @@
 #define XLS_PASSES_RANGE_QUERY_ENGINE_H_
 
 #include <iosfwd>
+#include <optional>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/optional.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

@@ -15,12 +15,12 @@
 #include "xls/data_structures/union_find_map.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/types/optional.h"
 
 namespace xls {
 namespace {

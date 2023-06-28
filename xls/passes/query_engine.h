@@ -16,7 +16,6 @@
 #define XLS_PASSES_QUERY_ENGINE_H_
 
 #include "absl/status/statusor.h"
-#include "absl/types/variant.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"

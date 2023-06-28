@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -24,7 +25,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/file/filesystem.h"

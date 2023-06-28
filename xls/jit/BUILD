@@ -414,7 +414,6 @@ cc_test(
         ":llvm_type_converter",
         ":orc_jit",
         ":type_layout",
-        "@com_google_absl//absl/types:variant",
         "//xls/common:bits_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",

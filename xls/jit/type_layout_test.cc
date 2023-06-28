@@ -18,7 +18,6 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/types/variant.h"
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"

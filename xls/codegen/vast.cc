@@ -24,6 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
+#include "absl/types/variant.h"
 #include "xls/common/indent.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"

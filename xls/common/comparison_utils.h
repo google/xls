@@ -16,12 +16,12 @@
 #define XLS_COMMON_COMPARISON_UTILS_H_
 
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/to_string_helpers.h"
 #include "xls/common/type_traits_helpers.h"
 

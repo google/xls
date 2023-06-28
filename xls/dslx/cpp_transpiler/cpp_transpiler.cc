@@ -17,8 +17,11 @@
 #include <cstdint>
 #include <filesystem>  // NOLINT
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -30,9 +33,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
-#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/status/ret_check.h"

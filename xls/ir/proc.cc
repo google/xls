@@ -13,12 +13,14 @@
 // limitations under the License.
 
 #include "xls/ir/proc.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -26,9 +28,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/span.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"

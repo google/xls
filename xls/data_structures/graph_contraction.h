@@ -15,10 +15,11 @@
 #ifndef XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 #define XLS_DATA_STRUCTURES_GRAPH_CONTRACTION_H_
 
+#include <optional>
+
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/data_structures/union_find_map.h"

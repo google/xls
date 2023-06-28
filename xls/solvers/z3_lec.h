@@ -16,11 +16,11 @@
 #define XLS_SOLVERS_Z3_LEC_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/ir/package.h"
 #include "xls/netlist/netlist.h"
 #include "xls/scheduling/pipeline_schedule.h"

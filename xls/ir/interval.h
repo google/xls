@@ -16,10 +16,10 @@
 #define XLS_IR_INTERVAL_H_
 
 #include <iosfwd>
+#include <optional>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/optional.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 

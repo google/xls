@@ -14,12 +14,12 @@
 #include "xls/dslx/frontend/ast_utils.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"

@@ -15,8 +15,9 @@
 #ifndef XLS_PASSES_PROC_LOOP_FOLDING_H_
 #define XLS_PASSES_PROC_LOOP_FOLDING_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"
 

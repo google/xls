@@ -16,9 +16,9 @@
 #define XLS_DSLX_FRONTEND_BUILTINS_METADATA_H_
 
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/strings/string_view.h"
 
 namespace xls::dslx {
 

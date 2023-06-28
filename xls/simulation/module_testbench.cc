@@ -27,6 +27,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/variant.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"

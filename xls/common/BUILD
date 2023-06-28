@@ -185,7 +185,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
         "//xls/common/file:file_descriptor",
         "//xls/common/logging",
@@ -230,7 +229,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/meta:type_traits",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -364,7 +362,6 @@ cc_library(
         ":type_traits_helpers",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
     ],
 )
 

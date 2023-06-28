@@ -15,8 +15,9 @@
 #ifndef XLS_COMMON_LOGGING_LOG_ENTRY_H_
 #define XLS_COMMON_LOGGING_LOG_ENTRY_H_
 
+#include <string_view>
+
 #include "absl/base/log_severity.h"
-#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 
 namespace xls {

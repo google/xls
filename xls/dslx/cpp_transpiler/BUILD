@@ -28,8 +28,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
-        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
         "//xls/common:case_converters",
         "//xls/common:visitor",
@@ -40,7 +38,6 @@ cc_library(
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:type_info",
         "//xls/dslx/type_system:typecheck",
     ],
 )

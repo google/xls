@@ -16,9 +16,9 @@
 #define XLS_COMMON_STRING_TO_INT_H_
 
 #include <cstdint>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 
 namespace xls {
 

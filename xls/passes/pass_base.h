@@ -19,13 +19,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/logging/log_lines.h"

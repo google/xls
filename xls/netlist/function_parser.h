@@ -20,11 +20,11 @@
 #define XLS_NETLIST_FUNCTION_PARSER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 
 namespace xls {
 namespace netlist {

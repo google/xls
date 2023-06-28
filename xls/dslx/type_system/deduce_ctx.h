@@ -19,6 +19,7 @@
 #include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,7 +27,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_and_bindings.h"

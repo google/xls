@@ -18,13 +18,13 @@
 #include <cstdint>
 #include <functional>
 #include <iosfwd>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"

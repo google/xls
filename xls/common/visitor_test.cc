@@ -15,6 +15,7 @@
 #include "xls/common/visitor.h"
 
 #include <string>
+#include <variant>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

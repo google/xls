@@ -15,13 +15,13 @@
 #ifndef XLS_SIMULATION_VERILOG_SIMULATOR_H_
 #define XLS_SIMULATION_VERILOG_SIMULATOR_H_
 
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/name_to_bit_count.h"
 #include "xls/codegen/vast.h"

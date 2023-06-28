@@ -15,9 +15,10 @@
 #ifndef XLS_IR_SOURCE_LOCATION_H_
 #define XLS_IR_SOURCE_LOCATION_H_
 
+#include <vector>
+
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/optional.h"
 #include "xls/ir/fileno.h"
 
 namespace xls {

@@ -17,8 +17,7 @@
 
 #include <cstdint>
 #include <string>
-
-#include "absl/strings/string_view.h"
+#include <string_view>
 
 namespace xls {
 

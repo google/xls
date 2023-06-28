@@ -15,9 +15,10 @@
 #ifndef XLS_IR_VALUE_H_
 #define XLS_IR_VALUE_H_
 
+#include <variant>
+
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/xls_type.pb.h"
 

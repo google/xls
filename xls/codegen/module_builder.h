@@ -15,12 +15,12 @@
 #ifndef XLS_CODEGEN_MODULE_BUILDER_H_
 #define XLS_CODEGEN_MODULE_BUILDER_H_
 
+#include <string_view>
 #include <utility>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/vast.h"

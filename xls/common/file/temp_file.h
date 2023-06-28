@@ -17,9 +17,9 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 
 namespace xls {
 

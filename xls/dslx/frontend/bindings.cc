@@ -14,6 +14,7 @@
 
 #include "xls/dslx/frontend/bindings.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -24,7 +25,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/status_macros.h"
 #include "re2/re2.h"
 

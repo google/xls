@@ -14,11 +14,11 @@
 
 #include <filesystem>  // NOLINT
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"

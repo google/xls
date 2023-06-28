@@ -18,9 +18,9 @@
 #define XLS_IR_NUMBER_PARSER_H_
 
 #include <cstdint>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 

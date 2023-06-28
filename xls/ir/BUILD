@@ -114,7 +114,6 @@ cc_library(
         ":bits_ops",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -147,7 +146,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -350,6 +348,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -410,7 +409,6 @@ cc_library(
         "//xls/common:strong_int",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -625,7 +623,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -757,7 +754,6 @@ cc_library(
         ":format_preference",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -1080,7 +1076,6 @@ cc_library(
         ":value",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:optional",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -1093,7 +1088,6 @@ cc_library(
         ":bits_ops",
         "//xls/common:math_util",
         "//xls/common/logging",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -1106,7 +1100,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:optional",
     ],
 )
 
@@ -1295,6 +1288,7 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/types:variant",
         "@com_google_googletest//:gtest",
     ],
 )

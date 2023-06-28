@@ -27,6 +27,7 @@
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -40,9 +41,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
-#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"

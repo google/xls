@@ -17,7 +17,8 @@
 #ifndef XLS_COMMON_PROTO_ADAPTOR_UTILS_H_
 #define XLS_COMMON_PROTO_ADAPTOR_UTILS_H_
 
-#include "absl/strings/string_view.h"
+#include <string>
+#include <string_view>
 
 namespace xls {
 

@@ -14,12 +14,13 @@
 
 #include "xls/netlist/function_extractor.h"
 
+#include <variant>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_split.h"
-#include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

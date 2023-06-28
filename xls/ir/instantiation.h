@@ -19,7 +19,6 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/ir/type.h"
 
 namespace xls {

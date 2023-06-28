@@ -94,6 +94,7 @@ cc_library(
     hdrs = ["document_symbols.h"],
     deps = [
         ":lsp_type_utils",
+        "@com_google_absl//absl/types:variant",
         "//xls/common:visitor",
         "//xls/dslx/frontend:ast",
         "@verible//common/lsp:lsp-protocol",

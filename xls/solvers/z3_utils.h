@@ -18,7 +18,6 @@
 
 #include <string>
 
-#include "absl/strings/string_view.h"
 #include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"
 

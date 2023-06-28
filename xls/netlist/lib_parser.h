@@ -21,14 +21,14 @@
 #define XLS_NETLIST_LIB_PARSER_H_
 
 #include <fstream>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 

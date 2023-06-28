@@ -16,8 +16,7 @@
 #define XLS_FUZZER_SCRUB_CRASHER_H_
 
 #include <string>
-
-#include "absl/strings/string_view.h"
+#include <string_view>
 
 namespace xls {
 

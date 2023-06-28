@@ -17,6 +17,7 @@
 #include <filesystem>  // NOLINT
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -25,7 +26,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"

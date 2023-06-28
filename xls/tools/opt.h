@@ -19,10 +19,10 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 
 // TODO(meheff): 2021-10-04 Remove this header.
 #include "xls/passes/passes.h"

@@ -15,12 +15,12 @@
 #ifndef XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 #define XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"

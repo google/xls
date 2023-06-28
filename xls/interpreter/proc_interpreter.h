@@ -18,11 +18,11 @@
 #include <deque>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"
 #include "xls/interpreter/serial_proc_runtime.h"

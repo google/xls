@@ -16,9 +16,9 @@
 #define XLS_IR_BLOCK_H_
 
 #include <memory>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/nodes.h"

@@ -14,10 +14,11 @@
 
 #include "xls/data_structures/leaf_type_tree.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"

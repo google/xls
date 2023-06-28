@@ -15,7 +15,8 @@
 #ifndef XLS_CODEGEN_CODEGEN_PASS_H_
 #define XLS_CODEGEN_CODEGEN_PASS_H_
 
-#include "absl/types/optional.h"
+#include <optional>
+
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/ir/block.h"

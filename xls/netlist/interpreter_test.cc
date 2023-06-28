@@ -13,11 +13,12 @@
 // limitations under the License.
 #include "xls/netlist/interpreter.h"
 
+#include <optional>
+
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/optional.h"
 #include "xls/common/status/matchers.h"
 #include "xls/netlist/cell_library.h"
 #include "xls/netlist/fake_cell_library.h"

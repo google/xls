@@ -14,10 +14,11 @@
 
 #include "xls/ir/ir_test_base.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"
-#include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 
 namespace xls {

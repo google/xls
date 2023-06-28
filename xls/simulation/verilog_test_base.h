@@ -16,13 +16,13 @@
 #define XLS_CODEGEN_VERILOG_TEST_BASE_H_
 
 #include <filesystem>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"

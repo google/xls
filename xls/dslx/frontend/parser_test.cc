@@ -15,6 +15,7 @@
 #include "xls/dslx/frontend/parser.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -26,7 +27,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/types/optional.h"
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"

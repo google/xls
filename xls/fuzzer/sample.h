@@ -15,13 +15,12 @@
 #ifndef XLS_FUZZER_SAMPLE_H_
 #define XLS_FUZZER_SAMPLE_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/sample.pb.h"
