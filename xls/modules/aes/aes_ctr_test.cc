@@ -65,14 +65,14 @@ struct JitData {
 
 // In the DSLX, the IV is treated as a uN[96], so we potentially need to swap
 // its byte ordering as well.
-void IvToBuffer(const InitVector& iv,
-                std::array<uint8_t, kInitVectorBytes>* buffer) {
+static void IvToBuffer(const InitVector& iv,
+                       std::array<uint8_t, kInitVectorBytes>* buffer) {
   for (int i = kInitVectorBytes - 1; i >= 0; i--) {
     buffer->data()[i] = iv[kInitVectorBytes - 1 - i];
   }
 }
 
-void PrintTraceMessages(const InterpreterEvents& events) {
+static void PrintTraceMessages(const InterpreterEvents& events) {
   if (absl::GetFlag(FLAGS_print_traces) && !events.trace_msgs.empty()) {
     std::cout << "Trace messages:" << std::endl;
     for (const auto& tm : events.trace_msgs) {
@@ -81,8 +81,8 @@ void PrintTraceMessages(const InterpreterEvents& events) {
   }
 }
 
-absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
-                                              JitData* jit_data) {
+static absl::StatusOr<std::vector<Block>> XlsEncrypt(
+    const SampleData& sample_data, JitData* jit_data) {
   const std::string_view kCmdChannel = "aes_ctr__command_in";
   const std::string_view kInputDataChannel = "aes_ctr__ptxt_in";
   const std::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
@@ -148,7 +148,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   return blocks;
 }
 
-std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
+static std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
   // Needed because the key and iv are modified during operation.
   uint8_t local_key[kMaxKeyBytes];
   memcpy(local_key, sample_data.key.data(), kMaxKeyBytes);
@@ -188,8 +188,9 @@ std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
 }
 
 // Returns false on error (will terminate further runs).
-absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
-                               absl::Duration* xls_encrypt_dur) {
+static absl::StatusOr<bool> RunSample(JitData* jit_data,
+                                      const SampleData& sample_data,
+                                      absl::Duration* xls_encrypt_dur) {
   std::vector<Block> reference_ciphertext = ReferenceEncrypt(sample_data);
 
   absl::Time start_time = absl::Now();
@@ -261,7 +262,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
   return true;
 }
 
-absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
+static absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   JitData jit_data;
 
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
@@ -280,7 +281,7 @@ absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   return jit_data;
 }
 
-absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
+static absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
   int key_bytes = key_bits / 8;
   SampleData sample_data;
   sample_data.key_bytes = key_bytes;
@@ -332,7 +333,7 @@ absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(int num_samples) {
+static absl::Status RealMain(int num_samples) {
   XLS_RETURN_IF_ERROR(RunTest(num_samples, /*key_bits=*/128));
   return RunTest(num_samples, /*key_bits=*/256);
 }

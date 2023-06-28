@@ -75,8 +75,8 @@ struct Result {
   Block auth_tag;
 };
 
-absl::StatusOr<Value> CreateCommandValue(const SampleData& sample_data,
-                                         bool encrypt) {
+static absl::StatusOr<Value> CreateCommandValue(const SampleData& sample_data,
+                                                bool encrypt) {
   std::vector<Value> command_elements;
   // encrypt
   command_elements.push_back(Value(UBits(static_cast<uint64_t>(encrypt), 1)));
@@ -95,8 +95,9 @@ absl::StatusOr<Value> CreateCommandValue(const SampleData& sample_data,
   return Value::Tuple(command_elements);
 }
 
-absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
-                                  const SampleData& sample_data, bool encrypt) {
+static absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
+                                         const SampleData& sample_data,
+                                         bool encrypt) {
   // Create (and send) the initial command.
   Package* package = jit_data->package.get();
   SerialProcRuntime* runtime = jit_data->runtime.get();
@@ -148,7 +149,7 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   return result;
 }
 
-absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
+static absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
   int num_ptxt_blocks = sample.input_data.size();
   int num_aad_blocks = sample.aad.size();
   size_t max_result_size;
@@ -197,8 +198,8 @@ absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
   return result;
 }
 
-bool CompareBlock(const Block& expected, const Block& actual,
-                  std::string_view failure_msg, bool is_ciphertext) {
+static bool CompareBlock(const Block& expected, const Block& actual,
+                         std::string_view failure_msg, bool is_ciphertext) {
   for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
     if (expected[byte_idx] != actual[byte_idx]) {
       std::cout << failure_msg << std::endl;
@@ -210,8 +211,8 @@ bool CompareBlock(const Block& expected, const Block& actual,
   return true;
 }
 
-absl::StatusOr<bool> RunSample(JitData* jit_data,
-                               const SampleData& sample_data) {
+static absl::StatusOr<bool> RunSample(JitData* jit_data,
+                                      const SampleData& sample_data) {
   if (XLS_VLOG_IS_ON(1)) {
     XLS_LOG(INFO) << "Input plaintext:\n"
                   << FormatBlocks(sample_data.input_data, /*indent=*/4);
@@ -296,7 +297,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data,
   return true;
 }
 
-absl::StatusOr<JitData> CreateJitData() {
+static absl::StatusOr<JitData> CreateJitData() {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(kIrPath));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
@@ -310,7 +311,7 @@ absl::StatusOr<JitData> CreateJitData() {
   return jit_data;
 }
 
-absl::Status RunTest(int num_samples, int key_bits) {
+static absl::Status RunTest(int num_samples, int key_bits) {
   int key_bytes = key_bits / 8;
   SampleData sample_data;
   sample_data.key.fill(0);
@@ -379,7 +380,7 @@ absl::Status RunTest(int num_samples, int key_bits) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(int num_samples) {
+static absl::Status RealMain(int num_samples) {
   XLS_RETURN_IF_ERROR(RunTest(num_samples, /*key_bits=*/128));
   return RunTest(num_samples, /*key_bits=*/256);
 }

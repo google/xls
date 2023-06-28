@@ -52,7 +52,7 @@ struct Result {
   std::optional<Block> auth_tag;
 };
 
-absl::StatusOr<Result> RunGcm(const Sample& sample) {
+static absl::StatusOr<Result> RunGcm(const Sample& sample) {
   EVP_AEAD_CTX* ref_ctx =
       EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm(), sample.key.data(),
                        /*key_len=*/32, /*tag_len=*/16);
@@ -95,7 +95,7 @@ absl::StatusOr<Result> RunGcm(const Sample& sample) {
   return result;
 }
 
-Block CreateDataBlock(absl::BitGen* bitgen) {
+static Block CreateDataBlock(absl::BitGen* bitgen) {
   Block block;
   for (int i = 0; i < kBlockBytes; i++) {
     block[i] = absl::Uniform(*bitgen, 0, 256);
@@ -103,7 +103,7 @@ Block CreateDataBlock(absl::BitGen* bitgen) {
   return block;
 }
 
-Key CreateKey(absl::BitGen* bitgen, int key_bytes) {
+static Key CreateKey(absl::BitGen* bitgen, int key_bytes) {
   Key key;
   key.fill(0);
   for (int i = 0; i < key_bytes; i++) {
@@ -112,7 +112,7 @@ Key CreateKey(absl::BitGen* bitgen, int key_bytes) {
   return key;
 }
 
-InitVector CreateInitVector(absl::BitGen* bitgen) {
+static InitVector CreateInitVector(absl::BitGen* bitgen) {
   InitVector iv;
   for (int i = 0; i < kInitVectorBytes; i++) {
     iv[i] = absl::Uniform(*bitgen, 0, 256);
@@ -121,7 +121,7 @@ InitVector CreateInitVector(absl::BitGen* bitgen) {
   return iv;
 }
 
-std::string DslxFormatKey(const Key& key, int key_bytes) {
+static std::string DslxFormatKey(const Key& key, int key_bytes) {
   std::string indent_1(8, ' ');
   std::string indent_2(12, ' ');
   std::vector<std::string> pieces;
@@ -138,7 +138,7 @@ std::string DslxFormatKey(const Key& key, int key_bytes) {
   return absl::StrJoin(pieces, "\n");
 }
 
-std::string DslxFormatIv(const InitVector& iv) {
+static std::string DslxFormatIv(const InitVector& iv) {
   std::string indent(8, ' ');
   std::string iv_str = "0x";
   for (int i = 0; i < 6; i++) {
@@ -153,7 +153,7 @@ std::string DslxFormatIv(const InitVector& iv) {
 }
 
 // Only prints the data, none of the surrounding formatting.
-std::string DslxFormatBlock(const Block& block, int indent) {
+static std::string DslxFormatBlock(const Block& block, int indent) {
   std::string indent_str(indent * 4, ' ');
   std::vector<std::string> pieces;
   for (int i = 0; i < 16; i += 4) {
@@ -164,8 +164,8 @@ std::string DslxFormatBlock(const Block& block, int indent) {
   return absl::StrJoin(pieces, "\n");
 }
 
-std::string DslxFormatBlocks(const std::vector<Block>& blocks,
-                             std::string_view var_name) {
+static std::string DslxFormatBlocks(const std::vector<Block>& blocks,
+                                    std::string_view var_name) {
   std::string indent_1(8, ' ');
   std::string indent_2(12, ' ');
   std::vector<std::string> pieces;
@@ -186,7 +186,8 @@ std::string DslxFormatBlocks(const std::vector<Block>& blocks,
   return absl::StrJoin(pieces, "\n");
 }
 
-std::string DslxFormatOutput(const Sample& sample, const Result& result) {
+static std::string DslxFormatOutput(const Sample& sample,
+                                    const Result& result) {
   std::vector<std::string> pieces;
   pieces.push_back(DslxFormatKey(sample.key, sample.key_bytes));
   pieces.push_back(DslxFormatIv(sample.iv));
@@ -207,8 +208,8 @@ std::string DslxFormatOutput(const Sample& sample, const Result& result) {
   return absl::StrJoin(pieces, "\n");
 }
 
-absl::Status RealMain(EncryptionMode mode, int key_bits, int num_aad_blocks,
-                      int num_msg_blocks) {
+static absl::Status RealMain(EncryptionMode mode, int key_bits,
+                             int num_aad_blocks, int num_msg_blocks) {
   absl::BitGen bitgen;
   Sample sample;
   sample.key = CreateKey(&bitgen, key_bits / 8);
@@ -230,8 +231,8 @@ absl::Status RealMain(EncryptionMode mode, int key_bits, int num_aad_blocks,
   return absl::OkStatus();
 }
 
-bool AbslParseFlag(std::string_view text, xls::aes::EncryptionMode* out,
-                   std::string* error) {
+static bool AbslParseFlag(std::string_view text, xls::aes::EncryptionMode* out,
+                          std::string* error) {
   if (text == "aes") {
     *out = xls::aes::EncryptionMode::AES;
     return true;
@@ -250,7 +251,7 @@ bool AbslParseFlag(std::string_view text, xls::aes::EncryptionMode* out,
   return false;
 }
 
-std::string AbslUnparseFlag(xls::aes::EncryptionMode in) {
+static std::string AbslUnparseFlag(xls::aes::EncryptionMode in) {
   if (in == xls::aes::EncryptionMode::AES) {
     return "aes";
   }

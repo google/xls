@@ -38,8 +38,8 @@ ABSL_FLAG(int32_t, num_samples, 1000,
 
 namespace xls::aes {
 
-absl::StatusOr<Block> XlsEncrypt(const Key& key, int key_bytes,
-                                 const Block& plaintext) {
+static absl::StatusOr<Block> XlsEncrypt(const Key& key, int key_bytes,
+                                        const Block& plaintext) {
   // Not sure why Clang isn't able to infer the "32" correctly, but w/e.
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
@@ -49,8 +49,8 @@ absl::StatusOr<Block> XlsEncrypt(const Key& key, int key_bytes,
   return ValueToBlock(result_value);
 }
 
-absl::StatusOr<Block> XlsDecrypt(const Key& key, int key_bytes,
-                                 const Block& ciphertext) {
+static absl::StatusOr<Block> XlsDecrypt(const Key& key, int key_bytes,
+                                        const Block& ciphertext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(ciphertext));
   Value width_value(UBits(key_bytes == 128 ? 0 : 2, /*bit_count=*/2));
@@ -59,7 +59,8 @@ absl::StatusOr<Block> XlsDecrypt(const Key& key, int key_bytes,
   return ValueToBlock(result_value);
 }
 
-Block ReferenceEncrypt(const Key& key, int key_bytes, const Block& plaintext) {
+static Block ReferenceEncrypt(const Key& key, int key_bytes,
+                              const Block& plaintext) {
   Block ciphertext;
 
   // Needed because the key is modified during operation.
@@ -73,9 +74,10 @@ Block ReferenceEncrypt(const Key& key, int key_bytes, const Block& plaintext) {
 }
 
 // Returns false on error (will terminate further runs).
-absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
-                               int key_bytes, absl::Duration* xls_encrypt_dur,
-                               absl::Duration* xls_decrypt_dur) {
+static absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
+                                      int key_bytes,
+                                      absl::Duration* xls_encrypt_dur,
+                                      absl::Duration* xls_decrypt_dur) {
   Block reference_ciphertext = ReferenceEncrypt(key, key_bytes, input);
 
   absl::Time start_time = absl::Now();
@@ -115,7 +117,7 @@ absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   return true;
 }
 
-absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
+static absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
   int key_bytes = key_bits / 8;
   Block input;
   Key key;
@@ -152,7 +154,7 @@ absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(int32_t num_samples) {
+static absl::Status RealMain(int32_t num_samples) {
   XLS_RETURN_IF_ERROR(RunTest(/*key_bits=*/128, num_samples));
   return RunTest(/*key_bits=*/256, num_samples);
 }
