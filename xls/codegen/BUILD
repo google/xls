@@ -955,10 +955,12 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:type",
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -981,6 +983,7 @@ cc_test(
         "//xls/passes:pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

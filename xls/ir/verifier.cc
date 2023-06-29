@@ -17,10 +17,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -44,6 +46,7 @@
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value_helpers.h"
+#include "re2/re2.h"
 
 namespace xls {
 namespace {
@@ -1919,6 +1922,70 @@ static absl::Status VerifyBlockInstantiation(BlockInstantiation* instantiation,
   return absl::OkStatus();
 }
 
+// TODO(hzeller): 2023-06-28 This is only needing a foreign function as
+// input so this test can be moved to earlier pase steps so that it can be
+//   (a) independently and easily tested
+//   (b) could be used to surface issues right in the language server.
+static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
+  auto err_msg = [fun](std::string_view msg) -> std::string {
+    return absl::StrCat("In FFI template for ", fun->name(), "(): ", msg);
+  };
+
+  const CodeTemplate& code_template = fun->ForeignFunctionData()->code_template;
+  int64_t instance_name_parameter_count = 0;
+  std::vector<std::string> replacements;
+  Type* const return_type = fun->GetType()->return_type();
+  for (const std::string& original : code_template.Expressions()) {
+    if (original == "fn") {
+      ++instance_name_parameter_count;
+      continue;
+    }
+    if (original == "return") {
+      if (!return_type->IsBits()) {
+        return absl::InvalidArgumentError(err_msg(
+            "got `return` in template, but function does not return a scalar"));
+      }
+      continue;
+    }
+
+    if (absl::StartsWith(original, "return.")) {
+      if (!return_type->IsTuple()) {
+        return absl::InvalidArgumentError(
+            err_msg("got `return.<idx>` in template, but function does not "
+                    "return a tuple."));
+      }
+      static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)"};
+      int64_t tuple_idx;
+      if (!RE2::FullMatch(original, *kReMatchTupleId, &tuple_idx)) {
+        return absl::InvalidArgumentError(
+            err_msg(absl::StrCat("tuple index expected in `", original, "`")));
+      }
+      const int64_t expeced_max_idx = return_type->AsTupleOrDie()->size() - 1;
+      if (tuple_idx < 0 || tuple_idx > expeced_max_idx) {
+        return absl::InvalidArgumentError(
+            err_msg(absl::StrFormat("Expected tuple index 0..%d, got `%s`",
+                                    expeced_max_idx, original)));
+      }
+      continue;
+    }
+
+    auto found =
+        std::find_if(fun->params().begin(), fun->params().end(),
+                     [&](const Param* p) { return p->name() == original; });
+    if (found == fun->params().end()) {
+      return absl::NotFoundError(err_msg(
+          absl::StrCat(" template wants '", original,
+                       "', but that is not a parameter of the function")));
+    }
+  }
+  if (instance_name_parameter_count != 1) {
+    return absl::NotFoundError(
+        err_msg("Expected one {fn} template parameter for the instance name"));
+  }
+
+  return absl::OkStatus();
+}
+
 static absl::Status VerifyExternInstantiation(
     ExternInstantiation* instantiation) {
   Function* const fun = instantiation->function();
@@ -1926,40 +1993,7 @@ static absl::Status VerifyExternInstantiation(
     return absl::NotFoundError(
         "Extern function instantation expects ffi template information");
   }
-  const CodeTemplate& code_template = fun->ForeignFunctionData()->code_template;
-  int64_t instance_name_parameter_count = 0;
-  int64_t return_value_count = 0;
-  std::vector<std::string> replacements;
-  for (const std::string& original : code_template.Expressions()) {
-    if (original == "fn") {
-      ++instance_name_parameter_count;
-      continue;
-    }
-    if (original == "return") {
-      ++return_value_count;
-      continue;
-    }
-    auto found =
-        std::find_if(fun->params().begin(), fun->params().end(),
-                     [&](const Param* p) { return p->name() == original; });
-    if (found == fun->params().end()) {
-      return absl::NotFoundError(absl::StrCat(
-          "In FFI template for ", fun->name(), "(): template wants '", original,
-          "', but that is not a parameter of the function"));
-    }
-  }
-  if (instance_name_parameter_count != 1) {
-    return absl::NotFoundError(absl::StrCat(
-        "In FFI template for ", fun->name(),
-        "(): Expected one {fn} template parameter for the instance name"));
-  }
-  // TODO(hzeller) 2023-06-16 modify when tuples are supported.
-  if (return_value_count != 1) {
-    return absl::NotFoundError(
-        absl::StrCat("In FFI template for ", fun->name(),
-                     "(): Expected exactly one {return} template parameter."));
-  }
-  return absl::OkStatus();
+  return VerifyForeignFunctionTemplate(fun);
 }
 
 absl::Status VerifyBlock(Block* block, bool codegen) {

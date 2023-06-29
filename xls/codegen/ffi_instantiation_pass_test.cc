@@ -15,12 +15,14 @@
 #include "xls/codegen/ffi_instantiation_pass.h"
 
 #include <algorithm>
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
@@ -145,6 +147,44 @@ TEST_F(FfiInstantiationPassTest, FunctionTakingNoParametersJustReturns) {
                            extern_inst->GetOutputPort("return"));
   EXPECT_EQ(return_port.name, "return");
   EXPECT_EQ(return_port.type, p->GetBitsType(kReturnBitCount));
+}
+
+TEST_F(FfiInstantiationPassTest, FunctionReturningTuple) {
+  constexpr int kReturnBitCount[] = {17, 27};
+  auto p = CreatePackage();
+
+  // Function returning a tuple.
+  FunctionBuilder fb(TestName() + "ffi_fun", p.get());
+  BValue retval = fb.Tuple({fb.Literal(UBits(42, kReturnBitCount[0])),
+                            fb.Literal(UBits(24, kReturnBitCount[1]))});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ForeignFunctionData ffd,
+      ForeignFunctionData::CreateFromTemplate("foo {fn} (.foo({return.0}), "
+                                              ".bar({return.1}))"));
+  fb.SetForeignFunctionData(ffd);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(retval));
+
+  // A block that contains one invocation of that ffi_fun.
+  BlockBuilder bb(TestName(), p.get());
+  bb.OutputPort("out", bb.Invoke({}, ffi_fun));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  // Convert to instance
+  EXPECT_THAT(Run(block), IsOkAndHolds(true));
+
+  xls::Instantiation* const instantiation = block->GetInstantiations()[0];
+  ASSERT_EQ(instantiation->kind(), InstantiationKind::kExtern);
+
+  xls::ExternInstantiation* const extern_inst =
+      down_cast<xls::ExternInstantiation*>(instantiation);
+
+  for (int i = 0; i < 2; ++i) {
+    const std::string return_name = absl::StrCat("return.", i);
+    XLS_ASSERT_OK_AND_ASSIGN(InstantiationPort return_port,
+                             extern_inst->GetOutputPort(return_name));
+    EXPECT_EQ(return_port.name, return_name);
+    EXPECT_EQ(return_port.type, p->GetBitsType(kReturnBitCount[i]));
+  }
 }
 
 }  // namespace

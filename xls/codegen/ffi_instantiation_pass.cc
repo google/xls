@@ -14,6 +14,7 @@
 
 #include "xls/codegen/ffi_instantiation_pass.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -21,6 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/vast.h"
@@ -30,9 +32,75 @@
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
+
+static absl::Status InvocationParamsToInstInputs(
+    Block* block, Invoke* invocation, Function* fun,
+    xls::Instantiation* instantiation) {
+  // The names in the IR function
+  const absl::Span<Param* const> fun_params = fun->params();
+
+  // The IR expression nodes they are bound to.
+  const absl::Span<Node* const> target_operands = invocation->operands();
+
+  XLS_CHECK_EQ(fun_params.size(), target_operands.size());
+
+  // Creating InstantiationInput and Output in block will also wire them up.
+  for (int i = 0; i < fun_params.size(); ++i) {
+    Node* const operand = target_operands[i];
+    XLS_RETURN_IF_ERROR(
+        block
+            ->MakeNode<InstantiationInput>(invocation->loc(), operand,
+                                           instantiation, fun_params[i]->name())
+            .status());
+  }
+
+  return absl::OkStatus();
+}
+
+static absl::Status InvocationReturnToInstOutputs(
+    Block* block, Invoke* invocation, Function* fun,
+    xls::Instantiation* instantiation) {
+  switch (invocation->GetType()->kind()) {
+    case TypeKind::kBits:
+      XLS_RETURN_IF_ERROR(
+          invocation
+              ->ReplaceUsesWithNew<InstantiationOutput>(instantiation, "return")
+              .status());
+      break;
+    case TypeKind::kTuple: {
+      // A tuple return requires multiple outputs that are mapped to
+      // return.0, return.1 ... names in the FFI template.
+      // TODO(hzeller): 2023-06-28 for nested tuples, build this recursively.
+      TupleType* const node_type = invocation->GetType()->AsTupleOrDie();
+      std::vector<Node*> inst_output_tuple_nodes;
+      for (int64_t i = 0; i < node_type->size(); ++i) {
+        XLS_ASSIGN_OR_RETURN(Node * tuple_element,
+                             invocation->function_base()->MakeNode<TupleIndex>(
+                                 invocation->loc(), invocation, i));
+        XLS_ASSIGN_OR_RETURN(
+            Node * output_node,
+            tuple_element->ReplaceUsesWithNew<InstantiationOutput>(
+                instantiation, absl::StrCat("return.", i)));
+        inst_output_tuple_nodes.push_back(output_node);
+      }
+
+      // The original invocation becomes a tuple of InstantiationOutputs
+      XLS_RETURN_IF_ERROR(
+          invocation->ReplaceUsesWithNew<Tuple>(inst_output_tuple_nodes)
+              .status());
+      break;
+    }
+    default:
+      return absl::UnimplementedError(
+          absl::StrFormat("Can't deal with FFI return type '%s' yet",
+                          invocation->GetType()->ToString()));
+  }
+  return absl::OkStatus();
+}
 
 absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
@@ -59,27 +127,11 @@ absl::StatusOr<bool> FfiInstantiationPass::RunInternal(
         block->AddInstantiation(
             inst_name, std::make_unique<ExternInstantiation>(inst_name, fun)));
 
-    // The names in the IR function
-    const absl::Span<Param* const> fun_params = fun->params();
-
-    // The IR expression nodes they are bound to.
-    const absl::Span<Node* const> target_operands = invocation->operands();
-
-    XLS_CHECK_EQ(fun_params.size(), target_operands.size());
-
-    // Creating InstantiationInput and Output in block will also wire them up.
-    for (int i = 0; i < fun_params.size(); ++i) {
-      Node* const operand = target_operands[i];
-      XLS_RETURN_IF_ERROR(block
-                              ->MakeNode<InstantiationInput>(
-                                  invocation->loc(), operand, instantiation,
-                                  fun_params[i]->name())
-                              .status());
-    }
+    // Params and returns of the invocation become instantiation inputs/outputs.
     XLS_RETURN_IF_ERROR(
-        invocation
-            ->ReplaceUsesWithNew<InstantiationOutput>(instantiation, "return")
-            .status());
+        InvocationParamsToInstInputs(block, invocation, fun, instantiation));
+    XLS_RETURN_IF_ERROR(
+        InvocationReturnToInstOutputs(block, invocation, fun, instantiation));
 
     to_remove.push_back(invocation);
   }

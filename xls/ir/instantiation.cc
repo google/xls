@@ -14,6 +14,7 @@
 
 #include "xls/ir/instantiation.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -24,6 +25,8 @@
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
+#include "re2/re2.h"
 
 namespace xls {
 
@@ -92,12 +95,44 @@ absl::StatusOr<InstantiationPort> ExternInstantiation::GetInputPort(
 
 absl::StatusOr<InstantiationPort> ExternInstantiation::GetOutputPort(
     std::string_view name) {
-  // TODO(hzeller) 2023-06-12: handle tuples, such as return.1, return.2
-  if (name != "return") {
-    return absl::NotFoundError(
-        absl::StrFormat("No such output port `%s`", name));
+  static const LazyRE2 kReMatchTupleId{"return\\.([0-9]+)"};
+  Type* const return_type = function_->GetType()->return_type();
+
+  switch (return_type->kind()) {
+    case TypeKind::kBits:
+      if (name == "return") {
+        return InstantiationPort{"return", function_->GetType()->return_type()};
+      }
+      break;
+    case TypeKind::kTuple: {
+      int64_t tuple_index = 0;
+      if (!RE2::FullMatch(name, *kReMatchTupleId, &tuple_index)) {
+        return absl::NotFoundError(
+            absl::StrFormat("%s: Expected return value parameter to be of form "
+                            "return.<tuple-index>; got `%s`",
+                            function()->name(), name));
+      }
+      TupleType* const tuple = return_type->AsTupleOrDie();
+      if (tuple_index < 0 || tuple_index >= tuple->size()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "%s: Invalid index into tuple with `return.%d`; expected to be in "
+            "range 0..%d",
+            function()->name(), tuple_index, tuple->size() - 1));
+      }
+      Type* const element_type = tuple->element_type(tuple_index);
+      if (!element_type->IsBits()) {
+        return absl::UnimplementedError("Not supporting nested tuples yet");
+      }
+      return InstantiationPort{std::string{name}, element_type};
+      break;
+    }
+    default:
+      return absl::InvalidArgumentError(
+          "Can not represent FFI types yet other than bits and tuples");
   }
-  return InstantiationPort{"return", function_->GetType()->return_type()};
+
+  // Issue in template.
+  return absl::NotFoundError(absl::StrFormat("No such output port `%s`", name));
 }
 
 std::string ExternInstantiation::ToString() const {
