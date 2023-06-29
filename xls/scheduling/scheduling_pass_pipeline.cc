@@ -24,7 +24,6 @@
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/mutual_exclusion_pass.h"
 #include "xls/scheduling/pipeline_scheduling_pass.h"
-#include "xls/scheduling/proc_clumping_pass.h"
 #include "xls/scheduling/scheduling_checker.h"
 #include "xls/scheduling/scheduling_pass.h"
 #include "xls/scheduling/scheduling_wrapper_pass.h"
@@ -40,7 +39,6 @@ std::unique_ptr<SchedulingCompoundPass> CreateSchedulingPassPipeline() {
   top->Add<SchedulingWrapperPass>(std::make_unique<SimplificationPass>(3));
   top->Add<SchedulingWrapperPass>(std::make_unique<LiteralUncommoningPass>());
   top->Add<PipelineSchedulingPass>();
-  top->Add<ProcClumpingPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
   top->Add<MutualExclusionPass>();
   top->Add<SchedulingWrapperPass>(std::make_unique<DeadCodeEliminationPass>());

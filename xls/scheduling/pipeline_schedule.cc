@@ -382,23 +382,6 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     schedule_length = options.pipeline_stages().value();
   }
 
-  int64_t ii = 1;
-  if (f->GetInitiationInterval().has_value()) {
-    ii = f->GetInitiationInterval().value();
-  }
-  XLS_RET_CHECK_GT(ii, 0) << "Invalid initiation interval: " << ii;
-  XLS_RET_CHECK_EQ(schedule_length % ii, 0)
-      << "Schedule length was not divisible by initiation interval: "
-      << "schedule length = " << schedule_length << ", ii = " << ii;
-  schedule_length /= ii;
-  clock_period_ps *= ii;
-
-  if (ii > 1) {
-    XLS_ASSIGN_OR_RETURN(
-        bounds, ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
-                                schedule_length, input_delay_added));
-  }
-
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MIN_CUT) {
     XLS_ASSIGN_OR_RETURN(
@@ -531,9 +514,11 @@ absl::Status PipelineSchedule::Verify() const {
     for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
       Node* param = proc->GetStateParam(index);
       Node* next_state = proc->GetNextStateElement(index);
-      // Verify that we determine the new state no later than the cycle where we
-      // access the current param, ensuring II=1.
-      XLS_RET_CHECK_LE(cycle(next_state), cycle(param));
+      // Verify that we determine the new state within II cycles of accessing
+      // the current param.
+      XLS_RET_CHECK_LT(
+          cycle(next_state),
+          cycle(param) + proc->GetInitiationInterval().value_or(1));
     }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.

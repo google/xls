@@ -42,7 +42,6 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:op",
         "//xls/ir:type",
         "//xls/ir:value_helpers",
     ],
@@ -221,7 +220,6 @@ cc_library(
     hdrs = ["schedule_bounds.h"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -256,7 +254,6 @@ cc_library(
     deps = [
         ":mutual_exclusion_pass",
         ":pipeline_scheduling_pass",
-        ":proc_clumping_pass",
         ":scheduling_checker",
         ":scheduling_pass",
         ":scheduling_wrapper_pass",
@@ -360,44 +357,6 @@ cc_test(
         "//xls/passes",
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "proc_clumping_pass",
-    srcs = ["proc_clumping_pass.cc"],
-    hdrs = ["proc_clumping_pass.h"],
-    deps = [
-        ":scheduling_pass",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:bits_ops",
-        "//xls/ir:node_util",
-        "//xls/ir:value_helpers",
-    ],
-)
-
-cc_test(
-    name = "proc_clumping_pass_test",
-    srcs = ["proc_clumping_pass_test.cc"],
-    deps = [
-        ":pipeline_scheduling_pass",
-        ":proc_clumping_pass",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/delay_model:delay_estimators",
-        "//xls/interpreter:interpreter_proc_runtime",
-        "//xls/interpreter:proc_runtime",
-        "//xls/ir",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -15,9 +15,12 @@
 #include "xls/scheduling/sdc_scheduler.h"
 
 #include <cmath>
+#include <cstdint>
+#include <string_view>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -30,6 +33,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/schedule_bounds.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "ortools/linear_solver/linear_solver.h"
 
 namespace or_tools = ::operations_research;
@@ -181,7 +185,7 @@ class ConstraintBuilder {
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
   absl::Status AddLifetimeConstraint(Node* node, std::optional<Node*> user);
-  absl::Status AddBackedgeConstraints();
+  absl::Status AddBackedgeConstraints(const BackedgeConstraint& constraint);
   absl::Status AddTimingConstraints();
   absl::Status AddSchedulingConstraint(const SchedulingConstraint& constraint);
   absl::Status AddIOConstraint(const IOConstraint& constraint);
@@ -206,11 +210,10 @@ class ConstraintBuilder {
   }
 
  private:
-  or_tools::MPConstraint* DiffLessThanConstraint(Node* x, Node* y,
-                                                 int64_t limit,
-                                                 std::string_view name) {
+  or_tools::MPConstraint* DiffAtMostConstraint(Node* x, Node* y, int64_t limit,
+                                               std::string_view name) {
     or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, limit,
+        -infinity_, static_cast<double>(limit),
         absl::StrFormat("%s:%s-%s≤%d", name, x->GetName(), y->GetName(),
                         limit));
     constraint->SetCoefficient(cycle_var_.at(x), 1);
@@ -218,12 +221,35 @@ class ConstraintBuilder {
     return constraint;
   }
 
+  or_tools::MPConstraint* DiffLessThanConstraint(Node* x, Node* y,
+                                                 int64_t limit,
+                                                 std::string_view name) {
+    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
+        -infinity_, static_cast<double>(limit - 1),
+        absl::StrFormat("%s:%s-%s<%d", name, x->GetName(), y->GetName(),
+                        limit));
+    constraint->SetCoefficient(cycle_var_.at(x), 1);
+    constraint->SetCoefficient(cycle_var_.at(y), -1);
+    return constraint;
+  }
+
+  or_tools::MPConstraint* DiffAtLeastConstraint(Node* x, Node* y, int64_t limit,
+                                                std::string_view name) {
+    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
+        -infinity_, static_cast<double>(-limit),
+        absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
+                        limit));
+    constraint->SetCoefficient(cycle_var_.at(x), -1);
+    constraint->SetCoefficient(cycle_var_.at(y), 1);
+    return constraint;
+  }
+
   or_tools::MPConstraint* DiffGreaterThanConstraint(Node* x, Node* y,
                                                     int64_t limit,
                                                     std::string_view name) {
     or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, -limit,
-        absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
+        -infinity_, static_cast<double>(-limit),
+        absl::StrFormat("%s:%s-%s>%d", name, x->GetName(), y->GetName(),
                         limit));
     constraint->SetCoefficient(cycle_var_.at(x), -1);
     constraint->SetCoefficient(cycle_var_.at(y), 1);
@@ -239,8 +265,8 @@ class ConstraintBuilder {
       XLS_LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
                      << y->GetName() << " = " << diff << " is unsatisfiable";
     }
-    DiffLessThanConstraint(x, y, diff, name);
-    DiffGreaterThanConstraint(x, y, diff, name);
+    DiffAtMostConstraint(x, y, diff, name);
+    DiffAtLeastConstraint(x, y, diff, name);
   }
 
   FunctionBase* func_;
@@ -346,22 +372,24 @@ absl::Status ConstraintBuilder::AddLifetimeConstraint(
   return absl::OkStatus();
 }
 
-// This ensures that state backedges don't span more than one cycle, which is
-// necessary while II = 1.
-absl::Status ConstraintBuilder::AddBackedgeConstraints() {
+// This ensures that state backedges don't span more than II cycles, which is
+// necessary while enforcing a target II.
+absl::Status ConstraintBuilder::AddBackedgeConstraints(
+    const BackedgeConstraint& constraint) {
   Proc* proc = dynamic_cast<Proc*>(func_);
   if (proc == nullptr) {
     return absl::OkStatus();
   }
+  const int64_t II = proc->GetInitiationInterval().value_or(1);
 
   using StateIndex = int64_t;
   for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
     Node* const state = proc->GetStateParam(i);
     Node* const next = proc->GetNextStateElement(i);
-    DiffLessThanConstraint(next, state, 0, "backedge");
-    XLS_VLOG(2) << "Setting backedge constraint (II=1): "
-                << absl::StrFormat("cycle[%s] - cycle[%s] < 1", next->GetName(),
-                                   state->GetName());
+    DiffLessThanConstraint(next, state, II, "backedge");
+    XLS_VLOG(2) << "Setting backedge constraint (II): "
+                << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
+                                   next->GetName(), state->GetName(), II);
   }
 
   return absl::OkStatus();
@@ -375,7 +403,7 @@ absl::Status ConstraintBuilder::AddTimingConstraints() {
 
   for (Node* source : func_->nodes()) {
     for (Node* target : delay_constraints_.at(source)) {
-      DiffGreaterThanConstraint(target, source, 1, "timing");
+      DiffAtLeastConstraint(target, source, 1, "timing");
       XLS_VLOG(2) << "Setting timing constraint: "
                   << absl::StrFormat("1 ≤ %s - %s", target->GetName(),
                                      source->GetName());
@@ -388,7 +416,7 @@ absl::Status ConstraintBuilder::AddTimingConstraints() {
 absl::Status ConstraintBuilder::AddSchedulingConstraint(
     const SchedulingConstraint& constraint) {
   if (std::holds_alternative<BackedgeConstraint>(constraint)) {
-    return AddBackedgeConstraints();
+    return AddBackedgeConstraints(std::get<BackedgeConstraint>(constraint));
   }
   if (std::holds_alternative<IOConstraint>(constraint)) {
     return AddIOConstraint(std::get<IOConstraint>(constraint));
@@ -437,9 +465,8 @@ absl::Status ConstraintBuilder::AddIOConstraint(
         continue;
       }
 
-      DiffGreaterThanConstraint(target, source, constraint.MinimumLatency(),
-                                "io");
-      DiffLessThanConstraint(target, source, constraint.MaximumLatency(), "io");
+      DiffAtLeastConstraint(target, source, constraint.MinimumLatency(), "io");
+      DiffAtMostConstraint(target, source, constraint.MaximumLatency(), "io");
 
       XLS_VLOG(2) << "Setting IO constraint: "
                   << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
@@ -471,7 +498,7 @@ absl::Status ConstraintBuilder::AddDifferenceConstraint(
   Node* a = constraint.GetA();
   Node* b = constraint.GetB();
   int64_t max_difference = constraint.GetMaxDifference();
-  DiffLessThanConstraint(a, b, max_difference, "diff");
+  DiffAtMostConstraint(a, b, max_difference, "diff");
 
   XLS_VLOG(2) << "Setting difference constraint: "
               << absl::StrFormat("cycle[%s] - cycle[%s] ≤ %d", a->GetName(),

@@ -17,11 +17,13 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
@@ -33,6 +35,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
@@ -46,7 +49,9 @@ namespace verilog {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
 using testing::ElementsAre;
+using testing::HasSubstr;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
@@ -2898,10 +2903,10 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
     options.module_name(TestName());
     options.valid_control("input_valid", "output_valid");
 
-    EXPECT_THAT(ProcToCombinationalBlock(proc, options).status(),
-                status_testing::StatusIs(
-                    absl::StatusCode::kUnimplemented,
-                    testing::HasSubstr("not proven to be mutually exclusive")));
+    EXPECT_THAT(
+        ProcToCombinationalBlock(proc, options).status(),
+        StatusIs(absl::StatusCode::kUnimplemented,
+                 testing::HasSubstr("not proven to be mutually exclusive")));
   }
 }
 
@@ -3298,6 +3303,48 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
   EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming");
   EXPECT_EQ(out_streaming_rv->GetValidPortName().value(), "out_streaming_vld");
   EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(), "out_streaming_rdy");
+}
+
+TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneNotSupported) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+#[initiation_interval(2)]
+proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
+  send.1: token = send(tkn, st, channel_id=1, id=1)
+  min_delay.2: token = min_delay(send.1, delay=1, id=2)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  next (send.6, tuple_index.5)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("pipelined_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  ASSERT_THAT(
+      ProcToPipelinedBlock(schedule, options, proc),
+      StatusIs(absl::StatusCode::kInternal, HasSubstr("requires II > 1")));
 }
 
 TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {

@@ -363,6 +363,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -679,11 +680,13 @@ cc_test(
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
+        "//xls/ir:ir_parser",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",

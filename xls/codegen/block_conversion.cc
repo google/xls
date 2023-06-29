@@ -14,6 +14,7 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/codegen_pass.h"
@@ -1933,7 +1935,7 @@ class CloneNodesIntoBlockHandler {
       // registers.
       if (is_proc_ && next_state_nodes_.contains(node)) {
         XLS_RETURN_IF_ERROR(
-            SetNextStateNode(next_node, next_state_nodes_.at(node)));
+            SetNextStateNode(next_node, stage, next_state_nodes_.at(node)));
       }
     }
 
@@ -2233,7 +2235,7 @@ class CloneNodesIntoBlockHandler {
 
   // Sets the next state value for the state elements with the given indices to
   // `next_state`.
-  absl::Status SetNextStateNode(Node* next_state,
+  absl::Status SetNextStateNode(Node* next_state, Stage stage,
                                 absl::Span<const int64_t> indices) {
     if (next_state->GetType()->GetFlatBitCount() == 0) {
       Proc* proc = function_base_->AsProcOrDie();
@@ -2263,6 +2265,19 @@ class CloneNodesIntoBlockHandler {
                                next_state->loc(), next_state,
                                /*load_enable=*/std::nullopt,
                                /*reset=*/std::nullopt, state_register.reg()));
+
+      // If the next state is determined in a later cycle than the param access,
+      // we have a non-trivial backedge between initiations (II>1); not
+      // supported at this time.
+      if (stage > state_register.stage()) {
+        const int64_t next_state_delay = stage - state_register.stage();
+        return absl::UnimplementedError(absl::StrFormat(
+            "Schedule requires II > %d (not yet supported), "
+            "because next value for state param %s (%s) is "
+            "scheduled %d cycle%s after the param access.",
+            next_state_delay, state_register.name(), next_state->GetName(),
+            next_state_delay, (next_state_delay == 1 ? "" : "s")));
+      }
     }
 
     return absl::OkStatus();

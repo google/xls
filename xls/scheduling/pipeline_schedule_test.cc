@@ -729,6 +729,38 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
   EXPECT_EQ(schedule.cycle(rcv.node()), 3);
 }
 
+TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceiveWithState) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+  pb.proc()->SetInitiationInterval(2);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/1);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(5)));
+  EXPECT_EQ(schedule.length(), 5);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
+}
+
 // Proc next state does not depend on param; next state can now be scheduled in
 // an earlier stage than the param node's use, so (all else being equal), the
 // scheduler prefers to schedule the param node ASAP, in the same stage as the
