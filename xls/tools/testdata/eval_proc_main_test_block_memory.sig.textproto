@@ -1,0 +1,185 @@
+module_name: "Test_proc"
+data_ports {
+  direction: DIRECTION_INPUT
+  name: "in_data"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: DIRECTION_INPUT
+  name: "in_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "out_data"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: DIRECTION_INPUT
+  name: "out_rdy"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "out_vld"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "in_rdy"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "mem_rd_addr"
+  width: 2
+  type {
+    type_enum: BITS
+    bit_count: 2
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "mem_rd_en"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "mem_wr_addr"
+  width: 2
+  type {
+    type_enum: BITS
+    bit_count: 2
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "mem_wr_data"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+data_ports {
+  direction: DIRECTION_OUTPUT
+  name: "mem_wr_en"
+  width: 1
+  type {
+    type_enum: BITS
+    bit_count: 1
+  }
+}
+data_ports {
+  direction: DIRECTION_INPUT
+  name: "mem_rd_data"
+  width: 32
+  type {
+    type_enum: BITS
+    bit_count: 32
+  }
+}
+clock_name: "clk"
+reset {
+  name: "rst_n"
+  asynchronous: false
+  active_low: true
+}
+pipeline {
+  latency: 3
+  initiation_interval: 1
+}
+data_channels {
+  name: "in"
+  kind: CHANNEL_KIND_STREAMING
+  supported_ops: CHANNEL_OPS_RECEIVE_ONLY
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "in_data"
+  ready_port_name: "in_rdy"
+  valid_port_name: "in_vld"
+}
+data_channels {
+  name: "out"
+  kind: CHANNEL_KIND_STREAMING
+  supported_ops: CHANNEL_OPS_SEND_ONLY
+  flow_control: CHANNEL_FLOW_CONTROL_READY_VALID
+  data_port_name: "out_data"
+  ready_port_name: "out_rdy"
+  valid_port_name: "out_vld"
+}
+rams {
+  name: "mem"
+  ram_1r1w {
+    r_port {
+      request {
+        name: "mem__read_request"
+        address {
+          direction: DIRECTION_OUTPUT
+          name: "mem_rd_addr"
+          width: 0
+        }
+        enable {
+          direction: DIRECTION_OUTPUT
+          name: "mem_rd_en"
+          width: 1
+        }
+      }
+      response {
+        name: "mem__read_response"
+        data {
+          direction: DIRECTION_INPUT
+          name: "mem_rd_data"
+          width: 0
+        }
+      }
+    }
+    w_port {
+      request {
+        name: "mem__write_request"
+        address {
+          direction: DIRECTION_OUTPUT
+          name: "mem_wr_addr"
+          width: 0
+        }
+        data {
+          direction: DIRECTION_OUTPUT
+          name: "mem_wr_data"
+          width: 0
+        }
+        enable {
+          direction: DIRECTION_OUTPUT
+          name: "mem_wr_en"
+          width: 1
+        }
+      }
+    }
+  }
+}

@@ -87,6 +87,12 @@ class ProcRuntime {
     return evaluator_contexts_.at(proc).continuation->GetEvents();
   }
 
+  void ClearInterpreterEvents() const {
+    for (const auto& [proc, context] : evaluator_contexts_) {
+      context.continuation->ClearEvents();
+    }
+  }
+
  protected:
   // Execute (up to) a single iteration of every proc in the package.
   struct NetworkTickResult {

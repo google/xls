@@ -46,6 +46,7 @@ class ProcInterpreterContinuation : public ProcContinuation {
   std::vector<Value> GetState() const override { return state_; }
   const InterpreterEvents& GetEvents() const override { return events_; }
   InterpreterEvents& GetEvents() override { return events_; }
+  void ClearEvents() override { events_.Clear(); }
   bool AtStartOfTick() const override { return node_index_ == 0; }
 
   // Resets the continuation so it will start executing at the beginning of the

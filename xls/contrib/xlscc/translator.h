@@ -1384,7 +1384,7 @@ class Translator {
       const std::pair<const IOChannel*, ChannelBundle>& pair);
 
   // Kept ordered for determinism
-  std::list<ChannelBundle> unused_external_channels_;
+  std::list<xls::Channel*> unused_external_channels_;
 
   // Used as a stack, but need to peek 2nd to top
   std::list<TranslationContext> context_stack_;

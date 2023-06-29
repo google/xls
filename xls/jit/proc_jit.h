@@ -47,6 +47,8 @@ class ProcJitContinuation : public ProcContinuation {
   std::vector<Value> GetState() const override;
   const InterpreterEvents& GetEvents() const override { return events_; }
   InterpreterEvents& GetEvents() override { return events_; }
+  void ClearEvents() override { events_.Clear(); }
+
   bool AtStartOfTick() const override { return continuation_point_ == 0; }
 
   // Get/Set the point at which execution will resume in the proc in the next

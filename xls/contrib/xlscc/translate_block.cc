@@ -78,12 +78,14 @@ absl::Status Translator::GenerateExternalChannels(
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
               /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+      unused_external_channels_.push_back(new_channel.regular);
     } else if (top_decl.interface_type == InterfaceType::kDirect) {
       XLS_CHECK(top_decl.is_input);
       XLS_ASSIGN_OR_RETURN(new_channel.regular,
                            package_->CreateSingleValueChannel(
                                decl->getNameAsString(),
                                xls::ChannelOps::kReceiveOnly, data_type));
+      unused_external_channels_.push_back(new_channel.regular);
     } else if (top_decl.interface_type == InterfaceType::kMemory) {
       const std::string& memory_name = top_decl.decl->getNameAsString();
 
@@ -100,6 +102,7 @@ absl::Status Translator::GenerateExternalChannels(
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
               /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+      unused_external_channels_.push_back(new_channel.read_request);
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * read_response_type,
@@ -114,6 +117,7 @@ absl::Status Translator::GenerateExternalChannels(
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
               /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+      unused_external_channels_.push_back(new_channel.read_response);
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_request_type,
@@ -128,6 +132,7 @@ absl::Status Translator::GenerateExternalChannels(
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
               /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+      unused_external_channels_.push_back(new_channel.write_request);
 
       XLS_ASSIGN_OR_RETURN(
           xls::Type * write_response_type,
@@ -142,6 +147,7 @@ absl::Status Translator::GenerateExternalChannels(
               // TODO(google/xls#1023): Make channel strictness
               // frontend-configurable.
               /*strictness=*/xls::ChannelStrictness::kArbitraryStaticOrder));
+      unused_external_channels_.push_back(new_channel.write_response);
     } else {
       return absl::InvalidArgumentError(
           ErrorMessage(GetLoc(*decl), "Unknown interface type for channel %s",
@@ -151,7 +157,6 @@ absl::Status Translator::GenerateExternalChannels(
     if (top_decl.interface_type != InterfaceType::kDirect) {
       (*top_channel_injections)[decl] = new_channel;
     }
-    unused_external_channels_.push_back(new_channel);
   }
   return absl::OkStatus();
 }
@@ -487,27 +492,9 @@ absl::Status Translator::GenerateDefaultIOOps(PreparedBlock& prepared,
 
   std::vector<xls::BValue> final_tokens = {prepared.token};
 
-  for (const ChannelBundle& bundle : unused_external_channels_) {
-    if (bundle.regular != nullptr) {
-      XLS_RETURN_IF_ERROR(
-          GenerateDefaultIOOp(bundle.regular, final_tokens, pb, body_loc));
-    }
-    if (bundle.read_request != nullptr) {
-      XLS_RETURN_IF_ERROR(
-          GenerateDefaultIOOp(bundle.read_request, final_tokens, pb, body_loc));
-    }
-    if (bundle.read_response != nullptr) {
-      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.read_response,
-                                              final_tokens, pb, body_loc));
-    }
-    if (bundle.write_request != nullptr) {
-      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.write_request,
-                                              final_tokens, pb, body_loc));
-    }
-    if (bundle.write_response != nullptr) {
-      XLS_RETURN_IF_ERROR(GenerateDefaultIOOp(bundle.write_response,
-                                              final_tokens, pb, body_loc));
-    }
+  for (xls::Channel* channel : unused_external_channels_) {
+    XLS_RETURN_IF_ERROR(
+        GenerateDefaultIOOp(channel, final_tokens, pb, body_loc));
   }
 
   prepared.token = pb.AfterAll(final_tokens, body_loc);
@@ -554,12 +541,13 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 
     if (op.op != OpType::kTrace) {
       bundle_ptr = &prepared.xls_channel_by_function_channel.at(op.channel);
-
-      unused_external_channels_.remove(*bundle_ptr);
     }
 
     if (op.op == OpType::kRecv) {
       xls::Channel* xls_channel = bundle_ptr->regular;
+
+      unused_external_channels_.remove(xls_channel);
+
       XLS_CHECK_NE(xls_channel, nullptr);
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
@@ -593,6 +581,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
           pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
     } else if (op.op == OpType::kSend) {
       xls::Channel* xls_channel = bundle_ptr->regular;
+
+      unused_external_channels_.remove(xls_channel);
+
       XLS_CHECK_NE(xls_channel, nullptr);
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
@@ -606,6 +597,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
       XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
       XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
+
+      unused_external_channels_.remove(bundle_ptr->read_request);
+      unused_external_channels_.remove(bundle_ptr->read_response);
 
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
@@ -641,6 +635,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
       XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
       XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
+
+      unused_external_channels_.remove(bundle_ptr->write_request);
+      unused_external_channels_.remove(bundle_ptr->write_response);
 
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
@@ -901,7 +898,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
 
     const ChannelBundle& bundle = top_decl.external_channels;
     xls::Channel* xls_channel = bundle.regular;
-    unused_external_channels_.remove(bundle);
+    unused_external_channels_.remove(xls_channel);
 
     xls::BValue receive = pb.Receive(xls_channel, prepared.token);
     prepared.token = pb.TupleIndex(receive, 0);

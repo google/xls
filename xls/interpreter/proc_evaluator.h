@@ -40,6 +40,7 @@ class ProcContinuation {
   // Returns the events recorded during execution of this continuation.
   virtual const InterpreterEvents& GetEvents() const = 0;
   virtual InterpreterEvents& GetEvents() = 0;
+  virtual void ClearEvents() = 0;
 
   // Returns true if the point of execution of this continuation is at the start
   // of a tick, rather than, for example, blocked on a receive in the middle of

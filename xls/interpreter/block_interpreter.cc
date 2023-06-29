@@ -113,6 +113,10 @@ absl::StatusOr<BlockRunResult> BlockRun(
     input_port_names.insert(port->GetName());
   }
   for (const auto& [name, value] : inputs) {
+    // Empty tuples don't have data
+    if (value.GetFlatBitCount() == 0) {
+      continue;
+    }
     if (!input_port_names.contains(name)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Block has no input port '%s'", name));

@@ -334,6 +334,13 @@ pipeline {
 }
 """
 
+BLOCK_MEMORY_IR_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_block_memory.ir"
+)
+BLOCK_MEMORY_SIGNATURE_PATH = runfiles.get_path(
+    "xls/tools/testdata/eval_proc_main_test_block_memory.sig.textproto"
+)
+
 
 def run_command(args):
   """Runs the command described by args and returns the completion object."""
@@ -377,6 +384,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--show_trace",
         "--logtostderr", "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
             infile1=input_file.full_path,
@@ -416,6 +424,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "1,1", "-v=3",
+        "--show_trace",
         "--logtostderr", "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
             infile1=input_file.full_path,
@@ -455,7 +464,7 @@ class EvalProcTest(absltest.TestCase):
         """))
 
     shared_args = [
-        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "--show_trace",
         "--logtostderr", "--block_signature_proto", signature_file.full_path,
         "--backend", "block_interpreter", "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
@@ -494,6 +503,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--show_trace",
         "--logtostderr", "--block_signature_proto", signature_file.full_path,
         "--backend", "block_interpreter", "--inputs_for_channels",
         "in_ch={infile1},in_ch_2={infile2}".format(
@@ -539,6 +549,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--show_trace",
         "--logtostderr", "--inputs_for_all_channels", input_file.full_path,
         "--expected_outputs_for_all_channels", output_file.full_path
     ]
@@ -577,6 +588,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--show_trace",
         "--logtostderr", "--block_signature_proto", signature_file.full_path,
         "--backend", "block_interpreter", "--inputs_for_all_channels",
         input_file.full_path, "--expected_outputs_for_all_channels",
@@ -602,6 +614,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--show_trace",
         "--logtostderr", "--inputs_for_all_channels", input_file.full_path
     ]
 
@@ -629,6 +642,7 @@ class EvalProcTest(absltest.TestCase):
 
     shared_args = [
         EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "4", "-v=3",
+        "--show_trace",
         "--logtostderr", "--inputs_for_all_channels", input_file.full_path
     ]
 
@@ -639,6 +653,58 @@ class EvalProcTest(absltest.TestCase):
     output = run_command(shared_args + ["--backend", "serial_jit"])
     self.assertIn("Proc test_proc", output.stderr)
     self.assertIn("output : {\n}", output.stdout)
+
+  def test_block_memory(self):
+    ir_file = BLOCK_MEMORY_IR_PATH
+    signature_file = BLOCK_MEMORY_SIGNATURE_PATH
+    channels_in_ir_file = self.create_tempfile(content=textwrap.dedent("""
+          in : {
+            bits[32]:0x3,
+            bits[32]:0x4,
+            bits[32]:0x5,
+            bits[32]:0x6,
+            bits[32]:0xFF,
+            bits[32]:0xFF,
+            bits[32]:0xFF,
+            bits[32]:0xFF
+          }
+        """))
+    channels_out_ir_file = self.create_tempfile(content=textwrap.dedent("""
+          out : {
+            bits[32]:7,
+            bits[32]:9,
+            bits[32]:11,
+            bits[32]:13
+          }
+        """))
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH,
+        ir_file,
+        "--inputs_for_all_channels",
+        channels_in_ir_file,
+        "--expected_outputs_for_all_channels",
+        channels_out_ir_file,
+        "--backend",
+        "block_interpreter",
+        "--block_signature_proto",
+        signature_file,
+        "--model_memories",
+        "mem=4/bits[32]:0xAA",
+        "--alsologtostderr",
+        "--show_trace",
+        "--ticks",
+        "12",
+    ]
+
+    output = run_command(shared_args)
+    self.assertIn(
+        "Channel Model: Consuming output for out: bits[32]:13", output.stderr
+    )
+    self.assertIn(
+        "Memory Model: Initiated read mem[3] = bits[32]:6", output.stderr
+    )
+
 
 if __name__ == "__main__":
   absltest.main()

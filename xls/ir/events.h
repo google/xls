@@ -26,6 +26,11 @@ struct InterpreterEvents {
   std::vector<std::string> trace_msgs;
   std::vector<std::string> assert_msgs;
 
+  void Clear() {
+    trace_msgs.clear();
+    assert_msgs.clear();
+  }
+
   bool operator==(const InterpreterEvents& other) const {
     return trace_msgs == other.trace_msgs && assert_msgs == other.assert_msgs;
   }
