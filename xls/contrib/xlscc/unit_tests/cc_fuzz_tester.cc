@@ -33,7 +33,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
-#include "xls/contrib/xlscc/unit_test.h"
+#include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"

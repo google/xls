@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <random>
 
@@ -31,6 +32,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/ir/proc.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -275,6 +277,11 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
 
 bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   Function* as_func = dynamic_cast<Function*>(function_base_);
+  Proc* as_proc = dynamic_cast<Proc*>(function_base_);
+
+  if (cycle(node) > c) {
+    return false;
+  }
 
   if (c >= length() - 1) {
     return false;
@@ -287,6 +294,18 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   for (Node* user : node->users()) {
     if (cycle(user) > c) {
       return true;
+    }
+  }
+
+  if (as_proc != nullptr) {
+    // TODO: Consider optimizing this loop.
+    // It seems a bit redundant to loop over the state indices to identify the
+    // next-state indices, then loop over those again to get their corresponding
+    // state nodes.
+    for (int64_t index : as_proc->GetNextStateIndices(node)) {
+      if (cycle(as_proc->GetStateParam(index)) > c) {
+        return true;
+      }
     }
   }
 
@@ -512,7 +531,9 @@ absl::Status PipelineSchedule::Verify() const {
     for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
       Node* param = proc->GetStateParam(index);
       Node* next_state = proc->GetNextStateElement(index);
-      XLS_RET_CHECK_EQ(cycle(param), cycle(next_state));
+      // Verify that we determine the new state no later than the cycle where we
+      // access the current param, ensuring II=1.
+      XLS_RET_CHECK_LE(cycle(next_state), cycle(param));
     }
   }
   // Verify initial nodes in cycle 0. Final nodes in final cycle.

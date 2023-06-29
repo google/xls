@@ -48,8 +48,8 @@ def xls_int_fuzz_binaries(name, seed_start, seed_count):
     )
 
     all_outputs.extend([
-        ":synth_only_headers",
-        ":xlscc",
+        "//xls/contrib/xlscc:synth_only_headers",
+        "//xls/contrib/xlscc:xlscc",
         "@com_github_hlslibs_ac_types//:ac_types_as_data",
     ])
 

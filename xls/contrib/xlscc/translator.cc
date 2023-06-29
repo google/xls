@@ -98,6 +98,14 @@ template <class Lambda>
 inline LambdaGuard<Lambda> MakeLambdaGuard(const Lambda& free) {
   return LambdaGuard<Lambda>(free);
 }
+
+const clang::Expr* GetCastsSubexpr(const clang::Expr* expr) {
+  while (clang::isa<clang::CastExpr>(expr)) {
+    expr = clang::cast<const clang::CastExpr>(expr)->getSubExpr();
+  }
+  return expr;
+}
+
 }  // namespace
 
 namespace xlscc {
@@ -2508,14 +2516,110 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::TranslateLValueChannels(
   return outer_lval;
 }
 
-absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
-                                                   const xls::SourceInfo& loc) {
-  const clang::FunctionDecl* funcdecl = call->getDirectCallee();
+absl::StatusOr<std::string> Translator::GetStringLiteral(
+    const clang::Expr* expr, const xls::SourceInfo& loc) {
+  expr = GetCastsSubexpr(expr);
 
+  if (auto default_expr = clang::dyn_cast<clang::CXXDefaultArgExpr>(expr)) {
+    const clang::Expr* value_expr = GetCastsSubexpr(default_expr->getExpr());
+
+    XLSCC_CHECK(
+        clang::dyn_cast<clang::CXXNullPtrLiteralExpr>(value_expr) != nullptr,
+        loc);
+
+    return "";
+  }
+
+  if (auto string_literal_fmt_expr =
+          clang::dyn_cast<clang::StringLiteral>(expr)) {
+    return string_literal_fmt_expr->getString().str();
+  }
+
+  return absl::InvalidArgumentError(
+      ErrorMessage(loc, "Argument must be a string literal"));
+}
+
+absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
+    const clang::CallExpr* call, const xls::SourceInfo& loc) {
+  const clang::FunctionDecl* funcdecl = call->getDirectCallee();
   if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
     return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
   }
 
+  // Tracing handled below
+  std::string message_string;
+
+  if (funcdecl->getNameAsString() == "__xlscc_assert" ||
+      funcdecl->getNameAsString() == "__xlscc_trace") {
+    XLSCC_CHECK_GE(call->getNumArgs(), 1, loc);
+    const clang::Expr* fmt_arg = call->getArg(0);
+    XLS_ASSIGN_OR_RETURN(message_string, GetStringLiteral(fmt_arg, loc));
+  } else {
+    // Not a built-in call
+    return std::make_pair(false, CValue());
+  }
+
+  IOOp op = {.op = OpType::kTrace, .trace_message_string = message_string};
+  xls::BValue condition = context().full_condition_bval(loc);
+
+  if (funcdecl->getNameAsString() == "__xlscc_assert") {
+    XLSCC_CHECK(call->getNumArgs() == 2 || call->getNumArgs() == 3, loc);
+    const clang::Expr* cond_arg = call->getArg(1);
+    XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_arg, loc));
+    if (!cond_cval.type()->Is<CBoolType>()) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "Argument to assert must be bool"));
+    }
+    op.trace_type = TraceType::kAssert;
+    // Assertion value is "fire if true"
+    op.ret_value = context().fb->And(context().fb->Not(cond_cval.rvalue()),
+                                     condition, loc);
+    if (call->getNumArgs() == 3) {
+      const clang::Expr* label_arg = call->getArg(2);
+      XLS_ASSIGN_OR_RETURN(op.label_string, GetStringLiteral(label_arg, loc));
+    }
+  } else if (funcdecl->getNameAsString() == "__xlscc_trace") {
+    std::vector<xls::BValue> tuple_parts = {condition};
+    for (int arg = 1; arg < call->getNumArgs(); ++arg) {
+      XLS_ASSIGN_OR_RETURN(CValue arg_cval,
+                           GenerateIR_Expr(call->getArg(arg), loc));
+      if (!arg_cval.rvalue().valid()) {
+        return absl::InvalidArgumentError(
+            ErrorMessage(loc,
+                         "Argument %i to trace must have R-Value (eg cannot be "
+                         "pure pointer etc)",
+                         arg));
+      }
+      XLS_ASSIGN_OR_RETURN(bool arg_contains_lvalues,
+                           arg_cval.type()->ContainsLValues(*this));
+      if (arg_contains_lvalues) {
+        XLS_LOG(WARNING) << ErrorMessage(
+            loc, "Only R-Value part of argument %i will be traced", arg);
+      }
+      tuple_parts.push_back(arg_cval.rvalue());
+    }
+
+    op.trace_type = TraceType::kTrace;
+    op.ret_value = context().fb->Tuple(tuple_parts, loc);
+  } else {
+    XLSCC_CHECK("Internal consistency failure" == nullptr, loc);
+  }
+
+  XLS_RETURN_IF_ERROR(AddOpToChannel(op, /*channel=*/nullptr, loc).status());
+  return std::make_pair(true, CValue());
+}
+
+absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
+                                                   const xls::SourceInfo& loc) {
+  // __xlscc_... functions
+  std::pair<bool, CValue> built_in_call;
+  XLS_ASSIGN_OR_RETURN(built_in_call, GenerateIR_BuiltInCall(call, loc));
+
+  if (built_in_call.first) {
+    return built_in_call.second;
+  }
+
+  const clang::FunctionDecl* funcdecl = call->getDirectCallee();
   CValue this_value_orig;
 
   const clang::Expr* this_expr = nullptr;
@@ -3045,6 +3149,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Translate generated channels
   for (IOOp& callee_op : func->io_ops) {
+    if (callee_op.op == OpType::kTrace) {
+      continue;
+    }
     if (callee_op.channel->generated == nullptr) {
       continue;
     }
@@ -3098,10 +3205,17 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     IOChannel* caller_channel =
-        caller_channels_by_callee_channel.at(callee_op.channel);
+        (callee_op.channel != nullptr)
+            ? caller_channels_by_callee_channel.at(callee_op.channel)
+            : nullptr;
 
     // Add super op
     caller_op.op = callee_op.op;
+    caller_op.is_blocking = callee_op.is_blocking;
+    caller_op.trace_type = callee_op.trace_type;
+    caller_op.trace_message_string = callee_op.trace_message_string;
+    caller_op.label_string = callee_op.label_string;
+
     caller_op.sub_op = &callee_op;
 
     XLS_ASSIGN_OR_RETURN(
@@ -3109,7 +3223,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         AddOpToChannel(caller_op, caller_channel, callee_op.op_location));
 
     if (caller_op_ptr != nullptr) {
-      XLSCC_CHECK(caller_op_ptr->channel->generated ||
+      XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
+                      caller_op_ptr->channel->generated ||
                       IOChannelInCurrentFunction(caller_op_ptr->channel),
                   loc);
       XLSCC_CHECK_EQ(caller_op_ptr->after_ops.size(),
@@ -3150,10 +3265,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                         loc);
             XLSCC_CHECK(caller_op->input_value.rvalue().valid(), loc);
             args_val = caller_op->input_value.rvalue();
-            if (!callee_op->is_blocking) {
-              args_val = context().fb->Tuple(
-                  {args_val, context().fb->Literal(xls::UBits(1, 1))});
-            }
           }
           XLSCC_CHECK(args_val.valid(), loc);
           args.push_back(args_val);

@@ -755,8 +755,8 @@ class TokenlessProcBuilder : public ProcBuilder {
 
   // Add a MinDelay constraint operation.
   using ProcBuilder::MinDelay;
-  void MinDelay(int64_t delay, const SourceInfo& loc = SourceInfo(),
-                std::string_view name = "");
+  BValue MinDelay(int64_t delay, const SourceInfo& loc = SourceInfo(),
+                  std::string_view name = "");
 
   // Add a receive operation. The type of the data value received is determined
   // by the channel. The returned BValue is the received data itself (*not* the

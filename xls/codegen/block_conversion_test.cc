@@ -17,18 +17,24 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/interpreter/block_interpreter.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -597,6 +603,9 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
       Channel * z_out,
       p->CreateStreamingChannel("z_out", ChannelOps::kSendOnly, u32));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * q_out,
+      p->CreateStreamingChannel("q_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_out,
       p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
 
@@ -604,15 +613,19 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   BValue x = b.StateElement("x", Value(UBits(0, 32)));
   BValue y = b.StateElement("y", Value(UBits(0, 32)));
   BValue z = b.StateElement("z", Value(UBits(0, 32)));
-  BValue x_plus_one = b.Add(x, b.Literal(UBits(1, 32)));
+  BValue q = b.StateElement("q", Value(UBits(0, 32)));
+  BValue literal_one = b.Literal(UBits(1, 32));
+  BValue x_plus_one = b.Add(x, literal_one);
 
   b.Send(in_out, b.Identity(b.Receive(in)));
   b.Send(x_out, x);
   b.Send(y_out, y);
   b.Send(z_out, z);
+  b.Send(q_out, q);
 
   // `x_plus_one` is the next state value for both `x` and `y` state elements.
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({x_plus_one, x_plus_one, z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           b.Build({x_plus_one, x_plus_one, z, literal_one}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -638,6 +651,7 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
       ChannelSink("x_out_data", "x_out_valid", "x_out_ready", 1.0, block),
       ChannelSink("y_out_data", "y_out_valid", "y_out_ready", 1.0, block),
       ChannelSink("z_out_data", "z_out_valid", "z_out_ready", 1.0, block),
+      ChannelSink("q_out_data", "q_out_valid", "q_out_ready", 1.0, block),
       ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block),
   };
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
@@ -654,6 +668,83 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   EXPECT_THAT(sinks.at(2).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(0, 0, 0)));
   EXPECT_THAT(sinks.at(3).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 1, 1)));
+  EXPECT_THAT(sinks.at(4).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(10, 20, 30)));
+}
+
+TEST_F(BlockConversionTest, ProcWithNextStateNodeBeforeParam) {
+  // A block with the next-state node scheduled before the param.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      p->CreateStreamingChannel("input", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * q_out,
+      p->CreateStreamingChannel("q_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_out,
+      p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder b(TestName(), "tkn", p.get());
+  BValue tkn = b.GetTokenParam();
+  BValue q = b.StateElement("q", Value(UBits(0, 32)));
+
+  BValue received_pair = b.Receive(in, tkn);
+  BValue received_token = b.TupleIndex(received_pair, 0);
+  BValue received_data = b.TupleIndex(received_pair, 1);
+  BValue send_received = b.Send(in_out, received_token, received_data);
+  BValue min_delay = b.MinDelay(send_received, 1);
+  BValue send_q = b.Send(q_out, min_delay, q);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send_q, {received_data}));
+
+  PipelineSchedule schedule(proc,
+                            ScheduleCycleMap({{tkn.node(), 0},
+                                              {received_pair.node(), 0},
+                                              {received_token.node(), 0},
+                                              {received_data.node(), 0},
+                                              {send_received.node(), 0},
+                                              {q.node(), 1},
+                                              {min_delay.node(), 1},
+                                              {send_q.node(), 1}}),
+                            /*length=*/3);
+
+  // Verify that we really did schedule the param after the next-state node.
+  ASSERT_GT(schedule.cycle(proc->GetStateParam(0)),
+            schedule.cycle(proc->GetNextStateElement(0)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("input_data", "input_valid", "input_ready", 1.0, block),
+  };
+  XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
+  std::vector<ChannelSink> sinks{
+      ChannelSink("q_out_data", "q_out_valid", "q_out_ready", 1.0, block),
+      ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block),
+  };
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
+                                                                 {{"rst", 0}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIOResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
+
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 10, 20)));
+  EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 

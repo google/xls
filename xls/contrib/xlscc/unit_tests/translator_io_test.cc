@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <ostream>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -30,7 +31,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
-#include "xls/contrib/xlscc/unit_test.h"
+#include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
@@ -83,6 +84,34 @@ TEST_F(TranslatorIOTest, NonblockingRead) {
 	    int val = 1;
 	    bool r = in.nb_read(val);
 	    out.write(r ? val*3 : val);
+    })";
+
+  xls::Value value_in = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 32)), xls::Value::Bool(true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_in, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+
+  xls::Value value_not_ready = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 32)), xls::Value::Bool(false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_not_ready, true)},
+         /*outputs=*/{IOOpTest("out", 1, true)});
+}
+
+TEST_F(TranslatorIOTest, NonblockingReadInSubroutine) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+    int GetNbValue(__xls_channel<int>& in) {
+	    int val = 1;
+	    bool r = in.nb_read(val);
+      return r ? val*3 : val;
+    }
+    #pragma hls_top
+    void Run(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      const int v = GetNbValue(in);
+	    out.write(v);
     })";
 
   xls::Value value_in = xls::Value::Tuple(
@@ -1435,6 +1464,296 @@ TEST_F(TranslatorIOTest, TopParameterStructWithChannel) {
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
                   testing::HasSubstr("lvalues in nested structs")));
+}
+
+TEST_F(TranslatorIOTest, DebugAssert) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 3) {
+           __xlscc_assert("hello", r > 5);
+         }
+         out.write(3*r);
+       })";
+
+  auto one_bit_0 = xls::Value(xls::UBits(0, 1));
+  auto one_bit_1 = xls::Value(xls::UBits(1, 1));
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 3, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "hello", TraceType::kAssert),
+          IOOpTest("out", 9, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 10, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "hello", xlscc::TraceType::kAssert),
+          IOOpTest("out", 30, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_1, "hello", xlscc::TraceType::kAssert),
+          IOOpTest("out", 3, true)});
+}
+
+TEST_F(TranslatorIOTest, DebugAssertWithLabel) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 3) {
+           __xlscc_assert("hello", r > 5, "this one");
+         }
+         out.write(3*r);
+       })";
+
+  auto one_bit_0 = xls::Value(xls::UBits(0, 1));
+  auto one_bit_1 = xls::Value(xls::UBits(1, 1));
+  IOTest(
+      content,
+      /*inputs=*/{IOOpTest("in", 3, true)},
+      /*outputs=*/
+      {IOOpTest("__trace", one_bit_0, "hello", TraceType::kAssert, "this one"),
+       IOOpTest("out", 9, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 10, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "hello", xlscc::TraceType::kAssert,
+                   "this one"),
+          IOOpTest("out", 30, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_1, "hello", xlscc::TraceType::kAssert,
+                   "this one"),
+          IOOpTest("out", 3, true)});
+}
+
+TEST_F(TranslatorIOTest, DebugTrace) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 7) {
+          __xlscc_trace("Value is {:d}", r);
+         }
+         out.write(3*r);
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)), xls::Value(xls::UBits(10, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(0, 1)), xls::Value(xls::UBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 21, true)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugMultiTrace) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 7) {
+          __xlscc_trace("Value is {:d}", r);
+          __xlscc_trace("Second is {:d}", r*5);
+         }
+         out.write(3*r);
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)), xls::Value(xls::UBits(10, 32))});
+    auto trace_tuple2 = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)),
+         xls::Value(xls::UBits(static_cast<uint64_t>(10 * 5), 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("__trace", trace_tuple2, "Second is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(0, 1)), xls::Value(xls::UBits(7, 32))});
+    auto trace_tuple2 = xls::Value::Tuple(
+        {xls::Value(xls::UBits(0, 1)),
+         xls::Value(xls::UBits(static_cast<uint64_t>(7 * 5), 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("__trace", trace_tuple2, "Second is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 21, true)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugTraceInSubroutine) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       void SubWrite(__xls_channel<int>& out, int r) {
+         __xlscc_trace("Value is {:d}", r);
+         out.write(3*r);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int r = in.read();
+         if(r != 20) {
+           SubWrite(out, r);
+         }
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)), xls::Value(xls::UBits(10, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(0, 1)), xls::Value(xls::UBits(20, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 20, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 60, false)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugTraceReference) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int r = in.read();
+         int& r_ref = r;
+         if(r != 7) {
+          __xlscc_trace("Value is {:d}", r_ref);
+         }
+         out.write(3*r);
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)), xls::Value(xls::UBits(10, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(0, 1)), xls::Value(xls::UBits(7, 32))});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 7, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 21, true)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugTracePointer) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int r = in.read();
+         int* r_ref = &r;
+         __xlscc_trace("Value is {:d}", r_ref);
+         out.write(3*r);
+       })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                    testing::HasSubstr("must have R-Value")));
+}
+
+TEST_F(TranslatorIOTest, DebugTraceStruct) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int r = in.read();
+         struct Foo {
+           int r;
+         };
+         Foo f = {.r = r};
+         __xlscc_trace("Value is {:d}", f);
+         out.write(3*r);
+       })";
+
+  {
+    auto trace_tuple = xls::Value::Tuple(
+        {xls::Value(xls::UBits(1, 1)),
+         xls::Value::Tuple({xls::Value(xls::UBits(10, 32))})});
+    IOTest(content,
+           /*inputs=*/{IOOpTest("in", 10, true)},
+           /*outputs=*/
+           {IOOpTest("__trace", trace_tuple, "Value is {:d}",
+                     xlscc::TraceType::kTrace),
+            IOOpTest("out", 30, true)});
+  }
+}
+
+TEST_F(TranslatorIOTest, DebugTraceStructWithReference) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int r = in.read();
+         struct Foo {
+           int r;
+           int *rr;
+         };
+         Foo f = {.r = r, .rr = &r};
+         (void)f;
+         __xlscc_trace("Value is {:d}", f);
+         out.write(3*r);
+       })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("LValue")));
 }
 
 }  // namespace

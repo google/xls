@@ -378,7 +378,6 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

@@ -84,5 +84,5 @@ top fn foo(x: bits[17], y: bits[5]) -> bits[55] {
 
 For developers, it is possible to check if a specific feature is supported by
 checking
-[xls_int_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/xls_int_test.cc)
+[xls_int_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/xls_int_test.cc)
 for unit tests.

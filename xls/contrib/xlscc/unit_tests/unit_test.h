@@ -18,9 +18,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/logging/log_entry.h"
@@ -30,6 +32,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 
@@ -128,10 +131,17 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
           condition(condition) {}
     IOOpTest(std::string name, xls::Value value, bool condition)
         : name(name), value(value), condition(condition) {}
+    IOOpTest(std::string name, xls::Value value, const char* message,
+             xlscc::TraceType trace_type, std::string label = "")
+        : name(name), value(value), message(message), trace_type(trace_type),
+          label(label){}
 
     std::string name;
     xls::Value value;
-    bool condition;
+    bool condition = true;
+    std::string message;
+    xlscc::TraceType trace_type = xlscc::TraceType::kNull;
+    std::string label;
   };
 
   void ProcTest(std::string content, std::optional<xlscc::HLSBlock> block_spec,
@@ -141,7 +151,10 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
                     outputs_by_channel,
                 const int min_ticks = 1, const int max_ticks = 100,
                 int top_level_init_interval = 0,
-                const char* top_class_name = "");
+                const char* top_class_name = "",
+                absl::Status expected_tick_status = absl::OkStatus(),
+                const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
+                    expected_events_by_proc_name = {});
 
   void IOTest(std::string_view content, std::list<IOOpTest> inputs,
               std::list<IOOpTest> outputs,

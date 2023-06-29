@@ -549,6 +549,11 @@ class __xls_memory {
 // Bypass no outputs error
 int __xlscc_unimplemented() { return 0; }
 
+void __xlscc_assert(const char*message, bool condition, const char*label=nullptr) { }
+
+// See XLS IR trace op format
+void __xlscc_trace(const char*fmt, ...) { }
+
 bool __xlscc_on_reset = false;
 
 #endif//__XLS_BUILTIN_H

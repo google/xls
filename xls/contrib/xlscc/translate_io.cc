@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -44,12 +45,17 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   const bool mask_other =
       context().mask_io_other_than_memory_writes && op.op != OpType::kWrite;
 
+  XLS_CHECK(op.op == OpType::kTrace || channel != nullptr);
+  XLS_CHECK_EQ(op.channel, nullptr);
+
   if (mask || context().mask_side_effects || mask_write || mask_other) {
     IOOpReturn ret;
     ret.generate_expr = false;
-    XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
-                         CreateDefaultValue(channel->item_type, loc));
-    op.input_value = CValue(default_bval, channel->item_type);
+    if (op.op != OpType::kTrace) {
+      XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
+                           CreateDefaultValue(channel->item_type, loc));
+      op.input_value = CValue(default_bval, channel->item_type);
+    }
     return nullptr;
   }
 
@@ -57,16 +63,21 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     context().any_writes_generated |= true;
   }
 
-  XLS_CHECK_NE(channel, nullptr);
-  XLS_CHECK_EQ(op.channel, nullptr);
-  op.channel_op_index = channel->total_ops++;
-
   op.channel = channel;
   op.op_location = loc;
 
+  if (op.op != OpType::kTrace) {
+    op.channel_op_index = channel->total_ops++;
+  } else {
+    op.channel_op_index = context().sf->trace_count++;
+  }
+
   // Channel must be inserted first by AddOpToChannel
   if (op.op == OpType::kRecv || op.op == OpType::kRead) {
-    xls::Type* xls_item_type;
+    const std::string channel_name = op.channel->unique_name;
+    std::string safe_param_name =
+        absl::StrFormat("%s_op%i", channel_name, op.channel_op_index);
+    xls::Type* xls_item_type = nullptr;
     std::shared_ptr<CType> channel_item_type;
     if (op.is_blocking) {
       XLS_ASSIGN_OR_RETURN(xls_item_type,
@@ -82,11 +93,6 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
           std::make_shared<CInternalTuple>(std::vector<std::shared_ptr<CType>>(
               {channel->item_type, std::make_shared<CBoolType>()}));
     }
-    const int64_t channel_op_index = op.channel_op_index;
-
-    std::string safe_param_name =
-        absl::StrFormat("%s_op%i", op.channel->unique_name, channel_op_index);
-
     xls::BValue pbval =
         context().fb->Param(safe_param_name, xls_item_type, loc);
 
@@ -97,7 +103,6 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
           "Failed to create implicit parameter %s, duplicate? See b/239861050",
           safe_param_name.c_str()));
     }
-
     op.input_value = CValue(pbval, channel_item_type);
   }
 
@@ -530,6 +535,8 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
   xls::BValue op_condition;
 
   switch (op.op) {
+    case OpType::kNull:
+      break;
     case OpType::kRecv:
       op_condition = retval;
       break;
@@ -538,12 +545,30 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
     case OpType::kRead:
       op_condition = context().fb->TupleIndex(retval, /*idx=*/1, loc);
       break;
-    default:
-      return absl::UnimplementedError(ErrorMessage(
-          loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+    case OpType::kTrace: {
+      switch (op.trace_type) {
+        case TraceType::kNull:
+          break;
+        case TraceType::kAssert:
+          op_condition = retval;
+          break;
+        case TraceType::kTrace:
+          op_condition = context().fb->TupleIndex(retval, /*idx=*/0, loc);
+          break;
+      }
+      if (!op_condition.valid()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Unsupported trace type %i in AddConditionToIOReturn",
+            op.trace_type));
+      }
+      break;
+    }
   }
 
-  XLS_CHECK(op_condition.valid());
+  if (!op_condition.valid()) {
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+  }
 
   op_condition =
       context().fb->And(op_condition, context().full_condition_bval(loc), loc);
@@ -554,6 +579,8 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
   xls::BValue new_retval;
 
   switch (op.op) {
+    case OpType::kNull:
+      break;
     case OpType::kRecv:
       new_retval = op_condition;
       break;
@@ -564,12 +591,36 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
       new_retval = context().fb->Tuple({data, op_condition}, loc);
       break;
     }
-    default:
-      return absl::UnimplementedError(ErrorMessage(
-          loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+    case OpType::kTrace: {
+      switch (op.trace_type) {
+        case TraceType::kNull:
+          break;
+        case TraceType::kAssert:
+          new_retval = op_condition;
+          break;
+        case TraceType::kTrace: {
+          const uint64_t tuple_count = retval.GetType()->AsTupleOrDie()->size();
+          std::vector<xls::BValue> tuple_parts = {op_condition};
+          for (int i = 1; i < tuple_count; ++i) {
+            tuple_parts.push_back(
+                context().fb->TupleIndex(retval, /*idx=*/i, loc));
+          }
+          new_retval = context().fb->Tuple(tuple_parts, loc);
+          break;
+        }
+      }
+      if (!new_retval.valid()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Unsupported trace type %i in AddConditionToIOReturn",
+            op.trace_type));
+      }
+      break;
+    }
+      if (!new_retval.valid()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Unsupported IO op %i in AddConditionToIOReturn", op.op));
+      }
   }
-
-  XLS_CHECK(new_retval.valid());
 
   return new_retval;
 }

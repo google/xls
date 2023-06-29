@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/contrib/xlscc/unit_test.h"
+#include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 #include <string>
 #include <string_view>
@@ -27,6 +27,7 @@
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
@@ -326,7 +327,9 @@ void XlsccTestBase::ProcTest(
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         outputs_by_channel,
     const int min_ticks, const int max_ticks, int top_level_init_interval,
-    const char* top_class_name) {
+    const char* top_class_name, absl::Status expected_tick_status,
+    const absl::flat_hash_map<std::string, xls::InterpreterEvents>&
+        expected_events_by_proc_name) {
   std::list<std::string> ir_texts;
   std::string package_text;
 
@@ -400,7 +403,7 @@ void XlsccTestBase::ProcTest(
   for (; tick < max_ticks; ++tick) {
     XLS_LOG(INFO) << "Before tick " << tick;
 
-    XLS_ASSERT_OK(interpreter->Tick());
+    ASSERT_EQ(interpreter->Tick(), expected_tick_status);
 
     XLS_LOG(INFO) << "State after tick " << tick;
     for (const auto& proc : package_->procs()) {
@@ -441,6 +444,11 @@ void XlsccTestBase::ProcTest(
 
   EXPECT_GE(tick, min_ticks);
   EXPECT_LT(tick, max_ticks);
+
+  for (const auto& [proc_name, events] : expected_events_by_proc_name) {
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package_->GetProc(proc_name));
+    EXPECT_EQ(events, interpreter->GetInterpreterEvents(proc));
+  }
 }
 
 absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
@@ -502,6 +510,9 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 
+  XLS_LOG(INFO) << "Package IR: ";
+  XLS_LOG(INFO) << package_->DumpIr();
+
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
 
   int64_t io_ops_values = 0;
@@ -518,12 +529,18 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   std::list<IOOpTest> input_ops_orig = inputs;
   for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->unique_name;
+    std::string ch_name;
+
+    if (op.op == xlscc::OpType::kTrace) {
+      continue;
+    }
+
+    ch_name = op.channel->unique_name;
+
+    const std::string arg_name =
+        absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
 
     if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
-      const std::string arg_name =
-          absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
-
       const IOOpTest test_op = inputs.front();
       inputs.pop_front();
 
@@ -573,7 +590,13 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
 
   int op_idx = 0;
   for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->unique_name;
+    std::string ch_name;
+
+    if (op.op == xlscc::OpType::kTrace) {
+      ch_name = "__trace";
+    } else {
+      ch_name = op.channel->unique_name;
+    }
 
     if (op.op == xlscc::OpType::kRecv || op.op == xlscc::OpType::kRead) {
       const IOOpTest test_op = inputs.front();
@@ -634,8 +657,21 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
       if (cond_output != 0u) {
         EXPECT_EQ(elements[0], test_op.value);
       }
+    } else if (op.op == xlscc::OpType::kTrace) {
+      const IOOpTest test_op = outputs.front();
+      outputs.pop_front();
+
+      XLS_CHECK_EQ(ch_name, test_op.name);
+      EXPECT_EQ(test_op.message, op.trace_message_string);
+      EXPECT_EQ(test_op.label, op.label_string);
+      EXPECT_EQ(test_op.trace_type, op.trace_type);
+
+      // No conditions for traces
+      EXPECT_TRUE(test_op.condition);
+
+      EXPECT_EQ(returns[op_idx], test_op.value);
     } else {
-      FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);
+      FAIL() << "IOOp of unknown type: " << static_cast<int>(op.op);
     }
     ++op_idx;
   }

@@ -25,7 +25,7 @@
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/contrib/xlscc/cc_generator.h"
+#include "xls/contrib/xlscc/unit_tests/cc_generator.h"
 
 const char kUsage[] = R"(
 Generates XLScc fuzz samples.

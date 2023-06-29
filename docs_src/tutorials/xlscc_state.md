@@ -102,7 +102,7 @@ endmodule
 
 For developers, it is possible to check if a specific feature is supported by
 checking
-[translator_static_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_static_test.cc)
+[translator_static_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_static_test.cc)
 and
-[translator_proc_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_proc_test.cc)
+[translator_proc_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_proc_test.cc)
 for unit tests.

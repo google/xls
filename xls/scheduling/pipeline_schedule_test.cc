@@ -29,6 +29,8 @@
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -727,12 +729,14 @@ TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
   EXPECT_EQ(schedule.cycle(rcv.node()), 3);
 }
 
-// Proc next state does not depend on param. Force schedule of a param node in a
-// later stage than the next state node. The schedule can be forced by having
-// two receive nodes where the second receive node depends on the first node,
-// and the first receive node produces the next state node and the param is used
-// by the second receive node.
-TEST_F(PipelineScheduleTest, ProcParamAndNextStateAreInSameCycle) {
+// Proc next state does not depend on param; next state can now be scheduled in
+// an earlier stage than the param node's use, so (all else being equal), the
+// scheduler prefers to schedule the param node ASAP, in the same stage as the
+// next-state node. The schedule is forced to multiple stages by having two
+// receive nodes where the second receive node depends on the first node, and
+// the first receive node produces the next state node and the param is used by
+// the second receive node.
+TEST_F(PipelineScheduleTest, ProcParamScheduledEarlyWithNextState) {
   Package p("p");
   Type* u1 = p.GetBitsType(1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -764,7 +768,95 @@ TEST_F(PipelineScheduleTest, ProcParamAndNextStateAreInSameCycle) {
       PipelineSchedule::Run(proc, *delay_estimator,
                             SchedulingOptions().pipeline_stages(3)));
   EXPECT_EQ(schedule.length(), 3);
+  // The state's param node should be scheduled ASAP (i.e., the next-state
+  // node's stage), while still leaving its user in the later stage.
   EXPECT_EQ(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
+  EXPECT_LT(schedule.cycle(state.node()), schedule.cycle(use_state.node()));
+}
+
+// Proc next state does not depend on param. Force schedule of a param node's
+// user in a later stage than the next state is computed. The schedule can be
+// forced by having two receive nodes where the second receive node depends on
+// the first node, and the first receive node produces the next state node and
+// the param is used by the second receive node. We make the scheduler prefer to
+// schedule the next-state computation earlier by making it narrower than the
+// param value, then widening later.
+TEST_F(PipelineScheduleTest, ProcParamScheduledAfterNextState) {
+  Package p("p");
+  Type* u1 = p.GetBitsType(1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0,
+      p.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1,
+      p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  BValue state = pb.StateElement("state", Value(UBits(1, 8)));
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
+  BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
+  BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
+  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  // The statement explicitly shows the use of the state node after the next
+  // state's information is available.
+  BValue extended_nb_rcv_data = pb.ZeroExtend(nb_rcv_data, 8);
+  BValue use_state = pb.UGe(extended_nb_rcv_data, state);
+  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
+  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
+  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
+  BValue extended_nb_rcv_valid = pb.ZeroExtend(nb_rcv_valid, 8);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(after_all_final, {extended_nb_rcv_valid}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(3)));
+  EXPECT_EQ(schedule.length(), 3);
+  EXPECT_GT(schedule.cycle(state.node()), schedule.cycle(nb_rcv_valid.node()));
+}
+
+// If two param nodes are mutually dependent, they (and their next state nodes)
+// all need to be scheduled in the same stage.
+TEST_F(PipelineScheduleTest, ProcParamsScheduledInSameStage) {
+  Package p("p");
+  Type* u1 = p.GetBitsType(1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0,
+      p.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1,
+      p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u1));
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &p);
+  BValue a = pb.StateElement("a", Value(UBits(0, 1)));
+  BValue b = pb.StateElement("b", Value(UBits(1, 1)));
+  BValue nb_rcv = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue nb_rcv_tkn = pb.TupleIndex(nb_rcv, 0);
+  BValue nb_rcv_data = pb.TupleIndex(nb_rcv, 1);
+  BValue nb_rcv_valid = pb.TupleIndex(nb_rcv, 2);
+  BValue after_all = pb.AfterAll({pb.GetTokenParam(), nb_rcv_tkn});
+  BValue use_state = pb.And(nb_rcv_data, a);
+  BValue rcv = pb.ReceiveIf(in1, after_all, use_state);
+  BValue rcv_tkn = pb.TupleIndex(rcv, 0);
+  BValue after_all_final = pb.AfterAll({after_all, rcv_tkn});
+  BValue next_a = pb.Xor(b, nb_rcv_valid);
+  BValue next_b = pb.Xor(a, nb_rcv_valid);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(after_all_final, {next_a, next_b}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(3)));
+  EXPECT_EQ(schedule.length(), 3);
+  EXPECT_EQ(schedule.cycle(a.node()), 1);
+  EXPECT_EQ(schedule.cycle(b.node()), 1);
+  EXPECT_EQ(schedule.cycle(next_a.node()), 1);
+  EXPECT_EQ(schedule.cycle(next_b.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {

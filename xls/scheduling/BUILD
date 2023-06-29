@@ -119,9 +119,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
-        "//xls/common/status:ret_check",
-        "//xls/data_structures:strongly_connected_components",
-        "//xls/data_structures:union_find",
+        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
@@ -161,6 +159,7 @@ cc_test(
     srcs = ["pipeline_schedule_test.cc"],
     deps = [
         ":pipeline_schedule",
+        ":scheduling_options",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
@@ -175,6 +174,7 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:op",
         "//xls/ir:type",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )

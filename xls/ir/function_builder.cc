@@ -14,6 +14,9 @@
 
 #include "xls/ir/function_builder.h"
 
+#include <cstdint>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
@@ -25,6 +28,7 @@
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -1446,9 +1450,10 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                             channel->id(), name);
 }
 
-void TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
-                                    std::string_view name) {
+BValue TokenlessProcBuilder::MinDelay(int64_t delay, const SourceInfo& loc,
+                                      std::string_view name) {
   last_token_ = ProcBuilder::MinDelay(last_token_, delay, loc, name);
+  return last_token_;
 }
 
 BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,

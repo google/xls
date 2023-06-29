@@ -536,13 +536,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   xls::BValue last_ret_val =
       pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
   for (const IOOp& op : prepared.xls_func->io_ops) {
-    const ChannelBundle& bundle =
-        prepared.xls_channel_by_function_channel.at(op.channel);
-
-    unused_external_channels_.remove(bundle);
-
     const int return_index = prepared.return_index_for_op.at(&op);
-
     xls::SourceInfo op_loc = op.op_location;
 
     xls::BValue before_token = prepared.token;
@@ -556,8 +550,16 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       before_token = pb.AfterAll(after_tokens, body_loc);
     }
 
+    const ChannelBundle* bundle_ptr = nullptr;
+
+    if (op.op != OpType::kTrace) {
+      bundle_ptr = &prepared.xls_channel_by_function_channel.at(op.channel);
+
+      unused_external_channels_.remove(*bundle_ptr);
+    }
+
     if (op.op == OpType::kRecv) {
-      xls::Channel* xls_channel = bundle.regular;
+      xls::Channel* xls_channel = bundle_ptr->regular;
       XLS_CHECK_NE(xls_channel, nullptr);
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
@@ -590,7 +592,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       last_ret_val =
           pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
     } else if (op.op == OpType::kSend) {
-      xls::Channel* xls_channel = bundle.regular;
+      xls::Channel* xls_channel = bundle_ptr->regular;
       XLS_CHECK_NE(xls_channel, nullptr);
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
@@ -601,9 +603,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 
       new_token = pb.SendIf(xls_channel, before_token, condition, val, op_loc);
     } else if (op.op == OpType::kRead) {
-      XLS_CHECK_EQ(bundle.regular, nullptr);
-      XLS_CHECK_NE(bundle.read_request, nullptr);
-      XLS_CHECK_NE(bundle.read_response, nullptr);
+      XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
+      XLS_CHECK_NE(bundle_ptr->read_request, nullptr);
+      XLS_CHECK_NE(bundle_ptr->read_response, nullptr);
 
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
@@ -618,11 +620,11 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       // TODO(google/xls#861): supported masked memory operations.
       xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
       xls::BValue send_tuple_with_mask = pb.Tuple({addr, mask}, op_loc);
-      new_token = pb.SendIf(bundle.read_request, before_token, condition,
+      new_token = pb.SendIf(bundle_ptr->read_request, before_token, condition,
                             send_tuple_with_mask, op_loc);
 
       xls::BValue receive =
-          pb.ReceiveIf(bundle.read_response, new_token, condition, op_loc);
+          pb.ReceiveIf(bundle_ptr->read_response, new_token, condition, op_loc);
 
       new_token = pb.TupleIndex(receive, 0);
       xls::BValue response_tup = pb.TupleIndex(receive, 1, op_loc);
@@ -636,9 +638,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       last_ret_val =
           pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
     } else if (op.op == OpType::kWrite) {
-      XLS_CHECK_EQ(bundle.regular, nullptr);
-      XLS_CHECK_NE(bundle.write_request, nullptr);
-      XLS_CHECK_NE(bundle.write_response, nullptr);
+      XLS_CHECK_EQ(bundle_ptr->regular, nullptr);
+      XLS_CHECK_NE(bundle_ptr->write_request, nullptr);
+      XLS_CHECK_NE(bundle_ptr->write_response, nullptr);
 
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
@@ -647,7 +649,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue send_tuple = pb.TupleIndex(send_tup, 0, op_loc);
       xls::BValue condition = pb.TupleIndex(
           send_tup, 1, op_loc,
-          absl::StrFormat("%s_pred", bundle.write_request->name()));
+          absl::StrFormat("%s_pred", bundle_ptr->write_request->name()));
 
       // This has (addr, value, mask)
       xls::BValue addr = pb.TupleIndex(send_tuple, 0, op_loc);
@@ -655,13 +657,19 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       // TODO(google/xls#861): supported masked memory operations.
       xls::BValue mask = pb.Literal(xls::Value::Tuple({}), op_loc);
       xls::BValue send_tuple_with_mask = pb.Tuple({addr, value, mask}, op_loc);
-      new_token = pb.SendIf(bundle.write_request, before_token, condition,
+      new_token = pb.SendIf(bundle_ptr->write_request, before_token, condition,
                             send_tuple_with_mask, op_loc);
 
-      xls::BValue receive =
-          pb.ReceiveIf(bundle.write_response, new_token, condition, op_loc);
+      xls::BValue receive = pb.ReceiveIf(bundle_ptr->write_response, new_token,
+                                         condition, op_loc);
       new_token = pb.TupleIndex(receive, 0);
       // Ignore received value, should be an empty tuple
+    } else if (op.op == OpType::kTrace) {
+      xls::BValue trace_out_value =
+          GetFlexTupleField(last_ret_val, return_index,
+                            prepared.xls_func->return_value_count, op_loc);
+      XLS_ASSIGN_OR_RETURN(
+          new_token, GenerateTrace(trace_out_value, before_token, op, pb));
     } else {
       XLS_CHECK("Unknown IOOp type" == nullptr);
     }
@@ -681,6 +689,42 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   }
 
   return last_ret_val;
+}
+
+absl::StatusOr<xls::BValue> Translator::GenerateTrace(
+    xls::BValue trace_out_value, xls::BValue before_token, const IOOp& op,
+    xls::ProcBuilder& pb) {
+  switch (op.trace_type) {
+    case TraceType::kNull:
+      break;
+    case TraceType::kTrace: {
+      // Tuple is (condition, ... args ...)
+      const uint64_t tuple_count =
+          trace_out_value.GetType()->AsTupleOrDie()->size();
+      XLS_CHECK_GE(tuple_count, 1);
+      xls::BValue condition = pb.TupleIndex(trace_out_value, 0, op.op_location);
+      std::vector<xls::BValue> args;
+      for (int tuple_idx = 1; tuple_idx < tuple_count; ++tuple_idx) {
+        xls::BValue arg =
+            pb.TupleIndex(trace_out_value, tuple_idx, op.op_location);
+        args.push_back(arg);
+      }
+      return pb.Trace(before_token, /*condition=*/condition, args,
+                      /*message=*/op.trace_message_string, op.op_location);
+    }
+    case TraceType::kAssert: {
+      // Assert condition is !fire
+      return pb.Assert(before_token,
+                       /*condition=*/pb.Not(trace_out_value, op.op_location),
+                       /*message=*/op.trace_message_string,
+                       /*label=*/op.label_string.empty()
+                           ? std::nullopt
+                           : std::optional<std::string>(op.label_string),
+                       op.op_location);
+    }
+  }
+  return absl::InternalError(
+      ErrorMessage(op.op_location, "Unknown trace type %i", op.trace_type));
 }
 
 absl::Status Translator::GenerateIRBlockCheck(
@@ -876,6 +920,10 @@ absl::Status Translator::GenerateIRBlockPrepare(
   // Find return indices for ops
   for (const IOOp& op : prepared.xls_func->io_ops) {
     prepared.return_index_for_op[&op] = next_return_index++;
+
+    if (op.op == OpType::kTrace) {
+      continue;
+    }
 
     if (op.channel->generated != nullptr) {
       ChannelBundle generated_bundle = {.regular = op.channel->generated};

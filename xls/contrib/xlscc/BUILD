@@ -20,9 +20,7 @@
 # pytype binary only
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
-
 # cc_proto_library is used in this file
-load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_int_fuzz_binaries")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -90,39 +88,6 @@ py_binary(
 )
 
 cc_library(
-    name = "unit_test",
-    testonly = 1,
-    srcs = ["unit_test.cc"],
-    hdrs = ["unit_test.h"],
-    deps = [
-        ":cc_parser",
-        ":hls_block_cc_proto",
-        ":translator",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/file:temp_file",
-        "//xls/common/logging:log_entry",
-        "//xls/common/logging:log_sink",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:interpreter_proc_runtime",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/interpreter:serial_proc_runtime",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:source_location",
-        "//xls/ir:value",
-        "//xls/ir:value_helpers",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@llvm-project//clang:ast",
-    ],
-)
-
-cc_library(
     name = "translator",
     srcs = [
         "translate_block.cc",
@@ -140,6 +105,15 @@ cc_library(
         ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
@@ -157,71 +131,12 @@ cc_library(
         "//xls/ir:value_helpers",
         "//xls/passes:standard_pipeline",
         "//xls/solvers:z3_ir_translator",
+        "@z3//:api",
         "@com_github_google_re2//:re2",
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",
         "@llvm-project//llvm:Support",
-        "@z3//:api",
     ],
-)
-
-cc_library(
-    name = "cc_generator",
-    srcs = ["cc_generator.cc"],
-    hdrs = ["cc_generator.h"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_binary(
-    name = "cc_generate_test",
-    srcs = ["cc_generate_test.cc"],
-    data = [
-        ":synth_only_headers",
-        ":xlscc",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
-    ],
-    deps = [
-        ":cc_generator",
-        "//xls/codegen:combinational_generator",
-        "//xls/codegen:module_signature",
-        "//xls/common:init_xls",
-        "//xls/common:subprocess",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/file:temp_directory",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:events",
-        "//xls/ir:function_builder",
-        "//xls/ir:value",
-        "//xls/passes:standard_pipeline",
-        "//xls/simulation:module_simulator",
-        "//xls/simulation:verilog_simulators",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-    ],
-)
-
-xls_int_fuzz_binaries(
-    name = "sample_fuzz",
-    seed_count = 9,
-    seed_start = 10,
 )
 
 cc_library(
@@ -230,304 +145,21 @@ cc_library(
     hdrs = ["cc_parser.h"],
     deps = [
         ":metadata_output_cc_proto",
-        "//xls/common:thread",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:source_location",
-        "@com_github_google_re2//:re2",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/synchronization",
+        "//xls/common:thread",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:source_location",
+        "@com_github_google_re2//:re2",
         "@llvm-project//clang:ast",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
-    ],
-)
-
-cc_test(
-    name = "cc_parser_test",
-    srcs = ["cc_parser_test.cc"],
-    deps = [
-        ":cc_parser",
-        ":metadata_output_cc_proto",
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/status:matchers",
-        "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "translator_logic_test",
-    srcs = ["translator_logic_test.cc"],
-    shard_count = 32,
-    deps = [
-        ":hls_block_cc_proto",
-        ":metadata_output_cc_proto",
-        ":translator",
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "translator_io_test",
-    srcs = ["translator_io_test.cc"],
-    shard_count = 32,
-    deps = [
-        ":hls_block_cc_proto",
-        ":metadata_output_cc_proto",
-        ":translator",
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "translator_memory_test",
-    srcs = ["translator_memory_test.cc"],
-    shard_count = 32,
-    deps = [
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "translator_proc_test",
-    srcs = ["translator_proc_test.cc"],
-    shard_count = 32,
-    deps = [
-        ":hls_block_cc_proto",
-        ":metadata_output_cc_proto",
-        ":translator",
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "translator_pointer_test",
-    srcs = ["translator_pointer_test.cc"],
-    deps = [
-        ":translator",
-        ":unit_test",
-        "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
-        "//xls/codegen:codegen_options",
-        "//xls/codegen:combinational_generator",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/logging",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/interpreter:proc_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "translator_static_test",
-    srcs = ["translator_static_test.cc"],
-    deps = [
-        ":translator",
-        ":unit_test",
-        "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
-        "//xls/codegen:codegen_options",
-        "//xls/codegen:combinational_generator",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
-        "//xls/common/logging",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/interpreter:proc_interpreter",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "translator_metadata_test",
-    srcs = ["translator_metadata_test.cc"],
-    deps = [
-        ":metadata_output_cc_proto",
-        ":translator",
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/container:flat_hash_set",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_google_protobuf//:protobuf",
-    ],
-)
-
-cc_test(
-    name = "translator_verilog_test",
-    srcs = ["translator_verilog_test.cc"],
-    data = glob([
-        "testdata/translator_verilog_test_*",
-    ]),
-    deps = [
-        ":hls_block_cc_proto",
-        ":translator",
-        ":unit_test",
-        "//xls/codegen:block_conversion",
-        "//xls/codegen:block_generator",
-        "//xls/codegen:signature_generator",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/logging",
-        "//xls/common/status:matchers",
-        "//xls/ir",
-        "//xls/ir:bits",
-        "//xls/ir:channel",
-        "//xls/simulation:module_simulator",
-        "//xls/simulation:verilog_simulators",
-        "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "synth_only_test",
-    srcs = ["synth_only_test.cc"],
-    data = [
-        ":synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
-    ],
-    shard_count = 10,
-    tags = [
-        "noasan",
-        "nomsan",
-    ],
-    deps = [
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "xls_int_test",
-    srcs = ["xls_int_test.cc"],
-    data = [
-        ":synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
-    ],
-    shard_count = 10,
-    tags = [
-        "noasan",
-        "nomsan",
-    ],
-    deps = [
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "xls_fixed_test",
-    srcs = ["xls_fixed_test.cc"],
-    data = [
-        ":synth_only_headers",
-        "@com_github_hlslibs_ac_types//:ac_types_as_data",
-    ],
-    shard_count = 10,
-    tags = [
-        "noasan",
-        "nomsan",
-    ],
-    deps = [
-        ":unit_test",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/status:matchers",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -567,33 +199,17 @@ cc_binary(
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":translator",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/logging",
-        "//xls/common/logging:log_flags",
-        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:status_macros",
         "@llvm-project//clang:ast",
-    ],
-)
-
-py_test(
-    name = "xlscc_main_test",
-    srcs = ["xlscc_main_test.py"],
-    data = [
-        ":xlscc",
-        "//xls/common:runfiles",
-        "//xls/interpreter:ir_interpreter",
-        "//xls/tools:eval_ir_main",
-    ],
-    python_version = "PY3",
-    deps = [
-        ":hls_block_py_pb2",
-        "@com_google_absl_py//absl/testing:absltest",
     ],
 )
 
@@ -608,8 +224,8 @@ py_binary(
     deps = [
         ":hls_block_py_pb2",
         ":metadata_output_py_pb2",
-        "//xls/common:runfiles",
         "@com_google_absl_py//absl:app",
         "@com_google_absl_py//absl/flags",
+        "//xls/common:runfiles",
     ],
 )

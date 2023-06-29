@@ -14,6 +14,7 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <optional>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -26,12 +27,16 @@
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
@@ -1913,7 +1918,6 @@ class CloneNodesIntoBlockHandler {
         } else {
           XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
         }
-        node_map_[node] = next_node;
       } else if (node->Is<Receive>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(next_node, HandleReceiveNode(node, stage));
@@ -1924,16 +1928,12 @@ class CloneNodesIntoBlockHandler {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
       node_map_[node] = next_node;
-    }
 
-    // After all nodes have been cloned, handle writing of next state values
-    // into state registers.
-    if (is_proc_) {
-      for (Node* node : sorted_nodes) {
-        if (next_state_nodes_.contains(node)) {
-          XLS_RETURN_IF_ERROR(
-              SetNextStateNode(node_map_.at(node), next_state_nodes_.at(node)));
-        }
+      // After cloning, handle writing of next state values into state
+      // registers.
+      if (is_proc_ && next_state_nodes_.contains(node)) {
+        XLS_RETURN_IF_ERROR(
+            SetNextStateNode(next_node, next_state_nodes_.at(node)));
       }
     }
 
@@ -1944,28 +1944,8 @@ class CloneNodesIntoBlockHandler {
   // scheduled at or before this cycle and has a use after this cycle.
   absl::Status AddNextPipelineStage(const PipelineSchedule& schedule,
                                     int64_t stage) {
-    Function* as_func = dynamic_cast<Function*>(function_base_);
-
     for (Node* function_base_node : function_base_->nodes()) {
-      if (schedule.cycle(function_base_node) > stage) {
-        continue;
-      }
-      auto is_live_out_of_stage = [&](Node* n) {
-        if (stage == schedule.length() - 1) {
-          return false;
-        }
-        if ((as_func != nullptr) && (n == as_func->return_value())) {
-          return true;
-        }
-        for (Node* user : n->users()) {
-          if (schedule.cycle(user) > stage) {
-            return true;
-          }
-        }
-        return false;
-      };
-
-      if (is_live_out_of_stage(function_base_node)) {
+      if (schedule.IsLiveOutOfCycle(function_base_node, stage)) {
         Node* node = node_map_.at(function_base_node);
 
         XLS_ASSIGN_OR_RETURN(
@@ -2030,7 +2010,19 @@ class CloneNodesIntoBlockHandler {
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
 
-    // Register write will be created later in HandleNextState.
+    RegisterWrite* reg_write = nullptr;
+    if (auto it = node_map_.find(proc->GetNextStateElement(index));
+        it != node_map_.end()) {
+      // We already cloned the next state node, and SetNextStateNode was unable
+      // to create the register write; we create it here, in the current stage.
+      Node* next_state = it->second;
+      XLS_ASSIGN_OR_RETURN(reg_write, block_->MakeNode<RegisterWrite>(
+                                          next_state->loc(), next_state,
+                                          /*load_enable=*/std::nullopt,
+                                          /*reset=*/std::nullopt, reg));
+    }
+    // Otherwise, the register write will be created later in SetNextStateNode.
+
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
@@ -2039,8 +2031,7 @@ class CloneNodesIntoBlockHandler {
     result_.state_registers[index] =
         StateRegister(std::string(proc->GetStateParam(index)->name()),
                       proc->GetInitValueElement(index),
-                      /*stage=*/stage, reg,
-                      /*reg_write=*/nullptr, reg_read);
+                      /*stage=*/stage, reg, reg_write, reg_read);
 
     return reg_read;
   }
@@ -2258,10 +2249,9 @@ class CloneNodesIntoBlockHandler {
 
     for (int64_t index : indices) {
       if (!result_.state_registers.at(index).has_value()) {
-        return absl::InternalError(
-            absl::StrFormat("Expected next state node %s to be dependent "
-                            "on state",
-                            next_state->ToString()));
+        // Next state node cloned before param access; will be dealt with when
+        // the state param is accessed.
+        continue;
       }
 
       StateRegister& state_register = result_.state_registers.at(index).value();

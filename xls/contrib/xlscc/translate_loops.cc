@@ -889,6 +889,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   }
 
   for (const IOOp& op : generated_func.io_ops) {
+    if (op.op == OpType::kTrace) {
+      continue;
+    }
     if (op.channel->generated != nullptr) {
       continue;
     }

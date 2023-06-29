@@ -154,5 +154,5 @@ Below is a quick summary of the options.
 
 For developers, it is possible to check if a specific feature is supported by
 checking
-[translator_memory_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_memory_test.cc)
+[translator_memory_test.cc](https://github.com/google/xls/tree/main/xls/contrib/xlscc/unit_tests/translator_memory_test.cc)
 for unit tests.

@@ -14,12 +14,8 @@
 
 #include "xls/scheduling/sdc_scheduler.h"
 
-#include <algorithm>
 #include <cmath>
-#include <functional>
-#include <random>
 
-#include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -28,11 +24,11 @@
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/data_structures/strongly_connected_components.h"
-#include "xls/data_structures/union_find.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/proc.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "ortools/linear_solver/linear_solver.h"
 
@@ -359,62 +355,13 @@ absl::Status ConstraintBuilder::AddBackedgeConstraints() {
   }
 
   using StateIndex = int64_t;
-
-  absl::flat_hash_set<Node*> params(proc->StateParams().begin(),
-                                    proc->StateParams().end());
-
-  // This constructs the state dependence graph, which is defined in the
-  // following way:
-  //
-  // First, construct a bipartite graph where nodes are either state params or
-  // next state nodes, and there is an edge from a state param to a next state
-  // node iff there is a path between them in the DFG. For example, this might
-  // look like `{(p1, n1), (p2, n1), (p2, n2), (p3, n3)}`.
-  //
-  // Then, identify each param node with its corresponding next node.
-  // Using the previous example, this would look like
-  // `{(v1, v1), (v2, v1), (v2, v2), (v3, v3)}`.
-  absl::btree_map<StateIndex, absl::btree_set<StateIndex>> graph;
-  for (StateIndex target = 0; target < proc->GetStateElementCount(); ++target) {
-    for (Node* param : Descendants(proc->GetNextStateElement(target))) {
-      if (!params.contains(param)) {
-        continue;
-      }
-      XLS_ASSIGN_OR_RETURN(StateIndex source, proc->GetStateParamIndex(
-                                                  dynamic_cast<Param*>(param)));
-      graph[source].insert(target);
-    }
-  }
-
-  // Note that the Strongly Connected Components (SCC) algorithm represents a
-  // graph as a sparse adjacency matrix. If a node has no edges, then the node
-  // will not be in the graph. As a result, the following ensures that the next
-  // state is always in the same cycle as its corresponding param, which is
-  // currently required by codegen.
   for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
-    graph[i].insert(i);
-  }
-
-  // A strongly connected component in the state dependence graph is a set of
-  // state params / next state nodes that must be scheduled in the same cycle.
-  std::vector<absl::btree_set<StateIndex>> sccs =
-      StronglyConnectedComponents<StateIndex>(graph);
-  for (const absl::btree_set<StateIndex>& scc : sccs) {
-    absl::btree_set<Node*, Node::NodeIdLessThan> nodes;
-    for (const StateIndex& index : scc) {
-      nodes.insert(proc->GetStateParam(index));
-      nodes.insert(proc->GetNextStateElement(index));
-    }
-    Node* rep = *(nodes.begin());
-    for (Node* other : nodes) {
-      if (rep == other) {
-        continue;
-      }
-      DiffEqualsConstraint(rep, other, 0, "backedge");
-      XLS_VLOG(2) << "Setting backedge constraint: "
-                  << absl::StrFormat("cycle[%s] = cycle[%s]", rep->GetName(),
-                                     other->GetName());
-    }
+    Node* const state = proc->GetStateParam(i);
+    Node* const next = proc->GetNextStateElement(i);
+    DiffLessThanConstraint(next, state, 0, "backedge");
+    XLS_VLOG(2) << "Setting backedge constraint (II=1): "
+                << absl::StrFormat("cycle[%s] - cycle[%s] < 1", next->GetName(),
+                                   state->GetName());
   }
 
   return absl::OkStatus();
@@ -623,6 +570,16 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
     }
     if (f->IsFunction() && f->HasImplicitUse(node)) {
       XLS_RETURN_IF_ERROR(builder.AddDefUseConstraints(node, std::nullopt));
+    }
+    if (f->IsProc()) {
+      Proc* proc = f->AsProcOrDie();
+      for (int64_t index : proc->GetNextStateIndices(node)) {
+        // The next-state element always has lifetime extended to the state
+        // param node, since we can't store the new value in the state register
+        // until the old value's been used.
+        XLS_RETURN_IF_ERROR(builder.AddLifetimeConstraint(
+            proc->GetNextStateElement(index), proc->GetStateParam(index)));
+      }
     }
   }
 

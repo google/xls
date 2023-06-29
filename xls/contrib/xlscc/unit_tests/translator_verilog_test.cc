@@ -24,7 +24,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/translator.h"
-#include "xls/contrib/xlscc/unit_test.h"
+#include "xls/contrib/xlscc/unit_tests/unit_test.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/proc.h"
@@ -40,7 +40,7 @@ using testing::UnorderedElementsAre;
 using xls::status_testing::IsOkAndHolds;
 
 constexpr char kTestName[] = "translator_verilog_test";
-constexpr char kTestdataPath[] = "xls/contrib/xlscc/testdata";
+constexpr char kTestdataPath[] = "xls/contrib/xlscc/unit_tests/testdata";
 
 class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {};
 

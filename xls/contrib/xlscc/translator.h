@@ -418,8 +418,9 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
-enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite };
-enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory };
+enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite, kTrace };
+enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
+enum class TraceType { kNull = 0, kAssert, kTrace };
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
@@ -685,7 +686,28 @@ struct IOChannel {
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
 struct IOOp {
+  // --- Preserved across calls ---
   OpType op = OpType::kNull;
+
+  bool is_blocking = true;
+
+  // Source location for messages
+  xls::SourceInfo op_location;
+
+  // For OpType::kTrace
+  // Assert just puts condition in ret_val. This is not the assertion condition
+  //  but the condition for the assertion to fire (!assert condition)
+  // Trace puts (condition, ... args ...) in ret_val
+  TraceType trace_type = TraceType::kNull;
+
+  std::string trace_message_string;
+  std::string label_string;
+
+  // --- Not preserved across calls ---
+
+  // Must be sequenced after these ops via tokens
+  // Ops be in GeneratedFunction::io_ops respecting this order
+  std::vector<const IOOp*> after_ops;
 
   IOChannel* channel = nullptr;
 
@@ -701,15 +723,6 @@ struct IOOp {
 
   // For reads: input value from function parameter for Recv op
   CValue input_value;
-
-  bool is_blocking = true;
-
-  // Source location for messages
-  xls::SourceInfo op_location;
-
-  // Must be sequenced after these ops via tokens
-  // Ops be in GeneratedFunction::io_ops respecting this order
-  std::vector<const IOOp*> after_ops;
 };
 
 enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
@@ -782,6 +795,9 @@ struct GeneratedFunction {
   //  in the order specified in this list.
   // Use list for safe pointers to values
   std::list<IOOp> io_ops;
+
+  // Number of trace ops added
+  int trace_count = 0;
 
   // Saved parameter order
   std::list<SideEffectingParameter> side_effecting_parameters;
@@ -1406,6 +1422,11 @@ class Translator {
                                          const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_MemberExpr(const clang::MemberExpr* expr,
                                                const xls::SourceInfo& loc);
+  absl::StatusOr<std::string> GetStringLiteral(const clang::Expr* expr,
+                                               const xls::SourceInfo& loc);
+  // Returns true if built-in call generated
+  absl::StatusOr<std::pair<bool, CValue>> GenerateIR_BuiltInCall(
+      const clang::CallExpr* call, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_Call(const clang::CallExpr* call,
                                          const xls::SourceInfo& loc);
 
@@ -1515,6 +1536,12 @@ class Translator {
   absl::StatusOr<xls::BValue> GenerateIOInvokes(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
       const xls::SourceInfo& body_loc);
+
+  // Returns new token
+  absl::StatusOr<xls::BValue> GenerateTrace(xls::BValue trace_out_value,
+                                            xls::BValue before_token,
+                                            const IOOp& op,
+                                            xls::ProcBuilder& pb);
 
   struct IOOpReturn {
     bool generate_expr;
