@@ -102,7 +102,8 @@ absl::Status RealMain() {
   LspLog() << "XLS testing language server"
            << "\n";
   LspLog() << "Path configuration:\n\tstdlib=" << stdlib_path << "\n"
-           << "\tdsxl_path=" << dslx_path << "\n";
+           << "\tdsxl_path=" << dslx_path << "\n"
+           << "\tcwd=" << fs::current_path().string() << "\n";
 
   // Adapter that interfaces between dslx parsing and LSP
   LanguageServerAdapter language_server_adapter(stdlib_path, dslx_paths);
