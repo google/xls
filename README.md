@@ -8,7 +8,7 @@
 
 [**Conda packages**](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/latest_release_date.svg)](https://anaconda.org/litex-hub/xls) [![Anaconda-Server Badge](https://anaconda.org/litex-hub/xls/badges/platforms.svg)](https://anaconda.org/litex-hub/xls)
 
-![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
+[![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)](https://github.com/google/xls/actions/workflows/continuous-integration.yml) [![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)](https://github.com/google/xls/actions/workflows/nightly-ubuntu-22.04.yml)
 
 ## What is XLS?
 
