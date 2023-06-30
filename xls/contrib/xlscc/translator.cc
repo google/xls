@@ -64,6 +64,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -123,7 +124,10 @@ bool Translator::ContainsKeyValuePair(
   return false;
 }
 
-bool Translator::IOChannelInCurrentFunction(IOChannel* to_find) {
+bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
+                                            const xls::SourceInfo& loc) {
+  // Assertion for linear scan. If it fires, consider changing data structure
+  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
   for (IOChannel& channel : context().sf->io_channels) {
     if (&channel == to_find) {
       return true;
@@ -1230,13 +1234,6 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
   std::shared_ptr<LValue> lvalue = nullptr;
   xls::BValue init_val;
 
-  std::shared_ptr<CType> init_type;
-
-  if (initializer != nullptr) {
-    XLS_ASSIGN_OR_RETURN(init_type,
-                         TranslateTypeFromClang(initializer->getType(), loc));
-  }
-
   bool is_channel = false;
 
   if (initializer != nullptr) {
@@ -1275,6 +1272,7 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
     LValueModeGuard lvalue_mode(*this);
 
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
+
     XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
     lvalue = cv.lvalue();
     if (ctype->Is<CPointerType>() && !lvalue) {
@@ -2435,9 +2433,10 @@ absl::Status Translator::TranslateAddCallerChannelsByCalleeChannel(
     XLSCC_CHECK(callee_lval->channel_leaf() != nullptr, loc);
     XLSCC_CHECK(caller_lval->channel_leaf() != nullptr, loc);
 
-    XLSCC_CHECK(caller_lval->channel_leaf()->generated ||
-                    IOChannelInCurrentFunction(caller_lval->channel_leaf()),
-                loc);
+    XLSCC_CHECK(
+        caller_lval->channel_leaf()->generated ||
+            IOChannelInCurrentFunction(caller_lval->channel_leaf(), loc),
+        loc);
 
     XLSCC_CHECK(!caller_channels_by_callee_channel->contains(
                     callee_lval->channel_leaf()),
@@ -2457,7 +2456,7 @@ absl::Status Translator::ValidateLValue(std::shared_ptr<LValue> lval,
 
   if (lval->channel_leaf() != nullptr) {
     if (lval->channel_leaf()->generated != nullptr &&
-        IOChannelInCurrentFunction(lval->channel_leaf())) {
+        IOChannelInCurrentFunction(lval->channel_leaf(), loc)) {
       return absl::InternalError(ErrorMessage(
           loc, "lval %s contains channel not present in io_channels",
           lval->debug_string().c_str()));
@@ -3167,7 +3166,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
     IOChannel* callee_generated_channel = callee_op.channel;
     IOChannel* caller_generated_channel =
-        AddChannel(nullptr, *callee_generated_channel);
+        AddChannel(*callee_generated_channel, loc);
 
     caller_generated_channel->total_ops = 0;
     XLSCC_CHECK(!caller_channels_by_callee_channel.contains(callee_op.channel),
@@ -3225,7 +3224,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (caller_op_ptr != nullptr) {
       XLSCC_CHECK(caller_op_ptr->op == OpType::kTrace ||
                       caller_op_ptr->channel->generated ||
-                      IOChannelInCurrentFunction(caller_op_ptr->channel),
+                      IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
                   loc);
       XLSCC_CHECK_EQ(caller_op_ptr->after_ops.size(),
                      callee_op.after_ops.size(), loc);
@@ -4393,9 +4392,64 @@ absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
   return absl::OkStatus();
 }
 
+absl::Status Translator::GenerateIR_LocalChannel(
+    const clang::NamedDecl* namedecl,
+    const std::shared_ptr<CChannelType>& channel_type,
+    const xls::SourceInfo& loc) {
+  if (channel_type->GetMemorySize() > 0) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Internal memories unsupported"));
+  }
+
+  std::string ch_name = absl::StrFormat(
+      "__internal_%s_%s", context().sf->clang_decl->getNameAsString(),
+      namedecl->getNameAsString());
+  XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
+                       TranslateTypeToXLS(channel_type->GetItemType(), loc));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Channel * xls_channel,
+      package_->CreateStreamingChannel(ch_name, xls::ChannelOps::kSendReceive,
+                                       item_type_xls,
+                                       /*initial_values=*/{}, /*fifo_depth=*/0,
+                                       xls::FlowControl::kReadyValid));
+  IOChannel new_channel;
+  new_channel.item_type = channel_type->GetItemType();
+  new_channel.unique_name = ch_name;
+
+  IOChannel* new_channel_ptr = AddChannel(new_channel, loc);
+  auto lvalue = std::make_shared<LValue>(new_channel_ptr);
+
+  CValue cval(/*rvalue=*/xls::BValue(), channel_type,
+              /*disable_type_check=*/true, lvalue);
+
+  XLS_RETURN_IF_ERROR(DeclareVariable(namedecl, cval, loc));
+
+  ChannelBundle bundle = {.regular = xls_channel};
+  external_channels_by_internal_channel_.insert(
+      std::make_pair(new_channel_ptr, bundle));
+
+  return absl::OkStatus();
+}
+
 absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
                                                const clang::NamedDecl* namedecl,
                                                const xls::SourceInfo& loc) {
+  // Intercept internal channel declarations, eg for ping-pong
+  {
+    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
+                         StripTypeQualifiers(vard->getType()));
+
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
+                         TranslateTypeFromClang(stripped.base, loc));
+
+    if (obj_type->Is<CChannelType>() &&
+        clang::dyn_cast<clang::CXXConstructExpr>(vard->getAnyInitializer())) {
+      return GenerateIR_LocalChannel(
+          namedecl, std::dynamic_pointer_cast<CChannelType>(obj_type), loc);
+    }
+  }
+
+  // Not an internal channel
   bool use_on_reset = false;
   ConstValue init;
   CValue translated_without_side_effects;

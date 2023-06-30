@@ -488,8 +488,14 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   return ret;
 }
 
-IOChannel* Translator::AddChannel(const clang::NamedDecl* decl,
-                                  IOChannel new_channel) {
+IOChannel* Translator::AddChannel(const IOChannel& new_channel,
+                                  const xls::SourceInfo& loc) {
+  // Assertion for linear scan. If it fires, consider changing data structure
+  XLSCC_CHECK_LE(context().sf->io_channels.size(), 128, loc);
+  for (const IOChannel& existing_channel : context().sf->io_channels) {
+    XLSCC_CHECK_NE(new_channel.unique_name, existing_channel.unique_name, loc);
+  }
+
   context().sf->io_channels.push_back(new_channel);
   IOChannel* ret = &context().sf->io_channels.back();
 
@@ -504,10 +510,10 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateChannelParam(
   IOChannel new_channel;
 
   new_channel.item_type = channel_type->GetItemType();
-  new_channel.unique_name = channel_name->getNameAsString();
+  new_channel.unique_name = channel_name->getQualifiedNameAsString();
   new_channel.memory_size = channel_type->GetMemorySize();
 
-  auto lvalue = std::make_shared<LValue>(AddChannel(channel_name, new_channel));
+  auto lvalue = std::make_shared<LValue>(AddChannel(new_channel, loc));
 
   if (!new_channel.generated) {
     XLS_CHECK_NE(channel_name, nullptr);

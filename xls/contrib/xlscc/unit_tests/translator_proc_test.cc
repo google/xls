@@ -4591,6 +4591,124 @@ TEST_F(TranslatorProcTest, NonblockingReadInSubroutine) {
   }
 }
 
+TEST_F(TranslatorProcTest, LocalChannel) {
+  // This example uses pipelined loops to create separate procs
+  // This is to avoid the need to have a token chain between send and receive,
+  //  which at the time of authoring the test is not in place.
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static __xls_channel<int> internal;
+
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          const int x = in.read();
+          internal.write(x*2);
+        }
+
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          const int xr = internal.read();
+          out.write(xr);
+        }
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelInSubroutine) {
+  // This example uses pipelined loops to create separate procs
+  // This is to avoid the need to have a token chain between send and receive,
+  //  which at the time of authoring the test is not in place.
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      int Subroutine(int x) {
+        static __xls_channel<int> internal;
+
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          internal.write(x*2);
+        }
+
+        int xr = 0;
+
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          xr = internal.read();
+        }
+        
+        return xr;
+      }
+
+      #pragma hls_top
+      void foo() {
+        const int x = in.read();
+        const int xr = Subroutine(x);
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalMemory) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static __xls_memory<int, 32> local;
+
+        const int x = in.read();
+        local[0] = x;
+
+        const int xr = local[0];
+        out.write(xr);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("nternal memories unsupported")));
+}
+
 }  // namespace
 
 }  // namespace xlscc

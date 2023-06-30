@@ -778,6 +778,7 @@ struct GeneratedFunction {
       declaration_order_by_name_;
 
   // Ordered for determinism
+  // Use Translator::AddChannel() to add while checking uniqueness
   std::list<IOChannel> io_channels;
 
   // Sub procs that must be generated to use the function
@@ -1444,7 +1445,8 @@ class Translator {
           caller_channels_by_callee_channel,
       const xls::SourceInfo& loc);
 
-  bool IOChannelInCurrentFunction(IOChannel* to_find);
+  bool IOChannelInCurrentFunction(IOChannel* to_find,
+                                  const xls::SourceInfo& loc);
 
   absl::Status ValidateLValue(std::shared_ptr<LValue> lval,
                               const xls::SourceInfo& loc);
@@ -1566,7 +1568,8 @@ class Translator {
       const clang::NamedDecl* channel_name,
       const std::shared_ptr<CChannelType>& channel_type, bool declare_variable,
       const xls::SourceInfo& loc);
-  IOChannel* AddChannel(const clang::NamedDecl* decl, IOChannel new_channel);
+  IOChannel* AddChannel(const IOChannel& new_channel,
+                        const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CChannelType>> GetChannelType(
       const clang::QualType& channel_type, clang::ASTContext& ctx,
       const xls::SourceInfo& loc);
@@ -1597,6 +1600,10 @@ class Translator {
   absl::Status GenerateIR_StaticDecl(const clang::VarDecl* vard,
                                      const clang::NamedDecl* namedecl,
                                      const xls::SourceInfo& loc);
+  absl::Status GenerateIR_LocalChannel(
+      const clang::NamedDecl* namedecl,
+      const std::shared_ptr<CChannelType>& channel_type,
+      const xls::SourceInfo& loc);
 
   absl::Status CheckInitIntervalValidity(int initiation_interval_arg,
                                          const xls::SourceInfo& loc);
