@@ -72,6 +72,11 @@ InterpretSequentialBlock(
 // For each successive input, new data is driven after a randomized delay.
 class ChannelSource {
  public:
+  enum BehaviorDuringReset {
+    kIgnoreReady,  // Ignore ready signal during reset
+    kAttendReady,  // Send on ready regardless of reset
+  };
+
   // Construct a ChannelSource given port names for data/ready/valid
   // for the given block.
   //
@@ -81,12 +86,14 @@ class ChannelSource {
   // transaction).  Once valid is asserted, it will remain asserted until
   // the transaction completes via ready being asserted.
   ChannelSource(std::string_view data_name, std::string_view valid_name,
-                std::string_view ready_name, double lambda, Block* block)
+                std::string_view ready_name, double lambda, Block* block,
+                BehaviorDuringReset reset_behavior = kIgnoreReady)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
         lambda_(lambda),
-        block_(block) {}
+        block_(block),
+        reset_behavior_(reset_behavior) {}
 
   // Sets sequence of data that this source will send to its block.
   absl::Status SetDataSequence(std::vector<Value> data);
@@ -127,6 +134,9 @@ class ChannelSource {
   double lambda_ = 1.0;  // For geometric inter-arrival times.
 
   Block* block_ = nullptr;
+
+  BehaviorDuringReset reset_behavior_;
+
   // Data sequence to be sent.
   // Only one of data_sequence_ and data_sequence_as_uint64_ is used,
   // depending on which constructor was called.
@@ -141,18 +151,25 @@ class ChannelSource {
 // Each successive output is received with a fixed probability.
 class ChannelSink {
  public:
+  enum BehaviorDuringReset {
+    kIgnoreValid,  // Ignore valid signal during reset
+    kAttendValid,  // Receive on valid regardless of reset
+  };
+
   // Construct a ChannelSource given port names for data/ready/valid
   // for the given block.
   //
   // lambda is the probability that for a given cycle, the sink will assert
   // ready.
   ChannelSink(std::string_view data_name, std::string_view valid_name,
-              std::string_view ready_name, double lambda, Block* block)
+              std::string_view ready_name, double lambda, Block* block,
+              BehaviorDuringReset reset_behavior = kAttendValid)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
         lambda_(lambda),
-        block_(block) {}
+        block_(block),
+        reset_behavior_(reset_behavior) {}
 
   // For each cycle, SetBlockInputs() is called to provide the block
   // this channel's inputs for the cycle.
@@ -162,7 +179,8 @@ class ChannelSink {
   // it should be driven for this_cycle.
   absl::Status SetBlockInputs(int64_t this_cycle,
                               absl::flat_hash_map<std::string, Value>& inputs,
-                              std::minstd_rand& random_engine);
+                              std::minstd_rand& random_engine,
+                              std::optional<verilog::ResetProto> reset);
 
   // For each cycle, GetBlockOutputs() is called to provide this channel
   // the block's outputs for the cycle.
@@ -183,6 +201,8 @@ class ChannelSink {
 
   double lambda_ = 1.0;  // Receive with probability lambda.
   Block* block_ = nullptr;
+
+  BehaviorDuringReset reset_behavior_;
 
   bool is_ready_ = false;             // Ready is asserted.
   std::vector<Value> data_sequence_;  // Data sequence received.

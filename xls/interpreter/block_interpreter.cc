@@ -14,9 +14,18 @@
 
 #include "xls/interpreter/block_interpreter.h"
 
+#include <optional>
+#include <random>
+#include <string>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -99,6 +108,21 @@ class BlockInterpreter : public IrInterpreter {
   // The next state for the registers.
   absl::flat_hash_map<std::string, Value> next_reg_state_;
 };
+
+bool IsResetAsserted(absl::flat_hash_map<std::string, Value>& inputs,
+                     std::optional<verilog::ResetProto> reset) {
+  if (reset.has_value()) {
+    if (inputs.contains(reset.value().name())) {
+      Value value_when_reset_asserted =
+          Value(UBits(reset.value().active_low() ? 0 : 1, 1));
+      if (inputs.at(reset.value().name()) == value_when_reset_asserted) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 }  // namespace
 
@@ -333,21 +357,10 @@ absl::Status ChannelSource::SetDataSequence(absl::Span<const uint64_t> data) {
 absl::Status ChannelSource::SetBlockInputs(
     int64_t this_cycle, absl::flat_hash_map<std::string, Value>& inputs,
     std::minstd_rand& random_engine, std::optional<verilog::ResetProto> reset) {
-  bool is_in_reset = false;
-
-  // Don't send inputs when reset is asserted, because we don't typically care
-  // about the behavior of the block when inputs are sent during reset.
-  if (reset.has_value()) {
-    if (inputs.contains(reset.value().name())) {
-      Value value_when_reset_asserted =
-          Value(UBits(reset.value().active_low() ? 0 : 1, 1));
-      if (inputs.at(reset.value().name()) == value_when_reset_asserted) {
-        is_in_reset = true;
-      }
-    }
-  }
-
-  if (!is_in_reset) {
+  // Don't send inputs when reset is asserted, if we don't care about the
+  // behavior of the block when inputs are sent during reset.
+  if (reset_behavior_ == kAttendReady ||
+      !IsResetAsserted(inputs, std::move(reset))) {
     if (is_valid_) {
       // Continue to output valid and data, while waiting for the ready signal.
       XLS_CHECK_GE(current_index_, 0);
@@ -408,10 +421,21 @@ absl::Status ChannelSource::GetBlockOutputs(
 
 absl::Status ChannelSink::SetBlockInputs(
     int64_t this_cycle, absl::flat_hash_map<std::string, Value>& inputs,
-    std::minstd_rand& random_engine) {
+    std::minstd_rand& random_engine, std::optional<verilog::ResetProto> reset) {
   // Ready is independently random each cycle
-  is_ready_ = std::bernoulli_distribution(lambda_)(random_engine);
-  inputs[ready_name_] = is_ready_ ? Value(UBits(1, 1)) : Value(UBits(0, 1));
+  bool signalled_ready = std::bernoulli_distribution(lambda_)(random_engine);
+  inputs[ready_name_] =
+      signalled_ready ? Value(UBits(1, 1)) : Value(UBits(0, 1));
+
+  if (reset_behavior_ == kAttendValid ||
+      !IsResetAsserted(inputs, std::move(reset))) {
+    is_ready_ = signalled_ready;
+  } else {
+    // Regardless of what we signalled, don't consider ourselves ready when
+    // reset is asserted; we want to ignore any data we might "receive" during
+    // reset.
+    is_ready_ = false;
+  }
 
   return absl::OkStatus();
 }
@@ -478,7 +502,8 @@ absl::StatusOr<BlockIOResults> InterpretChannelizedSequentialBlock(
 
     // Sinks set ready
     for (ChannelSink& sink : channel_sinks) {
-      XLS_RETURN_IF_ERROR(sink.SetBlockInputs(cycle, input_set, random_engine));
+      XLS_RETURN_IF_ERROR(
+          sink.SetBlockInputs(cycle, input_set, random_engine, reset));
     }
 
     if (XLS_VLOG_IS_ON(3)) {

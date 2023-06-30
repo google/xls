@@ -50,6 +50,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::_;
 using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::Pair;
@@ -3303,6 +3304,64 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
   EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming");
   EXPECT_EQ(out_streaming_rv->GetValidPortName().value(), "out_streaming_vld");
   EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(), "out_streaming_rdy");
+}
+
+TEST_F(ProcConversionTestFixture, ProcSendDuringReset) {
+  const std::string ir_text = R"(package test
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
+  send.1: token = send(tkn, st, channel_id=1, id=1)
+  next (send.1, st)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("pipelined_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{};
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 1.0, block,
+                  /*reset_behavior=*/ChannelSink::kAttendValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+      25, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{reset_name, reset_active}}, inputs));
+
+  std::vector<testing::Matcher<uint64_t>> expected_output(25, 1);
+  // Ignore the first cycle.
+  expected_output[0] = _;
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 results,
+                           InterpretChannelizedSequentialBlockWithUint64(
+                               block, absl::MakeSpan(sources),
+                               absl::MakeSpan(sinks), inputs, options.reset()));
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(testing::ElementsAreArray(expected_output)));
 }
 
 TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneNotSupported) {

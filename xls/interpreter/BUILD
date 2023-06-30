@@ -122,6 +122,7 @@ cc_test(
     srcs = ["block_interpreter_test.cc"],
     deps = [
         ":ir_interpreter",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",

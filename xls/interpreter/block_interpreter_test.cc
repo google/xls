@@ -14,8 +14,11 @@
 
 #include "xls/interpreter/block_interpreter.h"
 
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -25,6 +28,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::Pair;
 using testing::UnorderedElementsAre;
@@ -355,7 +359,277 @@ TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
                              sinks.at(0).GetOutputSequenceAsUint64());
     EXPECT_GT(block_io.outputs.size(), output_sequence.size());
-    EXPECT_EQ(output_sequence, (std::vector<uint64_t>{1, 3, 6, 10, 15}));
+    EXPECT_THAT(output_sequence, ElementsAre(1, 3, 6, 10, 15));
+  }
+}
+
+TEST_F(BlockInterpreterTest, ChannelizedResetHandling) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  verilog::ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg,
+      b.block()->AddRegister("accum", package->GetBitsType(32),
+                             Reset{
+                                 .reset_value = Value(UBits(0, 32)),
+                                 .asynchronous = reset.asynchronous(),
+                                 .active_low = reset.active_low(),
+                             }));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
+  BValue out_rdy = b.InputPort("out_rdy", package->GetBitsType(1));
+  BValue rst = b.InputPort("rst", package->GetBitsType(1));
+
+  BValue input_valid_and_output_ready = b.And(x_vld, out_rdy);
+  BValue accum = b.RegisterRead(reg);
+  BValue x_add_accum = b.Add(x, accum);
+  BValue next_accum =
+      b.Select(input_valid_and_output_ready, {accum, x_add_accum});
+
+  b.RegisterWrite(reg, next_accum, /*load_enable=*/std::nullopt, /*reset=*/rst);
+  b.OutputPort("x_rdy", out_rdy);
+  b.OutputPort("out", next_accum);
+  b.OutputPort("out_vld", x_vld);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(15,
+                                                                 {{"rst", 0}});
+  for (size_t cycle = 0; cycle < 5; ++cycle) {
+    inputs[cycle]["rst"] = 1;
+  }
+
+  // Provide an input sequence and simulate, sending input & receiving output
+  // during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kAttendValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+    absl::Span<const uint64_t> outputs = absl::MakeConstSpan(output_sequence);
+
+    // During reset, the block is a pass-through for input to output.
+    EXPECT_THAT(outputs.first(5), ElementsAre(1, 2, 3, 4, 5));
+
+    // After reset, the block accumulates as designed.
+    EXPECT_THAT(outputs.subspan(5), ElementsAre(6, 13, 21, 30, 40));
+  }
+
+  // Provide an input sequence and simulate, sending input but receiving no
+  // output during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+
+    // We only see the block's results after reset, when it accumulates as
+    // designed.
+    EXPECT_THAT(output_sequence, ElementsAre(6, 13, 21, 30, 40));
+  }
+
+  // Provide an input sequence and simulate, sending no input & ignoring output
+  // during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kIgnoreReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+
+    // We send & receive no data during reset, so we only see the block
+    // accumulate.
+    EXPECT_THAT(output_sequence,
+                ElementsAre(1, 3, 6, 10, 15, 21, 28, 36, 45, 55));
+  }
+}
+
+TEST_F(BlockInterpreterTest, ChannelizedResetHandlingActiveLow) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  verilog::ResetProto reset;
+  reset.set_name("rst");
+  reset.set_asynchronous(false);
+  reset.set_active_low(true);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg,
+      b.block()->AddRegister("accum", package->GetBitsType(32),
+                             Reset{
+                                 .reset_value = Value(UBits(0, 32)),
+                                 .asynchronous = reset.asynchronous(),
+                                 .active_low = reset.active_low(),
+                             }));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
+  BValue out_rdy = b.InputPort("out_rdy", package->GetBitsType(1));
+  BValue rst = b.InputPort("rst", package->GetBitsType(1));
+
+  BValue input_valid_and_output_ready = b.And(x_vld, out_rdy);
+  BValue accum = b.RegisterRead(reg);
+  BValue x_add_accum = b.Add(x, accum);
+  BValue next_accum =
+      b.Select(input_valid_and_output_ready, {accum, x_add_accum});
+
+  b.RegisterWrite(reg, next_accum, /*load_enable=*/std::nullopt, /*reset=*/rst);
+  b.OutputPort("x_rdy", out_rdy);
+  b.OutputPort("out", next_accum);
+  b.OutputPort("out_vld", x_vld);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(15,
+                                                                 {{"rst", 1}});
+  for (size_t cycle = 0; cycle < 5; ++cycle) {
+    inputs[cycle]["rst"] = 0;
+  }
+
+  // Provide an input sequence and simulate, sending input & receiving output
+  // during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kAttendValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+    absl::Span<const uint64_t> outputs = absl::MakeConstSpan(output_sequence);
+
+    // During reset, the block is a pass-through for input to output.
+    EXPECT_THAT(outputs.first(5), ElementsAre(1, 2, 3, 4, 5));
+
+    // After reset, the block accumulates as designed.
+    EXPECT_THAT(outputs.subspan(5), ElementsAre(6, 13, 21, 30, 40));
+  }
+
+  // Provide an input sequence and simulate, sending input but receiving no
+  // output during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kAttendReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+
+    // We only see the block's results after reset, when it accumulates as
+    // designed.
+    EXPECT_THAT(output_sequence, ElementsAre(6, 13, 21, 30, 40));
+  }
+
+  // Provide an input sequence and simulate, sending no input & ignoring output
+  // during reset.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 1.0, block,
+                      /*reset_behavior=*/ChannelSource::kIgnoreReady)};
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        std::vector<uint64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+    };
+
+    BlockIOResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io, InterpretChannelizedSequentialBlockWithUint64(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      inputs, reset));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+
+    // We send & receive no data during reset, so we only see the block
+    // accumulate.
+    EXPECT_THAT(output_sequence,
+                ElementsAre(1, 3, 6, 10, 15, 21, 28, 36, 45, 55));
   }
 }
 
