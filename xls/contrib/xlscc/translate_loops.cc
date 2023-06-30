@@ -410,8 +410,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     new_channel.item_type = context_tuple_out.type();
     new_channel.unique_name = ch_name;
     new_channel.generated = xls_channel;
-    context().sf->io_channels.push_back(new_channel);
-    context_out_channel = &context().sf->io_channels.back();
+    context_out_channel = AddChannel(new_channel, loc);
   }
   IOChannel* context_in_channel = nullptr;
   {
@@ -426,8 +425,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     new_channel.item_type = context_cvars_struct_ctype;
     new_channel.unique_name = ch_name;
     new_channel.generated = xls_channel;
-    context().sf->io_channels.push_back(new_channel);
-    context_in_channel = &context().sf->io_channels.back();
+    context_in_channel = AddChannel(new_channel, loc);
   }
 
   // Create loop body proc
