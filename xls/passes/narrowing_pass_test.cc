@@ -14,6 +14,9 @@
 
 #include "xls/passes/narrowing_pass.h"
 
+#include <cstdint>
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
@@ -261,13 +264,28 @@ TEST_P(NarrowingPassTest, PartialMultiplyWiderThanSumOfOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   Type* u8 = p->GetBitsType(8);
-  fb.SMulp(fb.Param("lhs", u8), fb.Param("rhs", u8), /*result_width=*/42);
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  BValue smulp =
+      fb.SMulp(fb.Param("lhs", u8), fb.Param("rhs", u8), /*result_width=*/42);
+  BValue product = fb.Add(fb.TupleIndex(smulp, 0), fb.TupleIndex(smulp, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(product));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(f->return_value(),
-              AllOf(m::Type("(bits[42], bits[42])"),
-                    m::Tuple(m::SignExt(m::Type("bits[16]")),
-                             m::SignExt(m::Type("bits[16]")))));
+  ASSERT_THAT(f->return_value(),
+              AllOf(m::Type("bits[42]"), m::SignExt(m::Type("bits[16]"))));
+  EXPECT_THAT(
+      f->nodes(),
+      AllOf(
+          // Smulp
+          Contains(AllOf(m::Type("(bits[16], bits[16])"),
+                         m::SMulp(m::Type("bits[8]"), m::Type("bits[8]")))),
+          // Two tuple indices
+          Contains(m::TupleIndex(std::optional<int64_t>(0))),
+          Contains(m::TupleIndex(1)),
+          // Sum
+          Contains(AllOf(m::Type("bits[16]"),
+                         m::Add(m::Type("bits[16]"), m::Type("bits[16]")))),
+          // Return value
+          Contains(
+              AllOf(m::Type("bits[42]"), m::SignExt(m::Type("bits[16]"))))));
 }
 
 TEST_P(NarrowingPassTest, PartialMultiplyOperandsWiderThanResult) {

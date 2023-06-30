@@ -14,6 +14,9 @@
 
 #include "xls/passes/narrowing_pass.h"
 
+#include <cstdint>
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
@@ -22,6 +25,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value_helpers.h"
@@ -684,6 +688,41 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
   return false;
 }
 
+// If it exists, returns the unique add immediately following a mulp.
+std::optional<BinOp*> PartialMultiplyImmediateSum(PartialProductOp* mul) {
+  // Check for two tuple_index users, one for index=0 and another for index=1.
+  if (mul->users().size() != 2) {
+    return std::nullopt;
+  }
+  BinOp* seen_add[2] = {nullptr, nullptr};
+  bool seen_index[2] = {false, false};
+  for (Node* node : mul->users()) {
+    if (!node->Is<TupleIndex>()) {
+      return std::nullopt;
+    }
+    int64_t index = node->As<TupleIndex>()->index();
+    XLS_CHECK_GE(index, 0);
+    XLS_CHECK_LT(index, 2);
+    if (seen_index[index]) {
+      return std::nullopt;
+    }
+    seen_index[index] = true;
+    if (node->users().size() != 1) {
+      return std::nullopt;
+    }
+    Node* user = *node->users().begin();
+    if (!user->Is<BinOp>() || user->As<BinOp>()->op() != Op::kAdd) {
+      return std::nullopt;
+    }
+    seen_add[index] = user->As<BinOp>();
+  }
+  if (!seen_index[0] || !seen_index[1] || seen_add[0] != seen_add[1] ||
+      seen_add[0] == nullptr || seen_add[1] == nullptr) {
+    return std::nullopt;
+  }
+  return seen_add[0];
+}
+
 // Try to narrow the operands and/or the result of a multiply.
 absl::StatusOr<bool> MaybeNarrowPartialMultiply(
     PartialProductOp* mul, const QueryEngine& query_engine) {
@@ -700,29 +739,34 @@ absl::StatusOr<bool> MaybeNarrowPartialMultiply(
       "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
       result_bit_count, lhs_bit_count, rhs_bit_count);
 
-  // The result can be unconditionally narrowed to the sum of the operand
-  // widths, then zero/sign extended.
-  if (result_bit_count > lhs_bit_count + rhs_bit_count) {
+  // If both elements of the mulp tuple are immediately added, the mulp result
+  // can be unconditionally narrowed to the sum of the operand widths, the add
+  // replaced with a narrowed add, and the result of the addition zero/sign
+  // extended.
+  if (std::optional<BinOp*> add_immediately_after =
+          PartialMultiplyImmediateSum(mul);
+      result_bit_count > lhs_bit_count + rhs_bit_count &&
+      add_immediately_after.has_value()) {
     XLS_VLOG(3) << "Result is wider than sum of operands. Narrowing multiply.";
-    XLS_ASSIGN_OR_RETURN(
-        Node * narrowed_mul,
-        mul->function_base()->MakeNode<PartialProductOp>(
-            mul->loc(), lhs, rhs,
-            /*width=*/lhs_bit_count + rhs_bit_count, mul->op()));
+    int64_t narrowed_width = lhs_bit_count + rhs_bit_count;
+    XLS_ASSIGN_OR_RETURN(Node * narrowed_mul,
+                         mul->function_base()->MakeNode<PartialProductOp>(
+                             mul->loc(), lhs, rhs,
+                             /*width=*/narrowed_width, mul->op()));
     XLS_ASSIGN_OR_RETURN(Node * product0,
                          mul->function_base()->MakeNode<TupleIndex>(
                              mul->loc(), narrowed_mul, /*index=*/0));
     XLS_ASSIGN_OR_RETURN(Node * product1,
                          mul->function_base()->MakeNode<TupleIndex>(
                              mul->loc(), narrowed_mul, /*index=*/1));
-    std::vector<Node*> elements(2);
-    XLS_ASSIGN_OR_RETURN(elements[0],
-                         MaybeExtend(product0, result_bit_count,
+    XLS_ASSIGN_OR_RETURN(
+        Node * sum, mul->function_base()->MakeNode<BinOp>(mul->loc(), product0,
+                                                          product1, Op::kAdd));
+    XLS_ASSIGN_OR_RETURN(Node * extended_sum,
+                         MaybeExtend(sum, result_bit_count,
                                      /*is_signed=*/mul->op() == Op::kSMulp));
-    XLS_ASSIGN_OR_RETURN(elements[1],
-                         MaybeExtend(product1, result_bit_count,
-                                     /*is_signed=*/mul->op() == Op::kSMulp));
-    XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<Tuple>(elements).status());
+    XLS_RETURN_IF_ERROR(
+        (*add_immediately_after)->ReplaceUsesWith(extended_sum));
     return true;
   }
 
