@@ -46,6 +46,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
 
@@ -1893,9 +1894,16 @@ absl::Status BytecodeInterpreter::RunBuiltinSMulp(const Bytecode& bytecode) {
         XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
         int64_t product_bitwidth = lhs_bitwidth;
         std::vector<InterpValue> outputs;
-        outputs.push_back(InterpValue::MakeUBits(product_bitwidth, 0));
+        InterpValue offset = InterpValue::MakeUnsigned(
+            MulpOffsetForSimulation(product_bitwidth, /*shift_size=*/1));
         XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
-        outputs.push_back(InterpValue::MakeUnsigned(product.GetBitsOrDie()));
+        // Return unsigned partial product.
+        XLS_ASSIGN_OR_RETURN(Bits product_raw_bits, product.GetBits());
+        product = InterpValue::MakeUnsigned(product_raw_bits);
+        XLS_ASSIGN_OR_RETURN(InterpValue product_minus_offset,
+                             product.Sub(offset));
+        outputs.push_back(offset);
+        outputs.push_back(product_minus_offset);
         return InterpValue::MakeTuple(outputs);
       });
 }
@@ -1909,9 +1917,13 @@ absl::Status BytecodeInterpreter::RunBuiltinUMulp(const Bytecode& bytecode) {
         XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
         int64_t product_bitwidth = lhs_bitwidth;
         std::vector<InterpValue> outputs;
-        outputs.push_back(InterpValue::MakeUBits(product_bitwidth, 0));
+        InterpValue offset = InterpValue::MakeUnsigned(
+            MulpOffsetForSimulation(product_bitwidth, /*shift_size=*/1));
         XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
-        outputs.push_back(product);
+        XLS_ASSIGN_OR_RETURN(InterpValue product_minus_offset,
+                             product.Sub(offset));
+        outputs.push_back(offset);
+        outputs.push_back(product_minus_offset);
         return InterpValue::MakeTuple(outputs);
       });
 }

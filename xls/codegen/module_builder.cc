@@ -1466,10 +1466,16 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
   func->AddStatement<BlockingAssignment>(
       node->loc(), signed_result,
       file->Mul(signed_lhs, signed_rhs, node->loc()));
+
+  Bits offset_bits = MulpOffsetForSimulation(
+      node->GetType()->AsTupleOrDie()->element_type(0)->GetFlatBitCount(),
+      /*shift_size=*/4);
+  Literal* offset = file->Literal(offset_bits, node->loc());
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
-      file->Concat({file->Literal(0, width, node->loc()),
-                    file->Make<UnsignedCast>(node->loc(), signed_result)},
+      file->Concat({offset, file->Sub(file->Make<UnsignedCast>(node->loc(),
+                                                               signed_result),
+                                      offset, node->loc())},
                    node->loc()));
 
   return func;
@@ -1503,9 +1509,14 @@ absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
                                      /*init=*/nullptr);
   func->AddStatement<BlockingAssignment>(node->loc(), result,
                                          file->Mul(lhs, rhs, node->loc()));
+
+  Bits offset_bits = MulpOffsetForSimulation(
+      node->GetType()->AsTupleOrDie()->element_type(0)->GetFlatBitCount(),
+      /*shift_size=*/4);
+  Literal* offset = file->Literal(offset_bits, node->loc());
   func->AddStatement<BlockingAssignment>(
       node->loc(), func->return_value_ref(),
-      file->Concat({file->Literal(0, width, node->loc()), result},
+      file->Concat({offset, file->Sub(result, offset, node->loc())},
                    node->loc()));
 
   return func;

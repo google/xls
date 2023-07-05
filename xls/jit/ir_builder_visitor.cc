@@ -13,8 +13,17 @@
 // limitations under the License.
 #include "xls/jit/ir_builder_visitor.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "absl/base/config.h"  // IWYU pragma: keep
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
@@ -22,13 +31,19 @@
 #include "llvm/include/llvm/IR/Instructions.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
+#include "llvm/include/llvm/IR/Type.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
@@ -1989,56 +2004,88 @@ absl::Status IrBuilderVisitor::HandleUMul(ArithOp* mul) {
       /*is_signed=*/false);
 }
 
+namespace {
+// Shared implementation for smulp and umulp.
+absl::StatusOr<llvm::Value*> HandleMulp(PartialProductOp* mul,
+                                        NodeIrContext* node_context,
+                                        LlvmTypeConverter* type_converter,
+                                        llvm::LLVMContext& ctx,
+                                        bool is_signed) {
+  llvm::IRBuilder<>& b = node_context->entry_builder();
+
+  llvm::Value* lhs = node_context->LoadOperand(0);
+  llvm::Value* rhs = node_context->LoadOperand(1);
+  if (is_signed) {
+    lhs = type_converter->AsSignedValue(lhs, mul->operand(0)->GetType(),
+                                        node_context->entry_builder());
+    rhs = type_converter->AsSignedValue(rhs, mul->operand(1)->GetType(),
+                                        node_context->entry_builder());
+  }
+
+  xls::Type* result_type = mul->GetType();
+  XLS_RET_CHECK(result_type->IsTuple() &&
+                result_type->AsTupleOrDie()->element_types().size() == 2);
+  llvm::Type* llvm_result_type = type_converter->ConvertToLlvmType(result_type);
+  xls::Type* result_element_type =
+      mul->GetType()->AsTupleOrDie()->element_type(0);
+  llvm::Type* llvm_result_element_type =
+      type_converter->ConvertToLlvmType(result_element_type);
+  XLS_RET_CHECK(result_element_type->IsEqualTo(
+      mul->GetType()->AsTupleOrDie()->element_type(1)));
+
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * offset,
+      type_converter->ToLlvmConstant(
+          result_element_type,
+          Value(MulpOffsetForSimulation(result_element_type->GetFlatBitCount(),
+                                        /*shift_size=*/3))));
+  // The outer int cast is unconditionally unsigned because smulp (like umulp)
+  // returns a tuple of unsigned ints.
+  llvm::Value* product =
+      b.CreateIntCast(b.CreateMul(b.CreateIntCast(lhs, llvm_result_element_type,
+                                                  /*isSigned=*/is_signed),
+                                  b.CreateIntCast(rhs, llvm_result_element_type,
+                                                  /*isSigned=*/is_signed)),
+                      llvm_result_element_type, /*isSigned=*/false);
+  llvm::Value* product_minus_offset = b.CreateSub(product, offset);
+
+  llvm::Value* output_buffer = node_context->GetOutputPtr(0);
+  llvm::Value* output_element0 =
+      b.CreateGEP(llvm_result_type, output_buffer,
+                  {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0),
+                   llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0)});
+  llvm::Value* output_element1 =
+      b.CreateGEP(llvm_result_type, output_buffer,
+                  {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0),
+                   llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 1)});
+  b.CreateStore(offset, output_element0);
+  b.CreateStore(product_minus_offset, output_element1);
+
+  return output_buffer;
+}
+}  // namespace
+
 absl::Status IrBuilderVisitor::HandleSMulp(PartialProductOp* mul) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
 
-  llvm::IRBuilder<>& b = node_context.entry_builder();
-
-  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
-      mul->GetType()->AsTupleOrDie()->element_type(0));
-  llvm::Type* tuple_type = type_converter()->ConvertToLlvmType(mul->GetType());
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
-
-  llvm::Value* lhs = type_converter()->AsSignedValue(
-      node_context.LoadOperand(0), mul->operand(0)->GetType(),
-      node_context.entry_builder());
-  llvm::Value* rhs = type_converter()->AsSignedValue(
-      node_context.LoadOperand(1), mul->operand(1)->GetType(),
-      node_context.entry_builder());
-
-  result = b.CreateInsertValue(
-      result,
-      b.CreateMul(b.CreateIntCast(lhs, result_element_type, /*isSigned=*/true),
-                  b.CreateIntCast(rhs, result_element_type, /*isSigned=*/true)),
-      {1});
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  XLS_ASSIGN_OR_RETURN(llvm::Value * output_buffer,
+                       HandleMulp(mul, &node_context, type_converter(), ctx(),
+                                  /*is_signed=*/true));
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleUMulp(PartialProductOp* mul) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
-
-  llvm::IRBuilder<>& b = node_context.entry_builder();
-
-  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
-      mul->GetType()->AsTupleOrDie()->element_type(0));
-  llvm::Type* tuple_type = type_converter()->ConvertToLlvmType(mul->GetType());
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
-
-  result = b.CreateInsertValue(
-      result,
-      b.CreateMul(
-          b.CreateIntCast(node_context.LoadOperand(0), result_element_type,
-                          /*isSigned=*/false),
-          b.CreateIntCast(node_context.LoadOperand(1), result_element_type,
-                          /*isSigned=*/false)),
-      {1});
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  XLS_ASSIGN_OR_RETURN(llvm::Value * output_buffer,
+                       HandleMulp(mul, &node_context, type_converter(), ctx(),
+                                  /*is_signed=*/false));
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {

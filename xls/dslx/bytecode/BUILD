@@ -149,6 +149,7 @@ cc_library(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_env",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
     ],

@@ -12,7 +12,7 @@ module SmulpAsFunction(
       signed_lhs = $signed(lhs);
       signed_rhs = $signed(rhs);
       signed_result = signed_lhs * signed_rhs;
-      smulp32b_32b_x_32b = {32'h0000_0000, $unsigned(signed_result)};
+      smulp32b_32b_x_32b = {32'h43ff_ffff, $unsigned(signed_result) - 32'h43ff_ffff};
     end
   endfunction
   // lint_on MULTIPLY

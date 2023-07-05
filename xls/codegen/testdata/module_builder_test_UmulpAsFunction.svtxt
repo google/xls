@@ -8,7 +8,7 @@ module UmulpAsFunction(
     reg [31:0] result;
     begin
       result = lhs * rhs;
-      umulp32b_32b_x_32b = {32'h0000_0000, result};
+      umulp32b_32b_x_32b = {32'h43ff_ffff, result - 32'h43ff_ffff};
     end
   endfunction
   // lint_on MULTIPLY

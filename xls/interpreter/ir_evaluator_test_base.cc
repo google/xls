@@ -933,6 +933,57 @@ TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExhaustive) {
   }
 }
 
+// Sign-extending the outputs of a smulp before adding them is not sound. Our
+// evaluation environments should all implement smulp in a way that exposes
+// this. Exhaustively search the input space for an input combination such that
+// sign_extended_smulp(a, b) != smul(a, b)
+TEST_P(IrEvaluatorTestBase, SMulpSignExtensionNotSound) {
+  constexpr std::string_view ir_text = R"(
+  fn sign_extended_smulp(x: bits[8], y: bits[8]) -> bits[24] {
+    smulp.1: (bits[16], bits[16]) = smulp(x, y)
+    tuple_index.2: bits[16] = tuple_index(smulp.1, index=0)
+    tuple_index.3: bits[16] = tuple_index(smulp.1, index=1)
+    sign_ext.4: bits[24] = sign_ext(tuple_index.2, new_bit_count=24)
+    sign_ext.5: bits[24] = sign_ext(tuple_index.3, new_bit_count=24)
+    ret add.6: bits[24] = add(sign_ext.4, sign_ext.5)
+  }
+  )";
+
+  constexpr int64_t x_width = 8;
+  constexpr int64_t y_width = 8;
+  constexpr int64_t result_width = 24;
+
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, ir_text));
+  bool found_mismatch = false;
+  // Iterate through the whole value space for x and y as a cartesian product.
+  for (int x = -(1 << (x_width - 1)); x < (1 << (x_width - 1)) - 1; ++x) {
+    for (int y = -(1 << (y_width - 1)); y < (1 << (y_width - 1)) - 1; ++y) {
+      Bits x_bits = SBits(x, x_width);
+      Bits y_bits = SBits(y, y_width);
+      // The expected result width may be narrower or wider than the
+      // result produced by bits_ops::Umul so just sign extend to a wide
+      // value then slice it to size.
+      Bits product =
+          bits_ops::SignExtend(bits_ops::SMul(x_bits, y_bits), result_width);
+      XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
+                               RunWithBitsNoEvents(function, {x_bits, y_bits}));
+      XLS_VLOG(3) << absl::StreamFormat(
+          "smulp(bits[%d]: %s, bits[%d]: %s) = bits[%d]: %s =? %s", x_width,
+          x_bits.ToString(), y_width, y_bits.ToString(), result_width,
+          actual.ToString(), product.ToString());
+      if (actual != product) {
+        found_mismatch = true;
+        goto after_loop;
+      }
+    }
+  }
+after_loop:
+  EXPECT_TRUE(found_mismatch);
+}
+
+
 TEST_P(IrEvaluatorTestBase, UMulpSimple) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
@@ -1037,6 +1088,56 @@ TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExhaustive) {
       }
     }
   }
+}
+
+// Zero-extending the outputs of a umulp before adding them is not sound. Our
+// evaluation environments should all implement umulp in a way that exposes
+// this. Exhaustively search the input space for an input combination such that
+// zero_extended_umulp(a, b) != umul(a, b)
+TEST_P(IrEvaluatorTestBase, UMulpZeroExtensionNotSound) {
+  constexpr std::string_view ir_text = R"(
+  fn sign_extended_umulp(x: bits[4], y: bits[4]) -> bits[24] {
+    umulp.1: (bits[8], bits[8]) = umulp(x, y)
+    tuple_index.2: bits[8] = tuple_index(umulp.1, index=0)
+    tuple_index.3: bits[8] = tuple_index(umulp.1, index=1)
+    zero_ext.4: bits[24] = zero_ext(tuple_index.2, new_bit_count=24)
+    zero_ext.5: bits[24] = zero_ext(tuple_index.3, new_bit_count=24)
+    ret add.6: bits[24] = add(zero_ext.4, zero_ext.5)
+  }
+  )";
+
+  constexpr int64_t x_width = 4;
+  constexpr int64_t y_width = 4;
+  constexpr int64_t result_width = 24;
+
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, ir_text));
+  bool found_mismatch = false;
+  // Iterate through the whole value space for x and y as a cartesian product.
+  for (int x = 0; x < 1 << x_width; ++x) {
+    for (int y = 0; y < 1 << y_width; ++y) {
+      Bits x_bits = UBits(x, x_width);
+      Bits y_bits = UBits(y, y_width);
+      // The expected result width may be narrower or wider than the
+      // result produced by bits_ops::Umul so just zero extend to a wide
+      // value then slice it to size.
+      Bits product =
+          bits_ops::ZeroExtend(bits_ops::UMul(x_bits, y_bits), result_width);
+      XLS_ASSERT_OK_AND_ASSIGN(Bits actual,
+                               RunWithBitsNoEvents(function, {x_bits, y_bits}));
+      XLS_VLOG(3) << absl::StreamFormat(
+          "umulp(bits[%d]: %s, bits[%d]: %s) = bits[%d]: %s =? %s", x_width,
+          x_bits.ToString(), y_width, y_bits.ToString(), result_width,
+          actual.ToString(), product.ToString());
+      if (actual != product) {
+        found_mismatch = true;
+        goto after_loop;
+      }
+    }
+  }
+after_loop:
+  EXPECT_TRUE(found_mismatch);
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretUDiv) {

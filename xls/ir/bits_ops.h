@@ -15,6 +15,8 @@
 #ifndef XLS_IR_BITS_OPS_H_
 #define XLS_IR_BITS_OPS_H_
 
+#include <cstdint>
+
 #include "xls/ir/bits.h"
 #include "xls/ir/op.h"
 
@@ -172,6 +174,44 @@ Bits operator&(const Bits& lhs, const Bits& rhs);
 Bits operator|(const Bits& lhs, const Bits& rhs);
 Bits operator^(const Bits& lhs, const Bits& rhs);
 Bits operator~(const Bits& bits);
+
+// Note: the following is not a "generically useful" bit op like the above
+// declarations, but it is used in multiple places and operates purely on bits.
+// For now, this seems like the best place to put it, but it is not really like
+// the other things in this file.
+
+// Computes a fixed offset for mulp operations, e.g. smulp(a, b) = (OFFSET,
+// a*b-OFFSET). The purpose of this offset is to prevent naive mulp
+// implementations from masking incorrect behavior.
+//
+// smulp and umulp return a 2-tuple with elements that can be any values
+// satisfying smulp(a, b).0 + smulp(a, b).1 = a * b. Our simulation environments
+// have to choose a particular implementation, and some are better than others.
+// The naive (0, a*b) can hide the unsoundness of some optimizations: in
+// particular, sign_ext(add(a, b)) and add(sign_ext(a), sign_ext(b)) are
+// equivlent if a is 0 (i.e. the naive smulp implementation), but are not
+// equivalent in general. Mulp implementations should choose a value OFFSET and
+// return (OFFSET, a*b-OFFSET), and the OFFSET value should guarantee that some
+// input values will produce different results if you extend before summing the
+// mulp results. One way to guarantee this is to choose offset with 01 as MSBs.
+// As long as a carry-in can occur for the inputs (guaranteed as long as both
+// OFFSET and a*b are not all zero after their MSBs), the extend-then-add
+// expression will evaluate to different values than the add-then-extend
+// expression in some cases. Each different runtime environment should choose
+// different LSBs to further protect against incorrect smulp usages that happen
+// to produce correct outputs most of the time.
+//
+// Note that even though the above discusses signed multiplies, it should still
+// be used for umulps. It is possible for smulps to get lowered into umulps and
+// the offsets for signed multiplies can still produce a carry out that will
+// result in mismatch for umulp(zero_ext(a), zero_ext(b)) != zero_ext(umulp(a,
+// b)).
+//
+// Args:
+//  result_size: the size of each element in the result tuple of the mulp.
+//  shift_size: the amount the right-shift the LSBs by, should be distinct for
+//  each runtime.
+Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size);
 
 }  // namespace xls
 

@@ -14,6 +14,11 @@
 
 #include "xls/interpreter/ir_interpreter.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -29,6 +34,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -637,17 +643,16 @@ absl::Status IrInterpreter::HandleSMulp(PartialProductOp* mul) {
   XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
   Bits result = bits_ops::SMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
-  Value zero((Bits(mul_width)));
+
+  Bits offset = MulpOffsetForSimulation(mul_width, /*shift_size=*/2);
   if (result.bit_count() > mul_width) {
-    return SetValueResult(
-        mul, Value::Tuple({zero, Value(result.Slice(0, mul_width))}));
+    result = result.Slice(0, mul_width);
+  } else if (result.bit_count() < mul_width) {
+    result = bits_ops::SignExtend(result, mul_width);
   }
-  if (result.bit_count() < mul_width) {
-    return SetValueResult(
-        mul,
-        Value::Tuple({zero, Value(bits_ops::SignExtend(result, mul_width))}));
-  }
-  return SetValueResult(mul, Value::Tuple({zero, Value(result)}));
+  // Return an unsigned result.
+  return SetValueResult(
+      mul, Value::Tuple({Value(offset), Value(bits_ops::Sub(result, offset))}));
 }
 
 absl::Status IrInterpreter::HandleUMulp(PartialProductOp* mul) {
@@ -655,17 +660,14 @@ absl::Status IrInterpreter::HandleUMulp(PartialProductOp* mul) {
   XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
   Bits result = bits_ops::UMul(ResolveAsBits(mul->operand(0)),
                                ResolveAsBits(mul->operand(1)));
-  Value empty((Bits(mul_width)));
+  Bits offset = MulpOffsetForSimulation(mul_width, /*shift_size=*/2);
   if (result.bit_count() > mul_width) {
-    return SetValueResult(
-        mul, Value::Tuple({empty, Value(result.Slice(0, mul_width))}));
+    result = result.Slice(0, mul_width);
+  } else if (result.bit_count() < mul_width) {
+    result = bits_ops::ZeroExtend(result, mul_width);
   }
-  if (result.bit_count() < mul_width) {
-    return SetValueResult(
-        mul,
-        Value::Tuple({empty, Value(bits_ops::ZeroExtend(result, mul_width))}));
-  }
-  return SetValueResult(mul, Value::Tuple({empty, Value(result)}));
+  return SetValueResult(
+      mul, Value::Tuple({Value(offset), Value(bits_ops::Sub(result, offset))}));
 }
 
 absl::Status IrInterpreter::HandleNe(CompareOp* ne) {

@@ -14,10 +14,13 @@
 
 #include "xls/ir/bits_ops.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <vector>
 
 #include "xls/common/logging/logging.h"
 #include "xls/ir/big_int.h"
+#include "xls/ir/bits.h"
 
 namespace xls {
 namespace bits_ops {
@@ -591,5 +594,18 @@ Bits operator^(const Bits& lhs, const Bits& rhs) {
   return bits_ops::Xor(lhs, rhs);
 }
 Bits operator~(const Bits& bits) { return bits_ops::Not(bits); }
+
+Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
+  int64_t offset_lsbs_size = std::max(0l, result_size - 2);
+  int64_t msbs_size = result_size - offset_lsbs_size;
+  int64_t offset_lsbs_shift_amount =
+      std::max(0l, std::min(offset_lsbs_size - 1, shift_size));
+  Bits offset_bits = bits_ops::ShiftRightLogical(
+      Bits::AllOnes(offset_lsbs_size), offset_lsbs_shift_amount);
+  if (msbs_size > 0) {
+    offset_bits = bits_ops::Concat({Bits::MaxSigned(msbs_size), offset_bits});
+  }
+  return offset_bits;
+}
 
 }  // namespace xls
