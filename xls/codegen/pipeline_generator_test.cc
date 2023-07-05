@@ -14,15 +14,23 @@
 
 #include "xls/codegen/pipeline_generator.h"
 
+#include <memory>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
-#include "xls/codegen/flattening.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/substitute.h"
+#include "xls/codegen/module_signature.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_test_base.h"
@@ -1067,6 +1075,55 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
   }
 
   XLS_ASSERT_OK(tb.Run());
+}
+
+TEST_P(PipelineGeneratorTest, IIGreaterThanOne) {
+  const std::string ir_text = absl::Substitute(R"(package $0
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+#[initiation_interval(2)]
+proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
+  send.1: token = send(tkn, st, channel_id=1, id=1)
+  min_delay.2: token = min_delay(send.1, delay=1, id=2)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  next (send.6, tuple_index.5)
+}
+)",
+                                               TestBaseName());
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           xls::Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           package->GetProc("ii_greater_than_one"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(
+          proc, TestDelayEstimator(),
+          SchedulingOptions().clock_period_ps(50).pipeline_stages(2)));
+
+  ResetProto reset_proto;
+  reset_proto.set_name("rst");
+  reset_proto.set_asynchronous(false);
+  reset_proto.set_active_low(false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleGeneratorResult result,
+      ToPipelineModuleText(
+          schedule, proc,
+          BuildPipelineOptions()
+              .reset(reset_proto.name(), reset_proto.asynchronous(),
+                     reset_proto.active_low(), reset_proto.reset_data_path())
+              .use_system_verilog(UseSystemVerilog())));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
 }
 
 INSTANTIATE_TEST_SUITE_P(PipelineGeneratorTestInstantiation,

@@ -140,10 +140,10 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
       pipeline_control = PipelineControl();
       *(pipeline_control->mutable_valid()) = options.valid_control().value();
     }
-    // We assume initiation-interval of one because that is all we generate at
-    // the moment.
-    b.WithPipelineInterface(register_levels, /*initiation_interval=*/1,
-                            pipeline_control);
+    b.WithPipelineInterface(
+        register_levels,
+        /*initiation_interval=*/func_base->GetInitiationInterval().value_or(1),
+        pipeline_control);
   }
 
   return b.Build();

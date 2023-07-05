@@ -14,13 +14,16 @@
 
 #include "xls/interpreter/block_interpreter.h"
 
+#include <cstdint>
 #include <optional>
 #include <random>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -455,6 +458,9 @@ absl::Status ChannelSink::GetBlockOutputs(
   if (is_ready_ && valid) {
     Value data = outputs.at(data_name_);
     data_sequence_.push_back(data);
+    data_per_cycle_.push_back(data);
+  } else {
+    data_per_cycle_.push_back(std::nullopt);
   }
 
   return absl::OkStatus();
@@ -467,6 +473,24 @@ absl::StatusOr<std::vector<uint64_t>> ChannelSink::GetOutputSequenceAsUint64()
 
   for (const Value& v : data_sequence_) {
     const Bits& bits_output = v.bits();
+    XLS_ASSIGN_OR_RETURN(uint64_t v_as_int, bits_output.ToUint64());
+    ret.push_back(v_as_int);
+  }
+
+  return ret;
+}
+
+absl::StatusOr<std::vector<std::optional<uint64_t>>>
+ChannelSink::GetOutputCycleSequenceAsUint64() const {
+  std::vector<std::optional<uint64_t>> ret;
+  ret.reserve(data_per_cycle_.size());
+
+  for (const std::optional<Value>& v : data_per_cycle_) {
+    if (!v.has_value()) {
+      ret.push_back(std::nullopt);
+      continue;
+    }
+    const Bits& bits_output = v->bits();
     XLS_ASSIGN_OR_RETURN(uint64_t v_as_int, bits_output.ToUint64());
     ret.push_back(v_as_int);
   }

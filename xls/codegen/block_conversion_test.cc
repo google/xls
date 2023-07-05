@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -25,9 +26,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/interpreter/block_interpreter.h"
@@ -52,9 +55,31 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::_;
 using testing::ElementsAre;
-using testing::HasSubstr;
+using testing::Ge;
 using testing::Pair;
+using testing::SizeIs;
 using testing::UnorderedElementsAre;
+
+MATCHER_P2(First, n, matcher,
+           absl::StrFormat("(looking at just the first %d elements) %s", n,
+                           testing::DescribeMatcher<arg_type>(matcher,
+                                                              negation))) {
+  if (!testing::Matches(SizeIs(Ge(n)))(arg)) {
+    return testing::ExplainMatchResult(SizeIs(Ge(n)), arg, result_listener);
+  }
+  return testing::ExplainMatchResult(matcher, absl::MakeSpan(arg).first(n),
+                                     result_listener);
+}
+MATCHER_P2(Skipping, n, matcher,
+           absl::StrFormat("(skipping the first %d elements) %s", n,
+                           testing::DescribeMatcher<arg_type>(matcher,
+                                                              negation))) {
+  if (!testing::Matches(SizeIs(Ge(n)))(arg)) {
+    return testing::ExplainMatchResult(SizeIs(Ge(n)), arg, result_listener);
+  }
+  return testing::ExplainMatchResult(matcher, absl::MakeSpan(arg).subspan(n),
+                                     result_listener);
+}
 
 // Specialization of IrTestBase for testing of simple blocks.
 class BlockConversionTest : public IrTestBase {
@@ -3364,7 +3389,7 @@ proc pipelined_proc(tkn: token, st: bits[32], init={1}) {
               IsOkAndHolds(testing::ElementsAreArray(expected_output)));
 }
 
-TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneNotSupported) {
+TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOne) {
   const std::string ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
@@ -3401,9 +3426,121 @@ proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  ASSERT_THAT(
-      ProcToPipelinedBlock(schedule, options, proc),
-      StatusIs(absl::StatusCode::kInternal, HasSubstr("requires II > 1")));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("in_data", "in_valid", "in_ready", 1.0, block),
+  };
+  XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out_data", "out_valid", "out_ready", 1.0, block,
+                  /*reset_behavior=*/ChannelSink::kIgnoreValid),
+      ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block,
+                  /*reset_behavior=*/ChannelSink::kIgnoreValid),
+  };
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+      20, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{reset_name, reset_active}}, inputs));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 results,
+                           InterpretChannelizedSequentialBlockWithUint64(
+                               block, absl::MakeSpan(sources),
+                               absl::MakeSpan(sinks), inputs, options.reset()));
+  EXPECT_THAT(
+      sinks.at(0).GetOutputCycleSequenceAsUint64(),
+      IsOkAndHolds(Skipping(
+          10, ElementsAre(0, std::nullopt, 10, std::nullopt, 20, std::nullopt,
+                          30, std::nullopt, std::nullopt, std::nullopt))));
+  EXPECT_THAT(sinks.at(1).GetOutputCycleSequenceAsUint64(),
+              IsOkAndHolds(Skipping(
+                  10, ElementsAre(std::nullopt, 10, std::nullopt, 20,
+                                  std::nullopt, 30, std::nullopt, std::nullopt,
+                                  std::nullopt, std::nullopt))));
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 10, 20, 30)));
+  EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(10, 20, 30)));
+}
+
+TEST_F(ProcConversionTestFixture, ProcIIGreaterThanOneRandomStalls) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+chan in_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
+
+#[initiation_interval(2)]
+proc pipelined_proc(tkn: token, st: bits[32], init={0}) {
+  send.1: token = send(tkn, st, channel_id=1, id=1)
+  min_delay.2: token = min_delay(send.1, delay=1, id=2)
+  receive.3: (token, bits[32]) = receive(min_delay.2, channel_id=0, id=3)
+  tuple_index.4: token = tuple_index(receive.3, index=0, id=4)
+  tuple_index.5: bits[32] = tuple_index(receive.3, index=1, id=5)
+  send.6: token = send(tuple_index.4, tuple_index.5, channel_id=2, id=6)
+  next (send.6, tuple_index.5)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("pipelined_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_VLOG(2) << "Block IR:\n" << block->DumpIr();
+
+  std::string reset_name = options.reset()->name();
+  uint64_t reset_active = options.reset()->active_low() ? 0 : 1;
+  uint64_t reset_inactive = options.reset()->active_low() ? 1 : 0;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(
+      50, {{reset_name, reset_inactive}});
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{reset_name, reset_active}}, inputs));
+
+  for (int32_t i = 0; i < 100; ++i) {
+    int32_t seed = 100000 + 5000 * i;
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("in_data", "in_valid", "in_ready",
+                      /*lambda=*/0.5, block),
+    };
+    XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out_data", "out_valid", "out_ready", /*lambda=*/0.5, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+        ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block,
+                    /*reset_behavior=*/ChannelSink::kIgnoreValid),
+    };
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockIOResultsAsUint64 results,
+        InterpretChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs,
+            options.reset(), seed));
+    EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(0, 10, 20, 30)));
+    EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(10, 20, 30)));
+  }
 }
 
 TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {

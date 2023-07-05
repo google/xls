@@ -15,6 +15,7 @@
 #ifndef XLS_INTERPRETER_BLOCK_INTERPRETER_H_
 #define XLS_INTERPRETER_BLOCK_INTERPRETER_H_
 
+#include <optional>
 #include <random>
 
 #include "absl/container/flat_hash_map.h"
@@ -194,6 +195,13 @@ class ChannelSink {
   absl::StatusOr<std::vector<uint64_t>> GetOutputSequenceAsUint64() const;
   absl::Span<const Value> GetOutputSequence() const { return data_sequence_; }
 
+  // Returns the sequence of values read from the block each cycle.
+  absl::StatusOr<std::vector<std::optional<uint64_t>>>
+  GetOutputCycleSequenceAsUint64() const;
+  absl::Span<const std::optional<Value>> GetOutputCycleSequence() const {
+    return data_per_cycle_;
+  }
+
  private:
   std::string data_name_;
   std::string valid_name_;
@@ -206,6 +214,8 @@ class ChannelSink {
 
   bool is_ready_ = false;             // Ready is asserted.
   std::vector<Value> data_sequence_;  // Data sequence received.
+  std::vector<std::optional<Value>>
+      data_per_cycle_;  // Data received each cycle.
 };
 
 struct BlockIOResults {
