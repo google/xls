@@ -88,6 +88,13 @@ py_binary(
 )
 
 cc_library(
+    name = "xlscc_logging",
+    hdrs = [
+        "xlscc_logging.h",
+    ],
+)
+
+cc_library(
     name = "translator",
     srcs = [
         "translate_block.cc",
@@ -99,12 +106,12 @@ cc_library(
     ],
     hdrs = [
         "translator.h",
-        "xlscc_logging.h",
     ],
     deps = [
         ":cc_parser",
         ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
+        ":xlscc_logging",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

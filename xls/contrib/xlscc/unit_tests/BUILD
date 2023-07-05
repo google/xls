@@ -30,6 +30,7 @@ cc_library(
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:hls_block_cc_proto",
         "//xls/contrib/xlscc:translator",
+        "//xls/contrib/xlscc:xlscc_logging",
         "//xls/interpreter:interpreter_proc_runtime",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:serial_proc_runtime",
