@@ -37,8 +37,10 @@ FunctionType* Function::GetType() {
 std::string Function::DumpIr() const {
   std::string res;
   if (ForeignFunctionData().has_value()) {
-    absl::StrAppend(&res, "#[ffi(\"",
-                    ForeignFunctionData()->code_template.ToString(), "\")]\n");
+    // Triple-quoted attribute strings allow for newlines.
+    absl::StrAppend(&res, "#[ffi(\"\"\"",
+                    ForeignFunctionData()->code_template.ToString(),
+                    "\"\"\")]\n");
   }
 
   absl::StrAppend(&res, "fn " + name() + "(");
