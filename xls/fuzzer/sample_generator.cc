@@ -167,6 +167,7 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
     args.push_back("--flop_inputs=true");
     args.push_back("--flop_inputs_kind=zerolatency");
   }
+  args.push_back("--output_block_ir_path=sample.block.ir");
   return args;
 }
 

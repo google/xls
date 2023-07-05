@@ -78,6 +78,20 @@ class RunFuzzTest(parameterized.TestCase):
         codegen=True,
         simulate=True)
 
+  def test_files_generated(self):
+    run_dir = self._create_tempdir()
+    run_fuzz.generate_sample_and_run(
+        ast_generator.ValueGenerator(42),
+        self._get_ast_options(),
+        self._get_sample_options(),
+        run_dir=run_dir,
+        crasher_dir=self._crasher_dir,
+    )
+    self.assertTrue(os.path.exists(os.path.join(run_dir, 'sample.ir')))
+    self.assertTrue(os.path.exists(os.path.join(run_dir, 'sample.opt.ir')))
+    self.assertTrue(os.path.exists(os.path.join(run_dir, 'sample.block.ir')))
+    self.assertTrue(os.path.exists(os.path.join(run_dir, 'sample.v')))
+
   @parameterized.named_parameters(*tuple(
       dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(50)))
   def test_first_n_seeds(self, seed):
