@@ -66,7 +66,7 @@ class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
   absl::Status HandleInvocation(const dslx::Invocation* n) override {
-    has_nb_recv_ = IsBuiltinNameRef(n->callee(), "recv_if") ||
+    has_nb_recv_ = IsBuiltinNameRef(n->callee(), "recv_non_blocking") ||
                    IsBuiltinNameRef(n->callee(), "recv_if_non_blocking");
     return absl::OkStatus();
   }
