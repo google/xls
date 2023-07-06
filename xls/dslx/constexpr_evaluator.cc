@@ -36,8 +36,8 @@
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
-#include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -522,6 +522,10 @@ absl::Status ConstexprEvaluator::HandleSplatStructInstance(
   for (const auto& [k, v] : expr->members()) {
     EVAL_AS_CONSTEXPR_OR_RETURN(v);
   }
+  return InterpretExpr(expr);
+}
+
+absl::Status ConstexprEvaluator::HandleString(const String* expr) {
   return InterpretExpr(expr);
 }
 

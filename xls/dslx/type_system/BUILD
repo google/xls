@@ -381,6 +381,8 @@ cc_library(
     srcs = ["type_info.cc"],
     hdrs = ["type_info.h"],
     deps = [
+        ":concrete_type",
+        ":parametric_env",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/meta:type_traits",
@@ -388,10 +390,10 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
-        "//xls/dslx/type_system:concrete_type",
-        "//xls/dslx/type_system:parametric_env",
     ],
 )
 

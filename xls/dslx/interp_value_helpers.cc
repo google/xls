@@ -29,6 +29,8 @@
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
 
@@ -361,6 +363,24 @@ absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
     args_batch.push_back(std::move(args));
   }
   return args_batch;
+}
+
+absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v) {
+  if (!v.IsArray()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "InterpValue must be an array of u8s, got %s", v.ToString()));
+  }
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements, v.GetValues());
+  std::string result;
+  result.reserve(elements->size() + 1);
+  for (const InterpValue& element : *elements) {
+    XLS_RET_CHECK(element.IsBits() && element.FitsInNBitsUnsigned(8))
+        << "Array elements must be u8.";
+    XLS_ASSIGN_OR_RETURN(int64_t element_byte,
+                         element.GetBitsOrDie().ToInt64());
+    result.push_back(static_cast<uint8_t>(element_byte));
+  }
+  return result;
 }
 
 }  // namespace xls::dslx

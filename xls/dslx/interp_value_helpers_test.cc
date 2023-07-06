@@ -20,17 +20,20 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/statusor.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
-#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 
 namespace xls::dslx {
 namespace {
+using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
 
 TEST(InterpValueHelpersTest, CastBitsToArray) {
   InterpValue input(InterpValue::MakeU32(0xa5a5a5a5));
@@ -154,6 +157,37 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   InterpValue u1_zero = InterpValue::MakeUBits(/*bit_count=*/1, 0);
 
   EXPECT_TRUE(InterpValue::MakeTuple({u8_zero, u1_zero}).Eq(struct_zero));
+}
+
+TEST(InterpValueHelpersTest, InterpValueAsStringWorks) {
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue hello_world_u8_array,
+                           InterpValue::MakeArray({
+                               InterpValue::MakeUBits(/*bit_count=*/8, 72),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 101),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 108),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 108),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 111),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 32),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 119),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 111),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 114),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 108),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 100),
+                               InterpValue::MakeUBits(/*bit_count=*/8, 33),
+                           }));
+  EXPECT_THAT(InterpValueAsString(hello_world_u8_array),
+              IsOkAndHolds("Hello world!"));
+
+  EXPECT_THAT(InterpValueAsString(InterpValue::MakeUBits(/*bit_count=*/8, 72)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("must be an array")));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue u9_array,
+      InterpValue::MakeArray({InterpValue::MakeUBits(/*bit_count=*/9, 257)}));
+  EXPECT_THAT(InterpValueAsString(u9_array),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Array elements must be u8")));
 }
 
 }  // namespace

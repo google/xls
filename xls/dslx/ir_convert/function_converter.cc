@@ -14,21 +14,60 @@
 
 #include "xls/dslx/ir_convert/function_converter.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_convert/convert_format_macro.h"
+#include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
+#include "xls/dslx/ir_convert/proc_config_ir_converter.h"
+#include "xls/dslx/mangle.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/fileno.h"
+#include "xls/ir/format_strings.h"
+#include "xls/ir/function.h"
+#include "xls/ir/function_builder.h"
+#include "xls/ir/lsb_or_msb.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
+#include "xls/ir/value.h"
+#include "xls/ir/verifier.h"
 
 namespace xls::dslx {
 namespace {
@@ -1498,6 +1537,7 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
 }
 
 absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
+                                                  Expr* label_expr,
                                                   BValue arg) {
   if (options_.emit_fail_as_assert) {
     // For a fail node we both create a predicate that corresponds to the
@@ -1507,11 +1547,22 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
         << node->span();
     XLS_RET_CHECK(implicit_token_data_->create_control_predicate != nullptr);
     BValue control_predicate = implicit_token_data_->create_control_predicate();
+
+    std::optional<std::string> label;
+    ParametricEnv bindings(parametric_env_map_);
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        import_data_, current_type_info_, bindings, label_expr));
+
+    std::optional<InterpValue> start_value =
+        current_type_info_->GetConstExprOption(label_expr);
+    if (start_value.has_value()) {
+      XLS_ASSIGN_OR_RETURN(label, InterpValueAsString(start_value.value()));
+    }
     std::string message = absl::StrFormat("Assertion failure via fail! @ %s",
-                                          node->span().ToString());
+                              node->span().ToString());
     BValue assert_result_token = function_builder_->Assert(
         implicit_token_data_->entry_token,
-        function_builder_->Not(control_predicate), message);
+        function_builder_->Not(control_predicate), message, label);
     implicit_token_data_->control_tokens.push_back(assert_result_token);
     tokens_.push_back(assert_result_token);
   }
@@ -1623,7 +1674,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 2)
         << called_name << " builtin requires two arguments";
-    return HandleFailBuiltin(node, args[1]);
+    return HandleFailBuiltin(node, /*label_expr=*/node->args()[0],
+                             /*arg=*/args[1]);
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
@@ -2536,7 +2588,7 @@ absl::Status FunctionConverter::HandleBlock(const Block* node) {
 
   for (const Statement* s : node->statements()) {
     // We just want to see if it's an expr for "last expr in the block"
-    // purposes. Generaly we'll do Visit on the statement node to handle its
+    // purposes. Generally we'll do Visit on the statement node to handle its
     // contents.
     if (std::holds_alternative<Expr*>(s->wrapped())) {
       last_expr = std::get<Expr*>(s->wrapped());

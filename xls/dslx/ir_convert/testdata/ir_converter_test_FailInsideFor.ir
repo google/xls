@@ -11,7 +11,7 @@ fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: 
   identity.15: bits[32] = identity(tuple_index.11, id=15)
   add.7: bits[32] = add(i, literal.6, id=7)
   literal.12: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=12)
-  assert.14: token = assert(tuple_index.9, not.13, message="Assertion failure via fail! @ test_module.x:4:10-4:24", id=14)
+  assert.14: token = assert(tuple_index.9, not.13, message="Assertion failure via fail! @ test_module.x:4:10-4:24", label="failure", id=14)
   ret tuple.16: (token, bits[1], bits[32]) = tuple(tuple_index.9, tuple_index.10, identity.15, id=16)
 }
 

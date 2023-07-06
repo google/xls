@@ -15,12 +15,40 @@
 #ifndef XLS_DSLX_IR_CONVERT_FUNCTION_CONVERTER_H_
 #define XLS_DSLX_IR_CONVERT_FUNCTION_CONVERTER_H_
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
+#include "xls/dslx/ir_convert/extract_conversion_order.h"
 #include "xls/dslx/ir_convert/proc_config_ir_converter.h"
 #include "xls/dslx/mangle.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xls::dslx {
 
@@ -296,7 +324,8 @@ class FunctionConverter {
                                    std::vector<BValue> args);
 
   // Handles the fail!() builtin invocation.
-  absl::Status HandleFailBuiltin(const Invocation* node, BValue arg);
+  absl::Status HandleFailBuiltin(const Invocation* node, Expr* label_expr,
+                                 BValue arg);
 
   // Handles the cover!() builtin invocation.
   absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);

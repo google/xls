@@ -28,8 +28,10 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -102,6 +104,26 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
       absl::StrFormat("No constexpr value found for node `%s` (%s) @ %s",
                       const_expr->ToString(), const_expr->GetNodeTypeName(),
                       SpanToString(const_expr->GetSpan())));
+}
+
+std::optional<InterpValue> TypeInfo::GetConstExprOption(
+    const AstNode* const_expr) const {
+  XLS_CHECK_EQ(const_expr->owner(), module_)
+      << const_expr->owner()->name() << " vs " << module_->name()
+      << " node: " << const_expr->ToString();
+
+  if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
+    return it->second.value();
+  }
+
+  if (parent_ != nullptr) {
+    // In a case where a [child] type info is for a parametric function
+    // specialization, it won't contain top-level constants, but its parent
+    // [transitively] will.
+    return parent_->GetConstExprOption(const_expr);
+  }
+
+  return std::nullopt;
 }
 
 bool TypeInfo::IsKnownConstExpr(const AstNode* node) const {

@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -237,6 +238,8 @@ class TypeInfo {
   bool IsKnownConstExpr(const AstNode* node) const;
   bool IsKnownNonConstExpr(const AstNode* node) const;
   absl::StatusOr<InterpValue> GetConstExpr(const AstNode* const_expr) const;
+  std::optional<InterpValue> GetConstExprOption(
+      const AstNode* const_expr) const;
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.

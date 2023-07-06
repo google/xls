@@ -5,7 +5,7 @@ file_number 0 "test_module.x"
 fn __itok__test_module__callee_callee(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   not.7: bits[1] = not(__activated, id=7)
   literal.5: bits[32] = literal(value=3, id=5)
-  assert.8: token = assert(__token, not.7, message="Assertion failure via fail! @ test_module.x:3:8-3:30", id=8)
+  assert.8: token = assert(__token, not.7, message="Assertion failure via fail! @ test_module.x:3:8-3:30", label="failure", id=8)
   ugt.6: bits[1] = ugt(x, literal.5, id=6)
   after_all.10: token = after_all(assert.8, id=10)
   literal.4: bits[8][7] = literal(value=[102, 97, 105, 108, 117, 114, 101], id=4)

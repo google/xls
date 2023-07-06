@@ -16,6 +16,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -105,6 +106,10 @@ absl::StatusOr<std::vector<InterpValue>> ParseArgs(std::string_view args_text);
 // Does the above, but for a series of argument strings, one per line of input.
 absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
     std::string_view args_text);
+
+// Converts an InterpValue of type u8[len] to a string. Assumes the InterpValue
+// is utf8 encoded like everything else.
+absl::StatusOr<std::string> InterpValueAsString(const InterpValue& v);
 
 }  // namespace xls::dslx
 

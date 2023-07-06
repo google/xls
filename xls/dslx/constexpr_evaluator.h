@@ -79,9 +79,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleSpawn(const Spawn* expr) override {
     return absl::OkStatus();
   }
-  absl::Status HandleString(const String* expr) override {
-    return absl::OkStatus();
-  }
+  absl::Status HandleString(const String* expr) override;
   absl::Status HandleStructInstance(const StructInstance* expr) override;
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* expr) override;
