@@ -325,7 +325,8 @@ TEST(IrParserTest, ParseFunctionWithFFI) {
   ParsePackageAndCheckDump(
       R"(package test
 
-#[ffi("""verilog_module {fn} (.in({a}));""")]
+#[ffi_proto("""code_template: "verilog_module {fn} (.in({a}));"
+""")]
 fn fun(a: bits[23]) -> bits[42] {
   ret umul.1: bits[42] = umul(a, a, id=1)
 })");
@@ -335,9 +336,8 @@ TEST(IrParserTest, ParseFunctionWithNewlineInFFI) {
   ParsePackageAndCheckDump(
       R"(package test
 
-#[ffi("""verilog_module {fn} (
-     .in({a})
-      );""")]
+#[ffi_proto("""code_template: "verilog_module {fn} (\n.in({a})\n);"
+""")]
 fn fun(a: bits[23]) -> bits[42] {
   ret umul.1: bits[42] = umul(a, a, id=1)
 })");

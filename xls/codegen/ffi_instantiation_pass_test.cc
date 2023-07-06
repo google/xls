@@ -61,7 +61,7 @@ TEST_F(FfiInstantiationPassTest, InvocationsReplacedByInstance) {
   const BValue param_b = fb.Param("b", u17);
   const BValue add = fb.Add(param_a, fb.ZeroExtend(param_b, 32));
   XLS_ASSERT_OK_AND_ASSIGN(ForeignFunctionData ffd,
-                           ForeignFunctionData::CreateFromTemplate(
+                           ForeignFunctionDataCreateFromTemplate(
                                "foo {fn} (.ma({a}), .mb{b}) .out({return})"));
   fb.SetForeignFunctionData(ffd);
   XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(add));
@@ -125,7 +125,7 @@ TEST_F(FfiInstantiationPassTest, FunctionTakingNoParametersJustReturns) {
   BValue retval = fb.Literal(UBits(42, kReturnBitCount));
   XLS_ASSERT_OK_AND_ASSIGN(
       ForeignFunctionData ffd,
-      ForeignFunctionData::CreateFromTemplate("foo {fn} (.out({return}))"));
+      ForeignFunctionDataCreateFromTemplate("foo {fn} (.out({return}))"));
   fb.SetForeignFunctionData(ffd);
   XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(retval));
 
@@ -159,8 +159,8 @@ TEST_F(FfiInstantiationPassTest, FunctionReturningTuple) {
                             fb.Literal(UBits(24, kReturnBitCount[1]))});
   XLS_ASSERT_OK_AND_ASSIGN(
       ForeignFunctionData ffd,
-      ForeignFunctionData::CreateFromTemplate("foo {fn} (.foo({return.0}), "
-                                              ".bar({return.1}))"));
+      ForeignFunctionDataCreateFromTemplate("foo {fn} (.foo({return.0}), "
+                                            ".bar({return.1}))"));
   fb.SetForeignFunctionData(ffd);
   XLS_ASSERT_OK_AND_ASSIGN(Function * ffi_fun, fb.BuildWithReturnValue(retval));
 

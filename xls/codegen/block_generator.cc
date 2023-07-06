@@ -726,7 +726,9 @@ class BlockGenerator {
                      dynamic_cast<ExternInstantiation*>(instantiation)) {
         mb_.instantiation_section()->Add<TemplateInstantiation>(
             SourceInfo(), ffi_instantiation->name(),
-            ffi_instantiation->function()->ForeignFunctionData()->code_template,
+            ffi_instantiation->function()
+                ->ForeignFunctionData()
+                ->code_template(),
             connections);
       }
     }

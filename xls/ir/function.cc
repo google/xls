@@ -14,10 +14,13 @@
 
 #include "xls/ir/function.h"
 
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "google/protobuf/text_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
@@ -37,10 +40,11 @@ FunctionType* Function::GetType() {
 std::string Function::DumpIr() const {
   std::string res;
   if (ForeignFunctionData().has_value()) {
+    std::string serialized;
+    XLS_CHECK(
+        google::protobuf::TextFormat::PrintToString(*ForeignFunctionData(), &serialized));
     // Triple-quoted attribute strings allow for newlines.
-    absl::StrAppend(&res, "#[ffi(\"\"\"",
-                    ForeignFunctionData()->code_template.ToString(),
-                    "\"\"\")]\n");
+    absl::StrAppend(&res, "#[ffi_proto(\"\"\"", serialized, "\"\"\")]\n");
   }
 
   absl::StrAppend(&res, "fn " + name() + "(");

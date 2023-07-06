@@ -29,6 +29,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/foreign_function.h"
 
 namespace xls {
 namespace verilog {
@@ -1235,7 +1236,10 @@ std::string Instantiation::Emit(LineInfo* line_info) const {
 std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::vector<std::string> replacements;
-  for (const std::string& original : code_template_.Expressions()) {
+  absl::StatusOr<CodeTemplate> code_template =
+      CodeTemplate::Create(template_text_);
+  XLS_CHECK(code_template.ok());  // Already verified earlier.
+  for (const std::string& original : code_template->Expressions()) {
     if (original == "fn") {
       replacements.push_back(instance_name_);
       continue;
@@ -1247,7 +1251,7 @@ std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
         << "ExternInstantiation: cant map: template value '" << original << "'";
     replacements.push_back(found->expression->Emit(line_info));
   }
-  std::string result = code_template_.FillTemplate(replacements).value();
+  std::string result = code_template->FillTemplate(replacements).value();
   absl::StrAppend(&result, ";");
   LineInfoIncrease(line_info, NumberOfNewlines(result));
   LineInfoEnd(line_info, this);

@@ -14,6 +14,7 @@
 
 #include "xls/codegen/vast.h"
 
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -844,9 +845,7 @@ TEST_P(VastTest, TemplateInstantiationTest) {
       f.Make<WireDef>(SourceInfo(), "o_ret", f.BitVectorType(32, SourceInfo()));
   auto* ret_ref = f.Make<LogicRef>(SourceInfo(), ret_def);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      CodeTemplate code_template,
-      CodeTemplate::Create("foo {fn} (.x({a}), .out({return}))"));
+  const std::string_view code_template = "foo {fn} (.x({a}), .out({return}))";
 
   auto* instantiation =
       f.Make<TemplateInstantiation>(SourceInfo(),

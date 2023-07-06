@@ -48,6 +48,7 @@
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/instantiation.h"
@@ -1745,10 +1746,13 @@ absl::StatusOr<Function*> Parser::ParseFunction(
     if (attribute == "initiation_interval") {
       XLS_ASSIGN_OR_RETURN(int64_t ii, literal.GetValueInt64());
       result->SetInitiationInterval(ii);
-    } else if (attribute == "ffi") {
-      XLS_ASSIGN_OR_RETURN(
-          ForeignFunctionData ffi,
-          ForeignFunctionData::CreateFromTemplate(literal.value()));
+    } else if (attribute == "ffi_proto") {
+      ForeignFunctionData ffi;
+      if (!google::protobuf::TextFormat::ParseFromString(literal.value(), &ffi)) {
+        return absl::InvalidArgumentError("Non-parseable FFI metadata proto.");
+      }
+      // Dummy parse to make sure it is a valid template.
+      XLS_RETURN_IF_ERROR(CodeTemplate::Create(ffi.code_template()).status());
       result->SetForeignFunctionData(ffi);
     } else {
       return absl::InvalidArgumentError(

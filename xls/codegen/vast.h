@@ -733,12 +733,12 @@ class Instantiation : public VastNode {
 class TemplateInstantiation : public Instantiation {
  public:
   TemplateInstantiation(std::string_view instance_name,
-                        const CodeTemplate& code_template,
+                        std::string_view code_template,
                         absl::Span<const Connection> connections,
                         VerilogFile* file, const SourceInfo& loc)
       : Instantiation("", instance_name,
                       /*parameters=*/{}, connections, file, loc),
-        code_template_(code_template) {
+        template_text_(code_template) {
     // Not using module name as this is provided in user-template
     // Not using parameters, they are indistinguishable from other connections.
   }
@@ -746,7 +746,7 @@ class TemplateInstantiation : public Instantiation {
   std::string Emit(LineInfo* line_info) const override;
 
  private:
-  CodeTemplate code_template_;
+  std::string template_text_;
 };
 
 // Represents a reference to an already-defined macro.

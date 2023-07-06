@@ -1864,9 +1864,8 @@ std::string Function::ToString() const {
   std::string pub_str = is_public() ? "pub " : "";
   std::string annotation_str;
   if (extern_verilog_module_.has_value()) {
-    annotation_str =
-        absl::StrFormat("#[extern_verilog(\"%s\")]\n",
-                        extern_verilog_module_->code_template.ToString());
+    annotation_str = absl::StrFormat("#[extern_verilog(\"%s\")]\n",
+                                     extern_verilog_module_->code_template());
   }
   return absl::StrFormat("%s%sfn %s%s(%s)%s%s", annotation_str, pub_str,
                          name_def_->ToString(), parametric_str, params_str,

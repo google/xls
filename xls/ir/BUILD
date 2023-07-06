@@ -70,6 +70,7 @@ cc_library(
     srcs = ["foreign_function.cc"],
     hdrs = ["foreign_function.h"],
     deps = [
+        ":foreign_function_data_cc_proto",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",
@@ -89,6 +90,16 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
+)
+
+proto_library(
+    name = "foreign_function_data_proto",
+    srcs = ["foreign_function_data.proto"],
+)
+
+cc_proto_library(
+    name = "foreign_function_data_cc_proto",
+    deps = [":foreign_function_data_proto"],
 )
 
 cc_library(
@@ -350,6 +361,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
+        "@com_google_protobuf//:protobuf",
     ],
 )
 
@@ -452,6 +464,7 @@ cc_library(
         ":channel_cc_proto",
         ":channel_ops",
         ":foreign_function",
+        ":foreign_function_data_cc_proto",
         ":format_strings",
         ":function_builder",
         ":ir",

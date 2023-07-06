@@ -86,7 +86,7 @@ fn f() -> u32 { u32:42 }
   EXPECT_EQ(package_data.package->functions()
                 .front()
                 ->ForeignFunctionData()
-                ->code_template.ToString(),
+                ->code_template(),
             "extern_foobar {fn} (.out({return}));");
 }
 

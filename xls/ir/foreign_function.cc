@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <stack>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -199,13 +201,16 @@ std::string CodeTemplate::ToString() const {
   return *result;
 }
 
-absl::StatusOr<ForeignFunctionData> ForeignFunctionData::CreateFromTemplate(
+absl::StatusOr<ForeignFunctionData> ForeignFunctionDataCreateFromTemplate(
     std::string_view annotation) {
   absl::StatusOr<CodeTemplate> parse_result = CodeTemplate::Create(annotation);
   if (!parse_result.ok()) {
     return parse_result.status();
   }
-  return ForeignFunctionData(parse_result.value());
+  // We just pass the template along as string, but we validated it worked
+  ForeignFunctionData result;
+  result.set_code_template(annotation);
+  return result;
 }
 
 }  // namespace xls

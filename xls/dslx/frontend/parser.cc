@@ -46,6 +46,7 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
 #include "re2/re2.h"
 
@@ -414,7 +415,7 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_ASSIGN_OR_RETURN(Function * f,
                          ParseFunction(dropped_pub, bindings, name_to_fn));
     absl::StatusOr<ForeignFunctionData> parsed_ffi_annotation =
-        ForeignFunctionData::CreateFromTemplate(ffi_annotation);
+        ForeignFunctionDataCreateFromTemplate(ffi_annotation);
     if (!parsed_ffi_annotation.ok()) {
       const int64_t error_at =
           CodeTemplate::ExtractErrorColumn(parsed_ffi_annotation.status());

@@ -1931,7 +1931,9 @@ static absl::Status VerifyForeignFunctionTemplate(Function* fun) {
     return absl::StrCat("In FFI template for ", fun->name(), "(): ", msg);
   };
 
-  const CodeTemplate& code_template = fun->ForeignFunctionData()->code_template;
+  XLS_ASSIGN_OR_RETURN(
+      const CodeTemplate& code_template,
+      CodeTemplate::Create(fun->ForeignFunctionData()->code_template()));
   int64_t instance_name_parameter_count = 0;
   std::vector<std::string> replacements;
   Type* const return_type = fun->GetType()->return_type();

@@ -71,7 +71,8 @@ TEST_F(InliningPassTest, FfiFunctionsNotInlined) {
   const std::string program = R"(
 package some_package
 
-#[ffi("verilog_module {fn} (.a({x}), .b({y}), .out({return}));")]
+#[ffi_proto("""code_template: "verilog_module {fn} (.a({x}), .b({y}), .out({return}));"
+""")]
 fn ffi_callee(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
@@ -116,7 +117,8 @@ TEST_F(InliningPassTest, TransitiveWithFfiLeafFunction) {
   const std::string program = R"(
 package some_package
 
-#[ffi("verilog_module {fn} (.a({x}), .b({y}), .out({return}));")]
+#[ffi_proto("""code_template: "verilog_module {fn} (.a({x}), .b({y}), .out({return}));"
+""")]
 fn ffi_callee(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }

@@ -21,6 +21,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/ir/foreign_function_data.pb.h"
 
 namespace xls {
 
@@ -94,20 +95,8 @@ class CodeTemplate {
   std::vector<std::string> expressions_;
 };
 
-// Meta Information about a foreign function call.
-// This contains a template that allows to generate the code for
-// the external function instantiation.
-// Can be copied and moved, but needs to be created with CreateFromTemplate().
-struct ForeignFunctionData {
-  // Parse extern_verilog annotations into a ForeignFunctionData
-  static absl::StatusOr<ForeignFunctionData> CreateFromTemplate(
-      std::string_view annotation);
-
-  explicit ForeignFunctionData(CodeTemplate code_template)
-      : code_template(std::move(code_template)) {}
-
-  CodeTemplate code_template;
-};
+absl::StatusOr<ForeignFunctionData> ForeignFunctionDataCreateFromTemplate(
+    std::string_view annotation);
 
 }  // namespace xls
 
