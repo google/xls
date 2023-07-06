@@ -305,9 +305,9 @@ class RegressionEstimator(Estimator):
   Attributes:
     delay_expressions: The expressions used in curve fitting.
     data_points: Delay measurements used by the model as DataPoint protos.
-    raw_data_points: Delay measurements stored in RawDataPoint structures.
-      The .delay_factors list contains the delay expressions, and the 
-      .delay_ps field is the measured delay.
+    raw_data_points: Delay measurements stored in RawDataPoint structures. The
+      .delay_factors list contains the delay expressions, and the .delay_ps
+      field is the measured delay.
     delay_function: The curve-fitted function which computes the estimated delay
       given the expressions as floats.
     params: The list of learned parameters.

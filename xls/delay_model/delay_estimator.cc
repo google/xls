@@ -14,6 +14,8 @@
 
 #include "xls/delay_model/delay_estimator.h"
 
+#include <cstdint>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -96,7 +98,7 @@ namespace {
   };
   auto get_reduction_logical_effort =
       [node](netlist::CellKind kind, bool invert) -> absl::StatusOr<int64_t> {
-    int bit_count = node->BitCountOrDie();
+    const int64_t bit_count = node->BitCountOrDie();
     if (bit_count < 2) {
       return 0;
     }

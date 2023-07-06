@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include "absl/status/status.h"
 #include "absl/memory/memory.h"
 #include "xls/common/logging/logging.h"
@@ -26,7 +28,7 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
   DelayEstimatorModel{{camel_case_name}}() : DelayEstimator("{{name}}") {}
 
  private:
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const {
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const final {
     absl::StatusOr<int64_t> delay_status;
     switch (node->op()) {
   {% for op in delay_model.ops() -%}
