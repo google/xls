@@ -341,7 +341,9 @@ TEST(FilesystemTest, SetTextProtoFileWritesAFile) {
   XLS_EXPECT_OK(SetTextProtoFile(temp_file->path(), test));
 
   absl::StatusOr<std::string> contents = GetFileContents(temp_file->path());
-  EXPECT_THAT(contents, IsOkAndHolds("field: \"hi\"\n"));
+  EXPECT_THAT(contents,
+              IsOkAndHolds(HasSubstr("# proto-message: FilesystemTest")));
+  EXPECT_THAT(contents, IsOkAndHolds(HasSubstr("field: \"hi\"\n")));
 }
 
 TEST(FilesystemTest, SetTextProtoFileFailsWhenRequiredFieldIsMissing) {

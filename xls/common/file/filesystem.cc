@@ -20,12 +20,15 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "google/protobuf/descriptor.h"
 #include "google/protobuf/io/tokenizer.h"
+#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/text_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/error_code_to_status.h"
@@ -255,13 +258,24 @@ absl::Status SetProtobinFile(const std::filesystem::path& file_name,
 
 absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
                               const google::protobuf::Message& proto) {
-  std::string text_proto;
   if (!proto.IsInitialized()) {
     return absl::FailedPreconditionError(
         absl::StrCat("Cannot serialize proto, missing required field ",
                      proto.InitializationErrorString()));
   }
-  if (!google::protobuf::TextFormat::PrintToString(proto, &text_proto)) {
+
+  const google::protobuf::Descriptor* const descriptor = proto.GetDescriptor();
+  std::string text_proto =
+      absl::StrCat("# proto-file: ", descriptor->file()->name(),
+                   "\n"
+                   "# proto-message: ",
+                   descriptor->containing_type() ? descriptor->full_name()
+                                                 : descriptor->name(),
+                   "\n\n");
+
+  google::protobuf::TextFormat::Printer printer = google::protobuf::TextFormat::Printer();
+  google::protobuf::io::StringOutputStream output_stream(&text_proto);
+  if (!printer.Print(proto, &output_stream)) {
     return absl::FailedPreconditionError(absl::StrCat(
         "Failed to convert proto to text for saving to ", file_name.string(),
         " (this generally stems from massive protobufs that either exhaust "
