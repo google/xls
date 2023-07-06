@@ -259,11 +259,14 @@ generate_crasher_regression_tests(
     name = "regression_tests",
     srcs = glob(["crashers/*"]),
     failing = [
+        # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_a3a3.x",
+        # TODO(https://github.com/google/xls/issues/746): Remove when fixed.
         "crashers/crasher_2022-10-19_5531.x",
-        "crashers/crasher_2022-12-17_35b3.x",
+        # TODO(https://github.com/google/xls/issues/929): Remove when fixed.
         "crashers/crasher_2023-04-09_1f76.x",
-        "crashers/crasher_2023-04-14_6000.x",
+        # TODO(https://github.com/google/xls/issues/1055): Remove when fixed.
+        "crashers/crasher_2023-07-06_feae.x",
     ],
     prefix = package_name(),
     tags = {

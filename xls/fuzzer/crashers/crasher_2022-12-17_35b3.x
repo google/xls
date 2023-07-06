@@ -167,6 +167,7 @@
 // END_CONFIG
 const W32_V13 = u32:0xd;
 type x20 = sN[103];
+type x29 = x20[W32_V13];
 proc main {
   x21: chan<x20[W32_V13]> in;
   config(x21: chan<x20[W32_V13]> in) {
@@ -194,7 +195,7 @@ proc main {
     let x17: bool = (x6) != (((x11) as uN[1261]));
     let x18: u7 = !(x11);
     let x19: u7 = gate!((((x17) as uN[1261])) != (x2), x10);
-    let x22: (token, x20[W32_V13]) = recv_if(x14, x21, x17, zero!<x20[W32_V13]>());
+    let x22: (token, x20[W32_V13]) = recv_if(x14, x21, x17, zero!<x29>());
     let x23: token = x22.0;
     let x24: x20[W32_V13] = x22.1;
     let x26: u7 = {
