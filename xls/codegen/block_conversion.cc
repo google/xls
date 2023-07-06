@@ -753,10 +753,10 @@ struct SingleValueOutput {
 };
 
 struct StreamingIOPipeline {
-  absl::flat_hash_map<Stage, std::vector<StreamingInput>> inputs;
-  absl::flat_hash_map<Stage, std::vector<StreamingOutput>> outputs;
-  absl::flat_hash_map<Stage, std::vector<int64_t>> input_states;
-  absl::flat_hash_map<Stage, std::vector<int64_t>> output_states;
+  std::vector<std::vector<StreamingInput>> inputs;
+  std::vector<std::vector<StreamingOutput>> outputs;
+  std::vector<std::vector<int64_t>> input_states;
+  std::vector<std::vector<int64_t>> output_states;
   std::vector<SingleValueInput> single_value_inputs;
   std::vector<SingleValueOutput> single_value_outputs;
   std::vector<PipelineStageRegisters> pipeline_registers;
@@ -777,7 +777,7 @@ struct StreamingIOPipeline {
 // Update io channel metadata with latest information from block conversion.
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                    Block* block) {
-  for (const auto& [stage, inputs] : io.inputs) {
+  for (const auto& inputs : io.inputs) {
     for (const StreamingInput& input : inputs) {
       XLS_CHECK_NE(input.port, nullptr);
       XLS_CHECK_NE(input.port_valid, nullptr);
@@ -793,7 +793,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
     }
   }
 
-  for (const auto& [stage, outputs] : io.outputs) {
+  for (const auto& outputs : io.outputs) {
     for (const StreamingOutput& output : outputs) {
       XLS_CHECK_NE(output.port, nullptr);
       XLS_CHECK_NE(output.port_valid, nullptr);
@@ -838,62 +838,59 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 //
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
-    absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     int64_t stage_count, std::string_view ready_suffix, Block* block) {
   std::vector<Node*> result;
 
   // Add a ready input port for each streaming output. Gather the ready signals
   // into a vector. Ready signals from streaming outputs generated from Send
   // operations are conditioned upon the optional predicate value.
-  for (int64_t i = 0; i < stage_count; ++i) {
+  for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
-    if (streaming_outputs.contains(i)) {
-      for (StreamingOutput& streaming_output : streaming_outputs.at(i)) {
-        XLS_ASSIGN_OR_RETURN(
-            streaming_output.port_ready,
-            block->AddInputPort(
-                absl::StrCat(streaming_output.channel->name(), ready_suffix),
-                block->package()->GetBitsType(1)));
+    for (StreamingOutput& streaming_output : streaming_outputs[stage]) {
+      XLS_ASSIGN_OR_RETURN(
+          streaming_output.port_ready,
+          block->AddInputPort(
+              absl::StrCat(streaming_output.channel->name(), ready_suffix),
+              block->package()->GetBitsType(1)));
 
-        if (streaming_output.predicate.has_value()) {
-          // Logic for the active ready signal for a Send operation with a
-          // predicate `pred`.
-          //
-          //   active = !pred | pred && ready
-          //          = !pred | ready
-          XLS_ASSIGN_OR_RETURN(
-              Node * not_pred,
-              block->MakeNode<UnOp>(
-                  SourceInfo(), streaming_output.predicate.value(), Op::kNot));
-          // If predicate has an assigned name, let the not expression get
-          // inlined. Otherwise, give a descriptive name.
-          if (!streaming_output.predicate.value()->HasAssignedName()) {
-            not_pred->SetName(absl::StrFormat(
-                "%s_not_pred", streaming_output.channel->name()));
-          }
-          std::vector<Node*> operands{not_pred, streaming_output.port_ready};
-          XLS_ASSIGN_OR_RETURN(
-              Node * active_ready,
-              block->MakeNode<NaryOp>(
-                  SourceInfo(), operands, Op::kOr));
-          // not_pred will have an assigned name or be inlined, so only check
-          // the ready port. If it has an assigned name, just let everything
-          // inline. Otherwise, give a descriptive name.
-          if (!streaming_output.port_ready->HasAssignedName()) {
-            active_ready->SetName(absl::StrFormat(
-                "%s_active_ready", streaming_output.channel->name()));
-          }
-          active_readys.push_back(active_ready);
-        } else {
-          active_readys.push_back(streaming_output.port_ready);
+      if (streaming_output.predicate.has_value()) {
+        // Logic for the active ready signal for a Send operation with a
+        // predicate `pred`.
+        //
+        //   active = !pred | pred && ready
+        //          = !pred | ready
+        XLS_ASSIGN_OR_RETURN(
+            Node * not_pred,
+            block->MakeNode<UnOp>(
+                SourceInfo(), streaming_output.predicate.value(), Op::kNot));
+        // If predicate has an assigned name, let the not expression get
+        // inlined. Otherwise, give a descriptive name.
+        if (!streaming_output.predicate.value()->HasAssignedName()) {
+          not_pred->SetName(
+              absl::StrFormat("%s_not_pred", streaming_output.channel->name()));
         }
+        std::vector<Node*> operands{not_pred, streaming_output.port_ready};
+        XLS_ASSIGN_OR_RETURN(
+            Node * active_ready,
+            block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
+        // not_pred will have an assigned name or be inlined, so only check
+        // the ready port. If it has an assigned name, just let everything
+        // inline. Otherwise, give a descriptive name.
+        if (!streaming_output.port_ready->HasAssignedName()) {
+          active_ready->SetName(absl::StrFormat(
+              "%s_active_ready", streaming_output.channel->name()));
+        }
+        active_readys.push_back(active_ready);
+      } else {
+        active_readys.push_back(streaming_output.port_ready);
       }
     }
 
     // And reduce all the active ready signals. This signal is true iff all
     // active outputs are ready.
     std::string all_active_outputs_ready_name =
-        PipelineSignalName("all_active_outputs_ready", i);
+        PipelineSignalName("all_active_outputs_ready", stage);
     Node* all_active_outputs_ready;
     if (active_readys.empty()) {
       XLS_ASSIGN_OR_RETURN(
@@ -923,56 +920,54 @@ static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
 //
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
-    absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
+    std::vector<std::vector<StreamingInput>>& streaming_inputs,
     int64_t stage_count, std::string_view valid_suffix, Block* block) {
   std::vector<Node*> result;
 
-  for (int64_t i = 0; i < stage_count; ++i) {
+  for (Stage stage = 0; stage < stage_count; ++stage) {
     // Add a valid input port for each streaming input. Gather the valid
     // signals into a vector. Valid signals from streaming inputs generated
     // from Receive operations are conditioned upon the optional predicate
     // value.
     std::vector<Node*> active_valids;
-    if (streaming_inputs.contains(i)) {
-      for (StreamingInput& streaming_input : streaming_inputs.at(i)) {
-        // Input ports for input channels are already created during
-        // HandleReceiveNode().
-        Node* streaming_input_valid = streaming_input.signal_valid;
+    for (StreamingInput& streaming_input : streaming_inputs[stage]) {
+      // Input ports for input channels are already created during
+      // HandleReceiveNode().
+      Node* streaming_input_valid = streaming_input.signal_valid;
 
-        if (streaming_input.predicate.has_value()) {
-          // Logic for the active valid signal for a Receive operation with a
-          // predicate `pred`.
-          //
-          //   active = !pred | pred && valid
-          //          = !pred | valid
-          XLS_ASSIGN_OR_RETURN(
-              Node * not_pred,
-              block->MakeNode<UnOp>(
-                  SourceInfo(), streaming_input.predicate.value(), Op::kNot));
+      if (streaming_input.predicate.has_value()) {
+        // Logic for the active valid signal for a Receive operation with a
+        // predicate `pred`.
+        //
+        //   active = !pred | pred && valid
+        //          = !pred | valid
+        XLS_ASSIGN_OR_RETURN(
+            Node * not_pred,
+            block->MakeNode<UnOp>(SourceInfo(),
+                                  streaming_input.predicate.value(), Op::kNot));
 
-          // If predicate has an assigned name, let the not expression get
-          // inlined. Otherwise, give a descriptive name.
-          if (!streaming_input.predicate.value()->HasAssignedName()) {
-            not_pred->SetName(absl::StrFormat("%s_not_pred",
-                                              streaming_input.channel->name()));
-          }
-          std::vector<Node*> operands = {not_pred, streaming_input_valid};
-          XLS_ASSIGN_OR_RETURN(
-              Node * active_valid,
-              block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
-          // not_pred will have an assigned name or be inlined, so only check
-          // the ready port. If it has an assigned name, just let everything
-          // inline. Otherwise, give a descriptive name.
-          if (!streaming_input_valid->HasAssignedName()) {
-            active_valid->SetName(absl::StrFormat(
-                "%s_active_valid", streaming_input.channel->name()));
-          }
-          active_valids.push_back(active_valid);
-        } else {
-          // No predicate is the same as pred = true, so
-          // active = !pred | valid = !true | valid = false | valid = valid
-          active_valids.push_back(streaming_input_valid);
+        // If predicate has an assigned name, let the not expression get
+        // inlined. Otherwise, give a descriptive name.
+        if (!streaming_input.predicate.value()->HasAssignedName()) {
+          not_pred->SetName(
+              absl::StrFormat("%s_not_pred", streaming_input.channel->name()));
         }
+        std::vector<Node*> operands = {not_pred, streaming_input_valid};
+        XLS_ASSIGN_OR_RETURN(
+            Node * active_valid,
+            block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
+        // not_pred will have an assigned name or be inlined, so only check
+        // the ready port. If it has an assigned name, just let everything
+        // inline. Otherwise, give a descriptive name.
+        if (!streaming_input_valid->HasAssignedName()) {
+          active_valid->SetName(absl::StrFormat(
+              "%s_active_valid", streaming_input.channel->name()));
+        }
+        active_valids.push_back(active_valid);
+      } else {
+        // No predicate is the same as pred = true, so
+        // active = !pred | valid = !true | valid = false | valid = valid
+        active_valids.push_back(streaming_input_valid);
       }
     }
 
@@ -980,7 +975,7 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     // active inputs are valid.
     Node* all_active_inputs_valid;
     std::string all_active_inputs_valid_name =
-        PipelineSignalName("all_active_inputs_valid", i);
+        PipelineSignalName("all_active_inputs_valid", stage);
     if (active_valids.empty()) {
       XLS_ASSIGN_OR_RETURN(
           all_active_inputs_valid,
@@ -1012,10 +1007,10 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> all_active_inputs_valid,
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
-    absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     std::string_view valid_suffix, Block* block) {
-  for (auto& [stage, vec] : streaming_outputs) {
-    for (StreamingOutput& streaming_output : vec) {
+  for (Stage stage = 0; stage < streaming_outputs.size(); ++stage) {
+    for (StreamingOutput& streaming_output : streaming_outputs.at(stage)) {
       std::vector<Node*> operands{all_active_inputs_valid.at(stage),
                                   pipelined_valids.at(stage),
                                   next_stage_open.at(stage)};
@@ -1044,10 +1039,10 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
 // any) is asserted.
 static absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
-    absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
+    std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::string_view ready_suffix, Block* block) {
-  for (auto& [stage, vec] : streaming_inputs) {
-    for (StreamingInput& streaming_input : vec) {
+  for (Stage stage = 0; stage < streaming_inputs.size(); ++stage) {
+    for (StreamingInput& streaming_input : streaming_inputs[stage]) {
       Node* ready = all_active_outputs_ready.at(stage);
       if (streaming_input.predicate.has_value()) {
         std::vector<Node*> operands{streaming_input.predicate.value(),
@@ -1072,15 +1067,15 @@ static absl::Status MakeOutputReadyPortsForInputChannels(
 //
 // Upon success returns a Node* to the all_active_states_valid signal.
 static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
-    absl::flat_hash_map<Stage, std::vector<int64_t>>& input_states,
+    std::vector<std::vector<int64_t>>& input_states,
     absl::Span<std::optional<StateRegister> const> state_registers,
     int64_t stage_count, std::string_view valid_suffix, Block* block) {
   std::vector<Node*> result;
-  for (int64_t i = 0; i < stage_count; ++i) {
+  for (Stage stage = 0; stage < stage_count; ++stage) {
     // Add a valid signal for each state element with non-trivial backedge.
     // Gather the valid signals into a vector.
     std::vector<Node*> active_valids;
-    for (const int64_t index : input_states[i]) {
+    for (const int64_t index : input_states[stage]) {
       const std::optional<StateRegister>& state_register =
           state_registers[index];
       if (!state_register.has_value() || !state_register->reg_full) {
@@ -1095,7 +1090,7 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
     // active states are valid.
     Node* all_active_states_valid;
     std::string all_active_states_valid_name =
-        PipelineSignalName("all_active_states_valid", i);
+        PipelineSignalName("all_active_states_valid", stage);
     if (active_valids.empty()) {
       XLS_ASSIGN_OR_RETURN(
           all_active_states_valid,
@@ -1124,16 +1119,16 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
 //
 // Upon success returns a Node* to the all_active_states_ready signal.
 static absl::StatusOr<std::vector<Node*>> MakeReadyNodesForOutputStates(
-    absl::flat_hash_map<Stage, std::vector<int64_t>>& output_states,
+    std::vector<std::vector<int64_t>>& output_states,
     absl::Span<std::optional<StateRegister> const> state_registers,
     int64_t stage_count, std::string_view ready_suffix, Block* block) {
   std::vector<Node*> result;
 
   // Add a ready node for each next state element with non-trivial backedge.
   // Gather the ready signals into a vector.
-  for (int64_t i = 0; i < stage_count; ++i) {
+  for (Stage stage = 0; stage < stage_count; ++stage) {
     std::vector<Node*> active_readys;
-    for (const int64_t index : output_states[i]) {
+    for (const int64_t index : output_states[stage]) {
       const std::optional<StateRegister>& state_register =
           state_registers[index];
       if (!state_register.has_value() || !state_register->reg_full) {
@@ -1153,7 +1148,7 @@ static absl::StatusOr<std::vector<Node*>> MakeReadyNodesForOutputStates(
     // And reduce all the active ready signals. This signal is true iff all
     // active states are ready.
     std::string all_active_states_ready_name =
-        PipelineSignalName("all_active_states_ready", i);
+        PipelineSignalName("all_active_states_ready", stage);
     Node* all_active_states_ready;
     if (active_readys.empty()) {
       XLS_ASSIGN_OR_RETURN(
@@ -1535,7 +1530,7 @@ static absl::Status AddInputOutputFlops(
   absl::flat_hash_set<Node*> handled_io_nodes;
 
   // Flop streaming inputs.
-  for (auto& [stage, vec] : streaming_io.inputs) {
+  for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
       if (options.flop_inputs()) {
         XLS_RETURN_IF_ERROR(
@@ -1554,7 +1549,7 @@ static absl::Status AddInputOutputFlops(
   }
 
   // Flop streaming outputs.
-  for (auto& [stage, vec] : streaming_io.outputs) {
+  for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
       if (options.flop_outputs()) {
         XLS_RETURN_IF_ERROR(
@@ -1738,8 +1733,8 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
                                           Block* block) {
   XLS_CHECK(!streaming_io.all_active_outputs_ready.empty());
 
-  for (auto& [stage, vec] : streaming_io.outputs) {
-    for (StreamingOutput& output : vec) {
+  for (Stage stage = 0; stage < streaming_io.outputs.size(); ++stage) {
+    for (StreamingOutput& output : streaming_io.outputs.at(stage)) {
       // Add an buffers before the valid output ports and after
       // the ready input port to serve as points where the
       // additional logic from AddRegisterToRDVNodes() can be inserted.
@@ -1787,13 +1782,13 @@ static absl::Status AddOneShotOutputLogic(const CodegenOptions& options,
 static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
                                   StreamingIOPipeline& streaming_io,
                                   Block* block) {
-  for (auto& [stage, vec] : streaming_io.inputs) {
+  for (auto& vec : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
       valid_nodes.push_back(input.signal_valid);
     }
   }
 
-  for (auto& [stage, vec] : streaming_io.outputs) {
+  for (auto& vec : streaming_io.outputs) {
     for (StreamingOutput& output : vec) {
       valid_nodes.push_back(output.port_valid->operand(0));
     }
@@ -1938,8 +1933,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
 // adds logic which propagates ready and valid signals through the block.
 static absl::Status AddCombinationalFlowControl(
-    absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
-    absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
+    std::vector<std::vector<StreamingInput>>& streaming_inputs,
+    std::vector<std::vector<StreamingOutput>>& streaming_outputs,
     const CodegenOptions& options, Block* block) {
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
@@ -2075,12 +2070,10 @@ class CloneNodesIntoBlockHandler {
     if (stage_count > 1) {
       result_.pipeline_registers.resize(stage_count - 1);
     }
-    for (int64_t i = 0; i < stage_count; ++i) {
-      result_.inputs[i];
-      result_.outputs[i];
-      result_.input_states[i];
-      result_.output_states[i];
-    }
+    result_.inputs.resize(stage_count + 1);
+    result_.outputs.resize(stage_count + 1);
+    result_.input_states.resize(stage_count + 1);
+    result_.output_states.resize(stage_count + 1);
   }
 
   // For a given set of sorted nodes, process and clone them into the
@@ -2938,7 +2931,7 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
                        CloneNodesIntoPipelinedBlock(schedule, options, block));
 
   int64_t number_of_outputs = 0;
-  for (const auto& [stage, outputs] : streaming_io_and_pipeline.outputs) {
+  for (const auto& outputs : streaming_io_and_pipeline.outputs) {
     number_of_outputs += outputs.size();
   }
 
@@ -3094,7 +3087,7 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
                        CloneProcNodesIntoBlock(proc, options, block));
 
   int64_t number_of_outputs = 0;
-  for (const auto& [stage, outputs] : streaming_io.outputs) {
+  for (const auto& outputs : streaming_io.outputs) {
     number_of_outputs += outputs.size();
   }
 

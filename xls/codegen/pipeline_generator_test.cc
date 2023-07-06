@@ -1078,9 +1078,6 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
 }
 
 TEST_P(PipelineGeneratorTest, IIGreaterThanOne) {
-  // TODO(epastor): skip flaky test until fixed. Test results seems to sometimes
-  // emit lines in different orders from the golden.
-  GTEST_SKIP();
   const std::string ir_text = absl::Substitute(R"(package $0
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
