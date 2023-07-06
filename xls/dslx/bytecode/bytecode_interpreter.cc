@@ -1390,10 +1390,9 @@ absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> PrettyPrintValue(const InterpValue& value,
-                                             const ConcreteType* type,
-                                             FormatPreference format_preference,
-                                             int indent = 0) {
+static absl::StatusOr<std::string> PrettyPrintValue(
+    const InterpValue& value, const ConcreteType* type,
+    FormatPreference format_preference, int indent = 0) {
   std::string indent_str(indent * 4, ' ');
   if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
       array_type != nullptr) {
