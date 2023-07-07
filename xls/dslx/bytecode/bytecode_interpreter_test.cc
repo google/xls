@@ -28,6 +28,7 @@
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
@@ -59,10 +60,10 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(BytecodeInterpreterTest, TraceDataToString) {
-  std::vector<InterpValue> stack = {
+  auto stack = InterpreterStack::CreateForTest(std::vector<InterpValue>{
       InterpValue::MakeUBits(8, /*value=*/0x42),
       InterpValue::MakeUBits(3, /*value=*/4),
-  };
+  });
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<FormatStep> steps,
                            ParseFormatString("x: {:x} y: {}"));
   XLS_ASSERT_OK_AND_ASSIGN(std::string result,

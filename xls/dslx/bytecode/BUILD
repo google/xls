@@ -127,6 +127,30 @@ cc_test(
 )
 
 cc_library(
+    name = "interpreter_stack",
+    srcs = ["interpreter_stack.cc"],
+    hdrs = ["interpreter_stack.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/dslx:interp_value",
+    ],
+)
+
+cc_test(
+    name = "interpreter_stack_test",
+    srcs = ["interpreter_stack_test.cc"],
+    deps = [
+        ":interpreter_stack",
+        "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/dslx:interp_value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "bytecode_interpreter_options",
     hdrs = ["bytecode_interpreter_options.h"],
     deps = [
@@ -148,6 +172,7 @@ cc_library(
         ":bytecode",
         ":bytecode_emitter",
         ":bytecode_interpreter_options",
+        ":interpreter_stack",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -176,9 +201,9 @@ cc_test(
     deps = [
         ":bytecode_emitter",
         ":bytecode_interpreter",
+        ":interpreter_stack",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/status:matchers",

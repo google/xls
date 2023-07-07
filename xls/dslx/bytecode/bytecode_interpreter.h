@@ -29,6 +29,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
+#include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -103,12 +104,13 @@ class BytecodeInterpreter {
                          const std::vector<InterpValue>& args,
                          const TypeInfo* type_info);
 
-  const std::vector<InterpValue>& stack() { return stack_; }
-
   // Helper for converting a trace format string to its result given a stack
   // state.
+  //
+  // Note that this mutates the stack by popping off values consumed by the
+  // trace data.
   static absl::StatusOr<std::string> TraceDataToString(
-      const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack);
+      const Bytecode::TraceData& trace_data, InterpreterStack& stack);
 
   // Helper for highlighting differences in pretty-printed representation
   static std::string HighlightLineByLineDifferences(std::string_view lhs,
@@ -122,6 +124,8 @@ class BytecodeInterpreter {
       ImportData* import_data, BytecodeFunction* bf,
       const std::vector<InterpValue>& args,
       const BytecodeInterpreterOptions& options);
+
+  const InterpreterStack& stack() const { return stack_; }
 
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
@@ -250,10 +254,10 @@ class BytecodeInterpreter {
       const InterpValue& value);
 
   static absl::StatusOr<InterpValue> Pop(std::vector<InterpValue>& stack);
-  absl::StatusOr<InterpValue> Pop() { return Pop(stack_); }
+  absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
   ImportData* const import_data_;
-  std::vector<InterpValue> stack_;
+  InterpreterStack stack_;
   std::vector<Frame> frames_;
 
   BytecodeInterpreterOptions options_;
