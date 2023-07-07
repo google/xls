@@ -548,5 +548,19 @@ TEST(IrMatchersTest, MinDelayMatcher) {
               HasSubstr("delay 3 isn't equal to 0"));
 }
 
+TEST(IrMatchersTest, NameMatcher) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto xy = fb.Param("xy____", p.GetBitsType(32));
+  auto yx = fb.Param("____yx", p.GetBitsType(32));
+  auto sum = fb.Add(xy, yx);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(sum));
+
+  // Tests that matchers can be passed to m::Name().
+  EXPECT_THAT(f->return_value(),
+              m::Add(m::Name(HasSubstr("xy")), m::Name(HasSubstr("yx"))));
+}
+
 }  // namespace
 }  // namespace xls

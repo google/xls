@@ -17,6 +17,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -155,14 +156,32 @@ void TypeMatcher::DescribeTo(std::ostream* os) const { *os << type_str_; }
 
 bool NameMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {
-  if (name_ == node->GetName()) {
+  return inner_matcher_.MatchAndExplain(node->GetName(), listener);
+}
+
+void NameMatcher::DescribeTo(std::ostream* os) const {
+  inner_matcher_.DescribeTo(os);
+}
+
+bool NameMatcher::StringViewNameMatcherInternal::MatchAndExplain(
+    std::string_view name, ::testing::MatchResultListener* listener) const {
+  if (name_ == name) {
     return true;
   }
-  *listener << node->ToString() << " has incorrect name, expected: " << name_;
+  *listener << absl::StreamFormat("%s has incorrect name, expected: %s.", name,
+                                  name_);
   return false;
 }
 
-void NameMatcher::DescribeTo(std::ostream* os) const { *os << name_; }
+void NameMatcher::StringViewNameMatcherInternal::DescribeTo(
+    std::ostream* os) const {
+  *os << name_;
+}
+
+void NameMatcher::StringViewNameMatcherInternal::DescribeNegationTo(
+    std::ostream* os) const {
+  *os << absl::StreamFormat("name not %s", name_);
+}
 
 bool ParamMatcher::MatchAndExplain(
     const Node* node, ::testing::MatchResultListener* listener) const {

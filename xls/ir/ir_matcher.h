@@ -16,6 +16,8 @@
 #define XLS_IR_IR_MATCHER_H_
 
 #include <optional>
+#include <ostream>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -120,18 +122,43 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
 // the m::Name. For example: EXPECT_THAT(baz, m::Or("foo", "bar")).
 class NameMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
-  explicit NameMatcher(std::string_view name) : name_(name) {}
+  explicit NameMatcher(std::string_view name)
+      : inner_matcher_(StringViewNameMatcherInternal(name)) {}
+
+  template <typename InnerMatcher>
+  explicit NameMatcher(InnerMatcher inner_matcher)
+      : inner_matcher_(
+            ::testing::SafeMatcherCast<const std::string>(inner_matcher)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
   void DescribeTo(std::ostream* os) const override;
 
  private:
-  std::string name_;
+  struct StringViewNameMatcherInternal {
+    using is_gtest_matcher = void;
+
+    explicit StringViewNameMatcherInternal(std::string_view name)
+        : name_(name) {}
+
+    bool MatchAndExplain(std::string_view name,
+                         ::testing::MatchResultListener* listener) const;
+    void DescribeTo(::std::ostream* os) const;
+    void DescribeNegationTo(::std::ostream* os) const;
+
+    std::string name_;
+  };
+  const ::testing::Matcher<const std::string> inner_matcher_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Name(std::string_view name_str) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::NameMatcher(name_str));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Name(
+    ::testing::Matcher<const std::string> inner_matcher) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::NameMatcher(std::move(inner_matcher)));
 }
 
 // Node* matchers for ops which have no metadata beyond Op, type, and operands.
