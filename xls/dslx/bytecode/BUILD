@@ -127,12 +127,27 @@ cc_test(
 )
 
 cc_library(
+    name = "bytecode_interpreter_options",
+    hdrs = ["bytecode_interpreter_options.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/ir",
+        "//xls/ir:format_preference",
+    ],
+)
+
+cc_library(
     name = "bytecode_interpreter",
     srcs = ["bytecode_interpreter.cc"],
     hdrs = ["bytecode_interpreter.h"],
     deps = [
         ":bytecode",
         ":bytecode_emitter",
+        ":bytecode_interpreter_options",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

@@ -28,6 +28,7 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/type_system/parametric_env.h"
@@ -85,66 +86,6 @@ using TraceHook = std::function<void(std::string_view)>;
 inline void InfoLoggingTraceHook(std::string_view entry) {
   XLS_LOG_LINES(INFO, entry);
 }
-
-class BytecodeInterpreterOptions {
- public:
-  // Callback to invoke after a DSLX function is evaluated by the interpreter.
-  // This is useful for e.g. externally-implementing and hooking-in comparison
-  // to the JIT execution mode.
-  BytecodeInterpreterOptions& post_fn_eval_hook(PostFnEvalHook hook) {
-    post_fn_eval_hook_ = std::move(hook);
-    return *this;
-  }
-  const PostFnEvalHook& post_fn_eval_hook() const { return post_fn_eval_hook_; }
-
-  // Callback to invoke when a trace operation executes. The callback argument
-  // is the trace string.
-  BytecodeInterpreterOptions& trace_hook(TraceHook hook) {
-    trace_hook_ = std::move(hook);
-    return *this;
-  }
-  const TraceHook& trace_hook() const { return trace_hook_; }
-
-  // Whether to log values sent and received on channels as trace messages.
-  BytecodeInterpreterOptions& trace_channels(bool value) {
-    trace_channels_ = value;
-    return *this;
-  }
-  bool trace_channels() const { return trace_channels_; }
-
-  // When executing procs, this is the maximum number of ticks which will
-  // execute executed before a DeadlineExceeded error is returned. If nullopt
-  // no limit is imposed.
-  BytecodeInterpreterOptions& max_ticks(std::optional<int64_t> value) {
-    max_ticks_ = value;
-    return *this;
-  }
-  std::optional<int64_t> max_ticks() const { return max_ticks_; }
-
-  void set_validate_final_stack_depth(bool enabled) {
-    validate_final_stack_depth_ = enabled;
-  }
-  bool validate_final_stack_depth() const {
-    return validate_final_stack_depth_;
-  }
-
-  // The format preference to use when one is not otherwise specified. This is
-  // used for `{}` in `trace_fmt`, in `assert_eq` messages, with the
-  // `trace_channels` options and elsewhere.
-  BytecodeInterpreterOptions& format_preference(FormatPreference value) {
-    format_preference_ = value;
-    return *this;
-  }
-  FormatPreference format_preference() const { return format_preference_; }
-
- private:
-  PostFnEvalHook post_fn_eval_hook_ = nullptr;
-  TraceHook trace_hook_ = nullptr;
-  bool trace_channels_ = false;
-  std::optional<int64_t> max_ticks_;
-  bool validate_final_stack_depth_ = true;
-  FormatPreference format_preference_ = FormatPreference::kDefault;
-};
 
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
 // and a set of initial environmental bindings (key/value pairs) and executes
