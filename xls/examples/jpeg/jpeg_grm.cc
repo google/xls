@@ -106,9 +106,8 @@ static uint8_t ClampToU8(int32_t x) {
   }
   if (x > 0xff) {
     return 0xff;
-  } else {
-    return x;
   }
+  return x;
 }
 
 static std::string ToString(const std::array<int32_t, kCoeffPerMcu>& data) {
