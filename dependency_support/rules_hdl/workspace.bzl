@@ -29,9 +29,9 @@ def repo():
         ],
     )
 
-    # Commit on 2023-06-13, current as of 2023-06-13.
-    git_hash = "e6540a5bccbfb124aec0b19deaa9cf855781b3a5"
-    git_sha256 = "21307b0c14a036f1b4879c8f1d4d50a115053eb87c428307d4d6569c3e7ba859"
+    # Commit on 2023-07-07, current as of 2023-07-07.
+    git_hash = "83b51f4b10e0e8970f88b087b5fab3f90eb89834"
+    git_sha256 = "506d4e7ad746cf3fbeeb2e073667a940612bdd2a258ed9fe637d0c9f7d5c8930"
 
     maybe(
         http_archive,
@@ -39,6 +39,6 @@ def repo():
         sha256 = git_sha256,
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
-            "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
+            "https://github.com/antmicro/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
     )
