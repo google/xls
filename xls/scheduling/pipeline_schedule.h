@@ -89,7 +89,7 @@ class PipelineSchedule {
                             const DelayEstimator& delay_estimator) const;
 
   // Returns a protobuf holding this object's scheduling info.
-  PipelineScheduleProto ToProto() const;
+  PipelineScheduleProto ToProto(const DelayEstimator& delay_estimator) const;
 
   // Returns the number of internal registers in this schedule.
   int64_t CountFinalInteriorPipelineRegisters() const;

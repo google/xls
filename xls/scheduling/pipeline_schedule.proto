@@ -16,13 +16,28 @@ syntax = "proto3";
 
 package xls;
 
+message TimedNodeProto {
+  // Name of the node
+  optional string node = 1;
+
+  // Operation delay in picoseconds the XLS delay
+  // estimator assumes for this node.
+  optional int64 delay_ps = 2;
+
+  // TODO(hzeller): 2023-07-07 also include cumulative times
+  // relative to pipeline start and stage start.
+}
+
 // Holds per-stage scheduling information.
 message StageProto {
+  reserved 2;  // previously un-timed node fields.
+  reserved "nodes";
+
   // Number (index) of this stage, 0-indexed.
   optional int32 stage = 1;
 
-  // Names of the [IR] nodes present in this stage.
-  repeated string nodes = 2;
+  // Names and corresponding time of the [IR] nodes present in this stage.
+  repeated TimedNodeProto timed_nodes = 3;
 }
 
 // Holds the overall module pipeline schedule.

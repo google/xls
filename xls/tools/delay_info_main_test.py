@@ -31,13 +31,13 @@ top fn not_add(x: bits[32], y: bits[32]) -> bits[32] {
 NOT_ADD_SCHEDULE = """
 stages {
   stage: 0
-  nodes: "x"
-  nodes: "y"
+  timed_nodes: { node: "x" delay_ps: 0 }
+  timed_nodes: { node: "y" delay_ps: 0 }
 }
 stages {
   stage: 1
-  nodes: "sum"
-  nodes: "not_sum"
+  timed_nodes: { node: "sum" delay_ps: 1 }
+  timed_nodes: { node: "not_sum" delay_ps: 1 }
 }
 """
 

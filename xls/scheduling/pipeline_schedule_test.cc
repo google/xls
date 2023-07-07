@@ -30,6 +30,7 @@
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace m = ::xls::op_matchers;
@@ -519,7 +520,7 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
       PipelineSchedule::Run(func, TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(3)));
 
-  PipelineScheduleProto proto = schedule.ToProto();
+  PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
   XLS_ASSERT_OK_AND_ASSIGN(PipelineSchedule clone,
                            PipelineSchedule::FromProto(func, proto));
   for (const Node* node : func->nodes()) {

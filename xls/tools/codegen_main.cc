@@ -261,8 +261,9 @@ absl::Status RealMain(std::string_view ir_path) {
                                      schedule, main(), codegen_options));
 
     if (!codegen_flags_proto.output_schedule_path().empty()) {
-      XLS_RETURN_IF_ERROR(SetTextProtoFile(
-          codegen_flags_proto.output_schedule_path(), schedule.ToProto()));
+      XLS_RETURN_IF_ERROR(
+          SetTextProtoFile(codegen_flags_proto.output_schedule_path(),
+                           schedule.ToProto(*delay_estimator)));
     }
   } else if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
     if (!codegen_flags_proto.output_schedule_ir_path().empty()) {

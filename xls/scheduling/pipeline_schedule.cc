@@ -28,12 +28,15 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
+#include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/min_cut_scheduler.h"
+#include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/scheduling/sdc_scheduler.h"
@@ -260,8 +263,10 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
     FunctionBase* function, const PipelineScheduleProto& proto) {
   ScheduleCycleMap cycle_map;
   for (const auto& stage : proto.stages()) {
-    for (const auto& node_name : stage.nodes()) {
-      XLS_ASSIGN_OR_RETURN(Node * node, function->GetNode(node_name));
+    for (const auto& timed_node : stage.timed_nodes()) {
+      // NOTE: we handle timing with our estimator, so ignore timings from proto
+      // but it might be useful in the future to e.g. detect regressions.
+      XLS_ASSIGN_OR_RETURN(Node * node, function->GetNode(timed_node.node()));
       cycle_map[node] = stage.stage();
     }
   }
@@ -579,14 +584,18 @@ absl::Status PipelineSchedule::VerifyTiming(
   return absl::OkStatus();
 }
 
-PipelineScheduleProto PipelineSchedule::ToProto() const {
+PipelineScheduleProto PipelineSchedule::ToProto(
+    const DelayEstimator& delay_estimator) const {
   PipelineScheduleProto proto;
   proto.set_function(function_base_->name());
   for (int i = 0; i < cycle_to_nodes_.size(); i++) {
     StageProto* stage = proto.add_stages();
     stage->set_stage(i);
-    for (const Node* node : cycle_to_nodes_[i]) {
-      stage->add_nodes(node->GetName());
+    for (Node* node : cycle_to_nodes_[i]) {
+      TimedNodeProto* timed_node = stage->add_timed_nodes();
+      timed_node->set_node(node->GetName());
+      timed_node->set_delay_ps(
+          delay_estimator.GetOperationDelayInPs(node).value());
     }
   }
   return proto;
