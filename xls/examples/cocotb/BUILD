@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@rules_hdl//cocotb:cocotb.bzl", "cocotb_test")
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 load("//xls/build_rules:xls_build_defs.bzl", "xls_dslx_verilog")
+load("//xls/build_rules:cocotb_xls_test.bzl", "cocotb_xls_test")
 
 xls_dslx_verilog(
     name = "running_counter_verilog",
@@ -32,7 +32,7 @@ xls_dslx_verilog(
     verilog_file = "running_counter.v",
 )
 
-cocotb_test(
+cocotb_xls_test(
     name = "running_counter_cocotb",
     hdl_toplevel = "RunningCounter",
     hdl_toplevel_lang = "verilog",
@@ -40,10 +40,13 @@ cocotb_test(
         "cocotb_running_counter.py",
     ],
     verilog_sources = [
-        "timescale.v",
         "dumpvcd.v",
         ":running_counter.v",
     ],
+    timescale = {
+        "unit": "1ns",
+        "precission": "1ps",
+    },
     deps = [
         requirement("cocotb"),
         requirement("cocotb_bus"),
