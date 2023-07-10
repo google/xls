@@ -29,7 +29,8 @@ pub enum APFloatTag : u3 {
   NORMAL    = 4,
 }
 
-pub fn tag<EXP_SZ:u32, FRACTION_SZ:u32>(input_float: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloatTag {
+pub fn tag<EXP_SZ:u32, FRACTION_SZ:u32>(
+           input_float: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloatTag {
   const EXPR_MASK = std::mask_bits<EXP_SZ>();
   match (input_float.bexp, input_float.fraction) {
     (uN[EXP_SZ]:0, uN[FRACTION_SZ]:0) => APFloatTag::ZERO,
@@ -88,9 +89,9 @@ fn zero_test() {
   ()
 }
 
-pub fn one<EXP_SZ:u32, FRACTION_SZ:u32, MASK_SZ:u32 = {EXP_SZ - u32:1}>(
-    sign: bits[1])
-    -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn one<EXP_SZ:u32, FRACTION_SZ:u32>(
+           sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+  const MASK_SZ:u32 = EXP_SZ - u32:1;
   APFloat<EXP_SZ, FRACTION_SZ>{
     sign: sign,
     bexp: std::mask_bits<MASK_SZ>() as bits[EXP_SZ],
@@ -114,7 +115,8 @@ fn one_test() {
   ()
 }
 
-pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(
+           sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
   APFloat<EXP_SZ, FRACTION_SZ>{
     sign: sign,
     bexp: std::mask_bits<EXP_SZ>(),
@@ -146,11 +148,10 @@ fn inf_test() {
 //
 // For infinity and nan, there are no guarantees, as the unbiased exponent has
 // no meaning in that case.
-pub fn unbiased_exponent<EXP_SZ:u32,
-                         FRACTION_SZ:u32,
-                         UEXP_SZ:u32 = {EXP_SZ + u32:1},
-                         MASK_SZ:u32 = {EXP_SZ - u32:1}>
-                         (f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
+pub fn unbiased_exponent<EXP_SZ:u32,FRACTION_SZ:u32>(
+                         f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ] {
+  const UEXP_SZ:u32 = EXP_SZ + u32:1;
+  const MASK_SZ:u32 = EXP_SZ - u32:1;
   let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
   let subnormal_exp = (sN[UEXP_SZ]:1 - bias) as sN[EXP_SZ];
   let bexp = f.bexp as sN[UEXP_SZ];
@@ -201,11 +202,10 @@ fn unbiased_exponent_subnormal_test() {
 // the input is the exponent for a normal number.
 //
 // As a result the answer is just unbiased_exponent + 2^EXP_SZ - 1
-pub fn bias<EXP_SZ: u32,
-            FRACTION_SZ: u32,
-            UEXP_SZ: u32 = {EXP_SZ + u32:1},
-            MASK_SZ: u32 = {EXP_SZ - u32:1}>
-            (unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ] {
+pub fn bias<EXP_SZ: u32,FRACTION_SZ: u32>(
+            unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ] {
+  const UEXP_SZ: u32 = EXP_SZ + u32:1;
+  const MASK_SZ: u32 = EXP_SZ - u32:1;
   let bias = std::mask_bits<MASK_SZ>() as sN[UEXP_SZ];
   let extended_unbiased_exp = unbiased_exponent as sN[UEXP_SZ];
   (extended_unbiased_exp + bias) as bits[EXP_SZ]
@@ -225,9 +225,9 @@ pub fn flatten<EXP_SZ:u32, FRACTION_SZ:u32, TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTIO
 }
 
 pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
-    TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ},
-    SIGN_OFFSET:u32 = {EXP_SZ+FRACTION_SZ}>(
-    x: bits[TOTAL_SZ]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+                 TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(
+                 x: bits[TOTAL_SZ]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+  const SIGN_OFFSET:u32 = EXP_SZ+FRACTION_SZ;
   APFloat<EXP_SZ, FRACTION_SZ>{
       sign: (x >> (SIGN_OFFSET as bits[TOTAL_SZ])) as bits[1],
       bexp: (x >> (FRACTION_SZ as bits[TOTAL_SZ])) as bits[EXP_SZ],
@@ -236,9 +236,11 @@ pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
 }
 
 // Cast the fixed point number to a floating point number.
-pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = {EXP_SZ + u32:1},
-  NUM_SRC_BITS:u32, EXTENDED_FRACTION_SZ:u32 = {FRACTION_SZ + NUM_SRC_BITS}>
-  (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
+                       to_cast: sN[NUM_SRC_BITS])
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+  const UEXP_SZ:u32 = EXP_SZ + u32:1;
+  const EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + NUM_SRC_BITS;
   // Determine sign.
   let sign = (to_cast as uN[NUM_SRC_BITS])[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
 
@@ -413,7 +415,8 @@ fn cast_from_fixed_test() {
 }
 
 pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+                          x: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
   if x.bexp == bits[EXP_SZ]:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { x }
 }
 
@@ -421,8 +424,10 @@ pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
 // fraction (including the hidden bit). This function only normalizes in the
 // direction of decreasing the exponent. Input must be a normal number or
 // zero. Dernormals are flushed to zero in the result.
-pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32, WIDE_FRACTION:u32 = {FRACTION_SZ + u32:1}>(
-    sign: bits[1], exp: bits[EXP_SZ], fraction_with_hidden: bits[WIDE_FRACTION])
+pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
+                 WIDE_FRACTION:u32 = {FRACTION_SZ + u32:1}>(
+                 sign: bits[1], exp: bits[EXP_SZ],
+                 fraction_with_hidden: bits[WIDE_FRACTION])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   let leading_zeros = clz(fraction_with_hidden) as bits[FRACTION_SZ];
   let zero_value = zero<EXP_SZ, FRACTION_SZ>(sign);
@@ -443,27 +448,31 @@ pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32, WIDE_FRACTION:u32 = {FRACTION_SZ +
 }
 
 // Returns whether or not the given APFloat represents an infinite quantity.
-pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(
+              x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction == bits[FRACTION_SZ]:0)
 }
 
 // Returns whether or not the given F32 represents NaN.
-pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(
+              x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction != bits[FRACTION_SZ]:0)
 }
 
 // Returns true if x == 0 or x is a subnormal number.
-pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
+                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   x.bexp == uN[EXP_SZ]:0
 }
 
 // Cast the floating point number to a fixed point number.
 // Unrepresentable numbers are cast to the minimum representable
 // number (largest magnitude negative number).
-pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
-  UEXP_SZ:u32 = {EXP_SZ + u32:1},
-  EXTENDED_FIXED_SZ:u32 = {NUM_DST_BITS + u32:1 + FRACTION_SZ + NUM_DST_BITS}>
-  (to_cast: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[NUM_DST_BITS] {
+pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32>(
+                     to_cast: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> sN[NUM_DST_BITS] {
+  const UEXP_SZ:u32 = EXP_SZ + u32:1;
+  const EXTENDED_FIXED_SZ:u32 = NUM_DST_BITS + u32:1 + FRACTION_SZ + NUM_DST_BITS;
 
   const MIN_FIXED_VALUE = (uN[NUM_DST_BITS]:1 << (
     (NUM_DST_BITS as uN[NUM_DST_BITS]) - uN[NUM_DST_BITS]:1))
@@ -594,8 +603,8 @@ fn cast_to_fixed_test() {
 // Denormals are Zero (DAZ).
 // Always returns false if x or y is NaN.
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            x: APFloat<EXP_SZ, FRACTION_SZ>,
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   if !(is_nan(x) || is_nan(y)) {
     ((flatten(x) == flatten(y))
           || (is_zero_or_subnormal(x) && is_zero_or_subnormal(y)))
@@ -657,8 +666,8 @@ fn test_fp_eq_2() {
 // Denormals are Zero (DAZ).
 // Always returns false if x or y is NaN.
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            x: APFloat<EXP_SZ, FRACTION_SZ>,
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   // Flush denormals.
   let x = subnormals_to_zero(x);
   let y = subnormals_to_zero(y);
@@ -743,8 +752,8 @@ fn test_fp_gt_2() {
 // Denormals are Zero (DAZ).
 // Always returns false if x or y is NaN.
 pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+             x: APFloat<EXP_SZ, FRACTION_SZ>,
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   gt_2(x, y) || eq_2(x,y)
 }
 
@@ -808,8 +817,8 @@ fn test_fp_gte_2() {
 // Denormals are Zero (DAZ).
 // Always returns false if x or y is NaN.
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+             x: APFloat<EXP_SZ, FRACTION_SZ>,
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   if !(is_nan(x) || is_nan(y)) { !gt_2(x,y) }
   else { u1:0 }
 }
@@ -874,8 +883,8 @@ fn test_fp_lte_2() {
 // Denormals are Zero (DAZ).
 // Always returns false if x or y is NaN.
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            x: APFloat<EXP_SZ, FRACTION_SZ>,
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
   if !(is_nan(x) || is_nan(y)) { !gte_2(x,y) }
   else { u1:0 }
 }
@@ -937,9 +946,10 @@ fn test_fp_lt_2() {
 }
 
 // Set all bits past the decimal point to 0.
-pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32,
-    EXTENDED_FRACTION_SZ:u32 = {FRACTION_SZ + u32:1}>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
+                          x: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+  const EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + u32:1;
   let exp = unbiased_exponent(x) as s32;
   let mask = !((u32:1 << ((FRACTION_SZ as u32) - (exp as u32)))
                 - u32:1);
@@ -1047,12 +1057,10 @@ fn round_towards_zero_test() {
 
 // Converts the given floating-point number into an unsigned integer, truncating
 // any fractional bits if necessary.
-// TODO(rspringer): 2021-08-06: We seem to be unable to call std::umax in
-// template specification. Why?
-pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32,
-            WIDE_FRACTION: u32 = {FRACTION_SZ + u32:1},
-            MAX_FRACTION_SZ: u32 = {if RESULT_SZ > WIDE_FRACTION { RESULT_SZ } else { WIDE_FRACTION }}>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
+pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
+              x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ] {
+  const WIDE_FRACTION: u32 = FRACTION_SZ + u32:1;
+  const MAX_FRACTION_SZ: u32 = std::umax(RESULT_SZ, WIDE_FRACTION);
   let exp = unbiased_exponent(x);
 
   let fraction =
