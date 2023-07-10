@@ -165,10 +165,29 @@ cc_library(
 )
 
 cc_library(
+    name = "builtins",
+    srcs = ["builtins.cc"],
+    hdrs = ["builtins.h"],
+    deps = [
+        ":bytecode",
+        ":interpreter_stack",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:interp_value",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+    ],
+)
+
+cc_library(
     name = "bytecode_interpreter",
     srcs = ["bytecode_interpreter.cc"],
     hdrs = ["bytecode_interpreter.h"],
     deps = [
+        ":builtins",
         ":bytecode",
         ":bytecode_emitter",
         ":bytecode_interpreter_options",
@@ -179,6 +198,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

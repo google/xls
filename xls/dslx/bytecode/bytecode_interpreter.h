@@ -215,16 +215,10 @@ class BytecodeInterpreter {
   absl::Status RunBinaryBuiltin(
       const std::function<absl::StatusOr<InterpValue>(
           const InterpValue& a, const InterpValue& b)>& fn);
-  absl::Status RunTernaryBuiltin(
-      const std::function<absl::StatusOr<InterpValue>(
-          const InterpValue& a, const InterpValue& b, const InterpValue& c)>&
-          fn);
   absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
   absl::Status RunBuiltinAndReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertLt(const Bytecode& bytecode);
-  absl::Status RunBuiltinBitSlice(const Bytecode& bytecode);
-  absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
   absl::Status RunBuiltinCover(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
@@ -240,10 +234,8 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinArrayRev(const Bytecode& bytecode);
   absl::Status RunBuiltinArraySize(const Bytecode& bytecode);
   absl::Status RunBuiltinSignex(const Bytecode& bytecode);
-  absl::Status RunBuiltinSlice(const Bytecode& bytecode);
   absl::Status RunBuiltinSMulp(const Bytecode& bytecode);
   absl::Status RunBuiltinUMulp(const Bytecode& bytecode);
-  absl::Status RunBuiltinUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
 
   // Common handler for the range bytecode and builtin range() fn.
