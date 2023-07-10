@@ -17,7 +17,7 @@
         <link rel="next" href="../ir_lowering/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
     
     
       
@@ -1507,22 +1507,6 @@ control the scheduler.</p>
     example of the use of this, see
     <a href="https://github.com/google/xls/tree/main/xls/examples/constraint.x">this example</a> and
     the associated BUILD rule.</li>
-<li><code>--multiple_channel_ops_legalization_strictness=...</code> sets the strictness
-    with which multiple channel operations on the same channel are legalized.
-    The options are :
-    1.  <code>proven_mutually_exclusive</code> (default): Requires that channel operations
-        be formally proven mutually exclusive by Z3.
-    2.  <code>runtime_mutually_exclusive</code>: Requires that channel operations be
-        mutually exclusive- enforced during simulation via assertions.
-    3.  <code>total_order</code>: For each proc, requires a total order on all operations
-        on a channel. Note: operations from different procs will not be ordered
-        with respect to each other.
-    4.  <code>runtime_ordered</code>: Requires that a total order exists on every subset of
-        channel operations that fires at runtime. Adds assertions.
-    5.  <code>arbitrary_static_order</code>: For each proc, an arbitrary (respecting
-        existing token relationships) static priority is chosen for multiple
-        channel operations. Operations coming from different procs must be
-        mutually exclusive (enforced via assertions).</li>
 </ul>
 <h1 id="naming">Naming</h1>
 <p>Some names can be set at codegen via the following flags:</p>
@@ -1577,8 +1561,8 @@ string. These format strings use placeholders to fill in relevant information.</
 <p>This results in the following emitted Verilog:</p>
 <p><code>my_and gated_the_result [32-1:0] (.Z(the_result), .A(the cond),
   .B(the_data));</code></p>
-<p>To ensure valid Verilog, the insantiated template must declare a value named
-  <code>{output}</code> (e.g. <code>the_result</code> in the example).</p>
+<p>To ensure valid Verilog, the instantiated template must declare a value
+  named <code>{output}</code> (e.g. <code>the_result</code> in the example).</p>
 </li>
 </ul>
 <ul>
@@ -1768,14 +1752,18 @@ response-receive are scheduled to match the RAM's latency.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.b4d07000.min.js"></script>
+      <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
       
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
       
     
   </body>

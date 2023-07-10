@@ -17,7 +17,7 @@
         <link rel="next" href="../ir_visualization/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
     
     
       
@@ -1886,21 +1886,19 @@ one-off modifications!</p>
 <p>XLS provides tools for analyzing its delay estimation model. (Note that the
 given IR should be in a form suitable for code generation; e.g. it has run
 through the <code>opt_main</code> binary).</p>
-<div class="highlight"><pre><span></span><code>$ tools/benchmark_main crc32.opt.ir --clock_period_ps=500
+<div class="highlight"><pre><span></span><code>$ bazel run -c opt //xls/tools:benchmark_main -- $PWD/bazel-bin/xls/examples/crc32.opt.ir --clock_period_ps=500 --delay_model=sky130
 &lt;snip&gt;
-Return value delay: 1362ps
-Critical path entry count: 42
+Return value delay: 8351ps
+Critical path entry count: 43
 Critical path:
-   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=[(0,29,50)])
-   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=[(0,24,19)])
-   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=[(0,24,33)])
-   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=[(0,23,15)])
-&lt;snip&gt;
-    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=[(0,24,33)])
-    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=[(0,23,15)])
-      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=[(0,23,21)])
-      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=[(0,23,21)])
-      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=[(0,20,16)])
+   8351ps (+ 21ps): not.37: bits[32] = not(xor.213: bits[32], id=37, pos=[(0,30,51)])
+   8330ps (+128ps): xor.213: bits[32] = xor(concat.203: bits[32], and.222: bits[32], id=213, pos=[(0,25,19)])
+   8202ps (+ 81ps): and.222: bits[32] = and(mask__7: bits[32], literal.395: bits[32], id=222, pos=[(0,25,33)])
+   8121ps (+621ps)!: mask__7: bits[32] = neg(concat.199: bits[32], id=202, pos=[(0,24,15)])
+   7330ps (+  0ps): concat.199: bits[32] = concat(literal.387: bits[31], bit_slice.198: bits[1], id=199, pos=[(0,24,21)])
+   7330ps (+  0ps): bit_slice.198: bits[1] = bit_slice(xor.196: bits[32], start=0, width=1, id=198, pos=[(0,24,21)])
+   7330ps (+128ps): xor.196: bits[32] = xor(concat.194: bits[32], and.221: bits[32], id=196, pos=[(0,25,19)])
+   7202ps (+ 81ps): and.221: bits[32] = and(mask__6: bits[32], literal.394: bits[32], id=221, pos=[(0,25,33)])
 &lt;snip&gt;
 </code></pre></div>
 <p>In addition to the critical path, the cycle-by-cycle breakdown of which
@@ -1942,14 +1940,18 @@ operations have been scheduled is provided in stdout.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.b4d07000.min.js"></script>
+      <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
       
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
       
     
   </body>

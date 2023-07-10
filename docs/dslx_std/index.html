@@ -17,7 +17,7 @@
         <link rel="next" href="../floating_point/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
     
     
       
@@ -1439,6 +1439,7 @@
 </ul>
 </li>
 <li><a href="#bit-manipulation-functions">Bit Manipulation Functions</a><ul>
+<li><a href="#stdto_signed-stdto_unsigned">std::to_signed &amp; std::to_unsigned</a></li>
 <li><a href="#stdlsb">std::lsb</a></li>
 <li><a href="#stdconvert_to_bits_msb0">std::convert_to_bits_msb0</a></li>
 <li><a href="#stdconvert_to_bools_lsb0">std::convert_to_bools_lsb0</a></li>
@@ -1499,6 +1500,15 @@
 </code></pre></div>
 <p>Returns the number of bits (sizeof) of unsigned or signed bit value.</p>
 <h2 id="bit-manipulation-functions">Bit Manipulation Functions</h2>
+<h3 id="stdto_signed-stdto_unsigned"><code>std::to_signed</code> &amp; <code>std::to_unsigned</code></h3>
+<div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">to_signed</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">sN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span>
+<span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">to_unsigned</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">sN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span>
+</code></pre></div>
+<p>Convenience helper that converts an unsigned bits argument to its same-sized
+signed type, or visa-versa. This is morally equivalent to (but slightly more
+convenient than) a pattern like:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">sN</span><span class="p">[</span><span class="n">std</span>::<span class="n">sizeof_unsigned</span><span class="p">(</span><span class="n">x</span><span class="p">)]</span>
+</code></pre></div>
 <h3 id="stdlsb"><code>std::lsb</code></h3>
 <div class="highlight"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span> <span class="nf">lsb</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">uN</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">u1</span>
 </code></pre></div>
@@ -1711,14 +1721,18 @@ non-negative 32-bit integers, which range from <code>0</code> to <code>2^31-1</c
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.b4d07000.min.js"></script>
+      <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
       
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
       
     
   </body>

@@ -17,7 +17,7 @@
         <link rel="next" href="../float_to_int/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.15">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
     
     
       
@@ -1534,21 +1534,18 @@ avoid the need for long local compiles.</p>
 file called <code>hello_xls.x</code> in your XLS checkout root directory. Populate it with
 the following:</p>
 <div class="highlight"><pre><span></span><code><span class="k">fn</span> <span class="nf">hello_xls</span><span class="p">(</span><span class="n">hello_string</span>: <span class="kt">u8</span><span class="p">[</span><span class="mi">11</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trace</span><span class="o">!</span><span class="p">(</span><span class="n">hello_string</span><span class="p">);</span>
-<span class="w">  </span><span class="p">()</span>
+<span class="w">  </span><span class="n">trace</span><span class="o">!</span><span class="p">(</span><span class="n">hello_string</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
 <p>Let's go over this, line-by-line:</p>
 <ol>
 <li>This first line declares a fn (<code>fn</code>) named "<code>hello_xls</code>". This function
-    accepts an array of eleven characters (u8) called <code>hello_string</code>, and returns
-    no value (the return type would be specified after the argument list's
-    closing parenthesis and before the function-opening curly brace, if the
-    function returned a value).</li>
+    accepts an array of eleven characters (u8) called <code>hello_string</code>, and
+    returns no value (the return type would be specified after the argument
+    list's closing parenthesis and before the function-opening curly brace, if
+    the function returned a value).</li>
 <li>This second line invokes the built-in <code>trace!</code> directive, passing it the
-    function's input string, and throws away the result (assignment to <code>_</code>).</li>
-<li>The final line terminates the function, exiting with the empty return value
-    <code>()</code>, representing an empty tuple.</li>
+    function's input string, and throws away the result.</li>
 </ol>
 <h2 id="3-say-hello-xls">3. Say hello, XLS!</h2>
 <p>Let's run (and test) our code!</p>
@@ -1640,14 +1637,18 @@ next tutorial,
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.208ed371.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.b4d07000.min.js"></script>
+      <script src="../../assets/javascripts/bundle.220ee61c.min.js"></script>
       
-        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
+          <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+        
       
-        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
+          <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        
       
     
   </body>
