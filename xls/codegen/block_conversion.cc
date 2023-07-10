@@ -889,25 +889,10 @@ static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
 
     // And reduce all the active ready signals. This signal is true iff all
     // active outputs are ready.
-    std::string all_active_outputs_ready_name =
-        PipelineSignalName("all_active_outputs_ready", stage);
-    Node* all_active_outputs_ready;
-    if (active_readys.empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_outputs_ready,
-          block->MakeNodeWithName<xls::Literal>(
-              SourceInfo(), Value(UBits(1, 1)), all_active_outputs_ready_name));
-    } else if (active_readys.size() == 1) {
-      // Don't make a new named node if there is only one active_valid signal,
-      // just use the signal directly.
-      all_active_outputs_ready = active_readys[0];
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_outputs_ready,
-          block->MakeNodeWithName<NaryOp>(SourceInfo(), active_readys, Op::kAnd,
-                                          all_active_outputs_ready_name));
-    }
-
+    XLS_ASSIGN_OR_RETURN(
+        Node * all_active_outputs_ready,
+        NaryAndIfNeeded(block, active_readys,
+                        PipelineSignalName("all_active_outputs_ready", stage)));
     result.push_back(all_active_outputs_ready);
   }
 
@@ -973,25 +958,10 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
 
     // And reduce all the active valid signals. This signal is true iff all
     // active inputs are valid.
-    Node* all_active_inputs_valid;
-    std::string all_active_inputs_valid_name =
-        PipelineSignalName("all_active_inputs_valid", stage);
-    if (active_valids.empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_inputs_valid,
-          block->MakeNodeWithName<xls::Literal>(
-              SourceInfo(), Value(UBits(1, 1)), all_active_inputs_valid_name));
-    } else if (active_valids.size() == 1) {
-      // Don't make a new named node if there is only one active_valid signal,
-      // just use the signal directly.
-      all_active_inputs_valid = active_valids[0];
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_inputs_valid,
-          block->MakeNodeWithName<NaryOp>(SourceInfo(), active_valids, Op::kAnd,
-                                          all_active_inputs_valid_name));
-    }
-
+    XLS_ASSIGN_OR_RETURN(
+        Node * all_active_inputs_valid,
+        NaryAndIfNeeded(block, active_valids,
+                        PipelineSignalName("all_active_inputs_valid", stage)));
     result.push_back(all_active_inputs_valid);
   }
 
@@ -1088,24 +1058,10 @@ static absl::StatusOr<std::vector<Node*>> MakeValidNodesForInputStates(
 
     // And reduce all the active valid signals. This signal is true iff all
     // active states are valid.
-    Node* all_active_states_valid;
-    std::string all_active_states_valid_name =
-        PipelineSignalName("all_active_states_valid", stage);
-    if (active_valids.empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_states_valid,
-          block->MakeNodeWithName<xls::Literal>(
-              SourceInfo(), Value(UBits(1, 1)), all_active_states_valid_name));
-    } else if (active_valids.size() == 1) {
-      // Don't make a new named node if there is only one active_valid signal,
-      // just use the signal directly.
-      all_active_states_valid = active_valids[0];
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_states_valid,
-          block->MakeNodeWithName<NaryOp>(SourceInfo(), active_valids, Op::kAnd,
-                                          all_active_states_valid_name));
-    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * all_active_states_valid,
+        NaryAndIfNeeded(block, active_valids,
+                        PipelineSignalName("all_active_states_valid", stage)));
 
     result.push_back(all_active_states_valid);
   }
@@ -1147,25 +1103,10 @@ static absl::StatusOr<std::vector<Node*>> MakeReadyNodesForOutputStates(
 
     // And reduce all the active ready signals. This signal is true iff all
     // active states are ready.
-    std::string all_active_states_ready_name =
-        PipelineSignalName("all_active_states_ready", stage);
-    Node* all_active_states_ready;
-    if (active_readys.empty()) {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_states_ready,
-          block->MakeNodeWithName<xls::Literal>(
-              SourceInfo(), Value(UBits(1, 1)), all_active_states_ready_name));
-    } else if (active_readys.size() == 1) {
-      // Don't make a new named node if there is only one active_valid signal,
-      // just use the signal directly.
-      all_active_states_ready = active_readys[0];
-    } else {
-      XLS_ASSIGN_OR_RETURN(
-          all_active_states_ready,
-          block->MakeNodeWithName<NaryOp>(SourceInfo(), active_readys, Op::kAnd,
-                                          all_active_states_ready_name));
-    }
-
+    XLS_ASSIGN_OR_RETURN(
+        Node * all_active_states_ready,
+        NaryAndIfNeeded(block, active_readys,
+                        PipelineSignalName("all_active_states_ready", stage)));
     result.push_back(all_active_states_ready);
   }
 
@@ -1794,9 +1735,7 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * idle_signal,
-      block->MakeNode<NaryOp>(SourceInfo(), valid_nodes, Op::kNor));
+  XLS_ASSIGN_OR_RETURN(Node * idle_signal, NaryNorIfNeeded(block, valid_nodes));
 
   XLS_ASSIGN_OR_RETURN(streaming_io.idle_port,
                        block->AddOutputPort("idle", idle_signal));

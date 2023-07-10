@@ -17,12 +17,16 @@
 #ifndef XLS_IR_NODE_UTIL_H_
 #define XLS_IR_NODE_UTIL_H_
 
+#include <optional>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 
@@ -129,6 +133,22 @@ absl::StatusOr<Node*> AndReduceTrailing(Node* node, int64_t bit_count);
 // TODO(b/150557922): Create a dedicated opcode for or-reductions of multi-bit
 // values.
 absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count);
+
+// And-reduce the given operands if needed. If there are 2+ operands, returns an
+// N-ary AND of them; if there is 1 operand, returns that operand; and if there
+// are no operands, returns a literal 1.
+absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
+                                      absl::Span<Node* const> operands,
+                                      std::string_view name = "",
+                                      const SourceInfo& source_info = {});
+
+// Nor-reduce the given operands if needed. If there are 2+ operands, returns an
+// N-ary NOR of them; if there is 1 operand, returns a negation of it; and if
+// there are no operands, fails.
+absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
+                                      absl::Span<Node* const> operands,
+                                      std::string_view name = "",
+                                      const SourceInfo& source_info = {});
 
 // Returns whether the given node is a signed/unsigned comparison operation (for
 // example, ULe or SGt).

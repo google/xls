@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,6 +26,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -37,9 +39,11 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Not;
 
 class Result {
  public:
@@ -297,6 +301,80 @@ TEST_F(NodeUtilTest, ReplaceTupleIndicesFailsWithDependentReplacement) {
   EXPECT_THAT(ReplaceTupleElementsWith(in_param, {{0, lit0}, {1, lhs_node}}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Replacement index 1 (lhs) depends on")));
+}
+
+TEST_F(NodeUtilTest, NaryAndWithNoInputs) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(NaryAndIfNeeded(f, {}), IsOkAndHolds(m::Literal(UBits(1, 1))));
+}
+
+TEST_F(NodeUtilTest, NaryAndWithOneInput) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue a = b.Param("a", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(NaryAndIfNeeded(f, std::vector<Node*>{a.node(), a.node()}),
+              IsOkAndHolds(m::Param("a")));
+}
+
+TEST_F(NodeUtilTest, NaryAndWithMultipleInputs) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue a0 = b.Param("a0", p.GetBitsType(1));
+  BValue a1 = b.Param("a1", p.GetBitsType(1));
+  BValue a2 = b.Param("a2", p.GetBitsType(1));
+  BValue a3 = b.Param("a3", p.GetBitsType(1));
+  BValue a4 = b.Param("a4", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(
+      NaryAndIfNeeded(
+          f, std::vector<Node*>{a0.node(), a1.node(), a2.node(), a3.node(),
+                                a4.node(), a1.node(), a3.node(), a1.node()}),
+      IsOkAndHolds(m::And(m::Param("a0"), m::Param("a1"), m::Param("a2"),
+                          m::Param("a3"), m::Param("a4"))));
+}
+
+TEST_F(NodeUtilTest, NaryNorWithNoInputs) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  b.Param("a", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(NaryNorIfNeeded(f, {}), Not(IsOk()));
+}
+
+TEST_F(NodeUtilTest, NaryNorWithOneInput) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue a = b.Param("a", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(NaryNorIfNeeded(f, std::vector<Node*>{a.node(), a.node()}),
+              IsOkAndHolds(m::Not(m::Param("a"))));
+}
+
+TEST_F(NodeUtilTest, NaryNorWithMultipleInputs) {
+  Package p("my_package");
+  FunctionBuilder b(TestName(), &p);
+  BValue a0 = b.Param("a0", p.GetBitsType(1));
+  BValue a1 = b.Param("a1", p.GetBitsType(1));
+  BValue a2 = b.Param("a2", p.GetBitsType(1));
+  BValue a3 = b.Param("a3", p.GetBitsType(1));
+  BValue a4 = b.Param("a4", p.GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(
+      NaryNorIfNeeded(
+          f, std::vector<Node*>{a0.node(), a3.node(), a2.node(), a1.node(),
+                                a4.node(), a1.node(), a3.node(), a1.node()}),
+      IsOkAndHolds(m::Nor(m::Param("a0"), m::Param("a1"), m::Param("a2"),
+                          m::Param("a3"), m::Param("a4"))));
 }
 
 }  // namespace

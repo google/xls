@@ -13,16 +13,28 @@
 // limitations under the License.
 
 #include "xls/ir/node_util.h"
+
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <string_view>
+#include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/btree_set.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -121,6 +133,41 @@ absl::StatusOr<Node*> OrReduceLeading(Node* node, int64_t bit_count) {
     bits.push_back(bit);
   }
   return f->MakeNode<NaryOp>(node->loc(), bits, Op::kOr);
+}
+
+absl::StatusOr<Node*> NaryAndIfNeeded(FunctionBase* f,
+                                      absl::Span<Node* const> operands,
+                                      std::string_view name,
+                                      const SourceInfo& source_info) {
+  if (operands.empty()) {
+    return f->MakeNodeWithName<Literal>(source_info, Value(UBits(1, 1)), name);
+  }
+
+  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
+                                                               operands.end());
+  if (unique_operands.size() == 1) {
+    return operands[0];
+  }
+  return f->MakeNodeWithName<NaryOp>(
+      source_info,
+      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
+      Op::kAnd, name);
+}
+
+absl::StatusOr<Node*> NaryNorIfNeeded(FunctionBase* f,
+                                      absl::Span<Node* const> operands,
+                                      std::string_view name,
+                                      const SourceInfo& source_info) {
+  XLS_RET_CHECK(!operands.empty());
+  absl::btree_set<Node*, Node::NodeIdLessThan> unique_operands(operands.begin(),
+                                                               operands.end());
+  if (unique_operands.size() == 1) {
+    return f->MakeNodeWithName<UnOp>(source_info, operands[0], Op::kNot, name);
+  }
+  return f->MakeNodeWithName<NaryOp>(
+      source_info,
+      std::vector<Node*>(unique_operands.begin(), unique_operands.end()),
+      Op::kNor, name);
 }
 
 bool IsUnsignedCompare(Node* node) {
