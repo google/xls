@@ -128,7 +128,7 @@ Returns the biased exponent which is equal to `unbiased_exponent + 2^EXP_SZ - 1`
 Since the function only takes as input the unbiased exponent, it cannot distinguish between normal and subnormal numbers, as a result it assumes that the input is the exponent for a normal number.
 
 
-## `apfloat::flatten`
+### `apfloat::flatten`
 ```dslx-snippet
 pub fn flatten<EXP_SZ:u32, FRACTION_SZ:u32,
                TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(
@@ -139,7 +139,7 @@ Returns a bit string of size `1 + EXP_SZ + FRACTION_SZ` where the first bit is
 the sign bit, the next `EXP_SZ` bit encode the biased exponent and the last
 `FRACTION_SZ` are the significand without the hidden bit.
 
-## `apfloat::unflatten`
+### `apfloat::unflatten`
 ```dslx-snippet
 pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
                  TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(x: bits[TOTAL_SZ])
@@ -149,7 +149,7 @@ pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
 Returns a `APFloat` struct whose flattened version would be the input
 string `x`.
 
-## `apfloat::cast_from_fixed`
+### `apfloat::cast_from_fixed`
 ```dslx-snippet
 pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
                        to_cast: sN[NUM_SRC_BITS])
@@ -159,7 +159,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 Casts the fixed point number to a floating point number using RNE
 (Round to Nearest Even) as the rounding mode.
 
-## `apfloat::normalize`
+### `apfloat::normalize`
 ```dslx-snippet
 pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
                  WIDE_FRACTION:u32 = {FRACTION_SZ + u32:1}>(
@@ -173,26 +173,26 @@ Returns a normalized APFloat with the given components.
 only normalizes in the direction of decreasing the exponent. Input must be a
 normal number or zero. Subnormals/Denormals are flushed to zero in the result.
 
-## `apfloat::is_inf`
+### `apfloat::is_inf`
 ```dslx-snippet
 pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
 Returns whether or not the given `APFloat` represents an infinite quantity.
 
-## `apfloat::is_nan`
+### `apfloat::is_nan`
 ```dslx-snippet
 pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
 Returns whether or not the given `APFloat` represents `NaN`.
 
-## `apfloat::is_zero_or_subnormal`
+### `apfloat::is_zero_or_subnormal`
 ```dslx-snippet
 pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
                             x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
 Returns `true` if `x == 0` or `x` is a subnormal number.
 
-## `apfloat::cast_to_fixed`
+### `apfloat::cast_to_fixed`
 ```dslx-snippet
 pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32>(
                      to_cast: APFloat<EXP_SZ, FRACTION_SZ>)
@@ -202,7 +202,7 @@ Casts the floating point number to a fixed point number.
 Unrepresentable numbers are cast to the minimum representable
 number (largest magnitude negative number).
 
-## `apfloat::eq_2`
+### `apfloat::eq_2`
 ```dslx-snippet
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -212,7 +212,7 @@ Returns `true` if `x == y`.
 Denormals are Zero (DAZ).
 Always returns `false` if `x` or `y` is `NaN`.
 
-## `apfloat::gt_2`
+### `apfloat::gt_2`
 ```dslx-snippet
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -223,7 +223,7 @@ Denormals are Zero (DAZ).
 Always returns `false` if `x` or `y` is `NaN`.
 
 
-## `apfloat::gte_2`
+### `apfloat::gte_2`
 ```dslx-snippet
 pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -233,7 +233,7 @@ Returns `true` if `x >= y`.
 Denormals are Zero (DAZ).
 Always returns `false` if `x` or `y` is `NaN`.
 
-## `apfloat::lte_2`
+### `apfloat::lte_2`
 ```dslx-snippet
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -243,7 +243,7 @@ Returns `true` if `x <= y`.
 Denormals are Zero (DAZ).
 Always returns `false` if `x` or `y` is `NaN`.
 
-## `apfloat::lt_2`
+### `apfloat::lt_2`
 ```dslx-snippet
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -253,7 +253,7 @@ Returns `true` if `x < y`.
 Denormals are Zero (DAZ).
 Always returns `false` if `x` or `y` is `NaN`.
 
-## `apfloat::round_towards_zero`
+### `apfloat::round_towards_zero`
 ```dslx-snippet
 pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
                           x: APFloat<EXP_SZ, FRACTION_SZ>)
@@ -261,7 +261,7 @@ pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
 ```
 Returns an `APFloat` with all its bits past the decimal point set to `0`.
 
-## `apfloat::to_int`
+### `apfloat::to_int`
 ```dslx-snippet
 pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
               x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ]
