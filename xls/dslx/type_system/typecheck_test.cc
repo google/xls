@@ -258,9 +258,11 @@ TEST(TypecheckErrorTest, ParametricRecursionCausesError) {
 fn f<X: u32>(x: bits[X]) -> u32 { f(x) }
 fn g() -> u32 { f(u32: 5) }
 )";
-  EXPECT_THAT(Typecheck(program),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Recursion detected while typechecking")));
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Recursive call to `f` detected during type-checking "
+                         "-- recursive calls are unsupported.")));
 }
 
 TEST(TypecheckErrorTest, HigherOrderRecursionCausesError) {
@@ -271,9 +273,11 @@ fn g() -> u32[3] {
     map(x0, h)
 }
 )";
-  EXPECT_THAT(Typecheck(program),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Recursion detected while typechecking")));
+  EXPECT_THAT(
+      Typecheck(program),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Recursive call to `h` detected during type-checking "
+                         "-- recursive calls are unsupported.")));
 }
 
 TEST(TypecheckErrorTest, InvokeWrongArg) {

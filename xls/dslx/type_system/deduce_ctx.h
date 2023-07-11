@@ -65,7 +65,11 @@ class FnStackEntry {
   std::string ToReprString() const;
 
   const std::string& name() const { return name_; }
+
+  // Note: f() can be nullptr when this entry represents a module-level
+  // evaluation, i.e. created via `MakeTop()`.
   Function* f() const { return f_; }
+
   const Module* module() const { return module_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
   std::optional<const Invocation*> invocation() { return invocation_; }
@@ -87,7 +91,7 @@ class FnStackEntry {
 
   // Constructor overload for a module-level inference entry.
   explicit FnStackEntry(Module* module)
-      : f_(static_cast<Function*>(nullptr)),
+      : f_(nullptr),
         name_("<top>"),
         module_(module),
         within_proc_(WithinProc::kNo) {}

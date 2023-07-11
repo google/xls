@@ -28,12 +28,14 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/deduce.h"
@@ -306,7 +308,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
 
   std::vector<const ConcreteType*> arg_type_ptrs;
   arg_type_ptrs.reserve(arg_types.size());
-  for (size_t i = 0; i < arg_types.size(); ++i) {
+  for (int64_t i = 0; i < arg_types.size(); ++i) {
     const std::unique_ptr<ConcreteType>& arg_type = arg_types.at(i);
     if (arg_type->IsMeta()) {
       return TypeInferenceErrorStatus(
@@ -593,6 +595,26 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
     Function* callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
+  XLS_VLOG(5) << "InstantiateParametricFunction; callee_fn: "
+              << callee_fn->identifier();
+
+  {
+    // As a special case, flag recursion (that otherwise shows up as unresolved
+    // parametrics), so the cause is more clear to the user (vs the symptom).
+    Function* const current = callee_fn;
+    XLS_CHECK(current != nullptr);
+    for (int64_t i = 0; i < ctx->fn_stack().size(); ++i) {
+      Function* previous = (ctx->fn_stack().rbegin() + i)->f();
+      if (current == previous) {
+        return TypeInferenceErrorStatus(
+            invocation->span(), nullptr,
+            absl::StrFormat("Recursive call to `%s` detected during "
+                            "type-checking -- recursive calls are unsupported.",
+                            callee_fn->identifier()));
+      }
+    }
+  }
+
   const std::vector<ParametricBinding*>& parametric_bindings =
       callee_fn->parametric_bindings();
   absl::flat_hash_map<std::string, InterpValue> explicit_bindings;

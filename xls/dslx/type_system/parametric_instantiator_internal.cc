@@ -255,6 +255,13 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved, Resolve(orig));
   XLS_VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
               << resolved->ToString();
+
+  if (resolved->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        span(), resolved.get(),
+        "Instantiated return type did not have all parametrics resolved.");
+  }
+
   return TypeAndBindings{std::move(resolved), ParametricEnv(parametric_env())};
 }
 

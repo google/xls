@@ -531,7 +531,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     )
     self.assertIn('replicate_github_issue_263.x:22:24-22:41', stderr)
     self.assertIn('TypeInferenceError', stderr)
-    self.assertIn('Recursion detected while typechecking', stderr)
+    self.assertIn(
+        'Recursive call to `replicate` detected during type-checking', stderr
+    )
 
   def test_precise_struct_error(self):
     stderr = self._run(
@@ -755,6 +757,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         'Colon-reference subject `apfloat::APFloat` did not refer to a module,'
         ' so `apfloat::APFloat::inf` cannot be invoked.',
+        stderr,
+    )
+
+  def test_apfloat_inf_no_parametrics(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/apfloat_inf_no_parametrics.x'
+    )
+    self.assertIn(
+        'APFloat { sign: uN[1], bexp: uN[EXP_SZ], fraction: uN[FRACTION_SZ] }'
+        ' Instantiated return type did not have all parametrics resolved.',
         stderr,
     )
 
