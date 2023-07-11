@@ -783,7 +783,7 @@ absl::StatusOr<bool> RamRewritePass::RunInternal(
                 << ram_configuration->ram_name() << ".";
     XLS_ASSIGN_OR_RETURN(bool this_one_changed,
                          RamRewrite(unit, options, *ram_configuration));
-    changed |= this_one_changed;
+    changed = changed || this_one_changed;
   }
 
   return changed;

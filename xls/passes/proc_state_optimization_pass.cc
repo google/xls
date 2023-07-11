@@ -356,15 +356,15 @@ absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
 
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,
                        RemoveZeroWidthStateElements(proc));
-  changed |= zero_width_changed;
+  changed = changed || zero_width_changed;
 
   XLS_ASSIGN_OR_RETURN(bool literal_chains_changed,
                        ConvertLiteralChainsToStateMachines(proc));
-  changed |= literal_chains_changed;
+  changed = changed || literal_chains_changed;
 
   XLS_ASSIGN_OR_RETURN(bool unobservable_changed,
                        RemoveUnobservableStateElements(proc));
-  changed |= unobservable_changed;
+  changed = changed || unobservable_changed;
 
   return changed;
 }

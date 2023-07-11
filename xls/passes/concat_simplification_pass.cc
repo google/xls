@@ -489,15 +489,15 @@ absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
       if (OpIsBitWise(node->op())) {
         XLS_ASSIGN_OR_RETURN(bool bitwise_changed,
                              TryHoistBitWiseOperation(node));
-        changed |= bitwise_changed;
+        changed = changed || bitwise_changed;
       } else {
         XLS_ASSIGN_OR_RETURN(bool distribute_changed,
                              TryDistributeReducibleOperation(node));
-        changed |= distribute_changed;
+        changed = changed || distribute_changed;
 
         XLS_ASSIGN_OR_RETURN(bool reduction_changed,
                              TryBypassReductionOfConcatenation(node));
-        changed |= reduction_changed;
+        changed = changed || reduction_changed;
       }
     }
   }

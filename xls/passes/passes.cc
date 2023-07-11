@@ -44,7 +44,7 @@ absl::StatusOr<bool> FunctionBasePass::RunInternal(Package* p,
   for (FunctionBase* f : p->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(bool function_changed,
                          RunOnFunctionBaseInternal(f, options, results));
-    changed |= function_changed;
+    changed = changed || function_changed;
   }
   return changed;
 }
@@ -108,7 +108,7 @@ absl::StatusOr<bool> ProcPass::RunInternal(Package* p,
   for (const auto& proc : p->procs()) {
     XLS_ASSIGN_OR_RETURN(bool proc_changed,
                          RunOnProcInternal(proc.get(), options, results));
-    changed |= proc_changed;
+    changed = changed || proc_changed;
   }
   return changed;
 }

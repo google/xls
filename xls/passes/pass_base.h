@@ -436,7 +436,7 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
       }
     }
 #endif
-    changed |= pass_changed;
+    changed = changed || pass_changed;
     XLS_VLOG(1) << absl::StreamFormat(
         "[elapsed %s] Pass %s %s.", FormatDuration(duration),
         pass->short_name(),

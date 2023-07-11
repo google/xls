@@ -48,33 +48,33 @@ class ConcatSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     bool changed = true;
-    bool any_concat_chagned = false;
+    bool any_concat_changed = false;
     while (changed) {
       changed = false;
       PassResults results;
       XLS_ASSIGN_OR_RETURN(bool concat_changed,
                            ConcatSimplificationPass().RunOnFunctionBase(
                                f, PassOptions(), &results));
-      changed |= concat_changed;
-      any_concat_chagned |= concat_changed;
+      changed = changed || concat_changed;
+      any_concat_changed = any_concat_changed || concat_changed;
 
       // Run other passes to clean things up.
       XLS_ASSIGN_OR_RETURN(bool dce_changed,
                            DeadCodeEliminationPass().RunOnFunctionBase(
                                f, PassOptions(), &results));
-      changed |= dce_changed;
+      changed = changed || dce_changed;
       XLS_ASSIGN_OR_RETURN(bool slice_changed,
                            BitSliceSimplificationPass().RunOnFunctionBase(
                                f, PassOptions(), &results));
-      changed |= slice_changed;
+      changed = changed || slice_changed;
 
       XLS_ASSIGN_OR_RETURN(bool cse_changed, BddCsePass().RunOnFunctionBase(
                                                  f, PassOptions(), &results));
-      changed |= cse_changed;
+      changed = changed || cse_changed;
     }
 
     // Return whether concat simplification changed anything.
-    return any_concat_chagned;
+    return any_concat_changed;
   }
 };
 

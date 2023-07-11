@@ -910,7 +910,7 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
   bool changed = false;
 
   XLS_ASSIGN_OR_RETURN(bool clamp_changed, ClampArrayIndexIndices(func));
-  changed |= clamp_changed;
+  changed = changed || clamp_changed;
 
   TernaryQueryEngine query_engine;
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());
@@ -920,26 +920,26 @@ absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
       ArrayIndex* array_index = node->As<ArrayIndex>();
       XLS_ASSIGN_OR_RETURN(bool node_changed,
                            SimplifyArrayIndex(array_index, query_engine));
-      changed = changed | node_changed;
+      changed = changed || node_changed;
     } else if (node->Is<ArrayUpdate>()) {
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
           SimplifyArrayUpdate(node->As<ArrayUpdate>(), query_engine));
-      changed = changed | node_changed;
+      changed = changed || node_changed;
     } else if (node->Is<Array>()) {
       XLS_ASSIGN_OR_RETURN(bool node_changed,
                            SimplifyArray(node->As<Array>(), query_engine));
-      changed = changed | node_changed;
+      changed = changed || node_changed;
     } else if (IsBinarySelect(node)) {
       XLS_ASSIGN_OR_RETURN(
           bool node_changed,
           SimplifyBinarySelect(node->As<Select>(), query_engine));
-      changed = changed | node_changed;
+      changed = changed || node_changed;
     }
   }
 
   XLS_ASSIGN_OR_RETURN(bool flatten_changed, FlattenSequentialUpdates(func));
-  changed = changed | flatten_changed;
+  changed = changed || flatten_changed;
   return changed;
 }
 

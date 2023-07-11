@@ -180,7 +180,8 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
               Node * new_token,
               f->MakeNode<AfterAll>(SourceInfo(),
                                     std::vector<Node*>{receive_token, input}));
-          changed |= io->ReplaceOperand(input, new_token);
+          bool operand_replaced = io->ReplaceOperand(input, new_token);
+          changed = changed || operand_replaced;
         }
       }
     }

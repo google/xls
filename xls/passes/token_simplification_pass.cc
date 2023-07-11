@@ -285,7 +285,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          SimplifyTrivialMinDelay(node->As<MinDelay>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : TopoSort(f)) {
@@ -294,7 +294,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          CollapseMinDelay(node->As<MinDelay>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : TopoSort(f)) {
@@ -303,7 +303,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          PushDownMinDelay(node->As<AfterAll>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : ReverseTopoSort(f)) {
@@ -312,7 +312,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          CollapseAfterAll(node->As<AfterAll>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : TopoSort(f)) {
@@ -321,7 +321,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          ReplaceOverlappingAfterAll(node->As<AfterAll>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : TopoSort(f)) {
@@ -330,7 +330,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          RemoveDuplicateAfterAll(node->As<AfterAll>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   for (Node* node : TopoSort(f)) {
@@ -339,7 +339,7 @@ absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
     }
     XLS_ASSIGN_OR_RETURN(bool subpass_changed,
                          SimplifyTrivialAfterAll(node->As<AfterAll>()));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
   }
 
   if (changed) {

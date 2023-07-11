@@ -56,12 +56,12 @@ class MutualExclusionPassTest : public IrTestBase {
           subpass_changed,
           MutualExclusionPass().RunOnFunctionBase(
               &unit, SchedulingPassOptions(), &scheduling_results));
-      changed |= subpass_changed;
+      changed = changed || subpass_changed;
     }
     XLS_ASSIGN_OR_RETURN(
         subpass_changed,
         SimplificationPass().Run(f->package(), PassOptions(), &results));
-    changed |= subpass_changed;
+    changed = changed || subpass_changed;
     return changed;
   }
 };

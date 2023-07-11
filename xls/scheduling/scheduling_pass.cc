@@ -43,7 +43,7 @@ absl::StatusOr<bool> SchedulingFunctionBasePass::RunInternal(
     XLS_ASSIGN_OR_RETURN(bool function_changed,
                          RunOnFunctionBaseInternal(&unit, options, results));
     s->schedule = unit.schedule;
-    changed |= function_changed;
+    changed = changed || function_changed;
   }
   return changed;
 }

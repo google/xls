@@ -52,7 +52,7 @@ class ArraySimplificationPassTest : public IrTestBase {
       XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
                               .RunOnFunctionBase(f, PassOptions(), &results)
                               .status());
-      changed |= changed_this_iteration;
+      changed = changed || changed_this_iteration;
     }
 
     return changed;
