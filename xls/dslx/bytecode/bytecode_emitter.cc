@@ -829,8 +829,9 @@ absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     const ColonRef* node) {
-  XLS_ASSIGN_OR_RETURN(auto resolved_subject,
-                       ResolveColonRefSubject(import_data_, type_info_, node));
+  XLS_ASSIGN_OR_RETURN(
+      auto resolved_subject,
+      ResolveColonRefSubjectAfterTypeChecking(import_data_, type_info_, node));
 
   return absl::visit(
       Visitor{
@@ -856,7 +857,8 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
           },
           [&](Module* module) -> absl::StatusOr<InterpValue> {
             return HandleColonRefToValue(module, node);
-          }},
+          },
+      },
       resolved_subject);
 }
 

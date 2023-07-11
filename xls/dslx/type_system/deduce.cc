@@ -213,8 +213,17 @@ absl::StatusOr<T*> GetMemberOrTypeInferenceError(Module* m,
 }
 
 // Resolves "ref" to an AST function.
-absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
+absl::StatusOr<Function*> ResolveColonRefToFnForInvocation(ColonRef* ref,
+                                                           DeduceCtx* ctx) {
   std::optional<Import*> import = ref->ResolveImportSubject();
+  if (!import.has_value()) {
+    return TypeInferenceErrorStatus(
+        ref->span(), nullptr,
+        absl::StrFormat("Colon-reference subject `%s` did not refer to a "
+                        "module, so `%s` cannot be invoked.",
+                        ToAstNode(ref->subject())->ToString(),
+                        ref->ToString()));
+  }
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
   std::optional<const ImportedInfo*> imported_info =
@@ -1392,8 +1401,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
   XLS_VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
 
   ImportData* import_data = ctx->import_data();
-  XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(
+  XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
                                          import_data, ctx->type_info(), node));
+
   using ReturnT = absl::StatusOr<std::unique_ptr<ConcreteType>>;
   Module* subject_module = ToAstNode(subject)->owner();
   XLS_ASSIGN_OR_RETURN(TypeInfo * subject_type_info,
@@ -1423,6 +1433,20 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
           },
           [&](ArrayTypeAnnotation* type) -> ReturnT {
             return DeduceColonRefToArrayType(type, node, subject_ctx.get());
+          },
+          [&](StructDef* struct_def) -> ReturnT {
+            return TypeInferenceErrorStatus(
+                node->span(), nullptr,
+                absl::StrFormat("Struct definitions (e.g. '%s') cannot have "
+                                "constant items.",
+                                struct_def->identifier()));
+          },
+          [&](ColonRef* colon_ref) -> ReturnT {
+            // Note: this should be unreachable, as it's a colon-reference that
+            // refers *directly* to another colon-ref. Generally you need an
+            // intervening construct, like a type alias.
+            return absl::InternalError(
+                "Colon-reference subject was another colon-reference.");
           },
       },
       subject);
@@ -2726,7 +2750,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     Function* fn;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(callee);
         colon_ref != nullptr) {
-      XLS_ASSIGN_OR_RETURN(fn, ResolveColonRefToFn(colon_ref, ctx));
+      XLS_ASSIGN_OR_RETURN(fn,
+                           ResolveColonRefToFnForInvocation(colon_ref, ctx));
     } else if (auto* name_ref = dynamic_cast<NameRef*>(callee);
                name_ref != nullptr) {
       const std::string& callee_name = name_ref->identifier();

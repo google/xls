@@ -27,12 +27,16 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/variant.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/type_info.h"
 
 namespace xls::dslx {
 namespace {
@@ -75,7 +79,7 @@ ResolveTypeAliasToDirectColonRefSubject(ImportData* import_data,
 
   if (std::holds_alternative<ColonRef*>(td)) {
     ColonRef* colon_ref = std::get<ColonRef*>(td);
-    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(
+    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectForTypeChecking(
                                            import_data, type_info, colon_ref));
     XLS_RET_CHECK(std::holds_alternative<Module*>(subject));
     Module* module = std::get<Module*>(subject);
@@ -163,6 +167,10 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
       colon_ref->attr());
 }
 
+using ColonRefSubjectT =
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*,
+                 StructDef*, ColonRef*>;
+
 // When a ColonRef's subject is a NameRef, this resolves the entity referred to
 // by that ColonRef. In a valid program that can only be a limited set of
 // things, which is reflected in the return type provided.
@@ -177,10 +185,8 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
 //  name_ref: The subject in the colon ref.
 //
 // Returns the entity the subject name_ref is referring to.
-static absl::StatusOr<
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
-ResolveColonRefNameRefSubject(NameRef* name_ref, ImportData* import_data,
-                              const TypeInfo* type_info) {
+static absl::StatusOr<ColonRefSubjectT> ResolveColonRefNameRefSubject(
+    NameRef* name_ref, ImportData* import_data, const TypeInfo* type_info) {
   XLS_VLOG(5) << "ResolveColonRefNameRefSubject for `" << name_ref->ToString()
               << "`";
 
@@ -224,14 +230,12 @@ ResolveColonRefNameRefSubject(NameRef* name_ref, ImportData* import_data,
   }
   XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeAliasToDirectColonRefSubject(
                                           import_data, type_info, type_alias));
-  return WidenVariant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>(
-      resolved);
+  return WidenVariantTo<ColonRefSubjectT>(resolved);
 }
 
-absl::StatusOr<
-    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
-ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
-                       const ColonRef* colon_ref) {
+absl::StatusOr<ColonRefSubjectT> ResolveColonRefSubjectForTypeChecking(
+    ImportData* import_data, const TypeInfo* type_info,
+    const ColonRef* colon_ref) {
   XLS_VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
 
   if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
@@ -241,8 +245,9 @@ ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
 
   XLS_RET_CHECK(std::holds_alternative<ColonRef*>(colon_ref->subject()));
   ColonRef* subject = std::get<ColonRef*>(colon_ref->subject());
-  XLS_ASSIGN_OR_RETURN(auto resolved_subject,
-                       ResolveColonRefSubject(import_data, type_info, subject));
+  XLS_ASSIGN_OR_RETURN(
+      auto resolved_subject,
+      ResolveColonRefSubjectForTypeChecking(import_data, type_info, subject));
   // Has to be a module, since it's a ColonRef inside a ColonRef.
   XLS_RET_CHECK(std::holds_alternative<Module*>(resolved_subject));
   Module* module = std::get<Module*>(resolved_subject);
@@ -252,15 +257,49 @@ ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
   // that we might have to traverse an EnumDef.
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        module->GetTypeDefinition(subject->attr()));
-  if (std::holds_alternative<TypeAlias*>(td)) {
-    XLS_ASSIGN_OR_RETURN(auto resolved,
-                         ResolveTypeAliasToDirectColonRefSubject(
-                             import_data, type_info, std::get<TypeAlias*>(td)));
-    return WidenVariant<Module*, EnumDef*, BuiltinNameDef*,
-                        ArrayTypeAnnotation*>(resolved);
-  }
 
-  return std::get<EnumDef*>(td);
+  using ReturnT = absl::StatusOr<ColonRefSubjectT>;
+
+  return absl::visit(
+      Visitor{
+          [&](TypeAlias* type_alias) -> ReturnT {
+            XLS_ASSIGN_OR_RETURN(auto resolved,
+                                 ResolveTypeAliasToDirectColonRefSubject(
+                                     import_data, type_info, type_alias));
+            return WidenVariantTo<ColonRefSubjectT>(resolved);
+          },
+          [](StructDef* struct_def) -> ReturnT { return struct_def; },
+          [](EnumDef* enum_def) -> ReturnT { return enum_def; },
+          [](ColonRef* colon_ref) -> ReturnT { return colon_ref; },
+      },
+      td);
+}
+
+absl::StatusOr<
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        const ColonRef* colon_ref) {
+  XLS_ASSIGN_OR_RETURN(auto result, ResolveColonRefSubjectForTypeChecking(
+                                        import_data, type_info, colon_ref));
+  using ReturnT = absl::StatusOr<
+      std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>;
+  return absl::visit(
+      Visitor{
+          [](Module* x) -> ReturnT { return x; },
+          [](EnumDef* x) -> ReturnT { return x; },
+          [](BuiltinNameDef* x) -> ReturnT { return x; },
+          [](ArrayTypeAnnotation* x) -> ReturnT { return x; },
+          [](StructDef*) -> ReturnT {
+            return absl::InternalError(
+                "After type checking colon-ref subject cannot be a StructDef");
+          },
+          [](ColonRef*) -> ReturnT {
+            return absl::InternalError(
+                "After type checking colon-ref subject cannot be a StructDef");
+          },
+      },
+      result);
 }
 
 absl::Status VerifyParentage(const Module* module) {

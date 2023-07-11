@@ -315,7 +315,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/colon_ref_of_type_alias.x'
     )
-    self.assertIn('ColonRef did not refer to an import', stderr)
+    self.assertIn(
+        'Colon-reference subject `F32` did not refer to a module, so `F32::one`'
+        ' cannot be invoked.',
+        stderr,
+    )
 
   def test_cast_int_to_struct(self):
     stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')
@@ -734,6 +738,25 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_missing_semi(self):
     stderr = self._run('xls/dslx/tests/errors/missing_semi.x')
     self.assertIn('invocation callee must be', stderr)
+
+  def test_apfloat_struct_constant(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/apfloat_struct_constant.x'
+    )
+    self.assertIn(
+        "Struct definitions (e.g. 'APFloat') cannot have constant items.",
+        stderr,
+    )
+
+  def test_apfloat_inf_accidental_struct(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/apfloat_inf_accidental_struct.x'
+    )
+    self.assertIn(
+        'Colon-reference subject `apfloat::APFloat` did not refer to a module,'
+        ' so `apfloat::APFloat::inf` cannot be invoked.',
+        stderr,
+    )
 
 
 if __name__ == '__main__':

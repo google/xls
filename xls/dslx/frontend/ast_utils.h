@@ -49,13 +49,29 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 // The target proc must have been typechecked prior to this call.
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
-// Returns the basis of the given ColonRef; either a Module for a constant
-// reference or the EnumDef whose attribute is specified, or a builtin type
-// (with a constant on it, a la `u7::MAX`).
+// Returns the basis of the given ColonRef.
+//
+// In valid cases this will generally be:
+// * a module
+// * an enum definition
+// * a builtin type (with a constant item on it, a la `u7::MAX`)
+//
+// Struct definitions cannot currently have constant items on them, so this will
+// have to be flagged by the type checker.
+absl::StatusOr<std::variant<Module*, EnumDef*, BuiltinNameDef*,
+                            ArrayTypeAnnotation*, StructDef*, ColonRef*>>
+ResolveColonRefSubjectForTypeChecking(ImportData* import_data,
+                                      const TypeInfo* type_info,
+                                      const ColonRef* colon_ref);
+
+// Implementation of the above that can be called after type checking has been
+// performed, in which case we can eliminate some of the (invalid) possibilities
+// so they no longer need to be handled.
 absl::StatusOr<
     std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
-ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
-                       const ColonRef* colon_ref);
+ResolveColonRefSubjectAfterTypeChecking(ImportData* import_data,
+                                        const TypeInfo* type_info,
+                                        const ColonRef* colon_ref);
 
 // Verifies that every node's child thinks that that node is its parent.
 absl::Status VerifyParentage(const Module* module);
@@ -74,17 +90,37 @@ absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
     const ArrayTypeAnnotation* type, uint64_t constexpr_dim,
     std::string_view attr);
 
+// Returns the indentation level of the given AST node.
+//
+// That is, the contents of the AST node when formatted (flat) should be
+// indented by kSpacesPerIndent * $retval.
+//
+// This is used for determining indentation level at an arbitrary point in the
+// AST for formatting.
+int64_t DetermineIndentLevel(const AstNode& n);
+
+// -- Template Metaprogramming helpers for dealing with AST node variants
+
 // TMP helper that gets the Nth type from a parameter pack.
 template <int N, typename... Ts>
 struct GetNth {
   using type = typename std::tuple_element<N, std::tuple<Ts...>>::type;
 };
 
-// Recursive helper for WidenVariant below -- attempts to get the Nth type from
-// the narrower parameter pack and place it into a variant for ToTypes.
-template <int N, typename... ToTypes, typename... FromTypes>
-inline std::variant<ToTypes...> TryWidenVariant(
-    const std::variant<FromTypes...>& v) {
+// Recursive helper for WidenVariant below.
+//
+// * Attempts to get the Nth type from the narrower parameter pack and place it
+//   into a variant for ToTypes.
+// * If it doesn't hold that alternative, recurses to try to get the `N-1`th
+//   type.
+//
+// Example invocation:
+//
+//    std::variant<uint64_t, double> v = uint64_t{42};
+//    using ToVariantType = std::variant<uint64_t, double, int64_t>;
+//    ToVariantType widened = TryWidenVariant<1, ToVariantType>(v);
+template <int N, typename ToVariantType, typename... FromTypes>
+inline ToVariantType TryWidenVariant(const std::variant<FromTypes...>& v) {
   using TryT = typename GetNth<N, FromTypes...>::type;
   if (std::holds_alternative<TryT>(v)) {
     return std::get<TryT>(v);
@@ -92,8 +128,21 @@ inline std::variant<ToTypes...> TryWidenVariant(
   if constexpr (N == 0) {
     XLS_LOG(FATAL) << "Could not find variant in FromTypes.";
   } else {
-    return TryWidenVariant<N - 1, ToTypes...>(v);
+    return TryWidenVariant<N - 1, ToVariantType>(v);
   }
+}
+
+// Type trait for detecting a `std::variant`.
+template <typename T>
+struct is_variant : std::false_type {};
+template <typename... Args>
+struct is_variant<std::variant<Args...>> : std::true_type {};
+
+template <typename... ToTypes, typename... FromTypes,
+          typename = std::enable_if_t<sizeof...(ToTypes) != 1, int>>
+inline std::variant<ToTypes...> TryWidenVariant(
+    const std::variant<FromTypes...>& v) {
+  return TryWidenVariant<sizeof...(FromTypes) - 1, std::variant<ToTypes...>>(v);
 }
 
 // "Widens" a variant from a smaller set of types to a larger set of types; e.g.
@@ -104,17 +153,14 @@ inline std::variant<ToTypes...> TryWidenVariant(
 template <typename... ToTypes, typename... FromTypes>
 inline std::variant<ToTypes...> WidenVariant(
     const std::variant<FromTypes...>& v) {
-  return TryWidenVariant<sizeof...(FromTypes) - 1, ToTypes...>(v);
+  return TryWidenVariant<sizeof...(FromTypes) - 1, std::variant<ToTypes...>>(v);
 }
 
-// Returns the indentation level of the given AST node.
-//
-// That is, the contents of the AST node when formatted (flat) should be
-// indented by kSpacesPerIndent * $retval.
-//
-// This is used for determining indentation level at an arbitrary point in the
-// AST for formatting.
-int64_t DetermineIndentLevel(const AstNode& n);
+template <typename T, typename... FromTypes,
+          typename = std::enable_if_t<is_variant<T>::value>>
+inline T WidenVariantTo(const std::variant<FromTypes...>& v) {
+  return TryWidenVariant<sizeof...(FromTypes) - 1, T>(v);
+}
 
 }  // namespace xls::dslx
 

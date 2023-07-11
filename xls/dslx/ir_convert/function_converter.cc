@@ -2284,9 +2284,9 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
     return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      auto subject,
-      ResolveColonRefSubject(import_data_, current_type_info_, node));
+  XLS_ASSIGN_OR_RETURN(auto subject,
+                       ResolveColonRefSubjectAfterTypeChecking(
+                           import_data_, current_type_info_, node));
   return absl::visit(
       Visitor{
           [&](Module* module) -> absl::Status {
@@ -2331,7 +2331,8 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
             XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
             DefConst(node, value);
             return absl::OkStatus();
-          }},
+          },
+      },
       subject);
 }
 

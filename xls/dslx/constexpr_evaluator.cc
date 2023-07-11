@@ -283,8 +283,8 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
-  XLS_ASSIGN_OR_RETURN(auto subject,
-                       ResolveColonRefSubject(import_data_, type_info_, expr));
+  XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubjectAfterTypeChecking(
+                                         import_data_, type_info_, expr));
   return absl::visit(
       Visitor{
           [&](EnumDef* enum_def) -> absl::Status {
