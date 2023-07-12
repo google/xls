@@ -98,7 +98,7 @@ ABSL_FLAG(int, z3_rlimit, -1,
 
 namespace xlscc {
 
-absl::Status Run(std::string_view cpp_path) {
+static absl::Status Run(std::string_view cpp_path) {
   // Warnings should print by default
   absl::SetFlag(&FLAGS_logtostderr, true);
 
