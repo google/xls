@@ -479,8 +479,13 @@ class RegressionEstimator(Estimator):
     with warnings.catch_warnings():
       warnings.filterwarnings('ignore')
       num_params = 1 + 2 * len(xdata)
+      # With the data points collected for one particular PDK, kSDiv doesn't
+      # converge with the default max_nfev (max function evaluations),
+      # so we set it higher to 5000.
+      # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html
       params, _ = opt.curve_fit(
-          delay_f, xdata, ydata, p0=[1] * num_params, bounds=(0, np.inf))
+          delay_f, xdata, ydata, p0=[1] * num_params, bounds=(0, np.inf),
+          max_nfev=5000)
 
     return lambda x: delay_f(x, *params), params
 
