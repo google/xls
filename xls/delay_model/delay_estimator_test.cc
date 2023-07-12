@@ -14,14 +14,19 @@
 
 #include "xls/delay_model/delay_estimator.h"
 
+#include <cstdint>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 namespace {
@@ -124,6 +129,57 @@ TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
                                       });
   EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
               IsOkAndHolds(42));
+}
+
+// A Delay Estimator that can only handle one kind of operation.
+class TestNodeMatchEstimator : public DelayEstimator {
+ public:
+  TestNodeMatchEstimator(Op match_op, int64_t delay, std::string_view name)
+      : DelayEstimator(name), delay_(delay), match_op_(match_op) {}
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+    if (node->op() == match_op_) {
+      return delay_;
+    }
+    return absl::UnimplementedError("not a matching op.");
+  }
+
+ private:
+  int64_t delay_;
+  Op match_op_;
+};
+
+TEST_F(DelayEstimatorTest, FirstMatchDelegationEstimator) {
+  TestNodeMatchEstimator only_xor(Op::kXor, 10, "only_xor");
+  TestNodeMatchEstimator only_add(Op::kAdd, 20, "only_add");
+  FirstMatchDelayEstimator match_estimator("match_first",
+                                           {&only_xor, &only_add});
+
+  auto p = CreatePackage();
+  {
+    FunctionBuilder fb("xor", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(1));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.Xor({x, x})));
+    EXPECT_THAT(match_estimator.GetOperationDelayInPs(f->return_value()),
+                IsOkAndHolds(10));
+  }
+  {
+    FunctionBuilder fb("add", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(1));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.Add(x, x)));
+    EXPECT_THAT(match_estimator.GetOperationDelayInPs(f->return_value()),
+                IsOkAndHolds(20));
+  }
+  {
+    FunctionBuilder fb("or", p.get());
+    BValue x = fb.Param("x", p->GetBitsType(1));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                             fb.BuildWithReturnValue(fb.Or({x, x})));
+    EXPECT_THAT(match_estimator.GetOperationDelayInPs(f->return_value()),
+                StatusIs(absl::StatusCode::kUnimplemented));
+  }
 }
 
 }  // namespace

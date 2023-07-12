@@ -15,13 +15,15 @@
 #include "xls/delay_model/delay_estimator.h"
 
 #include <cstdint>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/nodes.h"
+#include "xls/ir/node.h"
 #include "xls/netlist/logical_effort.h"
 
 namespace xls {
@@ -169,6 +171,22 @@ absl::StatusOr<int64_t> DecoratingDelayEstimator::GetOperationDelayInPs(
   XLS_ASSIGN_OR_RETURN(int64_t original,
                        decorated_.GetOperationDelayInPs(node));
   return modifier_(node, original);
+}
+
+FirstMatchDelayEstimator::FirstMatchDelayEstimator(
+    std::string_view name, std::vector<const DelayEstimator*> estimators)
+    : DelayEstimator(name), estimators_(std::move(estimators)) {}
+
+absl::StatusOr<int64_t> FirstMatchDelayEstimator::GetOperationDelayInPs(
+    Node* node) const {
+  absl::StatusOr<int64_t> result;
+  for (const DelayEstimator* estimator : estimators_) {
+    result = estimator->GetOperationDelayInPs(node);
+    if (result.ok()) {
+      return result;
+    }
+  }
+  return result;
 }
 
 /* static */ absl::StatusOr<int64_t> DelayEstimator::GetLogicalEffortDelayInPs(

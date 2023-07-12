@@ -16,6 +16,8 @@
 #define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
 #include <cstdint>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
@@ -60,6 +62,23 @@ class DecoratingDelayEstimator : public DelayEstimator {
  private:
   const DelayEstimator& decorated_;
   std::function<int64_t(Node*, int64_t)> modifier_;
+};
+
+// Delay estimator delegating to a sequence of other DelayEstimators until
+// the first one that returns an ok status.
+class FirstMatchDelayEstimator : public DelayEstimator {
+ public:
+  // Note, does not take ownership of passed DelayEstimators
+  FirstMatchDelayEstimator(std::string_view name,
+                           std::vector<const DelayEstimator*> estimators);
+
+  // Returns the result of the first estimator that is returning an ok status.
+  // If none of the estiamators return an ok result, the status of the
+  // last one is returned.
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const final;
+
+ private:
+  const std::vector<const DelayEstimator*> estimators_;
 };
 
 enum class DelayEstimatorPrecedence {

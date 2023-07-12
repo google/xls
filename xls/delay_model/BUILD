@@ -29,7 +29,6 @@ cc_library(
     srcs = ["delay_estimator.cc"],
     hdrs = ["delay_estimator.h"],
     deps = [
-        "//xls/common/status:status_builder",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/netlist:logical_effort",
@@ -51,7 +50,9 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "//xls/ir:op",
         "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
