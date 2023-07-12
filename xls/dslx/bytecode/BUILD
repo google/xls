@@ -177,6 +177,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_helpers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
     ],

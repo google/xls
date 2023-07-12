@@ -32,6 +32,29 @@ absl::Status RunBuiltinBitSlice(const Bytecode& bytecode,
 absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode,
                                       InterpreterStack& stack);
 
+absl::Status RangeInternal(InterpreterStack& stack);
+
+absl::Status RunBuiltinGate(const Bytecode& bytecode, InterpreterStack& stack);
+
+absl::Status RunBuiltinOneHot(const Bytecode& bytecode,
+                              InterpreterStack& stack);
+
+absl::Status RunBuiltinSMulp(const Bytecode& bytecode, InterpreterStack& stack);
+
+absl::Status RunBuiltinUMulp(const Bytecode& bytecode, InterpreterStack& stack);
+
+absl::Status RunBuiltinSignex(const Bytecode& bytecode,
+                              InterpreterStack& stack);
+
+absl::Status RunBuiltinPrioritySel(const Bytecode& bytecode,
+                                   InterpreterStack& stack);
+
+absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode,
+                                 InterpreterStack& stack);
+
+// Common handler for the range bytecode and builtin range() fn.
+absl::Status BuiltinRangeInternal(InterpreterStack& stack);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_BYTECODE_BUILTINS_H_

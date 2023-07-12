@@ -973,7 +973,7 @@ absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
-  return RangeInternal();
+  return BuiltinRangeInternal(stack_);
 }
 
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
@@ -1310,15 +1310,15 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return FailureErrorStatus(bytecode.source_span(), value.ToString());
     }
     case Builtin::kGate:
-      return RunBuiltinGate(bytecode);
+      return RunBuiltinGate(bytecode, stack_);
     case Builtin::kMap:
       return RunBuiltinMap(bytecode);
     case Builtin::kOneHot:
-      return RunBuiltinOneHot(bytecode);
+      return RunBuiltinOneHot(bytecode, stack_);
     case Builtin::kOneHotSel:
-      return RunBuiltinOneHotSel(bytecode);
+      return RunBuiltinOneHotSel(bytecode, stack_);
     case Builtin::kPriorityhSel:
-      return RunBuiltinPrioritySel(bytecode);
+      return RunBuiltinPrioritySel(bytecode, stack_);
     case Builtin::kOrReduce:
       return RunBuiltinOrReduce(bytecode);
     case Builtin::kRange:
@@ -1330,16 +1330,16 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kArraySize:
       return RunBuiltinArraySize(bytecode);
     case Builtin::kSignex:
-      return RunBuiltinSignex(bytecode);
+      return RunBuiltinSignex(bytecode, stack_);
     case Builtin::kSlice:
       return RunBuiltinSlice(bytecode, stack_);
     case Builtin::kSMulp:
-      return RunBuiltinSMulp(bytecode);
+      return RunBuiltinSMulp(bytecode, stack_);
     case Builtin::kTrace:
       return absl::InternalError(
           "`trace!` builtins should be converted into kTrace opcodes.");
     case Builtin::kUMulp:
-      return RunBuiltinUMulp(bytecode);
+      return RunBuiltinUMulp(bytecode, stack_);
     case Builtin::kUpdate:
       return RunBuiltinUpdate(bytecode, stack_);
     case Builtin::kXorReduce:
@@ -1603,18 +1603,6 @@ absl::Status BytecodeInterpreter::RunBuiltinEnumerate(
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::RunBuiltinGate(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& pass_value,
-         const InterpValue& value) -> absl::StatusOr<InterpValue> {
-        if (pass_value.IsTrue()) {
-          return value;
-        }
-
-        return CreateZeroValue(value);
-      });
-}
-
 absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
@@ -1690,68 +1678,6 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::RunBuiltinOneHot(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& input,
-         const InterpValue& lsb_is_prio) -> absl::StatusOr<InterpValue> {
-        return input.OneHot(lsb_is_prio.IsTrue());
-      });
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
-    const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& selector,
-         const InterpValue& cases_array) -> absl::StatusOr<InterpValue> {
-        XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
-        XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* cases,
-                             cases_array.GetValues());
-        if (cases->empty()) {
-          return absl::InternalError(
-              "At least one case must be specified for one_hot_sel.");
-        }
-        XLS_ASSIGN_OR_RETURN(int64_t result_bit_count,
-                             cases->at(0).GetBitCount());
-        Bits result(result_bit_count);
-        for (int i = 0; i < cases->size(); i++) {
-          if (!selector_bits.Get(i)) {
-            continue;
-          }
-
-          XLS_ASSIGN_OR_RETURN(Bits case_bits, cases->at(i).GetBits());
-          result = bits_ops::Or(result, case_bits);
-        }
-
-        return InterpValue::MakeBits(cases->at(0).tag(), result);
-      });
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinPrioritySel(
-    const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& selector,
-         const InterpValue& cases_array) -> absl::StatusOr<InterpValue> {
-        XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
-        XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* cases,
-                             cases_array.GetValues());
-        if (cases->empty()) {
-          return absl::InternalError(
-              "At least one case must be specified for priority_sel.");
-        }
-        XLS_ASSIGN_OR_RETURN(int64_t result_bit_count,
-                             cases->at(0).GetBitCount());
-        for (int i = 0; i < cases->size(); i++) {
-          if (selector_bits.Get(i)) {
-            XLS_ASSIGN_OR_RETURN(Bits case_bits, cases->at(i).GetBits());
-            return InterpValue::MakeBits(cases->at(0).tag(), case_bits);
-          }
-        }
-
-        Bits empty_result(result_bit_count);
-        return InterpValue::MakeBits(cases->at(0).tag(), empty_result);
-      });
-}
-
 absl::Status BytecodeInterpreter::RunBuiltinOrReduce(const Bytecode& bytecode) {
   XLS_VLOG(3) << "Executing builtin OrReduce.";
   XLS_RET_CHECK(!stack_.empty());
@@ -1763,7 +1689,7 @@ absl::Status BytecodeInterpreter::RunBuiltinOrReduce(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
-  return RangeInternal();
+  return BuiltinRangeInternal(stack_);
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinArrayRev(const Bytecode& bytecode) {
@@ -1808,66 +1734,6 @@ absl::Status BytecodeInterpreter::RunBuiltinRev(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::RunBuiltinSignex(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& value,
-         const InterpValue& type_value) -> absl::StatusOr<InterpValue> {
-        XLS_ASSIGN_OR_RETURN(int64_t old_bit_count, value.GetBitCount());
-        XLS_ASSIGN_OR_RETURN(int64_t new_bit_count, type_value.GetBitCount());
-        XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-        if (new_bit_count < old_bit_count) {
-          return InterpValue::MakeBits(
-              type_value.IsSigned(),
-              bits.Slice(/*start=*/0, /*width=*/new_bit_count));
-        }
-        return InterpValue::MakeBits(type_value.IsSigned(),
-                                     bits_ops::SignExtend(bits, new_bit_count));
-      });
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinSMulp(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& lhs,
-         const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
-        XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
-        XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
-        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
-        int64_t product_bitwidth = lhs_bitwidth;
-        std::vector<InterpValue> outputs;
-        InterpValue offset = InterpValue::MakeUnsigned(
-            MulpOffsetForSimulation(product_bitwidth, /*shift_size=*/1));
-        XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
-        // Return unsigned partial product.
-        XLS_ASSIGN_OR_RETURN(Bits product_raw_bits, product.GetBits());
-        product = InterpValue::MakeUnsigned(product_raw_bits);
-        XLS_ASSIGN_OR_RETURN(InterpValue product_minus_offset,
-                             product.Sub(offset));
-        outputs.push_back(offset);
-        outputs.push_back(product_minus_offset);
-        return InterpValue::MakeTuple(outputs);
-      });
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinUMulp(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& lhs,
-         const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
-        XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
-        XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
-        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
-        int64_t product_bitwidth = lhs_bitwidth;
-        std::vector<InterpValue> outputs;
-        InterpValue offset = InterpValue::MakeUnsigned(
-            MulpOffsetForSimulation(product_bitwidth, /*shift_size=*/1));
-        XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
-        XLS_ASSIGN_OR_RETURN(InterpValue product_minus_offset,
-                             product.Sub(offset));
-        outputs.push_back(offset);
-        outputs.push_back(product_minus_offset);
-        return InterpValue::MakeTuple(outputs);
-      });
-}
-
 absl::Status BytecodeInterpreter::RunBuiltinXorReduce(
     const Bytecode& bytecode) {
   XLS_VLOG(3) << "Executing builtin XorReduce.";
@@ -1877,43 +1743,6 @@ absl::Status BytecodeInterpreter::RunBuiltinXorReduce(
   bits = bits_ops::XorReduce(bits);
   stack_.Push(InterpValue::MakeBool(bits.IsOne()));
   return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBinaryBuiltin(
-    const std::function<absl::StatusOr<InterpValue>(
-        const InterpValue& a, const InterpValue& b)>& fn) {
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-  XLS_ASSIGN_OR_RETURN(InterpValue b, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue a, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue result, fn(a, b));
-  stack_.Push(result);
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RangeInternal() {
-  return RunBinaryBuiltin(
-      [](const InterpValue& start,
-         const InterpValue& end) -> absl::StatusOr<InterpValue> {
-        XLS_RET_CHECK(start.IsBits());
-        XLS_RET_CHECK(end.IsBits());
-        XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start.Ge(end));
-        if (start_ge_end.IsTrue()) {
-          return InterpValue::MakeArray({});
-        }
-
-        std::vector<InterpValue> elements;
-        InterpValue cur = start;
-        XLS_ASSIGN_OR_RETURN(InterpValue done, cur.Ge(end));
-        XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
-        InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
-                                       : InterpValue::MakeUBits(cur_bits, 1));
-        while (done.IsFalse()) {
-          elements.push_back(cur);
-          XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
-          XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
-        }
-        return InterpValue::MakeArray(elements);
-      });
 }
 
 ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
