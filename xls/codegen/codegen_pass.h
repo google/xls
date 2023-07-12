@@ -15,12 +15,20 @@
 #ifndef XLS_CODEGEN_CODEGEN_PASS_H_
 #define XLS_CODEGEN_CODEGEN_PASS_H_
 
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <variant>
+#include <vector>
 
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/ir/block.h"
+#include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
+#include "xls/ir/value.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -39,6 +47,141 @@ struct CodegenPassOptions : public PassOptions {
   std::optional<PipelineSchedule> schedule;
 };
 
+using Stage = int64_t;
+
+// Data structures holding the data and (optional) predicate nodes representing
+// streaming inputs (receive over streaming channel) and streaming outputs (send
+// over streaming channel) in the generated block.
+struct StreamingInput {
+  InputPort* port;
+  InputPort* port_valid;
+  OutputPort* port_ready;
+
+  // signal_data and signal_valid respresent the internal view of the
+  // streaming input.  These are used (ex. for handling non-blocking receives)
+  // as additional logic are placed between the ports and the pipeline use of
+  // these signals.
+  //
+  // Pictorially:
+  //      | port_data   | port_valid   | port_ready
+  //  ----|-------------|--------------|-------------
+  //  |   |             |              |            |
+  //  | |--------------------------|   |            |
+  //  | |  Logic / Adapter         |   |            |
+  //  | |                          |   |            |
+  //  | |--------------------------|   |            |
+  //  |   | signal_data | signal_valid |            |
+  //  |   |             |              |            |
+  //  |                                             |
+  //  -----------------------------------------------
+  Node* signal_data;
+  Node* signal_valid;
+
+  Channel* channel;
+  std::optional<Node*> predicate;
+};
+
+struct StreamingOutput {
+  OutputPort* port;
+  OutputPort* port_valid;
+  InputPort* port_ready;
+  Channel* channel;
+  std::optional<Node*> predicate;
+};
+
+// Data structures holding the port representing single value inputs/outputs
+// in the generated block.
+struct SingleValueInput {
+  InputPort* port;
+  Channel* channel;
+};
+
+struct SingleValueOutput {
+  OutputPort* port;
+  Channel* channel;
+};
+
+// A data structure representing a pipeline register for a single XLS IR value.
+struct PipelineRegister {
+  Register* reg;
+  RegisterWrite* reg_write;
+  RegisterRead* reg_read;
+};
+
+// A data structure representing a state register for a single XLS IR value.
+// If the state is always populated with a valid value, reg_full.* == nullptr.
+// (This should always be true for non-pipelined code.)
+//
+// If the state may not always have a valid value (e.g., a non-trivial backedge
+// from the next-state value to the param node), reg_full should be a 1-bit
+// register, and should be set (by reg_full_write) to 1 when the state is valid
+// and 0 when it is not. Stages in flow control may wait on reg_full_read to
+// determine when they can run.
+struct StateRegister {
+  std::string name;
+  Value reset_value;
+  Stage read_stage;
+  Stage write_stage;
+  Register* reg;
+  RegisterWrite* reg_write;
+  RegisterRead* reg_read;
+  Register* reg_full;
+  RegisterWrite* reg_full_write;
+  RegisterRead* reg_full_read;
+};
+
+// The collection of pipeline registers for a single stage.
+using PipelineStageRegisters = std::vector<PipelineRegister>;
+
+struct StreamingIOPipeline {
+  std::vector<std::vector<StreamingInput>> inputs;
+  std::vector<std::vector<StreamingOutput>> outputs;
+  std::vector<std::vector<int64_t>> input_states;
+  std::vector<std::vector<int64_t>> output_states;
+  std::vector<SingleValueInput> single_value_inputs;
+  std::vector<SingleValueOutput> single_value_outputs;
+  std::vector<PipelineStageRegisters> pipeline_registers;
+  // `state_registers` includes an element for each state element in the
+  // proc. The vector element is nullopt if the state element is an empty tuple.
+  std::vector<std::optional<StateRegister>> state_registers;
+  std::optional<OutputPort*> idle_port;
+
+  // Node in block that represents when all output channels (that
+  // are predicated true) are ready.
+  // See MakeInputReadyPortsForOutputChannels().
+  std::vector<Node*> all_active_outputs_ready;
+  std::vector<Node*> all_active_inputs_valid;
+  std::vector<Node*> all_active_states_ready;
+  std::vector<Node*> all_active_states_valid;
+
+  std::vector<Node*> pipeline_valid;
+  std::vector<Node*> stage_valid;
+  std::vector<Node*> stage_done;
+};
+
+// Plumbs a valid signal through the block. This includes:
+// (1) Add an input port for a single-bit valid signal.
+// (2) Add a pipeline register for the valid signal at each pipeline stage.
+// (3) Add an output port for the valid signal from the final stage of the
+//     pipeline.
+// (4) Use the (pipelined) valid signal as the load enable signal for other
+//     pipeline registers in each stage. This is a power optimization
+//     which reduces switching in the data path when the valid signal is
+//     deasserted.
+// TODO(meheff): 2021/08/21 This might be better performed as a codegen pass.
+struct ValidPorts {
+  InputPort* input;
+  OutputPort* output;
+};
+
+struct FunctionConversionMetadata {
+  std::optional<ValidPorts> valid_ports;
+};
+struct ProcConversionMetadata {
+  std::vector<Node*> valid_flops;
+};
+
+
 // Data structure operated on by codegen passes. Contains the IR and associated
 // metadata which may be used and mutated by passes.
 struct CodegenPassUnit {
@@ -49,6 +192,15 @@ struct CodegenPassUnit {
 
   // The top-level block to generate a Verilog module for.
   Block* block;
+
+  // Metadata for pipelined blocks.
+  // TODO(google/xls#1060): refactor so conversion_metadata is in
+  // StreamingIOPipeline and more elements are split as function- or proc-only.
+  StreamingIOPipeline streaming_io_and_pipeline;
+  // Only set when converting functions.
+  std::variant<FunctionConversionMetadata, ProcConversionMetadata>
+      conversion_metadata;
+
 
   // The signature is generated (and potentially mutated) during the codegen
   // process.

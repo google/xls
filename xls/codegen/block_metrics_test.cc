@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -99,7 +100,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
                             SchedulingOptions().pipeline_stages(3)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
+      CodegenPassUnit unit,
       FunctionToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
@@ -107,7 +108,7 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(block));
+                           GenerateBlockMetrics(unit.block));
 
   EXPECT_EQ(proto.flop_count(), schedule.CountFinalInteriorPipelineRegisters());
 }
@@ -232,7 +233,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
                             SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
+      CodegenPassUnit unit,
       FunctionToPipelinedBlock(
           schedule,
           CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
@@ -240,7 +241,7 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
           f));
 
   XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
-                           GenerateBlockMetrics(block));
+                           GenerateBlockMetrics(unit.block));
 
   EXPECT_EQ(proto.bill_of_materials_size(), 6);
   EXPECT_EQ(proto.bill_of_materials(0).op(), ToOpProto(Op::kInputPort));

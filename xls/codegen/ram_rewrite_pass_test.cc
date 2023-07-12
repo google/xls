@@ -30,10 +30,12 @@
 #include "absl/types/variant.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_pass_pipeline.h"
 #include "xls/codegen/ram_configuration.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/delay_model/delay_estimators.h"
@@ -250,7 +252,9 @@ class RamRewritePassTest
         PipelineSchedule schedule,
         PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
 
-    return ProcToPipelinedBlock(schedule, codegen_options, proc);
+    XLS_ASSIGN_OR_RETURN(auto unit,
+                         ProcToPipelinedBlock(schedule, codegen_options, proc));
+    return unit.block;
   }
 };
 
@@ -965,10 +969,10 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
-  XLS_ASSIGN_OR_RETURN(Block * block,
+  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
                        ProcToPipelinedBlock(schedule, codegen_options, proc));
-  XLS_RET_CHECK_OK(RunCodegenPassPipeline(pass_options, block));
-  return block;
+  XLS_RET_CHECK_OK(RunCodegenPassPipeline(pass_options, unit.block));
+  return unit.block;
 }
 
 struct TestProc1RWVars {

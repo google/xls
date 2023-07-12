@@ -14,7 +14,10 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,11 +32,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/codegen/bdd_io_analysis.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
@@ -50,13 +55,12 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "re2/re2.h"
 
 namespace xls {
 namespace verilog {
 namespace {
-
-using Stage = int64_t;
 
 // Name of the output port which holds the return value of the function.
 // TODO(meheff): 2021-03-01 Allow port names other than "out".
@@ -114,38 +118,6 @@ static absl::StatusOr<PipelineSchedule> MaybeAddInputOutputFlopsToSchedule(
   return std::move(result);
 }
 
-// A data structure representing a pipeline register for a single XLS IR value.
-struct PipelineRegister {
-  Register* reg;
-  RegisterWrite* reg_write;
-  RegisterRead* reg_read;
-};
-
-// A data structure representing a state register for a single XLS IR value.
-// If the state is always populated with a valid value, reg_full.* == nullptr.
-// (This should always be true for non-pipelined code.)
-//
-// If the state may not always have a valid value (e.g., a non-trivial backedge
-// from the next-state value to the param node), reg_full should be a 1-bit
-// register, and should be set (by reg_full_write) to 1 when the state is valid
-// and 0 when it is not. Stages in flow control may wait on reg_full_read to
-// determine when they can run.
-struct StateRegister {
-  std::string name;
-  Value reset_value;
-  Stage read_stage;
-  Stage write_stage;
-  Register* reg;
-  RegisterWrite* reg_write;
-  RegisterRead* reg_read;
-  Register* reg_full;
-  RegisterWrite* reg_full_write;
-  RegisterRead* reg_full_read;
-};
-
-// The collection of pipeline registers for a single stage.
-using PipelineStageRegisters = std::vector<PipelineRegister>;
-
 // Plumb valid signal through the pipeline stages, ANDing with a valid produced
 // by each stage. Gather the pipelined valid signal in a vector where the
 // zero-th element is the input port and subsequent elements are the pipelined
@@ -183,12 +155,18 @@ static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
 // zero-th element is the input port and subsequent elements are the pipelined
 // valid signal from each stage.
 static absl::Status MakePipelineStagesForValidIO(
-    absl::Span<Node* const> recvs_valid, absl::Span<Node* const> sends_ready,
-    absl::Span<Node* const> states_valid, absl::Span<Node* const> states_ready,
-    absl::Span<const PipelineStageRegisters> pipeline_registers,
-    const std::optional<xls::Reset>& reset_behavior, Block* block,
-    std::vector<Node*>& pipeline_valid, std::vector<Node*>& stage_valid,
-    std::vector<Node*>& stage_done) {
+    StreamingIOPipeline& streaming_io,
+    const std::optional<xls::Reset>& reset_behavior, Block* block) {
+  std::vector<Node*> &recvs_valid = streaming_io.all_active_inputs_valid;
+  std::vector<PipelineStageRegisters>& pipeline_registers =
+      streaming_io.pipeline_registers;
+  std::vector<Node*> &pipeline_valid = streaming_io.pipeline_valid;
+  std::vector<Node*> &stage_valid = streaming_io.stage_valid;
+  std::vector<Node*> &stage_done = streaming_io.stage_done;
+  std::vector<Node*> &states_valid = streaming_io.all_active_states_valid;
+  std::vector<Node*> &sends_ready = streaming_io.all_active_outputs_ready;
+  std::vector<Node*> &states_ready = streaming_io.all_active_states_ready;
+
   Type* u1 = block->package()->GetBitsType(1);
 
   // Node denoting if the specific stage's input data from the previous stage is
@@ -616,25 +594,10 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
   return pipeline_enable;
 }
 
-// Plumbs a valid signal through the block. This includes:
-// (1) Add an input port for a single-bit valid signal.
-// (2) Add a pipeline register for the valid signal at each pipeline stage.
-// (3) Add an output port for the valid signal from the final stage of the
-//     pipeline.
-// (4) Use the (pipelined) valid signal as the load enable signal for other
-//     pipeline registers in each stage. This is a power optimization
-//     which reduces switching in the data path when the valid signal is
-//     deasserted.
-// TODO(meheff): 2021/08/21 This might be better performed as a codegen pass.
-struct ValidPorts {
-  InputPort* input;
-  OutputPort* output;
-};
-
 static absl::StatusOr<ValidPorts> AddValidSignal(
     absl::Span<const PipelineStageRegisters> pipeline_registers,
-    const CodegenOptions& options,
-    Block* block) {
+    const CodegenOptions& options, Block* block,
+    std::vector<Node*>& pipelined_valids) {
   // Add valid input port.
   XLS_RET_CHECK(options.valid_control().has_value());
   if (options.valid_control()->input_name().empty()) {
@@ -652,7 +615,7 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
   // signal in a vector where the zero-th element is the input port and
   // subsequent elements are the pipelined valid signal from each stage.
   XLS_ASSIGN_OR_RETURN(
-      std::vector<Node*> pipelined_valids,
+      pipelined_valids,
       MakePipelineStagesForValid(valid_input_port, pipeline_registers,
                                  reset_behavior, block));
 
@@ -699,80 +662,6 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
 
   return ValidPorts{valid_input_port, valid_output_port};
 }
-
-// Data structures holding the data and (optional) predicate nodes representing
-// streaming inputs (receive over streaming channel) and streaming outputs (send
-// over streaming channel) in the generated block.
-struct StreamingInput {
-  InputPort* port;
-  InputPort* port_valid;
-  OutputPort* port_ready;
-
-  // signal_data and signal_valid respresent the internal view of the
-  // streaming input.  These are used (ex. for handling non-blocking receives)
-  // as additional logic are placed between the ports and the pipeline use of
-  // these signals.
-  //
-  // Pictorially:
-  //      | port_data   | port_valid   | port_ready
-  //  ----|-------------|--------------|-------------
-  //  |   |             |              |            |
-  //  | |--------------------------|   |            |
-  //  | |  Logic / Adapter         |   |            |
-  //  | |                          |   |            |
-  //  | |--------------------------|   |            |
-  //  |   | signal_data | signal_valid |            |
-  //  |   |             |              |            |
-  //  |                                             |
-  //  -----------------------------------------------
-  Node* signal_data;
-  Node* signal_valid;
-
-  Channel* channel;
-  std::optional<Node*> predicate;
-};
-
-struct StreamingOutput {
-  OutputPort* port;
-  OutputPort* port_valid;
-  InputPort* port_ready;
-  Channel* channel;
-  std::optional<Node*> predicate;
-};
-
-// Data structures holding the port representing single value inputs/outputs
-// in the generated block.
-struct SingleValueInput {
-  InputPort* port;
-  Channel* channel;
-};
-
-struct SingleValueOutput {
-  OutputPort* port;
-  Channel* channel;
-};
-
-struct StreamingIOPipeline {
-  std::vector<std::vector<StreamingInput>> inputs;
-  std::vector<std::vector<StreamingOutput>> outputs;
-  std::vector<std::vector<int64_t>> input_states;
-  std::vector<std::vector<int64_t>> output_states;
-  std::vector<SingleValueInput> single_value_inputs;
-  std::vector<SingleValueOutput> single_value_outputs;
-  std::vector<PipelineStageRegisters> pipeline_registers;
-  // `state_registers` includes an element for each state element in the
-  // proc. The vector element is nullopt if the state element is an empty tuple.
-  std::vector<std::optional<StateRegister>> state_registers;
-  std::optional<OutputPort*> idle_port;
-
-  // Node in block that represents when all output channels (that
-  // are predicated true) are ready.
-  // See MakeInputReadyPortsForOutputChannels().
-  std::vector<Node*> all_active_outputs_ready;
-  std::vector<Node*> all_active_inputs_valid;
-  std::vector<Node*> all_active_states_ready;
-  std::vector<Node*> all_active_states_valid;
-};
 
 // Update io channel metadata with latest information from block conversion.
 absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
@@ -1792,17 +1681,10 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After States Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  std::vector<Node*> pipeline_valid;
-  std::vector<Node*> stage_valid;
-  std::vector<Node*> stage_done;
-
   std::optional<xls::Reset> reset_behavior = options.ResetBehavior();
 
-  XLS_RETURN_IF_ERROR(MakePipelineStagesForValidIO(
-      all_active_inputs_valid, all_active_outputs_ready,
-      all_active_states_valid, all_active_states_ready,
-      streaming_io.pipeline_registers, reset_behavior, block, pipeline_valid,
-      stage_valid, stage_done));
+  XLS_RETURN_IF_ERROR(
+      MakePipelineStagesForValidIO(streaming_io, reset_behavior, block));
 
   XLS_VLOG(3) << "After Valids";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1832,7 +1714,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
       BubbleFlowControl bubble_flow_control,
       UpdatePipelineWithBubbleFlowControl(
           absl::MakeSpan(all_active_outputs_ready), options,
-          absl::MakeSpan(pipeline_valid), absl::MakeSpan(stage_done),
+          absl::MakeSpan(streaming_io.pipeline_valid),
+          absl::MakeSpan(streaming_io.stage_done),
           absl::MakeSpan(streaming_io.pipeline_registers),
           absl::MakeSpan(streaming_io.state_registers), block));
 
@@ -1840,8 +1723,9 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG_LINES(3, block->DumpIr());
 
   XLS_RETURN_IF_ERROR(MakeOutputValidPortsForOutputChannels(
-      all_active_inputs_valid, stage_valid, bubble_flow_control.next_stage_open,
-      streaming_io.outputs, valid_suffix, block));
+      all_active_inputs_valid, streaming_io.stage_valid,
+      bubble_flow_control.next_stage_open, streaming_io.outputs, valid_suffix,
+      block));
 
   XLS_VLOG(3) << "After Outputs Valid";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -1851,7 +1735,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
     XLS_ASSIGN_OR_RETURN(
         Node * input_stage_enable,
         UpdateSingleStagePipelineWithFlowControl(
-            bubble_flow_control.data_load_enable.front(), stage_done.at(0),
+            bubble_flow_control.data_load_enable.front(),
+            streaming_io.stage_done.at(0),
             absl::MakeSpan(streaming_io.state_registers), block));
     bubble_flow_control.data_load_enable = {input_stage_enable};
   }
@@ -1866,7 +1751,7 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  return stage_valid;
+  return streaming_io.stage_valid;
 }
 
 // Adds ready/valid ports for each of the given streaming inputs/outputs. Also,
@@ -2755,7 +2640,7 @@ std::string PipelineSignalName(std::string_view root, int64_t stage) {
   return absl::StrFormat("p%d_%s", stage, SanitizeIdentifier(base));
 }
 
-absl::StatusOr<Block*> FunctionToPipelinedBlock(
+absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     Function* f) {
   if (options.manual_control().has_value()) {
@@ -2774,17 +2659,19 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
   std::string block_name(
       options.module_name().value_or(SanitizeIdentifier(f->name())));
 
-  Block* block =
-      f->package()->AddBlock(std::make_unique<Block>(block_name, f->package()));
+  CodegenPassUnit unit(f->package(),
+                       f->package()->AddBlock(
+                           std::make_unique<Block>(block_name, f->package())));
+
   if (std::optional<int64_t> ii = f->GetInitiationInterval(); ii.has_value()) {
-    block->SetInitiationInterval(*ii);
+    unit.block->SetInitiationInterval(*ii);
   }
 
   if (!options.clock_name().has_value()) {
     return absl::InvalidArgumentError(
         "Clock name must be specified when generating a pipelined block");
   }
-  XLS_RETURN_IF_ERROR(block->AddClockPort(options.clock_name().value()));
+  XLS_RETURN_IF_ERROR(unit.block->AddClockPort(options.clock_name().value()));
 
   // Flopping inputs and outputs can be handled as a transformation to the
   // schedule. This makes the later code for creation of the pipeline simpler.
@@ -2794,17 +2681,19 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
                        MaybeAddInputOutputFlopsToSchedule(schedule, options));
 
   XLS_ASSIGN_OR_RETURN(
-      StreamingIOPipeline streaming_io_and_pipeline,
-      CloneNodesIntoPipelinedBlock(transformed_schedule, options, block));
+      unit.streaming_io_and_pipeline,
+      CloneNodesIntoPipelinedBlock(transformed_schedule, options, unit.block));
 
-  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
+  XLS_RET_CHECK_OK(MaybeAddResetPort(unit.block, options));
 
-  std::optional<ValidPorts> valid_ports;
+  FunctionConversionMetadata& function_metadata =
+      unit.conversion_metadata.emplace<FunctionConversionMetadata>();
   if (options.valid_control().has_value()) {
     XLS_ASSIGN_OR_RETURN(
-        valid_ports,
-        AddValidSignal(streaming_io_and_pipeline.pipeline_registers, options,
-                       block));
+        function_metadata.valid_ports,
+        AddValidSignal(unit.streaming_io_and_pipeline.pipeline_registers,
+                       options, unit.block,
+                       unit.streaming_io_and_pipeline.pipeline_valid));
   }
 
   // Reorder the ports of the block to the following:
@@ -2817,27 +2706,28 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
   // This is solely a cosmetic change to improve readability.
   std::vector<std::string> port_order;
   port_order.push_back(std::string{options.clock_name().value()});
-  if (block->GetResetPort().has_value()) {
-    port_order.push_back(block->GetResetPort().value()->GetName());
+  if (unit.block->GetResetPort().has_value()) {
+    port_order.push_back(unit.block->GetResetPort().value()->GetName());
   }
-  if (valid_ports.has_value()) {
-    port_order.push_back(valid_ports->input->GetName());
+  if (function_metadata.valid_ports.has_value()) {
+    port_order.push_back(function_metadata.valid_ports->input->GetName());
   }
   for (Param* param : f->params()) {
     port_order.push_back(param->GetName());
   }
-  if (valid_ports.has_value() && valid_ports->output != nullptr) {
-    port_order.push_back(valid_ports->output->GetName());
+  if (function_metadata.valid_ports.has_value() &&
+      function_metadata.valid_ports->output != nullptr) {
+    port_order.push_back(function_metadata.valid_ports->output->GetName());
   }
   port_order.push_back(kOutputPortName);
-  XLS_RETURN_IF_ERROR(block->ReorderPorts(port_order));
+  XLS_RETURN_IF_ERROR(unit.block->ReorderPorts(port_order));
 
-  return block;
+  return unit;
 }
 
-absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
-                                            const CodegenOptions& options,
-                                            Proc* proc) {
+absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Proc* proc) {
   XLS_VLOG(3) << "Converting proc to pipelined block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
 
@@ -2854,23 +2744,28 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
     return absl::UnimplementedError("Manual pipeline control not implemented");
   }
 
-  Block* block = proc->package()->AddBlock(
-      std::make_unique<Block>(block_name, proc->package()));
+  CodegenPassUnit unit(proc->package(),
+                       proc->package()->AddBlock(std::make_unique<Block>(
+                           block_name, proc->package())));
+  ProcConversionMetadata& proc_metadata =
+      unit.conversion_metadata.emplace<ProcConversionMetadata>();
+
   if (std::optional<int64_t> ii = proc->GetInitiationInterval();
       ii.has_value()) {
-    block->SetInitiationInterval(*ii);
+    unit.block->SetInitiationInterval(*ii);
   }
 
-  XLS_RETURN_IF_ERROR(block->AddClockPort("clk"));
+  XLS_RETURN_IF_ERROR(unit.block->AddClockPort("clk"));
 
   XLS_VLOG(3) << "Schedule Used";
   XLS_VLOG_LINES(3, schedule.ToString());
 
-  XLS_ASSIGN_OR_RETURN(StreamingIOPipeline streaming_io_and_pipeline,
-                       CloneNodesIntoPipelinedBlock(schedule, options, block));
+  XLS_ASSIGN_OR_RETURN(
+      unit.streaming_io_and_pipeline,
+      CloneNodesIntoPipelinedBlock(schedule, options, unit.block));
 
   int64_t number_of_outputs = 0;
-  for (const auto& outputs : streaming_io_and_pipeline.outputs) {
+  for (const auto& outputs : unit.streaming_io_and_pipeline.outputs) {
     number_of_outputs += outputs.size();
   }
 
@@ -2883,80 +2778,89 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
     if (streaming_outputs_mutually_exclusive) {
       XLS_VLOG(3) << absl::StrFormat(
           "%d streaming outputs determined to be mutually exclusive",
-          streaming_io_and_pipeline.outputs.size());
+          unit.streaming_io_and_pipeline.outputs.size());
     } else {
       XLS_VLOG(3) << absl::StrFormat(
           "%d streaming outputs not proven to be mutually exclusive -- "
           "assuming false",
-          streaming_io_and_pipeline.outputs.size());
+          unit.streaming_io_and_pipeline.outputs.size());
     }
   }
 
   XLS_VLOG(3) << "After Pipeline";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
-  XLS_RET_CHECK_OK(MaybeAddResetPort(block, options));
+  XLS_RET_CHECK_OK(MaybeAddResetPort(unit.block, options));
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> pipelined_valids,
-      AddBubbleFlowControl(options, streaming_io_and_pipeline, block));
+      AddBubbleFlowControl(options, unit.streaming_io_and_pipeline,
+                           unit.block));
 
   XLS_VLOG(3) << "After Flow Control";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   if (!streaming_outputs_mutually_exclusive) {
-    XLS_RETURN_IF_ERROR(
-        AddOneShotOutputLogic(options, streaming_io_and_pipeline, block));
+    XLS_RETURN_IF_ERROR(AddOneShotOutputLogic(
+        options, unit.streaming_io_and_pipeline, unit.block));
   }
   XLS_VLOG(3) << absl::StrFormat("After Output Triggers");
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   // Initialize the valid flops to the pipeline registers.
   // First element is skipped as the initial stage valid flops will be
   // constructed from the input flops and/or input valid ports and will be
   // added later in AddInputFlops() and AddIdleOutput().
   XLS_CHECK_GE(pipelined_valids.size(), 1);
-  std::vector<Node*> valid_flops(pipelined_valids.begin() + 1,
-                                 pipelined_valids.end());
+  std::copy(pipelined_valids.begin() + 1, pipelined_valids.end(),
+            std::back_inserter(proc_metadata.valid_flops));
 
   if (options.flop_inputs() || options.flop_outputs()) {
-    XLS_RETURN_IF_ERROR(AddInputOutputFlops(options,
-                                            streaming_io_and_pipeline, block,
-                                            valid_flops));
+    XLS_RETURN_IF_ERROR(
+        AddInputOutputFlops(options, unit.streaming_io_and_pipeline, unit.block,
+                            proc_metadata.valid_flops));
   }
   XLS_VLOG(3) << "After Input or Output Flops";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   if (options.add_idle_output()) {
-    XLS_RETURN_IF_ERROR(
-        AddIdleOutput(valid_flops, streaming_io_and_pipeline, block));
+    XLS_RETURN_IF_ERROR(AddIdleOutput(
+        proc_metadata.valid_flops, unit.streaming_io_and_pipeline, unit.block));
   }
   XLS_VLOG(3) << "After Add Idle Output";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
-  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block));
+  XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(unit.block));
 
   XLS_VLOG(3) << "After RemoveDeadTokenNodes";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
   // TODO: add simplification pass here to remove unnecessary `1 & x`
 
-  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(streaming_io_and_pipeline, block));
+  XLS_RETURN_IF_ERROR(
+      UpdateChannelMetadata(unit.streaming_io_and_pipeline, unit.block));
   XLS_VLOG(3) << "After UpdateChannelMetadata";
-  XLS_VLOG_LINES(3, block->DumpIr());
+  XLS_VLOG_LINES(3, unit.block->DumpIr());
 
-  return block;
+  return unit;
 }
 
-absl::StatusOr<Block*> FunctionToCombinationalBlock(
-    Function* f, std::string_view block_name) {
-  return FunctionToCombinationalBlock(f,
-                                      CodegenOptions().module_name(block_name));
+absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    FunctionBase* f) {
+  if (f->IsFunction()) {
+    return FunctionToPipelinedBlock(schedule, options, f->AsFunctionOrDie());
+  }
+  if (f->IsProc()) {
+    return ProcToPipelinedBlock(schedule, options, f->AsProcOrDie());
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "FunctionBase %s was not a function or proc.", f->name()));
 }
 
-absl::StatusOr<Block*> FunctionToCombinationalBlock(
+absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options) {
   std::string module_name(
       options.module_name().value_or(SanitizeIdentifier(f->name())));
@@ -2992,11 +2896,11 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
       block->AddOutputPort(kOutputPortName, node_map.at(f->return_value()))
           .status());
 
-  return block;
+  return CodegenPassUnit(block->package(), block);
 }
 
-absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                const CodegenOptions& options) {
+absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
+    Proc* proc, const CodegenOptions& options) {
   XLS_VLOG(3) << "Converting proc to combinational block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
 
@@ -3064,7 +2968,20 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   XLS_VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  return block;
+  return CodegenPassUnit(block->package(), block);
+}
+
+absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
+    FunctionBase* f, const CodegenOptions& options) {
+
+  if (f->IsFunction()) {
+    return FunctionToCombinationalBlock(f->AsFunctionOrDie(), options);
+  }
+  if (f->IsProc()) {
+    return ProcToCombinationalBlock(f->AsProcOrDie(), options);
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "FunctionBase %s was not a function or proc.", f->name()));
 }
 
 }  // namespace verilog

@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/block_generator.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
@@ -112,13 +113,14 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Block * block,
+      xls::verilog::CodegenPassUnit unit,
       xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
-  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
-                                                    block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog,
+      xls::verilog::GenerateVerilog(unit.block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
-      xls::verilog::GenerateSignature(codegen_options(), block));
+      xls::verilog::GenerateSignature(codegen_options(), unit.block));
 
   XLS_VLOG(1) << package.DumpIr() << std::endl;
 
@@ -246,14 +248,15 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Block * block,
+      xls::verilog::CodegenPassUnit unit,
       xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
-      xls::verilog::GenerateSignature(codegen_options(), block));
+      xls::verilog::GenerateSignature(codegen_options(), unit.block));
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
-                                                    block, codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string verilog,
+      xls::verilog::GenerateVerilog(unit.block, codegen_options()));
 
   XLS_VLOG(1) << package.DumpIr() << std::endl;
 

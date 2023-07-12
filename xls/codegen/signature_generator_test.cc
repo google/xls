@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
@@ -241,8 +242,9 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
   options.streaming_channel_ready_suffix("_ready");
   options.module_name("pipelined_proc");
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                            ProcToPipelinedBlock(schedule, options, proc));
+  Block* block = unit.block;
   XLS_VLOG_LINES(2, block->DumpIr());
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,

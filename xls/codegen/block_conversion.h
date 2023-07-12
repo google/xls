@@ -17,8 +17,11 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/proc.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
@@ -33,26 +36,29 @@ std::string PipelineSignalName(std::string_view root, int64_t stage);
 // Converts a function in a pipelined (stateless) block. The pipeline is
 // constructed using the given schedule. Registers are inserted between each
 // stage.
-absl::StatusOr<Block*> FunctionToPipelinedBlock(
+absl::StatusOr<CodegenPassUnit> FunctionToPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     Function* f);
 
 // Converts a proc to a pipelined (stateless) block. The pipeline is
 // constructed using the given schedule. Registers are inserted between each
 // stage.
-absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
-                                            const CodegenOptions& options,
-                                            Proc* proc);
+absl::StatusOr<CodegenPassUnit> ProcToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    Proc* proc);
+
+// Converts a function or proc to a pipelined block. The pipeline is constructed
+// using the given schedule. Registers are inserted between each stage.
+// If `f` is already a Block, an error is returned.
+absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
+    const PipelineSchedule& schedule, const CodegenOptions& options,
+    FunctionBase* f);
 
 // Converts a function into a combinational block. Function arguments become
 // input ports, function return value becomes an output port. Returns a pointer
 // to the block.
-absl::StatusOr<Block*> FunctionToCombinationalBlock(
+absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options);
-
-// TODO(meheff): 2022/05/25 Remove this overload.
-absl::StatusOr<Block*> FunctionToCombinationalBlock(
-    Function* f, std::string_view block_name);
 
 // Converts the given proc to a combinational block. Proc must be stateless
 // (state type is an empty tuple). Streaming channels must have ready-valid flow
@@ -60,8 +66,13 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 // channels become input/output ports with additional ready/valid ports for flow
 // control. Receives/sends of single-value channels become input/output ports in
 // the returned block.
-absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                const CodegenOptions& options);
+absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
+    Proc* proc, const CodegenOptions& options);
+
+// Converts the given function or proc to a combinational block. See
+// FunctionToCombinationalBlock() or ProcToCombinationalBlock() for more info.
+absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
+    FunctionBase* f, const CodegenOptions& options);
 
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.

@@ -228,6 +228,7 @@ cc_test(
         ":unit_test",
         "//xls/codegen:block_conversion",
         "//xls/codegen:block_generator",
+        "//xls/codegen:codegen_pass",
         "//xls/codegen:signature_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",

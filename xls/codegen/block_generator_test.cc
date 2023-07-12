@@ -15,6 +15,7 @@
 #include "xls/codegen/block_generator.h"
 
 #include "xls/codegen/block_conversion.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/logging/log_lines.h"
@@ -1018,17 +1019,17 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
   options.module_name("pipelined_proc");
   options.use_system_verilog(UseSystemVerilog());
 
-  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+  XLS_ASSERT_OK_AND_ASSIGN(CodegenPassUnit unit,
                            ProcToPipelinedBlock(schedule, options, proc));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
-                           GenerateVerilog(block, options));
+                           GenerateVerilog(unit.block, options));
 
   XLS_VLOG(3) << "Verilog:";
   XLS_VLOG_LINES(3, verilog);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
-                           GenerateSignature(options, block));
+                           GenerateSignature(options, unit.block));
 
   ModuleSimulator simulator = NewModuleSimulator(verilog, sig);
 

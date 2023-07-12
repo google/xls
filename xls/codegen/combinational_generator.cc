@@ -49,18 +49,8 @@ namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options) {
-  Block* block = nullptr;
-
-  XLS_RET_CHECK(module->IsProc() || module->IsFunction());
-  if (module->IsFunction()) {
-    XLS_ASSIGN_OR_RETURN(block, FunctionToCombinationalBlock(
-                                    dynamic_cast<Function*>(module), options));
-  } else {
-    XLS_ASSIGN_OR_RETURN(
-        block, ProcToCombinationalBlock(dynamic_cast<Proc*>(module), options));
-  }
-
-  CodegenPassUnit unit(module->package(), block);
+  XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
+                       FunctionBaseToCombinationalBlock(module, options));
 
   CodegenPassOptions codegen_pass_options;
   codegen_pass_options.codegen_options = options;
@@ -72,7 +62,7 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
   XLS_RET_CHECK(unit.signature.has_value());
   VerilogLineMap verilog_line_map;
   XLS_ASSIGN_OR_RETURN(std::string verilog,
-                       GenerateVerilog(block, options, &verilog_line_map));
+                       GenerateVerilog(unit.block, options, &verilog_line_map));
 
   return ModuleGeneratorResult{verilog, verilog_line_map,
                                unit.signature.value()};
