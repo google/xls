@@ -157,6 +157,8 @@ struct StreamingIOPipeline {
   std::vector<Node*> pipeline_valid;
   std::vector<Node*> stage_valid;
   std::vector<Node*> stage_done;
+
+  absl::flat_hash_map<Node*, Stage> node_to_stage_map;
 };
 
 // Plumbs a valid signal through the block. This includes:

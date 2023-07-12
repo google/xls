@@ -1930,6 +1930,7 @@ class CloneNodesIntoBlockHandler {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
       node_map_[node] = next_node;
+      result_.node_to_stage_map[next_node] = stage;
 
       // After cloning, handle writing of next state values into state
       // registers.
