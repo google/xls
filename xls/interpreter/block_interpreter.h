@@ -25,6 +25,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/block.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 
 namespace xls {
@@ -32,6 +33,7 @@ namespace xls {
 struct BlockRunResult {
   absl::flat_hash_map<std::string, Value> outputs;
   absl::flat_hash_map<std::string, Value> reg_state;
+  InterpreterEvents interpreter_events;
 };
 
 // Runs a single cycle of a block with the given register values and input

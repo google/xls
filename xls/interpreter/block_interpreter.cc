@@ -28,6 +28,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/events.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
@@ -101,6 +102,8 @@ class BlockInterpreter : public IrInterpreter {
     return std::move(next_reg_state_);
   }
 
+  InterpreterEvents&& MoveInterpreterEvents() { return std::move(events_); }
+
  private:
   // Values fed to the input ports.
   const absl::flat_hash_map<std::string, Value> inputs_;
@@ -173,6 +176,7 @@ absl::StatusOr<BlockRunResult> BlockRun(
         interpreter.ResolveAsValue(port->operand(0));
   }
   result.reg_state = std::move(interpreter.MoveRegState());
+  result.interpreter_events = interpreter.MoveInterpreterEvents();
 
   return result;
 }

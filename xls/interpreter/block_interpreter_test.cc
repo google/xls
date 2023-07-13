@@ -20,8 +20,12 @@
 #include "gtest/gtest.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
@@ -30,6 +34,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::ElementsAre;
 using testing::HasSubstr;
+using testing::IsEmpty;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
@@ -631,6 +636,34 @@ TEST_F(BlockInterpreterTest, ChannelizedResetHandlingActiveLow) {
     EXPECT_THAT(output_sequence,
                 ElementsAre(1, 3, 6, 10, 15, 21, 28, 36, 45, 55));
   }
+}
+
+TEST_F(BlockInterpreterTest, InterpreterEventsCaptured) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue tkn = b.Literal(Value::Token());
+  BValue assertion =
+      b.Assert(tkn, b.UGt(x, b.Literal(Value(UBits(5, 32)))), "foo");
+  b.Trace(assertion, b.Literal(Value(UBits(1, 1))), {x},
+          {"x is ", FormatPreference::kDefault});
+
+  b.OutputPort("y", x);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockRunResult result,
+                           BlockRun({{"x", Value(UBits(10, 32))}}, {}, block));
+
+  EXPECT_THAT(result.interpreter_events.trace_msgs, ElementsAre("x is 10"));
+  EXPECT_THAT(result.interpreter_events.assert_msgs, IsEmpty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(result,
+                           BlockRun({{"x", Value(UBits(3, 32))}}, {}, block));
+
+  EXPECT_THAT(result.interpreter_events.trace_msgs, ElementsAre("x is 3"));
+  EXPECT_THAT(result.interpreter_events.assert_msgs, ElementsAre("foo"));
 }
 
 }  // namespace
