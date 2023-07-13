@@ -32,11 +32,14 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce.h"
+#include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/type_and_bindings.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
@@ -522,6 +525,18 @@ void PopulateSignatureToLambdaMap(
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
+  };
+  map["(xN[N], xN[N]) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
+                       .Len(2)
+                       .IsBits(0)
+                       .IsBits(1)
+                       .ArgsSameType(0, 1);
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(xN[N], xN[M][N]) -> xN[M]"] =
       [](const SignatureData& data,

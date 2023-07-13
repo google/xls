@@ -31,7 +31,6 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/bindings.h"
-#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 

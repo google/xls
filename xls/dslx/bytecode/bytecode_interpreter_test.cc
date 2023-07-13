@@ -27,6 +27,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/command_line_utils.h"
@@ -1241,8 +1242,8 @@ fn main() -> (u1, u8) {
 })";
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual, Interpret(kProgram, "main"));
-  InterpValue expected(InterpValue::MakeTuple(
-      {InterpValue::MakeUBits(1, 1), InterpValue::MakeUBits(8, 1)}));
+  auto expected = InterpValue::MakeTuple(
+      {InterpValue::MakeUBits(1, 1), InterpValue::MakeUBits(8, 1)});
   EXPECT_TRUE(expected.Eq(actual));
 }
 
@@ -1392,6 +1393,29 @@ fn main(x: s10, y: s10) -> s10 {
                                              InterpValue::MakeSBits(10, -5)}));
   XLS_ASSERT_OK_AND_ASSIGN(bits, value.GetBits());
   EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(-507));
+}
+
+TEST(BytecodeInterpreterTest, BuiltinEnumerate) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> (u32, u8)[4] {
+  let x = u8[4]:[5, 6, 7, 8];
+  enumerate(x)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue actual, Interpret(kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue expected,
+      InterpValue::MakeArray({
+          InterpValue::MakeTuple(
+              {InterpValue::MakeUBits(32, 0), InterpValue::MakeUBits(8, 5)}),
+          InterpValue::MakeTuple(
+              {InterpValue::MakeUBits(32, 1), InterpValue::MakeUBits(8, 6)}),
+          InterpValue::MakeTuple(
+              {InterpValue::MakeUBits(32, 2), InterpValue::MakeUBits(8, 7)}),
+          InterpValue::MakeTuple(
+              {InterpValue::MakeUBits(32, 3), InterpValue::MakeUBits(8, 8)}),
+      }));
+  EXPECT_TRUE(expected.Eq(actual));
 }
 
 TEST(BytecodeInterpreterTest, BuiltinUMulp) {
@@ -2281,65 +2305,57 @@ fn main(x: u32) -> u4 {
 
 TEST(ByteCodeInterpreterTest, CheckHighlightLineByLineDifferences) {
   // The basic functionality: highlight changing text in a sea of sameness.
-  EXPECT_EQ(
-      BytecodeInterpreter::HighlightLineByLineDifferences(
-        "+---------+\n"
-        "|assistant|\n"
-        "+---------+",
-        "+---------+\n"
-        "|  tiger  |\n"
-        "+---------+"),
-      "  +---------+\n"
-      "< |assistant|\n"
-      "> |  tiger  |\n"
-      "  +---------+\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("+---------+\n"
+                                           "|assistant|\n"
+                                           "+---------+",
+                                           "+---------+\n"
+                                           "|  tiger  |\n"
+                                           "+---------+"),
+            "  +---------+\n"
+            "< |assistant|\n"
+            "> |  tiger  |\n"
+            "  +---------+\n");
 
   // Single lines work, even though we don't do this in practice.
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "assistant", "tiger"),
-      "< assistant\n"
-      "> tiger\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("assistant", "tiger"),
+            "< assistant\n"
+            "> tiger\n");
 
   // No difference, no </> (but two spaces of prefix and a newline).
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "your card", "your card"),
-      "  your card\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("your card", "your card"),
+            "  your card\n");
 
   // The empty string counts as one item, which doesn't change.
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences("", ""),
-      "  \n");
+  EXPECT_EQ(HighlightLineByLineDifferences("", ""), "  \n");
 
   // Some replacement, some production
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "hat\n(empty)", "hat\nwith a\nrabbit"),
+  EXPECT_EQ(
+      HighlightLineByLineDifferences("hat\n(empty)", "hat\nwith a\nrabbit"),
       "  hat\n"
       "< (empty)\n"
       "> with a\n"
       "> rabbit\n");
 
   // Just vanishing, no replacement.
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "hat\nwith a\nrabbit", "hat"),
-      "  hat\n"
-      "< with a\n"
-      "< rabbit\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("hat\nwith a\nrabbit", "hat"),
+            "  hat\n"
+            "< with a\n"
+            "< rabbit\n");
 
   // Pure production, no replacement.
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "hat", "hat\npigeon\nrabbit"),
-      "  hat\n"
-      "> pigeon\n"
-      "> rabbit\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("hat", "hat\npigeon\nrabbit"),
+            "  hat\n"
+            "> pigeon\n"
+            "> rabbit\n");
 
   // We do not, however, detect disappearances at the beginning --
   // since the compared types are the same, insertions/deletions don't really
   // happen and aren't worth the effort to print succinctly.
-  EXPECT_EQ(BytecodeInterpreter::HighlightLineByLineDifferences(
-      "jack\njack\nqueen", "queen"),
-      "< jack\n"
-      "> queen\n"
-      "< jack\n"
-      "< queen\n");
+  EXPECT_EQ(HighlightLineByLineDifferences("jack\njack\nqueen", "queen"),
+            "< jack\n"
+            "> queen\n"
+            "< jack\n"
+            "< queen\n");
 }
 
 }  // namespace

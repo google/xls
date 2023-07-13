@@ -29,6 +29,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/dslx/bytecode/bytecode.h"
 #include "xls/dslx/bytecode/bytecode_interpreter_options.h"
+#include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
@@ -37,46 +38,6 @@
 namespace xls::dslx {
 
 class ProcInstance;
-
-// Represents a frame on the function stack: holds the program counter, local
-// storage, and instructions to execute.
-class Frame {
- public:
-  // `bindings` will hold the bindings used to instantiate the
-  // BytecodeFunction's source Function, if it is parametric.
-  // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
-  // those generated on-the-fly from interpreting the `map` operation.
-  // `initial_args` holds the set of args used to initially construct the frame
-  // (i.e., the arguments to this function). This is necessary for comparing
-  // results to a reference, e.g., the JIT via BytecodeInterpreter's
-  // post_fn_eval_hook.
-  // For other cases, the BytecodeCache will own BytecodeFunction storage.
-  Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
-        const TypeInfo* type_info, const std::optional<ParametricEnv>& bindings,
-        std::vector<InterpValue> initial_args,
-        std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
-
-  int64_t pc() const { return pc_; }
-  void set_pc(int64_t pc) { pc_ = pc; }
-  void IncrementPc() { pc_++; }
-  std::vector<InterpValue>& slots() { return slots_; }
-  BytecodeFunction* bf() const { return bf_; }
-  const TypeInfo* type_info() const { return type_info_; }
-  const std::optional<ParametricEnv>& bindings() const { return bindings_; }
-  const std::vector<InterpValue>& initial_args() { return initial_args_; }
-
-  void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
-
- private:
-  int64_t pc_;
-  std::vector<InterpValue> slots_;
-  BytecodeFunction* bf_;
-  const TypeInfo* type_info_;
-  std::optional<ParametricEnv> bindings_;
-  std::vector<InterpValue> initial_args_;
-
-  std::unique_ptr<BytecodeFunction> bf_holder_;
-};
 
 using PostFnEvalHook = std::function<absl::Status(
     const Function* f, absl::Span<const InterpValue> args, const ParametricEnv*,
@@ -111,10 +72,6 @@ class BytecodeInterpreter {
   // trace data.
   static absl::StatusOr<std::string> TraceDataToString(
       const Bytecode::TraceData& trace_data, InterpreterStack& stack);
-
-  // Helper for highlighting differences in pretty-printed representation
-  static std::string HighlightLineByLineDifferences(std::string_view lhs,
-                                                    std::string_view rhs);
 
  protected:
   BytecodeInterpreter(ImportData* import_data,
@@ -212,21 +169,15 @@ class BytecodeInterpreter {
   // TODO(rspringer): 2022-02-14: Builtins should probably go in their own file,
   // likely after removing the old interpreter.
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
-  absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
-  absl::Status RunBuiltinAndReduce(const Bytecode& bytecode);
-  absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
-  absl::Status RunBuiltinAssertLt(const Bytecode& bytecode);
-  absl::Status RunBuiltinClz(const Bytecode& bytecode);
-  absl::Status RunBuiltinCover(const Bytecode& bytecode);
-  absl::Status RunBuiltinCtz(const Bytecode& bytecode);
-  absl::Status RunBuiltinEnumerate(const Bytecode& bytecode);
+
+  // Map is a very special builtin function at the moment and so lives within
+  // the bytecode interpreter -- currently it emits new bytecode *on the fly*
+  // and evaluates it.
+  //
+  // TODO(cdleary): 2023-07-12 We should be able to emit all bytecode objects
+  // necessary at emission time and make it a question more "invoke like" normal
+  // runtime execution.
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
-  absl::Status RunBuiltinOrReduce(const Bytecode& bytecode);
-  absl::Status RunBuiltinRange(const Bytecode& bytecode);
-  absl::Status RunBuiltinRev(const Bytecode& bytecode);
-  absl::Status RunBuiltinArrayRev(const Bytecode& bytecode);
-  absl::Status RunBuiltinArraySize(const Bytecode& bytecode);
-  absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
 
   absl::StatusOr<bool> MatchArmEqualsInterpValue(
       Frame* frame, const Bytecode::MatchArmItem& item,

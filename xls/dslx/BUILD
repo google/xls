@@ -314,7 +314,7 @@ cc_library(
     deps = [
         ":errors",
         "//xls/common/logging",
-        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:builtins_metadata",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:deduce",

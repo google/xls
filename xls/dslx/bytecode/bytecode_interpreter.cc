@@ -76,60 +76,6 @@ absl::StatusOr<std::string> ToStringMaybeFormatted(
 // over a channel.
 constexpr int64_t kChannelTraceIndentation = 2;
 
-Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
-             const TypeInfo* type_info,
-             const std::optional<ParametricEnv>& bindings,
-             std::vector<InterpValue> initial_args,
-             std::unique_ptr<BytecodeFunction> bf_holder)
-    : pc_(0),
-      slots_(std::move(args)),
-      bf_(bf),
-      type_info_(type_info),
-      bindings_(bindings),
-      initial_args_(initial_args),
-      bf_holder_(std::move(bf_holder)) {}
-
-void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
-  // Slots are usually encountered in order of use (and assignment), except for
-  // those declared inside conditional branches, which may never be seen,
-  // so we may have to add more than one slot at a time in such cases.
-  while (slots_.size() <= slot.value()) {
-    slots_.push_back(InterpValue::MakeToken());
-  }
-
-  slots_.at(slot.value()) = value;
-}
-
-// Returns a differences string in the style of Rust's pretty_assertions.
-// All lines are indented by two positions.
-// Whenever two values differ, the lhs value is prefixed with <, the rhs with >.
-/* static */ std::string BytecodeInterpreter::HighlightLineByLineDifferences(
-    std::string_view lhs, std::string_view rhs) {
-  std::string result;
-  result.reserve(rhs.size() + lhs.size());  // Just a guess.
-  std::vector<std::string_view> rhs_split = absl::StrSplit(rhs, '\n');
-  std::vector<std::string_view> lhs_split = absl::StrSplit(lhs, '\n');
-  int i = 0;
-  for (; i < lhs_split.size() && i < rhs_split.size(); ++i) {
-    if (lhs_split[i] != rhs_split[i]) {
-       absl::StrAppend(&result, "< ", lhs_split[i], "\n"
-                                "> ", rhs_split[i], "\n");
-    } else {
-       absl::StrAppend(&result, "  ", lhs_split[i], "\n");
-    }
-  }
-  // I don't think trailers are possible right now -- but if they ever
-  // show up, let's handle them in the obvious way.
-  // (Only one of these two loops ever runs.)
-  for (; i < lhs_split.size(); ++i) {
-    absl::StrAppend(&result, "< ", lhs_split[i], "\n");
-  }
-  for (; i < rhs_split.size(); ++i) {
-    absl::StrAppend(&result, "> ", rhs_split[i], "\n");
-  }
-  return result;
-}
-
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
     const std::vector<InterpValue>& args,
@@ -1286,25 +1232,25 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
                                                Builtin builtin) {
   switch (builtin) {
     case Builtin::kAddWithCarry:
-      return RunBuiltinAddWithCarry(bytecode);
+      return RunBuiltinAddWithCarry(bytecode, stack_);
     case Builtin::kAndReduce:
-      return RunBuiltinAndReduce(bytecode);
+      return RunBuiltinAndReduce(bytecode, stack_);
     case Builtin::kAssertEq:
-      return RunBuiltinAssertEq(bytecode);
+      return RunBuiltinAssertEq(bytecode, stack_, frames_.back(), options_);
     case Builtin::kAssertLt:
-      return RunBuiltinAssertLt(bytecode);
+      return RunBuiltinAssertLt(bytecode, stack_, frames_.back(), options_);
     case Builtin::kBitSlice:
       return RunBuiltinBitSlice(bytecode, stack_);
     case Builtin::kBitSliceUpdate:
       return RunBuiltinBitSliceUpdate(bytecode, stack_);
     case Builtin::kClz:
-      return RunBuiltinClz(bytecode);
+      return RunBuiltinClz(bytecode, stack_);
     case Builtin::kCover:
-      return RunBuiltinCover(bytecode);
+      return RunBuiltinCover(bytecode, stack_);
     case Builtin::kCtz:
-      return RunBuiltinCtz(bytecode);
+      return RunBuiltinCtz(bytecode, stack_);
     case Builtin::kEnumerate:
-      return RunBuiltinEnumerate(bytecode);
+      return RunBuiltinEnumerate(bytecode, stack_);
     case Builtin::kFail: {
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
       return FailureErrorStatus(bytecode.source_span(), value.ToString());
@@ -1320,15 +1266,15 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kPriorityhSel:
       return RunBuiltinPrioritySel(bytecode, stack_);
     case Builtin::kOrReduce:
-      return RunBuiltinOrReduce(bytecode);
+      return RunBuiltinOrReduce(bytecode, stack_);
     case Builtin::kRange:
-      return RunBuiltinRange(bytecode);
+      return RunBuiltinRange(bytecode, stack_);
     case Builtin::kRev:
-      return RunBuiltinRev(bytecode);
+      return RunBuiltinRev(bytecode, stack_);
     case Builtin::kArrayRev:
-      return RunBuiltinArrayRev(bytecode);
+      return RunBuiltinArrayRev(bytecode, stack_);
     case Builtin::kArraySize:
-      return RunBuiltinArraySize(bytecode);
+      return RunBuiltinArraySize(bytecode, stack_);
     case Builtin::kSignex:
       return RunBuiltinSignex(bytecode, stack_);
     case Builtin::kSlice:
@@ -1343,7 +1289,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
     case Builtin::kUpdate:
       return RunBuiltinUpdate(bytecode, stack_);
     case Builtin::kXorReduce:
-      return RunBuiltinXorReduce(bytecode);
+      return RunBuiltinXorReduce(bytecode, stack_);
     // Implementation note: some of these operations are implemented via
     // bytecodes; e.g. see `BytecodeEmitter::HandleBuiltin*`
     case Builtin::kJoin:
@@ -1360,247 +1306,6 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
           "BytecodeInterpreter: builtin function \"%s\" not yet implemented.",
           BuiltinToString(builtin)));
   }
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinAddWithCarry(
-    const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin AddWithCarry.";
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.AddWithCarry(rhs));
-  stack_.Push(result);
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
-    const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin AndReduce.";
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-  bits = bits_ops::AndReduce(bits);
-  stack_.Push(InterpValue::MakeBool(bits.IsOne()));
-  return absl::OkStatus();
-}
-
-static absl::StatusOr<std::string> PrettyPrintValue(
-    const InterpValue& value, const ConcreteType* type,
-    FormatPreference format_preference, int indent = 0) {
-  std::string indent_str(indent * 4, ' ');
-  if (const auto* array_type = dynamic_cast<const ArrayType*>(type);
-      array_type != nullptr) {
-    const ConcreteType* element_type = &array_type->element_type();
-    std::vector<std::string> elements;
-    for (const auto& element_value : value.GetValuesOrDie()) {
-      XLS_ASSIGN_OR_RETURN(std::string element,
-                           PrettyPrintValue(element_value, element_type,
-                                            format_preference, indent + 1));
-      elements.push_back(element);
-    }
-
-    std::string element_type_name = element_type->ToString();
-    std::string value_prefix;
-    std::string separator = ", ";
-    std::string value_suffix;
-    if (const auto* struct_type = dynamic_cast<const StructType*>(element_type);
-        struct_type != nullptr) {
-      element_type_name = struct_type->nominal_type().identifier();
-      std::string next_indent((indent + 1) * 4, ' ');
-      value_prefix = absl::StrCat("\n", next_indent);
-      separator = absl::StrCat(",", value_prefix);
-      value_suffix = absl::StrCat("\n", indent_str);
-    }
-
-    return absl::StrFormat("%s[%d]:[%s%s%s]", element_type_name,
-                           value.GetValuesOrDie().size(), value_prefix,
-                           absl::StrJoin(elements, separator), value_suffix);
-  }
-
-  if (const auto* struct_type = dynamic_cast<const StructType*>(type);
-      struct_type != nullptr) {
-    std::vector<std::string> members;
-    members.reserve(struct_type->size());
-    for (int i = 0; i < struct_type->size(); i++) {
-      std::string sub_indent_str((indent + 1) * 4, ' ');
-      const ConcreteType& member_type = struct_type->GetMemberType(i);
-      XLS_ASSIGN_OR_RETURN(
-          std::string member_value,
-          PrettyPrintValue(value.GetValuesOrDie()[i], &member_type,
-                           format_preference, indent + 1));
-      members.push_back(absl::StrFormat("%s%s: %s", sub_indent_str,
-                                        struct_type->GetMemberName(i),
-                                        member_value));
-    }
-
-    return absl::StrFormat("%s {\n%s\n%s}",
-                           struct_type->nominal_type().identifier(),
-                           absl::StrJoin(members, "\n"), indent_str);
-  }
-  if (const auto* enum_type = dynamic_cast<const EnumType*>(type);
-      enum_type != nullptr) {
-    const EnumDef& enum_def = enum_type->nominal_type();
-    int member_index = 0;
-    for (const InterpValue& member : enum_type->members()) {
-      if (member == value) {
-        return absl::StrFormat("%s::%s (%s)", enum_def.identifier(),
-            enum_def.GetMemberName(member_index), member.ToString());
-      }
-      ++member_index;
-    }
-    XLS_RET_CHECK_FAIL()
-        << "Unexpected value " << value.ToString() << " as enum "
-        << enum_def.identifier();
-  }
-  return value.ToString(/*humanize=*/false, format_preference);
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin AssertEq.";
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack_.Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, stack_.Pop());
-  stack_.Push(InterpValue::MakeUnit());
-  bool eq = lhs.Eq(rhs);
-  if (!eq) {
-    const TypeInfo* type_info = frames_.back().type_info();
-    XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
-                         bytecode.invocation_data());
-    XLS_ASSIGN_OR_RETURN(
-        ConcreteType * lhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
-    XLS_ASSIGN_OR_RETURN(
-        ConcreteType * rhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
-    XLS_ASSIGN_OR_RETURN(
-        std::string pretty_lhs,
-        PrettyPrintValue(lhs, lhs_type, options_.format_preference()));
-    XLS_ASSIGN_OR_RETURN(
-        std::string pretty_rhs,
-        PrettyPrintValue(rhs, rhs_type, options_.format_preference()));
-    std::string message = absl::StrContains(pretty_lhs, '\n')
-      ? absl::StrCat("\n  lhs and rhs were not equal:\n",
-          HighlightLineByLineDifferences(pretty_lhs, pretty_rhs))
-      : absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were not equal",
-          pretty_lhs, pretty_rhs);
-    if (lhs.IsArray() && rhs.IsArray()) {
-      XLS_ASSIGN_OR_RETURN(
-          std::optional<int64_t> i,
-          FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie()));
-      XLS_RET_CHECK(i.has_value());
-      const auto& lhs_values = lhs.GetValuesOrDie();
-      const auto& rhs_values = rhs.GetValuesOrDie();
-      message += absl::StrFormat("; first differing index: %d :: %s vs %s", *i,
-                                 lhs_values[*i].ToHumanString(),
-                                 rhs_values[*i].ToHumanString());
-    }
-    return FailureErrorStatus(bytecode.source_span(), message);
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinAssertLt(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin AssertLt.";
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-
-  XLS_ASSIGN_OR_RETURN(InterpValue rhs, stack_.Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue lhs, stack_.Pop());
-  stack_.Push(InterpValue::MakeUnit());
-  XLS_ASSIGN_OR_RETURN(InterpValue lt_value, lhs.Lt(rhs));
-  bool lt = lt_value.IsTrue();
-  if (!lt) {
-    const TypeInfo* type_info = frames_.back().type_info();
-    XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData invocation_data,
-                         bytecode.invocation_data());
-    XLS_ASSIGN_OR_RETURN(
-        ConcreteType * lhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[0]));
-    XLS_ASSIGN_OR_RETURN(
-        ConcreteType * rhs_type,
-        type_info->GetItemOrError(invocation_data.invocation->args()[1]));
-    XLS_ASSIGN_OR_RETURN(
-        std::string pretty_lhs,
-        PrettyPrintValue(lhs, lhs_type, options_.format_preference()));
-    XLS_ASSIGN_OR_RETURN(
-        std::string pretty_rhs,
-        PrettyPrintValue(rhs, rhs_type, options_.format_preference()));
-    std::string message = absl::StrFormat(
-        "\n  lhs: %s\n was not less than rhs: %s", pretty_lhs, pretty_rhs);
-    if (lhs.IsArray() && rhs.IsArray()) {
-      const auto& lhs_values = lhs.GetValuesOrDie();
-      const auto& rhs_values = rhs.GetValuesOrDie();
-      int first_idx = -1;
-      for (int i = 0; i < lhs_values.size(); i++) {
-        if (rhs_values[i] >= lhs_values[i]) {
-          first_idx = i;
-          break;
-        }
-      }
-      XLS_RET_CHECK_NE(first_idx, -1);
-      message +=
-          absl::StrFormat("; first differing index: %d :: %s vs %s", first_idx,
-                          lhs_values[first_idx].ToHumanString(),
-                          rhs_values[first_idx].ToHumanString());
-    }
-    return FailureErrorStatus(bytecode.source_span(), message);
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinClz(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin clz.";
-  XLS_RET_CHECK(!stack_.empty());
-
-  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
-  XLS_ASSIGN_OR_RETURN(Bits bits, input.GetBits());
-  stack_.Push(
-      InterpValue::MakeUBits(bits.bit_count(), bits.CountLeadingZeros()));
-
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinCover(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin `cover!`";
-  XLS_RET_CHECK_GE(stack_.size(), 2);
-
-  XLS_ASSIGN_OR_RETURN(InterpValue string, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue predicate, Pop());
-  stack_.Push(InterpValue::MakeToken());
-
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinCtz(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin ctz.";
-  XLS_RET_CHECK(!stack_.empty());
-
-  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
-  XLS_ASSIGN_OR_RETURN(Bits bits, input.GetBits());
-  stack_.Push(
-      InterpValue::MakeUBits(bits.bit_count(), bits.CountTrailingZeros()));
-
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinEnumerate(
-    const Bytecode& bytecode) {
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
-  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
-                       input.GetValues());
-
-  std::vector<InterpValue> elements;
-  elements.reserve(values->size());
-  for (int i = 0; i < values->size(); i++) {
-    elements.push_back(
-        InterpValue::MakeTuple({InterpValue::MakeU32(i), values->at(i)}));
-  }
-  XLS_ASSIGN_OR_RETURN(InterpValue result, InterpValue::MakeArray(elements));
-  stack_.Push(result);
-  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
@@ -1675,73 +1380,6 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   frames_.push_back(Frame(bf_ptr, {inputs}, bf_ptr->type_info(),
                           invocation_data.bindings,
                           /*initial_args=*/{}, std::move(bf)));
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinOrReduce(const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin OrReduce.";
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-  bits = bits_ops::OrReduce(bits);
-  stack_.Push(InterpValue::MakeBool(bits.IsOne()));
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
-  return BuiltinRangeInternal(stack_);
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinArrayRev(const Bytecode& bytecode) {
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  if (!value.IsArray()) {
-    return absl::InvalidArgumentError(
-        "Argument to `array_rev` builtin must be an array.");
-  }
-  std::vector<InterpValue> reversed;
-  const auto& values = value.GetValuesOrDie();
-  std::reverse_copy(values.begin(), values.end(), std::back_inserter(reversed));
-  stack_.Push(InterpValue::MakeArray(std::move(reversed)).value());
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinArraySize(
-    const Bytecode& bytecode) {
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  if (!value.IsArray()) {
-    return absl::InvalidArgumentError(
-        "Argument to `array_rev` builtin must be an array.");
-  }
-  int64_t length = value.GetLength().value();
-  auto length_u32 = static_cast<uint32_t>(length);
-  XLS_RET_CHECK_EQ(length, length_u32);
-  stack_.Push(InterpValue::MakeU32(length_u32));
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinRev(const Bytecode& bytecode) {
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  if (!value.IsBits() || value.IsSigned()) {
-    return absl::InvalidArgumentError(
-        "Argument to `rev` builtin must be an unsigned bits-typed value.");
-  }
-  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-  stack_.Push(
-      InterpValue::MakeBits(/*is_signed=*/false, bits_ops::Reverse(bits)));
-  return absl::OkStatus();
-}
-
-absl::Status BytecodeInterpreter::RunBuiltinXorReduce(
-    const Bytecode& bytecode) {
-  XLS_VLOG(3) << "Executing builtin XorReduce.";
-  XLS_RET_CHECK(!stack_.empty());
-  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
-  bits = bits_ops::XorReduce(bits);
-  stack_.Push(InterpValue::MakeBool(bits.IsOne()));
   return absl::OkStatus();
 }
 

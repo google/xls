@@ -165,21 +165,42 @@ cc_library(
 )
 
 cc_library(
+    name = "frame",
+    srcs = ["frame.cc"],
+    hdrs = ["frame.h"],
+    deps = [
+        ":bytecode",
+        "//xls/dslx:interp_value",
+        "//xls/dslx/type_system:parametric_env",
+        "//xls/dslx/type_system:type_info",
+    ],
+)
+
+cc_library(
     name = "builtins",
     srcs = ["builtins.cc"],
     hdrs = ["builtins.h"],
     deps = [
         ":bytecode",
+        ":bytecode_interpreter_options",
+        ":frame",
         ":interpreter_stack",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/dslx:errors",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
+        "//xls/dslx/frontend:ast",
+        "//xls/dslx/type_system:concrete_type",
+        "//xls/dslx/type_system:type_info",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
     ],
 )
 
@@ -192,6 +213,7 @@ cc_library(
         ":bytecode",
         ":bytecode_emitter",
         ":bytecode_interpreter_options",
+        ":frame",
         ":interpreter_stack",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -220,6 +242,7 @@ cc_test(
     name = "bytecode_interpreter_test",
     srcs = ["bytecode_interpreter_test.cc"],
     deps = [
+        ":builtins",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":interpreter_stack",
