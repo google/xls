@@ -277,17 +277,19 @@ class XlsFixed {
                 Adjust(BuiltinIntToBits<unsigned long long, 64>::Convert(
                     value)))) {}
 
-  inline XlsFixed(const double value)
+  // Undefined behavior if the double is out of 32 bit signed integer range
+  inline XlsFixed(double value)
     : val(XlsInt<Width, Signed>(
           Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
                       Overflow>::
-              Adjust(BuiltinIntToBits<double, 64>::Convert(value)))) {}
+              Adjust(__xlscc_fixed_32_32_bits_for_double(value)))) {}
 
-  inline XlsFixed(const float value)
+  // Undefined behavior if the double is out of 32 bit signed integer range
+  inline XlsFixed(float value)
     : val(XlsInt<Width, Signed>(
           Adjustment<Width, IntegerWidth, Signed, 64, 32, false, Quantization,
                       Overflow>::
-              Adjust(BuiltinIntToBits<float, 64>::Convert(value)))) {}
+              Adjust(__xlscc_fixed_32_32_bits_for_float(value)))) {}
 
   XlsInt<Width, false> val;
   static constexpr int width = Width;

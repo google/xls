@@ -663,7 +663,7 @@ TEST_F(TranslatorPointerTest, Nullptr) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("CXXNullPtrLiteralExpr")));
+                  testing::HasSubstr("nullptr")));
 }
 
 TEST_F(TranslatorPointerTest, PointerInStruct) {

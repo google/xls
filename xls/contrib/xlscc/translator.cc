@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <regex>  // NOLINT
 #include <sstream>
@@ -25,6 +26,8 @@
 #include <typeinfo>
 #include <utility>
 #include <vector>
+#include <cstring>
+#include <cstddef>
 
 #include "absl/base/casts.h"
 #include "absl/container/btree_map.h"
@@ -56,6 +59,7 @@
 #include "clang/include/clang/Basic/TypeTraits.h"
 #include "llvm/include/llvm/ADT/APInt.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
+#include "llvm/include/llvm/ADT/FloatingPointMode.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -673,6 +677,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
 
   context().fb = absl::implicit_cast<xls::BuilderBase*>(builder.get());
   context().sf = &sf;
+  context().ast_context = &funcdecl->getASTContext();
 
   // Unroll for loops in default function bodies without pragma
   context().for_loops_default_unroll = funcdecl->isDefaulted();
@@ -2545,6 +2550,20 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
   }
 
+  if (funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_double" ||
+      funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_float") {
+    XLSCC_CHECK_EQ(call->getNumArgs(), 1, loc);
+    const clang::Expr* value_arg = call->getArg(0);
+    XLS_ASSIGN_OR_RETURN(CValue value_cval, GenerateIR_Expr(value_arg, loc));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> return_type,
+                         TranslateTypeFromClang(call->getType(), loc));
+    XLSCC_CHECK(value_cval.type()->Is<CFloatType>(), loc);
+    xls::BValue sliced = context().fb->BitSlice(value_cval.rvalue(),
+                                                /*start=*/128,
+                                                /*width=*/64, loc);
+    return std::make_pair(true, CValue(sliced, return_type));
+  }
+
   // Tracing handled below
   std::string message_string;
 
@@ -3549,8 +3568,97 @@ absl::Status Translator::FailIfTypeHasDtors(
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::optional<CValue>> Translator::EvaluateNumericConstExpr(
+    const clang::Expr* expr, const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                       TranslateTypeFromClang(expr->getType(), loc));
+
+  if (!ctype->Is<CIntType>() && !ctype->Is<CFloatType>()) {
+    return std::nullopt;
+  }
+
+  XLSCC_CHECK_NE(context().ast_context, nullptr, loc);
+  clang::Expr::EvalResult const_eval_result;
+  if (!expr->EvaluateAsConstantExpr(const_eval_result,
+                                    *context().ast_context)) {
+    // Not constexpr
+    return std::nullopt;
+  }
+
+  if (ctype->Is<CIntType>()) {
+    if (!const_eval_result.Val.isInt()) {
+      // Not constexpr
+      return std::nullopt;
+    }
+    llvm::APInt api = const_eval_result.Val.getInt();
+    // Raw data is in little endian format
+    auto api_raw = reinterpret_cast<const uint8_t*>(api.getRawData());
+    vector<uint8_t> truncated;
+    const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
+    truncated.reserve(truncated_n);
+    for (int i = 0; i < truncated_n; ++i) {
+      truncated.emplace_back(api_raw[i]);
+    }
+    // FromBytes() accepts little endian format
+    auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
+    return CValue(context().fb->Literal(lbits, loc), ctype);
+  }
+
+  XLSCC_CHECK(ctype->Is<CFloatType>(), loc);
+  if (!const_eval_result.Val.isFloat()) {
+    // Not constexpr
+    return std::nullopt;
+  }
+
+  llvm::APFloat apf = const_eval_result.Val.getFloat();
+  const double converted = apf.convertToDouble();
+  const int64_t integer_value = static_cast<int64_t>(converted);
+
+  vector<uint8_t> formatted;
+  formatted.resize(sizeof(converted) + sizeof(integer_value));
+
+  // Pack double and rounded int64_t versions into one bit vector
+  memcpy(&formatted[0], reinterpret_cast<const uint8_t*>(&converted),
+         sizeof(converted));
+  memcpy(&formatted[sizeof(converted)],
+         reinterpret_cast<const uint8_t*>(&integer_value),
+         sizeof(integer_value));
+
+  // Add 32.32 fixed
+  {
+    llvm::APFloat decimal_shift(pow(2, 32));
+    bool losesInfo;
+    apf.convert(decimal_shift.getSemantics(), llvm::RoundingMode::TowardZero,
+                &losesInfo);
+    apf.multiply(decimal_shift, llvm::RoundingMode::TowardZero);
+    llvm::APSInt shifted(64);
+    bool exact = false;
+    apf.convertToInteger(shifted, llvm::RoundingMode::TowardZero, &exact);
+    // Raw data is in little endian format
+    auto api_raw = reinterpret_cast<const uint8_t*>(shifted.getRawData());
+    vector<uint8_t> truncated;
+    for (int i = 0; i < 8; ++i) {
+      formatted.push_back(api_raw[i]);
+    }
+  }
+
+  // double, int64_t, fixed 32.32
+  auto lbits = xls::Bits::FromBytes(
+      formatted,
+      /*bit_count=*/(sizeof(converted) + sizeof(integer_value) + 8) * 8);
+
+  return CValue(context().fb->Literal(lbits, loc), ctype);
+}
+
 absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                                                    const xls::SourceInfo& loc) {
+  // Intercept numeric constexprs
+  XLS_ASSIGN_OR_RETURN(std::optional<CValue> numeric_constexpr,
+                       EvaluateNumericConstExpr(expr, loc));
+  if (numeric_constexpr.has_value()) {
+    return numeric_constexpr.value();
+  }
+
   if (auto uop = clang::dyn_cast<const clang::UnaryOperator>(expr)) {
     return Generate_UnaryOp(uop, loc);
   }
@@ -3578,46 +3686,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       return ret.value;
     }
     return GenerateIR_Call(call, loc);
-  }
-  if (auto ilit = clang::dyn_cast<const clang::IntegerLiteral>(expr)) {
-    llvm::APInt api = ilit->getValue();
-    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                         TranslateTypeFromClang(ilit->getType(), loc));
-    // Raw data is in little endian format
-    auto api_raw = reinterpret_cast<const uint8_t*>(api.getRawData());
-    vector<uint8_t> truncated;
-    const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
-    truncated.reserve(truncated_n);
-    for (int i = 0; i < truncated_n; ++i) {
-      truncated.emplace_back(api_raw[i]);
-    }
-    // FromBytes() accepts little endian format
-    auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
-    return CValue(context().fb->Literal(lbits, loc), ctype);
-  }
-  if (auto ilit = clang::dyn_cast<const clang::FloatingLiteral>(expr)) {
-    llvm::APFloat decimal_shift(pow(2, 32));
-    llvm::APFloat apf = ilit->getValue();
-    bool losesInfo;
-    apf.convert(decimal_shift.getSemantics(), llvm::RoundingMode::TowardZero,
-                &losesInfo);
-    apf.multiply(decimal_shift, llvm::RoundingMode::TowardZero);
-    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                         TranslateTypeFromClang(ilit->getType(), loc));
-    llvm::APSInt shifted(64);
-    bool exact = false;
-    apf.convertToInteger(shifted, llvm::RoundingMode::TowardZero, &exact);
-    // Raw data is in little endian format
-    auto api_raw = reinterpret_cast<const uint8_t*>(shifted.getRawData());
-    vector<uint8_t> truncated;
-    const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
-    truncated.reserve(truncated_n);
-    for (int i = 0; i < truncated_n; ++i) {
-      truncated.emplace_back(api_raw[i]);
-    }
-    // FromBytes() accepts little endian format
-    auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
-    return CValue(context().fb->Literal(lbits, loc), ctype);
   }
   if (auto charlit = clang::dyn_cast<const clang::CharacterLiteral>(expr)) {
     if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
@@ -3861,34 +3929,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
 
     return CreateInitListValue(ctype, init_list, loc);
   }
-  if (auto* unary_or_type_expr =
-          clang::dyn_cast<const clang::UnaryExprOrTypeTraitExpr>(expr)) {
-    if (unary_or_type_expr->getKind() != clang::UETT_SizeOf) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Unimplemented UnaryExprOrTypeTraitExpr kind %i",
-                       unary_or_type_expr->getKind()));
-    }
-
-    XLS_ASSIGN_OR_RETURN(
-        std::shared_ptr<CType> ret_ctype,
-        TranslateTypeFromClang(unary_or_type_expr->getType(), loc));
-    XLS_ASSIGN_OR_RETURN(
-        std::shared_ptr<CType> arg_ctype,
-        TranslateTypeFromClang(unary_or_type_expr->getTypeOfArgument(), loc));
-    // Remove CInstantiableTypeAliases since CType::BitWidth() cannot resolve
-    // them
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_arg_ctype,
-                         ResolveTypeInstanceDeeply(arg_ctype));
-
-    XLS_LOG(WARNING) << ErrorMessage(
-        loc, "Warning: sizeof evaluating to size in BITS");
-
-    const int64_t ret_width = ret_ctype->GetBitWidth();
-    return CValue(
-        context().fb->Literal(
-            xls::SBits(resolved_arg_ctype->GetBitWidth(), ret_width), loc),
-        std::make_shared<CIntType>(ret_width, true));
-  }
   expr->dump();
   return absl::UnimplementedError(ErrorMessage(
       loc, "Unimplemented expression %s", expr->getStmtClassName()));
@@ -4052,8 +4092,8 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
   if (t->Is<CIntType>()) {
     return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
   }
-  if (t->Is<CDecimalType>()) {
-    return xls::Value(xls::UBits(0, t->As<CDecimalType>()->width()));
+  if (t->Is<CFloatType>()) {
+    return xls::Value(xls::UBits(0, t->GetBitWidth()));
   }
   if (t->Is<CBitsType>()) {
     auto it = t->As<CBitsType>();
@@ -5153,13 +5193,23 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     clang::QualType t, const xls::SourceInfo& loc) {
   const clang::Type* type = t.getTypePtr();
-
   if (auto builtin = clang::dyn_cast<const clang::BuiltinType>(type)) {
     if (builtin->isVoidType()) {
       return shared_ptr<CType>(new CVoidType());
     }
+    if (builtin->isNullPtrType()) {
+      return absl::UnimplementedError(ErrorMessage(loc, "nullptr"));
+    }
     if (builtin->isFloatingType()) {
-      return shared_ptr<CType>(new CDecimalType(64, 32));
+      switch (builtin->getKind()) {
+        case clang::BuiltinType::Kind::Float:
+          return shared_ptr<CType>(new CFloatType(/*double_precision=*/false));
+        case clang::BuiltinType::Kind::Double:
+          return shared_ptr<CType>(new CFloatType(/*double_precision=*/true));
+        default:
+          return absl::UnimplementedError(absl::StrFormat(
+              "Unsupported BuiltIn type %i", builtin->getKind()));
+      }
     }
     if (!builtin->isInteger()) {
       return absl::UnimplementedError(
@@ -5305,9 +5355,8 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     auto it = t->As<CIntType>();
     return package_->GetBitsType(it->width());
   }
-  if (t->Is<CDecimalType>()) {
-    auto it = t->As<CDecimalType>();
-    return package_->GetBitsType(it->width());
+  if (t->Is<CFloatType>()) {
+    return package_->GetBitsType(t->GetBitWidth());
   }
   if (t->Is<CBitsType>()) {
     auto it = t->As<CBitsType>();
@@ -5526,23 +5575,36 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
   if (out_type->Is<CBoolType>()) {
     return GenBoolConvert(in, loc);
   }
-  if (out_type->Is<CDecimalType>()) {
-    return in.rvalue();
+  if (out_type->Is<CFloatType>()) {
+    if (in.type()->Is<CFloatType>()) {
+      return in.rvalue();
+    }
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Cannot convert type %s to float", std::string(*in.type())));
   }
   if (out_type->Is<CIntType>()) {
-    if (!(in.type()->Is<CDecimalType>() || in.type()->Is<CBoolType>() ||
-          in.type()->Is<CIntType>())) {
+    if (in.type()->Is<CFloatType>()) {
+      if (out_type->GetBitWidth() != 64 ||
+          !out_type->As<CIntType>()->is_signed()) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc,
+                         "Only know how to convert floats to 64 bit signed "
+                         "integers, asked to convert to %s",
+                         out_type->debug_string()));
+      }
+      XLSCC_CHECK(in.rvalue().valid(), loc);
+
+      // Double value comes first
+      const size_t offset = sizeof(double) * 8;
+      return context().fb->BitSlice(in.rvalue(), offset,
+                                    out_type->GetBitWidth(), loc);
+    }
+    if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
       return absl::UnimplementedError(ErrorMessage(
           loc, "Cannot convert type %s to int", std::string(*in.type())));
     }
     int expr_width = in.type()->GetBitWidth();
     xls::BValue return_value = in.rvalue();
-    if (in.type()->Is<CDecimalType>()) {
-      auto decimal = in.type()->As<CDecimalType>();
-      xls::BValue shr_amount = context().fb->Literal(
-          xls::UBits(decimal->width() - decimal->integer_width(), 7), loc);
-      return_value = context().fb->Shra(in.rvalue(), shr_amount, loc);
-    }
     if (expr_width == out_type->GetBitWidth()) {
       return return_value;
     }

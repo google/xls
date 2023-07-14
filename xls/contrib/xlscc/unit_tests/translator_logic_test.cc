@@ -701,28 +701,14 @@ TEST_F(TranslatorLogicTest, CheckRepeatedGlobals) {
        enum Values {
         A=1000, B=10
        };
-       long long my_package(long long a) {
+       long long my_package() {
+        long long a = 0;
          a += A;
          a += B;
          a += A;
          return a;
        })";
-  XLS_ASSERT_OK_AND_ASSIGN(std::string source, SourceToIr(content));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
-                           ParsePackage(source));
-  ASSERT_EQ(package->functions().size(), 1);
-  xls::Function* function = package->functions()[0].get();
-  int64_t n_literals = 0;
-  for (const xls::Node* n : function->nodes()) {
-    if (n->Is<xls::Literal>()) {
-      XLS_ASSERT_OK_AND_ASSIGN(
-          uint64_t value, n->As<xls::Literal>()->value().bits().ToUint64());
-      if (value == 1000) {
-        ++n_literals;
-      }
-    }
-  }
-  EXPECT_EQ(n_literals, 1);
+  Run({}, 1000 + 10 + 1000, content);
 }
 
 TEST_F(TranslatorLogicTest, EnumVarDecl) {
@@ -3772,16 +3758,6 @@ TEST_F(TranslatorLogicTest, SizeOf) {
   const std::string content = R"(
       int my_package() {
         short foo[3] = {2,3,4};
-        return sizeof(foo);
-      })";
-
-  Run({}, 3 * 16, content);
-}
-
-TEST_F(TranslatorLogicTest, SizeOfExpr) {
-  const std::string content = R"(
-      int my_package() {
-        short foo[3] = {2,3,4};
         return sizeof(foo) / sizeof(foo[0]);
       })";
 
@@ -3798,10 +3774,10 @@ TEST_F(TranslatorLogicTest, SizeOfDeep) {
       };
       int my_package() {
         Test b;
-        return sizeof(b);
+        return sizeof(b) / sizeof(TestInner);
       })";
 
-  Run({}, 5 * 16, content);
+  Run({}, 5, content);
 }
 
 TEST_F(TranslatorLogicTest, ParenType) {
@@ -4772,7 +4748,7 @@ TEST_F(TranslatorLogicTest, SelfReferencingHierarchicalChannelsGenerates) {
 TEST_F(TranslatorLogicTest, DoubleSupportToInt) {
   const std::string content = R"(
     long long my_package() {
-      auto x = 5.5;
+      const auto x = 5.5;
       return (int)x;
     })";
   Run({}, 5, content);
@@ -4781,36 +4757,39 @@ TEST_F(TranslatorLogicTest, DoubleSupportToInt) {
 TEST_F(TranslatorLogicTest, FloatSupportToInt) {
   const std::string content = R"(
     long long my_package() {
-      auto x = 5.5f;
+      const auto x = 5.5f;
       return (int)x;
     })";
   Run({}, 5, content);
 }
 
-TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForDouble) {
+TEST_F(TranslatorLogicTest, FloatConvertToInt) {
   const std::string content = R"(
+    long long convert(float value) {
+      return (long long)value;
+    }
     long long my_package() {
-      double x = 5.5;
-      return (int)(x * 3);
+      return convert(15.0f);
     })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Binary operators unimplemented for type")));
+  Run({}, 15, content);
 }
 
-TEST_F(TranslatorLogicTest, BinaryOperatorsUnimplementedForFloat) {
+TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForDouble) {
   const std::string content = R"(
     long long my_package() {
-      float x = 5.5f;
+      const double x = 5.5 + 1.0;
       return (int)(x * 3);
     })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Binary operators unimplemented for type")));
+  Run({}, 19, content);
+}
+
+TEST_F(TranslatorLogicTest, ConstexprBinaryOperatorsForFloat) {
+  const std::string content = R"(
+    long long my_package() {
+      const float x = 5.5f + 1.0f;
+      return (int)(x * 3);
+    })";
+  Run({}, 19, content);
 }
 
 TEST_F(TranslatorLogicTest, WarnIfKnownPragmaIncorrectlyFormatted) {

@@ -791,6 +791,7 @@ absl::StatusOr<CValue> Translator::GenerateTopClassInitValue(
   // within the initializer list
   context().propagate_up = false;
   context().override_this_decl_ = this_decl;
+  context().ast_context = &this_decl->getASTContext();
 
   XLS_ASSIGN_OR_RETURN(CValue this_val,
                        CreateDefaultCValue(this_type, body_loc));

@@ -168,10 +168,10 @@ class CIntType : public CType {
 };
 
 // Any native decimal type: float, double, etc
-class CDecimalType : public CType {
+class CFloatType : public CType {
  public:
-  ~CDecimalType() override;
-  CDecimalType(int width, int integer_width);
+  ~CFloatType() override;
+  explicit CFloatType(bool double_precision);
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -186,12 +186,10 @@ class CDecimalType : public CType {
   xls::Type* GetXLSType(xls::Package* package) const override;
   bool StoredAsXLSBits() const override;
 
-  inline int width() const { return width_; }
-  inline int integer_width() const { return integer_width_; }
+  inline bool double_precision() const { return double_precision_; }
 
  protected:
-  const int width_;
-  const int integer_width_;
+  const bool double_precision_;
 };
 
 // C++ enum or enum class
@@ -954,6 +952,7 @@ struct TranslationContext {
 
   std::shared_ptr<CType> return_type;
   xls::BuilderBase* fb = nullptr;
+  clang::ASTContext* ast_context = nullptr;
 
   // Information being gathered about function currently being processed
   GeneratedFunction* sf = nullptr;
@@ -1421,6 +1420,8 @@ class Translator {
                                          const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_Expr(std::shared_ptr<LValue> expr,
                                          const xls::SourceInfo& loc);
+  absl::StatusOr<std::optional<CValue>> EvaluateNumericConstExpr(
+      const clang::Expr* expr, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_MemberExpr(const clang::MemberExpr* expr,
                                                const xls::SourceInfo& loc);
   absl::StatusOr<std::string> GetStringLiteral(const clang::Expr* expr,

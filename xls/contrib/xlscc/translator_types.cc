@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,6 +25,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 using std::shared_ptr;
 using std::string;
@@ -188,69 +193,66 @@ absl::Status CIntType::GetMetadataValue(Translator& translator,
                                         xlscc_metadata::Value* output) const {
   auto value = const_value.rvalue();
   XLS_CHECK(value.IsBits());
-  if (is_signed()) {
-    XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
-    output->mutable_as_int()->set_signed_value(signed_value);
-  } else {
-    XLS_ASSIGN_OR_RETURN(uint64_t unsigned_value, value.bits().ToUint64());
-    output->mutable_as_int()->set_unsigned_value(unsigned_value);
-  }
+  const xls::Bits& bits = value.bits();
+  std::vector<uint8_t> bytes = bits.ToBytes();
+  XLS_CHECK_GT(bytes.size(), 0);
+  output->mutable_as_int()->set_big_endian_bytes(bytes.data(), bytes.size());
   return absl::OkStatus();
 }
 
-CDecimalType::~CDecimalType() = default;
+CFloatType::~CFloatType() = default;
 
-CDecimalType::CDecimalType(int width, int integer_width)
-    : width_(width), integer_width_(integer_width) {}
+CFloatType::CFloatType(bool double_precision)
+    : double_precision_(double_precision) {}
 
-xls::Type* CDecimalType::GetXLSType(xls::Package* package) const {
-  return package->GetBitsType(width_);
+xls::Type* CFloatType::GetXLSType(xls::Package* package) const {
+  return package->GetBitsType(GetBitWidth());
 }
 
-bool CDecimalType::operator==(const CType& o) const {
-  if (!o.Is<CDecimalType>()) {
+bool CFloatType::operator==(const CType& o) const {
+  if (!o.Is<CFloatType>()) {
     return false;
   }
-  const auto* o_derived = o.As<CDecimalType>();
-  if (width_ != o_derived->width_) {
-    return false;
-  }
-  if (integer_width_ != o_derived->integer_width_) {
+  const auto* o_derived = o.As<CFloatType>();
+  if (double_precision_ != o_derived->double_precision_) {
     return false;
   }
   return true;
 }
 
-int CDecimalType::GetBitWidth() const { return width_; }
-
-bool CDecimalType::StoredAsXLSBits() const { return true; }
-
-CDecimalType::operator std::string() const {
-  if (width_ == 32) {
-    return "float";
-  }
-  if (width_ == 64) {
-    return "double";
-  }
-  return absl::StrFormat("native_decimal[%d]", width_);
+// We just always store as double
+int CFloatType::GetBitWidth() const {
+  // Both double, int64_t, and fixed 32.32 forms
+  return 64 * 3;
 }
 
-absl::Status CDecimalType::GetMetadata(
+bool CFloatType::StoredAsXLSBits() const { return true; }
+
+CFloatType::operator std::string() const {
+  return double_precision_ ? "double" : "float";
+}
+
+absl::Status CFloatType::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
-  output->mutable_as_decimal()->set_width(width_);
-  output->mutable_as_decimal()->set_integer_width(integer_width_);
-  output->mutable_as_decimal()->set_is_synthetic(false);
+  output->mutable_as_float()->set_is_double_precision(double_precision_);
   return absl::OkStatus();
 }
 
-absl::Status CDecimalType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
-    xlscc_metadata::Value* output) const {
-  auto value = const_value.rvalue();
+absl::Status CFloatType::GetMetadataValue(Translator& translator,
+                                          const ConstValue const_value,
+                                          xlscc_metadata::Value* output) const {
+  std::shared_ptr<CFloatType> float_type =
+      std::dynamic_pointer_cast<CFloatType>(const_value.type());
+  XLS_CHECK_NE(float_type, nullptr);
+  xls::Value value = const_value.rvalue();
   XLS_CHECK(value.IsBits());
-  XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
-  output->mutable_as_decimal()->set_value(signed_value);
+  const xls::Bits& bits = value.bits();
+  vector<uint8_t> bytes = bits.ToBytes();
+  double double_value = 0.0;
+  XLS_CHECK_GE(bytes.size(), sizeof(double_value));
+  memcpy(&double_value, bytes.data(), sizeof(double_value));
+  output->mutable_as_float()->set_value(double_value);
   return absl::OkStatus();
 }
 

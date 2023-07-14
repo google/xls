@@ -558,6 +558,7 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
     context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
     context().sf = generated_func.get();
+    context().ast_context = prev_context.ast_context;
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
 

@@ -545,12 +545,12 @@ class XlsInt : public XlsIntBase<Width, Signed> {
             BuiltinIntToBits<unsigned long long, 64>::Convert(value))) {}
 
   inline XlsInt(const double value)
-      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
-            BuiltinIntToBits<long long, 64>::Convert(value))) {}
+      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, true>::Convert(
+            BuiltinIntToBits<long long, 64>::Convert((long long)value))) {}
 
   inline XlsInt(const float value)
-      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, false>::Convert(
-            BuiltinIntToBits<long long, 64>::Convert(value))) {}
+      : XlsIntBase<Width, Signed>(ConvertBits<64, Width, true>::Convert(
+            BuiltinIntToBits<long long, 64>::Convert((long long)value))) {}
 
   inline XlsInt(__xls_bits<Width> value) : XlsIntBase<Width, Signed>(value) {}
 

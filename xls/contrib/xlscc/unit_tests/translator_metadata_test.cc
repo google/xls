@@ -14,6 +14,7 @@
 
 #include <cstdio>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -617,7 +618,143 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
         }
         value {
           as_int {
-            signed_value: 22
+            big_endian_bytes: "\026\000\000\000"
+          }
+        }
+      }
+    }
+  )";
+  xlscc_metadata::MetadataOutput ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  standardizeMetadata(&meta);
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
+TEST_F(TranslatorMetadataTest, StaticIntNegative) {
+  const std::string content = R"(
+    namespace foo {
+    #pragma hls_top
+    int my_package() {
+      static int x = -1;
+      int inner = 0;
+      x += inner;
+      return x;
+    }
+    } // namespace foo
+    )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+
+  const std::string ref_meta_str = R"(
+    top_func_proto 	 {
+      name {
+        name: "my_package"
+        fully_qualified_name: "foo::my_package"
+        xls_name: "my_package"
+      }
+      return_type {
+        as_int {
+          width: 32
+          is_signed: true
+          is_synthetic: false
+        }
+      }
+      static_values {
+        name {
+          name: "x"
+          fully_qualified_name: "x"
+        }
+        type {
+          as_int {
+            width: 32
+            is_signed: true
+            is_synthetic: false
+          }
+        }
+        value {
+          as_int {
+            big_endian_bytes: "\377\377\377\377"
+          }
+        }
+      }
+    }
+  )";
+  xlscc_metadata::MetadataOutput ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  standardizeMetadata(&meta);
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
+TEST_F(TranslatorMetadataTest, StaticFloats) {
+  const std::string content = R"(
+    namespace foo {
+    #pragma hls_top
+    int my_package() {
+      static float x = 1.5f;
+      static double y = 3.14f;
+      (void)x;(void)y;
+      return 0;
+    }
+    } // namespace foo
+    )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+
+  const std::string ref_meta_str = R"(
+    top_func_proto 	 {
+      name {
+        name: "my_package"
+        fully_qualified_name: "foo::my_package"
+        xls_name: "my_package"
+      }
+      return_type {
+        as_int {
+          width: 32
+          is_signed: true
+          is_synthetic: false
+        }
+      }
+      static_values {
+        name {
+          name: "x"
+          fully_qualified_name: "x"
+        }
+        type {
+          as_float {
+            is_double_precision: false
+          }
+        }
+        value {
+          as_float {
+            value: 1.5
+          }
+        }
+      }
+      static_values {
+        name {
+          name: "y"
+          fully_qualified_name: "y"
+        }
+        type {
+          as_float {
+            is_double_precision: true
+          }
+        }
+        value {
+          as_float {
+            value: 3.1400001049041748
           }
         }
       }
@@ -737,12 +874,12 @@ TEST_F(TranslatorMetadataTest, StaticArray) {
           as_array {
             element_values {
               as_int {
-                signed_value: 0
+                big_endian_bytes: "\000\000\000\000"
               }
             }
             element_values {
               as_int {
-                signed_value: 1
+                big_endian_bytes: "\001\000\000\000"
               }
             }
           }
@@ -851,7 +988,7 @@ TEST_F(TranslatorMetadataTest, StaticStruct) {
               }
               value {
                 as_int {
-                  signed_value: 3
+                  big_endian_bytes: "\003\000\000\000"
                 }
               }
             }
@@ -864,7 +1001,7 @@ TEST_F(TranslatorMetadataTest, StaticStruct) {
               }
               value {
                 as_int {
-                  signed_value: 11
+                  big_endian_bytes: "\013"
                 }
               }
             }
@@ -940,12 +1077,12 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
               as_array {
                 element_values {
                   as_int {
-                    signed_value: 0
+                    big_endian_bytes: "\000\000\000\000"
                   }
                 }
                 element_values {
                   as_int {
-                    signed_value: 1
+                    big_endian_bytes: "\001\000\000\000"
                   }
                 }
               }
@@ -954,12 +1091,12 @@ TEST_F(TranslatorMetadataTest, Static2DArray) {
               as_array {
                 element_values {
                   as_int {
-                    signed_value: 2
+                    big_endian_bytes: "\002\000\000\000"
                   }
                 }
                 element_values {
                   as_int {
-                    signed_value: 3
+                    big_endian_bytes: "\003\000\000\000"
                   }
                 }
               }

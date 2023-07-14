@@ -556,6 +556,10 @@ void __xlscc_trace(const char*fmt, ...) { }
 
 bool __xlscc_on_reset = false;
 
+// Returns bits for 32.32 fixed point representation
+__xls_bits<64> __xlscc_fixed_32_32_bits_for_double(double input);
+__xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
+
 #endif//__XLS_BUILTIN_H
           )"));
 

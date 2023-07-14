@@ -117,12 +117,8 @@ message IntType {
 }
 
 // Any decimal type: float, double
-message DecimalType {
-  optional int32 width = 1;
-  optional int32 integer_width = 2;
-  // Is this defined by a class with #pragma hls_synthetic_int?
-  // If so, values will use as_bits rather than as_int.
-  optional bool is_synthetic = 3;
+message FloatType {
+  optional bool is_double_precision = 2;
 }
 
 // If multiple enum variants map to the same value, each will be repeated here
@@ -178,7 +174,7 @@ message Type {
   optional InternalTupleType as_tuple = 9;
   optional ChannelType as_channel = 10;
   optional EnumType as_enum = 11;
-  optional DecimalType as_decimal = 12;
+  optional FloatType as_float = 12;
 }
 
 // A field in a structure
@@ -211,19 +207,18 @@ message Value {
   optional InstanceTypeValue as_inst = 6;
   optional InternalTupleValue as_tuple = 7;
   optional EnumTypeValue as_enum = 8;
-  optional DecimalTypeValue as_decimal = 9;
+  optional FloatTypeValue as_float = 9;
 }
 
 // Any integral type: char, short, int, long with the given
 // signed or unsigned value
 message IntTypeValue {
-  optional int64 signed_value = 1;
-  optional uint64 unsigned_value = 2;
+  optional bytes big_endian_bytes = 1;
 }
 
 // Any decimal type: float, double
-message DecimalTypeValue {
-  optional int64 value = 1;
+message FloatTypeValue {
+  optional double value = 1;
 }
 
 // C++ enum or enum class value
