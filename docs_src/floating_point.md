@@ -52,7 +52,6 @@ and `is_inf` is exposed as:
 ```dslx-snippet
 pub fn is_inf(f: F32) -> u1 { apfloat::is_inf<u32:8, u32:23>(f) }
 ```
-
 In this way, users can refer to `F32` types and can use them as and with
 `float32::is_inf(f)`, giving them simplified access to a generic operation.
 
@@ -268,9 +267,28 @@ pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
 ```
 Returns the signed integer part of the input float, truncating any fractional bits if necessary.
 
-## Operation details
+### `apfloat::add/sub`
+```dslx-snippet
+pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ>
 
-### Add/sub
+pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns the sum/difference of `x` and `y` based on a generalization of IEEE 754
+single-precision floating-point addition, with the following exceptions:
+
+- Both input and output denormals are treated as/flushed to 0.
+- Only round-to-nearest mode is supported.
+- No exception flags are raised/reported.
+
+In all other cases, results should be identical to other conforming
+implementations (modulo exact fraction values in the `NaN` case.
+
+#### Implementation details
 
 Floating-point addition, like any FP operation, is much more complicated than
 integer addition, and has many more steps. Being the first operation described,
@@ -320,7 +338,7 @@ we'll take extra care to explain floating-point addition:
 1.  **Special case handling:** The results are examined for special cases such
     as NaNs, infinities, or (optionally) subnormals.
 
-#### Result sign determination
+##### Result sign determination
 
 The sign of the result will normally be the same as the sign of the operand with
 the greater exponent, but there are two extra cases to consider. If the operands
@@ -338,7 +356,7 @@ C `float` implementation):
   };
 ```
 
-#### Rounding
+##### Rounding
 
 As complicated as rounding is to describe, its implementation is relatively
 straightforward (types are as for a C `float` implementation):
@@ -356,14 +374,35 @@ straightforward (types are as for a C `float` implementation):
   let rounding_carry = rounded_fraction[-1:];
 ```
 
-### Mul
 
-TODO(rspringer): 2021-04-06: This.
+### `apfloat::mul`
+```dslx-snippet
+pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ>
+```
 
-### FMA
+Returns the product of `x` and `y`, with the following exceptions:
 
-The `fma` operation (again, fused multiply-add) is a three-operand operation
-that computes the product of the first two and the sum of that with the third.
+ - Both input and output denormals are treated as/flushed to 0.
+ - Only round-to-nearest mode is supported.
+ - No exception flags are raised/reported.
+
+In all other cases, results should be identical to other
+conforming implementations (modulo exact fraction values in the NaN case).
+
+### `apfloat::fma`
+```dslx-snippet
+pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          b: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          c: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+```
+
+Returns the Fused Multiply and Add (FMA) result of computing `a*b + c`.
+
+The FMA operation  is a three-operand operation that computes the product of
+the first two and the sum of that with the third.
 The IEEE 754-2008 description of the operation states that the operation should
 be performed "as if with unbounded range and precision", limited only by
 rounding of the final result. In other words, this differs from a sequence of a

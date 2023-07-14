@@ -1105,6 +1105,10 @@ pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
   result as sN[RESULT_SZ]
 }
 
+// TODO(rspringer): Create a broadly-applicable normalize test, that
+// could be used for multiple type instantiations (without needing
+// per-specialization data to be specified by a user).
+
 #[test]
 fn to_int_test() {
   let expected = s32:0;
@@ -1189,12 +1193,6 @@ fn to_int_test() {
   ()
 }
 
-// TODO(rspringer): Create a broadly-applicable normalize test, that
-// could be used for multiple type instantiations (without needing
-// per-specialization data to be specified by a user).
-
-
-
 // Floating point addition based on a generalization of IEEE 754 single-precision floating-point
 // addition, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
@@ -1206,28 +1204,22 @@ fn to_int_test() {
 // The bit widths of different float components are given
 // in comments throughout this implementation, listed
 // relative to the widths of a standard float32.
-
-// Usage:
-//  - EXP_SZ: The number of bits in the exponent.
-//  - FRACTION_SZ: The number of bits in the fractional part of the FP value.
-//  - x, y: The two floating-point numbers to add.
-//
-// Derived parametrics:
-//  - WIDE_EXP: Widened exponent to capture a possible carry bit.
-//  - CARRY_EXP: WIDE_EXP plus one sign bit.
-//  - WIDE_FRACTION: Widened fraction to contain full precision + rounding
-//    (guard & sticky) bits.
-//  - CARRY_FRACTION: WIDE_FRACTION plus one bit to capture a possible carry bit.
-//  - NORMALIZED_FRACTION: WIDE_FRACTION minus one bit for post normalization
-//    (where the implicit leading 1 bit is dropped).
-pub fn add<EXP_SZ: u32, FRACTION_SZ: u32,
-    WIDE_EXP: u32 = {EXP_SZ + u32:1},
-    CARRY_EXP: u32 = {WIDE_EXP + u32:1},
-    WIDE_FRACTION: u32 = {FRACTION_SZ + u32:5},
-    CARRY_FRACTION: u32 = {WIDE_FRACTION + u32:1},
-    NORMALIZED_FRACTION: u32 = {WIDE_FRACTION - u32:1}>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
+pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
+  // WIDE_EXP: Widened exponent to capture a possible carry bit.
+  const WIDE_EXP: u32 =EXP_SZ + u32:1;
+  // CARRY_EXP: WIDE_EXP plus one sign bit.
+  const CARRY_EXP: u32 =WIDE_EXP + u32:1;
+  // WIDE_FRACTION: Widened fraction to contain full precision + rounding
+  // (guard & sticky) bits.
+  const WIDE_FRACTION: u32 =FRACTION_SZ + u32:5;
+  // CARRY_FRACTION: WIDE_FRACTION plus one bit to capture a possible carry bit.
+  const CARRY_FRACTION: u32 =WIDE_FRACTION + u32:1;
+  // NORMALIZED_FRACTION: WIDE_FRACTION minus one bit for post normalization
+  // (where the implicit leading 1 bit is dropped).
+  const NORMALIZED_FRACTION: u32 =WIDE_FRACTION - u32:1;
+
   // Step 1: align the fractions.
   //  - Bit widths: Base fraction: u23.
   //  - Add the implied/leading 1 bit: u23 -> u24
@@ -1377,28 +1369,21 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32,
 }
 
 
-// IEEE floating-point subtraction (and comparisons that are
-// implemented using subtraction), with the following exceptions:
+// IEEE floating-point subtraction (and comparisons that are implemented using subtraction),
+// with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-
-// Usage:
-//  - EXP_SZ: The number of bits in the exponent.
-//  - FRACTION_SZ: The number of bits in the fractional part of the FP number.
-//  - x, y: The two floating-point numbers to subract.
-pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32>(
-    x: APFloat<EXP_SZ, FRACTION_SZ>,
-    y: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
   let y = APFloat<EXP_SZ, FRACTION_SZ>{sign: !y.sign, bexp: y.bexp, fraction: y.fraction};
   add(x, y)
 }
 
-// apfloat_add_2 is thoroughly tested elsewhere
-// and fp64_sub_2 is a trivial modification of
-// apfloat_add_2, so a few simple tests is sufficient.
+// add is thoroughly tested elsewhere so a few simple tests is sufficient.
 #[test]
 fn test_sub() {
   let one = one<u32:8, u32:23>(u1:0);
@@ -1415,40 +1400,31 @@ fn test_sub() {
   ()
 }
 
-// Most of IEEE 754 single-precision floating point multiplication, with the
-// following exceptions:
+// Returns the product of `x` and `y`, with the following exceptions:
 //  - Both input and output denormals are treated as/flushed to 0.
 //  - Only round-to-nearest mode is supported.
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-
-// Usage:
-//  - EXP_SZ: The number of bits in the exponent.
-//  - FRACTION_SZ: The number of bits in the fractional part of the FP number.
-//  - x, y: The two floating-point numbers to multiply.
-//
-// Derived parametrics:
-//  - WIDE_EXP: Widened exponent to capture a possible carry bit.
-//  - SIGNED_EXP: WIDE_EXP plus one sign bit.
-//  - ROUNDING_FRACTION: Result fraction with one extra bit to capture
-//    potential carry if rounding up.
-//  - WIDE_FRACTION: Widened fraction to contain full precision + rounding
-//    (guard & sticky) bits.
-//  - FRACTION_ROUNDING_BIT: Position of the first rounding bit in the "wide" FRACTION.
-//  - STICKY_FRACTION: Location of the sticky bit in the wide FRACTION (same as
-//    "ROUNDING_FRACTION", but it's easier to understand the code if it
-//    has its own name).
-pub fn mul<EXP_SZ: u32,
-           FRACTION_SZ: u32,
-           WIDE_EXP: u32 = {EXP_SZ + u32:1},
-           SIGNED_EXP: u32 = {WIDE_EXP + u32:1},
-           ROUNDING_FRACTION: u32 = {FRACTION_SZ + u32:1},
-           WIDE_FRACTION: u32 = {FRACTION_SZ + FRACTION_SZ + u32:2},
-           FRACTION_ROUNDING_BIT: u32 = {FRACTION_SZ - u32:1},
-           STICKY_FRACTION: u32 = {FRACTION_SZ + u32:1}>(
-           x: APFloat<EXP_SZ, FRACTION_SZ>, y: APFloat<EXP_SZ, FRACTION_SZ>)
+pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          y: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ> {
+  // WIDE_EXP: Widened exponent to capture a possible carry bit.
+  const WIDE_EXP: u32 = EXP_SZ + u32:1;
+  // SIGNED_EXP: WIDE_EXP plus one sign bit.
+  const SIGNED_EXP: u32 = WIDE_EXP + u32:1;
+  // ROUNDING_FRACTION: Result fraction with one extra bit to capture
+  // potential carry if rounding up.
+  const ROUNDING_FRACTION: u32 = FRACTION_SZ + u32:1;
+  // WIDE_FRACTION: Widened fraction to contain full precision + rounding
+  // (guard & sticky) bits.
+  const WIDE_FRACTION: u32 = FRACTION_SZ + FRACTION_SZ + u32:2;
+  // FRACTION_ROUNDING_BIT: Position of the first rounding bit in the "wide" FRACTION.
+  const FRACTION_ROUNDING_BIT: u32 = FRACTION_SZ - u32:1;
+  // STICKY_FRACTION: Location of the sticky bit in the wide FRACTION (same as
+  // "ROUNDING_FRACTION", but it's easier to understand the code if it has its own name).
+  const STICKY_FRACTION: u32 = FRACTION_SZ + u32:1;
+
   // 1. Get and expand mantissas.
   let x_fraction = (x.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
   let y_fraction = (y.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
@@ -1573,18 +1549,6 @@ pub fn mul<EXP_SZ: u32,
       sign: result_sign, bexp: result_exp, fraction: result_fraction }
 }
 
-// DSLX implementation of an FMA (fused multiply-add) for any given APFloat
-// configuration.
-// This implementation uses (2 * (FRACTION + 1)) bits of precision for the
-// multiply fraction and (3 * (FRACTION + 1)) for the add.
-// The results have been tested (not exhaustively, of course! It's a 96-bit
-// input space for binary32!) to be bitwise identical to those produced by
-// glibc/libm 2.31 (for IEEE binary32 formats).
-//
-// The fundamentals of the multiply and add are the same as those in the
-// standalone ops - the differences arise in the extra precision bits and the
-// handling thereof (e.g., 72 vs. 24 bits for the add, for binary32).
-
 // Simple utility struct for holding the result of the multiplication step.
 struct Product<EXP_CARRY: u32, WIDE_FRACTION: u32> {
   sign: u1,
@@ -1613,10 +1577,11 @@ fn is_product_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE
 //   EXP_SIGN_CARRY: EXP_CARRY plus one sign bit.
 // For an IEEE binary32 ("float"), these values would be 8, 23, 48, 9, and 10.
 fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
-    WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:2},
-    EXP_CARRY: u32 = {EXP_SZ + u32:1},
-    EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>(
-        a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>) -> Product {
+                WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:2},
+                EXP_CARRY: u32 = {EXP_SZ + u32:1},
+                EXP_SIGN_CARRY: u32 = {EXP_SZ + u32:2}>(
+                a: APFloat<EXP_SZ, FRACTION_SZ>,
+                b: APFloat<EXP_SZ, FRACTION_SZ>) -> Product {
   // These steps are taken from apfloat_mul_2.x; look there for full comments.
   // Widen the fraction to full size and prepend the formerly-implicit "1".
   let a_fraction = (a.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << FRACTION_SZ);
@@ -1682,32 +1647,41 @@ fn mul_no_round<EXP_SZ: u32, FRACTION_SZ: u32,
   Product { sign: result_sign, bexp: result_exp, fraction: result_fraction }
 }
 
-// The main driver function.
+// Fused multiply-add for any given APFloat configuration.
+//
+// This implementation uses (2 * (FRACTION + 1)) bits of precision for the
+// multiply fraction and (3 * (FRACTION + 1)) for the add.
+// The results have been tested (not exhaustively, of course! It's a 96-bit
+// input space for binary32!) to be bitwise identical to those produced by
+// glibc/libm 2.31 (for IEEE binary32 formats).
+//
+// The fundamentals of the multiply and add are the same as those in the
+// standalone ops - the differences arise in the extra precision bits and the
+// handling thereof (e.g., 72 vs. 24 bits for the add, for binary32).
+//
 // Many of the steps herein are fully described in the standalone adder or
 // multiplier modules, but abridged comments are present here where useful.
-//
-// Parametrics:
-//   EXP_SZ: The bit width of the exponent of the current type.
-//   FRACTION_SZ: The bit width of the signficand of the current type.
-//   EXP_CARRY: One greater than EXP_SZ, to hold a carry bit.
-//   EXP_SIGN_CARRY: One greater than EXP_CARRY, to hold a sign bit.
-//   WIDE_FRACTION: Fully-widened fraction to hold all rounding bits.
-//   WIDE_FRACTION_CARRY: WIDE_FRACTION plus one carry bit.
-//   WIDE_FRACTION_SIGN_CARRY: WIDE_FRACTION_CARRY plus one sign bit.
-//   WIDE_FRACTION_LOW_BIT: Position of the LSB in the final fraction within a
-//       WIDE_FRACTION element. All bits with lower index are for rounding.
-//   WIDE_FRACTION_TOP_ROUNDING: One less than WIDE_FRACTION_LOW_BIT, in other words the
-//       most-significant rounding bit.
-pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
-    EXP_CARRY: u32 = {EXP_SZ + u32:1},
-    EXP_SIGN_CARRY: u32 = {EXP_CARRY + u32:1},
-    WIDE_FRACTION: u32 = {(FRACTION_SZ + u32:1) * u32:3 + u32:1},
-    WIDE_FRACTION_CARRY: u32 = {WIDE_FRACTION + u32:1},
-    WIDE_FRACTION_SIGN_CARRY: u32 = {WIDE_FRACTION_CARRY + u32:1},
-    WIDE_FRACTION_LOW_BIT: u32 = {WIDE_FRACTION - FRACTION_SZ},
-    WIDE_FRACTION_TOP_ROUNDING: u32 = {WIDE_FRACTION_LOW_BIT - u32:1}>(
-        a: APFloat<EXP_SZ, FRACTION_SZ>, b: APFloat<EXP_SZ, FRACTION_SZ>,
-        c: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ> {
+pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          b: APFloat<EXP_SZ, FRACTION_SZ>,
+                                          c: APFloat<EXP_SZ, FRACTION_SZ>)
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+  // EXP_CARRY: One greater than EXP_SZ, to hold a carry bit.
+  const EXP_CARRY: u32 =EXP_SZ + u32:1;
+  // EXP_SIGN_CARRY: One greater than EXP_CARRY, to hold a sign bit.
+  const EXP_SIGN_CARRY: u32 =EXP_CARRY + u32:1;
+  // WIDE_FRACTION: Fully-widened fraction to hold all rounding bits.
+  const WIDE_FRACTION: u32 =(FRACTION_SZ + u32:1) * u32:3 + u32:1;
+  // WIDE_FRACTION_CARRY: WIDE_FRACTION plus one carry bit.
+  const WIDE_FRACTION_CARRY: u32 =WIDE_FRACTION + u32:1;
+  // WIDE_FRACTION_SIGN_CARRY: WIDE_FRACTION_CARRY plus one sign bit.
+  const WIDE_FRACTION_SIGN_CARRY: u32 =WIDE_FRACTION_CARRY + u32:1;
+  // WIDE_FRACTION_LOW_BIT: Position of the LSB in the final fraction within a
+  // WIDE_FRACTION element. All bits with lower index are for rounding.
+  const WIDE_FRACTION_LOW_BIT: u32 =WIDE_FRACTION - FRACTION_SZ;
+  // WIDE_FRACTION_TOP_ROUNDING: One less than WIDE_FRACTION_LOW_BIT, in other words the
+  // most-significant rounding bit.
+  const WIDE_FRACTION_TOP_ROUNDING: u32 =WIDE_FRACTION_LOW_BIT - u32:1;
+
   let ab = mul_no_round<EXP_SZ, FRACTION_SZ>(a, b);
 
   let greater_exp = if ab.bexp > c.bexp as uN[EXP_CARRY] { ab.bexp }
@@ -1858,12 +1832,9 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
                            fraction: result_fraction as uN[FRACTION_SZ] }
 }
 
-type BF16 = APFloat<8, 7>;
-type F32 = APFloat<8,23>;
-type F64 = APFloat<11,52>;
-
 #[test]
 fn smoke() {
+    type F32 = APFloat<8,23>;
     let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
     let one_point_one = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0xccccd };
     let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
@@ -1877,6 +1848,7 @@ fn smoke() {
 
 #[test]
 fn one_x_one_plus_one_f32() {
+  type F32 = APFloat<8,23>;
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
   let a = one_point_zero;
@@ -1889,6 +1861,7 @@ fn one_x_one_plus_one_f32() {
 
 #[test]
 fn one_x_one_plus_one_f64() {
+  type F64 = APFloat<11,52>;
   let zero = F64 { sign: u1:0, bexp: u11:0, fraction: u52: 0 };
   let one_point_zero = F64 { sign: u1:0, bexp: u11:1023, fraction: u52: 0 };
   let a = one_point_zero;
@@ -1901,6 +1874,7 @@ fn one_x_one_plus_one_f64() {
 
 #[test]
 fn one_x_one_plus_one_bf16() {
+  type BF16 = APFloat<8, 7>;
   let zero = BF16 { sign: u1:0, bexp: u8:0, fraction: u7: 0 };
   let one_point_zero = BF16 { sign: u1:0, bexp: u8:127, fraction: u7: 0 };
   let a = one_point_zero;
@@ -1916,6 +1890,7 @@ fn one_x_one_plus_one_bf16() {
 // This set of tests will use the same inputs (or as close as is possible).
 #[test]
 fn manual_case_a_f32() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0, bexp: u8:0x97, fraction: u23:0x565d43 };
   let b = F32 { sign: u1:1, bexp: u8:0x77, fraction: u23:0x319a49 };
   let c = F32 { sign: u1:0, bexp: u8:0x87, fraction: u23:0x642891 };
@@ -1926,6 +1901,7 @@ fn manual_case_a_f32() {
 
 #[test]
 fn manual_case_a_f64() {
+  type F64 = APFloat<11,52>;
   let a = F64 { sign: u1:0, bexp: u11:0x417, fraction: u52:0x565d43 };
   let b = F64 { sign: u1:1, bexp: u11:0x3f7, fraction: u52:0x319a49 };
   let c = F64 { sign: u1:0, bexp: u11:0x407, fraction: u52:0x642891 };
@@ -1936,6 +1912,7 @@ fn manual_case_a_f64() {
 
 #[test]
 fn manual_case_a_bf16() {
+  type BF16 = APFloat<8, 7>;
   let a = BF16 { sign: u1:0, bexp: u8:0x97, fraction: u7:0x2b };
   let b = BF16 { sign: u1:1, bexp: u8:0x77, fraction: u7:0x18 };
   let c = BF16 { sign: u1:0, bexp: u8:0x87, fraction: u7:0x32 };
@@ -1946,6 +1923,7 @@ fn manual_case_a_bf16() {
 
 #[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_zero() {
+  type F32 = APFloat<8,23>;
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
   let a = twenty_seven_point_one;
@@ -1958,6 +1936,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_zero() {
 
 #[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one() {
+  type F32 = APFloat<8,23>;
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
@@ -1971,6 +1950,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one() {
 
 #[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one_point_one() {
+  type F32 = APFloat<8,23>;
   let one_point_one = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0xccccd };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
   let a = twenty_seven_point_one;
@@ -1983,6 +1963,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one_point_one() {
 
 #[test]
 fn fail_case_a() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x50, fraction: u23:0x1a8ddc };
   let b = F32 { sign: u1:0x1, bexp: u8:0xcb, fraction: u23:0xee7ac };
   let c = F32 { sign: u1:0x1, bexp: u8:0xb7, fraction: u23:0x609f18 };
@@ -1993,6 +1974,7 @@ fn fail_case_a() {
 
 #[test]
 fn fail_case_b() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x23, fraction: u23:0x4d3a41 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x30, fraction: u23:0x35a901 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x96, fraction: u23:0x627c62 };
@@ -2003,6 +1985,7 @@ fn fail_case_b() {
 
 #[test]
 fn fail_case_c() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x71, fraction: u23:0x2f0932 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xe5, fraction: u23:0x416b76 };
   let c = F32 { sign: u1:0x0, bexp: u8:0xcb, fraction: u23:0x5fd32a };
@@ -2013,6 +1996,7 @@ fn fail_case_c() {
 
 #[test]
 fn fail_case_d() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0xac, fraction: u23:0x1d0d22 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xdb, fraction: u23:0x2fe688 };
   let c = F32 { sign: u1:0x0, bexp: u8:0xa9, fraction: u23:0x2be1d2 };
@@ -2023,6 +2007,7 @@ fn fail_case_d() {
 
 #[test]
 fn fail_case_e() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x7b, fraction: u23:0x25e79f };
   let b = F32 { sign: u1:0x1, bexp: u8:0xff, fraction: u23:0x207370 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x39, fraction: u23:0x6bb348 };
@@ -2033,6 +2018,7 @@ fn fail_case_e() {
 
 #[test]
 fn fail_case_f() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0xe0, fraction: u23:0x3cdaa8 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x96, fraction: u23:0x52549c };
   let c = F32 { sign: u1:0x0, bexp: u8:0x1c, fraction: u23:0x21e0fd };
@@ -2043,6 +2029,7 @@ fn fail_case_f() {
 
 #[test]
 fn fail_case_g() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0xc4, fraction: u23:0x73b59a };
   let b = F32 { sign: u1:0x0, bexp: u8:0xa6, fraction: u23:0x1631c0 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x29, fraction: u23:0x5b3d33 };
@@ -2053,6 +2040,7 @@ fn fail_case_g() {
 
 #[test]
 fn fail_case_h() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x9b, fraction: u23:0x3f50d4 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x7b, fraction: u23:0x4beeb5 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x37, fraction: u23:0x6ad17c };
@@ -2063,6 +2051,7 @@ fn fail_case_h() {
 
 #[test]
 fn fail_case_i() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x66, fraction: u23:0x36e592 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xc8, fraction: u23:0x2b5bf1 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x52, fraction: u23:0x12900b };
@@ -2073,6 +2062,7 @@ fn fail_case_i() {
 
 #[test]
 fn fail_case_j() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x88, fraction: u23:0x0f0e03 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xb9, fraction: u23:0x36006d };
   let c = F32 { sign: u1:0x1, bexp: u8:0xaa, fraction: u23:0x358b6b };
@@ -2083,6 +2073,7 @@ fn fail_case_j() {
 
 #[test]
 fn fail_case_k() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x29, fraction: u23:0x2fd76d };
   let b = F32 { sign: u1:0x1, bexp: u8:0xce, fraction: u23:0x63eded };
   let c = F32 { sign: u1:0x0, bexp: u8:0xfd, fraction: u23:0x21adee };
@@ -2093,6 +2084,7 @@ fn fail_case_k() {
 
 #[test]
 fn fail_case_l() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x6a, fraction: u23:0x09c1b9 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x7c, fraction: u23:0x666a52 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x80, fraction: u23:0x626bcf };
@@ -2103,6 +2095,7 @@ fn fail_case_l() {
 
 #[test]
 fn fail_case_m() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x70, fraction: u23:0x41e2db };
   let b = F32 { sign: u1:0x1, bexp: u8:0xd1, fraction: u23:0x013c17 };
   let c = F32 { sign: u1:0x0, bexp: u8:0xb9, fraction: u23:0x30313f };
@@ -2113,6 +2106,7 @@ fn fail_case_m() {
 
 #[test]
 fn fail_case_n() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x33, fraction: u23:0x537374 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x40, fraction: u23:0x78fa62 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x09, fraction: u23:0x7cfb29 };
@@ -2123,6 +2117,7 @@ fn fail_case_n() {
 
 #[test]
 fn fail_case_o() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x94, fraction: u23:0x1aeb90 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x88, fraction: u23:0x1ab376 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x9d, fraction: u23:0x15dd1e };
@@ -2133,6 +2128,7 @@ fn fail_case_o() {
 
 #[test]
 fn fail_case_p() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x88, fraction: u23:0x1ebb00 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xf6, fraction: u23:0x0950b6 };
   let c = F32 { sign: u1:0x0, bexp: u8:0xfd, fraction: u23:0x6c314b };
@@ -2143,6 +2139,7 @@ fn fail_case_p() {
 
 #[test]
 fn fail_case_q() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0xda, fraction: u23:0x5b328f };
   let b = F32 { sign: u1:0x1, bexp: u8:0x74, fraction: u23:0x157da3 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x1b, fraction: u23:0x6a3f25 };
@@ -2153,6 +2150,7 @@ fn fail_case_q() {
 
 #[test]
 fn fail_case_r() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x34, fraction: u23:0x4da000 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xf4, fraction: u23:0x4bc400 };
   let c = F32 { sign: u1:0x1, bexp: u8:0x33, fraction: u23:0x54476d };
@@ -2163,6 +2161,7 @@ fn fail_case_r() {
 
 #[test]
 fn fail_case_s() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x27, fraction: u23:0x732d83 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xbb, fraction: u23:0x4b2dcd };
   let c = F32 { sign: u1:0x0, bexp: u8:0x3a, fraction: u23:0x65e4bd };
@@ -2173,6 +2172,7 @@ fn fail_case_s() {
 
 #[test]
 fn fail_case_t() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x17, fraction: u23:0x070770 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x86, fraction: u23:0x623b39 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x1e, fraction: u23:0x6ea761 };
@@ -2183,6 +2183,7 @@ fn fail_case_t() {
 
 #[test]
 fn fail_case_u() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0xb1, fraction: u23:0x0c8800 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xc6, fraction: u23:0x2b3800 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x22, fraction: u23:0x00c677 };
@@ -2193,6 +2194,7 @@ fn fail_case_u() {
 
 #[test]
 fn fail_case_v() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x90, fraction: u23:0x04a800 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x1f, fraction: u23:0x099cb0 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x28, fraction: u23:0x4d6497 };
@@ -2203,6 +2205,7 @@ fn fail_case_v() {
 
 #[test]
 fn fail_case_w() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0x90, fraction: u23:0x0fdde1 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xa8, fraction: u23:0x663085 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x9b, fraction: u23:0x450d69 };
@@ -2213,6 +2216,7 @@ fn fail_case_w() {
 
 #[test]
 fn fail_case_x() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x4c, fraction: u23:0x5ca821 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x87, fraction: u23:0x14808c };
   let c = F32 { sign: u1:0x0, bexp: u8:0x1c, fraction: u23:0x585ccf };
@@ -2223,6 +2227,7 @@ fn fail_case_x() {
 
 #[test]
 fn fail_case_y() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x0, bexp: u8:0xc5, fraction: u23:0x3a123b };
   let b = F32 { sign: u1:0x1, bexp: u8:0x3b, fraction: u23:0x7ee4d9 };
   let c = F32 { sign: u1:0x0, bexp: u8:0x4f, fraction: u23:0x1d4ddc };
@@ -2233,6 +2238,7 @@ fn fail_case_y() {
 
 #[test]
 fn fail_case_z() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0xd4, fraction: u23:0x1b858b };
   let b = F32 { sign: u1:0x1, bexp: u8:0x9e, fraction: u23:0x59fa23 };
   let c = F32 { sign: u1:0x1, bexp: u8:0xb5, fraction: u23:0x3520e4 };
@@ -2243,6 +2249,7 @@ fn fail_case_z() {
 
 #[test]
 fn fail_case_aa() {
+  type F32 = APFloat<8,23>;
   let a = F32 { sign: u1:0x1, bexp: u8:0x9b, fraction: u23:0x3ac78d };
   let b = F32 { sign: u1:0x0, bexp: u8:0x3b, fraction: u23:0x542cbb };
   let c = F32 { sign: u1:0x1, bexp: u8:0x09, fraction: u23:0x0c609e };
