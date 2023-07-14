@@ -53,7 +53,8 @@ absl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
   }
   if (input == "~R") {
     return STATE_TABLE_SIGNAL_NOT_RISING;
-  } else if (input == "~F") {
+  }
+  if (input == "~F") {
     return STATE_TABLE_SIGNAL_NOT_FALLING;
   }
   XLS_RET_CHECK(input.size() == 1) << input;
