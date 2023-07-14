@@ -96,8 +96,6 @@
 import std
 import float32
 import third_party.xls_berkeley_softfloat.fpdiv_2x32
-import xls.modules.fp.fp32_ldexp
-import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 
@@ -121,29 +119,29 @@ fn expmulti(hi: F32, lo: F32, k: s32) -> F32 {
                   };
 
   let range = float32::sub(hi, lo);
-  let range_sq = fp32_mul_2::fp32_mul_2(range, range);
+  let range_sq = float32::mul(range, range);
 
   // c := r - t*(P1+t*(P2+t*(P3+t*(P4+t*P5))))
-  let c = fp32_mul_2::fp32_mul_2(range_sq, P5);
+  let c = float32::mul(range_sq, P5);
   let c = float32::add(c, P4);
-  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = float32::mul(range_sq, c);
   let c = float32::add(c, P3);
-  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = float32::mul(range_sq, c);
   let c = float32::add(c, P2);
-  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = float32::mul(range_sq, c);
   let c = float32::add(c, P1);
-  let c = fp32_mul_2::fp32_mul_2(range_sq, c);
+  let c = float32::mul(range_sq, c);
   let c = float32::sub(range, c);
 
   // y := 1 - ((lo - (r*c)/(2-c)) - hi)
-  let numerator = fp32_mul_2::fp32_mul_2(range, c);
+  let numerator = float32::mul(range, c);
   let divisor = float32::sub(TWO, c);
   let div = fpdiv_2x32::fpdiv_2x32(numerator, divisor);
   let y = float32::sub(lo, div);
   let y = float32::sub(y, hi);
   let y = float32::sub(ONE, y);
 
-  fp32_ldexp::fp32_ldexp(y, k)
+  float32::ldexp(y, k)
 }
 
 // Returns e^x
@@ -153,7 +151,7 @@ pub fn fpexp_32(x: F32) -> F32 {
   // Flush subnormals.
   let x = float32::subnormals_to_zero(x);
 
-  let scaled_x = fp32_mul_2::fp32_mul_2(LOG2E, x);
+  let scaled_x = float32::mul(LOG2E, x);
   let signed_half = F32{ sign: x.sign,
                          bexp: float32::bias(s8:-1),
                          fraction:  u23:0
@@ -164,9 +162,9 @@ pub fn fpexp_32(x: F32) -> F32 {
   // Reduce
   // TODO(jbaileyhandle): Cheaper to truncate fp_k directly?
   let fp_truncated_k = float32::cast_from_fixed(k);
-  let hi = fp32_mul_2::fp32_mul_2(LN2HI, fp_truncated_k);
+  let hi = float32::mul(LN2HI, fp_truncated_k);
   let hi = float32::sub(x, hi);
-  let lo = fp32_mul_2::fp32_mul_2( LN2LO, fp_truncated_k);
+  let lo = float32::mul( LN2LO, fp_truncated_k);
 
   // Compute
   let result = expmulti(hi, lo, k);

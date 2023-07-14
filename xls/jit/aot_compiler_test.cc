@@ -16,12 +16,12 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/stdlib/float32_add_cc.h"
+#include "xls/dslx/stdlib/float32_fma_cc.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/jit/compound_type_cc.h"
 #include "xls/jit/null_function_cc.h"
-#include "xls/modules/fp/fp32_fma_cc.h"
 
 // Rather than do a pattern-matching unit test of aot_compile.cc's output, this
 // "unit test" focuses on using libraries compiled from such.
@@ -50,7 +50,7 @@ TEST(AotCompileTest, AnotherBasicUsage) {
   Value f32_three = F32Value(false, 0x80, 0x400000);
   Value f32_five = F32Value(false, 0x81, 0x200000);
   XLS_ASSERT_OK_AND_ASSIGN(Value result,
-                           xls::fp::fp32_fma(f32_one, f32_two, f32_three));
+                           xls::fp::fma(f32_one, f32_two, f32_three));
   EXPECT_EQ(result, f32_five);
 }
 

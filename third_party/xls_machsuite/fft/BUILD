@@ -38,9 +38,6 @@ xls_dslx_library(
         "test_data/dslx_test_data.x",
     ],
     tags = ["optonly"],
-    deps = [
-        "//xls/modules/fp:fp32_mul_2_dslx",
-    ],
 )
 
 # IR optimization uses too much memory.

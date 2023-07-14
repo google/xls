@@ -27,8 +27,6 @@ import float32
 import float64
 import std
 
-import xls.modules.fp.apfloat_mul_2
-
 type F32 = float32::F32;
 type F64 = float64::F64;
 type APFloat = apfloat::APFloat;
@@ -100,7 +98,7 @@ pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = {EXP_SZ + u32:1}>(x:
     };
 
   // Multiply fractional part by PI/4
-  let fraction = apfloat_mul_2::apfloat_mul_2(fraction, pi_div_4);
+  let fraction = apfloat::mul(fraction, pi_div_4);
 
   if reduction_needed { (j, fraction) }
   else { (u3:0, x) }

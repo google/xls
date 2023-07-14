@@ -138,9 +138,6 @@ cc_binary(
 xls_dslx_library(
     name = "dot_product_dslx",
     srcs = ["dot_product.x"],
-    deps = [
-        "//xls/modules/fp:fp32_mul_2_dslx",
-    ],
 )
 
 xls_dslx_test(
@@ -152,9 +149,6 @@ xls_dslx_test(
 xls_dslx_library(
     name = "fir_filter_dslx",
     srcs = ["fir_filter.x"],
-    deps = [
-        "//xls/modules/fp:fp32_mul_2_dslx",
-    ],
 )
 
 xls_dslx_test(
@@ -168,9 +162,6 @@ xls_dslx_test(
     srcs = ["matmul_4x4.x"],
     # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
     # Needs support for arrays of channels.
-    deps = [
-        "//xls/modules/fp:fp32_mul_2",
-    ],
 )
 
 xls_dslx_opt_ir(
@@ -231,7 +222,6 @@ xls_dslx_library(
     name = "sobel_filter_dslx",
     srcs = ["sobel_filter.x"],
     deps = [
-        "//xls/modules/fp:fp32_mul_2_dslx",
         "//third_party/xls_go_math:fpsqrt_32_dslx",
     ],
 )

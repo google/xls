@@ -141,9 +141,17 @@ fn tag_test() {
 
 
 pub fn add(x: F64, y: F64) -> F64 {
-  apfloat::add<u32:11, u32:52>(x, y)
+  apfloat::add(x, y)
 }
 
 pub fn sub(x: F64, y: F64) -> F64 {
-  apfloat::sub<u32:11, u32:52>(x, y)
+  apfloat::sub(x, y)
+}
+
+pub fn mul(x: F64, y: F64) -> F64 {
+  apfloat::mul(x, y)
+}
+
+pub fn fma(a: F64, b: F64, c: F64) -> F64 {
+  apfloat::fma(a, b, c)
 }

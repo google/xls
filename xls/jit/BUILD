@@ -59,10 +59,10 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_add_cc",
+        "//xls/dslx/stdlib:float32_fma_cc",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "//xls/modules/fp:fp32_fma_cc",
         "@com_google_googletest//:gtest",
     ],
 )

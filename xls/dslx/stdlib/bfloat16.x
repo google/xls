@@ -131,9 +131,18 @@ fn increment_fraction_bf16_test() {
 
 
 pub fn add(x: BF16, y: BF16) -> BF16 {
-  apfloat::add<u32:8, u32:7>(x, y)
+  apfloat::add(x, y)
 }
 
 pub fn sub(x: BF16, y: BF16) -> BF16 {
-  apfloat::sub<u32:8, u32:7>(x, y)
+  apfloat::sub(x, y)
+}
+
+pub fn mul(x: BF16, y: BF16) -> BF16 {
+  apfloat::mul(x, y)
+}
+
+
+pub fn fma(a: BF16, b: BF16, c: BF16) -> BF16 {
+  apfloat::fma(a, b, c)
 }

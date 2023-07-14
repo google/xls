@@ -29,8 +29,8 @@ package(
 filegroup(
     name = "ir_examples",
     srcs = [
+        "//xls/dslx/stdlib:ir_examples",
         "//xls/examples:ir_examples",
-        "//xls/modules/fp:ir_examples",
     ],
 )
 

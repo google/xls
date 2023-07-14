@@ -16,7 +16,6 @@
 // `acc = a * b + acc`
 // This is, effectively, an FMA unit that stores its result between ticks.
 import apfloat
-import xls.modules.fp.apfloat_fma
 
 type APFloat = apfloat::APFloat;
 
@@ -42,7 +41,7 @@ pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
         let (tok1, b) = recv(tok, input_b);
         let (tok2, do_reset) = recv(tok, reset);
 
-        let acc = apfloat_fma::fma<EXP_SZ, SFD_SZ>(a, b, acc);
+        let acc = apfloat::fma<EXP_SZ, SFD_SZ>(a, b, acc);
         let zero = apfloat::zero<EXP_SZ, SFD_SZ>(false);
         let acc = if do_reset { zero } else { acc };
 

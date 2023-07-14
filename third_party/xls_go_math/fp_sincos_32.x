@@ -81,7 +81,6 @@
 import std
 import float32
 
-import xls.modules.fp.fp32_mul_2
 import third_party.xls_go_math.fp_trig_reduce
 
 type F32 = float32::F32;
@@ -120,15 +119,15 @@ fn cos_taylor(z_sq: F32) -> F32 {
   //          +_cos[5]
   //        )
 
-  let big_product = fp32_mul_2::fp32_mul_2(
+  let big_product = float32::mul(
                       z_sq,
-                      fp32_mul_2::fp32_mul_2(
+                      float32::mul(
                         z_sq,
 
                         for(idx, acc): (u3, F32)
                           in range (u3:0, u3:5) {
                           float32::add(
-                            fp32_mul_2::fp32_mul_2(
+                            float32::mul(
                               acc,
                               z_sq
                             ),
@@ -169,15 +168,15 @@ fn sin_taylor(z:F32, z_sq: F32) -> F32 {
   //          +_sin[5]
   //        )
 
-  let big_product = fp32_mul_2::fp32_mul_2(
+  let big_product = float32::mul(
                       z,
-                      fp32_mul_2::fp32_mul_2(
+                      float32::mul(
                         z_sq,
 
                         for(idx, acc): (u3, F32)
                           in range (u3:0, u3:5) {
                           float32::add(
-                            fp32_mul_2::fp32_mul_2(
+                            float32::mul(
                               acc,
                               z_sq
                             ),
@@ -221,7 +220,7 @@ pub fn fp_sincos_32(x: F32) -> (F32, F32) {
               if (j > u3:1) { !cos_sign }
               else { cos_sign };
 
-  let z_sq = fp32_mul_2::fp32_mul_2(z, z);
+  let z_sq = float32::mul(z, z);
   let cos = cos_taylor(z_sq);
   let sin = sin_taylor(z, z_sq);
   // Swap sin and cos if, after trig reduction and

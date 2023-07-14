@@ -17,7 +17,6 @@
 
 import std
 import float32
-import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 
@@ -42,7 +41,7 @@ pub fn dot_product_float32<VECTOR_LENGTH: u32>
 
   for(idx, acc): (u32, F32)
     in range (u32:0, VECTOR_LENGTH) {
-    let partial_product = fp32_mul_2::fp32_mul_2(a[idx], b[idx]);
+    let partial_product = float32::mul(a[idx], b[idx]);
     float32::add(acc, partial_product)
   } (float32::zero(u1:0))
 }

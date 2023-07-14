@@ -36,7 +36,6 @@
 import float32
 import std
 import third_party.xls_machsuite.fft.test_data.dslx_test_data
-import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 
@@ -51,14 +50,14 @@ fn fft_root_twiddle(root_index: u32, odd: u32, even: u32,
   // Would be neat if we could overload operators for F32
   // or other types.
   let diff = float32::sub(
-               fp32_mul_2::fp32_mul_2(real_twid[root_index],
+               float32::mul(real_twid[root_index],
                                       real[odd]),
-               fp32_mul_2::fp32_mul_2(img_twid[root_index],
+               float32::mul(img_twid[root_index],
                                       img[odd]));
   let sum = float32::add(
-               fp32_mul_2::fp32_mul_2(real_twid[root_index],
+               float32::mul(real_twid[root_index],
                                       img[odd]),
-               fp32_mul_2::fp32_mul_2(img_twid[root_index],
+               float32::mul(img_twid[root_index],
                                       real[odd]));
   let img = update(img, odd, sum);
   let real = update(real, odd, diff);
