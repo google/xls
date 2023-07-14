@@ -15,6 +15,7 @@
 // Random-sampling test for the DSLX 2x64 floating-point adder.
 #include <cmath>
 #include <limits>
+#include <memory>
 
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"
@@ -23,9 +24,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/stdlib/float64_add_jit_wrapper.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
-#include "xls/modules/fp/fp64_add_2_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -43,14 +44,14 @@ using Float2x64 = std::tuple<double, double>;
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-static double ComputeExpected(fp::Fp64Add2* jit_wrapper, Float2x64 input) {
+static double ComputeExpected(fp::Float64Add* jit_wrapper, Float2x64 input) {
   double x = FlushSubnormal(std::get<0>(input));
   double y = FlushSubnormal(std::get<1>(input));
   return x + y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-static double ComputeActual(fp::Fp64Add2* jit_wrapper, Float2x64 input) {
+static double ComputeActual(fp::Float64Add* jit_wrapper, Float2x64 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -62,12 +63,12 @@ static bool CompareResults(double a, double b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-static std::unique_ptr<fp::Fp64Add2> CreateJit() {
-  return fp::Fp64Add2::Create().value();
+static std::unique_ptr<fp::Float64Add> CreateJit() {
+  return fp::Float64Add::Create().value();
 }
 
 static absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float2x64, double, fp::Fp64Add2> builder(
+  TestbenchBuilder<Float2x64, double, fp::Float64Add> builder(
       ComputeExpected, ComputeActual, CreateJit);
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {

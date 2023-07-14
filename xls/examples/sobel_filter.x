@@ -18,7 +18,6 @@
 
 import std
 import float32
-import xls.modules.fp.fp32_add_2
 import xls.modules.fp.fp32_mul_2
 import third_party.xls_go_math.fpsqrt_32
 
@@ -61,7 +60,7 @@ fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROWS*NU
 
       // TODO(jbaileyhandle): This would be more efficient
       // as a reduction tree rather than a sequence of adds.
-      fp32_add_2::fp32_add_2(sum, prod)
+      float32::add(sum, prod)
     }(sum)
   }(float32::zero(u1:0))
 }
@@ -114,7 +113,7 @@ pub fn sobel_filter_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = {NUM_ROWS
       let x_sq = fp32_mul_2::fp32_mul_2(x_stencil_out, x_stencil_out);
       let y_stencil_out = apply_stencil_float32<NUM_ROWS, NUM_COLS>(in_img, out_row_idx, out_col_idx, Y_STENCIL_F32);
       let y_sq = fp32_mul_2::fp32_mul_2(y_stencil_out, y_stencil_out);
-      let sum_sq = fp32_add_2::fp32_add_2(x_sq, y_sq);
+      let sum_sq = float32::add(x_sq, y_sq);
       let pixel_val = fpsqrt_32::fpsqrt_32(sum_sq);
 
       // Multi-dimensional update is really ugly - is there a cleaner way to do this?

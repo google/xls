@@ -139,3 +139,11 @@ fn tag_test() {
   ()
 }
 
+
+pub fn add(x: F64, y: F64) -> F64 {
+  apfloat::add<u32:11, u32:52>(x, y)
+}
+
+pub fn sub(x: F64, y: F64) -> F64 {
+  apfloat::sub<u32:11, u32:52>(x, y)
+}

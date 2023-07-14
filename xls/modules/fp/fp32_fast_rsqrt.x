@@ -31,7 +31,6 @@
 
 import apfloat
 import float32
-import xls.modules.fp.fp32_add_2
 import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
@@ -59,7 +58,7 @@ pub fn fp32_fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32
     let prod = fp32_mul_2::fp32_mul_2(half_x, approx);
     let prod = fp32_mul_2::fp32_mul_2(prod, approx);
     let nprod = F32{sign: !prod.sign, bexp: prod.bexp, fraction: prod.fraction};
-    let diff = fp32_add_2::fp32_add_2(one_point_five, nprod);
+    let diff = float32::add(one_point_five, nprod);
     fp32_mul_2::fp32_mul_2(approx, diff)
   } (approx);
 

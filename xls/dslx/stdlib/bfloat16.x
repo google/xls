@@ -128,3 +128,12 @@ fn increment_fraction_bf16_test() {
                     inf(u1:1));
   ()
 }
+
+
+pub fn add(x: BF16, y: BF16) -> BF16 {
+  apfloat::add<u32:8, u32:7>(x, y)
+}
+
+pub fn sub(x: BF16, y: BF16) -> BF16 {
+  apfloat::sub<u32:8, u32:7>(x, y)
+}

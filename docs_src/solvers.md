@@ -30,7 +30,7 @@ Assuming we can prove useful properties in a reasonable amount of time, we can
 use this proof capability to help find interesting example inputs that provide
 unique stimulus.
 
-### Correctness WRT reference: [32-bit Floating-Point Adder](https://github.com/google/xls/tree/main/xls/modules/fp/fp32_add_2.x)
+### Correctness WRT reference: [32-bit Floating-Point Adder](https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32.x)
 
 The full input space for a 32-bit adder is a whopping 64 bits - far more than is
 possible to exhaustively test for correctness. Proving correctness via Z3,

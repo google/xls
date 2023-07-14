@@ -16,14 +16,17 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
+    "xls_benchmark_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
+    "xls_eval_ir_test",
+    "xls_ir_cc_library",
 )
 
 package(
     default_applicable_licenses = ["//:license"],
-    default_visibility = ["//xls:xls_internal"],
+    default_visibility = ["//xls:xls_users"],
     licenses = ["notice"],  # Apache 2.0
 )
 
@@ -66,6 +69,42 @@ xls_dslx_test(
     deps = [":bfloat16_dslx"],
 )
 
+xls_dslx_opt_ir(
+    name = "bfloat16_add",
+    dslx_top = "add",
+    ir_file = "bfloat16_add.ir",
+    library = "bfloat16_dslx",
+)
+
+# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "bfloat16_add_eval_ir_test",
+    src = ":bfloat16_add.ir",
+)
+
+xls_benchmark_ir(
+    name = "bfloat16_add_benchmark_ir",
+    src = ":bfloat16_add.ir",
+)
+
+xls_dslx_opt_ir(
+    name = "bfloat16_sub",
+    dslx_top = "sub",
+    ir_file = "bfloat16_sub.ir",
+    library = "bfloat16_dslx",
+)
+
+# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "bfloat16_sub_eval_ir_test",
+    src = ":bfloat16_sub.ir",
+)
+
+xls_benchmark_ir(
+    name = "bfloat16_sub_benchmark_ir",
+    src = ":bfloat16_sub.ir",
+)
+
 xls_dslx_library(
     name = "float32_dslx",
     srcs = ["float32.x"],
@@ -78,16 +117,92 @@ xls_dslx_test(
     deps = [":float32_dslx"],
 )
 
-xls_dslx_library(
-    name = "float64_dslx",
-    srcs = ["float64.x"],
-    deps = [":std_dslx"],
+xls_dslx_opt_ir(
+    name = "float32_add",
+    dslx_top = "add",
+    ir_file = "float32_add.ir",
+    library = ":float32_dslx",
+    opt_ir_file = "float32_add.opt.ir",
 )
 
-xls_dslx_test(
-    name = "float64_dslx_test",
-    srcs = ["float64.x"],
-    deps = [":float64_dslx"],
+xls_ir_cc_library(
+    name = "float32_add_cc",
+    src = ":float32_add.opt.ir",
+    namespaces = "xls,fp",
+    top = "float32_add",
+)
+
+# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "float32_add_eval_ir_test",
+    src = ":float32_add.ir",
+)
+
+xls_benchmark_ir(
+    name = "float32_add_benchmark_ir",
+    src = ":float32_add.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float32_add_jit_wrapper",
+    src = ":float32_add.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "float32_add",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "float32_add_jit_wrapper_test",
+    srcs = ["float32_add_jit_wrapper_test.cc"],
+    deps = [
+        ":float32_add_jit_wrapper",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "float32_add_test_cc",
+    srcs = ["float32_add_test.cc"],
+    tags = ["optonly"],
+    deps = [
+        ":float32_add_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "float32",
+    dslx_top = "sub",
+    ir_file = "float32_sub.ir",
+    library = ":float32_dslx",
+)
+
+# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "float32_sub_eval_ir_test",
+    src = ":float32_sub.ir",
+)
+
+xls_benchmark_ir(
+    name = "float32_sub_benchmark_ir",
+    src = ":float32_sub.ir",
 )
 
 xls_dslx_opt_ir(
@@ -143,6 +258,117 @@ cc_test(
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
     ],
+)
+
+# TODO(rspringer): Takes too long to run in normal testing.
+cc_binary(
+    name = "float32_add_bounds",
+    srcs = ["float32_add_bounds.cc"],
+    data = [
+        ":float32_add.ir",
+        ":float32_add.opt.ir",
+    ],
+    deps = [
+        "@com_google_absl//absl/base",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/time",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir:ir_parser",
+        "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
+        "@z3//:api",
+    ],
+)
+
+xls_dslx_library(
+    name = "float64_dslx",
+    srcs = ["float64.x"],
+    deps = [":std_dslx"],
+)
+
+xls_dslx_test(
+    name = "float64_dslx_test",
+    srcs = ["float64.x"],
+    deps = [":float64_dslx"],
+)
+
+xls_dslx_opt_ir(
+    name = "float64_add",
+    dslx_top = "add",
+    ir_file = "float64_add.ir",
+    library = "float64_dslx",
+    opt_ir_file = "float64_add.opt.ir",
+)
+
+# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "float64_add_eval_ir_test",
+    src = ":float64_add.ir",
+)
+
+xls_benchmark_ir(
+    name = "float64_add_benchmark_ir",
+    src = ":float64_add.ir",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "float64_add_jit_wrapper",
+    src = ":float64_add.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "float64_add",
+        "namespace": "xls::fp",
+    },
+)
+
+cc_test(
+    name = "float64_add_test_cc",
+    srcs = ["float64_add_test.cc"],
+    data = [
+        ":float64_add.ir",
+        ":float64_add.opt.ir",
+    ],
+    tags = ["optonly"],
+    deps = [
+        ":float64_add_jit_wrapper",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "//xls/common:init_xls",
+        "//xls/common:math_util",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value_helpers",
+        "//xls/ir:value_view_helpers",
+        "//xls/tools:testbench",
+        "//xls/tools:testbench_builder",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "float64_sub",
+    dslx_top = "sub",
+    ir_file = "float64_sub.ir",
+    library = ":float64_dslx",
+)
+
+# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
+# xls_ir_equivalence_test.
+xls_eval_ir_test(
+    name = "float64_sub_eval_ir_test",
+    src = ":float64_sub.ir",
+)
+
+xls_benchmark_ir(
+    name = "float64_sub_benchmark_ir",
+    src = ":float64_sub.ir",
 )
 
 filegroup(

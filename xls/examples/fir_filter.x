@@ -19,7 +19,6 @@
 
 import std
 import float32
-import xls.modules.fp.fp32_add_2
 import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
@@ -69,7 +68,7 @@ pub fn fir_filter_float32<NUM_TAPS:u32, NUM_SAMPLES:u32,
       let sample_idx = out_idx + NUM_TAPS - tap_idx - u32:1;
       let product = fp32_mul_2::fp32_mul_2(coefficients[tap_idx],
                                            samples[sample_idx]);
-      fp32_add_2::fp32_add_2(acc, product)
+      float32::add(acc, product)
 
     }(float32::zero(u1:0));
 

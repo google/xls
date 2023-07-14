@@ -32,61 +32,15 @@ package(
 )
 
 xls_dslx_library(
-    name = "apfloat_add_2_dslx",
-    srcs = ["apfloat_add_2.x"],
-)
-
-xls_dslx_library(
-    name = "apfloat_sub_2_dslx",
-    srcs = ["apfloat_sub_2.x"],
-    deps = [":apfloat_add_2_dslx"],
-)
-
-xls_dslx_library(
-    name = "fp32_add_2_dslx",
-    srcs = ["fp32_add_2.x"],
-    deps = [":apfloat_add_2_dslx"],
-)
-
-xls_ir_cc_library(
-    name = "fp32_add_2_cc",
-    src = ":fp32_add_2.opt.ir",
-    namespaces = "xls,fp",
-    top = "fp32_add_2",
-)
-
-xls_dslx_library(
-    name = "fp32_sub_2_dslx",
-    srcs = ["fp32_sub_2.x"],
-    deps = [
-        ":apfloat_add_2_dslx",
-        ":apfloat_sub_2_dslx",
-        ":fp32_add_2_dslx",
-    ],
-)
-
-xls_dslx_library(
     name = "fp32_ldexp_dslx",
     srcs = ["fp32_ldexp.x"],
-)
-
-xls_dslx_test(
-    name = "apfloat_sub_2_test",
-    dslx_test_args = {
-        "compare": "none",
-    },
-    library = ":apfloat_sub_2_dslx",
 )
 
 filegroup(
     name = "ir_examples",
     srcs = [
-        ":fp32_add_2.ir",
-        ":fp32_add_2.opt.ir",
         ":fp32_mul_2.ir",
         ":fp32_mul_2.opt.ir",
-        ":fp64_add_2.ir",
-        ":fp64_add_2.opt.ir",
         ":fp64_mul_2.ir",
         ":fp64_mul_2.opt.ir",
     ],
@@ -254,239 +208,6 @@ cc_test(
     ],
 )
 
-xls_dslx_opt_ir(
-    name = "fp32_add_2",
-    dslx_top = "fp32_add_2",
-    ir_file = "fp32_add_2.ir",
-    library = ":fp32_add_2_dslx",
-    opt_ir_file = "fp32_add_2.opt.ir",
-)
-
-xls_dslx_test(
-    name = "fp32_add_2_dslx_test",
-    library = ":fp32_add_2_dslx",
-)
-
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "fp32_add_2_eval_ir_test",
-    src = ":fp32_add_2.ir",
-)
-
-xls_benchmark_ir(
-    name = "fp32_add_2_benchmark_ir",
-    src = ":fp32_add_2.ir",
-)
-
-xls_dslx_opt_ir(
-    name = "fp32_sub_2",
-    dslx_top = "fp32_sub_2",
-    ir_file = "fp32_sub_2.ir",
-    library = ":fp32_sub_2_dslx",
-)
-
-xls_dslx_test(
-    name = "fp32_sub_2_dslx_test",
-    library = ":fp32_sub_2_dslx",
-)
-
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "fp32_sub_2_eval_ir_test",
-    src = ":fp32_sub_2.ir",
-)
-
-xls_benchmark_ir(
-    name = "fp32_sub_2_benchmark_ir",
-    src = ":fp32_sub_2.ir",
-)
-
-xls_dslx_library(
-    name = "fp64_sub_2_dslx",
-    srcs = ["fp64_sub_2.x"],
-    deps = [
-        ":apfloat_sub_2_dslx",
-        ":fp64_add_2_dslx",
-    ],
-)
-
-xls_dslx_opt_ir(
-    name = "fp64_sub_2",
-    dslx_top = "fp64_sub_2",
-    ir_file = "fp64_sub_2.ir",
-    library = ":fp64_sub_2_dslx",
-)
-
-xls_dslx_test(
-    name = "fp64_sub_2_dslx_test",
-    library = ":fp64_sub_2_dslx",
-)
-
-# TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
-# xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "fp64_sub_2_eval_ir_test",
-    src = ":fp64_sub_2.ir",
-)
-
-xls_benchmark_ir(
-    name = "fp64_sub_2_benchmark_ir",
-    src = ":fp64_sub_2.ir",
-)
-
-cc_xls_ir_jit_wrapper(
-    name = "fp32_add_2_jit_wrapper",
-    src = ":fp32_add_2.opt.ir",
-    jit_wrapper_args = {
-        "class_name": "fp32_add_2",
-        "namespace": "xls::fp",
-    },
-)
-
-# TODO(rspringer): Takes too long to run in normal testing.
-cc_binary(
-    name = "fp32_add_2_bounds",
-    srcs = ["fp32_add_2_bounds.cc"],
-    data = [
-        ":fp32_add_2.ir",
-        ":fp32_add_2.opt.ir",
-    ],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/time",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir:ir_parser",
-        "//xls/solvers:z3_ir_translator",
-        "//xls/solvers:z3_utils",
-        "@z3//:api",
-    ],
-)
-
-cc_test(
-    name = "fp32_add_2_test_cc",
-    srcs = ["fp32_add_2_test.cc"],
-    tags = ["optonly"],
-    deps = [
-        ":fp32_add_2_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "//xls/common:init_xls",
-        "//xls/common:math_util",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_helpers",
-        "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
-xls_dslx_library(
-    name = "fp64_add_2_dslx",
-    srcs = ["fp64_add_2.x"],
-    deps = [":apfloat_add_2_dslx"],
-)
-
-xls_dslx_opt_ir(
-    name = "fp64_add_2",
-    dslx_top = "fp64_add_2",
-    ir_file = "fp64_add_2.ir",
-    library = "fp64_add_2_dslx",
-    opt_ir_file = "fp64_add_2.opt.ir",
-)
-
-xls_dslx_test(
-    name = "fp64_add_2_dslx_test",
-    library = "fp64_add_2_dslx",
-)
-
-# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "fp64_add_2_eval_ir_test",
-    src = ":fp64_add_2.ir",
-)
-
-xls_benchmark_ir(
-    name = "fp64_add_2_benchmark_ir",
-    src = ":fp64_add_2.ir",
-)
-
-cc_xls_ir_jit_wrapper(
-    name = "fp64_add_2_jit_wrapper",
-    src = ":fp64_add_2.opt.ir",
-    jit_wrapper_args = {
-        "class_name": "fp64_add_2",
-        "namespace": "xls::fp",
-    },
-)
-
-cc_test(
-    name = "fp64_add_2_test_cc",
-    srcs = ["fp64_add_2_test.cc"],
-    data = [
-        ":fp64_add_2.ir",
-        ":fp64_add_2.opt.ir",
-    ],
-    tags = ["optonly"],
-    deps = [
-        ":fp64_add_2_jit_wrapper",
-        "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/random",
-        "@com_google_absl//absl/status",
-        "//xls/common:init_xls",
-        "//xls/common:math_util",
-        "//xls/common/file:get_runfile_path",
-        "//xls/common/logging",
-        "//xls/common/status:status_macros",
-        "//xls/ir:value_helpers",
-        "//xls/ir:value_view_helpers",
-        "//xls/tools:testbench",
-        "//xls/tools:testbench_builder",
-    ],
-)
-
-xls_dslx_library(
-    name = "bf16_add_2_dslx",
-    srcs = ["bf16_add_2.x"],
-    deps = [
-        ":apfloat_add_2_dslx",
-    ],
-)
-
-xls_dslx_opt_ir(
-    name = "bf16_add_2",
-    dslx_top = "bf16_add_2",
-    ir_file = "bf16_add_2.ir",
-    library = "bf16_add_2_dslx",
-)
-
-xls_dslx_test(
-    name = "bf16_add_2_dslx_test",
-    library = "bf16_add_2_dslx",
-)
-
-# TODO: 2021-03-08 Takes too long (> 15 minutes). Add xls_ir_equivalence_test.
-xls_eval_ir_test(
-    name = "bf16_add_2_eval_ir_test",
-    src = ":bf16_add_2.ir",
-)
-
-xls_benchmark_ir(
-    name = "bf16_add_2_benchmark_ir",
-    src = ":bf16_add_2.ir",
-)
-
 xls_dslx_library(
     name = "bf16_mul_2_dslx",
     srcs = ["bf16_mul_2.x"],
@@ -620,19 +341,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "fp32_add_2_jit_wrapper_test",
-    srcs = ["fp32_add_2_jit_wrapper_test.cc"],
-    deps = [
-        ":fp32_add_2_jit_wrapper",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:value",
-        "//xls/ir:value_helpers",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
 xls_dslx_library(
     name = "fp64_mul_2_dslx",
     srcs = ["fp64_mul_2.x"],
@@ -700,9 +408,7 @@ xls_dslx_library(
     name = "fp32_fast_rsqrt_dslx",
     srcs = ["fp32_fast_rsqrt.x"],
     deps = [
-        ":apfloat_add_2_dslx",
         ":apfloat_mul_2_dslx",
-        ":fp32_add_2_dslx",
         ":fp32_mul_2_dslx",
     ],
 )

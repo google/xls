@@ -287,3 +287,12 @@ fn from_int32_test() {
   assert_eq(expected, actual);
   ()
 }
+
+pub fn add(x: F32, y: F32) -> F32 {
+  apfloat::add<u32:8, u32:23>(x, y)
+}
+
+pub fn sub(x: F32, y: F32) -> F32 {
+  apfloat::sub<u32:8, u32:23>(x, y)
+}
+

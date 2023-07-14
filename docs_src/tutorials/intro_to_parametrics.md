@@ -236,8 +236,6 @@ This technique underlies all of XLS' floating-point libraries. Common operations
 are defined in common files, such as
 [apfloat.x](https://github.com/google/xls/tree/main/xls/dslx/stdlib/apfloat.x) (general
 utilities) or
-[apfloat_add_2.x](https://github.com/google/xls/tree/main/xls/modules/fp/apfloat_add_2.x)
-(two-way addition) or
 [apfloat_fma.x](https://github.com/google/xls/tree/main/xls/modules/fp/apfloat_fma.x) (fused
 multiply-add). Specializations of the above are then available in, e.g.,
 [float32.x](https://github.com/google/xls/tree/main/xls/stdlib/float32.x),

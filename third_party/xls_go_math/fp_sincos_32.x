@@ -81,9 +81,7 @@
 import std
 import float32
 
-import xls.modules.fp.fp32_add_2
 import xls.modules.fp.fp32_mul_2
-import xls.modules.fp.fp32_sub_2
 import third_party.xls_go_math.fp_trig_reduce
 
 type F32 = float32::F32;
@@ -129,7 +127,7 @@ fn cos_taylor(z_sq: F32) -> F32 {
 
                         for(idx, acc): (u3, F32)
                           in range (u3:0, u3:5) {
-                          fp32_add_2::fp32_add_2(
+                          float32::add(
                             fp32_mul_2::fp32_mul_2(
                               acc,
                               z_sq
@@ -141,8 +139,8 @@ fn cos_taylor(z_sq: F32) -> F32 {
                     );
 
   let half_z_sq = F32{bexp: std::bounded_minus_1(z_sq.bexp), ..z_sq};
-  fp32_sub_2::fp32_sub_2(
-    fp32_add_2::fp32_add_2(
+  float32::sub(
+    float32::add(
       one,
       big_product
     ),
@@ -178,7 +176,7 @@ fn sin_taylor(z:F32, z_sq: F32) -> F32 {
 
                         for(idx, acc): (u3, F32)
                           in range (u3:0, u3:5) {
-                          fp32_add_2::fp32_add_2(
+                          float32::add(
                             fp32_mul_2::fp32_mul_2(
                               acc,
                               z_sq
@@ -190,7 +188,7 @@ fn sin_taylor(z:F32, z_sq: F32) -> F32 {
                     );
 
 
-  fp32_add_2::fp32_add_2(
+  float32::add(
     z,
     big_product
   )

@@ -36,8 +36,6 @@
 import float32
 import std
 import third_party.xls_machsuite.fft.test_data.dslx_test_data
-import xls.modules.fp.fp32_add_2
-import xls.modules.fp.fp32_sub_2
 import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
@@ -52,12 +50,12 @@ fn fft_root_twiddle(root_index: u32, odd: u32, even: u32,
                     -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
   // Would be neat if we could overload operators for F32
   // or other types.
-  let diff = fp32_sub_2::fp32_sub_2(
+  let diff = float32::sub(
                fp32_mul_2::fp32_mul_2(real_twid[root_index],
                                       real[odd]),
                fp32_mul_2::fp32_mul_2(img_twid[root_index],
                                       img[odd]));
-  let sum = fp32_add_2::fp32_add_2(
+  let sum = float32::add(
                fp32_mul_2::fp32_mul_2(real_twid[root_index],
                                       img[odd]),
                fp32_mul_2::fp32_mul_2(img_twid[root_index],
@@ -75,13 +73,13 @@ fn fft_inner_loop_body(log: u32, odd: u32, span: u32, real: F32[FFT_SIZE],
                        -> (F32[FFT_SIZE], F32[FFT_SIZE]) {
   let even = odd ^ span;
 
-  let real_sum = fp32_add_2::fp32_add_2(real[even], real[odd]);
-  let real_diff = fp32_sub_2::fp32_sub_2(real[even], real[odd]);
+  let real_sum = float32::add(real[even], real[odd]);
+  let real_diff = float32::sub(real[even], real[odd]);
   let real = update(real, odd, real_diff);
   let real = update(real, even, real_sum);
 
-  let img_sum = fp32_add_2::fp32_add_2(img[even], img[odd]);
-  let img_diff = fp32_sub_2::fp32_sub_2(img[even], img[odd]);
+  let img_sum = float32::add(img[even], img[odd]);
+  let img_diff = float32::sub(img[even], img[odd]);
   let img = update(img, odd, img_diff);
   let img = update(img, even, img_sum);
 

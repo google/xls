@@ -91,6 +91,6 @@ order; refer to
 [value_view_test.cc](https://github.com/google/xls/tree/main/xls/ir/value_view_test.cc)
 and
 [function_jit_test.cc](https://github.com/google/xls/tree/main/xls/jit/function_jit_test.cc)
-for test examples, or the [generated] fp32_add_2_jit_wrapper.h/cc and
-[fp32_add_2_test.cc](https://github.com/google/xls/tree/main/xls/modules/fp/fp32_add_2_test.cc)
+for test examples, or the [generated] float32_add_jit_wrapper.h/cc and
+[float32_add_test.cc](https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32_add_test.cc)
 for practical usage.

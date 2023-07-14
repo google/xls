@@ -27,8 +27,6 @@ import float32
 import float64
 import std
 
-import xls.modules.fp.apfloat_add_2
-import xls.modules.fp.apfloat_sub_2
 import xls.modules.fp.apfloat_mul_2
 
 type F32 = float32::F32;
@@ -96,7 +94,7 @@ pub fn fp_trig_reduce<EXP_SZ:u32, SFD_SZ:u32, UEXP_SZ:u32 = {EXP_SZ + u32:1}>(x:
   let (j, fraction) =
     if j[0:1] {
       (j + u3:1,
-       apfloat_sub_2::apfloat_sub_2(fraction, apfloat::one<EXP_SZ, SFD_SZ>(u1:0)))
+       apfloat::sub(fraction, apfloat::one<EXP_SZ, SFD_SZ>(u1:0)))
     } else {
       (j, fraction)
     };

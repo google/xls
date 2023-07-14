@@ -15,12 +15,12 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/stdlib/float32_add_cc.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value.h"
 #include "xls/jit/compound_type_cc.h"
 #include "xls/jit/null_function_cc.h"
-#include "xls/modules/fp/fp32_add_2_cc.h"
 #include "xls/modules/fp/fp32_fma_cc.h"
 
 // Rather than do a pattern-matching unit test of aot_compile.cc's output, this
@@ -39,7 +39,7 @@ TEST(AotCompileTest, BasicUsage) {
   Value f32_one = F32Value(false, 0x7f, 0);
   Value f32_two = F32Value(false, 0x80, 0);
   Value f32_three = F32Value(false, 0x80, 0x400000);
-  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::fp::fp32_add_2(f32_one, f32_two));
+  XLS_ASSERT_OK_AND_ASSIGN(Value result, xls::fp::add(f32_one, f32_two));
   EXPECT_EQ(result, f32_three);
 }
 
@@ -75,7 +75,7 @@ TEST(AotCompileTest, CompoundType) {
 // In non-opt mode, argument values are type-checked using DCHECK.
 TEST(AotCompileTest, InvalidTypes) {
   Value a = Value::Tuple({});
-  EXPECT_DEATH((void)xls::fp::fp32_add_2(a, a),
+  EXPECT_DEATH((void)xls::fp::add(a, a),
                testing::HasSubstr(
                    "Value `()` is not of type `(bits[1], bits[8], bits[23])`"));
 }

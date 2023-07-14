@@ -14,7 +14,7 @@
 
 // Unit tests for the JIT wrapper using fp32_add_2 as a basis.
 
-#include "xls/modules/fp/fp32_add_2_jit_wrapper.h"
+#include "xls/dslx/stdlib/float32_add_jit_wrapper.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,8 +25,8 @@
 namespace xls {
 namespace {
 
-TEST(Fp32Add2JitWrapperTest, CanAdd) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto adder, fp::Fp32Add2::Create());
+TEST(Float32AddJitWrapperTest, CanAdd) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto adder, fp::Float32Add::Create());
   Value one = F32ToTuple(1.0f);
   Value two = F32ToTuple(2.0f);
 
