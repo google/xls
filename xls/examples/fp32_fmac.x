@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import float32
-import xls.modules.fp.apfloat_fmac
+import xls.examples.apfloat_fmac
 
 type F32 = float32::F32;
 

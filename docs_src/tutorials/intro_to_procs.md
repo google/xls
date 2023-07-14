@@ -229,7 +229,7 @@ proc Tester {
 }
 ```
 
-The [FP32 fmac module](https://github.com/google/xls/tree/main/xls/modules/fp/fp32_fmac.x)
+The [FP32 fmac module](https://github.com/google/xls/tree/main/xls/examples/fp32_fmac.x)
 has a more complete proc test that may be used for reference.
 
 # Scheduling constraints

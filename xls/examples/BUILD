@@ -563,3 +563,28 @@ place_and_route(
     synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
     target_die_utilization_percentage = "30",
 )
+
+xls_dslx_library(
+    name = "apfloat_fmac_dslx",
+    srcs = ["apfloat_fmac.x"],
+)
+
+xls_dslx_library(
+    name = "fp32_fmac_dslx",
+    srcs = ["fp32_fmac.x"],
+    deps = [":apfloat_fmac_dslx"],
+)
+
+xls_dslx_opt_ir(
+    name = "fp32_fmac",
+    dslx_top = "fp32_fmac",
+    library = ":fp32_fmac_dslx",
+)
+
+xls_dslx_test(
+    name = "fp32_fmac_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":fp32_fmac_dslx",
+)
