@@ -17,6 +17,7 @@ import apfloat
 
 pub type BF16 = apfloat::APFloat<8, 7>;
 pub type FloatTag = apfloat::APFloatTag;
+pub type TaggedBF16 = (FloatTag, BF16);
 
 pub fn qnan() -> BF16 { apfloat::qnan<u32:8, u32:7>() }
 pub fn zero(sign: u1) -> BF16 { apfloat::zero<u32:8, u32:7>(sign) }

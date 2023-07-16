@@ -404,7 +404,7 @@ fn fast_sqrt_test() {
 //      denormal results are flushed to 0.
 //  - No exception flags are raised/reported.
 //  - We emit a single, canonical representation for
-//      NaN (qnan) but accept all NaN respresentations
+//      NaN (qnan) but accept all NaN representations
 //      as input
 
 // Returns fraction * 2^exp

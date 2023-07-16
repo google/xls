@@ -7,7 +7,7 @@ or out-of-scope, all operations and types should be IEEE-754 compliant.
 
 For example, floating-point exceptions have not been implemented; they're
 outside our current scope. The numeric results of multiplication, on the other
-hand, should _exactly_ match those of any other compliant implementation.
+hand, should *exactly* match those of any other compliant implementation.
 
 ## APFloat
 
@@ -17,11 +17,11 @@ then aligned, then an operation (add, multiply, etc.) must be performed,
 interpreting the fractions as integral types, followed by rounding, special case
 handling, and reconstructing an output FP type.
 
-This observation leads to the possibility of _generic_ floating-point routines:
+This observation leads to the possibility of *generic* floating-point routines:
 a fully parameterized add, for example, which can be instantiated with and 8-bit
 exponent and 23-bit fractional part for binary32 types, and an 11-bit exponent
 and 52-bit fractional part for binary64 types. Even more interesting, a
-hypothetical bfloat32 type could _immediately_ be supported by, say,
+hypothetical bfloat32 type could *immediately* be supported by, say,
 instantiating that adder with, say, 15 exponent bits and 16 fractional ones.
 
 As much as possible, XLS implements FP operations in terms of its
@@ -52,30 +52,28 @@ and `is_inf` is exposed as:
 ```dslx-snippet
 pub fn is_inf(f: F32) -> u1 { apfloat::is_inf<u32:8, u32:23>(f) }
 ```
+
 In this way, users can refer to `F32` types and can use them as and with
 `float32::is_inf(f)`, giving them simplified access to a generic operation.
-
-More complex functionality such as addition and multiplication are defined in
-standalone modules, e.g,
-[`apfloat_add_2.x`](https://github.com/google/xls/tree/main/xls/dslx/modules/apfloat_add_2.x)
-defining `apfloat_add_2::add` for the `APFloat` type
-[`fp32_add_2.x`](https://github.com/google/xls/tree/main/xls/dslx/modules/fp32_add_2.x)
-instantiating the operation for the `float32` type.
 
 ## Supported operations
 
 Here are listed the routines so far implemented in XLS. Unless otherwise
-specified, operations are implemented in terms of `APFloat`s such that they can support any precisions (aside from corner cases, such as a zero-byte fractional part).
-
+specified, operations are implemented in terms of `APFloat`s such that they can
+support any precisions (aside from corner cases, such as a zero-byte fractional
+part).
 
 ### `apfloat::tag`
+
 ```dslx-snippet
 pub fn tag<EXP_SZ:u32, FRACTION_SZ:u32>(input_float: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloatTag
 ```
 
-Returns the type of float as one of `APFloatTag::ZERO`, `APFloatTag::SUBNORMAL`, `APFloatTag::INFINITY`, `APFloatTag::NAN` and `APFloatTag::NORMAL`.
+Returns the type of float as one of `APFloatTag::ZERO`, `APFloatTag::SUBNORMAL`,
+`APFloatTag::INFINITY`, `APFloatTag::NAN` and `APFloatTag::NORMAL`.
 
 ### `apfloat::qnan`
+
 ```dslx-snippet
 pub fn qnan<EXP_SZ:u32, FRACTION_SZ:u32>() -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
@@ -91,6 +89,7 @@ pub fn zero<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACT
 Returns a positive or negative zero depending upon the given sign parameter.
 
 ### `apfloat::one`
+
 ```dslx-snippet
 pub fn one<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
@@ -98,67 +97,76 @@ pub fn one<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTI
 Returns one or minus one depending upon the given sign parameter.
 
 ### `apfloat::inf`
+
 ```dslx-snippet
 pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Returns a positive or a negative infinity depending upon the given sign parameter.
+Returns a positive or a negative infinity depending upon the given sign
+parameter.
 
 ### `apfloat::unbiased_exponent`
+
 ```dslx-snippet
 pub fn unbiased_exponent<EXP_SZ:u32, FRACTION_SZ:u32>(f: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[EXP_SZ]
 ```
 
-Returns the unbiased exponent. For normal numbers it is
-`bexp - 2^EXP_SZ + 1`` and for subnormals it is, `2 - 2^EXP_SZ``. For
-infinity and `NaN``, there are no guarantees, as the unbiased exponent has
-no meaning in that case.
+Returns the unbiased exponent. For normal numbers it is `bexp - 2^EXP_SZ +
+1``and for subnormals it is,`2 - 2^EXP_SZ``. For infinity and `NaN``, there are
+no guarantees, as the unbiased exponent has no meaning in that case.
 
 For example, for single precision normal numbers the unbiased exponent is
-`bexp - 127`` and for subnormal numbers it is `-126`.
+`bexp - 127``and for subnormal numbers it is`-126`.
 
 ### `apfloat::bias`
+
 ```dslx-snippet
 pub fn bias<EXP_SZ: u32, FRACTION_SZ: u32>(unbiased_exponent: sN[EXP_SZ]) -> bits[EXP_SZ]
 ```
 
 Returns the biased exponent which is equal to `unbiased_exponent + 2^EXP_SZ - 1`
 
-Since the function only takes as input the unbiased exponent, it cannot distinguish between normal and subnormal numbers, as a result it assumes that the input is the exponent for a normal number.
-
+Since the function only takes as input the unbiased exponent, it cannot
+distinguish between normal and subnormal numbers, as a result it assumes that
+the input is the exponent for a normal number.
 
 ### `apfloat::flatten`
+
 ```dslx-snippet
 pub fn flatten<EXP_SZ:u32, FRACTION_SZ:u32,
                TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(
                x: APFloat<EXP_SZ, FRACTION_SZ>)
     -> bits[TOTAL_SZ]
 ```
+
 Returns a bit string of size `1 + EXP_SZ + FRACTION_SZ` where the first bit is
 the sign bit, the next `EXP_SZ` bit encode the biased exponent and the last
 `FRACTION_SZ` are the significand without the hidden bit.
 
 ### `apfloat::unflatten`
+
 ```dslx-snippet
 pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
                  TOTAL_SZ:u32 = {u32:1+EXP_SZ+FRACTION_SZ}>(x: bits[TOTAL_SZ])
     -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Returns a `APFloat` struct whose flattened version would be the input
-string `x`.
+Returns a `APFloat` struct whose flattened version would be the input string
+`x`.
 
 ### `apfloat::cast_from_fixed`
+
 ```dslx-snippet
 pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
                        to_cast: sN[NUM_SRC_BITS])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
 ```
 
-Casts the fixed point number to a floating point number using RNE
-(Round to Nearest Even) as the rounding mode.
+Casts the fixed point number to a floating point number using RNE (Round to
+Nearest Even) as the rounding mode.
 
 ### `apfloat::normalize`
+
 ```dslx-snippet
 pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
                  WIDE_FRACTION:u32 = {FRACTION_SZ + u32:1}>(
@@ -167,107 +175,125 @@ pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
     -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Returns a normalized APFloat with the given components.
-`fraction_with_hidden` is the fraction (including the hidden bit). This function
-only normalizes in the direction of decreasing the exponent. Input must be a
-normal number or zero. Subnormals/Denormals are flushed to zero in the result.
+Returns a normalized APFloat with the given components. `fraction_with_hidden`
+is the fraction (including the hidden bit). This function only normalizes in the
+direction of decreasing the exponent. Input must be a normal number or zero.
+Subnormals/Denormals are flushed to zero in the result.
 
 ### `apfloat::is_inf`
+
 ```dslx-snippet
 pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
+
 Returns whether or not the given `APFloat` represents an infinite quantity.
 
 ### `apfloat::is_nan`
+
 ```dslx-snippet
 pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
+
 Returns whether or not the given `APFloat` represents `NaN`.
 
 ### `apfloat::is_zero_or_subnormal`
+
 ```dslx-snippet
 pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
                             x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
+
 Returns `true` if `x == 0` or `x` is a subnormal number.
 
 ### `apfloat::cast_to_fixed`
+
 ```dslx-snippet
 pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32>(
                      to_cast: APFloat<EXP_SZ, FRACTION_SZ>)
     -> sN[NUM_DST_BITS]
 ```
-Casts the floating point number to a fixed point number.
-Unrepresentable numbers are cast to the minimum representable
-number (largest magnitude negative number).
+
+Casts the floating point number to a fixed point number. Unrepresentable numbers
+are cast to the minimum representable number (largest magnitude negative
+number).
 
 ### `apfloat::eq_2`
+
 ```dslx-snippet
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
-Returns `true` if `x == y`.
-Denormals are Zero (DAZ).
-Always returns `false` if `x` or `y` is `NaN`.
+
+Returns `true` if `x == y`. Denormals are Zero (DAZ). Always returns `false` if
+`x` or `y` is `NaN`.
 
 ### `apfloat::gt_2`
+
 ```dslx-snippet
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
-Returns `true` if `x > y`.
-Denormals are Zero (DAZ).
-Always returns `false` if `x` or `y` is `NaN`.
 
+Returns `true` if `x > y`. Denormals are Zero (DAZ). Always returns `false` if
+`x` or `y` is `NaN`.
 
 ### `apfloat::gte_2`
+
 ```dslx-snippet
 pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
              y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
-Returns `true` if `x >= y`.
-Denormals are Zero (DAZ).
-Always returns `false` if `x` or `y` is `NaN`.
+
+Returns `true` if `x >= y`. Denormals are Zero (DAZ). Always returns `false` if
+`x` or `y` is `NaN`.
 
 ### `apfloat::lte_2`
+
 ```dslx-snippet
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
              y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
-Returns `true` if `x <= y`.
-Denormals are Zero (DAZ).
-Always returns `false` if `x` or `y` is `NaN`.
+
+Returns `true` if `x <= y`. Denormals are Zero (DAZ). Always returns `false` if
+`x` or `y` is `NaN`.
 
 ### `apfloat::lt_2`
+
 ```dslx-snippet
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
 ```
-Returns `true` if `x < y`.
-Denormals are Zero (DAZ).
-Always returns `false` if `x` or `y` is `NaN`.
+
+Returns `true` if `x < y`. Denormals are Zero (DAZ). Always returns `false` if
+`x` or `y` is `NaN`.
 
 ### `apfloat::round_towards_zero`
+
 ```dslx-snippet
 pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
                           x: APFloat<EXP_SZ, FRACTION_SZ>)
     -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
+
 Returns an `APFloat` with all its bits past the decimal point set to `0`.
 
 ### `apfloat::to_int`
+
 ```dslx-snippet
 pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32>(
               x: APFloat<EXP_SZ, FRACTION_SZ>) -> sN[RESULT_SZ]
 ```
-Returns the signed integer part of the input float, truncating any fractional bits if necessary.
+
+Returns the signed integer part of the input float, truncating any fractional
+bits if necessary.
 
 ### `apfloat::add/sub`
+
 ```dslx-snippet
 pub fn add<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
                                           y: APFloat<EXP_SZ, FRACTION_SZ>)
@@ -281,9 +307,9 @@ pub fn sub<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
 Returns the sum/difference of `x` and `y` based on a generalization of IEEE 754
 single-precision floating-point addition, with the following exceptions:
 
-- Both input and output denormals are treated as/flushed to 0.
-- Only round-to-nearest mode is supported.
-- No exception flags are raised/reported.
+-   Both input and output denormals are treated as/flushed to 0.
+-   Only round-to-nearest mode is supported.
+-   No exception flags are raised/reported.
 
 In all other cases, results should be identical to other conforming
 implementations (modulo exact fraction values in the `NaN` case.
@@ -374,8 +400,8 @@ straightforward (types are as for a C `float` implementation):
   let rounding_carry = rounded_fraction[-1:];
 ```
 
-
 ### `apfloat::mul`
+
 ```dslx-snippet
 pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
                                           y: APFloat<EXP_SZ, FRACTION_SZ>)
@@ -384,14 +410,15 @@ pub fn mul<EXP_SZ: u32, FRACTION_SZ: u32>(x: APFloat<EXP_SZ, FRACTION_SZ>,
 
 Returns the product of `x` and `y`, with the following exceptions:
 
- - Both input and output denormals are treated as/flushed to 0.
- - Only round-to-nearest mode is supported.
- - No exception flags are raised/reported.
+-   Both input and output denormals are treated as/flushed to 0.
+-   Only round-to-nearest mode is supported.
+-   No exception flags are raised/reported.
 
-In all other cases, results should be identical to other
-conforming implementations (modulo exact fraction values in the NaN case).
+In all other cases, results should be identical to other conforming
+implementations (modulo exact fraction values in the NaN case).
 
 ### `apfloat::fma`
+
 ```dslx-snippet
 pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
                                           b: APFloat<EXP_SZ, FRACTION_SZ>,
@@ -401,29 +428,148 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32>(a: APFloat<EXP_SZ, FRACTION_SZ>,
 
 Returns the Fused Multiply and Add (FMA) result of computing `a*b + c`.
 
-The FMA operation  is a three-operand operation that computes the product of
-the first two and the sum of that with the third.
-The IEEE 754-2008 description of the operation states that the operation should
-be performed "as if with unbounded range and precision", limited only by
-rounding of the final result. In other words, this differs from a sequence of a
-separate multiply followed by an add in that there is only a single rounding
-step (instead of the two involved in separate operations).
+The FMA operation is a three-operand operation that computes the product of the
+first two and the sum of that with the third. The IEEE 754-2008 description of
+the operation states that the operation should be performed "as if with
+unbounded range and precision", limited only by rounding of the final result. In
+other words, this differs from a sequence of a separate multiply followed by an
+add in that there is only a single rounding step (instead of the two involved in
+separate operations).
 
 In practice, this means A) that the precision of an FMA is higher than
 individual ops, and thus that B) an FMA requires significantly more internal
 precision bits than naively expected.
 
 For binary32 inputs, to achieve the standard-specified precision, the initial
-mul requires the usual 48 ((23 fraction + 1 "hidden") * 2) fraction bits.
-When performing the subsequent add step, though, it is necessary to maintain
-*72* fraction bits ((23 fraction + 1 "hidden") * 3). Fortunately, this sum
-includes the guard, round, and sticky bits (so we don't need 75). The
-mathematical derivation of the exact amount will not be given here (as I've not
-done it), but the same calculated size would apply for other data types (i.e.,
-54 * 2 = 108 and 54 * 3 = 162 for binary64).
+mul requires the usual 48 ((23 fraction + 1 "hidden") * 2) fraction bits. When
+performing the subsequent add step, though, it is necessary to maintain *72*
+fraction bits ((23 fraction + 1 "hidden") * 3). Fortunately, this sum includes
+the guard, round, and sticky bits (so we don't need 75). The mathematical
+derivation of the exact amount will not be given here (as I've not done it), but
+the same calculated size would apply for other data types (i.e., 54 * 2 = 108
+and 54 * 3 = 162 for binary64).
 
 Aside from determining the necessary precision bits, the FMA implementation is
 rather straightforward, especially after reviewing the adder and multiplier.
+
+## float64
+
+To help with the `float64` or
+[double precision](https://en.wikipedia.org/wiki/Double-precision_floating-point_format)
+floating point numbers, `float32.x` defines the following type aliases.
+
+```dslx-snippet
+pub type F64 = apfloat::APFloat<11, 52>;
+pub type FloatTag = apfloat::APFloatTag;
+pub type TaggedF64 = (FloatTag, F64);
+```
+
+Besides `float64` specializations of the functions in `apfloat.x`, the following
+functions are defined just for `float64`.
+
+### `float64::to_int64`
+```dslx-snippet
+pub fn to_int64(x: F64) -> s64;
+```
+Convert the the `F64` struct into a 64 bit integer.
+
+## float32
+
+To help with the `float32` or
+[single precision](https://en.wikipedia.org/wiki/Single-precision_floating-point_format)
+floating point numbers, `float32.x` defines the following type aliases.
+
+```dslx-snippet
+pub type F32 = apfloat::APFloat<8, 23>;
+pub type FloatTag = apfloat::APFloatTag;
+pub type TaggedF32 = (FloatTag, F32);
+pub const F32_ONE_FLAT = u32:0x3f800000;
+```
+
+Besides `float32` specializations of the functions in `apfloat.x`, the following
+functions are defined just for `float32`.
+
+### `float32::to_int32`, `float32::from_int32`
+```dslx-snippet
+pub fn to_int32(x: F32) -> s32
+pub fn from_int32(x: s32) -> F32
+```
+Convert the `F32` struct to and from a 32bit integer.
+
+# `float32::fixed_fraction`
+```dslx-snippet
+pub fn fixed_fraction(input_float: F32) -> u23
+```
+
+TBD
+
+# `float32::fast_rsqrt_config_refinements`/`float32::fast_rsqrt`
+```dslx-snippet
+pub fn fast_rsqrt_config_refinements<NUM_REFINEMENTS: u32 = {u32:1}>(x: F32) -> F32
+pub fn fast_rsqrt(x: F32) -> F32
+```
+
+Floating point (fast (approximate) inverse square root)[
+https://en.wikipedia.org/wiki/Fast_inverse_square_root]. This should be able to
+compute `1.0 / sqrt(x)` using fewer hardware resources than using a `sqrt` and
+division module, although this hasn't been benchmarked yet. Latency is expected
+to be lower as well. The tradeoff is that this offers slighlty less precision
+(error is < 0.2% in worst case). Note that:
+
+ - Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).
+ - Only round-to-nearest mode is supported.
+ - No exception flags are raised/reported.
+ - We emit a single, canonical representation for NaN (qnan) but accept
+   all NaN respresentations as input.
+
+`fast_rsqrt_config_refinements` allows the user to specify the number of
+Computes an approximation of 1.0 / sqrt(x). `NUM_REFINEMENTS` can be increased
+to tradeoff more hardware resources for more accuracy.
+
+`fast_rsqrt` does exactly one refinement.
+
+### `float32:ldexp`
+
+``dslx-snippet
+pub fn ldexp(fraction: F32, exp: s32) -> F32
+```
+
+`ldexp` (load exponent) computes `fraction * 2^exp`. Note that:
+
+ - Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).  Similarly, denormal results are flushed to 0.
+ - No exception flags are raised/reported.
+ - We emit a single, canonical representation for NaN (qnan) but accept all `NaN` representations as input.
+
+
+## bfloat16
+
+To help with the
+[`bfloat16`](https://en.wikipedia.org/wiki/Bfloat16_floating-point_format)
+floating point numbers, `bfloat16.x` defines the following type aliases.
+
+```dslx-snippet
+pub type BF16 = apfloat::APFloat<8, 7>;
+pub type FloatTag = apfloat::APFloatTag;
+pub type TaggedBF16 = (FloatTag, BF16);
+```
+Besides `bfloat16` specializations of the functions in `apfloat.x`, the following
+functions are defined just for `bfloat16`.
+
+### `bfloat16:to_int16`
+```dslx-snippet
+pub fn to_int16(x: BF16) -> s16
+```
+Convert the the `BF16` struct into a 16 bit integer.
+
+### `bfloat16:increment_fraction`
+```dslx-snippet
+pub fn increment_fraction(input: BF16) -> BF16
+```
+
+Increments the fraction of the input BF16 by one and returns the normalized
+result. Input must be a normal *non-zero* number.
+
+
 
 ## Testing
 
@@ -444,7 +590,7 @@ doesn't currently affect FMA emission/fusion/fission/etc.
 
 \* - There are operations for which this is not true. Transcendental ops may
 differ between implementations due to the
-[_table maker's dilemma_](https://en.wikipedia.org/wiki/Rounding).
+[*table maker's dilemma*](https://en.wikipedia.org/wiki/Rounding).
 
 ### Exhaustive testing
 
@@ -452,8 +598,8 @@ This is the happiest case - where the input space is so small that we can
 iterate over every possible input, effectively treating the input as a binary
 iteration counter. Sadly, this is uncommon (except, perhaps for ML math), as
 binary32 is the precision floor for most problems, and a 64-bit input space is
-well beyond our current abilities. Still - if your problem _can_ be exhaustively
-tested (with respect to a trusted reference), it _should_ be exhaustively
+well beyond our current abilities. Still - if your problem *can* be exhaustively
+tested (with respect to a trusted reference), it *should* be exhaustively
 tested!
 
 None of our current ops are tested in this way, although the bf16 cases
