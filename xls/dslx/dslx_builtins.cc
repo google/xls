@@ -39,7 +39,7 @@
 #include "xls/dslx/type_system/deduce.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
-#include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
@@ -343,8 +343,8 @@ class Checker {
   DeduceCtx& deduce_ctx_;
 };
 
-absl::StatusOr<TypeAndBindings> CheckRecvSignature(const SignatureData& data,
-                                                   DeduceCtx* ctx) {
+absl::StatusOr<TypeAndParametricEnv> CheckRecvSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                      .Len(2)
@@ -357,11 +357,11 @@ absl::StatusOr<TypeAndBindings> CheckRecvSignature(const SignatureData& data,
 
   auto return_type = TupleType::Create2(
       std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique());
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-absl::StatusOr<TypeAndBindings> CheckRecvNonBlockingSignature(
+absl::StatusOr<TypeAndParametricEnv> CheckRecvNonBlockingSignature(
     const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -379,12 +379,12 @@ absl::StatusOr<TypeAndBindings> CheckRecvNonBlockingSignature(
   auto return_type = TupleType::Create3(
       std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique(),
       BitsType::MakeU1());
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-absl::StatusOr<TypeAndBindings> CheckRecvIfSignature(const SignatureData& data,
-                                                     DeduceCtx* ctx) {
+absl::StatusOr<TypeAndParametricEnv> CheckRecvIfSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                      .Len(4)
@@ -401,11 +401,11 @@ absl::StatusOr<TypeAndBindings> CheckRecvIfSignature(const SignatureData& data,
 
   auto return_type = TupleType::Create2(
       std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique());
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-absl::StatusOr<TypeAndBindings> CheckRecvIfNonBlockingSignature(
+absl::StatusOr<TypeAndParametricEnv> CheckRecvIfNonBlockingSignature(
     const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -424,12 +424,12 @@ absl::StatusOr<TypeAndBindings> CheckRecvIfNonBlockingSignature(
   auto return_type = TupleType::Create3(
       std::make_unique<TokenType>(), chan_type->payload_type().CloneToUnique(),
       BitsType::MakeU1());
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-absl::StatusOr<TypeAndBindings> CheckSendSignature(const SignatureData& data,
-                                                   DeduceCtx* ctx) {
+absl::StatusOr<TypeAndParametricEnv> CheckSendSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                      .Len(3)
@@ -443,12 +443,12 @@ absl::StatusOr<TypeAndBindings> CheckSendSignature(const SignatureData& data,
   checker.ArgSameType(2, chan_type->payload_type());
   XLS_RETURN_IF_ERROR(checker.status());
 
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::make_unique<TokenType>())};
 }
 
-absl::StatusOr<TypeAndBindings> CheckSendIfSignature(const SignatureData& data,
-                                                     DeduceCtx* ctx) {
+absl::StatusOr<TypeAndParametricEnv> CheckSendIfSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
   const ChannelType* chan_type = nullptr;
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                      .Len(4)
@@ -464,19 +464,19 @@ absl::StatusOr<TypeAndBindings> CheckSendIfSignature(const SignatureData& data,
   XLS_RETURN_IF_ERROR(checker.status());
 
   auto return_type = std::make_unique<TokenType>();
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
-absl::StatusOr<TypeAndBindings> CheckJoinSignature(const SignatureData& data,
-                                                   DeduceCtx* ctx) {
+absl::StatusOr<TypeAndParametricEnv> CheckJoinSignature(
+    const SignatureData& data, DeduceCtx* ctx) {
   auto checker = Checker(data.arg_types, data.name, data.span, *ctx);
   for (size_t i = 0; i < data.arg_types.size(); ++i) {
     checker.IsToken(i);
   }
   XLS_RETURN_IF_ERROR(checker.status());
   auto return_type = std::make_unique<TokenType>();
-  return TypeAndBindings{std::make_unique<FunctionType>(
+  return TypeAndParametricEnv{std::make_unique<FunctionType>(
       CloneToUnique(data.arg_types), std::move(return_type))};
 }
 
@@ -484,15 +484,15 @@ void PopulateSignatureToLambdaMap(
     absl::flat_hash_map<std::string, SignatureFn>* map_ptr) {
   auto& map = *map_ptr;
   map["(T) -> T"] = [](const SignatureData& data,
-                       DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+                       DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span, *ctx).Len(1).status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[T], uN[T]) -> (u1, uN[T])"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
@@ -502,12 +502,12 @@ void PopulateSignatureToLambdaMap(
     elements.push_back(BitsType::MakeU1());
     elements.push_back(data.arg_types[0]->CloneToUnique());
     auto return_type = std::make_unique<TupleType>(std::move(elements));
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[M], uN[N], T[P]) -> T[P]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a0;
     const ArrayType* a2;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -523,24 +523,24 @@ void PopulateSignatureToLambdaMap(
           a0->ToString(), a2->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(xN[N], xN[N]) -> ()"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsBits(0)
                        .IsBits(1)
                        .ArgsSameType(0, 1);
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(xN[N], xN[M][N]) -> xN[M]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a;
     const BitsType* b;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -561,29 +561,32 @@ void PopulateSignatureToLambdaMap(
                              a->ToString(), a->size().ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), return_type.CloneToUnique())};
   };
-  map["(T, T) -> T"] = [](const SignatureData& data,
-                          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["(T, T) -> T"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
-  map["(T, T) -> ()"] = [](const SignatureData& data,
-                           DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["(T, T) -> ()"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .ArgsSameType(0, 1)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
-  map["<U>(T) -> U"] = [](const SignatureData& data,
-                          DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["<U>(T) -> U"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(
         Checker(data.arg_types, data.name, data.span, *ctx).Len(1).status());
 
@@ -601,12 +604,12 @@ void PopulateSignatureToLambdaMap(
     XLS_ASSIGN_OR_RETURN(return_type, UnwrapMetaType(std::move(return_type),
                                                      data.span, data.name));
 
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(const uN[N], const uN[N]) -> uN[N][R]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
@@ -626,20 +629,21 @@ void PopulateSignatureToLambdaMap(
     }
     auto return_type = std::make_unique<ArrayType>(
         data.arg_types[0]->CloneToUnique(), ConcreteTypeDim::CreateU32(length));
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
-  map["(T[N]) -> u32"] = [](const SignatureData& data,
-                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["(T[N]) -> u32"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     auto checker =
         Checker(data.arg_types, data.name, data.span, *ctx).Len(1).IsArray(0);
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU32())};
   };
   map["(T[N], uN[M], T) -> T[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(3)
@@ -652,34 +656,34 @@ void PopulateSignatureToLambdaMap(
           a->element_type().ToString(), data.arg_types[2]->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(xN[M], xN[N]) -> xN[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsBits(0)
                             .IsBits(1)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[M], uN[N]) -> ()"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
                             .IsUN(1)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(uN[M], uN[N]) -> uN[M+N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
@@ -692,85 +696,87 @@ void PopulateSignatureToLambdaMap(
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim sum, m.Add(n));
     auto return_type =
         std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/sum);
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[V]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsUN(0)
                             .IsUN(1)
                             .IsUN(2)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[2]->CloneToUnique())};
   };
   map["(uN[N], uN[U], uN[V]) -> uN[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsUN(0)
                             .IsUN(1)
                             .IsUN(2)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(uN[N]) -> uN[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(1)
                             .IsUN(0)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
   map["(T[N]) -> T[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(1)
                             .IsArray(0)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[0]->CloneToUnique())};
   };
-  map["(uN[N]) -> u1"] = [](const SignatureData& data,
-                            DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["(uN[N]) -> u1"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(1)
                             .IsUN(0)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), BitsType::MakeU1())};
   };
-  map["(u1, T) -> T"] = [](const SignatureData& data,
-                           DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+  map["(u1, T) -> T"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsU1(0)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(u1, T, T) -> T"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(3)
                             .IsU1(0)
                             .ArgsSameType(1, 2)
                             .status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[N], u1) -> uN[N+1]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(2)
                             .IsUN(0)
@@ -782,12 +788,12 @@ void PopulateSignatureToLambdaMap(
                          n.Add(ConcreteTypeDim::CreateU32(1)));
     auto return_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/np1);
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(T[N]) -> (u32, T)[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a;
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
                             .Len(1)
@@ -799,14 +805,14 @@ void PopulateSignatureToLambdaMap(
     element_types.push_back(t.CloneToUnique());
     auto e = std::make_unique<TupleType>(std::move(element_types));
     auto return_type = std::make_unique<ArrayType>(std::move(e), a->size());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   // Note: for map's signature we instantiate the (possibly parametric) function
   // argument.
   map["(T[N], (T) -> U) -> U[N]"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* a = nullptr;
     const FunctionType* f = nullptr;
     XLS_RETURN_IF_ERROR(Checker(data.arg_types, data.name, data.span, *ctx)
@@ -829,21 +835,21 @@ void PopulateSignatureToLambdaMap(
     // lines up with the array (we're providing it the argument types it's being
     // invoked with).
     XLS_ASSIGN_OR_RETURN(
-        TypeAndBindings tab,
+        TypeAndParametricEnv tab,
         InstantiateFunction(
             data.span, *f, mapped_fn_args, ctx,
             /*parametric_constraints=*/mapped_parametric_bindings,
             /*explicit_bindings=*/{}));
     auto return_type =
         std::make_unique<ArrayType>(std::move(tab.type), a->size());
-    return TypeAndBindings{
+    return TypeAndParametricEnv{
         std::make_unique<FunctionType>(CloneToUnique(data.arg_types),
                                        std::move(return_type)),
         tab.parametric_env};
   };
   map["(u8[N], u1) -> ()"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* array_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
@@ -854,12 +860,12 @@ void PopulateSignatureToLambdaMap(
                              array_type->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
   map["(u8[N], T) -> T"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const ArrayType* array_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
@@ -869,12 +875,12 @@ void PopulateSignatureToLambdaMap(
                              array_type->ToString());
     });
     XLS_RETURN_IF_ERROR(checker.status());
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
   };
   map["(uN[N], uN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const BitsType* lhs_type;
     const BitsType* rhs_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -899,12 +905,12 @@ void PopulateSignatureToLambdaMap(
 
     auto return_type =
         std::make_unique<TupleType>(std::move(return_type_elems));
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   map["(sN[N], sN[N]) -> (uN[N], uN[N])"] =
       [](const SignatureData& data,
-         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndParametricEnv> {
     const BitsType* lhs_type;
     const BitsType* rhs_type;
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
@@ -929,7 +935,7 @@ void PopulateSignatureToLambdaMap(
 
     auto return_type =
         std::make_unique<TupleType>(std::move(return_type_elems));
-    return TypeAndBindings{std::make_unique<FunctionType>(
+    return TypeAndParametricEnv{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), std::move(return_type))};
   };
   // recv

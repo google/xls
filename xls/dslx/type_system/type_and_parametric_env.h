@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_DSLX_TYPE_AND_BINDINGS_H_
-#define XLS_DSLX_TYPE_AND_BINDINGS_H_
+#ifndef XLS_DSLX_TYPE_SYSTEM_TYPE_AND_PARAMETRIC_ENV_H_
+#define XLS_DSLX_TYPE_SYSTEM_TYPE_AND_PARAMETRIC_ENV_H_
 
 #include <memory>
 
@@ -24,13 +24,11 @@ namespace xls::dslx {
 
 // Bundles together a type and the parametric environment that was used to
 // arrive at that type.
-//
-// TODO(cdleary): 2023-05-19 Rename to `TypeAndParametricEnv`.
-struct TypeAndBindings {
+struct TypeAndParametricEnv {
   std::unique_ptr<ConcreteType> type;
   ParametricEnv parametric_env;
 };
 
 }  // namespace xls::dslx
 
-#endif  // XLS_DSLX_TYPE_AND_BINDINGS_H_
+#endif  // XLS_DSLX_TYPE_SYSTEM_TYPE_AND_PARAMETRIC_ENV_H_

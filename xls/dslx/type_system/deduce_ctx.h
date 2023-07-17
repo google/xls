@@ -27,9 +27,10 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_system/concrete_type.h"
-#include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/type_mismatch_error_data.h"
 #include "xls/dslx/warning_collector.h"
 
@@ -115,9 +116,10 @@ using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
 using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 
 // Similar to TypecheckFunctionFn, but for a [parametric] invocation.
-using TypecheckInvocationFn = std::function<absl::StatusOr<TypeAndBindings>(
-    DeduceCtx* ctx, const Invocation*,
-    const absl::flat_hash_map<const Param*, InterpValue>&)>;
+using TypecheckInvocationFn =
+    std::function<absl::StatusOr<TypeAndParametricEnv>(
+        DeduceCtx* ctx, const Invocation*,
+        const absl::flat_hash_map<const Param*, InterpValue>&)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.

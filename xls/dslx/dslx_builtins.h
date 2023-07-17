@@ -29,7 +29,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
-#include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 
@@ -58,7 +58,7 @@ struct SignatureData {
 
 // Deduction rule that determines the FunctionType and any associated symbolic
 // bindings for a parametric builtin function.
-using SignatureFn = std::function<absl::StatusOr<TypeAndBindings>(
+using SignatureFn = std::function<absl::StatusOr<TypeAndParametricEnv>(
     const SignatureData&, DeduceCtx*)>;
 
 // Returns a function that produces the type of builtin_name.

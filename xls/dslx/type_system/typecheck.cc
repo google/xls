@@ -43,6 +43,7 @@
 #include "xls/dslx/type_system/maybe_explain_error.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "re2/re2.h"
 
@@ -216,7 +217,7 @@ static absl::Status CheckIsAcceptableWideningCast(DeduceCtx* ctx,
   return absl::OkStatus();
 }
 
-absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
+absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
     DeduceCtx* ctx, const Invocation* invocation, Function* caller) {
   Expr* callee = invocation->callee();
   NameRef* callee_nameref = dynamic_cast<NameRef*>(callee);
@@ -319,7 +320,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   }
 
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
+      TypeAndParametricEnv tab,
       fsignature(SignatureData{arg_type_ptrs, arg_spans,
                                invocation->explicit_parametrics(),
                                callee_nameref->identifier(), invocation->span(),
@@ -591,7 +592,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
 
 // Set up parametric constraints and explicit bindings and runs the parametric
 // instantiator.
-absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
+absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
     Function* callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
@@ -824,7 +825,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<TypeAndBindings> CheckInvocation(
+absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
     const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env) {
   XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
@@ -894,7 +895,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   FunctionType fn_type(std::move(param_types), std::move(return_type));
 
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings callee_tab,
+      TypeAndParametricEnv callee_tab,
       InstantiateParametricFunction(ctx, parent_ctx, invocation, callee_fn,
                                     fn_type, instantiate_args));
 

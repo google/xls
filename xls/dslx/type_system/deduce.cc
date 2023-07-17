@@ -39,6 +39,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -53,7 +54,7 @@
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
-#include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 
 namespace xls::dslx {
@@ -2089,7 +2090,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
       std::vector<ParametricConstraint> parametric_constraints,
       ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
+      TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
                         validated.member_types, ctx, parametric_constraints));
 
@@ -2173,7 +2174,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
       std::vector<ParametricConstraint> parametric_constraints,
       ParametricBindingsToConstraints(struct_def->parametric_bindings(), ctx));
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings tab,
+      TypeAndParametricEnv tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
                         validated.member_types, ctx, parametric_constraints));
 
@@ -2546,7 +2547,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
 
 // Generic function to do the heavy lifting of deducing the type of an
 // Invocation or Spawn's constituent functions.
-absl::StatusOr<TypeAndBindings> DeduceInstantiation(
+absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
     const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
@@ -2570,10 +2571,10 @@ absl::StatusOr<TypeAndBindings> DeduceInstantiation(
   // top.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> callee_type,
                        ctx->Deduce(invocation->callee()));
-  return TypeAndBindings{down_cast<FunctionType*>(callee_type.get())
-                             ->return_type()
-                             .CloneToUnique(),
-                         {}};
+  return TypeAndParametricEnv{down_cast<FunctionType*>(callee_type.get())
+                                  ->return_type()
+                                  .CloneToUnique(),
+                              {}};
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
@@ -2616,7 +2617,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   };
 
   XLS_ASSIGN_OR_RETURN(
-      TypeAndBindings init_tab,
+      TypeAndParametricEnv init_tab,
       DeduceInstantiation(ctx, down_cast<Invocation*>(node->next()->args()[0]),
                           {}, resolve_init, {}));
 
@@ -2659,7 +2660,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       down_cast<Invocation*>(node->next()->args()[0]),
       /*concrete_type=*/nullptr));
 
-  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
+  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        DeduceInstantiation(ctx, node->config(), config_args,
                                            resolve_config, constexpr_env));
 
@@ -2706,7 +2707,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   // Then get the type and bindings for the mapping fn.
   Invocation* element_invocation =
       CreateElementInvocation(ctx->module(), node->span(), args[1], args[0]);
-  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
+  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        ctx->typecheck_invocation()(ctx, element_invocation,
                                                    /*constexpr_env=*/{}));
   const ParametricEnv& caller_bindings =
@@ -2768,7 +2769,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     return fn;
   };
 
-  XLS_ASSIGN_OR_RETURN(TypeAndBindings tab,
+  XLS_ASSIGN_OR_RETURN(TypeAndParametricEnv tab,
                        DeduceInstantiation(ctx, node, args, resolve_fn));
 
   ConcreteType* ct = ctx->type_info()->GetItem(node->callee()).value();

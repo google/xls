@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 
@@ -38,7 +39,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 // Assigns concrete types and validates such on all elements of the function
 // "invoked" by the given invocation. The target function may be builtin and/or
 // parametric.
-absl::StatusOr<TypeAndBindings> CheckInvocation(
+absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
     const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env);
 

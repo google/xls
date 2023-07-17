@@ -27,7 +27,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
-#include "xls/dslx/type_system/type_and_bindings.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 
@@ -49,7 +49,7 @@ namespace xls::dslx {
 //    parametric_constraints expressions; e.g. for the example above if the
 //    caller invoked `const M: u32 = 42; f<M>(x)`, this environment would
 //    be `{N: u32:42}` (since M is passed as the N value for the callee).
-absl::StatusOr<TypeAndBindings> InstantiateFunction(
+absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
@@ -58,7 +58,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
 // Instantiates a struct using the bindings derived from args' types.
 //
 // See InstantiateFunction() above.
-absl::StatusOr<TypeAndBindings> InstantiateStruct(
+absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,

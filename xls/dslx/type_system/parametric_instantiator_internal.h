@@ -15,10 +15,12 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 #define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 
+#include "absl/status/statusor.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -54,7 +56,7 @@ class ParametricInstantiator {
 
   virtual ~ParametricInstantiator();
 
-  virtual absl::StatusOr<TypeAndBindings> Instantiate() = 0;
+  virtual absl::StatusOr<TypeAndParametricEnv> Instantiate() = 0;
 
   // e.g. "struct" or "function"
   virtual std::string_view GetKindName() = 0;
@@ -134,7 +136,7 @@ class FunctionInstantiator : public ParametricInstantiator {
   //
   // Instantiates the parameters of function_type_ according to the presented
   // args_' types.
-  absl::StatusOr<TypeAndBindings> Instantiate() override;
+  absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
 
   std::string_view GetKindName() override { return "function"; }
 
@@ -163,7 +165,7 @@ class StructInstantiator : public ParametricInstantiator {
       DeduceCtx* ctx,
       absl::Span<const ParametricConstraint> parametric_bindings);
 
-  absl::StatusOr<TypeAndBindings> Instantiate() override;
+  absl::StatusOr<TypeAndParametricEnv> Instantiate() override;
 
   std::string_view GetKindName() override { return "struct"; }
 

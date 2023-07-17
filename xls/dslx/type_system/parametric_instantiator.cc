@@ -27,6 +27,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 namespace {
@@ -74,7 +75,7 @@ std::string ToString(
 
 }  // namespace
 
-absl::StatusOr<TypeAndBindings> InstantiateFunction(
+absl::StatusOr<TypeAndParametricEnv> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
     absl::Span<const ParametricConstraint> parametric_constraints,
@@ -92,7 +93,7 @@ absl::StatusOr<TypeAndBindings> InstantiateFunction(
   return instantiator->Instantiate();
 }
 
-absl::StatusOr<TypeAndBindings> InstantiateStruct(
+absl::StatusOr<TypeAndParametricEnv> InstantiateStruct(
     Span span, const StructType& struct_type,
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,

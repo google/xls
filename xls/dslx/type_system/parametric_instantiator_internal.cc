@@ -14,13 +14,19 @@
 
 #include "xls/dslx/type_system/parametric_instantiator_internal.h"
 
+#include <utility>
+
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_bind.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_and_parametric_env.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -222,7 +228,7 @@ FunctionInstantiator::Make(
                                parametric_constraints, explicit_parametrics));
 }
 
-absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
+absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
   XLS_VLOG(10) << "Phase 1: isntantiate actuals";
   for (int64_t i = 0; i < args().size(); ++i) {
@@ -262,7 +268,8 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
         "Instantiated return type did not have all parametrics resolved.");
   }
 
-  return TypeAndBindings{std::move(resolved), ParametricEnv(parametric_env())};
+  return TypeAndParametricEnv{std::move(resolved),
+                              ParametricEnv(parametric_env())};
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<StructInstantiator>>
@@ -278,7 +285,7 @@ StructInstantiator::Make(
                                                  parametric_bindings));
 }
 
-absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
+absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
   for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
@@ -300,7 +307,8 @@ absl::StatusOr<TypeAndBindings> StructInstantiator::Instantiate() {
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
                        Resolve(*struct_type_));
-  return TypeAndBindings{std::move(resolved), ParametricEnv(parametric_env())};
+  return TypeAndParametricEnv{std::move(resolved),
+                              ParametricEnv(parametric_env())};
 }
 
 }  // namespace internal
