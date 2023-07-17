@@ -2374,6 +2374,61 @@ TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutine2) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
+TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubroutineMultiCall) {
+  const std::string content = R"(
+    bool call_b(long arg1) {
+      long ret = arg1;
+      #pragma hls_pipeline_init_interval 1
+      for (int i=0; i < 2; i++) {
+        ret = (ret << 1);
+      }
+      return ret > 0;
+    }
+
+    bool call_top(long arg1) {
+        bool has_rem;
+        if ( arg1 > 1 ) {
+          has_rem = call_b(arg1);
+        } else {
+          has_rem = call_b(arg1);
+        }
+        return has_rem;
+      }
+
+    #pragma hls_top
+    void run_design(__xls_channel<long> &in, __xls_channel<long> &out) {
+        long dNum = in.read();
+
+        bool tmp2 = false;
+        tmp2 = call_top(dNum);
+
+        out.write((long)tmp2);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(6, 64))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(1, 64))};
+
+  ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
+}
+
 TEST_F(TranslatorProcTest, ForPipelinedIOInBodySubSubroutine) {
   const std::string content = R"(
     #include "/xls_builtin.h"

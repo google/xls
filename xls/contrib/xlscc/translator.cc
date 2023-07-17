@@ -14,7 +14,9 @@
 
 #include "xls/contrib/xlscc/translator.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <memory>
 #include <optional>
@@ -26,8 +28,6 @@
 #include <typeinfo>
 #include <utility>
 #include <vector>
-#include <cstring>
-#include <cstddef>
 
 #include "absl/base/casts.h"
 #include "absl/container/btree_map.h"
@@ -58,8 +58,8 @@
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "clang/include/clang/Basic/TypeTraits.h"
 #include "llvm/include/llvm/ADT/APInt.h"
-#include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/ADT/FloatingPointMode.h"
+#include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -3176,11 +3176,14 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     // Don't add multiple times
     if (context().sf->callee_generated_channels_added.contains(
             callee_op.channel)) {
-      XLSCC_CHECK(
-          !caller_channels_by_callee_channel.contains(callee_op.channel), loc);
-      caller_channels_by_callee_channel[callee_op.channel] =
+      IOChannel* to_add =
           context().sf->callee_generated_channels_added.at(callee_op.channel);
+      XLSCC_CHECK(
+          !caller_channels_by_callee_channel.contains(callee_op.channel) ||
+              to_add == caller_channels_by_callee_channel.at(callee_op.channel),
+          loc);
 
+      caller_channels_by_callee_channel[callee_op.channel] = to_add;
       continue;
     }
     IOChannel* callee_generated_channel = callee_op.channel;
