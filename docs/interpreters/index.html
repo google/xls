@@ -1585,13 +1585,13 @@ invoked in nearly the same way, via the
 <a href="https://github.com/google/xls/tree/main/xls/tools/eval_ir_main.cc"><code>eval_ir_main</code></a> tool.</p>
 <p><code>eval_ir_main</code> supports a wide number of use cases, but the most common end-user
 case will be to run a sample through a design. To evaluate a sample (1.0 + 2.5)
-on the
-<a href="https://github.com/google/xls/tree/main/xls/modules/fp/fp32_add_2.x">floating-point adder</a>,
+on the add function in
+<a href="https://github.com/google/xls/tree/main/xls/dslx/stdlib/float32.x">floating-point adder</a>,
 one would run the following:</p>
 <div class="highlight"><pre><span></span><code>bazel build -c opt //xls/tools:eval_ir_main
-./bazel-bin/xls/tools/eval_ir_main \
-  --input &#39;(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)&#39; \
-  ./xls/modules/fp/fp32_add_2.x
+./bazel-bin/xls/tools/eval_ir_main    \
+--input &#39;(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)&#39;   \
+./bazel-bin/xls/dslx/stdlib/float32_add.opt.ir
 </code></pre></div>
 <p>By default, this runs via the JIT. To use the interpreter, add the
 <code>--use_llvm_jit=false</code> flag to the invocation.</p>
