@@ -19,14 +19,14 @@ DslxInfo = provider(
           "provider is primarily created and returned by the " +
           "xls_dslx_library rule.",
     fields = {
-        "dslx_dummy_files": "Depset: A depset containing the DSLX generated " +
-                            "dummy (.dummy) files of the xls_dslx_library " +
-                            "target and its xls_dslx_library dependencies. " +
-                            "A DSLX dummy file is generated when the DSLX " +
-                            "source files of a xls_dslx_library rule is " +
-                            "successfully parsed and type checked. " +
-                            "It is used to create a dependency between " +
-                            "xls_dslx_library targets.",
+        "dslx_placeholder_files": "Depset: A depset containing the DSLX generated " +
+                                  "placeholder (.placeholder) files of the xls_dslx_library " +
+                                  "target and its xls_dslx_library dependencies. " +
+                                  "A DSLX placeholder file is generated when the DSLX " +
+                                  "source files of a xls_dslx_library rule is " +
+                                  "successfully parsed and type checked. " +
+                                  "It is used to create a dependency between " +
+                                  "xls_dslx_library targets.",
         "dslx_source_files": "Depset: A depset containing the DSLX source " +
                              "(.x) files of the xls_dslx_library " +
                              "target and its xls_dslx_library dependencies. ",

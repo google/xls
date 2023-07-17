@@ -59,23 +59,23 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps):
         transitive = [dep[DslxInfo].dslx_source_files for dep in deps],
     )
 
-def get_transitive_dslx_dummy_files_depset(srcs, deps):
-    """Returns a depset representing the transitive DSLX dummy files.
+def get_transitive_dslx_placeholder_files_depset(srcs, deps):
+    """Returns a depset representing the transitive DSLX placeholder files.
 
-    The macro is used to collect the transitive DSLX dummy files of a target.
+    The macro is used to collect the transitive DSLX placeholder files of a target.
 
     Args:
-      srcs: a list of DSLX dummy files (.dummy)
+      srcs: a list of DSLX placeholder files (.placeholder)
       deps: a list of targets dependencies
 
     Returns:
       A depset collection where the files from 'srcs' are placed in the 'direct'
-      field of the depset and the DSLX dummy files for each dependency in 'deps'
+      field of the depset and the DSLX placeholder files for each dependency in 'deps'
       are placed in the 'transitive' field of the depset.
     """
     return depset(
         srcs,
-        transitive = [dep[DslxInfo].dslx_dummy_files for dep in deps],
+        transitive = [dep[DslxInfo].dslx_placeholder_files for dep in deps],
     )
 
 def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
@@ -179,7 +179,7 @@ def get_DslxInfo_from_dslx_library_as_input(ctx):
                 ctx.files.srcs,
                 ctx.attr.deps,
             ),
-            dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
+            dslx_placeholder_files = get_transitive_dslx_placeholder_files_depset(
                 [],
                 ctx.attr.deps,
             ),
@@ -243,7 +243,7 @@ def _xls_dslx_library_impl(ctx):
     """The implementation of the 'xls_dslx_library' rule.
 
     Parses and type checks DSLX source files. When a DSLX file is successfully
-    parsed and type checked, a DSLX dummy file is generated. The dummy file is
+    parsed and type checked, a DSLX placeholder file is generated. The placeholder file is
     used to create a dependency between the current target and the target's
     descendants.
 
@@ -272,7 +272,7 @@ def _xls_dslx_library_impl(ctx):
 
     # Parse and type check the DSLX source files.
     dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
-    dummy_file = ctx.actions.declare_file(ctx.attr.name + ".dummy")
+    placeholder_file = ctx.actions.declare_file(ctx.attr.name + ".placeholder")
 
     # With runs outside a monorepo, the execution root for the workspace of
     # the binary can be different with the execroot, requiring to change
@@ -284,13 +284,13 @@ def _xls_dslx_library_impl(ctx):
     dslx_srcs_wsroot_path = ":{}".format(dslx_srcs_wsroot) if dslx_srcs_wsroot != "" else ""
 
     ctx.actions.run_shell(
-        outputs = [dummy_file],
+        outputs = [placeholder_file],
         # The DSLX interpreter executable is a tool needed by the action.
         tools = [dslx_interpreter_tool],
         # The files required for parsing and type checking also requires the
         # DSLX interpreter executable.
         inputs = runfiles.files,
-        # Generate a dummy file for the DSLX source file when the source file is
+        # Generate a placeholder file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
         # TODO (vmirian) 01-05-21 Ideally, create a standalone tool that parses
@@ -309,7 +309,7 @@ def _xls_dslx_library_impl(ctx):
             "exit -1",
             "fi",
             "done",
-            "touch {}".format(dummy_file.path),
+            "touch {}".format(placeholder_file.path),
             "exit 0",
         ]),
         mnemonic = "ParseAndTypeCheckDSLXSourceFile",
@@ -317,8 +317,8 @@ def _xls_dslx_library_impl(ctx):
                            "target %s" % (ctx.attr.name),
     )
 
-    dummy_files_depset = get_transitive_dslx_dummy_files_depset(
-        [dummy_file],
+    placeholder_files_depset = get_transitive_dslx_placeholder_files_depset(
+        [placeholder_file],
         ctx.attr.deps,
     )
     return [
@@ -328,10 +328,10 @@ def _xls_dslx_library_impl(ctx):
                 my_srcs_list,
                 ctx.attr.deps,
             ),
-            dslx_dummy_files = dummy_files_depset,
+            dslx_placeholder_files = placeholder_files_depset,
         ),
         DefaultInfo(
-            files = dummy_files_depset,
+            files = placeholder_files_depset,
             runfiles = runfiles,
         ),
     ]
