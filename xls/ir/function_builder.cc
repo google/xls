@@ -14,11 +14,21 @@
 
 #include "xls/ir/function_builder.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -104,6 +114,21 @@ absl::Status BuilderBase::SetAsTop() {
         absl::StrFormat("Package is not set for builder base: %s.", name()));
   }
   return package()->SetTop(function_.get());
+}
+
+absl::Status BuilderBase::GetError() const {
+  if (!ErrorPending()) {
+    return absl::OkStatus();
+  }
+
+  std::string msg = absl::StrCat(error_msg_, "\n");
+  for (const SourceLocation& loc : error_loc_.locations) {
+    absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
+                          loc.fileno().value(), loc.lineno().value(),
+                          loc.colno().value());
+  }
+  absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
+  return absl::InvalidArgumentError("Could not build IR: " + msg);
 }
 
 BValue BuilderBase::SetError(std::string_view msg, const SourceInfo& loc) {
@@ -959,14 +984,7 @@ absl::StatusOr<Function*> FunctionBuilder::Build() {
 absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     BValue return_value) {
   if (ErrorPending()) {
-    std::string msg = absl::StrCat(error_msg_, "\n");
-    for (const SourceLocation& loc : error_loc_.locations) {
-      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
-                            loc.fileno().value(), loc.lineno().value(),
-                            loc.colno().value());
-    }
-    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
-    return absl::InvalidArgumentError("Could not build IR: " + msg);
+    return GetError();
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
   // down_cast the FunctionBase* to Function*. We know this is safe because
@@ -992,14 +1010,7 @@ Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
                                          absl::Span<const BValue> next_state) {
   if (ErrorPending()) {
-    std::string msg = absl::StrCat(error_msg_, "\n");
-    for (const SourceLocation& loc : error_loc_.locations) {
-      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
-                            loc.fileno().value(), loc.lineno().value(),
-                            loc.colno().value());
-    }
-    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
-    return absl::InvalidArgumentError("Could not build IR: " + msg);
+    return GetError();
   }
   if (!GetType(token)->IsToken()) {
     return absl::InvalidArgumentError(
@@ -1625,14 +1636,7 @@ BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
 
 absl::StatusOr<Block*> BlockBuilder::Build() {
   if (ErrorPending()) {
-    std::string msg = absl::StrCat(error_msg_, "\n");
-    for (const SourceLocation& loc : error_loc_.locations) {
-      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
-                            loc.fileno().value(), loc.lineno().value(),
-                            loc.colno().value());
-    }
-    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
-    return absl::InvalidArgumentError("Could not build IR: " + msg);
+    return GetError();
   }
 
   // down_cast the FunctionBase* to Block*. We know this is safe because

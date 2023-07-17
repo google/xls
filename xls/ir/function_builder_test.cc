@@ -299,6 +299,19 @@ TEST(FunctionBuilderTest, MinDelayNegative) {
                               testing::HasSubstr("Delay cannot be negative")));
 }
 
+TEST(FunctionBuilderTest, MinDelayNegativeWithGetError) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+  XLS_EXPECT_OK(fb.GetError());
+
+  BValue token = fb.AfterAll({});
+  fb.MinDelay(token, /*delay=*/-5);
+
+  EXPECT_THAT(fb.GetError(),
+      status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                               testing::HasSubstr("Delay cannot be negative")));
+}
+
 TEST(FunctionBuilderTest, ArrayIndexBits) {
   Package p("p");
   FunctionBuilder b("f", &p);

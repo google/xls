@@ -21,9 +21,17 @@
 //
 // To this end, DO NOT add node/function headers here.
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/block.h"
@@ -593,9 +601,13 @@ class BuilderBase {
     return BValue(last_node_, this);
   }
 
+  // Returns a detailed pending error, or absl::OkStatus() if no error
+  // is pending.
+  absl::Status GetError() const;
+
  protected:
   BValue SetError(std::string_view msg, const SourceInfo& loc);
-  bool ErrorPending() { return error_pending_; }
+  bool ErrorPending() const { return error_pending_; }
 
   // Constructs and adds a node to the function and returns a corresponding
   // BValue.
