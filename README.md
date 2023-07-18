@@ -274,4 +274,5 @@ project, see our
 *   [Sean Purser-Haskell](https://github.com/spurserh)
 *   [Ted Hong](https://github.com/hongted)
 *   [Ted Xie](https://github.com/ted-xie)
+*   [Tim Callahan](https://github.com/tcal-x)
 *   [Vincent Mirian](https://github.com/vincent-mirian-google)
