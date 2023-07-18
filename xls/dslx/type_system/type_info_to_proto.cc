@@ -32,6 +32,8 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/proto_adaptor_utils.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/type_system/type_info.pb.h"
 
 namespace xls::dslx {
 namespace {
@@ -39,6 +41,8 @@ namespace {
 // Converts the AstNodeKind (C++ enum class) to its protobuf form.
 AstNodeKindProto ToProto(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kConstAssert:
+      return AST_NODE_KIND_CONST_ASSERT;
     case AstNodeKind::kJoin:
       return AST_NODE_KIND_JOIN;
     case AstNodeKind::kTypeAnnotation:

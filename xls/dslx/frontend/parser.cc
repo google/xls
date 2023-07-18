@@ -45,6 +45,7 @@
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
@@ -516,6 +517,24 @@ absl::StatusOr<Expr*> Parser::ParseConditionalExpression(
 
   // No leading 'if' keyword -- we fall back to the RangeExpression production.
   return ParseRangeExpression(bindings, restrictions);
+}
+
+absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(Bindings& bindings) {
+  Pos start = GetPos();
+  XLS_ASSIGN_OR_RETURN(std::string config_name, PopIdentifierOrError());
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kOParen, /*start=*/nullptr,
+                       "Expected a '(' after const_assert! macro"));
+  XLS_ASSIGN_OR_RETURN(Expr * arg, ParseExpression(bindings));
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kCParen, /*start=*/nullptr,
+                       "Expected a ')' after const_assert! argument"));
+  XLS_RETURN_IF_ERROR(
+      DropTokenOrError(TokenKind::kSemi, /*start=*/nullptr,
+                       "Expected a ';' after const_assert! statement"));
+  Pos limit = GetPos();
+  const Span span(start, limit);
+  return module_->Make<ConstAssert>(span, arg);
 }
 
 absl::StatusOr<TypeAlias*> Parser::ParseTypeAlias(bool is_public,
@@ -2663,6 +2682,11 @@ absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings& bindings) {
                peek->IsKeyword(Keyword::kConst)) {
       XLS_ASSIGN_OR_RETURN(Let * let, ParseLet(block_bindings));
       stmts.push_back(module_->Make<Statement>(let));
+      last_expr_had_trailing_semi = true;
+    } else if (peek->IsIdentifier("const_assert!")) {
+      XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
+                           ParseConstAssert(block_bindings));
+      stmts.push_back(module_->Make<Statement>(const_assert));
       last_expr_had_trailing_semi = true;
     } else {
       XLS_VLOG(5) << "ParseBlockExpression; parsing expression with bindings: ["

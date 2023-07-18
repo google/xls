@@ -104,6 +104,13 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConstAssert(const ConstAssert* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<ConstAssert>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->arg())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStatement(const Statement* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     XLS_ASSIGN_OR_RETURN(

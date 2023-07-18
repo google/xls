@@ -79,6 +79,8 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "simple_const_assert")
+
 dslx_lang_test(
     name = "wide_ashr",
     convert_to_ir = False,

@@ -337,6 +337,69 @@ fn f() -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, ConstAssertParametricOk) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn p<N: u32>() -> u32 {
+  const_assert!(N == u32:42);
+  N
+}
+fn main() -> u32 {
+  p<u32:42>()
+})"));
+}
+
+TEST(TypecheckTest, ConstAssertViaConstBindings) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn main() -> () {
+  const M = u32:1;
+  const N = u32:2;
+  const O = M + N;
+  const_assert!(O == u32:3);
+  ()
+})"));
+}
+
+TEST(TypecheckTest, ConstAssertCallFunction) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn is_mol(x: u32) -> bool {
+  x == u32:42
+}
+fn p<N: u32>() -> () {
+  const_assert!(is_mol(N));
+  ()
+}
+fn main() -> () {
+  p<u32:42>()
+})"));
+}
+
+TEST(TypecheckErrorTest, ConstAssertFalse) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> () {
+  const_assert!(false);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! failure: `false`")));
+}
+
+TEST(TypecheckErrorTest, ConstAssertFalseExpr) {
+  EXPECT_THAT(Typecheck(R"(
+fn main() -> () {
+  const_assert!(u32:2 + u32:3 != u32:5);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! failure")));
+}
+
+TEST(TypecheckErrorTest, ConstAssertNonConstexpr) {
+  EXPECT_THAT(Typecheck(R"(
+fn main(p: u32) -> () {
+  const_assert!(p == u32:42);
+})"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("const_assert! expression is not constexpr")));
+}
+
 TEST(TypecheckTest, ForBuiltinInBody) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32 {

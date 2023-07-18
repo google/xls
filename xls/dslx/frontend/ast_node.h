@@ -36,6 +36,7 @@ enum class AstNodeKind {
   kColonRef,
   kConstantDef,
   kConstRef,
+  kConstAssert,
   kEnumDef,
   kFor,
   kFormatMacro,

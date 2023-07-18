@@ -50,9 +50,11 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/token_utils.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
+#include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
@@ -1059,6 +1061,47 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(const Cast* node,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToErrorString(), type->ToErrorString()));
   }
+  return type;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
+    const ConstAssert* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
+                       DeduceAndResolve(node->arg(), ctx));
+  auto want = BitsType::MakeU1();
+  if (*type != *want) {
+    return ctx->TypeMismatchError(
+        node->span(), /*lhs_node=*/node->arg(), *type, nullptr, *want,
+        "const_assert! takes a (constexpr) boolean argument");
+  }
+
+  const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
+  XLS_RETURN_IF_ERROR(
+      ConstexprEvaluator::Evaluate(ctx->import_data(), ctx->type_info(),
+                                   parametric_env, node->arg(), type.get()));
+  if (!ctx->type_info()->IsKnownConstExpr(node->arg())) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("const_assert! expression is not constexpr"));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                       ctx->type_info()->GetConstExpr(node->arg()));
+  if (constexpr_value.IsFalse()) {
+    XLS_ASSIGN_OR_RETURN(auto constexpr_map,
+                         MakeConstexprEnv(ctx->import_data(), ctx->type_info(),
+                                          node->arg(), parametric_env));
+    std::string constexpr_env_str = absl::StrJoin(
+        constexpr_map, ", ", [](std::string* out, const auto& item) {
+          absl::StrAppend(out, item.first, ": ", item.second.ToString());
+        });
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat(
+            "const_assert! failure: `%s` constexpr environment: {%s}",
+            node->arg()->ToString(), constexpr_env_str));
+  }
+
   return type;
 }
 
@@ -2903,6 +2946,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Let)
   DEDUCE_DISPATCH(For)
   DEDUCE_DISPATCH(Cast)
+  DEDUCE_DISPATCH(ConstAssert)
   DEDUCE_DISPATCH(StructDef)
   DEDUCE_DISPATCH(Array)
   DEDUCE_DISPATCH(Attr)
@@ -3026,8 +3070,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
   return type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(AstNode* node,
-                                                               DeduceCtx* ctx) {
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAndResolve(
+    const AstNode* node, DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> deduced,
                        ctx->Deduce(node));
   return Resolve(*deduced, ctx);

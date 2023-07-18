@@ -83,6 +83,7 @@ cc_library(
         ":concrete_type_zero_value",
         ":deduce_ctx",
         ":parametric_constraint",
+        ":parametric_env",
         ":parametric_instantiator",
         ":type_and_parametric_env",
         ":unwrap_meta_type",
@@ -103,9 +104,11 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
+        "//xls/dslx:interp_value",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:token_utils",
     ],
@@ -351,6 +354,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common:proto_adaptor_utils",
         "//xls/dslx:import_data",
+        "//xls/dslx/frontend:ast_node",
     ],
 )
 

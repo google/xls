@@ -323,6 +323,10 @@ class InvocationVisitor : public ExprVisitor {
           absl::visit(Visitor{
                           [&](Expr* e) { return e->AcceptExpr(this); },
                           [&](Let* let) { return HandleLet(let); },
+                          [&](ConstAssert* c) {
+                            // Nothing needed for conversion.
+                            return absl::OkStatus();
+                          },
                           [&](TypeAlias*) {
                             // Nothing needed for conversion.
                             return absl::OkStatus();
@@ -335,6 +339,12 @@ class InvocationVisitor : public ExprVisitor {
 
   absl::Status HandleCast(const Cast* expr) override {
     return expr->expr()->AcceptExpr(this);
+  }
+
+  absl::Status HandleConstAssert(const ConstAssert* n) override {
+    // Constant assertions don't need to be IR converted, so we don't consider
+    // invocations inside of them.
+    return absl::OkStatus();
   }
 
   absl::Status HandleConstantArray(const ConstantArray* expr) override {

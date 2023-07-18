@@ -186,6 +186,16 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(ChannelDecl);
   DEFAULT_HANDLER(ChannelTypeAnnotation);
   DEFAULT_HANDLER(ColonRef);
+
+  absl::Status HandleConstAssert(const ConstAssert* n) override {
+    // We don't need to bytecode-emit constant assertions because they are
+    // constexpr conditions verified by the typechecker.
+    //
+    // Hypothetically we could also double-check they hold at runtime, but we'd
+    // want some kind of flag for that as a paranoia mode.
+    return absl::OkStatus();
+  }
+
   DEFAULT_HANDLER(ConstantArray);
   DEFAULT_HANDLER(ConstantDef);
   absl::Status HandleConstRef(const ConstRef* n) override {
@@ -436,6 +446,12 @@ absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
                                             [&](Let* let) {
                                               last_expression = nullptr;
                                               return HandleLet(let);
+                                            },
+                                            [&](ConstAssert* n) {
+                                              // Nothing to emit, should be
+                                              // resolved via type inference.
+                                              last_expression = nullptr;
+                                              return absl::OkStatus();
                                             },
                                             [&](TypeAlias* ta) {
                                               // Nothing to emit, should be
@@ -860,6 +876,12 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
           },
       },
       resolved_subject);
+}
+
+absl::Status BytecodeEmitter::HandleConstAssert(const ConstAssert* node) {
+  // Since static assertions are checked to hold at typechecking time, we do not
+  // need to check them dynamically via the bytecode execution.
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleConstantArray(const ConstantArray* node) {

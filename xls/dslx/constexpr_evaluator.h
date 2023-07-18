@@ -62,6 +62,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleCast(const Cast* expr) override;
   absl::Status HandleChannelDecl(const ChannelDecl* expr) override;
   absl::Status HandleColonRef(const ColonRef* expr) override;
+  absl::Status HandleConstAssert(const ConstAssert* const_assert) override;
   absl::Status HandleConstantArray(const ConstantArray* expr) override;
   absl::Status HandleConstRef(const ConstRef* expr) override;
   absl::Status HandleFor(const For* expr) override;

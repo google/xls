@@ -219,6 +219,11 @@ class FunctionConverterVisitor : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleConstAssert(const ConstAssert* node) override {
+    // No need to IR-convert these, because they're checked by the typechecker.
+    return absl::OkStatus();
+  }
+
   // A macro used for AST types where we want to visit all children, then call
   // the FunctionConverter handler (i.e. postorder traversal).
 #define TRAVERSE_DISPATCH(__type)                            \
@@ -2620,7 +2625,12 @@ absl::Status FunctionConverter::HandleStatement(const Statement* node) {
                            SetNodeToIr(node, bvalue);
                            return absl::OkStatus();
                          },
-                         [&](TypeAlias* ta) -> absl::Status {
+                         [&](TypeAlias* n) -> absl::Status {
+                           // Nothing to do, all was resolved at type inference
+                           // time.
+                           return absl::OkStatus();
+                         },
+                         [&](ConstAssert* n) -> absl::Status {
                            // Nothing to do, all was resolved at type inference
                            // time.
                            return absl::OkStatus();

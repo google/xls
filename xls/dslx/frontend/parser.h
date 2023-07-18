@@ -97,6 +97,8 @@ class Parser : public TokenParser {
 
   absl::StatusOr<TypeAlias*> ParseTypeAlias(bool is_public, Bindings& bindings);
 
+  absl::StatusOr<ConstAssert*> ParseConstAssert(Bindings& bindings);
+
   Module& module() { return *module_; }
 
  private:

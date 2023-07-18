@@ -40,6 +40,7 @@
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
@@ -150,6 +151,8 @@ ExprOrType ToExprOrType(AstNode* n) {
 
 std::string_view AstNodeKindToString(AstNodeKind kind) {
   switch (kind) {
+    case AstNodeKind::kConstAssert:
+      return "const assert";
     case AstNodeKind::kStatement:
       return "statement";
     case AstNodeKind::kTypeAnnotation:
@@ -1435,6 +1438,21 @@ std::string Spawn::ToStringInternal() const {
                          config_args);
 }
 
+// -- class ConstAssert
+
+ConstAssert::ConstAssert(Module* owner, Span span, Expr* arg)
+    : AstNode(owner), span_(std::move(span)), arg_(arg) {}
+
+ConstAssert::~ConstAssert() = default;
+
+std::vector<AstNode*> ConstAssert::GetChildren(bool want_types) const {
+  return std::vector<AstNode*>{arg()};
+}
+
+std::string ConstAssert::ToString() const {
+  return absl::StrFormat("const_assert!(%s);", arg()->ToString());
+}
+
 // -- class ZeroMacro
 
 ZeroMacro::ZeroMacro(Module* owner, Span span, ExprOrType type)
@@ -2113,7 +2131,7 @@ std::string TupleTypeAnnotation::ToString() const {
 
 // -- class Statement
 
-/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*>>
+/* static */ absl::StatusOr<std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>>
 Statement::NodeToWrapped(AstNode* n) {
   if (auto* e = dynamic_cast<Expr*>(n)) {
     return e;
@@ -2124,12 +2142,14 @@ Statement::NodeToWrapped(AstNode* n) {
   if (auto* l = dynamic_cast<Let*>(n)) {
     return l;
   }
+  if (auto* d = dynamic_cast<ConstAssert*>(n)) {
+    return d;
+  }
   return absl::InvalidArgumentError(absl::StrCat(
       "AST node could not be wrapped in a statement: ", n->GetNodeTypeName()));
 }
 
-Statement::Statement(Module* owner,
-                     std::variant<Expr*, TypeAlias*, Let*> wrapped)
+Statement::Statement(Module* owner, Statement::Wrapped wrapped)
     : AstNode(owner), wrapped_(wrapped) {
   XLS_CHECK_NE(ToAstNode(wrapped_), this);
 }

@@ -49,7 +49,7 @@
 #include "xls/dslx/frontend/ast_node.h"  // IWYU pragma: export
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/foreign_function.h"
+#include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_strings.h"
 
 // Higher-order macro for all the Expr node leaf types (non-abstract).
@@ -77,6 +77,7 @@
   X(String)                        \
   X(StructInstance)                \
   X(Conditional)                   \
+  X(ConstAssert)                   \
   X(TupleIndex)                    \
   X(Unop)                          \
   X(UnrollFor)                     \
@@ -120,7 +121,7 @@
 
 namespace xls::dslx {
 
-constexpr int64_t kRustSpacesPerIndent = 4;
+inline constexpr int64_t kRustSpacesPerIndent = 4;
 
 // Forward decls of all leaf types.
 #define FORWARD_DECL(__type) class __type;
@@ -718,7 +719,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 // Both of those lines are statements.
 class Statement final : public AstNode {
  public:
-  using Wrapped = std::variant<Expr*, TypeAlias*, Let*>;
+  using Wrapped = std::variant<Expr*, TypeAlias*, Let*, ConstAssert*>;
 
   static absl::StatusOr<Wrapped> NodeToWrapped(AstNode* n);
 
@@ -1868,6 +1869,36 @@ class Spawn : public Instantiation {
 
   Invocation* config_;
   Invocation* next_;
+};
+
+// A static assertion that is constexpr-evaluated at compile time (more
+// precisely from an internals perspective: type-checking time); i.e.
+//
+//  const_assert!(u32:1 == u32:2);
+class ConstAssert : public AstNode {
+ public:
+  ConstAssert(Module* owner, Span span, Expr* arg);
+
+  ~ConstAssert() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kConstAssert; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleConstAssert(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ConstAssert"; }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  std::string ToString() const override;
+  std::optional<Span> GetSpan() const override { return span_; }
+
+  const Span& span() const { return span_; }
+  Expr* arg() const { return arg_; }
+
+ private:
+  Span span_;
+  Expr* arg_;
 };
 
 // Represents a call to a variable-argument formatting macro;

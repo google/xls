@@ -39,9 +39,7 @@ struct BytecodeEmitterOptions {
   FormatPreference format_preference;
 };
 
-// Translates a DSLX expression tree into a linear sequence of bytecode
-// (bytecodes?).
-// TODO(rspringer): Handle the rest of the Expr node types.
+// Translates a DSLX expression tree into a linear sequence of bytecodes.
 class BytecodeEmitter : public ExprVisitor {
  public:
   // `caller_bindings` contains the symbolic bindings associated with the
@@ -84,6 +82,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleChannelDecl(const ChannelDecl* node) override;
   absl::Status HandleColonRef(const ColonRef* node) override;
   absl::StatusOr<InterpValue> HandleColonRefInternal(const ColonRef* node);
+  absl::Status HandleConstAssert(const ConstAssert* node) override;
   absl::Status HandleConstantArray(const ConstantArray* node) override;
   absl::Status HandleConstRef(const ConstRef* node) override;
   absl::Status HandleFor(const For* node) override;

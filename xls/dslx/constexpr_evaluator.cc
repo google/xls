@@ -366,6 +366,16 @@ absl::Status ConstexprEvaluator::HandleConstantArray(
   return HandleArray(expr);
 }
 
+absl::Status ConstexprEvaluator::HandleConstAssert(
+    const ConstAssert* const_assert) {
+  GET_CONSTEXPR_OR_RETURN(InterpValue predicate, const_assert->arg());
+  if (predicate.IsTrue()) {
+    return absl::OkStatus();
+  }
+  return TypeInferenceErrorStatus(const_assert->span(), nullptr,
+                                  "const_assert! expression was false");
+}
+
 absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
   return HandleNameRef(expr);
 }

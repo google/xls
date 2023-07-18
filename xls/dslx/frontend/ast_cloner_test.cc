@@ -514,6 +514,18 @@ TEST(AstClonerTest, String) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, ConstAssert) {
+  constexpr std::string_view kProgram = R"(fn main() {
+    const_assert!(true);
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, NormalFor) {
   constexpr std::string_view kProgram = R"(fn main() -> u32 {
     for (i, a): (u32, u32) in range(0, u32:100) {

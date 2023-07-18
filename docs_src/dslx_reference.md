@@ -1890,6 +1890,33 @@ fn test_array_rev() {
 }
 ```
 
+### `const_assert!`
+
+Performs a check on a constant expression that only fails at compile-time (not
+at runtime).
+
+Note that this can only be applied to compile-time-constant expressions.
+
+```dslx
+#[test]
+fn test_const_assert() {
+  const N = u32:42;
+  const_assert!(N >= u32:1<<5);
+}
+```
+
+Keep in mind that all `const_assert!`s in a function evaluate, similar to
+`static_assert` in C++ -- they are effectively part of the type system, so you
+cannot suppress them by putting them in a conditional:
+
+```dslx-snippet
+fn f() {
+  if false {
+    const_assert!(false);  // <-- still fails even inside the "if false"
+  }
+}
+```
+
 ### `clz`, `ctz`
 
 DSLX provides the common "count leading zeroes" and "count trailing zeroes"

@@ -770,6 +770,26 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_const_assert_never_instantiated(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/const_assert_never_instantiated.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `N == u32:42` constexpr environment: {N:'
+        ' u32:64}',
+        stderr,
+    )
+
+  def test_const_assert_non_constexpr(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/const_assert_non_constexpr.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `Y < u32:10` constexpr environment: {Y:'
+        ' u32:11}',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()
