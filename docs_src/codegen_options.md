@@ -53,6 +53,10 @@ control the scheduler.
 -   `--period_relaxation_percent=...` sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     `--clock_period_ps`.
+-   `--worst_case_throughput=...` sets the worst-case throughput bound to use
+    when `--generator=pipeline`. If set, allows scheduling a pipeline with
+    worst-case throughput no slower than once per N cycles (assuming no stalling
+    `recv`s).
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.

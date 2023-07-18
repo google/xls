@@ -246,6 +246,7 @@ def xls_ir_verilog_impl(ctx, src):
         "array_index_bounds_checking",
         "mutual_exclusion_z3_rlimit",
         "inline_procs",
+        "worst_case_throughput",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)

@@ -188,6 +188,16 @@ class SchedulingOptions {
     return period_relaxation_percent_;
   }
 
+  // Sets/gets the worst-case throughput bound to use when scheduling; for
+  // procs, controls the length of state backedges allowed in scheduling.
+  SchedulingOptions& worst_case_throughput(int64_t value) {
+    worst_case_throughput_ = value;
+    return *this;
+  }
+  std::optional<int64_t> worst_case_throughput() const {
+    return worst_case_throughput_;
+  }
+
   // Sets/gets the additional delay added to each receive node.
   //
   // TODO(tedhong): 2022-02-11, Update so that this sets/gets the
@@ -235,6 +245,7 @@ class SchedulingOptions {
   std::optional<int64_t> pipeline_stages_;
   std::optional<int64_t> clock_margin_percent_;
   std::optional<int64_t> period_relaxation_percent_;
+  std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;

@@ -21,6 +21,7 @@
 #include <random>
 
 #include "absl/container/btree_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -344,6 +345,10 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
         return node->op() == Op::kReceive ? base_delay + input_delay
                                           : base_delay;
       });
+
+  if (options.worst_case_throughput().has_value()) {
+    f->SetInitiationInterval(*options.worst_case_throughput());
+  }
 
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {

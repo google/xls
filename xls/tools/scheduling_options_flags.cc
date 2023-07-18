@@ -53,6 +53,11 @@ ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "constraints will be used. Increasing this will trade-off an "
           "increase in critical path delay in favor of decreased register "
           "count. See https://google.github.io/xls/scheduling for details.");
+ABSL_FLAG(int64_t, worst_case_throughput, 1,
+          "Allow scheduling a pipeline with worst-case throughput no slower "
+          "than once per N cycles. If unspecified, enforce throughput 1. Note: "
+          "a higher value for --worst_case_throughput *decreases* the "
+          "worst-case throughput, since this controls inverse throughput.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},
@@ -95,6 +100,10 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
   if (absl::GetFlag(FLAGS_period_relaxation_percent) != 0) {
     scheduling_options.period_relaxation_percent(
         absl::GetFlag(FLAGS_period_relaxation_percent));
+  }
+  if (absl::GetFlag(FLAGS_worst_case_throughput) != 1) {
+    scheduling_options.worst_case_throughput(
+        absl::GetFlag(FLAGS_worst_case_throughput));
   }
   if (absl::GetFlag(FLAGS_additional_input_delay_ps) != 0) {
     scheduling_options.additional_input_delay_ps(
