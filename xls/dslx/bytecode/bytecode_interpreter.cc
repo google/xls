@@ -1503,7 +1503,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
       std::unique_ptr<BytecodeInterpreter> next_interpreter,
       CreateUnique(import_data, next_bf.get(), full_next_args, options));
   proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
-                                         std::move(next_bf), full_next_args});
+                                         std::move(next_bf), full_next_args,
+                                         type_info});
   return absl::OkStatus();
 }
 
@@ -1526,7 +1527,7 @@ absl::StatusOr<ProcRunResult> ProcInstance::Run() {
     }
 
     XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_,
-                                                /*type_info=*/nullptr));
+                                                type_info_));
     return ProcRunResult{.execution_state = ProcExecutionState::kCompleted,
                          .blocked_channel_name = std::nullopt,
                          .progress_made = progress_made};
