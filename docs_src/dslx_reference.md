@@ -1951,6 +1951,24 @@ Example usage:
 See also the
 [IR semantics for the `one_hot` op](./ir_semantics.md#one_hot).
 
+### `one_hot_sel`
+
+Produces the result of 'or'-ing all case values for which the corresponding
+bit of the selector is enabled. In cases where the selector has exactly one bit
+set (it is in one-hot form) this is equivalent to a match.
+
+```
+fn one_hot_sel<N, M>(selector: uN[N], cases: uN[N][M]) -> uN[N]
+```
+
+Evaluates each case value and `or`s each case together if the corresponding bit
+in the selector is set. The first element of `cases` is included if the LSB is
+set, the second if the next least significant bit and so on. If no selector bits
+are set this evaluates to zero. This function is not generally used directly
+though the compiler will when possible synthesize the equivalent code from a
+`match` expression. This is included for testing purposes and for bespoke
+'intrinsic-style programming' use cases.
+
 ### signex
 
 Casting has well-defined extension rules, but in some cases it is necessary to
