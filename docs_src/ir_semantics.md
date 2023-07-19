@@ -853,6 +853,30 @@ where a condition is matched against an ordered set of cases and the first match
 is chosen. It is also useful for one-hot canonicalizing, e.g. as a prelude to
 counting leading/trailing zeros.
 
+#### **`one_hot_sel`**
+
+Produces the result of 'or'-ing all selector values for which the corresponding
+bit of the selector is enabled. In cases where the selector has exactly one bit
+set this is equivalent to a match.
+
+**Syntax**
+
+```
+result = one_hot_sel(selector, cases)
+```
+
+**Types**
+
+Value      | Type
+---------- | ------------
+`selector` | `bits[N]`
+`cases`    | `bits[M][N]`
+`result`   | `bits[M]`
+
+Evaluates each value and `or`s each value together if the corresponding bit in
+the selector is set. The first element of `cases` is included if the LSB is set,
+the second if the next least significant bit and so on. If no selector bits are
+set this evaluates to zero.
 
 ### Control-oriented operations
 
