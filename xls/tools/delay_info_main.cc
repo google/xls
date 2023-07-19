@@ -36,7 +36,7 @@ Dumps delay information about an XLS function including per-node delay
 information and critical-path. Example invocations:
 
 Emit delay information about a function:
-   delay_info_main --delay_model=unit --entry=ENTRY IR_FILE
+   delay_info_main --delay_model=unit --top=ENTRY IR_FILE
 
 Emit delay information about a function including per-stage critical path
 information:
