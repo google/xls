@@ -60,6 +60,9 @@ control the scheduler.
 -   `--additional_input_delay_ps=...` adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.
+-   `--ffi_fallback_delay_ps=...` Delay of foreign function calls if not
+    otherwise specified. If there is no measurement or configuration for the
+    delay of an invoked modules, this is the value used in the scheduler.
 -   `--io_constraints=...` adds constraints to the scheduler. The flag takes a
     comma-separated list of constraints of the form `foo:send:bar:recv:3:5`
     which means that sends on channel `foo` must occur between 3 and 5 cycles

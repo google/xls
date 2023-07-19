@@ -38,6 +38,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/ffi_delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
@@ -243,11 +244,16 @@ absl::Status RealMain(std::string_view ir_path) {
       }
     }
 
-    XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
+    XLS_ASSIGN_OR_RETURN(const DelayEstimator* base_estimator,
                          SetUpDelayEstimator());
+    const FfiDelayEstimator ffi_estimator(
+        scheduling_options.ffi_fallback_delay_ps());
+
+    FirstMatchDelayEstimator delay_estimator("combined_estimator",
+                                             {base_estimator, &ffi_estimator});
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        RunSchedulingPipeline(main(), scheduling_options, delay_estimator));
+        RunSchedulingPipeline(main(), scheduling_options, &delay_estimator));
 
     XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
@@ -263,7 +269,7 @@ absl::Status RealMain(std::string_view ir_path) {
     if (!codegen_flags_proto.output_schedule_path().empty()) {
       XLS_RETURN_IF_ERROR(
           SetTextProtoFile(codegen_flags_proto.output_schedule_path(),
-                           schedule.ToProto(*delay_estimator)));
+                           schedule.ToProto(delay_estimator)));
     }
   } else if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
     if (!codegen_flags_proto.output_schedule_ir_path().empty()) {

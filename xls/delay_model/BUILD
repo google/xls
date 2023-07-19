@@ -40,6 +40,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "ffi_delay_estimator",
+    srcs = ["ffi_delay_estimator.cc"],
+    hdrs = ["ffi_delay_estimator.h"],
+    deps = [
+        ":delay_estimator",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
 cc_test(
     name = "delay_estimator_test",
     srcs = ["delay_estimator_test.cc"],

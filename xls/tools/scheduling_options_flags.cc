@@ -60,6 +60,8 @@ ABSL_FLAG(int64_t, worst_case_throughput, 1,
           "worst-case throughput, since this controls inverse throughput.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
+ABSL_FLAG(int64_t, ffi_fallback_delay_ps, 0,
+          "Delay of foreign function calls if not otherwise specified.");
 ABSL_FLAG(std::vector<std::string>, io_constraints, {},
           "A comma-separated list of IO constraints, each of which is "
           "specified by a literal like `foo:send:bar:recv:3:5` which means "
@@ -109,6 +111,11 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
     scheduling_options.additional_input_delay_ps(
         absl::GetFlag(FLAGS_additional_input_delay_ps));
   }
+  if (absl::GetFlag(FLAGS_ffi_fallback_delay_ps) != 0) {
+    scheduling_options.ffi_fallback_delay_ps(
+        absl::GetFlag(FLAGS_ffi_fallback_delay_ps));
+  }
+
   for (const std::string& c : absl::GetFlag(FLAGS_io_constraints)) {
     std::vector<std::string> components = absl::StrSplit(c, ':');
     if (components.size() != 6) {

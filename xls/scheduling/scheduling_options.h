@@ -210,6 +210,15 @@ class SchedulingOptions {
     return additional_input_delay_ps_;
   }
 
+  // Set fallback estimation for ffi calls used in absence of more information.
+  SchedulingOptions& ffi_fallback_delay_ps(int64_t value) {
+    ffi_fallback_delay_ps_ = value;
+    return *this;
+  }
+  std::optional<int64_t> ffi_fallback_delay_ps() const {
+    return ffi_fallback_delay_ps_;
+  }
+
   // Add a constraint to the set of scheduling constraints.
   SchedulingOptions& add_constraint(const SchedulingConstraint& constraint) {
     constraints_.push_back(constraint);
@@ -247,6 +256,7 @@ class SchedulingOptions {
   std::optional<int64_t> period_relaxation_percent_;
   std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
+  std::optional<int64_t> ffi_fallback_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;

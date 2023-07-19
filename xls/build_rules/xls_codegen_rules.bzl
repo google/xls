@@ -210,6 +210,7 @@ def xls_ir_verilog_impl(ctx, src):
         "additional_input_delay_ps",
         "pipeline_stages",
         "delay_model",
+        "ffi_fallback_delay_ps",
         "io_constraints",
         "receives_first_sends_last",
         "top",
