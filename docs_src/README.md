@@ -235,6 +235,7 @@ project, see our
 [good first issues](https://github.com/google/xls/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)!
 
 *   [Albert Magyar](https://github.com/albert-magyar)
+*   [Alex Light](https://github.com/allight)
 *   [Amin Kalantar](https://github.com/aminiok1)
 *   [Balint Christian](https://github.com/cbalint13)
 *   [Blaok](https://github.com/Blaok)
