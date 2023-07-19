@@ -26,7 +26,9 @@ DSLX implementation of
 which computes `C = A * B + C`:
 
 ```dslx
-import xls.modules.fp.fp32_fma
+import float32
+
+type F32 = float32::F32;
 
 proc Fmac {
   input_a_consumer: chan<F32> in;
@@ -41,7 +43,7 @@ proc Fmac {
   next(tok: token, state: F32) {
     let (tok_a, input_a) = recv(tok, input_a_consumer);
     let (tok_b, input_b) = recv(tok, input_b_consumer);
-    let result = fp32_fma::fp32_fma(input_a, input_b, state);
+    let result = float32::fma(input_a, input_b, state);
     let tok = join(tok_a, tok_b);
     let tok = send(tok, output_producer, result);
     (result,)
