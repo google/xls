@@ -26,6 +26,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -715,6 +716,18 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
 
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
+
+  // See if the function is named with a `_test` suffix but not marked with a
+  // test annotation -- this is likely to be a user error.
+  if (absl::EndsWith(f->identifier(), "_test")) {
+    AstNode* parent = f->parent();
+    if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
+      ctx->warnings()->Add(
+          f->span(), absl::StrFormat("Function `%s` ends with `_test` but is "
+                                     "not marked as a unit test via #[test]",
+                                     f->identifier()));
+    }
+  }
 
   // Every top-level proc needs its own type info (that's shared between both
   // proc functions). Otherwise, the implicit channels created during top-level

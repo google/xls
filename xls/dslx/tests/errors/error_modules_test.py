@@ -519,6 +519,27 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         want_err_retcode=True,
     )
 
+  def test_missing_annotation_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/missing_test_annotation_warning.x',
+        warnings_as_errors=False,
+        want_err_retcode=False,
+    )
+    self.assertIn('missing_test_annotation_warning.x:19:1-27:2', stderr)
+    self.assertIn(
+        (
+            'Function `two_plus_two_test` ends with `_test` but is not marked'
+            ' as a unit test via #[test]'
+        ),
+        stderr,
+    )
+
+    self._run(
+        'xls/dslx/tests/errors/trailing_comma_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True,
+    )
+
   def test_unterminated_proc(self):
     stderr = self._run('xls/dslx/tests/errors/unterminated_proc.x')
     self.assertIn('unterminated_proc.x:23:1-23:1', stderr)

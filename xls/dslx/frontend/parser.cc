@@ -2781,7 +2781,9 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
             "Test function '%s' has same name as module member @ %s",
             f->identifier(), ToAstNode(**member)->GetSpan()->ToString()));
   }
-  return module_->Make<TestFunction>(f);
+  TestFunction* tf = module_->Make<TestFunction>(f);
+  tf->SetParentage();  // Ensure the function has its parent marked.
+  return tf;
 }
 
 absl::StatusOr<TestProc*> Parser::ParseTestProc(Bindings& bindings) {
