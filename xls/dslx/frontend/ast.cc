@@ -273,17 +273,6 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
 
-absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e) {
-  if (auto* n = dynamic_cast<NameRef*>(e)) {
-    return ColonRef::Subject(n);
-  }
-  if (auto* n = dynamic_cast<ColonRef*>(e)) {
-    return ColonRef::Subject(n);
-  }
-  return absl::InvalidArgumentError(
-      "Expression AST node is not a ColonRef subject.");
-}
-
 AnyNameDef TypeDefinitionGetNameDef(const TypeDefinition& td) {
   return absl::visit(
       Visitor{
@@ -1569,15 +1558,6 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
-std::optional<int64_t> StructDef::GetMemberIndex(std::string_view name) const {
-  for (int64_t i = 0; i < members_.size(); ++i) {
-    if (members_[i].first->identifier() == name) {
-      return i;
-    }
-  }
-  return std::nullopt;
-}
-
 // -- class StructInstance
 
 StructInstance::StructInstance(
@@ -1630,17 +1610,6 @@ std::string Unop::ToStringInternal() const {
     Parenthesize(&operand);
   }
   return absl::StrFormat("%s%s", UnopKindToString(unop_kind_), operand);
-}
-
-absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s) {
-  if (s == "!") {
-    return UnopKind::kInvert;
-  }
-  if (s == "-") {
-    return UnopKind::kNegate;
-  }
-  return absl::InvalidArgumentError(
-      absl::StrFormat("Invalid UnopKind string: \"%s\"", s));
 }
 
 std::string UnopKindToString(UnopKind k) {
@@ -1897,6 +1866,11 @@ std::string Function::ToUndecoratedString(std::string_view identifier) const {
       });
   return absl::StrFormat("%s(%s) %s", identifier, params_str,
                          body_->ToString());
+}
+
+absl::btree_set<std::string> Function::GetFreeParametricKeySet() const {
+  std::vector<std::string> keys = GetFreeParametricKeys();
+  return absl::btree_set<std::string>(keys.begin(), keys.end());
 }
 
 std::vector<std::string> Function::GetFreeParametricKeys() const {

@@ -214,8 +214,6 @@ class Parser : public TokenParser {
     return parsed;
   }
 
-  absl::StatusOr<Expr*> ParseDim(Bindings& bindings);
-
   // Parses dimension on a type; e.g. `u32[3]` => `(3,)`; `uN[2][3]` => `(3,
   // 2)`.
   absl::StatusOr<std::vector<Expr*>> ParseDims(Bindings& bindings,
@@ -244,8 +242,6 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseStructInstance(Bindings& bindings,
                                             TypeAnnotation* type = nullptr);
-
-  absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings& bindings);
 
   absl::StatusOr<std::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
       Bindings& bindings, std::string_view context = "");
@@ -277,9 +273,6 @@ class Parser : public TokenParser {
 
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings& bindings);
-
-  absl::StatusOr<std::variant<Number*, NameRef*>> ParseNumOrConstRef(
-      Bindings& bindings);
 
   absl::StatusOr<Let*> ParseLet(Bindings& bindings);
 

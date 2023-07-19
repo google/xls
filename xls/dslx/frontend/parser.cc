@@ -569,17 +569,6 @@ absl::StatusOr<Number*> Parser::TokenToNumber(const Token& tok) {
                                /*type=*/nullptr);
 }
 
-absl::StatusOr<Expr*> Parser::ParseDim(Bindings& bindings) {
-  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-  if (peek->kind() == TokenKind::kNumber) {
-    return TokenToNumber(PopTokenOrDie());
-  }
-  XLS_ASSIGN_OR_RETURN(
-      auto variant,
-      ParseNameOrColonRef(bindings, "expected a valid dimension"));
-  return ToExprNode(variant);
-}
-
 absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings& bindings,
                                                 TypeAnnotation* type) {
   auto type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
@@ -2541,16 +2530,6 @@ absl::StatusOr<TypeAnnotation*> Parser::MakeTypeRefTypeAnnotation(
     elem_type = module_->Make<ArrayTypeAnnotation>(span, elem_type, dim);
   }
   return elem_type;
-}
-
-absl::StatusOr<Expr*> Parser::ParseCastOrStructInstance(Bindings& bindings) {
-  XLS_VLOG(5) << "ParseCastOrStructInstance @ " << GetPos();
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
-  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
-  if (peek_is_colon) {
-    return ParseCast(bindings, type);
-  }
-  return ParseStructInstance(bindings, type);
 }
 
 absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>

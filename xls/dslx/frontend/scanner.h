@@ -118,9 +118,10 @@ class Token {
  public:
   Token(TokenKind kind, Span span,
         std::optional<std::string> value = std::nullopt)
-      : kind_(kind), span_(span), payload_(value) {}
+      : kind_(kind), span_(std::move(span)), payload_(value) {}
+
   Token(Span span, Keyword keyword)
-      : kind_(TokenKind::kKeyword), span_(span), payload_(keyword) {}
+      : kind_(TokenKind::kKeyword), span_(std::move(span)), payload_(keyword) {}
 
   TokenKind kind() const { return kind_; }
   const Span& span() const { return span_; }
@@ -138,10 +139,6 @@ class Token {
   }
 
   absl::StatusOr<int64_t> GetValueAsInt64() const;
-
-  const std::variant<std::optional<std::string>, Keyword>& GetPayload() const {
-    return payload_;
-  }
 
   bool IsKeywordIn(const std::unordered_set<Keyword>& targets) const {
     return kind_ == TokenKind::kKeyword &&

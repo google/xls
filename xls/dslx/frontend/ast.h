@@ -174,7 +174,6 @@ class TypeAnnotation;
 
 using ExprOrType = std::variant<Expr*, TypeAnnotation*>;
 Span ExprOrTypeSpan(const ExprOrType &expr_or_type);
-std::string ExprOrTypeToString(const ExprOrType &expr_or_type);
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
@@ -387,7 +386,6 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   const std::vector<ExprOrType>& parametrics() const { return parametrics_; }
-  bool HasParametrics() const { return !parametrics_.empty(); }
 
  private:
   TypeRef* type_ref_;
@@ -614,7 +612,6 @@ class Expr : public AstNode {
   ~Expr() override;
 
   const Span& span() const { return span_; }
-  void set_span(const Span& span) { span_ = span; }
   std::optional<Span> GetSpan() const override { return span_; }
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
@@ -1216,8 +1213,6 @@ class ColonRef : public Expr {
   std::string attr_;
 };
 
-absl::StatusOr<ColonRef::Subject> ToColonRefSubject(Expr* e);
-
 // Represents a function parameter.
 class Param : public AstNode {
  public:
@@ -1258,7 +1253,6 @@ enum class UnopKind {
   kNegate,  // two's complement aritmetic negation (~x+1)
 };
 
-absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s);
 std::string UnopKindToString(UnopKind k);
 
 // Represents a unary operation expression; e.g. `!x`.
@@ -1548,10 +1542,7 @@ class Function : public AstNode {
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
   std::vector<std::string> GetFreeParametricKeys() const;
-  absl::btree_set<std::string> GetFreeParametricKeySet() const {
-    std::vector<std::string> keys = GetFreeParametricKeys();
-    return absl::btree_set<std::string>(keys.begin(), keys.end());
-  }
+  absl::btree_set<std::string> GetFreeParametricKeySet() const;
   NameDef* name_def() const { return name_def_; }
 
   TypeAnnotation* return_type() const { return return_type_; }
@@ -2138,9 +2129,6 @@ class StructDef : public AstNode {
   }
   std::vector<std::string> GetMemberNames() const;
 
-  // Returns the index at which the member name is "name".
-  std::optional<int64_t> GetMemberIndex(std::string_view name) const;
-
   int64_t size() const { return members_.size(); }
 
  private:
@@ -2203,8 +2191,6 @@ class StructInstance : public Expr {
   StructRef struct_def() const { return struct_ref_; }
 
  private:
-  AstNode* GetStructNode() const { return ToAstNode(struct_ref_); }
-
   Precedence GetPrecedenceInternal() const final {
     return Precedence::kStrongest;
   }
@@ -3110,20 +3096,11 @@ class Module : public AstNode {
   // identifier, or a NotFound error if none can be found.
   absl::StatusOr<ConstantDef*> GetConstantDef(std::string_view target);
 
-  absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
-    return GetTopWithTByName<ConstantDef>();
-  }
   absl::flat_hash_map<std::string, Import*> GetImportByName() const {
     return GetTopWithTByName<Import>();
   }
   absl::flat_hash_map<std::string, Function*> GetFunctionByName() const {
     return GetTopWithTByName<Function>();
-  }
-  absl::flat_hash_map<std::string, Proc*> GetProcByName() const {
-    return GetTopWithTByName<Proc>();
-  }
-  std::vector<TypeAlias*> GetTypeAliases() const {
-    return GetTopWithT<TypeAlias>();
   }
   std::vector<QuickCheck*> GetQuickChecks() const {
     return GetTopWithT<QuickCheck>();
@@ -3132,18 +3109,6 @@ class Module : public AstNode {
     return GetTopWithT<StructDef>();
   }
   std::vector<Proc*> GetProcs() const { return GetTopWithT<Proc>(); }
-  std::vector<TestProc*> GetProcTests() const {
-    return GetTopWithT<TestProc>();
-  }
-  std::vector<Function*> GetFunctions() const {
-    return GetTopWithT<Function>();
-  }
-  std::vector<TestFunction*> GetFunctionTests() const {
-    return GetTopWithT<TestFunction>();
-  }
-  std::vector<ConstantDef*> GetConstantDefs() const {
-    return GetTopWithT<ConstantDef>();
-  }
 
   // Returns the identifiers for all functions within this module (in the order
   // in which they are defined).
