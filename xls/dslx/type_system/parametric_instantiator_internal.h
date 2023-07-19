@@ -15,8 +15,12 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 #define XLS_DSLX_TYPE_SYSTEM_PARAMETRIC_INSTANTIATOR_INTERNAL_H_
 
+#include <string>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/deduce_ctx.h"
 #include "xls/dslx/type_system/parametric_constraint.h"
@@ -62,17 +66,18 @@ class ParametricInstantiator {
   virtual std::string_view GetKindName() = 0;
 
  protected:
-  // Binds param_type via arg_type, updating 'parametric_env_'.
+  // Binds param_type via arg_type, updating 'parametric_env_map_'.
   absl::Status InstantiateOneArg(int64_t i, const ConcreteType& param_type,
                                  const ConcreteType& arg_type);
 
   // Verifies all constraints and then resolves possibly-parametric type
-  // 'annotated' via 'parametric_env_'.
+  // 'annotated' via 'parametric_env_map_'.
   absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
       const ConcreteType& annotated);
 
-  const absl::flat_hash_map<std::string, InterpValue>& parametric_env() const {
-    return parametric_env_;
+  const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map()
+      const {
+    return parametric_env_map_;
   }
 
   absl::Span<const InstantiateArg> args() const { return args_; }
@@ -81,21 +86,6 @@ class ParametricInstantiator {
   DeduceCtx& ctx() { return *ctx_; }
 
  private:
-  // Verifies that all parametrics adhere to signature constraints.
-  //
-  // Take the following function signature for example:
-  //
-  //  fn [X: u32, Y: u32 = X + X] f(x: bits[X], y: bits[Y]) -> bits[Y]
-  //
-  // The parametric Y has two constraints based only off the signature:
-  // * it must match the bitwidth of the argument y
-  // * it must be equal to X+X
-  //
-  // This function is responsible for computing any derived parametrics and
-  // asserting that their values are consistent with other constraints (argument
-  // types).
-  absl::Status VerifyConstraints();
-
   // Span for the instantiation; e.g. of the invocation AST node being
   // instantiated.
   Span span_;
@@ -118,7 +108,7 @@ class ParametricInstantiator {
 
   absl::flat_hash_map<std::string, std::unique_ptr<ConcreteType>>
       parametric_binding_types_;
-  absl::flat_hash_map<std::string, InterpValue> parametric_env_;
+  absl::flat_hash_map<std::string, InterpValue> parametric_env_map_;
 };
 
 // Instantiates a parametric function invocation.
