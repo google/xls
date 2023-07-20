@@ -19,7 +19,7 @@ set -e
 readonly OUTPUT_BASE="$(bazel info output_base)"
 
 readonly COMPDB_SCRIPT="${OUTPUT_BASE}/external/com_grail_bazel_compdb/generate.py"
-[ -r "${COMPDB_SCRIPT}" ] || bazel fetch ...
+[ -r "${COMPDB_SCRIPT}" ] || bazel fetch @com_grail_bazel_compdb//...
 
 python3 "${COMPDB_SCRIPT}"
 
