@@ -31,27 +31,31 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode.h"
+#include "xls/dslx/bytecode/bytecode_cache_interface.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/frame.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/parametric_env.h"
+#include "xls/dslx/type_system/type_info.h"
+#include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 namespace {
@@ -186,8 +190,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
   XLS_VLOG(10) << "Running bytecode: " << bytecode.ToString()
                << " depth before: " << stack_.size();
   switch (bytecode.op()) {
-    case Bytecode::Op::kAdd: {
-      XLS_RETURN_IF_ERROR(EvalAdd(bytecode));
+    case Bytecode::Op::kUAdd: {
+      XLS_RETURN_IF_ERROR(EvalAdd(bytecode, /*is_signed=*/false));
+      break;
+    }
+    case Bytecode::Op::kSAdd: {
+      XLS_RETURN_IF_ERROR(EvalAdd(bytecode, /*is_signed=*/true));
       break;
     }
     case Bytecode::Op::kAnd: {
@@ -302,8 +310,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalMatchArm(bytecode));
       break;
     }
-    case Bytecode::Op::kMul: {
-      XLS_RETURN_IF_ERROR(EvalMul(bytecode));
+    case Bytecode::Op::kSMul: {
+      XLS_RETURN_IF_ERROR(EvalMul(bytecode, /*is_signed=*/true));
+      break;
+    }
+    case Bytecode::Op::kUMul: {
+      XLS_RETURN_IF_ERROR(EvalMul(bytecode, /*is_signed=*/false));
       break;
     }
     case Bytecode::Op::kNe: {
@@ -359,8 +371,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalStore(bytecode));
       break;
     }
-    case Bytecode::Op::kSub: {
-      XLS_RETURN_IF_ERROR(EvalSub(bytecode));
+    case Bytecode::Op::kUSub: {
+      XLS_RETURN_IF_ERROR(EvalSub(bytecode, /*is_signed=*/false));
+      break;
+    }
+    case Bytecode::Op::kSSub: {
+      XLS_RETURN_IF_ERROR(EvalSub(bytecode, /*is_signed=*/true));
       break;
     }
     case Bytecode::Op::kSwap: {
@@ -395,9 +411,27 @@ absl::Status BytecodeInterpreter::EvalBinop(
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Add(rhs);
+absl::Status BytecodeInterpreter::EvalAdd(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Add(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) + make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -869,9 +903,27 @@ absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Mul(rhs);
+absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Mul(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) * make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -1088,9 +1140,27 @@ absl::StatusOr<std::optional<int64_t>> BytecodeInterpreter::EvalJumpRelIf(
   return std::nullopt;
 }
 
-absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
-  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
-    return lhs.Sub(rhs);
+absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode,
+                                          bool is_signed) {
+  return EvalBinop([&](const InterpValue& lhs,
+                       const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+    XLS_ASSIGN_OR_RETURN(InterpValue output, lhs.Sub(rhs));
+
+    // Slow path: when rollover warning hook is enabled.
+    if (options_.rollover_hook() != nullptr) {
+      auto make_big_int = [is_signed](const Bits& bits) {
+        return is_signed ? BigInt::MakeSigned(bits)
+                         : BigInt::MakeUnsigned(bits);
+      };
+      bool rollover =
+          make_big_int(lhs.GetBitsOrDie()) - make_big_int(rhs.GetBitsOrDie()) !=
+          make_big_int(output.GetBitsOrDie());
+      if (rollover) {
+        options_.rollover_hook()(bytecode.source_span());
+      }
+    }
+
+    return output;
   });
 }
 
@@ -1330,7 +1400,7 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
       Bytecode(span, Bytecode::Op::kLoad, Bytecode::SlotIndex(1)));
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecodes.push_back(Bytecode(span, Bytecode::Op::kAdd));
+  bytecodes.push_back(Bytecode(span, Bytecode::Op::kUAdd));
   bytecodes.push_back(
       Bytecode(span, Bytecode::Op::kStore, Bytecode::SlotIndex(1)));
 

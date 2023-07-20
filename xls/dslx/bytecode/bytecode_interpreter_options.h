@@ -24,6 +24,7 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/format_preference.h"
@@ -35,6 +36,8 @@ using PostFnEvalHook = std::function<absl::Status(
     const InterpValue& got)>;
 
 using TraceHook = std::function<void(std::string_view)>;
+
+using RolloverHook = std::function<void(const Span&)>;
 
 class BytecodeInterpreterOptions {
  public:
@@ -54,6 +57,12 @@ class BytecodeInterpreterOptions {
     return *this;
   }
   const TraceHook& trace_hook() const { return trace_hook_; }
+
+  BytecodeInterpreterOptions& rollover_hook(RolloverHook hook) {
+    rollover_hook_ = std::move(hook);
+    return *this;
+  }
+  const RolloverHook& rollover_hook() const { return rollover_hook_; }
 
   // Whether to log values sent and received on channels as trace messages.
   BytecodeInterpreterOptions& trace_channels(bool value) {
@@ -90,6 +99,7 @@ class BytecodeInterpreterOptions {
  private:
   PostFnEvalHook post_fn_eval_hook_ = nullptr;
   TraceHook trace_hook_ = nullptr;
+  RolloverHook rollover_hook_ = nullptr;
   bool trace_channels_ = false;
   std::optional<int64_t> max_ticks_;
   bool validate_final_stack_depth_ = true;

@@ -102,7 +102,10 @@ class BytecodeInterpreter {
   // when the PC is already pointing to the end of the bytecode.
   absl::Status EvalNextInstruction();
 
-  absl::Status EvalAdd(const Bytecode& bytecode);
+  absl::Status EvalAdd(const Bytecode& bytecode, bool is_signed);
+  absl::Status EvalSub(const Bytecode& bytecode, bool is_signed);
+  absl::Status EvalMul(const Bytecode& bytecode, bool is_signed);
+
   absl::Status EvalAnd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
   absl::Status EvalCast(const Bytecode& bytecode, bool is_checked = false);
@@ -126,7 +129,6 @@ class BytecodeInterpreter {
   absl::Status EvalLogicalOr(const Bytecode& bytecode);
   absl::Status EvalLt(const Bytecode& bytecode);
   absl::Status EvalMatchArm(const Bytecode& bytecode);
-  absl::Status EvalMul(const Bytecode& bytecode);
   absl::Status EvalNe(const Bytecode& bytecode);
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);
@@ -147,7 +149,6 @@ class BytecodeInterpreter {
         "config.");
   }
   absl::Status EvalStore(const Bytecode& bytecode);
-  absl::Status EvalSub(const Bytecode& bytecode);
   absl::Status EvalSwap(const Bytecode& bytecode);
   absl::Status EvalTrace(const Bytecode& bytecode);
   absl::Status EvalWidthSlice(const Bytecode& bytecode);

@@ -2512,38 +2512,21 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
     }
   }
 
+  if (node->fifo_depth().has_value()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> fifo_depth,
+                         ctx->Deduce(node->fifo_depth().value()));
+    auto want = BitsType::MakeU32();
+    if (*fifo_depth != *want) {
+      return ctx->TypeMismatchError(
+          node->span(), node->fifo_depth().value(), *fifo_depth, nullptr, *want,
+          "Channel declaration FIFO depth must be a u32.");
+    }
+  }
+
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.push_back(std::move(producer));
   elements.push_back(std::move(consumer));
   return std::make_unique<TupleType>(std::move(elements));
-}
-
-// Note: return value will never be nullptr.
-absl::StatusOr<std::unique_ptr<ChannelType>> DeduceChannelType(
-    const Expr* node, std::string_view primitive, std::string_view signature,
-    ChannelDirection needed_dir, DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_arg_type,
-                       Deduce(node, ctx));
-  ChannelType* channel_type =
-      dynamic_cast<ChannelType*>(channel_arg_type.get());
-  if (channel_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), channel_arg_type.get(),
-        absl::StrFormat("%s requires a channel argument: %s", primitive,
-                        signature));
-  }
-
-  if (channel_type->direction() != needed_dir) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrCat("Cannot ", primitive, " on an ",
-                     ChannelDirectionToString(channel_type->direction()),
-                     "put channel."));
-  }
-
-  // Note: this is wrapped immediately below in its more-derived type form.
-  (void)channel_arg_type.release();
-  return absl::WrapUnique(channel_type);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,

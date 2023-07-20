@@ -45,8 +45,11 @@ namespace xls::dslx {
 namespace {
 
 absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
-  if (s == "add") {
-    return Bytecode::Op::kAdd;
+  if (s == "uadd") {
+    return Bytecode::Op::kUAdd;
+  }
+  if (s == "sadd") {
+    return Bytecode::Op::kSAdd;
   }
   if (s == "and") {
     return Bytecode::Op::kAnd;
@@ -129,8 +132,11 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "match_arm") {
     return Bytecode::Op::kMatchArm;
   }
-  if (s == "mul") {
-    return Bytecode::Op::kMul;
+  if (s == "smul") {
+    return Bytecode::Op::kSMul;
+  }
+  if (s == "umul") {
+    return Bytecode::Op::kUMul;
   }
   if (s == "ne") {
     return Bytecode::Op::kNe;
@@ -171,8 +177,11 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "store") {
     return Bytecode::Op::kStore;
   }
-  if (s == "sub") {
-    return Bytecode::Op::kSub;
+  if (s == "ssub") {
+    return Bytecode::Op::kSSub;
+  }
+  if (s == "usub") {
+    return Bytecode::Op::kUSub;
   }
   if (s == "swap") {
     return Bytecode::Op::kSwap;
@@ -194,8 +203,10 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
 
 std::string OpToString(Bytecode::Op op) {
   switch (op) {
-    case Bytecode::Op::kAdd:
-      return "add";
+    case Bytecode::Op::kSAdd:
+      return "sadd";
+    case Bytecode::Op::kUAdd:
+      return "uadd";
     case Bytecode::Op::kAnd:
       return "and";
     case Bytecode::Op::kCall:
@@ -250,8 +261,10 @@ std::string OpToString(Bytecode::Op op) {
       return "logical_or";
     case Bytecode::Op::kMatchArm:
       return "match_arm";
-    case Bytecode::Op::kMul:
-      return "mul";
+    case Bytecode::Op::kUMul:
+      return "umul";
+    case Bytecode::Op::kSMul:
+      return "smul";
     case Bytecode::Op::kNe:
       return "ne";
     case Bytecode::Op::kNegate:
@@ -278,8 +291,10 @@ std::string OpToString(Bytecode::Op op) {
       return "spawn";
     case Bytecode::Op::kStore:
       return "store";
-    case Bytecode::Op::kSub:
-      return "sub";
+    case Bytecode::Op::kSSub:
+      return "ssub";
+    case Bytecode::Op::kUSub:
+      return "usub";
     case Bytecode::Op::kSwap:
       return "swap";
     case Bytecode::Op::kTrace:

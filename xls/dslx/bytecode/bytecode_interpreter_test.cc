@@ -14,6 +14,7 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 
 #include <cstdint>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,12 +27,15 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/file/temp_file.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode/builtins.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
+#include "xls/dslx/bytecode/bytecode_interpreter_options.h"
 #include "xls/dslx/bytecode/interpreter_stack.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -2389,6 +2393,150 @@ TEST(ByteCodeInterpreterTest, CheckHighlightLineByLineDifferences) {
             "> queen\n"
             "< jack\n"
             "< queen\n");
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForAdd) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x + y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (x + y >= 4) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForSub) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x - y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (static_cast<int64_t>(x) - static_cast<int64_t>(y) <
+        0) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForUMul) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: u2, y: u2) -> u2 {
+  x * y
+}
+)";
+
+  for (uint64_t flat = 0; flat < 16; ++flat) {
+    uint64_t x = (flat >> 0) & 0x3;
+    uint64_t y = (flat >> 2) & 0x3;
+    std::vector<Span> source_spans;
+    XLS_ASSERT_OK_AND_ASSIGN(
+        InterpValue result,
+        Interpret(kProgram, "main",
+                  {
+                      InterpValue::MakeUBits(2, x),
+                      InterpValue::MakeUBits(2, y),
+                  },
+                  BytecodeInterpreterOptions().rollover_hook(
+                      [&](const Span& s) { source_spans.push_back(s); })));
+    XLS_VLOG(1) << "flat: " << std::hex << flat << " x: " << x << " y: " << y
+                << " result: " << result.ToString();
+
+    for (const Span& source_span : source_spans) {
+      XLS_VLOG(1) << "Rollover span: " << source_span;
+    }
+
+    if (x * y >= 4) {  // We should have a rollover in these cases.
+      ASSERT_EQ(source_spans.size(), 1);
+      EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+    } else {
+      ASSERT_TRUE(source_spans.empty());
+    }
+  }
+}
+
+TEST(BytecodeInterpreterTest, RolloverHookTestForSMul) {
+  constexpr std::string_view kProgram = R"(
+fn main(x: s2, y: s2) -> s2 {
+  x * y
+}
+)";
+
+  for (int64_t x : {-2, -1, 0, 1}) {
+    for (int64_t y : {-2, -1, 0, 1}) {
+      std::vector<Span> source_spans;
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpValue result,
+          Interpret(kProgram, "main",
+                    {
+                        InterpValue::MakeSBits(2, x),
+                        InterpValue::MakeSBits(2, y),
+                    },
+                    BytecodeInterpreterOptions().rollover_hook(
+                        [&](const Span& s) { source_spans.push_back(s); })));
+
+      int64_t got = result.GetBitValueInt64().value();
+      bool rollover = x * y != got;
+      XLS_VLOG(1) << " x: " << x << " y: " << y
+                  << " result: " << result.ToString()
+                  << " rollover: " << rollover;
+      if (rollover) {
+        ASSERT_EQ(source_spans.size(), 1);
+        EXPECT_EQ(source_spans.at(0).ToString(), "test.x:3:5-3:6");
+      } else {
+        ASSERT_TRUE(source_spans.empty());
+      }
+    }
+  }
 }
 
 }  // namespace

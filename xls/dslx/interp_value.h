@@ -277,6 +277,10 @@ class InterpValue {
   absl::StatusOr<InterpValue> ZeroExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> SignExt(int64_t new_bit_count) const;
   absl::StatusOr<InterpValue> Concat(const InterpValue& other) const;
+
+  // Performs an add of two uN[N]s and returns a 2-tuple of:
+  //
+  //  `(carry: bool, sum: uN[N])`
   absl::StatusOr<InterpValue> AddWithCarry(const InterpValue& other) const;
 
   absl::StatusOr<InterpValue> Add(const InterpValue& other) const;

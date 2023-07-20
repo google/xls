@@ -360,13 +360,24 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<bool> BytecodeEmitter::IsBitsTypeNodeSigned(
+    const AstNode* node) const {
+  XLS_RET_CHECK(type_info_ != nullptr);
+  std::optional<const ConcreteType*> maybe_type = type_info_->GetItem(node);
+  XLS_RET_CHECK(maybe_type.has_value()) << "node: " << node->ToString();
+  return IsSigned(*maybe_type.value());
+}
+
 absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   switch (node->binop_kind()) {
-    case BinopKind::kAdd:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
+    case BinopKind::kAdd: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSAdd : Bytecode::Op::kUAdd));
       break;
+    }
     case BinopKind::kAnd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAnd));
       break;
@@ -397,9 +408,12 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
     case BinopKind::kLt:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLt));
       break;
-    case BinopKind::kMul:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMul));
+    case BinopKind::kMul: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSMul : Bytecode::Op::kUMul));
       break;
+    }
     case BinopKind::kNe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNe));
       break;
@@ -412,9 +426,12 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
     case BinopKind::kShr:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShr));
       break;
-    case BinopKind::kSub:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSub));
+    case BinopKind::kSub: {
+      XLS_ASSIGN_OR_RETURN(bool is_signed, IsBitsTypeNodeSigned(node));
+      bytecode_.push_back(Bytecode(
+          node->span(), is_signed ? Bytecode::Op::kSSub : Bytecode::Op::kUSub));
       break;
+    }
     case BinopKind::kXor:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kXor));
       break;
@@ -978,7 +995,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(index_slot)));
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kUAdd));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(index_slot)));
   bytecode_.push_back(

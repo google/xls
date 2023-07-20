@@ -35,6 +35,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",

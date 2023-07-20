@@ -533,6 +533,9 @@ absl::StatusOr<InterpValue> InterpValue::AddWithCarry(
   XLS_RET_CHECK(other.IsUBits());
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
   XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
+
+  // First zero-extend the operands so we can observe the carry bit in the
+  // result.
   int64_t extended = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
   Bits new_lhs = bits_ops::ZeroExtend(lhs, extended);
   Bits new_rhs = bits_ops::ZeroExtend(rhs, extended);

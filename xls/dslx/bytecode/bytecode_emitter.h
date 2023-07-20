@@ -72,6 +72,9 @@ class BytecodeEmitter : public ExprVisitor {
   ~BytecodeEmitter() override;
   absl::Status Init(const Function* f);
 
+  // Precondition: node must be Bits typed.
+  absl::StatusOr<bool> IsBitsTypeNodeSigned(const AstNode* node) const;
+
   // Adds the given bytecode to the program.
   void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
   absl::Status HandleArray(const Array* node) override;

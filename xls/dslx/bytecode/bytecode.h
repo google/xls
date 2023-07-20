@@ -45,7 +45,8 @@ class Bytecode {
   // "TOS0" refers to the top stack element.
   enum class Op {
     // Adds the top two values on the stack.
-    kAdd,
+    kUAdd,
+    kSAdd,
     // Performs a bitwise AND of the top two values on the stack.
     kAnd,
     // Invokes the function given in the Bytecode's data argument. Arguments are
@@ -117,7 +118,8 @@ class Bytecode {
     // member.
     kMatchArm,
     // Multiplies the top two values on the stack.
-    kMul,
+    kUMul,
+    kSMul,
     // Compares TOS1 to B, storing true if TOS1 != TOS0.
     kNe,
     // Performs two's complement negation of TOS0.
@@ -162,7 +164,8 @@ class Bytecode {
     // Stores the value at stack top into the arg-data-specified slot.
     kStore,
     // Subtracts the Nth value from the N-1th value on the stack.
-    kSub,
+    kUSub,
+    kSSub,
     // Swaps TOS0 and TOS1 on the stack.
     kSwap,
     // Prints information about the given arguments to the terminal.
