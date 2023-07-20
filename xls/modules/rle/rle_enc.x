@@ -45,19 +45,10 @@
 // (output channel)     ────────────────────────┘     └───────────┘     └────
 
 import std
+import xls.modules.rle.rle_common as rle_common
 
-// structure containing input data for an RLE encoder
-pub struct EncInData<SYMBOL_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // input symbol to compress
-    last: bool,                 // if this is the last symbol
-}
-
-// structure containing output data from an RLE encoder
-pub struct EncOutData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // compressed symbol
-    count: bits[COUNT_WIDTH],   // symbol count
-    last: bool,                 // if this is the last symbol
-}
+type EncInData  = rle_common::PlainData;
+type EncOutData = rle_common::CompressedData;
 
 // structure to preserve the state of an RLE encoder
 struct RunLengthEncoderState<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
