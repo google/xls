@@ -19,16 +19,17 @@
 // Structure is used as an input and an output to and from
 // a preprocessing stage as well as an input to a RLE encoder.
 // It is also used as an output from RLE decoder.
-pub struct PlainData<SYMB_WIDTH: u32> {
-    symbol: bits[SYMB_WIDTH], // symbol
-    last: bool,               // flush RLE
+pub struct PlainData<SYMB_WIDTH: u32, SYMB_COUNT: u32> {
+    symbols: bits[SYMB_WIDTH][SYMB_COUNT], // symbols
+    symbol_valids: bits[1][SYMB_COUNT],    // symbol valid
+    last: bool,                            // flush RLE
 }
 
 // Structure contains compressed (symbol, counter) pairs.
 // Structure is used as an output from RLE encoder and
 // as an input to RLE decoder.
-pub struct CompressedData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-    symbol: bits[SYMBOL_WIDTH], // symbol
-    count: bits[COUNT_WIDTH],   // symbol counter
-    last: bool,                 // flush RLE
+pub struct CompressedData<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32, PAIR_COUNT: u32> {
+    symbols: bits[SYMBOL_WIDTH][PAIR_COUNT], // symbol
+    counts: bits[COUNT_WIDTH][PAIR_COUNT],   // symbol counter
+    last: bool,                              // flush RLE
 }

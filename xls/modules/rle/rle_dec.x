@@ -63,8 +63,8 @@ struct RunLengthDecoderState<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
 }
  // RLE decoder implementation
 pub proc RunLengthDecoder<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
-  input_r: chan<DecInData<SYMBOL_WIDTH, COUNT_WIDTH>> in;
-  output_s: chan<DecOutData<SYMBOL_WIDTH>> out;
+  input_r: chan<DecInData<SYMBOL_WIDTH, COUNT_WIDTH, 1>> in;
+  output_s: chan<DecOutData<SYMBOL_WIDTH, 1>> out;
 
   init {(
     RunLengthDecoderState<SYMBOL_WIDTH, COUNT_WIDTH> {
@@ -75,34 +75,38 @@ pub proc RunLengthDecoder<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32> {
   )}
 
   config (
-    input_r: chan<DecInData<SYMBOL_WIDTH, COUNT_WIDTH>> in,
-    output_s: chan<DecOutData<SYMBOL_WIDTH>> out,
+    input_r: chan<DecInData<SYMBOL_WIDTH, COUNT_WIDTH, 1>> in,
+    output_s: chan<DecOutData<SYMBOL_WIDTH, 1>> out,
   ) {(input_r, output_s)}
 
   next (tok: token, state: RunLengthDecoderState<SYMBOL_WIDTH, COUNT_WIDTH>) {
     let state_input = DecInData {
-      symbol: state.symbol,
-      count: state.count,
+      symbols: [state.symbol],
+      counts: [state.count],
       last: state.last
     };
     let recv_next_symbol = (state.count == bits[COUNT_WIDTH]:0);
     let (tok, input) = recv_if(tok, input_r, recv_next_symbol, state_input);
-    let next_count = if input.count == bits[COUNT_WIDTH]:0 {
-        fail!("invalid_count_0", input.count)
+    let next_count = if input.counts[0] == bits[COUNT_WIDTH]:0 {
+        input.counts[0]
     } else {
-        input.count - bits[COUNT_WIDTH]:1
+        input.counts[0] - bits[COUNT_WIDTH]:1
     };
     let done_sending = (next_count == bits[COUNT_WIDTH]:0);
     let send_last = input.last && done_sending;
-    let data_tok = send(tok, output_s, DecOutData {
-      symbol: input.symbol,
-      last: send_last
+    let symbol_valid = input.counts[0] > bits[COUNT_WIDTH]:0;
+    let data_tok = send_if(tok, output_s,
+      symbol_valid || send_last,
+      DecOutData {
+        symbols: [input.symbols[0]],
+        symbol_valids: [symbol_valid],
+        last: send_last
     });
     if (send_last) {
       zero!<RunLengthDecoderState>()
     } else {
       RunLengthDecoderState {
-        symbol: input.symbol,
+        symbol: input.symbols[0],
         count: next_count,
         last: input.last,
       }
@@ -116,8 +120,8 @@ proc RunLengthDecoder32 {
   init {()}
 
   config (
-    input_r: chan<DecInData<32, 2>> in,
-    output_s: chan<DecOutData<32>> out,
+    input_r: chan<DecInData<32, 2, 1>> in,
+    output_s: chan<DecOutData<32, 1>> out,
   ) {
     spawn RunLengthDecoder<u32:32, u32:2>(input_r, output_s);
     ()
@@ -136,8 +140,8 @@ const TEST_COUNT_WIDTH  = u32:32;
 type TestSymbol     = bits[TEST_SYMBOL_WIDTH];
 type TestCount      = bits[TEST_COUNT_WIDTH];
 type TestStimulus   = (TestSymbol, TestCount);
-type TestDecInData  = DecInData<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH>;
-type TestDecOutData = DecOutData<TEST_SYMBOL_WIDTH>;
+type TestDecInData  = DecInData<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH, 1>;
+type TestDecOutData = DecOutData<TEST_SYMBOL_WIDTH, 1>;
 
 // Check RLE decoder on a transaction
 #[test_proc]
@@ -171,13 +175,13 @@ proc RunLengthDecoderTransactionTest {
         in enumerate(TransactionTestStimuli) {
       let last = counter == (array_size(TransactionTestStimuli) - u32:1);
       let data_in = TestDecInData{
-        symbol: stimulus.0,
-        count: stimulus.1,
+        symbols: [stimulus.0],
+        counts: [stimulus.1],
         last: last
       };
       let tok = send(tok, dec_input_s, data_in);
       trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
-          counter + u32:1, data_in.symbol, data_in.count, data_in.last);
+          counter + u32:1, data_in.symbols[0], data_in.counts[0], data_in.last);
       (tok)
     }(tok);
     let TransationTestOutputs: TestSymbol[14] = [
@@ -194,18 +198,94 @@ proc RunLengthDecoderTransactionTest {
         in enumerate(TransationTestOutputs) {
       let last = counter == (array_size(TransationTestOutputs) - u32:1);
       let data_out = TestDecOutData{
-        symbol: symbol,
+        symbols: [symbol],
+        symbol_valids: [bits[1]:1],
         last: last
       };
       let (tok, dec_output) = recv(tok, dec_output_r);
       trace_fmt!(
           "Received {} transactions, symbol: 0x{:x}, last: {}",
-          counter, dec_output.symbol, dec_output.last
+          counter, dec_output.symbols[0], dec_output.last
       );
       assert_eq(dec_output, data_out);
       (tok)
     }(tok);
     send(tok, terminator, true);
+  }
+}
+
+// Check that RLE decoder will remove empty pairs, `count == 0`.
+// Check that RLE decoder will set `symbol_valids` to 0 only in
+// the last output packet.
+#[test_proc]
+proc RunLengthDecoderZeroCountTest {
+  terminator: chan<bool> out;            // test termination request
+  dec_input_s: chan<TestDecInData> out;
+  dec_output_r: chan<TestDecOutData> in;
+
+  init {()}
+
+  config(terminator: chan<bool> out) {
+    let (dec_input_s, dec_input_r)   = chan<TestDecInData>;
+    let (dec_output_s, dec_output_r) = chan<TestDecOutData>;
+
+    spawn RunLengthDecoder<TEST_SYMBOL_WIDTH, TEST_COUNT_WIDTH>(
+        dec_input_r, dec_output_s);
+    (terminator, dec_input_s, dec_output_r)
+  }
+
+  next(tok: token, state: ()) {
+    let ZeroCountTestStimuli: TestStimulus[6] =[
+      (TestSymbol:0xB, TestCount:0x2),
+      (TestSymbol:0x1, TestCount:0x0),
+      (TestSymbol:0xC, TestCount:0x1),
+      (TestSymbol:0xC, TestCount:0x0),
+      (TestSymbol:0x3, TestCount:0x3),
+      (TestSymbol:0x2, TestCount:0x0),
+    ];
+    let tok = for ((counter, stimulus), tok):
+        ((u32, (TestSymbol, TestCount)) , token)
+        in enumerate(ZeroCountTestStimuli) {
+      let last = counter == (array_size(ZeroCountTestStimuli) - u32:1);
+      let data_in = TestDecInData{
+        symbols: [stimulus.0],
+        counts: [stimulus.1],
+        last: last
+      };
+      let tok = send(tok, dec_input_s, data_in);
+      trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
+          counter + u32:1, data_in.symbols[0], data_in.counts[0], data_in.last);
+      (tok)
+    }(tok);
+    let ZeroCountTestOutputs: TestDecOutData[7] = [
+      TestDecOutData{symbols: [TestSymbol: 0xB],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0xB],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0xC],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0x3],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0x3],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0x3],
+                     symbol_valids: [true], last: false},
+      TestDecOutData{symbols: [TestSymbol: 0x2],
+                     symbol_valids: [false], last: true},
+    ];
+    let tok = for ((counter, output), tok):
+        ((u32, TestDecOutData) , token)
+        in enumerate(ZeroCountTestOutputs) {
+      let (tok, dec_output) = recv(tok, dec_output_r);
+      trace_fmt!(
+          "Received {} transactions, symbols: 0x{:x}, last: {}",
+          counter + u32:1, dec_output.symbols, dec_output.last
+      );
+      assert_eq(dec_output, output);
+      (tok)
+    }(tok);
+    send(tok, terminator, true);
+    ()
   }
 }
 
@@ -231,13 +311,13 @@ proc RunLengthDecoderLastAfterLastTest {
   next(tok: token, state: ()) {
     let LastAfterLastTestStimuli: TestDecInData[2] =[
       TestDecInData {
-        symbol: TestSymbol:0x1,
-        count: TestCount:0x1,
+        symbols: [TestSymbol:0x1],
+        counts: [TestCount:0x1],
         last:true
       },
       TestDecInData {
-        symbol: TestSymbol:0x2,
-        count: TestCount:0x1,
+        symbols: [TestSymbol:0x2],
+        counts: [TestCount:0x1],
         last:true
       },
     ];
@@ -245,21 +325,23 @@ proc RunLengthDecoderLastAfterLastTest {
         ((u32, TestDecInData) , token)
         in enumerate(LastAfterLastTestStimuli) {
       let tok = send(tok, dec_input_s, stimulus);
-      trace_fmt!("Sent {} stimuli, symbol: 0x{:x}, count:{}, last: {}",
-          counter + u32:1, stimulus.symbol, stimulus.count, stimulus.last);
+      trace_fmt!("Sent {} stimuli, symbols: 0x{:x}, counts:{}, last: {}",
+          counter + u32:1, stimulus.symbols, stimulus.counts, stimulus.last);
       (tok)
     }(tok);
     let LastAfterLastTestOutputs: TestDecOutData[2] = [
-      TestDecOutData{symbol: TestSymbol: 0x1, last: true},
-      TestDecOutData{symbol: TestSymbol: 0x2, last: true},
+      TestDecOutData{symbols: [TestSymbol: 0x1],
+                     symbol_valids: [true], last: true},
+      TestDecOutData{symbols: [TestSymbol: 0x2],
+                     symbol_valids: [true], last: true},
     ];
     let tok = for ((counter, output), tok):
         ((u32, TestDecOutData) , token)
         in enumerate(LastAfterLastTestOutputs) {
       let (tok, dec_output) = recv(tok, dec_output_r);
       trace_fmt!(
-          "Received {} transactions, symbol: 0x{:x}, last: {}",
-          counter + u32:1, dec_output.symbol, dec_output.last
+          "Received {} transactions, symbols: 0x{:x}, last: {}",
+          counter + u32:1, dec_output.symbols, dec_output.last
       );
       assert_eq(dec_output, output);
       (tok)
