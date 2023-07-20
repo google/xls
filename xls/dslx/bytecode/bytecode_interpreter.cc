@@ -384,26 +384,6 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
   return absl::OkStatus();
 }
 
-/* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Pop(
-    std::vector<InterpValue>& stack) {
-  if (stack.empty()) {
-    return absl::InternalError("Tried to pop off an empty stack.");
-  }
-  InterpValue value = std::move(stack.back());
-  stack.pop_back();
-  return value;
-}
-
-absl::Status BytecodeInterpreter::EvalUnop(
-    const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
-        op) {
-  XLS_RET_CHECK_GE(stack_.size(), 1);
-  XLS_ASSIGN_OR_RETURN(InterpValue arg, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue result, op(arg));
-  stack_.Push(std::move(result));
-  return absl::OkStatus();
-}
-
 absl::Status BytecodeInterpreter::EvalBinop(
     const std::function<absl::StatusOr<InterpValue>(
         const InterpValue& lhs, const InterpValue& rhs)>& op) {

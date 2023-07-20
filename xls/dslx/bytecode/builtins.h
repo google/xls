@@ -37,8 +37,6 @@ absl::Status RunBuiltinBitSlice(const Bytecode& bytecode,
 absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode,
                                       InterpreterStack& stack);
 
-absl::Status RangeInternal(InterpreterStack& stack);
-
 absl::Status RunBuiltinGate(const Bytecode& bytecode, InterpreterStack& stack);
 
 absl::Status RunBuiltinOneHot(const Bytecode& bytecode,
@@ -69,7 +67,6 @@ absl::Status RunBuiltinCover(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinCtz(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinEnumerate(const Bytecode& bytecode,
                                  InterpreterStack& stack);
-absl::Status RunBuiltinMap(const Bytecode& bytecode, InterpreterStack& stack);
 absl::Status RunBuiltinOrReduce(const Bytecode& bytecode,
                                 InterpreterStack& stack);
 absl::Status RunBuiltinRange(const Bytecode& bytecode, InterpreterStack& stack);

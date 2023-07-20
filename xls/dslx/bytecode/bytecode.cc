@@ -414,11 +414,6 @@ DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
 
-/* static */ Bytecode Bytecode::MakeCreateTuple(Span span,
-                                                NumElements num_elements) {
-  return Bytecode(std::move(span), Op::kCreateTuple, num_elements);
-}
-
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
   return Bytecode(std::move(span), Op::kJumpRelIf, target);
 }
@@ -680,10 +675,8 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> BytecodeFunction::Create(
     const Module* owner, const Function* source_fn, const TypeInfo* type_info,
     std::vector<Bytecode> bytecodes) {
-  auto bf = absl::WrapUnique(
+  return absl::WrapUnique(
       new BytecodeFunction(owner, source_fn, type_info, std::move(bytecodes)));
-  XLS_RETURN_IF_ERROR(bf->Init());
-  return bf;
 }
 
 BytecodeFunction::BytecodeFunction(const Module* owner,
@@ -694,17 +687,6 @@ BytecodeFunction::BytecodeFunction(const Module* owner,
       source_fn_(source_fn),
       type_info_(type_info),
       bytecodes_(std::move(bytecodes)) {}
-
-absl::Status BytecodeFunction::Init() {
-  num_slots_ = 0;
-  for (const auto& bc : bytecodes_) {
-    if (bc.op() == Bytecode::Op::kLoad || bc.op() == Bytecode::Op::kStore) {
-      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot, bc.slot_index());
-      num_slots_ = std::max(num_slots_, slot.value() + 1);
-    }
-  }
-  return absl::OkStatus();
-}
 
 std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   // Create a modifiable copy of the bytecodes.
@@ -731,15 +713,6 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   }
 
   return bytecodes;
-}
-
-std::string BytecodeFunction::ToString() const {
-  std::vector<std::string> lines;
-  lines.reserve(bytecodes_.size());
-  for (const auto& bytecode : bytecodes_) {
-    lines.push_back(bytecode.ToString());
-  }
-  return absl::StrJoin(lines, "\n");
 }
 
 }  // namespace xls::dslx

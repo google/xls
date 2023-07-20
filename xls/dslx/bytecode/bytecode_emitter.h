@@ -120,10 +120,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleBuiltinRecvIfNonBlocking(const Invocation* node);
   absl::Status HandleBuiltinJoin(const Invocation* node);
 
-  // Given a TypeAlias, determines the EnumDef to which it refers.
-  absl::StatusOr<EnumDef*> ResolveTypeAliasToEnum(const TypeInfo* type_info,
-                                                  TypeAlias* type_alias);
-
   absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,
                                                    EnumDef* enum_def,
                                                    const TypeInfo* type_info);

@@ -105,7 +105,6 @@ class BytecodeInterpreter {
   absl::Status EvalAdd(const Bytecode& bytecode);
   absl::Status EvalAnd(const Bytecode& bytecode);
   absl::Status EvalCall(const Bytecode& bytecode);
-  absl::Status EvalCheckedCast(const Bytecode& bytecode);
   absl::Status EvalCast(const Bytecode& bytecode, bool is_checked = false);
   absl::Status EvalConcat(const Bytecode& bytecode);
   absl::Status EvalCreateArray(const Bytecode& bytecode);
@@ -154,9 +153,6 @@ class BytecodeInterpreter {
   absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
-  absl::Status EvalUnop(
-      const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
-          op);
   absl::Status EvalBinop(
       const std::function<absl::StatusOr<InterpValue>(
           const InterpValue& lhs, const InterpValue& rhs)>& op);
@@ -183,7 +179,6 @@ class BytecodeInterpreter {
       Frame* frame, const Bytecode::MatchArmItem& item,
       const InterpValue& value);
 
-  static absl::StatusOr<InterpValue> Pop(std::vector<InterpValue>& stack);
   absl::StatusOr<InterpValue> Pop() { return stack_.Pop(); }
 
   ImportData* const import_data_;

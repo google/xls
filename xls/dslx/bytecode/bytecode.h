@@ -315,9 +315,7 @@ class Bytecode {
                             std::unique_ptr<ConcreteType>, InvocationData,
                             MatchArmItem, SpawnData, TraceData, ChannelData>;
 
-  static Bytecode MakeCreateTuple(Span span, NumElements elements);
   static Bytecode MakeDup(Span span);
-  static Bytecode MakeFail(Span span, std::string);
   static Bytecode MakeIndex(Span span);
   static Bytecode MakeTupleIndex(Span span);
   static Bytecode MakeInvert(Span span);
@@ -413,24 +411,18 @@ class BytecodeFunction {
   const Function* source_fn() const { return source_fn_; }
   const TypeInfo* type_info() const { return type_info_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
-  // Returns the total number of binding "slots" used by the bytecodes.
-  int64_t num_slots() const { return num_slots_; }
 
   // Creates and returns a [caller-owned] copy of the internal bytecodes.
   std::vector<Bytecode> CloneBytecodes() const;
 
-  std::string ToString() const;
-
  private:
   BytecodeFunction(const Module* owner, const Function* source_fn,
                    const TypeInfo* type_info, std::vector<Bytecode> bytecode);
-  absl::Status Init();
 
   const Module* owner_;
   const Function* source_fn_;
   const TypeInfo* type_info_;
   std::vector<Bytecode> bytecodes_;
-  int64_t num_slots_;
 };
 
 // Converts the given sequence of bytecodes to a more human-readable string,
