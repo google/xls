@@ -170,6 +170,31 @@ xls_dslx_opt_ir(
     dslx_top = "run_instruction",
 )
 
+xls_dslx_library(
+    name = "ffi",
+    srcs = ["ffi.x"],
+)
+
+xls_dslx_test(
+    name = "ffi_test",
+    srcs = ["ffi.x"],
+)
+
+xls_dslx_verilog(
+    name = "ffi_codegen",
+    codegen_args = {
+        "module_name": "ffi",
+        "generator": "pipeline",
+        "pipeline_stages": "1",
+        "delay_model": "sky130",
+        "ffi_fallback_delay_ps": "123",
+        "use_system_verilog": "true",
+    },
+    dslx_top = "main",
+    library = ":ffi",
+    verilog_file = "ffi.sv",
+)
+
 # TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
 # xls_benchmark_ir.
 xls_dslx_test(
