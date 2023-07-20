@@ -603,6 +603,9 @@ class CValue {
       }
     }
   }
+  CValue(std::shared_ptr<LValue> lvalue, std::shared_ptr<CType> type,
+         bool disable_type_check = false)
+      : CValue(xls::BValue(), type, disable_type_check, lvalue) {}
 
   xls::BValue rvalue() const { return rvalue_; }
   std::shared_ptr<CType> type() const { return type_; }
@@ -768,9 +771,8 @@ struct GeneratedFunction {
 
   bool uses_on_reset = false;
 
-  std::shared_ptr<LValue> return_lvalue;
-
   std::shared_ptr<LValue> this_lvalue;
+  std::shared_ptr<LValue> return_lvalue;
 
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       declaration_order_by_name_;
@@ -962,7 +964,8 @@ struct TranslationContext {
 
   const clang::NamedDecl* override_this_decl_ = nullptr;
 
-  xls::BValue return_val;
+  CValue return_cval;
+
   xls::BValue last_return_condition;
   // For "control flow": assignments after a return are conditional on this
   xls::BValue have_returned_condition;
@@ -1440,6 +1443,23 @@ class Translator {
   absl::Status FailIfTypeHasDtors(const clang::CXXRecordDecl* cxx_record);
   bool LValueContainsOnlyChannels(std::shared_ptr<LValue> lvalue);
 
+  absl::Status PushLValueSelectConditions(
+      std::shared_ptr<LValue> lvalue, std::vector<xls::BValue>& return_bvals,
+      const xls::SourceInfo& loc);
+  absl::StatusOr<std::shared_ptr<LValue>> PopLValueSelectConditions(
+      std::list<xls::BValue>& unpacked_returns,
+      std::shared_ptr<LValue> lvalue_translated, const xls::SourceInfo& loc);
+  absl::StatusOr<std::list<xls::BValue>> UnpackTuple(
+      xls::BValue tuple_val, const xls::SourceInfo& loc);
+  absl::StatusOr<xls::BValue> Generate_LValue_Return(
+      std::shared_ptr<LValue> lvalue, const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> Generate_LValue_Return_Call(
+      std::shared_ptr<LValue> lval_untranslated, xls::BValue unpacked_return,
+      std::shared_ptr<CType> return_type, xls::BValue* this_inout,
+      std::shared_ptr<LValue>* this_lval,
+      const absl::flat_hash_map<IOChannel*, IOChannel*>&
+          caller_channels_by_callee_channel,
+      const xls::SourceInfo& loc);
   absl::Status TranslateAddCallerChannelsByCalleeChannel(
       std::shared_ptr<LValue> caller_lval, std::shared_ptr<LValue> callee_lval,
       absl::flat_hash_map<IOChannel*, IOChannel*>*
@@ -1594,10 +1614,12 @@ class Translator {
                                     std::vector<ConditionedIOChannel>* output,
                                     const xls::SourceInfo& loc,
                                     xls::BValue condition = xls::BValue());
-
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
+  absl::Status GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
+                                     clang::ASTContext& ctx,
+                                     const xls::SourceInfo& loc);
   absl::Status GenerateIR_StaticDecl(const clang::VarDecl* vard,
                                      const clang::NamedDecl* namedecl,
                                      const xls::SourceInfo& loc);
@@ -1750,6 +1772,9 @@ class Translator {
                                    const std::shared_ptr<CType> thisctype,
                                    bool member_references_become_channels,
                                    const xls::SourceInfo& loc);
+
+  const clang::CXXThisExpr* IsThisExpr(const clang::Expr* expr);
+  const clang::Expr* RemoveParensAndCasts(const clang::Expr* expr);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)

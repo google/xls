@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <list>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -187,7 +188,7 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(
       PropagateVariables(/*from=*/popped, /*to=*/context(), loc));
 
-  context().return_val = popped.return_val;
+  context().return_cval = popped.return_cval;
   context().last_return_condition = popped.last_return_condition;
   context().have_returned_condition = popped.have_returned_condition;
 
@@ -279,7 +280,10 @@ void Translator::AddSourceInfoToPackage(xls::Package& package) {
   parser_->AddSourceInfoToPackage(package);
 }
 
-TranslationContext& Translator::context() { return context_stack_.front(); }
+TranslationContext& Translator::context() {
+  XLS_CHECK(!context_stack_.empty());
+  return context_stack_.front();
+}
 
 absl::Status Translator::and_condition(xls::BValue and_condition,
                                        const xls::SourceInfo& loc) {
@@ -860,6 +864,136 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   return header;
 }
 
+absl::Status Translator::PushLValueSelectConditions(
+    std::shared_ptr<LValue> lvalue, std::vector<xls::BValue>& return_bvals,
+    const xls::SourceInfo& loc) {
+  if (!lvalue->is_select()) {
+    return absl::OkStatus();
+  }
+
+  std::shared_ptr<LValue> true_lval = lvalue->lvalue_true();
+  std::shared_ptr<LValue> false_lval = lvalue->lvalue_false();
+
+  return_bvals.push_back(lvalue->cond());
+
+  if (true_lval->is_select()) {
+    XLS_RETURN_IF_ERROR(
+        PushLValueSelectConditions(true_lval, return_bvals, loc));
+  }
+  if (false_lval->is_select()) {
+    XLS_RETURN_IF_ERROR(
+        PushLValueSelectConditions(false_lval, return_bvals, loc));
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::shared_ptr<LValue>> Translator::PopLValueSelectConditions(
+    std::list<xls::BValue>& unpacked_returns,
+    std::shared_ptr<LValue> lvalue_translated, const xls::SourceInfo& loc) {
+  if (!lvalue_translated->is_select()) {
+    return lvalue_translated;
+  }
+
+  XLSCC_CHECK(!unpacked_returns.empty(), loc);
+  xls::BValue selector = unpacked_returns.front();
+  unpacked_returns.pop_front();
+
+  std::shared_ptr<LValue> true_lval = lvalue_translated->lvalue_true();
+  std::shared_ptr<LValue> false_lval = lvalue_translated->lvalue_false();
+
+  if (true_lval->is_select()) {
+    XLS_ASSIGN_OR_RETURN(
+        true_lval, PopLValueSelectConditions(unpacked_returns, true_lval, loc));
+  }
+  if (false_lval->is_select()) {
+    XLS_ASSIGN_OR_RETURN(false_lval, PopLValueSelectConditions(
+                                         unpacked_returns, false_lval, loc));
+  }
+
+  return std::make_shared<LValue>(selector, true_lval, false_lval);
+}
+
+absl::StatusOr<xls::BValue> Translator::Generate_LValue_Return(
+    std::shared_ptr<LValue> lvalue, const xls::SourceInfo& loc) {
+  if (lvalue->channel_leaf() != nullptr) {
+    return context().fb->Tuple({}, loc);
+  }
+  if (lvalue->leaf() != nullptr) {
+    bool is_this_expr = clang::isa<clang::CXXThisExpr>(lvalue->leaf());
+    if (is_this_expr) {
+      return context().fb->Tuple({}, loc);
+    }
+  } else if (lvalue->is_select()) {
+    std::vector<xls::BValue> tuple_bvals;
+    XLS_RETURN_IF_ERROR(PushLValueSelectConditions(lvalue, tuple_bvals, loc));
+    return context().fb->Tuple(tuple_bvals, loc);
+  }
+
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "Don't know how to handle lvalue return %s",
+                   lvalue->debug_string()));
+}
+
+absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
+    std::shared_ptr<LValue> lval_untranslated, xls::BValue unpacked_return,
+    std::shared_ptr<CType> return_type, xls::BValue* this_inout,
+    std::shared_ptr<LValue>* this_lval,
+    const absl::flat_hash_map<IOChannel*, IOChannel*>&
+        caller_channels_by_callee_channel,
+    const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(
+      std::shared_ptr<LValue> lval,
+      TranslateLValueChannels(lval_untranslated,
+                              caller_channels_by_callee_channel, loc));
+
+  if (lval->channel_leaf() != nullptr) {
+    return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+                  lval);
+  }
+
+  if (lval->is_select()) {
+    xls::BValue selector_value_tuple = unpacked_return;
+
+    XLS_ASSIGN_OR_RETURN(std::list<xls::BValue> selector_values,
+                         UnpackTuple(selector_value_tuple, loc));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> ret_lval,
+                         PopLValueSelectConditions(selector_values, lval, loc));
+
+    return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+                  ret_lval);
+  }
+
+  if (lval->leaf() != nullptr) {
+    XLSCC_CHECK(return_type->Is<CReferenceType>(), loc);
+
+    if (IsThisExpr(lval->leaf())) {
+      // TODO(seanhaskell): Remove special 'this' handling
+      XLSCC_CHECK_NE(this_inout, nullptr, loc);
+      XLSCC_CHECK_NE(this_lval, nullptr, loc);
+
+      return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+                    *this_lval);
+    }
+  }
+
+  lval->leaf()->dump();
+  return absl::UnimplementedError(ErrorMessage(
+      loc, "Don't know how to translate lvalue of type %s from callee context",
+      lval->leaf()->getStmtClassName()));
+}
+
+absl::StatusOr<std::list<xls::BValue>> Translator::UnpackTuple(
+    xls::BValue tuple_val, const xls::SourceInfo& loc) {
+  xls::Type* type = tuple_val.GetType();
+  XLSCC_CHECK(type->IsTuple(), loc);
+  std::list<xls::BValue> ret;
+  for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
+    ret.push_back(context().fb->TupleIndex(tuple_val, i, loc));
+  }
+  return ret;
+}
+
 absl::Status Translator::GenerateIR_Function_Body(
     GeneratedFunction& sf, const clang::FunctionDecl* funcdecl,
     const FunctionInProgress& header) {
@@ -897,7 +1031,20 @@ absl::Status Translator::GenerateIR_Function_Body(
 
   // Then explicit return
   if (!funcdecl->getReturnType()->isVoidType()) {
-    return_bvals.emplace_back(context().return_val);
+    if (context().return_cval.lvalue() != nullptr) {
+      if (context().return_cval.rvalue().valid()) {
+        return absl::UnimplementedError(ErrorMessage(
+            body_loc, "Mixed RValue and LValue returns not yet supported"));
+      }
+      // LValue related returns (select conditions)
+      XLS_ASSIGN_OR_RETURN(
+          xls::BValue lvalue_return,
+          Generate_LValue_Return(context().return_cval.lvalue(), body_loc));
+      return_bvals.emplace_back(lvalue_return);
+    } else {
+      XLSCC_CHECK(context().return_cval.rvalue().valid(), body_loc);
+      return_bvals.emplace_back(context().return_cval.rvalue());
+    }
   }
 
   // Then reference parameter returns
@@ -918,12 +1065,16 @@ absl::Status Translator::GenerateIR_Function_Body(
     return absl::OkStatus();
   }
 
+  sf.return_lvalue = context().return_cval.lvalue();
+
+  xls::BValue return_bval;
+
   if (return_bvals.size() == 1) {
     // XLS functions return the last value added to the FunctionBuilder
     // So this makes sure the correct value is last.
-    context().return_val = return_bvals[0];
+    return_bval = return_bvals[0];
   } else {
-    context().return_val = MakeFunctionReturn(return_bvals, body_loc);
+    return_bval = MakeFunctionReturn(return_bvals, body_loc);
   }
 
   if (!sf.io_ops.empty() && funcdecl->isOverloadedOperator()) {
@@ -931,8 +1082,8 @@ absl::Status Translator::GenerateIR_Function_Body(
         ErrorMessage(body_loc, "IO ops in operator calls are not supported"));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      sf.xls_func, header.builder->BuildWithReturnValue(context().return_val));
+  XLS_ASSIGN_OR_RETURN(sf.xls_func,
+                       header.builder->BuildWithReturnValue(return_bval));
 
   return absl::OkStatus();
 }
@@ -1192,30 +1343,12 @@ absl::StatusOr<std::shared_ptr<LValue>> Translator::CreateReferenceValue(
     }
   }
 
-  // Remove casts
-  auto nested_implicit = initializer;
-
-  while (true) {
-    if (auto as_cast =
-            clang::dyn_cast<clang::ImplicitCastExpr>(nested_implicit)) {
-      nested_implicit = as_cast->getSubExpr();
-    } else if (auto as_paren =
-                   clang::dyn_cast<clang::ParenExpr>(nested_implicit)) {
-      nested_implicit = as_paren->getSubExpr();
-    } else {
-      break;
-    }
-  }
-
   // TODO(seanhaskell): Remove special 'this' handling
-  if (clang::isa<clang::UnaryOperator>(nested_implicit) &&
-      clang::isa<clang::CXXThisExpr>(
-          clang::dyn_cast<clang::UnaryOperator>(nested_implicit)
-              ->getSubExpr())) {
-    // TODO(seanhaskell): Remove special this handling
-    return std::make_shared<LValue>(
-        clang::dyn_cast<clang::UnaryOperator>(nested_implicit)->getSubExpr());
+  if (const clang::CXXThisExpr* this_expr = IsThisExpr(initializer)) {
+    return std::make_shared<LValue>(this_expr);
   }
+
+  const clang::Expr* nested_implicit = RemoveParensAndCasts(initializer);
 
   if (auto cond_expr =
           clang::dyn_cast<clang::ConditionalOperator>(nested_implicit)) {
@@ -1248,9 +1381,11 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
 
   if (is_channel) {
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
+
     if (!cv.type()->Is<CChannelType>()) {
       return absl::InvalidArgumentError(ErrorMessage(
-          loc, "Channel declaration initialized to non-channel value"));
+          loc, "Channel declaration initialized to non-channel type: %s",
+          cv.type()->debug_string()));
     }
     if (cv.lvalue() == nullptr) {
       return absl::InvalidArgumentError(
@@ -1995,8 +2130,8 @@ absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
 
   XLS_RETURN_IF_ERROR(Assign(sub_expr, CValue(result_val, result_type), loc));
 
-  xls::BValue return_val = is_pre ? result_val : sub_value.rvalue();
-  return CValue(return_val, result_type);
+  xls::BValue ret = is_pre ? result_val : sub_value.rvalue();
+  return CValue(ret, result_type);
 }
 
 absl::StatusOr<CValue> Translator::Generate_UnaryOp(
@@ -3380,39 +3515,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   if (funcdecl->getReturnType()->isVoidType()) {
     retval = CValue(xls::BValue(), shared_ptr<CType>(new CVoidType()));
   } else if (func->return_lvalue != nullptr) {
+    XLSCC_CHECK(!unpacked_returns.empty(), loc);
+    xls::BValue unpacked_value = unpacked_returns.front();
     unpacked_returns.pop_front();
 
-    XLSCC_CHECK(return_type->Is<CReferenceType>(), loc);
-    std::shared_ptr<LValue> lval = func->return_lvalue;
-    XLSCC_CHECK_NE(lval->leaf(), nullptr, loc);
+    XLS_ASSIGN_OR_RETURN(retval, Generate_LValue_Return_Call(
+                                     func->return_lvalue, unpacked_value,
+                                     return_type, this_inout, this_lval,
+                                     caller_channels_by_callee_channel, loc));
 
-    bool is_this_expr = clang::isa<clang::CXXThisExpr>(lval->leaf());
-
-    // TODO(seanhaskell): Remove special 'this' handling (XlsInt)
-    if (auto paren_expr = clang::dyn_cast<clang::ParenExpr>(lval->leaf())) {
-      if (auto unary_expr =
-              clang::dyn_cast<clang::UnaryOperator>(paren_expr->getSubExpr())) {
-        if (clang::dyn_cast<clang::CXXThisExpr>(unary_expr->getSubExpr()) !=
-            nullptr) {
-          is_this_expr = true;
-        }
-      }
-    }
-
-    if (is_this_expr) {
-      // TODO(seanhaskell): Remove special 'this' handling
-      XLSCC_CHECK_NE(this_inout, nullptr, loc);
-      XLSCC_CHECK_NE(this_lval, nullptr, loc);
-
-      retval = CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
-                      *this_lval);
-    } else {
-      lval->leaf()->dump();
-      return absl::UnimplementedError(ErrorMessage(
-          loc,
-          "Don't know how to translate lvalue of type %s from callee context",
-          lval->leaf()->getStmtClassName()));
-    }
   } else {
     XLSCC_CHECK(!unpacked_returns.empty(), loc);
     retval = CValue(unpacked_returns.front(), return_type);
@@ -4568,6 +4679,152 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
   return absl::OkStatus();
 }
 
+const clang::Expr* Translator::RemoveParensAndCasts(const clang::Expr* expr) {
+  while (true) {
+    if (auto as_cast = clang::dyn_cast<clang::ImplicitCastExpr>(expr)) {
+      expr = as_cast->getSubExpr();
+    } else if (auto as_paren = clang::dyn_cast<clang::ParenExpr>(expr)) {
+      expr = as_paren->getSubExpr();
+    } else {
+      break;
+    }
+  }
+
+  return expr;
+}
+
+const clang::CXXThisExpr* Translator::IsThisExpr(const clang::Expr* expr) {
+  const clang::Expr* nested = RemoveParensAndCasts(expr);
+
+  if (auto this_expr = clang::dyn_cast<clang::CXXThisExpr>(nested)) {
+    return this_expr;
+  }
+
+  if (auto unary_expr = clang::dyn_cast<clang::UnaryOperator>(nested)) {
+    if (auto this_expr =
+            clang::dyn_cast<clang::CXXThisExpr>(unary_expr->getSubExpr())) {
+      return this_expr;
+    }
+  }
+
+  return nullptr;
+}
+
+absl::Status Translator::GenerateIR_ReturnStmt(const clang::ReturnStmt* rts,
+                                               clang::ASTContext& ctx,
+                                               const xls::SourceInfo& loc) {
+  if (context().in_pipelined_for_body) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Returns in pipelined loop body unimplemented"));
+  }
+  const clang::Expr* rvalue = rts->getRetValue();
+
+  if (rvalue != nullptr) {
+    // TODO: Remove special 'this' handling
+    if (IsThisExpr(rvalue)) {
+      if (context().return_cval.valid()) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Compound LValue returns not yet supported"));
+      }
+
+      // context().return_val = context().fb->Tuple({}, loc);
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> ret_lval,
+                           CreateReferenceValue(rvalue, loc));
+      context().return_cval = CValue(ret_lval, context().return_type);
+      return absl::OkStatus();
+    }
+
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> rvalue_type,
+                         TranslateTypeFromClang(rvalue->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(bool return_type_has_lvalues,
+                         context().return_type->ContainsLValues(*this));
+
+    CValue return_cval;
+
+    if (!return_type_has_lvalues) {
+      XLS_ASSIGN_OR_RETURN(CValue rv, GenerateIR_Expr(rvalue, loc));
+      XLS_ASSIGN_OR_RETURN(xls::BValue crv,
+                           GenTypeConvert(rv, context().return_type, loc));
+      return_cval = CValue(crv, context().return_type);
+    } else {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<LValue> ret_lval,
+                           CreateReferenceValue(rvalue, loc));
+      return_cval = CValue(ret_lval, context().return_type);
+    }
+
+    if (!context().return_cval.valid()) {
+      context().return_cval = return_cval;
+    } else {
+      // This is the normal case, where the last return was conditional
+      if (context().last_return_condition.valid()) {
+        // If there are multiple returns with the same condition, this will
+        // take the first one
+        xls::BValue this_cond = context().full_condition.valid()
+                                    ? context().full_condition
+                                    : context().fb->Literal(xls::UBits(1, 1));
+
+        // Select the previous return instead of this one if
+        //  the last return condition is true or this one is false
+        // Scenario A (sel_prev_ret_cond = true):
+        //  if(something true) return last;  // take this return value
+        //  if(something true) return this;
+        // Scenario B (sel_prev_ret_cond = false):
+        //  if(something false) return last;
+        //  if(something true) return this;  // take this return value
+        // Scenario C  (sel_prev_ret_cond = true):
+        //  if(something true) return last;  // take this return value
+        //  if(something false) return this;
+        // Scenario D  (sel_prev_ret_cond = false):
+        //  if(something false) return last;
+        //  if(something false) return this;
+        //  return later_on;                 // take this return value
+        // Scenario E  (sel_prev_ret_cond = true):
+        //  return earnier_on;               // take this return value
+        //  if(something true) return last;
+        xls::BValue sel_prev_ret_cond = context().fb->Or(
+            context().last_return_condition, context().fb->Not(this_cond));
+
+        if (!return_type_has_lvalues) {
+          XLSCC_CHECK(context().return_cval.rvalue().valid(), loc);
+          xls::BValue return_bval = context().fb->Select(
+              sel_prev_ret_cond, context().return_cval.rvalue(),
+              return_cval.rvalue(), loc);
+          context().return_cval = CValue(return_bval, context().return_type);
+        } else {
+          XLSCC_CHECK(context().return_cval.lvalue() != nullptr, loc);
+          auto return_lval = std::make_shared<LValue>(
+              sel_prev_ret_cond, context().return_cval.lvalue(),
+              return_cval.lvalue());
+          context().return_cval = CValue(return_lval, context().return_type);
+        }
+      } else {
+        // In the case of multiple unconditional returns, take the first one
+        // (no-op)
+      }
+    }
+
+    if (context().full_condition.valid()) {
+      context().last_return_condition = context().full_condition;
+    } else {
+      context().last_return_condition = context().fb->Literal(xls::UBits(1, 1));
+    }
+  }
+
+  xls::BValue reach_here_cond = context().full_condition_bval(loc);
+
+  if (!context().have_returned_condition.valid()) {
+    context().have_returned_condition = reach_here_cond;
+  } else {
+    context().have_returned_condition =
+        context().fb->Or(reach_here_cond, context().have_returned_condition);
+  }
+
+  XLS_RETURN_IF_ERROR(and_condition(
+      context().fb->Not(context().have_returned_condition, loc), loc));
+
+  return absl::OkStatus();
+}
+
 absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
   const xls::SourceInfo loc = GetLoc(*stmt);
@@ -4577,87 +4834,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     return rv.status();
   }
   if (auto rts = clang::dyn_cast<const clang::ReturnStmt>(stmt)) {
-    if (context().in_pipelined_for_body) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Returns in pipelined loop body unimplemented"));
-    }
-    const clang::Expr* rvalue = rts->getRetValue();
-
-    if (rvalue != nullptr) {
-      if (rvalue->isLValue()) {
-        if (context().return_val.valid()) {
-          return absl::UnimplementedError(
-              ErrorMessage(loc, "Compound LValue returns not yet supported"));
-        }
-
-        context().return_val = context().fb->Tuple({}, loc);
-        XLS_ASSIGN_OR_RETURN(context().sf->return_lvalue,
-                             CreateReferenceValue(rvalue, loc));
-        return absl::OkStatus();
-      }
-
-      XLS_ASSIGN_OR_RETURN(CValue rv, GenerateIR_Expr(rvalue, loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue crv,
-                           GenTypeConvert(rv, context().return_type, loc));
-
-      if (!context().return_val.valid()) {
-        context().return_val = crv;
-      } else {
-        // This is the normal case, where the last return was conditional
-        if (context().last_return_condition.valid()) {
-          // If there are multiple returns with the same condition, this will
-          // take the first one
-          xls::BValue this_cond = context().full_condition.valid()
-                                      ? context().full_condition
-                                      : context().fb->Literal(xls::UBits(1, 1));
-
-          // Select the previous return instead of this one if
-          //  the last return condition is true or this one is false
-          // Scenario A (sel_prev_ret_cond = true):
-          //  if(something true) return last;  // take this return value
-          //  if(something true) return this;
-          // Scenario B (sel_prev_ret_cond = false):
-          //  if(something false) return last;
-          //  if(something true) return this;  // take this return value
-          // Scenario C  (sel_prev_ret_cond = true):
-          //  if(something true) return last;  // take this return value
-          //  if(something false) return this;
-          // Scenario D  (sel_prev_ret_cond = false):
-          //  if(something false) return last;
-          //  if(something false) return this;
-          //  return later_on;                 // take this return value
-          // Scenario E  (sel_prev_ret_cond = true):
-          //  return earnier_on;               // take this return value
-          //  if(something true) return last;
-          xls::BValue sel_prev_ret_cond = context().fb->Or(
-              context().last_return_condition, context().fb->Not(this_cond));
-          context().return_val = context().fb->Select(
-              sel_prev_ret_cond, context().return_val, crv, loc);
-        } else {
-          // In the case of multiple unconditional returns, take the first one
-          // (no-op)
-        }
-      }
-
-      if (context().full_condition.valid()) {
-        context().last_return_condition = context().full_condition;
-      } else {
-        context().last_return_condition =
-            context().fb->Literal(xls::UBits(1, 1));
-      }
-    }
-
-    xls::BValue reach_here_cond = context().full_condition_bval(loc);
-
-    if (!context().have_returned_condition.valid()) {
-      context().have_returned_condition = reach_here_cond;
-    } else {
-      context().have_returned_condition =
-          context().fb->Or(reach_here_cond, context().have_returned_condition);
-    }
-
-    XLS_RETURN_IF_ERROR(and_condition(
-        context().fb->Not(context().have_returned_condition, loc), loc));
+    return GenerateIR_ReturnStmt(rts, ctx, loc);
   } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
     for (auto decl : declstmt->decls()) {
       if (clang::isa<clang::TypedefDecl>(decl)) {
@@ -5196,6 +5373,15 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     clang::QualType t, const xls::SourceInfo& loc) {
   const clang::Type* type = t.getTypePtr();
+
+  XLS_ASSIGN_OR_RETURN(bool channel, TypeIsChannel(t, loc));
+  if (channel) {
+    XLSCC_CHECK_NE(context().ast_context, nullptr, loc);
+    XLS_ASSIGN_OR_RETURN(auto channel_type,
+                         GetChannelType(t, *context().ast_context, loc));
+    return channel_type;
+  }
+
   if (auto builtin = clang::dyn_cast<const clang::BuiltinType>(type)) {
     if (builtin->isVoidType()) {
       return shared_ptr<CType>(new CVoidType());
@@ -5268,34 +5454,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
     std::shared_ptr<CInstantiableTypeAlias> ret(
         new CInstantiableTypeAlias(type->getAsRecordDecl()));
-
-    // TODO(seanhaskell): Put these strings in one place
-    if (ret->base()->getNameAsString() == "__xls_channel" ||
-        ret->base()->getNameAsString() == "__xls_memory") {
-      XLS_ASSIGN_OR_RETURN(
-          auto channel_type,
-          GetChannelType(t, type->getAsRecordDecl()->getASTContext(), loc));
-      return channel_type;
-    }
-
     return ret;
   } else if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
     clang::RecordDecl* decl = record->getDecl();
-
-    if (auto class_template_spec =
-            clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
-                decl)) {
-      const std::string template_name =
-          class_template_spec->getSpecializedTemplate()->getNameAsString();
-
-      // TODO(seanhaskell): Put these strings in one place
-      if (template_name == "__xls_channel" || template_name == "__xls_memory") {
-        XLS_ASSIGN_OR_RETURN(
-            auto channel_type,
-            GetChannelType(t, type->getAsRecordDecl()->getASTContext(), loc));
-        return channel_type;
-      }
-    }
 
     if (clang::isa<clang::RecordDecl>(decl)) {
       return std::shared_ptr<CType>(new CInstantiableTypeAlias(

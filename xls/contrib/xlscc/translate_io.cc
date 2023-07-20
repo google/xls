@@ -20,10 +20,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "clang/include/clang/AST/DeclTemplate.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/Type.h"
+#include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -122,16 +124,40 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
 absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
                                                const xls::SourceInfo& loc) {
+  // Ignore &
   XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
-  absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
-      TranslateTypeFromClang(stripped.base, loc);
 
-  // Ignore un-translatable types like pointers
-  if (!obj_type_ret.ok()) {
-    return false;
+  const clang::Type* type = stripped.base.getTypePtr();
+
+  if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization) {
+    // Up-cast to avoid multiple inheritance of getAsRecordDecl()
+    std::shared_ptr<CInstantiableTypeAlias> ret(
+        new CInstantiableTypeAlias(type->getAsRecordDecl()));
+
+    // TODO(seanhaskell): Put these strings in one place
+    if (ret->base()->getNameAsString() == "__xls_channel" ||
+        ret->base()->getNameAsString() == "__xls_memory") {
+      return true;
+    }
   }
 
-  return obj_type_ret.value()->Is<CChannelType>();
+  if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
+    clang::RecordDecl* decl = record->getDecl();
+
+    if (auto class_template_spec =
+            clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
+                decl)) {
+      const std::string template_name =
+          class_template_spec->getSpecializedTemplate()->getNameAsString();
+
+      // TODO(seanhaskell): Put these strings in one place
+      if (template_name == "__xls_channel" || template_name == "__xls_memory") {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 absl::StatusOr<int64_t> Translator::GetIntegerTemplateArgument(

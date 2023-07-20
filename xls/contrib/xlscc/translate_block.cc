@@ -373,6 +373,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
 
   const clang::CXXRecordDecl* record_decl = this_type->getAsCXXRecordDecl();
 
+  context().ast_context = &record_decl->getASTContext();
+
   XLS_RETURN_IF_ERROR(ScanStruct(record_decl));
 
   XLS_ASSIGN_OR_RETURN(
@@ -846,6 +848,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
     const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
   GeneratedFunction temp_sf;
+
+  XLSCC_CHECK(!context_stack_.empty(), body_loc);
   context() = TranslationContext();
   context().propagate_up = false;
   context().sf = &temp_sf;

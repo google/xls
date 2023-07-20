@@ -1286,6 +1286,218 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsRead) {
          /*outputs=*/{IOOpTest("out", 6, true)});
 }
 
+TEST_F(TranslatorIOTest, ReturnChannelSubroutine) {
+  const std::string content = R"(
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+  
+       my_ch<int>& SelectCh(bool select_a, 
+                        my_ch<int>& ac,
+                        my_ch<int>& bc) {
+          return ac;
+       }
+       
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_in, 
+                       my_ch<int>& in1,
+                       my_ch<int>& in2,
+                       my_ch<int>& out) {
+          my_ch<int>& inOne = in1;
+          my_ch<int>& inOneOne = inOne;
+          const int dir = dir_in.read();
+          my_ch<int>& ch_r = SelectCh(dir, inOneOne, in2);
+          out.write(3*ch_r.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutine) {
+  const std::string content = R"(
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+  
+       my_ch<int>& SelectCh(bool select_a, 
+                        my_ch<int>& ac,
+                        my_ch<int>& bc) {
+          return select_a ? ac : bc;
+       }
+       
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_in, 
+                       my_ch<int>& in1,
+                       my_ch<int>& in2,
+                       my_ch<int>& out) {
+          my_ch<int>& inOne = in1;
+          my_ch<int>& inOneOne = inOne;
+          const int dir = dir_in.read();
+          my_ch<int>& ch_r = SelectCh(dir, inOneOne, in2);
+          out.write(3*ch_r.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true),
+          IOOpTest("in2", 0, false)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", 0, false),
+          IOOpTest("in2", 2, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineTemplated) {
+  const std::string content = R"(
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+  
+       template<typename T>
+       my_ch<T>& SelectCh(bool select_a, 
+                        my_ch<T>& ac,
+                        my_ch<T>& bc) {
+          return select_a ? ac : bc;
+       }
+       
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_in, 
+                       my_ch<int>& in1,
+                       my_ch<int>& in2,
+                       my_ch<int>& out) {
+          my_ch<int>& inOne = in1;
+          my_ch<int>& inOneOne = inOne;
+          const int dir = dir_in.read();
+          my_ch<int>& ch_r = SelectCh(dir, inOneOne, in2);
+          out.write(3*ch_r.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in1", 5, true),
+          IOOpTest("in2", 0, false)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in1", 0, false),
+          IOOpTest("in2", 2, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutine2) {
+  const std::string content = R"(
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+  
+       my_ch<int>& SelectCh(bool select_a, 
+                            bool select_c,
+                            my_ch<int>& ac,
+                            my_ch<int>& bc,
+                            my_ch<int>& cc) {
+          return select_c ? cc : (!select_a ? ac : bc);
+       }
+       
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_a_in, 
+                       my_ch<int>& dir_c_in,
+                       my_ch<int>& ina,
+                       my_ch<int>& inb,
+                       my_ch<int>& inc,
+                       my_ch<int>& out) {
+          const int dir_a = dir_a_in.read();
+          const int dir_c = dir_c_in.read();
+          my_ch<int>& ch_r = SelectCh(dir_a, dir_c, ina, inb, inc);
+          out.write(ch_r.read());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_a_in", 0, true), IOOpTest("dir_c_in", 0, true),
+          IOOpTest("inc", 13, false), IOOpTest("ina", 5, true),
+          IOOpTest("inb", 3, false)},
+         /*outputs=*/{IOOpTest("out", 5, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_a_in", 1, true), IOOpTest("dir_c_in", 0, true),
+          IOOpTest("inc", 13, false), IOOpTest("ina", 5, false),
+          IOOpTest("inb", 3, true)},
+         /*outputs=*/{IOOpTest("out", 3, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_a_in", 0, true), IOOpTest("dir_c_in", 1, true),
+          IOOpTest("inc", 13, true), IOOpTest("ina", 5, false),
+          IOOpTest("inb", 3, false)},
+         /*outputs=*/{IOOpTest("out", 13, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_a_in", 1, true), IOOpTest("dir_c_in", 1, true),
+          IOOpTest("inc", 13, true), IOOpTest("ina", 5, false),
+          IOOpTest("inb", 3, false)},
+         /*outputs=*/{IOOpTest("out", 13, true)});
+}
+
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitch) {
+  const std::string content = R"(
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+  
+       my_ch<int>& SelectCh(int idx, my_ch<int>& a, my_ch<int>& b) {
+        switch (idx) {
+          default:
+            __xlscc_assert("Unsupported index to SelectIf!", false);
+            // Fall through to make all paths return
+          case 0:
+            return b;
+          case 1:
+            return a;
+          }
+        }
+  
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_in, 
+                       my_ch<int>& in1,
+                       my_ch<int>& in2,
+                       my_ch<int>& out) {
+          const int dir = dir_in.read();
+          my_ch<int>& ch_r = SelectCh(dir, in1, in2);
+          out.write(3*ch_r.read());
+       })";
+
+  auto one_bit_0 = xls::Value(xls::UBits(0, 1));
+  auto one_bit_1 = xls::Value(xls::UBits(1, 1));
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in2", 3, false),
+          IOOpTest("in1", 5, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in2", 3, true),
+          IOOpTest("in1", 5, false)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          IOOpTest("out", 9, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 2, true), IOOpTest("in2", 3, true),
+          IOOpTest("in1", 5, false)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_1, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          // Fall through outputs on b
+          IOOpTest("out", 9, true)});
+}
+
 TEST_F(TranslatorIOTest, TernaryOnChannelsReadAssign) {
   const std::string content = R"(
        #include "/xls_builtin.h"
