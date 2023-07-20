@@ -21,6 +21,7 @@ module my_block(
   assign literal_7 = 32'h0000_0001;
   assign add_8 = x + literal_7;
   assign sub_10 = y - literal_7;
+  // ===== Instantiations
   subtractor sub (
     .a(add_8),
     .b(sub_10),

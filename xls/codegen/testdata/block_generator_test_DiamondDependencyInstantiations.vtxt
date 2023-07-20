@@ -15,6 +15,7 @@ module delegator0(
   output wire [31:0] z
 );
   wire [31:0] instantiation_output_9;
+  // ===== Instantiations
   subtractor subtractor_instantiation (
     .a(x),
     .b(y),
@@ -30,6 +31,7 @@ module delegator1(
   output wire [31:0] z
 );
   wire [31:0] instantiation_output_15;
+  // ===== Instantiations
   subtractor subtractor_instantiation (
     .a(x),
     .b(y),
@@ -47,6 +49,7 @@ module my_block(
 );
   wire [31:0] instantiation_output_21;
   wire [31:0] instantiation_output_24;
+  // ===== Instantiations
   delegator0 deleg0 (
     .x(j),
     .y(k),

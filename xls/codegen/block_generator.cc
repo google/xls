@@ -687,6 +687,12 @@ class BlockGenerator {
   // Emit each instantation in the block into the separate instantation module
   // section.
   absl::Status EmitInstantiations() {
+    // Since instantiations are emitted at the end, and not the pipeline stages
+    // they are in, separate with headline to reduce confusion.
+    if (!block_->GetInstantiations().empty()) {
+      mb_.instantiation_section()->Add<Comment>(SourceInfo(),
+                                                "===== Instantiations");
+    }
     for (xls::Instantiation* instantiation : block_->GetInstantiations()) {
       std::vector<Connection> connections;
       for (InstantiationInput* input :

@@ -17,6 +17,7 @@ module my_block(
   output wire [31:0] out
 );
   wire [31:0] instantiation_output_7;
+  // ===== Instantiations
   my_register my_reg (
     .a(x),
     .result(instantiation_output_7),
