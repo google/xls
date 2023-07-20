@@ -702,6 +702,20 @@ dslx_lang_test(name = "for_up_to_const_local")
 
 dslx_lang_test(name = "map_of_stdlib_parametric")
 
+dslx_lang_test(
+    name = "map_consecutive",
+    # Primarily a #[test] function.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "simple_map_assert_eq",
+    # Primarily a #[test] function.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(name = "simplest_map")
+
 # Library meant to be imported.
 xls_dslx_library(
     name = "mod_imported_array_dslx",
