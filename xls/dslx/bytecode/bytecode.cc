@@ -265,6 +265,8 @@ std::string OpToString(Bytecode::Op op) {
       return "umul";
     case Bytecode::Op::kSMul:
       return "smul";
+    case Bytecode::Op::kMod:
+      return "mod";
     case Bytecode::Op::kNe:
       return "ne";
     case Bytecode::Op::kNegate:

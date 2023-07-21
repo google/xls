@@ -318,6 +318,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalMul(bytecode, /*is_signed=*/false));
       break;
     }
+    case Bytecode::Op::kMod: {
+      XLS_RETURN_IF_ERROR(EvalMod(bytecode));
+      break;
+    }
     case Bytecode::Op::kNe: {
       XLS_RETURN_IF_ERROR(EvalNe(bytecode));
       break;
@@ -672,6 +676,12 @@ absl::Status BytecodeInterpreter::EvalCreateTuple(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalDiv(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.FloorDiv(rhs);
+  });
+}
+
+absl::Status BytecodeInterpreter::EvalMod(const Bytecode& bytecode) {
+  return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    return lhs.FloorMod(rhs);
   });
 }
 

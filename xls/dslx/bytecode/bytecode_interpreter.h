@@ -129,6 +129,7 @@ class BytecodeInterpreter {
   absl::Status EvalLogicalOr(const Bytecode& bytecode);
   absl::Status EvalLt(const Bytecode& bytecode);
   absl::Status EvalMatchArm(const Bytecode& bytecode);
+  absl::Status EvalMod(const Bytecode& bytecode);
   absl::Status EvalNe(const Bytecode& bytecode);
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);

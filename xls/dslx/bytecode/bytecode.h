@@ -70,6 +70,8 @@ class Bytecode {
     kCreateTuple,
     // Divides the N-1th value on the stack by the Nth value.
     kDiv,
+    // Determines remainder of division of the N-1th value by the Nth value.
+    kMod,
     // Expands the N-tuple on the top of the stack by one level, placing leading
     // elements at the top of the stack. In other words, expanding the tuple
     // `(a, (b, c))` will result in a stack of `(b, c), a`, where `a` is on top

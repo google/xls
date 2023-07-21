@@ -32,6 +32,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -737,6 +738,24 @@ absl::StatusOr<InterpValue> InterpValue::FloorDiv(
     result = bits_ops::SDiv(lhs, rhs);
   } else {
     result = bits_ops::UDiv(lhs, rhs);
+  }
+  return InterpValue(tag_, result);
+}
+
+absl::StatusOr<InterpValue> InterpValue::FloorMod(
+    const InterpValue& other) const {
+  if (tag_ != other.tag_) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot floormod values: %s vs %s", TagToString(tag_),
+                        TagToString(other.tag_)));
+  }
+  XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());
+  XLS_ASSIGN_OR_RETURN(Bits rhs, other.GetBits());
+  Bits result;
+  if (IsSBits()) {
+    result = bits_ops::SMod(lhs, rhs);
+  } else {
+    result = bits_ops::UMod(lhs, rhs);
   }
   return InterpValue(tag_, result);
 }

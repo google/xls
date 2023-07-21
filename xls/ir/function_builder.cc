@@ -36,6 +36,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
@@ -858,6 +859,20 @@ BValue BuilderBase::SDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
     return BValue();
   }
   return AddBinOp(Op::kSDiv, lhs, rhs, loc, name);
+}
+BValue BuilderBase::UMod(BValue lhs, BValue rhs, const SourceInfo& loc,
+                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddBinOp(Op::kUMod, lhs, rhs, loc, name);
+}
+BValue BuilderBase::SMod(BValue lhs, BValue rhs, const SourceInfo& loc,
+                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddBinOp(Op::kSMod, lhs, rhs, loc, name);
 }
 BValue BuilderBase::Eq(BValue lhs, BValue rhs, const SourceInfo& loc,
                        std::string_view name) {

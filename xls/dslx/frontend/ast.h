@@ -1311,6 +1311,7 @@ class Unop : public Expr {
   X(kOr, "OR", "|")                       \
   X(kXor, "XOR", "^")                     \
   X(kDiv, "DIV", "/")                     \
+  X(kMod, "MOD", "%")                     \
   X(kLogicalAnd, "LOGICAL_AND", "&&")     \
   X(kLogicalOr, "LOGICAL_OR", "||")       \
   X(kConcat, "CONCAT", "++")

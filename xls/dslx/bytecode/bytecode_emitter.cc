@@ -387,6 +387,9 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
     case BinopKind::kDiv:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kDiv));
       break;
+    case BinopKind::kMod:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMod));
+      break;
     case BinopKind::kEq:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
       break;

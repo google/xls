@@ -587,6 +587,7 @@ absl::StatusOr<Token> Scanner::Pop() {
     case ',': DropChar(); result = Token(TokenKind::kComma, mk_span()); break;  // NOLINT
     case ';': DropChar(); result = Token(TokenKind::kSemi, mk_span()); break;  // NOLINT
     case '*': DropChar(); result = Token(TokenKind::kStar, mk_span()); break;  // NOLINT
+    case '%': DropChar(); result = Token(TokenKind::kPercent, mk_span()); break;  // NOLINT
     case '^': DropChar(); result = Token(TokenKind::kHat, mk_span()); break;  // NOLINT
     case '/': DropChar(); result = Token(TokenKind::kSlash, mk_span()); break;  // NOLINT
     case '"': DropChar(); result = Token(TokenKind::kDoubleQuote, mk_span()); break;  // NOLINT

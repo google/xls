@@ -70,6 +70,14 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "simple_mod",
+)
+
+dslx_lang_test(
+    name = "simple_div",
+)
+
+dslx_lang_test(
     name = "simple_inequality",
     convert_to_ir = False,
 )

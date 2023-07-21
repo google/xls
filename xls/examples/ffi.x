@@ -41,7 +41,7 @@ fn divmod<A_WIDTH:u32, B_WIDTH:u32>(a:bits[A_WIDTH], b:bits[B_WIDTH])
     if (b == u32:0) {
         (a, b, true)
     } else {
-        (a / b, a - b * (a / b), false)   // ... no mod % operation in dslx yet
+        (a / b, a % b, false)
     }
 }
 

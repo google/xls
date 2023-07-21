@@ -18,6 +18,7 @@
 #ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 #define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "xls/common/logging/logging.h"
@@ -152,6 +153,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* div) override;
+  absl::Status HandleSMod(BinOp* mod) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
   absl::Status HandleSGe(CompareOp* sge) override;
@@ -167,6 +169,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override;
   absl::Status HandleUDiv(BinOp* div) override;
+  absl::Status HandleUMod(BinOp* mod) override;
   absl::Status HandleUGe(CompareOp* ge) override;
   absl::Status HandleUGt(CompareOp* gt) override;
   absl::Status HandleULe(CompareOp* le) override;

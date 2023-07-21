@@ -68,6 +68,11 @@ class Z3OpTranslator {
   Z3_ast Extract(Z3_ast arg, int64_t bitno) {
     return Z3_mk_extract(z3_ctx_, bitno, bitno, arg);
   }
+
+  Z3_ast Cond(Z3_ast cond, Z3_ast match, Z3_ast nomatch) {
+    return Z3_mk_ite(z3_ctx_, cond, match, nomatch);
+  }
+
   Z3_ast UDiv(Z3_ast lhs, Z3_ast rhs) {
     // Z3's bvudiv matches XLS's udiv semantics on divide by zero. This does not
     // seem to be consistently documented, but
@@ -75,6 +80,7 @@ class Z3OpTranslator {
     // say that bvudiv with rhs=0 is defined as yielding all-ones.
     return Z3_mk_bvudiv(z3_ctx_, lhs, rhs);
   }
+
   Z3_ast SDiv(Z3_ast lhs, Z3_ast rhs) {
     // Z3's bvsdiv seems to differ from XLS's sdiv semantics on divide by zero.
     // Like bvudiv, behavior on divide by zero seems to not be specified, but I
@@ -112,6 +118,16 @@ class Z3OpTranslator {
 
     return Or(Or(rhs_not_zero_case, rhs_zero_and_lhs_negative_case),
               rhs_zero_and_lhs_non_negative_case);
+  }
+
+  Z3_ast UMod(Z3_ast lhs, Z3_ast rhs) {
+    // XLS behavior for mod-by-zero: (rhs == 0) ? 0 : lhs % rhs
+    return Cond(EqZeroBool(rhs), rhs, Z3_mk_bvurem(z3_ctx_, lhs, rhs));
+  }
+
+  Z3_ast SMod(Z3_ast lhs, Z3_ast rhs) {
+    // XLS behavior for mod-by-zero: (rhs == 0) ? 0 : lhs % rhs
+    return Cond(EqZeroBool(rhs), rhs, Z3_mk_bvsrem(z3_ctx_, lhs, rhs));
   }
 
   int64_t GetBvBitCount(Z3_ast arg) {
@@ -411,6 +427,13 @@ absl::Status IrTranslator::HandleUDiv(BinOp* div) {
   return HandleBinary(div, f);
 }
 
+absl::Status IrTranslator::HandleUMod(BinOp* mod) {
+  auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
+    return Z3OpTranslator(ctx_).UMod(lhs, rhs);
+  };
+  return HandleBinary(mod, f);
+}
+
 absl::Status IrTranslator::HandleUGe(CompareOp* uge) {
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
@@ -471,6 +494,13 @@ absl::Status IrTranslator::HandleSDiv(BinOp* div) {
     return Z3OpTranslator(ctx_).SDiv(lhs, rhs);
   };
   return HandleBinary(div, f);
+}
+
+absl::Status IrTranslator::HandleSMod(BinOp* mod) {
+  auto f = [this](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
+    return Z3OpTranslator(ctx_).SMod(lhs, rhs);
+  };
+  return HandleBinary(mod, f);
 }
 
 absl::Status IrTranslator::HandleSGe(CompareOp* sge) {

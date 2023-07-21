@@ -233,6 +233,10 @@ class BuilderBase {
               std::string_view name = "");
   BValue SDiv(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
               std::string_view name = "");
+  BValue UMod(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
+  BValue SMod(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+              std::string_view name = "");
 
   // Two's complement subtraction/addition.
   BValue Subtract(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),

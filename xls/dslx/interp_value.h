@@ -296,6 +296,7 @@ class InterpValue {
   absl::StatusOr<InterpValue> BitwiseAnd(const InterpValue& other) const;
   absl::StatusOr<InterpValue> ArithmeticNegate() const;
   absl::StatusOr<InterpValue> FloorDiv(const InterpValue& other) const;
+  absl::StatusOr<InterpValue> FloorMod(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(const InterpValue& other) const;
   absl::StatusOr<InterpValue> Index(int64_t index) const;
   absl::StatusOr<InterpValue> Update(const InterpValue& index,

@@ -2486,6 +2486,14 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
         return function_builder_->UDiv(lhs, rhs, loc);
       };
       break;
+    case BinopKind::kMod:
+      ir_func = [&](const SourceInfo& loc) {
+        if (signed_input) {
+          return function_builder_->SMod(lhs, rhs, loc);
+        }
+        return function_builder_->UMod(lhs, rhs, loc);
+      };
+      break;
     // Non-equality comparisons.
     case BinopKind::kGe:
       ir_func = [&](const SourceInfo& loc) {

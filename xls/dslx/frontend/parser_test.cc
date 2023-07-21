@@ -1442,6 +1442,18 @@ TEST_F(ParserTest, ConstantArray) {
 
 TEST_F(ParserTest, DoubleNegation) { RoundTripExpr("!!x", {"x"}, false); }
 
+TEST_F(ParserTest, ArithmeticOperatorPrecedence) {
+  Expr* e = RoundTripExpr("-a + b % c", {"a", "b", "c"});
+  auto* binop = dynamic_cast<Binop*>(e);
+  EXPECT_EQ(binop->binop_kind(), BinopKind::kAdd);
+
+  auto* unop = dynamic_cast<Unop*>(binop->lhs());
+  EXPECT_EQ(unop->unop_kind(), UnopKind::kNegate);
+
+  auto* binop_rhs = dynamic_cast<Binop*>(binop->rhs());
+  EXPECT_EQ(binop_rhs->binop_kind(), BinopKind::kMod);
+}
+
 TEST_F(ParserTest, LogicalOperatorPrecedence) {
   Expr* e = RoundTripExpr("!a || !b && c", {"a", "b", "c"});
   auto* binop = dynamic_cast<Binop*>(e);

@@ -491,6 +491,7 @@ std::string BinopKindFormat(BinopKind kind) {
     case BinopKind::kOr:         return "|";
     case BinopKind::kXor:        return "^";
     case BinopKind::kDiv:        return "/";
+    case BinopKind::kMod:        return "%";
     case BinopKind::kLogicalAnd: return "&&";
     case BinopKind::kLogicalOr:  return "||";
     case BinopKind::kConcat:     return "++";
@@ -1658,6 +1659,7 @@ Precedence Binop::GetPrecedenceInternal() const {
     // strong arithmetic
     case BinopKind::kMul:
     case BinopKind::kDiv:
+    case BinopKind::kMod:
       return Precedence::kStrongArithmetic;
     case BinopKind::kConcat:
       return Precedence::kConcat;
