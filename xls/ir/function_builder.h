@@ -124,6 +124,14 @@ class BuilderBase {
   // that wish to build malformed IR.
   explicit BuilderBase(std::unique_ptr<FunctionBase> function,
                        bool should_verify = true);
+
+  // Builders are neither copyable or movable- builder values contain references
+  // to their builder that can't be updated.
+  BuilderBase(const BuilderBase&) = delete;
+  BuilderBase& operator=(const BuilderBase&) = delete;
+  BuilderBase(BuilderBase&&) = delete;
+  BuilderBase& operator=(BuilderBase&&) = delete;
+
   virtual ~BuilderBase();
 
   const std::string& name() const;
@@ -642,6 +650,13 @@ class FunctionBuilder : public BuilderBase {
                   bool should_verify = true);
   ~FunctionBuilder() override = default;
 
+  // Builders are neither copyable or movable- builder values contain references
+  // to their builder that can't be updated.
+  FunctionBuilder(const FunctionBuilder&) = delete;
+  FunctionBuilder& operator=(const FunctionBuilder&) = delete;
+  FunctionBuilder(FunctionBuilder&&) = delete;
+  FunctionBuilder& operator=(FunctionBuilder&&) = delete;
+
   BValue Param(std::string_view name, Type* type,
                const SourceInfo& loc = SourceInfo()) override;
 
@@ -666,6 +681,13 @@ class ProcBuilder : public BuilderBase {
               Package* package, bool should_verify = true);
 
   ~ProcBuilder() override = default;
+
+  // Builders are neither copyable or movable- builder values contain references
+  // to their builder that can't be updated.
+  ProcBuilder(const ProcBuilder&) = delete;
+  ProcBuilder& operator=(const ProcBuilder&) = delete;
+  ProcBuilder(ProcBuilder&&) = delete;
+  ProcBuilder& operator=(ProcBuilder&&) = delete;
 
   // Returns the Proc being constructed.
   Proc* proc() const;
@@ -840,6 +862,13 @@ class BlockBuilder : public BuilderBase {
                bool should_verify = true)
       : BuilderBase(std::make_unique<Block>(name, package), should_verify) {}
   ~BlockBuilder() override = default;
+
+  // Builders are neither copyable or movable- builder values contain references
+  // to their builder that can't be updated.
+  BlockBuilder(const BlockBuilder&) = delete;
+  BlockBuilder& operator=(const BlockBuilder&) = delete;
+  BlockBuilder(BlockBuilder&&) = delete;
+  BlockBuilder& operator=(BlockBuilder&&) = delete;
 
   // Returns the Block being constructed.
   Block* block() const { return down_cast<Block*>(function()); }
