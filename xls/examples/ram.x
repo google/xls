@@ -273,7 +273,7 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
       }
     } else { mem[read_req.addr] };
     let read_resp_value = ReadResp<DATA_WIDTH> {
-      data: unmasked_read_value & read_req.mask,
+      data: unmasked_read_value & expand_mask<DATA_WIDTH>(read_req.mask),
     };
     let tok = send_if(tok, read_resp, read_req_valid, read_resp_value);
 
