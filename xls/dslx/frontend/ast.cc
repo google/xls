@@ -2436,7 +2436,7 @@ Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
   }, expr_or_type);
 }
 
-std::string ExprOrTypeToString(const ExprOrType &expr_or_type) {
+static std::string ExprOrTypeToString(const ExprOrType& expr_or_type) {
   return absl::visit(Visitor{
                          [](Expr* expr) { return expr->ToString(); },
                          [](TypeAnnotation* type) { return type->ToString(); },
