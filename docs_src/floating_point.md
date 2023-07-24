@@ -213,6 +213,23 @@ pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
 Returns a `APFloat` struct whose flattened version would be the input string
 `x`.
 
+### `apfloat:ldexp`
+
+```dslx-snippet
+pub fn ldexp<EXP_SZ:u32, FRACTION_SZ:u32>(
+             fraction: APFloat<EXP_SZ, FRACTION_SZ>,
+             exp: s32) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+`ldexp` (load exponent) computes `fraction * 2^exp`. Note that:
+
+ - Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).
+   Similarly, denormal results are flushed to 0.
+ - No exception flags are raised/reported.
+ - We emit a single, canonical representation for NaN (qnan) but accept all
+   `NaN` representations as input.
+
+
 ### `apfloat::cast_from_fixed`
 
 ```dslx-snippet
@@ -570,19 +587,6 @@ Computes an approximation of 1.0 / sqrt(x). `NUM_REFINEMENTS` can be increased
 to tradeoff more hardware resources for more accuracy.
 
 `fast_rsqrt` does exactly one refinement.
-
-### `float32:ldexp`
-
-``dslx-snippet
-pub fn ldexp(fraction: F32, exp: s32) -> F32
-```
-
-`ldexp` (load exponent) computes `fraction * 2^exp`. Note that:
-
- - Input denormals are treated as/flushed to 0. (denormals-are-zero / DAZ).  Similarly, denormal results are flushed to 0.
- - No exception flags are raised/reported.
- - We emit a single, canonical representation for NaN (qnan) but accept all `NaN` representations as input.
-
 
 ## bfloat16
 
