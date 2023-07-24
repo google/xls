@@ -36,7 +36,7 @@ For example, the generic "is X infinite" operation is defined in `apfloat.x` as:
 
 ```dslx-snippet
 // Returns whether or not the given APFloat represents an infinite quantity.
-pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction == bits[FRACTION_SZ]:0)
 }
 ```
@@ -50,7 +50,7 @@ pub type F32 = apfloat::APFloat<u32:8, u32:23>;
 and `is_inf` is exposed as:
 
 ```dslx-snippet
-pub fn is_inf(f: F32) -> u1 { apfloat::is_inf<u32:8, u32:23>(f) }
+pub fn is_inf(f: F32) -> bool { apfloat::is_inf<u32:8, u32:23>(f) }
 ```
 
 In this way, users can refer to `F32` types and can use them as and with
@@ -80,6 +80,47 @@ pub fn qnan<EXP_SZ:u32, FRACTION_SZ:u32>() -> APFloat<EXP_SZ, FRACTION_SZ>
 
 Returns a [`quiet NaN`](https://en.wikipedia.org/wiki/NaN#Quiet_NaN).
 
+### `apfloat::is_nan`
+
+```dslx-snippet
+pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+Returns whether or not the given `APFloat` represents `NaN`.
+
+### `apfloat::inf`
+
+```dslx-snippet
+pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ>
+```
+
+Returns a positive or a negative infinity depending upon the given sign
+parameter.
+
+### `apfloat::is_inf`
+
+```dslx-snippet
+pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+Returns whether or not the given `APFloat` represents an infinite quantity.
+
+### `apfloat::is_pos_inf`
+
+```dslx-snippet
+pub fn is_pos_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+Returns whether or not the given `APFloat` represents a positive infinite quantity.
+
+### `apfloat::is_neg_inf`
+
+```dslx-snippet
+pub fn is_neg_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
+```
+
+Returns whether or not the given `APFloat` represents a negative infinite quantity.
+
 ### `apfloat::zero`
 
 ```dslx-snippet
@@ -96,14 +137,32 @@ pub fn one<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTI
 
 Returns one or minus one depending upon the given sign parameter.
 
-### `apfloat::inf`
+### `apfloat::negate`
 
 ```dslx-snippet
-pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ>
+pub fn negate<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> APFloat<EXP_SZ, FRACTION_SZ>
 ```
 
-Returns a positive or a negative infinity depending upon the given sign
-parameter.
+Returns the negative of `x` unless it is a `NaN`, in which case it will change it
+from a quiet to signaling `NaN` or from signaling to a quiet `NaN`.
+
+### `apfloat::max_normal_exp`
+
+```dslx-snippet
+pub fn max_normal_exp<EXP_SZ : u32>() -> sN[EXP_SZ]
+```
+
+Maximum value of the exponent for normal numbers with EXP_SZ bits in the
+exponent field. For single precision floats this value is 127.
+
+### `apfloat::min_normal_exp`
+
+```dslx-snippet
+pub fn min_normal_exp<EXP_SZ : u32>() -> sN[EXP_SZ]
+```
+
+Minimum value of the exponent for normal numbers with EXP_SZ bits in the
+exponent field. For single precision floats this value is -126.
 
 ### `apfloat::unbiased_exponent`
 
@@ -180,27 +239,11 @@ is the fraction (including the hidden bit). This function only normalizes in the
 direction of decreasing the exponent. Input must be a normal number or zero.
 Subnormals/Denormals are flushed to zero in the result.
 
-### `apfloat::is_inf`
-
-```dslx-snippet
-pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
-```
-
-Returns whether or not the given `APFloat` represents an infinite quantity.
-
-### `apfloat::is_nan`
-
-```dslx-snippet
-pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
-```
-
-Returns whether or not the given `APFloat` represents `NaN`.
-
 ### `apfloat::is_zero_or_subnormal`
 
 ```dslx-snippet
 pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
-                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x == 0` or `x` is a subnormal number.
@@ -222,7 +265,7 @@ number).
 ```dslx-snippet
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x == y`. Denormals are Zero (DAZ). Always returns `false` if
@@ -233,7 +276,7 @@ Returns `true` if `x == y`. Denormals are Zero (DAZ). Always returns `false` if
 ```dslx-snippet
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x > y`. Denormals are Zero (DAZ). Always returns `false` if
@@ -244,7 +287,7 @@ Returns `true` if `x > y`. Denormals are Zero (DAZ). Always returns `false` if
 ```dslx-snippet
 pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
-             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x >= y`. Denormals are Zero (DAZ). Always returns `false` if
@@ -255,7 +298,7 @@ Returns `true` if `x >= y`. Denormals are Zero (DAZ). Always returns `false` if
 ```dslx-snippet
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
-             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x <= y`. Denormals are Zero (DAZ). Always returns `false` if
@@ -266,7 +309,7 @@ Returns `true` if `x <= y`. Denormals are Zero (DAZ). Always returns `false` if
 ```dslx-snippet
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool
 ```
 
 Returns `true` if `x < y`. Denormals are Zero (DAZ). Always returns `false` if

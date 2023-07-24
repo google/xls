@@ -41,6 +41,7 @@ pub fn tag<EXP_SZ:u32, FRACTION_SZ:u32>(
   }
 }
 
+// Returns a quiet NaN.
 pub fn qnan<EXP_SZ:u32, FRACTION_SZ:u32>() -> APFloat<EXP_SZ, FRACTION_SZ> {
   APFloat<EXP_SZ, FRACTION_SZ> {
     sign: bits[1]:0,
@@ -63,6 +64,54 @@ fn qnan_test() {
   let actual = qnan<u32:4, u32:2>();
   assert_eq(actual, expected);
   ()
+}
+
+// Returns whether or not the given APFloat represents NaN.
+pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(
+              x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+  (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction != bits[FRACTION_SZ]:0)
+}
+
+// Returns a positive or a negative infinity depending upon the given sign parameter.
+pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(
+           sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
+  APFloat<EXP_SZ, FRACTION_SZ>{
+    sign: sign,
+    bexp: std::mask_bits<EXP_SZ>(),
+    fraction: bits[FRACTION_SZ]:0
+  }
+}
+
+#[test]
+fn inf_test() {
+  let expected = APFloat<u32:8, u32:23> {
+    sign: u1:0, bexp: u8:0xff, fraction: u23:0x0,
+  };
+  let actual = inf<u32:8, u32:23>(u1:0);
+  assert_eq(actual, expected);
+
+  let expected = APFloat<u32:4, u32:2> {
+    sign: u1:0, bexp: u4:0xf, fraction: u2:0x0,
+  };
+  let actual = inf<u32:4, u32:2>(u1:0);
+  assert_eq(actual, expected);
+  ()
+}
+
+// Returns whether or not the given APFloat represents an infinite quantity.
+pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(
+              x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+  (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction == bits[FRACTION_SZ]:0)
+}
+
+// Returns whether or not the given APFloat represents a positive infinite quantity.
+pub fn is_pos_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+  is_inf(x) && !x.sign
+}
+
+// Returns whether or not the given APFloat represents a negative infinite quantity.
+pub fn is_neg_inf<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
+  is_inf(x) && x.sign
 }
 
 // Returns a positive or negative zero depending upon the given sign parameter.
@@ -117,30 +166,39 @@ fn one_test() {
   ()
 }
 
-// Returns a positive or a negative infinity depending upon the given sign parameter.
-pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(
-           sign: bits[1]) -> APFloat<EXP_SZ, FRACTION_SZ> {
-  APFloat<EXP_SZ, FRACTION_SZ>{
-    sign: sign,
-    bexp: std::mask_bits<EXP_SZ>(),
-    fraction: bits[FRACTION_SZ]:0
+// Returns the negative of x unless it is a NaN, in which case it will
+// change it from a quiet to signaling NaN or from signaling to a quiet NaN.
+pub fn negate<EXP_SZ:u32, FRACTION_SZ:u32>(x: APFloat<EXP_SZ, FRACTION_SZ>)
+  -> APFloat<EXP_SZ, FRACTION_SZ> {
+  type Float = APFloat<EXP_SZ, FRACTION_SZ>;
+  Float {
+    sign: !x.sign,
+    bexp: x.bexp,
+    fraction: x.fraction
   }
 }
 
-#[test]
-fn inf_test() {
-  let expected = APFloat<u32:8, u32:23> {
-    sign: u1:0, bexp: u8:0xff, fraction: u23:0x0,
-  };
-  let actual = inf<u32:8, u32:23>(u1:0);
-  assert_eq(actual, expected);
+// Maximum value of the exponent for normal numbers with EXP_SZ bits in the exponent field.
+pub fn max_normal_exp<EXP_SZ : u32>() -> sN[EXP_SZ]{
+  ((uN[EXP_SZ]:1 << (EXP_SZ - u32:1)) - uN[EXP_SZ]:1) as sN[EXP_SZ]
+}
 
-  let expected = APFloat<u32:4, u32:2> {
-    sign: u1:0, bexp: u4:0xf, fraction: u2:0x0,
-  };
-  let actual = inf<u32:4, u32:2>(u1:0);
-  assert_eq(actual, expected);
-  ()
+#[test]
+fn test_max_normal_exp() {
+  assert_eq(max_normal_exp<u32:8>(), s8:127);
+  assert_eq(max_normal_exp<u32:11>(), s11:1023);
+}
+
+// Minimum value of the exponent for normal numbers with EXP_SZ bits in the exponent field.
+pub fn min_normal_exp<EXP_SZ : u32>() -> sN[EXP_SZ]{
+  let minus_min_normal_exp = ((uN[EXP_SZ]:1 << (EXP_SZ - u32 : 1)) - uN[EXP_SZ]:2) as sN[EXP_SZ];
+  -minus_min_normal_exp
+}
+
+#[test]
+fn test_min_normal_exp() {
+  assert_eq(min_normal_exp<u32:8>(), s8:-126);
+  assert_eq(min_normal_exp<u32:11>(), s11:-1022);
 }
 
 // Returns the unbiased exponent. For normal numbers it is
@@ -453,21 +511,9 @@ pub fn normalize<EXP_SZ:u32, FRACTION_SZ:u32,
   }
 }
 
-// Returns whether or not the given APFloat represents an infinite quantity.
-pub fn is_inf<EXP_SZ:u32, FRACTION_SZ:u32>(
-              x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
-  (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction == bits[FRACTION_SZ]:0)
-}
-
-// Returns whether or not the given APFloat represents NaN.
-pub fn is_nan<EXP_SZ:u32, FRACTION_SZ:u32>(
-              x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
-  (x.bexp == std::mask_bits<EXP_SZ>() && x.fraction != bits[FRACTION_SZ]:0)
-}
-
 // Returns true if x == 0 or x is a subnormal number.
 pub fn is_zero_or_subnormal<EXP_SZ: u32, FRACTION_SZ: u32>(
-                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+                            x: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   x.bexp == uN[EXP_SZ]:0
 }
 
@@ -610,7 +656,7 @@ fn cast_to_fixed_test() {
 // Always returns false if x or y is NaN.
 pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   if !(is_nan(x) || is_nan(y)) {
     ((flatten(x) == flatten(y))
           || (is_zero_or_subnormal(x) && is_zero_or_subnormal(y)))
@@ -673,7 +719,7 @@ fn test_fp_eq_2() {
 // Always returns false if x or y is NaN.
 pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   // Flush denormals.
   let x = subnormals_to_zero(x);
   let y = subnormals_to_zero(y);
@@ -759,7 +805,7 @@ fn test_fp_gt_2() {
 // Always returns false if x or y is NaN.
 pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
-             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   gt_2(x, y) || eq_2(x,y)
 }
 
@@ -824,7 +870,7 @@ fn test_fp_gte_2() {
 // Always returns false if x or y is NaN.
 pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
              x: APFloat<EXP_SZ, FRACTION_SZ>,
-             y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+             y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   if !(is_nan(x) || is_nan(y)) { !gt_2(x,y) }
   else { u1:0 }
 }
@@ -890,7 +936,7 @@ fn test_fp_lte_2() {
 // Always returns false if x or y is NaN.
 pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
             x: APFloat<EXP_SZ, FRACTION_SZ>,
-            y: APFloat<EXP_SZ, FRACTION_SZ>) -> u1 {
+            y: APFloat<EXP_SZ, FRACTION_SZ>) -> bool {
   if !(is_nan(x) || is_nan(y)) { !gte_2(x,y) }
   else { u1:0 }
 }
@@ -1557,12 +1603,12 @@ struct Product<EXP_CARRY: u32, WIDE_FRACTION: u32> {
 }
 
 // Returns true if the given Product is infinite.
-fn is_product_inf<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE_FRACTION>) -> u1 {
+fn is_product_inf<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE_FRACTION>) -> bool {
   p.bexp == std::mask_bits<EXP_CARRY>() && p.fraction == uN[WIDE_FRACTION]:0
 }
 
 // Returns true if the given Product is NaN.
-fn is_product_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE_FRACTION>) -> u1 {
+fn is_product_nan<EXP_CARRY: u32, WIDE_FRACTION: u32>(p: Product<EXP_CARRY, WIDE_FRACTION>) -> bool {
   p.bexp == std::mask_bits<EXP_CARRY>() && p.fraction != uN[WIDE_FRACTION]:0
 }
 
