@@ -14,6 +14,8 @@
 
 #include "xls/solvers/z3_ir_translator.h"
 
+#include <cstdint>
+
 #include "absl/debugging/leak_check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -83,41 +85,22 @@ class Z3OpTranslator {
 
   Z3_ast SDiv(Z3_ast lhs, Z3_ast rhs) {
     // Z3's bvsdiv seems to differ from XLS's sdiv semantics on divide by zero.
-    // Like bvudiv, behavior on divide by zero seems to not be specified, but I
-    // haven't found much other discussion about sdiv. The behavior implemented
-    // on 11/2022 in mk_sdiv seems to be to defer to udiv behavior in the case
-    // that lhs is non-negative. When lhs is negative, it negates lhs and
-    // returns a negated udiv. If I'm not missing any sign extension, it seems
-    // like that would mean x/0=-1 when x>=0 and 1 when x<0, which differs from
-    // XLS's specification of MAX_INT when x>=0 and MIN_INT otherwise.
-    //
-    // Here, we implement a one-hot-select to distinguish between the
-    // case where bvsdiv computes the desired result (rhs!=0) and the two cases
-    // where it does not (lhs>=0, rhs=0) and (lhs<0, rhs=0).
-    auto rhs_is_zero = EqZero(rhs);
-    auto lhs_is_negative = Msb(lhs);
-    auto quotient = Z3_mk_bvsdiv(z3_ctx_, lhs, rhs);
-    int64_t quotient_bits = GetBvBitCount(quotient);
-    auto min_signed_int =
-        (quotient_bits > 1)
-            ? ConcatN({Fill(true, 1), Fill(false, quotient_bits - 1)})
-            : Fill(true, 1);
-    auto max_signed_int =
-        (quotient_bits > 1)
-            ? ConcatN({Fill(false, 1), Fill(true, quotient_bits - 1)})
+    // The Z3 sdiv is undefined for rhs=0; the XLS behavior is
+    // (rhs == 0 ? (lhs < 0 ? MIN_INT : MAX_INT) : lhs / rhs
+    // Implement that using a conditional.
+    const int64_t result_bits = GetBvBitCount(lhs);
+    Z3_ast max_signed_int =  // MAX_INT for this bit-width
+        (result_bits > 1)
+            ? ConcatN({Fill(false, 1), Fill(true, result_bits - 1)})
             : Fill(false, 1);
+    Z3_ast min_signed_int =  // MIN_INT for this bit width
+        (result_bits > 1)
+            ? ConcatN({Fill(true, 1), Fill(false, result_bits - 1)})
+            : Fill(true, 1);
 
-    auto rhs_not_zero_case =
-        And(SignExt(Not(rhs_is_zero), quotient_bits), quotient);
-    auto rhs_zero_and_lhs_negative_case =
-        And(SignExt(And(rhs_is_zero, lhs_is_negative), quotient_bits),
-            min_signed_int);
-    auto rhs_zero_and_lhs_non_negative_case =
-        And(SignExt(And(rhs_is_zero, Not(lhs_is_negative)), quotient_bits),
-            max_signed_int);
-
-    return Or(Or(rhs_not_zero_case, rhs_zero_and_lhs_negative_case),
-              rhs_zero_and_lhs_non_negative_case);
+    return Cond(EqZeroBool(rhs),
+                Cond(NeZeroBool(Msb(lhs)), min_signed_int, max_signed_int),
+                Z3_mk_bvsdiv(z3_ctx_, lhs, rhs));
   }
 
   Z3_ast UMod(Z3_ast lhs, Z3_ast rhs) {
