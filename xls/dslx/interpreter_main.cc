@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>  // NOLINT
+#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -76,14 +77,13 @@ const char* kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
-absl::Status RealMain(std::string_view entry_module_path,
+absl::StatusOr<TestResult> RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       const std::optional<std::string>& test_filter,
                       FormatPreference format_preference,
                       CompareFlag compare_flag, bool execute,
                       bool warnings_as_errors, std::optional<int64_t> seed,
-                      bool trace_channels, std::optional<int64_t> max_ticks,
-                      bool* printed_error) {
+                      bool trace_channels, std::optional<int64_t> max_ticks) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
 
@@ -112,8 +112,7 @@ absl::Status RealMain(std::string_view entry_module_path,
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
-  *printed_error = test_result != TestResult::kAllPassed;
-  return absl::OkStatus();
+  return test_result;
 }
 
 }  // namespace
@@ -180,13 +179,15 @@ int main(int argc, char* argv[]) {
     preference = flag_preference.value();
   }
 
-  bool printed_error = false;
-  absl::Status status = xls::dslx::RealMain(
+  absl::StatusOr<xls::dslx::TestResult> test_result = xls::dslx::RealMain(
       args[0], dslx_paths, test_filter, preference, compare_flag, execute,
-      warnings_as_errors, seed, trace_channels, max_ticks, &printed_error);
-  if (printed_error) {
+      warnings_as_errors, seed, trace_channels, max_ticks);
+  if (!test_result.ok()) {
+    std::cerr << test_result.status() << "\n";
     return EXIT_FAILURE;
   }
-  XLS_QCHECK_OK(status);
+  if (*test_result != xls::dslx::TestResult::kAllPassed) {
+    return EXIT_FAILURE;
+  }
   return EXIT_SUCCESS;
 }

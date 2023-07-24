@@ -287,7 +287,7 @@ absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
       ParseAndTypecheck(program, filename, module_name, &import_data);
   if (!tm_or.ok()) {
     if (TryPrintError(tm_or.status())) {
-      return TestResult::kSomeFailed;
+      return TestResult::kParseOrTypecheckError;
     }
     return tm_or.status();
   }

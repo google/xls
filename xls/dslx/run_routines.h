@@ -97,6 +97,7 @@ enum class TestResult {
   kFailedWarnings,
   kSomeFailed,
   kAllPassed,
+  kParseOrTypecheckError,
 };
 
 // Parses program and run all tests contained inside.

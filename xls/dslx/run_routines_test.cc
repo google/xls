@@ -136,7 +136,8 @@ proc doomed {
   ParseAndTestOptions options;
   absl::StatusOr<TestResult> result = ParseAndTest(
       kProgram, kModuleName, std::string(temp_file.path()), options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_THAT(result,
+              status_testing::IsOkAndHolds(TestResult::kParseOrTypecheckError));
 }
 
 // Verifies that the QuickCheck mechanism can find counter-examples for a simple
