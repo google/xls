@@ -557,7 +557,7 @@ pub fn ldexp<EXP_SZ:u32, FRACTION_SZ:u32>(
                   result
                 };
 
-  // Hanlde underflow, taking into account the case that underflow rounds back
+  // Handle underflow, taking into account the case that underflow rounds back
   // up to a normal number. If this was not a DAZ module, we'd have to deal with
   // denormal 'result' here.
   let underflow_result =

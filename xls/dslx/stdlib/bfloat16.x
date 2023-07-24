@@ -20,15 +20,28 @@ pub type FloatTag = apfloat::APFloatTag;
 pub type TaggedBF16 = (FloatTag, BF16);
 
 pub fn qnan() -> BF16 { apfloat::qnan<u32:8, u32:7>() }
+pub fn is_nan(f: BF16) -> bool { apfloat::is_nan<u32:8, u32:7>(f) }
+
+pub fn inf(sign: u1) -> BF16 { apfloat::inf<u32:8, u32:7>(sign) }
+pub fn is_inf(f: BF16) -> bool { apfloat::is_inf<u32:8, u32:7>(f) }
+pub fn is_pos_inf(f: BF16) -> bool { apfloat::is_pos_inf<u32:8, u32:7>(f) }
+pub fn is_neg_inf(f: BF16) -> bool { apfloat::is_neg_inf<u32:8, u32:7>(f) }
+
 pub fn zero(sign: u1) -> BF16 { apfloat::zero<u32:8, u32:7>(sign) }
 pub fn one(sign: u1) -> BF16 { apfloat::one<u32:8, u32:7>(sign) }
-pub fn inf(sign: u1) -> BF16 { apfloat::inf<u32:8, u32:7>(sign) }
+
+pub fn negate(x: BF16) -> BF16 { apfloat::negate(x) }
+
+pub fn max_normal_exp() -> s8 { apfloat::max_normal_exp<u32:8>() }
+pub fn min_normal_exp() -> s8 { apfloat::min_normal_exp<u32:8>() }
+
 pub fn unbiased_exponent(f: BF16) -> s8 {
   apfloat::unbiased_exponent<u32:8, u32:7>(f)
 }
 pub fn bias(unbiased_exponent_in: s8) -> u8 {
   apfloat::bias<u32:8, u32:7>(unbiased_exponent_in)
 }
+
 pub fn flatten(f: BF16) -> u16 { apfloat::flatten<u32:8, u32:7>(f) }
 pub fn unflatten(f: u16) -> BF16 { apfloat::unflatten<u32:8, u32:7>(f) }
 pub fn ldexp(f: BF16, e : s32) -> BF16 {apfloat::ldexp(f, e)}
@@ -42,29 +55,27 @@ pub fn subnormals_to_zero(f: BF16) -> BF16 {
   apfloat::subnormals_to_zero<u32:8, u32:7>(f)
 }
 
-pub fn is_inf(f: BF16) -> u1 { apfloat::is_inf<u32:8, u32:7>(f) }
-pub fn is_nan(f: BF16) -> u1 { apfloat::is_nan<u32:8, u32:7>(f) }
-pub fn is_zero_or_subnormal(f: BF16) -> u1 {
+pub fn is_zero_or_subnormal(f: BF16) -> bool {
   apfloat::is_zero_or_subnormal<u32:8, u32:7>(f)
 }
 
-pub fn eq_2(x: BF16, y: BF16) -> u1 {
+pub fn eq_2(x: BF16, y: BF16) -> bool {
   apfloat::eq_2<u32:8, u32:7>(x, y)
 }
 
-pub fn gt_2(x: BF16, y: BF16) -> u1 {
+pub fn gt_2(x: BF16, y: BF16) -> bool {
   apfloat::gt_2<u32:8, u32:7>(x, y)
 }
 
-pub fn gte_2(x: BF16, y: BF16) -> u1 {
+pub fn gte_2(x: BF16, y: BF16) -> bool {
   apfloat::gte_2<u32:8, u32:7>(x, y)
 }
 
-pub fn lt_2(x: BF16, y: BF16) -> u1 {
+pub fn lt_2(x: BF16, y: BF16) -> bool {
   apfloat::lt_2<u32:8, u32:7>(x, y)
 }
 
-pub fn lte_2(x: BF16, y: BF16) -> u1 {
+pub fn lte_2(x: BF16, y: BF16) -> bool {
   apfloat::lte_2<u32:8, u32:7>(x, y)
 }
 
