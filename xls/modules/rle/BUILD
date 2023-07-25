@@ -23,6 +23,10 @@ load(
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
+load("@rules_hdl//gds_write:build_defs.bzl", "gds_write")
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -97,6 +101,64 @@ xls_ir_verilog(
     verilog_file = "rle_enc.v",
 )
 
+verilog_library(
+    name = "rle_enc_verilog_lib",
+    srcs = [
+        ":rle_enc.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "rle_enc_synth_sky130",
+    top_module = "rle_enc",
+    deps = [
+        ":rle_enc_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_enc_place_and_route_sky130",
+    # ~0.67 GHz
+    clock_period = "1.5",
+    core_padding_microns = 2,
+    placement_density = "0.96",
+    synthesized_rtl = ":rle_enc_synth_sky130",
+    die_width_microns = 120,
+    die_height_microns = 120,
+    min_pin_distance = "2",
+)
+
+gds_write(
+    name = "rle_enc_gds_sky130",
+    implemented_rtl = ":rle_enc_place_and_route_sky130",
+)
+
+synthesize_rtl(
+    name = "rle_enc_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt",
+    top_module = "rle_enc",
+    deps = [
+        ":rle_enc_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_enc_place_and_route_asap7",
+    # ~1 GHz
+    clock_period = "750",
+    core_padding_microns = 1,
+    placement_density = "0.95",
+    synthesized_rtl = ":rle_enc_synth_asap7",
+    die_width_microns = 15,
+    die_height_microns = 15,
+    min_pin_distance = "0.2",
+)
+
+gds_write(
+    name = "rle_enc_gds_asap7",
+    implemented_rtl = ":rle_enc_place_and_route_asap7",
+)
+
 xls_benchmark_ir(
     name = "rle_enc_ir_benchmark",
     src = ":rle_enc_opt_ir.opt.ir",
@@ -164,6 +226,64 @@ xls_ir_verilog(
         "use_system_verilog": "false",
     },
     verilog_file = "rle_dec.v",
+)
+
+verilog_library(
+    name = "rle_dec_verilog_lib",
+    srcs = [
+        ":rle_dec.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "rle_dec_synth_sky130",
+    top_module = "rle_dec",
+    deps = [
+        ":rle_dec_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_dec_place_and_route_sky130",
+    # ~0.83 GHz
+    clock_period = "1.2",
+    core_padding_microns = 2,
+    placement_density = "0.95",
+    synthesized_rtl = ":rle_dec_synth_sky130",
+    die_width_microns = 120,
+    die_height_microns = 120,
+    min_pin_distance = "2",
+)
+
+gds_write(
+    name = "rle_dec_gds_sky130",
+    implemented_rtl = ":rle_dec_place_and_route_sky130",
+)
+
+synthesize_rtl(
+    name = "rle_dec_synth_asap7",
+    standard_cells = "@org_theopenroadproject_asap7sc7p5t_27//:asap7-sc7p5t_rev27_rvt",
+    top_module = "rle_dec",
+    deps = [
+        ":rle_dec_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_dec_place_and_route_asap7",
+    # ~2.5GHz
+    clock_period = "400",
+    core_padding_microns = 1,
+    placement_density = "0.95",
+    synthesized_rtl = ":rle_dec_synth_asap7",
+    die_width_microns = 15,
+    die_height_microns = 15,
+    min_pin_distance = "0.2",
+)
+
+gds_write(
+    name = "rle_dec_gds_asap7",
+    implemented_rtl = ":rle_dec_place_and_route_asap7",
 )
 
 xls_benchmark_ir(
