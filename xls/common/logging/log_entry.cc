@@ -86,8 +86,7 @@ LogEntry::LogEntry(std::string_view full_filename, int line,
       severity_(absl::NormalizeLogSeverity(severity)),
       verbose_level_(kNoVerboseLevel),
       timestamp_(timestamp),
-      tid_(GetCachedTID()),
-      text_message_("") {
+      tid_(GetCachedTID()) {
   GenerateTimestampAsTm();
 }
 
