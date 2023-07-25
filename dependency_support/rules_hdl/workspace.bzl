@@ -29,9 +29,9 @@ def repo():
         ],
     )
 
-    # Commit on 2023-07-07, current as of 2023-07-07.
-    git_hash = "83b51f4b10e0e8970f88b087b5fab3f90eb89834"
-    git_sha256 = "506d4e7ad746cf3fbeeb2e073667a940612bdd2a258ed9fe637d0c9f7d5c8930"
+    # Commit on 2023-07-25, current as of 2023-07-25
+    git_hash = "b036366bae45a03628d2bc891c97bb700992bb67"
+    git_sha256 = "70bce281469986440f8b4a09a093a28a2a9b00d83d4f4b2cd47cf5497944ab19"
 
     maybe(
         http_archive,
