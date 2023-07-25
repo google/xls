@@ -440,7 +440,7 @@ cc_library(
     srcs = ["parse_and_typecheck.cc"],
     hdrs = ["parse_and_typecheck.h"],
     deps = [
-        ":import_routines",
+        ":import_data",
         ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -590,5 +590,20 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "shadow_builtin_test",
+    srcs = ["shadow_builtin_test.cc"],
+    deps = [
+        ":run_routines",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/dslx/frontend:builtins_metadata",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
     ],
 )

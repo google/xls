@@ -115,13 +115,22 @@ void FlattenToSetInternal(const AstNode* node,
 
 }  // namespace
 
-bool IsBuiltinFn(Expr* callee) {
+bool IsBuiltinFn(Expr* callee, std::optional<std::string_view> target) {
   NameRef* name_ref = dynamic_cast<NameRef*>(callee);
   if (name_ref == nullptr) {
     return false;
   }
 
-  return std::holds_alternative<BuiltinNameDef*>(name_ref->name_def());
+  if (!std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+    return false;
+  }
+
+  if (target.has_value()) {
+    auto* bnd = std::get<BuiltinNameDef*>(name_ref->name_def());
+    return bnd->identifier() == target.value();
+  }
+
+  return true;
 }
 
 absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {

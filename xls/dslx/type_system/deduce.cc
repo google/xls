@@ -2766,10 +2766,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
 
   // Map is special.
-  auto* callee_name_ref = dynamic_cast<NameRef*>(node->callee());
-  bool callee_is_map =
-      callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
-  if (callee_is_map) {
+  if (IsBuiltinFn(node->callee(), "map")) {
     return DeduceMapInvocation(node, ctx);
   }
 

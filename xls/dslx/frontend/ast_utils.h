@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_AST_UTILS_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -32,7 +33,11 @@ namespace xls::dslx {
 
 // Returns true if `callee` refers to a builtin function. If `callee` isn't a
 // NameRef, then this always returns false.
-bool IsBuiltinFn(Expr* callee);
+//
+// If "target" is provided, only returns true iff it is a builtin function with
+// the given "target" name.
+bool IsBuiltinFn(Expr* callee,
+                 std::optional<std::string_view> target = std::nullopt);
 
 // Returns the name of `callee` if it's a builtin function and an error
 // otherwise.
