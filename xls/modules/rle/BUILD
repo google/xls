@@ -24,6 +24,9 @@ load(
     "xls_ir_verilog",
 )
 load("//xls/build_rules:dashboard.bzl", "dashboard")
+load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -97,6 +100,30 @@ xls_ir_verilog(
         "streaming_channel_data_suffix": "_data",
     },
     verilog_file = "rle_enc.v",
+)
+
+verilog_library(
+    name = "rle_enc_verilog_lib",
+    srcs = [
+	":rle_enc.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "rle_enc_synth_sky130",
+    top_module = "rle_enc",
+    deps = [
+        ":rle_enc_verilog_lib",
+    ],
+)
+
+place_and_route(
+    name = "rle_enc_place_and_route_sky130",
+    clock_period = "1",
+    core_padding_microns = 10,
+    placement_density = "0.8",
+    synthesized_rtl = ":rle_enc_synth_sky130",
+    target_die_utilization_percentage = "30",
 )
 
 xls_benchmark_ir(
