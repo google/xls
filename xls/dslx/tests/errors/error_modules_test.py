@@ -811,6 +811,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_constexpr_rollover_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/constexpr_rollover_warning.x'
+    )
+    self.assertIn(
+        'constexpr evaluation detected rollover in operation',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

@@ -34,6 +34,7 @@
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 
@@ -114,7 +115,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
 /* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
     const std::variant<InterpValue, OwnedParametric>& variant) {
   if (std::holds_alternative<InterpValue>(variant)) {
-    return std::get<InterpValue>(variant).GetBitValueCheckSign();
+    return std::get<InterpValue>(variant).GetBitValueViaSign();
   }
 
   return absl::InvalidArgumentError(
@@ -224,9 +225,9 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
     }
 
     if (value.IsSigned()) {
-      return value.GetBitValueInt64();
+      return value.GetBitValueSigned();
     }
-    return value.GetBitValueUint64();
+    return value.GetBitValueUnsigned();
   }
 
   std::optional<InterpValue> maybe_value = parametric().const_value();
@@ -234,9 +235,9 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
     InterpValue value = maybe_value.value();
     if (value.IsBits()) {
       if (value.IsSigned()) {
-        return value.GetBitValueInt64();
+        return value.GetBitValueSigned();
       }
-      return value.GetBitValueUint64();
+      return value.GetBitValueUnsigned();
     }
   }
 

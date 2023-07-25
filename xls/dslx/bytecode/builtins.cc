@@ -178,7 +178,7 @@ absl::Status RunBuiltinBitSlice(const Bytecode& bytecode,
       [](const InterpValue& subject, const InterpValue& start,
          const InterpValue& width) -> absl::StatusOr<InterpValue> {
         XLS_ASSIGN_OR_RETURN(Bits subject_bits, subject.GetBits());
-        XLS_ASSIGN_OR_RETURN(int64_t start_index, start.GetBitValueInt64());
+        XLS_ASSIGN_OR_RETURN(int64_t start_index, start.GetBitValueSigned());
         if (start_index >= subject_bits.bit_count()) {
           start_index = subject_bits.bit_count();
         }

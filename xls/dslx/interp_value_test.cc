@@ -64,7 +64,7 @@ TEST(InterpValueTest, FlattenArrayOfBits) {
   auto array = InterpValue::MakeArray({a, b});
   auto o = array->Flatten();
   EXPECT_THAT(o->GetBitCount(), IsOkAndHolds(24));
-  EXPECT_THAT(o->GetBitValueUint64(), IsOkAndHolds(0xf00ba5));
+  EXPECT_THAT(o->GetBitValueUnsigned(), IsOkAndHolds(0xf00ba5));
 }
 
 TEST(InterpValueTest, BitwiseNegateAllBitsSet) {

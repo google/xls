@@ -1116,8 +1116,8 @@ absl::Status BytecodeInterpreter::EvalSlice(const Bytecode& bytecode) {
 
   // At this point, both start and length must be nonnegative, so we force them
   // to UBits, since Slice expects that.
-  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t start_value, start.GetBitValueViaSign());
+  XLS_ASSIGN_OR_RETURN(int64_t length_value, length.GetBitValueViaSign());
   XLS_RET_CHECK_GE(start_value, 0);
   XLS_RET_CHECK_GE(length_value, 0);
   start = InterpValue::MakeBits(/*is_signed=*/false, start.GetBitsOrDie());
@@ -1257,7 +1257,7 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
     stack_.Push(oob_value);
     return absl::OkStatus();
   }
-  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUint64());
+  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUnsigned());
 
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
   XLS_ASSIGN_OR_RETURN(Bits basis_bits, basis.GetBits());

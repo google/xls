@@ -56,6 +56,7 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/format_strings.h"
@@ -71,6 +72,8 @@
 
 namespace xls::dslx {
 namespace {
+
+constexpr WarningCollector* kNoWarningCollector = nullptr;
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status ConversionErrorStatus(const std::optional<Span>& span,
@@ -547,7 +550,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_RET_CHECK(!type->IsMeta());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                       std::get<InterpValue>(dim.value()).GetBitValueInt64());
+                       std::get<InterpValue>(dim.value()).GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -731,12 +734,12 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
@@ -780,13 +783,13 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
 
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
-      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
 
   // Perform actual cast.
   if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
@@ -840,7 +843,7 @@ absl::Status FunctionConverter::HandleBuiltinWideningCast(
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueViaSign());
 
   // Perform actual cast. Validity is checked during type_check.
   Def(node, [this, arg, signed_input, new_bit_count](const SourceInfo& loc) {
@@ -983,13 +986,14 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
 
   const auto* range_op = dynamic_cast<const Range*>(iterable);
   if (range_op != nullptr) {
-    XLS_ASSIGN_OR_RETURN(start_value,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data_, current_type_info_, bindings,
-                             range_op->start(), nullptr));
-    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, range_op->end(), nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        start_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, range_op->start(), nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        limit_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, range_op->end(), nullptr));
   } else {
     const auto* iterable_call = dynamic_cast<const Invocation*>(iterable);
     if (iterable_call == nullptr) {
@@ -1012,19 +1016,21 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     Expr* start = iterable_call->args()[0];
     Expr* limit = iterable_call->args()[1];
 
-    XLS_ASSIGN_OR_RETURN(start_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, start, nullptr));
-    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
-                                          import_data_, current_type_info_,
-                                          bindings, limit, nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        start_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, start, nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        limit_value, ConstexprEvaluator::EvaluateToValue(
+                         import_data_, current_type_info_, kNoWarningCollector,
+                         bindings, limit, nullptr));
   }
 
   if (!start_value.IsBits() || !limit_value.IsBits()) {
     return error();
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueViaSign());
   XLS_ASSIGN_OR_RETURN(int64_t bit_width, start_value.GetBitCount());
 
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_limit, start_value.Ge(limit_value));
@@ -1036,9 +1042,9 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
   XLS_RET_CHECK(trip_count.IsBits());
   int64_t trip_count_int;
   if (trip_count.IsSigned()) {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueInt64());
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
   } else {
-    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueViaSign());
   }
 
   return RangeData{start_int, trip_count_int, bit_width};
@@ -1556,7 +1562,8 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
     std::optional<std::string> label;
     ParametricEnv bindings(parametric_env_map_);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        import_data_, current_type_info_, bindings, label_expr));
+        import_data_, current_type_info_, kNoWarningCollector, bindings,
+        label_expr));
 
     std::optional<InterpValue> start_value =
         current_type_info_->GetConstExprOption(label_expr);
@@ -2227,11 +2234,11 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     Value param_value;
     if (parametric_value->IsSigned()) {
       XLS_ASSIGN_OR_RETURN(int64_t bit_value,
-                           parametric_value->GetBitValueInt64());
+                           parametric_value->GetBitValueViaSign());
       param_value = Value(SBits(bit_value, bit_count));
     } else {
       XLS_ASSIGN_OR_RETURN(uint64_t bit_value,
-                           parametric_value->GetBitValueUint64());
+                           parametric_value->GetBitValueViaSign());
       param_value = Value(UBits(bit_value, bit_count));
     }
     DefConst(parametric_binding, param_value);

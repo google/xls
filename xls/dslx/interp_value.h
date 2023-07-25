@@ -250,11 +250,18 @@ class InterpValue {
   // Various operations -- tag is not applicable for the operation, a status
   // error should be returned.
 
-  absl::StatusOr<int64_t> GetBitValueCheckSign() const;
+  // Gets the underlying bit value and inspects the type(-tag)'s signedness to
+  // determine whether it should sign-extend or zero-extend to produce the
+  // resulting int64_t.
+  absl::StatusOr<int64_t> GetBitValueViaSign() const;
 
   absl::StatusOr<int64_t> GetBitCount() const;
-  absl::StatusOr<uint64_t> GetBitValueUint64() const;
-  absl::StatusOr<int64_t> GetBitValueInt64() const;
+
+  // Gets the underlying bit value with zero-extension to produce a uint64_t.
+  absl::StatusOr<uint64_t> GetBitValueUnsigned() const;
+
+  // Gets the underlying bit value with sign-extension to produce a int64_t.
+  absl::StatusOr<int64_t> GetBitValueSigned() const;
 
   // Returns true iff the value HasBits and the bits values fits in a
   // (u)int64_t.

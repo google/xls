@@ -44,7 +44,7 @@ absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
                                         const ParametricEnv& bindings) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
   if (std::holds_alternative<InterpValue>(resolved.value())) {
-    return std::get<InterpValue>(resolved.value()).GetBitValueInt64();
+    return std::get<InterpValue>(resolved.value()).GetBitValueViaSign();
   }
   return absl::InternalError(absl::StrFormat(
       "Expected resolved dimension of %s to be an integer, got: %s",

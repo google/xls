@@ -40,6 +40,7 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/casts.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
@@ -117,8 +118,8 @@ absl::StatusOr<std::unique_ptr<ParametricExpression>> ExprToParametric(
     XLS_ASSIGN_OR_RETURN(
         InterpValue constexpr_value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            n, default_type.get()));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), n, default_type.get()));
     return std::make_unique<ParametricConstant>(std::move(constexpr_value));
   }
   return absl::InvalidArgumentError(
@@ -251,6 +252,9 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
 
 // If the width is known for "type", checks that "number" fits in that type.
 absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
+  XLS_VLOG(5) << "TryEnsureFitsInType; number: " << number.ToString() << " @ "
+              << number.span() << " type: " << type;
+
   // Characters have a `u8` type. They can support the dash (negation symbol).
   if (number.number_kind() != NumberKind::kCharacter &&
       number.text()[0] == '-' && !type.is_signed()) {
@@ -267,6 +271,7 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
     // check that the number is compliant.
     return absl::OkStatus();
   }
+
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
@@ -364,9 +369,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
 
   XLS_ASSIGN_OR_RETURN(
       InterpValue constexpr_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->value(), result.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->value(), result.get()));
   ctx->type_info()->NoteConstExpr(node, constexpr_value);
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
   ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value);
@@ -394,10 +399,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
   // TupleIndex RHSs are always constexpr numbers.
   XLS_ASSIGN_OR_RETURN(
       InterpValue index_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->index(), index_type.get()));
-  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueUint64());
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->index(), index_type.get()));
+  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueViaSign());
   if (index >= tuple_type->size()) {
     return TypeInferenceErrorStatus(
         node->span(), tuple_type,
@@ -812,8 +817,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
       XLS_RETURN_IF_ERROR(ValidateNumber(*number, *type));
       ctx->type_info()->SetItem(number, *type);
       XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-          number, type.get()));
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), number, type.get()));
     } else {
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
                            ctx->Deduce(member.value));
@@ -827,8 +832,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            member.value, nullptr));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), member.value, nullptr));
     members.push_back(value);
   }
 
@@ -921,8 +926,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
 
   std::optional<InterpValue> maybe_constexpr_value;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-      node->rhs(), rhs.get()));
+      ctx->import_data(), ctx->type_info(), ctx->warnings(),
+      GetCurrentParametricEnv(ctx), node->rhs(), rhs.get()));
   if (ctx->type_info()->IsKnownConstExpr(node->rhs())) {
     XLS_ASSIGN_OR_RETURN(maybe_constexpr_value,
                          ctx->type_info()->GetConstExpr(node->rhs()));
@@ -1076,9 +1081,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
   }
 
   const ParametricEnv parametric_env = GetCurrentParametricEnv(ctx);
-  XLS_RETURN_IF_ERROR(
-      ConstexprEvaluator::Evaluate(ctx->import_data(), ctx->type_info(),
-                                   parametric_env, node->arg(), type.get()));
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      node->arg(), type.get()));
   if (!ctx->type_info()->IsKnownConstExpr(node->arg())) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
@@ -1088,9 +1093,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
   XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                        ctx->type_info()->GetConstExpr(node->arg()));
   if (constexpr_value.IsFalse()) {
-    XLS_ASSIGN_OR_RETURN(auto constexpr_map,
-                         MakeConstexprEnv(ctx->import_data(), ctx->type_info(),
-                                          node->arg(), parametric_env));
+    XLS_ASSIGN_OR_RETURN(
+        auto constexpr_map,
+        MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                         node->arg(), parametric_env));
     std::string constexpr_env_str = absl::StrJoin(
         constexpr_map, ", ", [](std::string* out, const auto& item) {
           absl::StrAppend(out, item.first, ": ", item.second.ToString());
@@ -1210,8 +1216,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     // Need to constexpr evaluate here - while we have the concrete type - or
     // else we'd infer the wrong array size.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-        node, array_type));
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        GetCurrentParametricEnv(ctx), node, array_type));
     return annotated;
   }
 
@@ -1565,8 +1571,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
     ctx->type_info()->SetItem(start, *resolved_start_type);
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-        ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-        start_number, resolved_start_type.get()));
+        ctx->import_data(), ctx->type_info(), ctx->warnings(),
+        GetCurrentParametricEnv(ctx), start_number, resolved_start_type.get()));
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
     // start expression's type.
@@ -1656,7 +1662,7 @@ static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
             bound_name, error_suffix));
   }
 
-  XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t as_64b, value.GetBitValueViaSign());
   XLS_VLOG(3) << absl::StreamFormat("Slice %s bound @ %s has value: %d",
                                     bound_name, bound->span().ToString(),
                                     as_64b);
@@ -1688,8 +1694,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
 
   absl::flat_hash_map<std::string, InterpValue> env;
   XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), node,
-                            ctx->fn_stack().back().parametric_env()));
+      env,
+      MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                       node, ctx->fn_stack().back().parametric_env()));
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
   auto* slice = std::get<Slice*>(node->rhs());
@@ -1740,8 +1747,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     ParametricExpression::Evaluated evaluated =
         owned_parametric->Evaluate(ToParametricEnv(fn_parametric_env));
     InterpValue v = std::get<InterpValue>(evaluated);
-    bit_count = v.IsSigned() ? v.GetBitValueInt64().value()
-                             : v.GetBitValueUint64().value();
+    bit_count = v.GetBitValueViaSign().value();
   } else {
     XLS_ASSIGN_OR_RETURN(bit_count, lhs_bit_count_ctd.GetAsInt64());
   }
@@ -2280,14 +2286,14 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(const Expr* dim_expr,
   XLS_VLOG(5) << "Attempting to evaluate dimension expression: `"
               << dim_expr->ToString()
               << "` via parametric env: " << parametric_env;
-  XLS_RETURN_IF_ERROR(
-      ConstexprEvaluator::Evaluate(ctx->import_data(), ctx->type_info(),
-                                   parametric_env, dim_expr, dim_type.get()));
+  XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+      ctx->import_data(), ctx->type_info(), ctx->warnings(), parametric_env,
+      dim_expr, dim_type.get()));
   if (ctx->type_info()->IsKnownConstExpr(dim_expr)) {
     XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
                          ctx->type_info()->GetConstExpr(dim_expr));
     XLS_ASSIGN_OR_RETURN(uint64_t int_value,
-                         constexpr_value.GetBitValueUint64());
+                         constexpr_value.GetBitValueViaSign());
     uint32_t u32 = static_cast<uint32_t>(int_value);
     XLS_RET_CHECK_EQ(u32, int_value);
     return ConcreteTypeDim::CreateU32(u32);
@@ -2551,14 +2557,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   // evaluatable.
   XLS_ASSIGN_OR_RETURN(
       InterpValue start_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->start(), start_type.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->start(), start_type.get()));
   XLS_ASSIGN_OR_RETURN(
       InterpValue end_value,
-      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
-                                          GetCurrentParametricEnv(ctx),
-                                          node->end(), end_type.get()));
+      ConstexprEvaluator::EvaluateToValue(
+          ctx->import_data(), ctx->type_info(), ctx->warnings(),
+          GetCurrentParametricEnv(ctx), node->end(), end_type.get()));
 
   InterpValue array_size = InterpValue::MakeUnit();
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
@@ -2672,8 +2678,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
         ConstexprEvaluator::EvaluateToValue(
-            ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
-            node->config()->args()[i], nullptr));
+            ctx->import_data(), ctx->type_info(), ctx->warnings(),
+            GetCurrentParametricEnv(ctx), node->config()->args()[i], nullptr));
     constexpr_env.insert({proc->config()->params()[i], value});
   }
 
@@ -2682,7 +2688,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // it and the ConstexprEvaluator, so we have to do it eagerly here.
   // Un-wind that, if possible.
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-      ctx->import_data(), ctx->type_info(), GetCurrentParametricEnv(ctx),
+      ctx->import_data(), ctx->type_info(), ctx->warnings(),
+      GetCurrentParametricEnv(ctx),
       down_cast<Invocation*>(node->next()->args()[0]),
       /*concrete_type=*/nullptr));
 
@@ -2709,10 +2716,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   constexpr_env.clear();
   XLS_RET_CHECK_EQ(tuple->members().size(), proc->members().size());
   for (int i = 0; i < tuple->members().size(); i++) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
-                                                ctx->import_data(), config_ti,
-                                                GetCurrentParametricEnv(ctx),
-                                                tuple->members()[i], nullptr));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(
+            ctx->import_data(), config_ti, ctx->warnings(),
+            GetCurrentParametricEnv(ctx), tuple->members()[i], nullptr));
     constexpr_env.insert({proc->members()[i], value});
   }
 

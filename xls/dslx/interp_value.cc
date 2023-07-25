@@ -589,7 +589,7 @@ absl::StatusOr<InterpValue> InterpValue::Slice(
     if (out_of_bounds.IsTrue()) {
       result.push_back(subject.back());
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t offset_int, offset.GetBitValueUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t offset_int, offset.GetBitValueUnsigned());
       result.push_back(subject[offset_int]);
     }
   }
@@ -805,26 +805,26 @@ absl::StatusOr<int64_t> InterpValue::GetBitCount() const {
   return b.bit_count();
 }
 
-absl::StatusOr<int64_t> InterpValue::GetBitValueCheckSign() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueViaSign() const {
   if (IsEnum()) {
     EnumData enum_data = std::get<EnumData>(payload_);
     if (enum_data.is_signed) {
-      return GetBitValueInt64();
+      return GetBitValueSigned();
     }
 
-    return GetBitValueUint64();
+    return GetBitValueUnsigned();
   }
   if (IsSBits()) {
-    return GetBitValueInt64();
+    return GetBitValueSigned();
   }
   if (IsUBits()) {
-    return GetBitValueUint64();
+    return GetBitValueUnsigned();
   }
   return absl::InvalidArgumentError("Value cannot be converted to bits: " +
                                     ToHumanString());
 }
 
-absl::StatusOr<uint64_t> InterpValue::GetBitValueUint64() const {
+absl::StatusOr<uint64_t> InterpValue::GetBitValueUnsigned() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToUint64();
 }
@@ -837,7 +837,7 @@ bool InterpValue::FitsInNBitsUnsigned(int64_t n) const {
   return HasBits() && GetBitsOrDie().FitsInNBitsUnsigned(n);
 }
 
-absl::StatusOr<int64_t> InterpValue::GetBitValueInt64() const {
+absl::StatusOr<int64_t> InterpValue::GetBitValueSigned() const {
   XLS_ASSIGN_OR_RETURN(Bits b, GetBits());
   return b.ToInt64();
 }

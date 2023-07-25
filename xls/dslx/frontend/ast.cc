@@ -41,6 +41,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
@@ -2355,6 +2356,7 @@ std::string Number::ToStringInternal() const {
 std::string Number::ToStringNoType() const { return text_; }
 
 absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
+  XLS_RET_CHECK_GE(bit_count, 0);
   switch (number_kind_) {
     case NumberKind::kBool: {
       Bits result(bit_count);
@@ -2369,12 +2371,11 @@ absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
     case NumberKind::kOther: {
       XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
       auto [sign, bits] = sm;
-      if (bit_count < bits.bit_count()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Internal error: %s Cannot fit number value %s in %d bits; %d "
-            "required: `%s`",
-            span().ToString(), text_, bit_count, bits.bit_count(), ToString()));
-      }
+      XLS_RET_CHECK_GE(bits.bit_count(), 0);
+      XLS_RET_CHECK(bit_count >= bits.bit_count()) << absl::StreamFormat(
+          "Internal error: %s Cannot fit number value %s in %d bits; %d "
+          "required: `%s`",
+          span().ToString(), text_, bit_count, bits.bit_count(), ToString());
       bits = bits_ops::ZeroExtend(bits, bit_count);
       if (sign) {
         bits = bits_ops::Negate(bits);

@@ -119,6 +119,82 @@ constexpr int64_t kMyEnumNumElements = 3;
   ASSERT_EQ(result.header, kExpected);
 }
 
+TEST(CppTranspilerTest, EnumWithS64) {
+  const std::string kModule = R"(
+pub enum MyEnum : s64 {
+  MIN = s64:0x8000000000000000,
+  MID = s64:1 << 62,
+  MAX = s64::MAX,
+}
+)";
+
+  const std::string kExpected =
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#ifndef FAKE_PATH_H_
+#define FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+enum class MyEnum {
+  kMIN = -9223372036854775808,
+  kMID = 4611686018427387904,
+  kMAX = 9223372036854775807,
+};
+constexpr int64_t kMyEnumNumElements = 3;
+
+#endif  // FAKE_PATH_H_
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+  ASSERT_EQ(result.header, kExpected);
+}
+
+TEST(CppTranspilerTest, EnumWithU64) {
+  const std::string kModule = R"(
+pub enum MyEnum : u64 {
+  MIN = u64:0,
+  MID = u64:1 << 63,
+  MAX = u64::MAX,
+}
+)";
+
+  const std::string kExpected =
+      R"(// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#ifndef FAKE_PATH_H_
+#define FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+enum class MyEnum {
+  kMIN = 0,
+  kMID = 9223372036854775808,
+  kMAX = 18446744073709551615,
+};
+constexpr int64_t kMyEnumNumElements = 3;
+
+#endif  // FAKE_PATH_H_
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, TranspileToCpp(module.module, &import_data, "fake_path.h"));
+  ASSERT_EQ(result.header, kExpected);
+}
+
 // Basic typedef support.
 TEST(CppTranspilerTest, BasicTypedefs) {
   const std::string kModule = R"(

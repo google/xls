@@ -298,8 +298,9 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
     Expr* arg = invocation->args()[argno];
 
     XLS_ASSIGN_OR_RETURN(
-        auto env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), arg,
-                                   ctx->fn_stack().back().parametric_env()));
+        auto env,
+        MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
+                         arg, ctx->fn_stack().back().parametric_env()));
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -655,8 +656,8 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
     // referencing fn_stack::back is safe.
     XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
         parent_ctx->import_data(), parent_ctx->type_info(),
-        parent_ctx->fn_stack().back().parametric_env(), value,
-        value_type.get()));
+        parent_ctx->warnings(), parent_ctx->fn_stack().back().parametric_env(),
+        value, value_type.get()));
 
     // The value we're instantiating the function with must be constexpr -- we
     // can't instantiate with values determined at runtime, of course.
@@ -818,7 +819,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     XLS_ASSIGN_OR_RETURN(InterpValue init_value,
                          ConstexprEvaluator::EvaluateToValue(
                              ctx->import_data(), ctx->type_info(),
-                             ParametricEnv(), init->body()));
+                             ctx->warnings(), ParametricEnv(), init->body()));
     ctx->type_info()->NoteConstExpr(init->body(), init_value);
   }
 
@@ -1096,7 +1097,7 @@ absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     }
 
     XLS_ASSIGN_OR_RETURN(uint64_t array_dim,
-                         array_dim_value.GetBitValueUint64());
+                         array_dim_value.GetBitValueUnsigned());
     if (array_dim_value.IsBits() && array_dim > 0 && array_dim <= 64) {
       return GetBuiltinType(builtin_type->builtin_type() == BuiltinType::kSN,
                             array_dim);

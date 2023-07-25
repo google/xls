@@ -30,6 +30,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/frontend/ast_utils.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/ir_conversion_utils.h"
 #include "xls/dslx/type_system/parametric_env.h"
 
@@ -110,10 +111,13 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
 
   std::optional<int64_t> fifo_depth;
   if (node->fifo_depth().has_value()) {
-    XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                         ConstexprEvaluator::EvaluateToValue(
-                             import_data_, type_info_,
-                             bindings_, node->fifo_depth().value()));
+    // Note: warning collect is nullptr since all warnings should have been
+    // flagged in typechecking.
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue iv,
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
+            node->fifo_depth().value()));
     XLS_ASSIGN_OR_RETURN(Value fifo_depth_value, iv.ConvertToIr());
     if (!fifo_depth_value.IsBits()) {
       return absl::InvalidArgumentError(
@@ -241,10 +245,13 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   proc_data_->id_to_config_args[new_id] = config_args;
 
   if (!node->next()->args().empty()) {
+    // Note: warning collect is nullptr since all warnings should have been
+    // flagged in typechecking.
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
-        ConstexprEvaluator::EvaluateToValue(import_data_, type_info_, bindings_,
-                                            node->next()->args()[0], nullptr));
+        ConstexprEvaluator::EvaluateToValue(
+            import_data_, type_info_, /*warning_collector=*/nullptr, bindings_,
+            node->next()->args()[0], nullptr));
     XLS_ASSIGN_OR_RETURN(auto ir_value, value.ConvertToIr());
     proc_data_->id_to_initial_value[new_id] = ir_value;
   }

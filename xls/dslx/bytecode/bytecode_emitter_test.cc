@@ -750,7 +750,7 @@ fn handles_const_refs() -> u32 {
   const Bytecode* bc = &bytecodes[3];
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
-  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
   ASSERT_EQ(int_value, 100);
 }
 
@@ -1017,7 +1017,7 @@ fn main() -> u8[13] {
   XLS_ASSERT_OK_AND_ASSIGN(int64_t length, value.GetLength());
   EXPECT_EQ(13, length);
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value,
-                           value.GetValuesOrDie().at(0).GetBitValueUint64());
+                           value.GetValuesOrDie().at(0).GetBitValueUnsigned());
   EXPECT_EQ(char_value, 't');
 }
 

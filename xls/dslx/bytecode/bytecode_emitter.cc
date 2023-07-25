@@ -888,7 +888,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
                 import_data_->GetRootTypeInfoForNode(array_type));
             XLS_ASSIGN_OR_RETURN(InterpValue value,
                                  type_info->GetConstExpr(array_type->dim()));
-            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUint64());
+            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUnsigned());
             return GetArrayTypeColonAttr(array_type, dim_u64, node->attr());
           },
           [&](Module* module) -> absl::StatusOr<InterpValue> {

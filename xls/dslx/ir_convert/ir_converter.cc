@@ -65,6 +65,8 @@
 namespace xls::dslx {
 namespace {
 
+constexpr WarningCollector* kNoWarningCollector = nullptr;
+
 // Tries four heuristics as names for potential entry functions of the package.
 // Returns the first found heuristic. Otherwise, returns an absl::NotFoundError.
 absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
@@ -172,9 +174,10 @@ absl::Status ConvertOneFunctionInternal(PackageData& package_data,
       // Verify that there are no parametric bindings.
       XLS_RET_CHECK(record.parametric_env().empty());
       XLS_ASSIGN_OR_RETURN(
-          InterpValue iv, ConstexprEvaluator::EvaluateToValue(
-                              import_data, record.type_info(),
-                              record.parametric_env(), p->init()->body(), foo));
+          InterpValue iv,
+          ConstexprEvaluator::EvaluateToValue(
+              import_data, record.type_info(), kNoWarningCollector,
+              record.parametric_env(), p->init()->body(), foo));
       XLS_ASSIGN_OR_RETURN(Value ir_value, InterpValueToValue(iv));
       proc_data->id_to_initial_value[record.proc_id().value()] = ir_value;
     }

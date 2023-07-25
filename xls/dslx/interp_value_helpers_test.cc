@@ -47,7 +47,7 @@ TEST(InterpValueHelpersTest, CastBitsToArray) {
   for (int i = 0; i < 4; i++) {
     XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, converted.Index(i));
     ASSERT_TRUE(value.IsBits());
-    XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueViaSign());
     ASSERT_EQ(int_value, 0xa5);
   }
 }

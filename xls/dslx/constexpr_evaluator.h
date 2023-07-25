@@ -22,19 +22,28 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
 // Simple visitor to perform automatic dispatch to constexpr evaluate AST
 // expressions.
+//
+// Note that WarningCollector is given as a pointer and not a reference because
+// it is optional; e.g. sometimes constexpr evaluation is performed during IR
+// conversion, at which point we don't want to be collecting warnings since we
+// expect to have flagged all warnings (e.g. rollovers) in the type checking
+// phase.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
   // Evaluates the given expression to determine if it's constexpr or not, and
   // updates `type_info` accordingly. Returns success as long as no error
   // occurred during evaluation, even if `expr` is non-constexpr.
   static absl::Status Evaluate(ImportData* import_data, TypeInfo* type_info,
+                               WarningCollector* warning_collector,
                                const ParametricEnv& bindings, const Expr* expr,
                                const ConcreteType* concrete_type = nullptr);
 
@@ -42,8 +51,8 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   // value. Returns an error status if `expr` is non-constexpr.
   static absl::StatusOr<InterpValue> EvaluateToValue(
       ImportData* import_data, TypeInfo* type_info,
-      const ParametricEnv& bindings, const Expr* expr,
-      const ConcreteType* concrete_type = nullptr);
+      WarningCollector* warning_collector, const ParametricEnv& bindings,
+      const Expr* expr, const ConcreteType* concrete_type = nullptr);
 
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
@@ -95,9 +104,11 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
  private:
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
+                     WarningCollector* warning_collector,
                      ParametricEnv bindings, const ConcreteType* concrete_type)
       : import_data_(import_data),
         type_info_(type_info),
+        warning_collector_(warning_collector),
         bindings_(std::move(bindings)),
         concrete_type_(concrete_type) {}
 
@@ -107,10 +118,11 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   // necessary to determine that all expression components are constexpr.
   absl::Status InterpretExpr(const Expr* expr);
 
-  ImportData* import_data_;
-  TypeInfo* type_info_;
-  ParametricEnv bindings_;
-  const ConcreteType* concrete_type_;
+  ImportData* const import_data_;
+  TypeInfo* const type_info_;
+  WarningCollector* const warning_collector_;
+  const ParametricEnv bindings_;
+  const ConcreteType* const concrete_type_;
 };
 
 // Creates a map of symbol name to value for all known symbols in the current
@@ -121,7 +133,8 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 // `type_info` is required to look up the value of previously computed
 // constexprs.
 absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
-    ImportData* import_data, TypeInfo* type_info, const Expr* node,
+    ImportData* import_data, TypeInfo* type_info,
+    WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env);
 
 }  // namespace xls::dslx

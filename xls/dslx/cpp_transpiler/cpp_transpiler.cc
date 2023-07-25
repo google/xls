@@ -138,10 +138,10 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
 
     std::string val_str;
     if (value.IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(int64_t int_val, value.GetBitValueInt64());
+      XLS_ASSIGN_OR_RETURN(int64_t int_val, value.GetBitValueSigned());
       val_str = absl::StrCat(int_val);
     } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t int_val, value.GetBitValueUint64());
+      XLS_ASSIGN_OR_RETURN(uint64_t int_val, value.GetBitValueUnsigned());
       val_str = absl::StrCat(int_val);
     }
     members.push_back(absl::StrFormat(kMemberTemplate, identifier, val_str));
@@ -219,7 +219,7 @@ absl::StatusOr<std::string> ArrayTypeAnnotationToString(
       return absl::UnimplementedError(
           "Multidimensional arrays aren't yet supported.");
     }
-    XLS_ASSIGN_OR_RETURN(dim_int, dim_value.GetBitValueUint64());
+    XLS_ASSIGN_OR_RETURN(dim_int, dim_value.GetBitValueViaSign());
   }
   return absl::StrCat(element_type, "[", dim_int, "]");
 }
@@ -332,7 +332,7 @@ $0})";
 
   std::string indent(indent_level * 2, ' ');
   return absl::Substitute(kTemplate, indent, index,
-                          array_dim_value.GetBitValueUint64().value(), setter);
+                          array_dim_value.GetBitValueViaSign().value(), setter);
 }
 
 absl::StatusOr<std::string> GenerateTypeFromValueConverter(

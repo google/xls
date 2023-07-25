@@ -101,6 +101,7 @@ cc_library(
         "@com_google_absl//absl/types:variant",
         "//xls/common:casts",
         "//xls/common:visitor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
@@ -437,7 +438,7 @@ cc_library(
         ":concrete_type",
         ":deduce_ctx",
         "//xls/common/status:ret_check",
-        "//xls/dslx:errors",
+        "//xls/common/status:status_macros",
         "//xls/dslx/frontend:pos",
     ],
 )

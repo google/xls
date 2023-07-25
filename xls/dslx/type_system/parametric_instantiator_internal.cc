@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
@@ -58,16 +59,29 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
   }
 
   absl::flat_hash_map<std::string, InterpValue> env;
-  XLS_ASSIGN_OR_RETURN(
-      env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), expr,
-                            parametric_env));
+  XLS_ASSIGN_OR_RETURN(env,
+                       MakeConstexprEnv(ctx->import_data(), ctx->type_info(),
+                                        ctx->warnings(), expr, parametric_env));
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(ctx->import_data(), ctx->type_info(),
                                       expr, env, std::nullopt));
-  return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
-                                        /*args=*/{});
+
+  std::vector<Span> rollovers;
+  BytecodeInterpreterOptions options;
+  options.rollover_hook([&](const Span& s) { rollovers.push_back(s); });
+
+  XLS_ASSIGN_OR_RETURN(InterpValue value, BytecodeInterpreter::Interpret(
+                                              ctx->import_data(), bf.get(),
+                                              /*args=*/{}, options));
+
+  for (const Span& s : rollovers) {
+    ctx->warnings()->Add(s,
+                         "constexpr evaluation detected rollover in operation");
+  }
+
+  return value;
 }
 
 // Verifies that all parametrics adhere to signature-annotated types, and
