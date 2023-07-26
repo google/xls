@@ -16,8 +16,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -54,6 +56,18 @@
 namespace xls {
 
 namespace {
+// Get the token operand number for a given channel op.
+absl::StatusOr<int64_t> TokenOperandNumberForChannelOp(Node* node) {
+  switch (node->op()) {
+    case Op::kSend:
+      return Send::kTokenOperand;
+    case Op::kReceive:
+      return Receive::kTokenOperand;
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected channel op, got %s.", node->ToString()));
+  }
+}
 struct MultipleChannelOps {
   absl::flat_hash_map<int64_t, absl::flat_hash_set<Send*>> multiple_sends;
   absl::flat_hash_map<int64_t, absl::flat_hash_set<Receive*>> multiple_receives;
@@ -98,6 +112,83 @@ MultipleChannelOps FindMultipleChannelOps(Package* p) {
   return result;
 }
 
+// Check that the token DAG is compatible with the requested strictness.
+absl::Status CheckTokenDAG(
+    absl::Span<NodeAndPredecessors const> topo_sorted_dag,
+    ChannelStrictness strictness) {
+  if (strictness != ChannelStrictness::kProvenMutuallyExclusive) {
+    XLS_RET_CHECK_GT(topo_sorted_dag.size(), 1)
+        << "Legalization expected multiple channel ops.";
+  }
+  switch (strictness) {
+    case ChannelStrictness::kProvenMutuallyExclusive: {
+      if (topo_sorted_dag.empty()) {
+        return absl::OkStatus();
+      }
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Could not prove channel operations (%s) were mutually exclusive.",
+          absl::StrJoin(topo_sorted_dag, ", ")));
+    }
+    case ChannelStrictness::kTotalOrder: {
+      // In topo sorted order, every node must have a single precedent (the
+      // previous node in the topo sort) OR the node must be in a different,
+      // not-yet-seen FunctionBase.
+      absl::flat_hash_set<FunctionBase*> fbs_seen;
+      fbs_seen.reserve(topo_sorted_dag[0].node->package()->procs().size());
+      std::optional<Node*> previous_node;
+      std::optional<FunctionBase*> previous_fb;
+      for (const NodeAndPredecessors& node_and_predecessors : topo_sorted_dag) {
+        if (previous_fb.has_value() &&
+            previous_fb.value() !=
+                node_and_predecessors.node->function_base()) {
+          XLS_RET_CHECK(
+              !fbs_seen.contains(node_and_predecessors.node->function_base()))
+              << absl::StreamFormat(
+                     "Saw %s twice in topo sorted token DAG",
+                     node_and_predecessors.node->function_base()->name());
+          fbs_seen.insert(node_and_predecessors.node->function_base());
+          previous_node = std::nullopt;
+        }
+        if (node_and_predecessors.predecessors.empty()) {
+          XLS_RET_CHECK(!previous_fb.has_value() ||
+                        previous_fb.value() !=
+                            node_and_predecessors.node->function_base())
+              << absl::StreamFormat(
+                     "%v is not totally ordered, multiple nodes have no "
+                     "predecessors.",
+                     *node_and_predecessors.node);
+        } else {
+          if (previous_node.has_value()) {
+            XLS_RET_CHECK(
+                node_and_predecessors.predecessors.contains(*previous_node))
+                << absl::StreamFormat(
+                       "%v is not totally ordered, should come after %v, but "
+                       "comes after %v.",
+                       *node_and_predecessors.node, *previous_node.value(),
+                       **node_and_predecessors.predecessors.begin());
+          } else {
+            XLS_RET_CHECK(
+                (*node_and_predecessors.predecessors.begin())->Is<Param>())
+                << absl::StreamFormat(
+                       "First operation in total order must only depend on "
+                       "token param.");
+          }
+        }
+        previous_node = node_and_predecessors.node;
+        previous_fb = node_and_predecessors.node->function_base();
+      }
+      return absl::OkStatus();
+    }
+    case ChannelStrictness::kRuntimeMutuallyExclusive:
+    case ChannelStrictness::kRuntimeOrdered:
+    case ChannelStrictness::kArbitraryStaticOrder: {
+      // Arbitrary DAG OK. The runtime variants check things with assertions,
+      // and the arbitrary static order variant is correct by construction.
+      return absl::OkStatus();
+    }
+  }
+}
+
 // Comparator for FunctionBases based on name. Used to ensure the topo sort of
 // the token DAG is stable.
 struct FunctionBaseNameLess {
@@ -122,12 +213,43 @@ struct FunctionBaseNameLess {
 // through send0 -> recv -> after_all -> send1 would return [send0: {}, send1:
 // {send0}] when invoked with T=Send, and [recv: {}] when invoked with
 // T=Receive.
-// Note that token params are not included from predecessor lists.
+//
+// This also resolves transitive predecessors, so send0 -> recv -> send1 ->
+// send2 would return a map with send2 having predecessors {send0, send1}.
+//
+// Note that token params are not included in predecessor lists.
 template <typename T, typename = std::enable_if_t<std::is_base_of_v<Node, T>>>
 absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
     const absl::flat_hash_set<T*>& operations, ChannelStrictness strictness) {
-  std::vector<NodeAndPredecessors> result;
-  result.reserve(operations.size());
+  // We return the result_vector, but also build a result_map to track
+  // transitive dependencies.
+  std::vector<NodeAndPredecessors> result_vector;
+  result_vector.reserve(operations.size());
+
+  // If channel operations are mutually exclusive, ignore all predecessors.
+  // Simply add each operation to the DAG with no predecessors. If we included
+  // predecessors, we would unnecessarily condition activations on predecessor
+  // predicates that should always be false, e.g. activation = my_predicate_true
+  // && my_predicate_valid && !my_predicate_done && !any_predecessor_active.
+  // Also, assertions check that no non-predecessor got a true predicate, and
+  // every other operation should cause that assertion to fire.
+  if (strictness == ChannelStrictness::kRuntimeMutuallyExclusive) {
+    for (T* operation : operations) {
+      result_vector.push_back(
+          NodeAndPredecessors{.node = operation, .predecessors = {}});
+    }
+    std::sort(
+        result_vector.begin(), result_vector.end(),
+        [](const NodeAndPredecessors& lhs, const NodeAndPredecessors& rhs) {
+          return Node::NodeIdLessThan()(lhs.node, rhs.node);
+        });
+    return result_vector;
+  }
+
+  // result_map maps nodes to a flat_hash_set pointer owned by result_vector
+  // (avoids extra copies).
+  absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>*> result_map;
+  result_map.reserve(operations.size());
 
   // Use btree set that sorts FunctionBases by name to ensure stable order of
   // iteration through procs.
@@ -163,11 +285,10 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
         resolved_ops[fb_result.node] = std::move(resolved_predecessors);
         continue;
       }
-      // If we choose an arbitrary static order, clear the predecessors and
-      // chose the previous value. We're already iterating through in topo
-      // sorted order, so this only strengthens the dependency relationship.
+      // If we choose an arbitrary static order, add the previous value to the
+      // set of predecessors. We're already iterating through in topo sorted
+      // order, so this only strengthens the dependency relationship.
       if (strictness == ChannelStrictness::kArbitraryStaticOrder) {
-        resolved_predecessors.clear();
         if (prev_node.has_value()) {
           if (!prev_node.value()->Is<T>() ||
               !operations.contains(prev_node.value()->As<T>())) {
@@ -178,13 +299,23 @@ absl::StatusOr<std::vector<NodeAndPredecessors>> GetProjectedTokenDAG(
           }
         }
       }
-      result.push_back(NodeAndPredecessors{
+      absl::flat_hash_set<Node*> transitive_predecessors(
+          resolved_predecessors.begin(), resolved_predecessors.end());
+      for (Node* predecessor : resolved_predecessors) {
+        absl::flat_hash_set<Node*>* grand_predecessors =
+            result_map.at(predecessor);
+        transitive_predecessors.insert(grand_predecessors->begin(),
+                                       grand_predecessors->end());
+      }
+      result_vector.push_back(NodeAndPredecessors{
           .node = fb_result.node,
-          .predecessors = std::move(resolved_predecessors)});
+          .predecessors = std::move(transitive_predecessors)});
+      result_map.insert({fb_result.node, &result_vector.back().predecessors});
       prev_node = fb_result.node;
     }
   }
-  return result;
+  XLS_RETURN_IF_ERROR(CheckTokenDAG(result_vector, strictness));
+  return result_vector;
 }
 
 absl::Status CheckIsBlocking(Node* n) {
@@ -197,11 +328,6 @@ absl::Status CheckIsBlocking(Node* n) {
   return absl::OkStatus();
 }
 
-struct PredicateInfo {
-  StreamingChannel* channel;
-  Send* send;
-};
-
 // Add a new channel to communicate a channel operation's predicate to the
 // adapter proc.
 // The adapter proc needs to know which operations are firing, so we add a 1-bit
@@ -211,7 +337,7 @@ struct PredicateInfo {
 //    original channel operation.
 // 3) Updates the token of the original channel operation to come after the new
 //    predicate send.
-absl::StatusOr<PredicateInfo> MakePredicateChannel(Node* operation) {
+absl::StatusOr<StreamingChannel*> MakePredicateChannel(Node* operation) {
   Package* package = operation->package();
 
   XLS_ASSIGN_OR_RETURN(Channel * operation_channel,
@@ -245,20 +371,18 @@ absl::StatusOr<PredicateInfo> MakePredicateChannel(Node* operation) {
             SourceInfo(), Value(UBits(1, /*bit_count=*/1)),
             absl::StrFormat("true_predicate_for_chan_%s", channel->name())));
   }
-  // TODO(rigge): perform analysis to determine the proper token input for this
-  // send. Currently, we rely on the TokenDependencyPass to update the token
-  // argument for this send if it is not correctly accounting for data
-  // dependencies on side-effecting operations.
+  XLS_ASSIGN_OR_RETURN(int64_t operand_number,
+                       TokenOperandNumberForChannelOp(operation));
   XLS_ASSIGN_OR_RETURN(
       Send * send_pred,
       proc->MakeNodeWithName<Send>(
-          SourceInfo(), proc->TokenParam(), predicate.value(), std::nullopt,
-          pred_channel->id(),
+          SourceInfo(), operation->operand(operand_number), predicate.value(),
+          std::nullopt, pred_channel->id(),
           absl::StrFormat("send_predicate_for_chan_%s", channel->name())));
-  return PredicateInfo{
-      .channel = pred_channel,
-      .send = send_pred,
-  };
+  // Replace the op's original input token with the predicate send's token.
+  XLS_RETURN_IF_ERROR(operation->ReplaceOperandNumber(
+      operand_number, send_pred, /*type_must_match=*/true));
+  return pred_channel;
 }
 
 // Add a new channel to communicate a channel operation's completion to the
@@ -355,89 +479,6 @@ struct ClonedChannelWithPredicate {
   StreamingChannel* predicate_channel;
 };
 
-// Check that the token DAG is compatible with the requested strictness.
-absl::Status CheckTokenDAG(
-    absl::Span<NodeAndPredecessors const> topo_sorted_dag,
-    ChannelStrictness strictness) {
-  if (strictness != ChannelStrictness::kProvenMutuallyExclusive) {
-    XLS_RET_CHECK_GT(topo_sorted_dag.size(), 1)
-        << "Legalization expected multiple channel ops.";
-  }
-  switch (strictness) {
-    case ChannelStrictness::kProvenMutuallyExclusive: {
-      if (topo_sorted_dag.empty()) {
-        return absl::OkStatus();
-      }
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Could not prove channel operations (%s) were mutually exclusive.",
-          absl::StrJoin(topo_sorted_dag, ", ")));
-    }
-    case ChannelStrictness::kTotalOrder: {
-      // In topo sorted order, every node must have a single precedent (the
-      // previous node in the topo sort) OR the node must be in a different,
-      // not-yet-seen FunctionBase.
-      absl::flat_hash_set<FunctionBase*> fbs_seen;
-      fbs_seen.reserve(topo_sorted_dag[0].node->package()->procs().size());
-      std::optional<Node*> previous_node;
-      std::optional<FunctionBase*> previous_fb;
-      for (const NodeAndPredecessors& node_and_predecessors : topo_sorted_dag) {
-        if (previous_fb.has_value() &&
-            previous_fb.value() !=
-                node_and_predecessors.node->function_base()) {
-          XLS_RET_CHECK(
-              !fbs_seen.contains(node_and_predecessors.node->function_base()))
-              << absl::StreamFormat(
-                     "Saw %s twice in topo sorted token DAG",
-                     node_and_predecessors.node->function_base()->name());
-          fbs_seen.insert(node_and_predecessors.node->function_base());
-          previous_node = std::nullopt;
-        }
-        if (node_and_predecessors.predecessors.empty()) {
-          XLS_RET_CHECK(!previous_fb.has_value() ||
-                        previous_fb.value() !=
-                            node_and_predecessors.node->function_base())
-              << absl::StreamFormat(
-                     "%v is not totally ordered, multiple nodes have no "
-                     "predecessors.",
-                     *node_and_predecessors.node);
-        } else {
-          XLS_RET_CHECK_EQ(node_and_predecessors.predecessors.size(), 1)
-              << absl::StreamFormat(
-                     "%v is not totally ordered, has multiple predecessors "
-                     "[%s].",
-                     *node_and_predecessors.node,
-                     absl::StrJoin(node_and_predecessors.predecessors, ", "));
-          if (previous_node.has_value()) {
-            XLS_RET_CHECK_EQ(previous_node.value(),
-                             *node_and_predecessors.predecessors.begin())
-                << absl::StreamFormat(
-                       "%v is not totally ordered, should come after %v, but "
-                       "comes after %v.",
-                       *node_and_predecessors.node, *previous_node.value(),
-                       **node_and_predecessors.predecessors.begin());
-          } else {
-            XLS_RET_CHECK(
-                (*node_and_predecessors.predecessors.begin())->Is<Param>())
-                << absl::StreamFormat(
-                       "First operation in total order must only depend on "
-                       "token param.");
-          }
-        }
-        previous_node = node_and_predecessors.node;
-        previous_fb = node_and_predecessors.node->function_base();
-      }
-      return absl::OkStatus();
-    }
-    case ChannelStrictness::kRuntimeMutuallyExclusive:
-    case ChannelStrictness::kRuntimeOrdered:
-    case ChannelStrictness::kArbitraryStaticOrder: {
-      // Arbitrary DAG OK. The runtime variants check things with assertions,
-      // and the arbitrary static order variant is correct by construction.
-      return absl::OkStatus();
-    }
-  }
-}
-
 // The adapter orders multiple channel operations with state that tracks if
 // there is an outstanding channel operation waiting to complete.
 struct ActivationState {
@@ -447,240 +488,353 @@ struct ActivationState {
   BValue state;
   // The computed next state.
   BValue next_state;
+
+  struct CompareByStateIdx {
+    inline bool operator()(const ActivationState& a,
+                           const ActivationState& b) const {
+      return a.state_idx < b.state_idx;
+    }
+    inline bool operator()(const ActivationState* a,
+                           const ActivationState* b) const {
+      return operator()(*a, *b);
+    }
+  };
 };
 
 // For each channel operation, an ActivationNode has the necessary information
 // to determine when the operation should fire.
 struct ActivationNode {
-  // If nullopt, this ActivationNode's corresponding operation needs no state to
-  // determine activation. This usually means the operation has no precedents
-  // and can always fire when a true predicate is sent.
-  std::optional<ActivationState> activation_state;
-  // A 1-bit value indicating the corresponding operation can fire.
+  // The predicate for the given channel operation, valid when 'valid' is set.
+  BValue predicate;
+  BValue valid;
+  // Indicates if the corresponding operation has fired (if predicate && valid)
+  // or won't fire (if !predicate && valid) in the current round of operations.
+  BValue done;
+  // Indicates if the corresponding operation can fire in the current proc tick.
+  // Should only activate if the predicate is true and valid, it hasn't fired
+  // already, and predecessors aren't also active.
   BValue activate;
+  // State elements to track predicate, valid, and done across adapter proc
+  // ticks.
+  ActivationState predicate_state;
+  ActivationState valid_state;
+  ActivationState done_state;
   // The token from the predicate's receive, this ActivationNode's corresponding
   // operation should depend on it.
   BValue pred_recv_token;
 };
 
-struct NodeIdCompare {
-  bool operator()(Node* const lhs, Node* const rhs) const {
-    return lhs->id() < rhs->id();
+// Use btree_map to make iteration order stable.
+using ActivationNetwork =
+    absl::btree_map<Node* const, ActivationNode, Node::NodeIdLessThan>;
+
+// Computes the next state for the state elements in an activation network.
+// Assumes that the activation network's state indices are in [0,
+// activations.size()).
+std::vector<BValue> NextState(const ActivationNetwork& activations) {
+  // Next-state vector needs to be sorted by state index. First, build a list of
+  // ActivationState*, sort it, and then extract the next_state BValues into the
+  // vector to return.
+  std::vector<const ActivationState*> states;
+  states.reserve(activations.size());
+  for (const auto& [_, activation] : activations) {
+    states.push_back(&activation.predicate_state);
+    states.push_back(&activation.valid_state);
+    states.push_back(&activation.done_state);
   }
-};
-
-struct ActivationNetwork {
-  BValue network_active;
-  // Use btree_map to make iteration order stable.
-  absl::btree_map<Node* const, ActivationNode, NodeIdCompare> activations;
-};
-
-// Makes activation network and adds asserts.
-absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
-    ProcBuilder& pb, absl::Span<NodeAndPredecessors const> token_dag,
-    ChannelStrictness strictness) {
-  ActivationNetwork activation_network;
-
-  // This is the predicate on every recv on a predicate channel.
-  BValue do_pred_recvs;
-  {
-    std::vector<BValue> pred_state;
-    pred_state.reserve(token_dag.size());
-    // First, make state. We need to know the state in order to know the
-    // predicate on the predicate receive.
-    for (const auto& [node, predecessors] : token_dag) {
-      ActivationNode activation;
-      bool needs_state =
-          (strictness != ChannelStrictness::kRuntimeMutuallyExclusive) &&
-          std::any_of(predecessors.begin(), predecessors.end(), [](Node* n) {
-            // Proc token param is always "active".
-            return !n->Is<Param>();
-          });
-      if (needs_state) {
-        activation.activation_state.emplace();
-        activation.activation_state->state_idx = pred_state.size();
-        activation.activation_state->state =
-            pb.StateElement(absl::StrFormat("pred_%d", pred_state.size()),
-                            Value(UBits(0, /*bit_count=*/1)));
-        pred_state.push_back(activation.activation_state->state);
-      }
-      activation_network.activations.insert({node, activation});
-    }
-    if (pred_state.empty()) {
-      do_pred_recvs = pb.Literal(UBits(1, /*bit_count=*/1), SourceInfo(),
-                                 absl::StrFormat("do_pred_recvs"));
-    } else {
-      do_pred_recvs =
-          pb.Not(pb.Or(pred_state, SourceInfo(), "has_predicate_waiting"),
-                 SourceInfo(), "do_pred_recvs");
-    }
+  std::sort(states.begin(), states.end(), ActivationState::CompareByStateIdx());
+  std::vector<BValue> next_state_vector;
+  next_state_vector.reserve(states.size());
+  for (const ActivationState* state : states) {
+    XLS_CHECK_EQ(state->state_idx, next_state_vector.size());
+    next_state_vector.push_back(state->next_state);
   }
+  return next_state_vector;
+}
 
-  // For each proc, keep a list of token nodes. Channel operations will be
-  // updated to come after all the predicate sends.
-  absl::flat_hash_map<FunctionBase*, std::vector<Node*>> pred_send_tokens;
-  pred_send_tokens.reserve(token_dag.size());
-
-  // Map of all predecessors and their transitive predecessors. We need
-  // transitive predecessors to compute activations.
-  absl::flat_hash_map<Node*, absl::btree_set<Node*, NodeIdCompare>>
-      resolved_predecessors;
-
-  for (const auto& [node, predecessors] : token_dag) {
-    XLS_ASSIGN_OR_RETURN(PredicateInfo pred_info, MakePredicateChannel(node));
-    auto& [pred_channel, pred_send] = pred_info;
-    pred_send_tokens[node->function_base()].push_back(pred_send);
-    BValue recv = pb.ReceiveIf(
-        pred_channel, pb.GetTokenParam(), do_pred_recvs, SourceInfo(),
-        absl::StrFormat("recv_pred_on_chan_%d", pred_channel->id()));
-    BValue pred_recv_token = pb.TupleIndex(
-        recv, 0, SourceInfo(),
-        absl::StrFormat("recv_pred_on_chan_%d_token", pred_channel->id()));
-    BValue pred_recv_predicate = pb.TupleIndex(
-        recv, 1, SourceInfo(),
-        absl::StrFormat("recv_pred_on_chan_%d_data", pred_channel->id()));
-
-    // Resolve all predecessors and their predecessors.
-    auto [itr, _] = resolved_predecessors.insert({node, {}});
-    for (Node* const predecessor : predecessors) {
-      const absl::btree_set<Node*, NodeIdCompare>& grand_predecessors =
-          resolved_predecessors.at(predecessor);
-      itr->second.insert(predecessor);
-      itr->second.insert(grand_predecessors.begin(), grand_predecessors.end());
-    }
-
-    ActivationNode& activation = activation_network.activations.at(node);
-    {
-      std::vector<BValue> pred_tokens{pred_recv_token};
-      pred_tokens.reserve(predecessors.size() + 1);
-      for (const auto& predecessor : itr->second) {
-        pred_tokens.push_back(
-            activation_network.activations.at(predecessor).pred_recv_token);
-      }
-      activation.pred_recv_token = pb.AfterAll(
-          pred_tokens, SourceInfo(),
-          absl::StrFormat("after_recv_pred_on_chan_%d", pred_channel->id()));
-    }
-
-    std::vector<BValue> dependent_activations;
-    dependent_activations.reserve(token_dag.size());
-
-    if (activation.activation_state.has_value()) {
-      for (const auto& predecessor : itr->second) {
-        dependent_activations.push_back(
-            activation_network.activations.at(predecessor).activate);
-      }
-
-      BValue has_active_predecessor;
-      if (dependent_activations.size() > 1) {
-        has_active_predecessor =
-            pb.Or(dependent_activations, SourceInfo(),
-                  absl::StrFormat("%v_has_active_predecessor", *node));
-      } else if (dependent_activations.size() == 1) {
-        has_active_predecessor = dependent_activations[0];
-      } else {
-        return absl::InternalError(
-            absl::StrFormat("Node %v has state, but no predecessors.", *node));
-      }
-      BValue has_pred =
-          pb.Or(pred_recv_predicate, activation.activation_state->state,
-                SourceInfo(), absl::StrFormat("%v_has_pred", *node));
-      BValue no_active_predecessors =
-          pb.Not(has_active_predecessor, SourceInfo(),
-                 absl::StrFormat("%v_no_active_predecessors", *node));
-      activation.activate =
-          pb.And(has_pred, no_active_predecessors, SourceInfo(),
-                 absl::StrFormat("%v_activate", *node));
-      activation.activation_state->next_state = pb.And(
-          pb.Not(activation.activate),
-          pb.Or(activation.activation_state->state, pred_recv_predicate));
-    } else {
-      activation.activate = pred_recv_predicate;
-    }
+// Get a token that comes after each node's pred_recv_tokens.
+BValue PredRecvTokensForActivations(const ActivationNetwork& activations,
+                                    absl::Span<Node* const> nodes,
+                                    std::string_view name, ProcBuilder& pb) {
+  std::vector<BValue> pred_tokens;
+  pred_tokens.reserve(nodes.size());
+  for (const auto& node : nodes) {
+    pred_tokens.push_back(activations.at(node).pred_recv_token);
   }
-
-  // Build the network active bool. The network is active if there's a waiting
-  // predicate or if there's a true predicate we've received this tick. We OR
-  // all these signals together.
-  {
-    std::vector<BValue> network_active;
-    network_active.reserve(token_dag.size());
-    for (const auto& [node, _] : token_dag) {
-      network_active.push_back(
-          activation_network.activations.at(node).activate);
-    }
-    activation_network.network_active =
-        pb.Or(network_active, SourceInfo(), "do_external_op");
+  if (pred_tokens.empty()) {
+    return pb.GetTokenParam();
   }
+  if (pred_tokens.size() == 1) {
+    return pred_tokens[0];
+  }
+  return pb.AfterAll(pred_tokens, SourceInfo(), name);
+}
 
-  // Update the original operations to come after all of the predicate sends.
+BValue AllPredecessorsDone(const ActivationNetwork& activations,
+                           absl::Span<Node* const> nodes, std::string_view name,
+                           ProcBuilder& pb) {
+  std::vector<BValue> dones;
+  dones.reserve(nodes.size());
+  for (Node* node : nodes) {
+    const ActivationNode& activation = activations.at(node);
+    dones.push_back(
+        pb.Or(activation.done_state.state,
+              pb.And(pb.Not(activation.predicate), activation.valid)));
+  }
+  BValue all_done;
+  if (dones.size() > 1) {
+    all_done = pb.And(dones, SourceInfo(), name);
+  } else if (dones.size() == 1) {
+    all_done = dones[0];
+  } else {
+    all_done = pb.Literal(Value(UBits(1, /*bit_count=*/1)));
+  }
+  return all_done;
+}
+
+// Compute next-state values for each activation.
+// Returns the 'not_all_done' signal indicating if an activation is not yet
+// done.
+BValue NextStateAndReturnNotAllDone(
+    absl::Span<NodeAndPredecessors const> token_dag,
+    ActivationNetwork& activations, ProcBuilder& pb) {
+  BValue not_all_done;
+  std::vector<BValue> done_signals;
+  done_signals.reserve(token_dag.size());
   for (const auto& [node, _] : token_dag) {
-    std::vector<Node*>& tokens = pred_send_tokens.at(node->function_base());
-    XLS_CHECK(!tokens.empty());
-    // Replace lists of multiple tokens with a single after-all, which we will
-    // use potentially multiple times.
-    if (tokens.size() > 1) {
-      XLS_ASSIGN_OR_RETURN(Node * after_all,
-                           node->function_base()->MakeNodeWithName<AfterAll>(
-                               SourceInfo(), tokens, "after_send_pred"));
-      tokens.clear();
-      tokens.push_back(after_all);
-    }
+    done_signals.push_back(activations.at(node).done);
+  }
+  not_all_done = pb.Not(pb.And(done_signals), SourceInfo(), "not_all_done");
 
-    XLS_ASSIGN_OR_RETURN(
-        Node * after_pred_and_original_token,
-        node->function_base()->MakeNodeWithName<AfterAll>(
-            SourceInfo(), std::vector<Node*>{tokens[0], node->operand(0)},
-            absl::StrFormat("after_pred_and_original_token_for_%v", *node)));
-    XLS_RETURN_IF_ERROR(node->ReplaceOperandNumber(
-        0, after_pred_and_original_token, /*type_must_match=*/true));
+  // Compute next-state signals.
+  for (const auto& [node, _] : token_dag) {
+    ActivationNode& activation = activations.at(node);
+    activation.predicate_state.next_state =
+        pb.And(activation.predicate, not_all_done);
+    activation.valid_state.next_state = pb.And(activation.valid, not_all_done);
+    activation.done_state.next_state = pb.And(activation.done, not_all_done);
   }
 
-  for (const auto& [node, predecessors] : token_dag) {
-    std::vector<BValue> mutually_exclusive_activations;
-    std::vector<BValue> mutually_exclusive_activation_tokens;
-    mutually_exclusive_activation_tokens.push_back(
-        activation_network.activations.at(node).pred_recv_token);
+  return not_all_done;
+}
 
-    for (const auto& [mutually_exclusive_node,
-                      mutually_exclusive_activation_node] :
-         activation_network.activations) {
-      // Not mutually exclusive if it is node or a predecessor.
-      if (mutually_exclusive_node == node ||
-          predecessors.contains(mutually_exclusive_node)) {
-        continue;
-      }
-      mutually_exclusive_activations.push_back(
-          mutually_exclusive_activation_node.activate);
-      mutually_exclusive_activation_tokens.push_back(
+// Make assertions that operations w/ no token ordering are mutually exclusive.
+void MakeMutualExclusionAssertions(
+    absl::Span<NodeAndPredecessors const> token_dag,
+    ActivationNetwork& activations, ProcBuilder& pb) {
+  // Build a map of mutually exclusive nodes. Each key's predicate must be
+  // mutually exclusive with every element in value's predicate. Distinct nodes
+  // are mutually exclusive if neither node is a predecessor of the other.
+  absl::flat_hash_map<Node* const, absl::flat_hash_set<Node*>>
+      mutually_exclusive_nodes;
+  // Make a set of all nodes, we default-initialize every node to being mutually
+  // exclusive with every other node and remove predecessors as we go through
+  // token_dag.
+  absl::flat_hash_set<Node*> all_nodes;
+  std::transform(token_dag.begin(), token_dag.end(),
+                 std::inserter(all_nodes, all_nodes.end()),
+                 [](const NodeAndPredecessors& node_and_token) {
+                   return node_and_token.node;
+                 });
+  for (const auto& [node, predecessors] : token_dag) {
+    auto [itr, node_inserted] =
+        mutually_exclusive_nodes.insert({node, all_nodes});
+    // We iterate in topo-sorted order, so this should be the first time seeing
+    // 'node' and this insertion should always succeed.
+    XLS_CHECK(node_inserted);
+    itr->second.erase(node);
+    for (Node* const predecessor : predecessors) {
+      itr->second.erase(predecessor);
+      auto predecessor_itr = mutually_exclusive_nodes.find(predecessor);
+      // We have already inserted predecessors in previous iterations.
+      XLS_CHECK(predecessor_itr != mutually_exclusive_nodes.end());
+      predecessor_itr->second.erase(node);
+    }
+  }
+
+  // Make mutual exclusion assertions.
+  for (const auto& [node, predecessors] : token_dag) {
+    std::vector<BValue> mutually_exclusive_fired;
+    std::vector<BValue> mutually_exclusive_pred_recv_tokens;
+    mutually_exclusive_pred_recv_tokens.push_back(
+        activations.at(node).pred_recv_token);
+
+    for (Node* const mutually_exclusive_node :
+         mutually_exclusive_nodes.at(node)) {
+      const ActivationNode& mutually_exclusive_activation_node =
+          activations.at(mutually_exclusive_node);
+      mutually_exclusive_fired.push_back(
+          pb.And(mutually_exclusive_activation_node.predicate,
+                 mutually_exclusive_activation_node.valid));
+      mutually_exclusive_pred_recv_tokens.push_back(
           mutually_exclusive_activation_node.pred_recv_token);
     }
-    if (mutually_exclusive_activations.empty()) {
+    if (mutually_exclusive_fired.empty()) {
       continue;
     }
     // my_activation -> !Or(mutually_exclusive_activations) ===
     // !my_activation || !Or(mutually_exclusive_activations) ===
     // !(my_activation && Or(mutually_exclusive_activations))
-    BValue my_activation = activation_network.activations.at(node).activate;
-    BValue has_any_predecessor_active = pb.Or(
-        mutually_exclusive_activations, SourceInfo(),
-        /*name=*/absl::StrFormat("%v_has_active_mutually_exclusive", *node));
-    BValue node_and_predecessors_active = pb.And(
-        my_activation, has_any_predecessor_active, SourceInfo(),
-        /*name=*/absl::StrFormat("%v_active_with_mutually_exclusive", *node));
-    BValue my_activation_mutually_exclusive =
-        pb.Not(node_and_predecessors_active, SourceInfo(),
-               absl::StrFormat("%v_mutually_exclusive", *node));
-    BValue assertion_token = pb.AfterAll(mutually_exclusive_activation_tokens);
-    BValue mutual_exclusion_assertion = pb.Assert(
-        assertion_token, my_activation_mutually_exclusive,
-        absl::StrFormat("Activation for node %s was not mutually exclusive.",
-                        node->GetName()));
-    activation_network.activations.at(node).pred_recv_token =
-        mutual_exclusion_assertion;
+    BValue my_predicate = activations.at(node).predicate;
+    BValue has_any_predecessor_fire =
+        pb.Or(mutually_exclusive_fired, SourceInfo(),
+              /*name=*/absl::StrFormat("%v_mutually_exclusive_fired", *node));
+    BValue my_activation_mutually_exclusive = pb.AddNaryOp(
+        Op::kNand, {my_predicate, has_any_predecessor_fire}, SourceInfo(),
+        absl::StrFormat("%v_mutually_exclusive", *node));
+    BValue assertion_token = pb.AfterAll(mutually_exclusive_pred_recv_tokens);
+    BValue mutual_exclusion_assertion =
+        pb.Assert(assertion_token, my_activation_mutually_exclusive,
+                  absl::StrFormat(
+                      "Node %s predicate was not mutually exclusive with {%s}.",
+                      node->GetName(),
+                      absl::StrJoin(mutually_exclusive_nodes.at(node), ", ")));
+    activations.at(node).pred_recv_token = mutual_exclusion_assertion;
+  }
+}
+
+// Make a trace to aid debugging. It only fires when all ops are done.
+// TODO(google/xls#1082): make trace configurable to avoid too much noise during
+// RTL sim.
+void MakeDebugTrace(BValue condition,
+                    absl::Span<NodeAndPredecessors const> token_dag,
+                    ActivationNetwork& activations, ProcBuilder& pb) {
+  std::vector<BValue> pred_recv_tokens;
+  pred_recv_tokens.reserve(token_dag.size());
+  std::vector<BValue> args;
+  std::string format_string = "\nAdapter proc fire:\tpredicate\tvalid\tdone\n";
+  for (const auto& [node, _] : token_dag) {
+    ActivationNode& activation = activations.at(node);
+    args.push_back(activation.predicate);
+    args.push_back(activation.valid);
+    args.push_back(activation.done);
+    pred_recv_tokens.push_back(activation.pred_recv_token);
+    absl::StrAppend(&format_string, node->GetName(), ":\t{}\t{}\t{}\n");
+  }
+  BValue trace_tkn =
+      pb.Trace(pb.AfterAll(pred_recv_tokens), condition, args, format_string);
+  for (const auto& [node, _] : token_dag) {
+    activations.at(node).pred_recv_token = trace_tkn;
+  }
+}
+
+// Makes activation network and adds asserts.
+absl::StatusOr<ActivationNetwork> MakeActivationNetwork(
+    ProcBuilder& pb, absl::Span<NodeAndPredecessors const> token_dag,
+    ChannelStrictness strictness) {
+  ActivationNetwork activations;
+
+  // First, make new predicate channels. The adapter will non-blocking receive
+  // on each of these channels to get each operation's predicate.
+  absl::flat_hash_map<Node*, StreamingChannel*> pred_channels;
+  pred_channels.reserve(token_dag.size());
+  for (const auto& [node, _] : token_dag) {
+    XLS_ASSIGN_OR_RETURN(StreamingChannel * pred_channel,
+                         MakePredicateChannel(node));
+    pred_channels.insert({node, pred_channel});
   }
 
-  return activation_network;
+  // Now make state. We need to know the state in order to know the predicate on
+  // the predicate receive.
+  int64_t state_idx = 0;
+  for (const auto& [node, _] : token_dag) {
+    int64_t pred_channel_id = pred_channels.at(node)->id();
+    ActivationNode activation;
+    activation.predicate_state.state =
+        pb.StateElement(absl::StrFormat("pred_%d", pred_channel_id),
+                        Value(UBits(0, /*bit_count=*/1)));
+    activation.valid_state.state =
+        pb.StateElement(absl::StrFormat("pred_%d_valid", pred_channel_id),
+                        Value(UBits(0, /*bit_count=*/1)));
+    activation.done_state.state =
+        pb.StateElement(absl::StrFormat("pred_%d_done", pred_channel_id),
+                        Value(UBits(0, /*bit_count=*/1)));
+
+    activation.predicate_state.state_idx = state_idx++;
+    activation.valid_state.state_idx = state_idx++;
+    activation.done_state.state_idx = state_idx++;
+    activations.insert({node, activation});
+  }
+
+  // Make a non-blocking receive on the predicate channel for each operation.
+  // Compute predicate values and activations for this tick.
+  for (const auto& [node, predecessors] : token_dag) {
+    StreamingChannel* pred_channel = pred_channels.at(node);
+    ActivationNode& activation = activations.at(node);
+
+    std::vector<Node*> sorted_predecessors(predecessors.begin(),
+                                           predecessors.end());
+    std::sort(sorted_predecessors.begin(), sorted_predecessors.end(),
+              Node::NodeIdLessThan());
+
+    // Get token following predecessors' predicate receives.
+    BValue predecessors_pred_recv_token = PredRecvTokensForActivations(
+        activations, sorted_predecessors,
+        absl::StrFormat("chan_%d_recv_pred_predeccesors_token",
+                        pred_channel->id()),
+        pb);
+
+    // Do a non-blocking receive on the predicate channel.
+    //
+    // Each tick of the adapter will do a non-blocking receive on the predicate
+    // channel until a result with vaild=1 occurs. There are two state bits set
+    // here: 'predicate' stores the value of the predicate after it has been
+    // successfully received and 'valid' indicates that it has been successfully
+    // received. After the adapter completes all operations, 'valid' will be
+    // reset to 0 and everything starts over again.
+    BValue do_pred_recv = pb.Not(activation.valid_state.state);
+    BValue recv = pb.ReceiveIfNonBlocking(
+        pred_channel, predecessors_pred_recv_token, do_pred_recv, SourceInfo(),
+        absl::StrFormat("recv_pred_%d", pred_channel->id()));
+    activation.pred_recv_token = pb.TupleIndex(
+        recv, 0, SourceInfo(),
+        absl::StrFormat("recv_pred_%d_token", pred_channel->id()));
+    BValue pred_recv_predicate =
+        pb.TupleIndex(recv, 1, SourceInfo(),
+                      absl::StrFormat("recv_pred_%d_data", pred_channel->id()));
+    BValue pred_recv_valid = pb.TupleIndex(
+        recv, 2, SourceInfo(),
+        absl::StrFormat("recv_pred_%d_valid", pred_channel->id()));
+    activation.predicate = pb.Or(
+        pred_recv_predicate, activation.predicate_state.state, SourceInfo(),
+        absl::StrFormat("pred_%d_updated", pred_channel->id()));
+    activation.valid =
+        pb.Or(pred_recv_valid, activation.valid_state.state, SourceInfo(),
+              absl::StrFormat("pred_%d_valid_updated", pred_channel->id()));
+
+    BValue all_predecessors_done = AllPredecessorsDone(
+        activations, sorted_predecessors,
+        absl::StrFormat("%v_all_predecessors_done", *node), pb);
+    activation.activate =
+        pb.And({activation.predicate, activation.valid,
+                pb.Not(activation.done_state.state), all_predecessors_done},
+               SourceInfo(), absl::StrFormat("%v_activate", *node));
+    activation.done =
+        pb.Or({activation.activate,
+               pb.And(pb.Not(activation.predicate), activation.valid),
+               activation.done_state.state});
+  }
+
+  // Make assertions that operations w/ no token ordering are mutually
+  // exclusive. Note that the strictnesses runtime_mutually_exclusive and
+  // arbitrary_static_order are special cases here because their predecessors
+  // have been altered. In the runtime_mutually_exclusive case, all predecessors
+  // are empty, so every operation should be mutually exclusive. In the
+  // arbitrary_static_order case, nodes are linearized and have an added token
+  // relationship with every other operation, and there should be no assertions.
+  MakeMutualExclusionAssertions(token_dag, activations, pb);
+
+  // Compute next-state signals.
+  // Builds not_all_done signal which indicates if every operation is done. If
+  // so, start the next set of operations by setting next signals for done and
+  // valid to 0.
+  BValue not_all_done =
+      NextStateAndReturnNotAllDone(token_dag, activations, pb);
+
+  // Make a trace to aid debugging. It only fires when all ops are done.
+  MakeDebugTrace(pb.Not(not_all_done), token_dag, activations, pb);
+
+  return std::move(activations);
 }
 
 absl::Status AddAdapterForMultipleReceives(
@@ -690,7 +844,6 @@ absl::Status AddAdapterForMultipleReceives(
 
   XLS_ASSIGN_OR_RETURN(auto token_dags,
                        GetProjectedTokenDAG(ops, channel->GetStrictness()));
-  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, channel->GetStrictness()));
 
   std::string adapter_name =
       absl::StrFormat("chan_%s_io_receive_adapter", channel->name());
@@ -700,13 +853,25 @@ absl::Status AddAdapterForMultipleReceives(
                                     absl::StrJoin(token_dags, ", "));
 
   ProcBuilder pb(adapter_name, "tok", p);
-  BValue token = pb.GetTokenParam();
 
   XLS_ASSIGN_OR_RETURN(
-      auto activation_network,
+      ActivationNetwork activations,
       MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
 
-  BValue recv = pb.ReceiveIf(channel, token, activation_network.network_active,
+  BValue any_active;
+  BValue external_recv_input_token;
+  {
+    std::vector<BValue> all_activations;
+    std::vector<BValue> all_tokens;
+    all_activations.reserve(token_dags.size());
+    for (const auto& [node, _] : token_dags) {
+      all_activations.push_back(activations.at(node).activate);
+      all_tokens.push_back(activations.at(node).pred_recv_token);
+    }
+    any_active = pb.Or(all_activations, SourceInfo(), "any_active");
+    external_recv_input_token = pb.AfterAll(all_tokens);
+  }
+  BValue recv = pb.ReceiveIf(channel, external_recv_input_token, any_active,
                              SourceInfo(), "external_receive");
   BValue recv_token =
       pb.TupleIndex(recv, 0, SourceInfo(), "external_receive_token");
@@ -714,18 +879,12 @@ absl::Status AddAdapterForMultipleReceives(
       pb.TupleIndex(recv, 1, SourceInfo(), "external_receive_data");
 
   BValue send_after_all;
-  std::vector<BValue> next_state;
-  next_state.reserve(token_dags.size());
   {
     std::vector<BValue> send_tokens{recv_token};
     send_tokens.reserve(token_dags.size() + 1);
 
-    std::vector<BValue> completion_tokens;
-    completion_tokens.reserve(token_dags.size());
-
-    for (const auto& [node, predecessors] : token_dags) {
-      const ActivationNode& activation =
-          activation_network.activations.at(node);
+    for (const auto& [node, _] : token_dags) {
+      const ActivationNode& activation = activations.at(node);
 
       XLS_ASSIGN_OR_RETURN(
           Channel * new_data_channel,
@@ -739,33 +898,10 @@ absl::Status AddAdapterForMultipleReceives(
       BValue send_token = pb.AfterAll({activation.pred_recv_token, recv_token});
       send_tokens.push_back(pb.SendIf(new_data_channel, send_token,
                                       activation.activate, recv_data));
-      if (activation.activation_state.has_value()) {
-        XLS_RET_CHECK_EQ(next_state.size(),
-                         activation.activation_state->state_idx);
-        next_state.push_back(activation.activation_state->next_state);
-      }
     }
     send_after_all = pb.AfterAll(send_tokens);
   }
-  BValue completion_after_all;
-  {
-    std::vector<BValue> completion_tokens;
-    completion_tokens.reserve(token_dags.size());
-    BValue empty_tuple_literal = pb.Literal(Value::Tuple({}));
-
-    for (const auto& [node, predecessors] : token_dags) {
-      XLS_ASSIGN_OR_RETURN(StreamingChannel * completion_channel,
-                           MakeCompletionChannel(node));
-      BValue completion_send =
-          pb.SendIf(completion_channel, send_after_all,
-                    activation_network.activations.at(node).activate,
-                    empty_tuple_literal);
-      completion_tokens.push_back(completion_send);
-    }
-    completion_after_all = pb.AfterAll(completion_tokens);
-  }
-
-  return pb.Build(completion_after_all, next_state).status();
+  return pb.Build(send_after_all, NextState(activations)).status();
 }
 
 absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
@@ -774,7 +910,6 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 
   XLS_ASSIGN_OR_RETURN(auto token_dags,
                        GetProjectedTokenDAG(ops, channel->GetStrictness()));
-  XLS_RETURN_IF_ERROR(CheckTokenDAG(token_dags, channel->GetStrictness()));
 
   std::string adapter_name =
       absl::StrFormat("chan_%s_io_send_adapter", channel->name());
@@ -786,14 +921,12 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
   ProcBuilder pb(adapter_name, "tok", p);
 
   XLS_ASSIGN_OR_RETURN(
-      auto activation_network,
+      ActivationNetwork activations,
       MakeActivationNetwork(pb, token_dags, channel->GetStrictness()));
 
   BValue recv_after_all;
   BValue recv_data;
   BValue recv_data_valid;
-  std::vector<BValue> next_state;
-  next_state.reserve(token_dags.size());
   {
     std::vector<BValue> recv_tokens;
     recv_tokens.reserve(token_dags.size());
@@ -802,9 +935,8 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
     std::vector<BValue> recv_data_valids;
     recv_data_valids.reserve(token_dags.size());
 
-    for (const auto& [node, predecessors] : token_dags) {
-      const ActivationNode& activation =
-          activation_network.activations.at(node);
+    for (const auto& [node, _] : token_dags) {
+      const ActivationNode& activation = activations.at(node);
       XLS_ASSIGN_OR_RETURN(
           Channel * new_data_channel,
           p->CloneChannel(
@@ -819,11 +951,6 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
       recv_tokens.push_back(pb.TupleIndex(recv, 0));
       recv_datas.push_back(pb.TupleIndex(recv, 1));
       recv_data_valids.push_back(activation.activate);
-      if (activation.activation_state.has_value()) {
-        XLS_RET_CHECK_EQ(next_state.size(),
-                         activation.activation_state->state_idx);
-        next_state.push_back(activation.activation_state->next_state);
-      }
     }
     recv_after_all = pb.AfterAll(recv_tokens);
     // Reverse for one hot select order.
@@ -840,19 +967,18 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
     completion_tokens.reserve(token_dags.size());
     BValue empty_tuple_literal = pb.Literal(Value::Tuple({}));
 
-    for (const auto& [node, predecessors] : token_dags) {
+    for (const auto& [node, _] : token_dags) {
       XLS_ASSIGN_OR_RETURN(StreamingChannel * completion_channel,
                            MakeCompletionChannel(node));
       BValue completion_send =
           pb.SendIf(completion_channel, send_token,
-                    activation_network.activations.at(node).activate,
-                    empty_tuple_literal);
+                    activations.at(node).activate, empty_tuple_literal);
       completion_tokens.push_back(completion_send);
     }
     completion_after_all = pb.AfterAll(completion_tokens);
   }
 
-  return pb.Build(completion_after_all, next_state).status();
+  return pb.Build(completion_after_all, NextState(activations)).status();
 }
 }  // namespace
 
