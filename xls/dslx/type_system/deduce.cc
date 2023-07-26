@@ -1097,15 +1097,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstAssert(
         auto constexpr_map,
         MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                          node->arg(), parametric_env));
-    std::string constexpr_env_str = absl::StrJoin(
-        constexpr_map, ", ", [](std::string* out, const auto& item) {
-          absl::StrAppend(out, item.first, ": ", item.second.ToString());
-        });
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
-        absl::StrFormat(
-            "const_assert! failure: `%s` constexpr environment: {%s}",
-            node->arg()->ToString(), constexpr_env_str));
+        absl::StrFormat("const_assert! failure: `%s` constexpr environment: %s",
+                        node->arg()->ToString(),
+                        EnvMapToString(constexpr_map)));
   }
 
   return type;

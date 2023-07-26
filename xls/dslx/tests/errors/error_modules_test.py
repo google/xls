@@ -820,6 +820,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_module_level_const_assert_failure(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/module_level_const_assert_failure.x'
+    )
+    self.assertIn(
+        'const_assert! failure: `TWO + TWO != FOUR` constexpr environment:'
+        ' {FOUR: u32:4, TWO: u32:2}',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

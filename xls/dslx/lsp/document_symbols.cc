@@ -14,9 +14,13 @@
 
 #include "xls/dslx/lsp/document_symbols.h"
 
+#include <vector>
+
 #include "absl/types/variant.h"
 #include "external/verible/common/lsp/lsp-protocol-enums.h"
+#include "external/verible/common/lsp/lsp-protocol.h"
 #include "xls/common/visitor.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
 namespace xls::dslx {
@@ -76,26 +80,36 @@ std::vector<verible::lsp::DocumentSymbol> ToDocumentSymbols(const Module& m) {
         absl::visit(Visitor{
                         [](Function* f) { return ToDocumentSymbols(*f); },
                         [](Proc*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        },  // TODO
+                        },
                         [](TestFunction*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        },  // TODO
+                        },
                         [](TestProc*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        },  // TODO
+                        },
                         [](QuickCheck*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        },  // TODO
+                        },
                         [](TypeAlias*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        },  // TODO
+                        },
                         [](StructDef* s) { return ToDocumentSymbols(*s); },
                         [](ConstantDef* c) { return ToDocumentSymbols(*c); },
                         [](EnumDef* e) { return ToDocumentSymbols(*e); },
                         [](Import*) {
+                          // TODO(google/xls#1080): Complete the set of symbols.
                           return std::vector<verible::lsp::DocumentSymbol>{};
-                        }  // TODO
+                        },
+                        [](ConstAssert*) {
+                          // Note: no symbols are bound by a const assert.
+                          return std::vector<verible::lsp::DocumentSymbol>{};
+                        },
                     },
                     member);
     for (auto& ds : symbols) {

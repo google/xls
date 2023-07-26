@@ -939,6 +939,11 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
               new_member = down_cast<Import*>(cloner.old_to_new().at(i));
               return absl::OkStatus();
             },
+            [&](ConstAssert* n) -> absl::Status {
+              XLS_RETURN_IF_ERROR(n->Accept(&cloner));
+              new_member = down_cast<ConstAssert*>(cloner.old_to_new().at(n));
+              return absl::OkStatus();
+            },
         },
         member));
     XLS_RETURN_IF_ERROR(new_module->AddTop(new_member));

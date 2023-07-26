@@ -224,6 +224,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:dslx_builtins",
         "//xls/dslx:errors",

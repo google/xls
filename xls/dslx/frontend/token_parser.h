@@ -25,7 +25,6 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/scanner.h"
 
 namespace xls::dslx {

@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_info.h"
@@ -136,6 +137,15 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
     ImportData* import_data, TypeInfo* type_info,
     WarningCollector* warning_collector, const Expr* node,
     const ParametricEnv& parametric_env);
+
+// Returns a helpful text representation fo the given environment map, suitable
+// for putting into error messages and similar, along the lines of:
+//
+//    {MOL: u32:42, TWO: u32:2}
+//
+// Note the returned string is deterministic.
+std::string EnvMapToString(
+    const absl::flat_hash_map<std::string, InterpValue>& map);
 
 }  // namespace xls::dslx
 

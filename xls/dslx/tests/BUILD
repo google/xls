@@ -90,6 +90,18 @@ dslx_lang_test(
 dslx_lang_test(name = "simple_const_assert")
 
 dslx_lang_test(
+    name = "module_level_const_assert",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "module_level_const_assert_that_calls_fn",
+    # Note: no meaningful function to convert.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
     name = "wide_ashr",
     convert_to_ir = False,
 )

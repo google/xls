@@ -319,6 +319,14 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     }
 
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+
+    if (peek->IsIdentifier("const_assert!")) {
+      XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
+                           ParseConstAssert(*bindings));
+      XLS_RETURN_IF_ERROR(module_->AddTop(const_assert));
+      break;
+    }
+
     auto top_level_error = [peek] {
       return ParseErrorStatus(
           peek->span(),
@@ -521,7 +529,8 @@ absl::StatusOr<Expr*> Parser::ParseConditionalExpression(
 
 absl::StatusOr<ConstAssert*> Parser::ParseConstAssert(Bindings& bindings) {
   Pos start = GetPos();
-  XLS_ASSIGN_OR_RETURN(std::string config_name, PopIdentifierOrError());
+  XLS_ASSIGN_OR_RETURN(std::string identifier, PopIdentifierOrError());
+  XLS_RET_CHECK_EQ(identifier, "const_assert!");
   XLS_RETURN_IF_ERROR(
       DropTokenOrError(TokenKind::kOParen, /*start=*/nullptr,
                        "Expected a '(' after const_assert! macro"));

@@ -2971,7 +2971,8 @@ class ChannelDecl : public Expr {
 
 using ModuleMember =
     std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                 TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*>;
+                 TypeAlias*, StructDef*, ConstantDef*, EnumDef*, Import*,
+                 ConstAssert*>;
 
 std::string_view GetModuleMemberTypeName(const ModuleMember& module_member);
 

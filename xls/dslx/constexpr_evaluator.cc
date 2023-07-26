@@ -14,6 +14,7 @@
 
 #include "xls/dslx/constexpr_evaluator.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -29,6 +30,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -704,6 +706,23 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   }
 
   return env;
+}
+
+std::string EnvMapToString(
+    const absl::flat_hash_map<std::string, InterpValue>& map) {
+  std::vector<const std::pair<const std::string, InterpValue>*> items;
+  items.reserve(map.size());
+  for (const auto& item : map) {
+    items.push_back(&item);
+  }
+  std::sort(items.begin(), items.end(), [](const auto& a, const auto& b) {
+    return a->first < b->first;  // Order by key.
+  });
+  std::string guts =
+      absl::StrJoin(items, ", ", [](std::string* out, const auto& item) {
+        absl::StrAppend(out, item->first, ": ", item->second.ToString());
+      });
+  return absl::StrCat("{", guts, "}");
 }
 
 }  // namespace xls::dslx

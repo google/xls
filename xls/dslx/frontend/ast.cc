@@ -1027,30 +1027,38 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
 
 absl::Status Module::AddTop(ModuleMember member) {
   // Get name
-  std::string member_name =
-      absl::visit(Visitor{
-                      [](Function* f) { return f->identifier(); },
-                      [](Proc* p) { return p->identifier(); },
-                      [](TestFunction* tf) { return tf->identifier(); },
-                      [](TestProc* tp) { return tp->proc()->identifier(); },
-                      [](QuickCheck* qc) { return qc->identifier(); },
-                      [](TypeAlias* td) { return td->identifier(); },
-                      [](StructDef* sd) { return sd->identifier(); },
-                      [](ConstantDef* cd) { return cd->identifier(); },
-                      [](EnumDef* ed) { return ed->identifier(); },
-                      [](Import* i) { return i->identifier(); },
-                  },
-                  member);
+  std::optional<std::string> member_name = absl::visit(
+      Visitor{
+          [](Function* f) { return std::make_optional(f->identifier()); },
+          [](Proc* p) { return std::make_optional(p->identifier()); },
+          [](TestFunction* tf) { return std::make_optional(tf->identifier()); },
+          [](TestProc* tp) {
+            return std::make_optional(tp->proc()->identifier());
+          },
+          [](QuickCheck* qc) { return std::make_optional(qc->identifier()); },
+          [](TypeAlias* td) { return std::make_optional(td->identifier()); },
+          [](StructDef* sd) { return std::make_optional(sd->identifier()); },
+          [](ConstantDef* cd) { return std::make_optional(cd->identifier()); },
+          [](EnumDef* ed) { return std::make_optional(ed->identifier()); },
+          [](Import* i) { return std::make_optional(i->identifier()); },
+          [](ConstAssert* n) -> std::optional<std::string> {
+            return std::nullopt;
+          },
+      },
+      member);
 
-  if (top_by_name_.contains(member_name)) {
-    AstNode* node = ToAstNode(top_by_name_.at(member_name));
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Module %s already contains a member named %s @ %s: %s", name_,
-        member_name, node->GetSpan().value().ToString(), node->ToString()));
+  if (member_name.has_value() && top_by_name_.contains(member_name.value())) {
+    AstNode* node = ToAstNode(top_by_name_.at(member_name.value()));
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Module %s already contains a member named %s @ %s: %s",
+                        name_, member_name.value(),
+                        node->GetSpan().value().ToString(), node->ToString()));
   }
 
   top_.push_back(member);
-  top_by_name_.insert({member_name, member});
+  if (member_name.has_value()) {
+    top_by_name_.insert({member_name.value(), member});
+  }
   return absl::OkStatus();
 }
 
@@ -1066,6 +1074,7 @@ std::string_view GetModuleMemberTypeName(const ModuleMember& module_member) {
                          [](ConstantDef*) { return "constant-definition"; },
                          [](EnumDef*) { return "enum-definition"; },
                          [](Import*) { return "import"; },
+                         [](ConstAssert*) { return "const-assert"; },
                      },
                      module_member);
 }

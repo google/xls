@@ -27,10 +27,12 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -587,6 +589,12 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking type alias: "
                 << type_alias->ToString();
+  } else if (std::holds_alternative<ConstAssert*>(member)) {
+    XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
+  } else {
+    return absl::InvalidArgumentError(
+        absl::StrCat("Unimplemented node for module-level typechecking: ",
+                     ToAstNode(member)->GetNodeTypeName()));
   }
 
   return absl::OkStatus();
