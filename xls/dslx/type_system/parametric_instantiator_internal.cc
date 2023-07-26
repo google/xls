@@ -23,8 +23,8 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -45,6 +45,30 @@
 namespace xls::dslx {
 namespace internal {
 namespace {
+
+// Resolves possibly-parametric type 'annotated' via 'parametric_env_map'.
+absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
+    const ConcreteType& annotated,
+    const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> resolved,
+      annotated.MapSize(
+          [&](ConcreteTypeDim dim) -> absl::StatusOr<ConcreteTypeDim> {
+            if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+                    dim.value())) {
+              return dim;
+            }
+            const auto& parametric_expr =
+                std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+            ParametricExpression::Evaluated evaluated =
+                parametric_expr->Evaluate(
+                    ToParametricEnv(ParametricEnv(parametric_env_map)));
+            return ConcreteTypeDim(std::move(evaluated));
+          }));
+  XLS_VLOG(5) << "Resolved " << annotated.ToString() << " to "
+              << resolved->ToString();
+  return resolved;
+}
 
 absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
                                           const ParametricEnv& parametric_env) {
@@ -120,6 +144,22 @@ absl::Status EagerlyPopulateParametricEnvMap(
     }
     XLS_VLOG(5) << "name: " << name << " expr: " << expr->ToString();
 
+    // Note: we may have created values in early parametrics that are used in
+    // the types of subsequent expressions; e.g.:
+    //
+    //    fn f<X: u32, Y: sN[X] = {sN[X]:0}>()
+    //                            ^-------^-- expr that uses previous binding
+    //
+    // So before we evaluate an expression we make sure it has the most up to
+    // date type info available: we deduce the type of the expression, resolve
+    // it, and ensure it's set as the resolved type in the type info before
+    // interpretation.
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
+                         ctx->Deduce(expr));
+    XLS_ASSIGN_OR_RETURN(expr_type, Resolve(*expr_type, parametric_env_map));
+    XLS_RET_CHECK(!expr_type->HasParametricDims()) << expr_type->ToString();
+    ctx->type_info()->SetItem(expr, *expr_type);
+
     // Create the environment in which we evaluate the parametric default
     // expression.
     const ParametricEnv env(parametric_env_map);
@@ -132,21 +172,7 @@ absl::Status EagerlyPopulateParametricEnvMap(
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
 
-    if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
-        (absl::StartsWith(
-            result.status().message(),
-            "InterpBindings could not find bindings entry for identifier"))) {
-      // We haven't seen enough bindings to evaluate this constraint yet.
-      continue;
-    }
-
-    if (!result.ok() && result.status().code() == absl::StatusCode::kInternal &&
-        absl::StartsWith(
-            result.status().message(),
-            "BytecodeEmitter could not find slot or binding for name")) {
-      // We haven't seen enough bindings to evaluate this constraint yet.
-      continue;
-    }
+    XLS_RETURN_IF_ERROR(result.status());
 
     if (auto it = parametric_env_map.find(name);
         it != parametric_env_map.end()) {
@@ -200,6 +226,9 @@ ParametricInstantiator::ParametricInstantiator(
     ordered.insert(identifier);
   }
 
+  XLS_VLOG(5) << "ParametricInstantiator; span: " << span_ << " ordered: ["
+              << absl::StrJoin(ordered, ", ") << "]";
+
   for (const ParametricConstraint& constraint : parametric_constraints) {
     const std::string& identifier = constraint.identifier();
     if (!ordered.contains(identifier)) {
@@ -243,32 +272,6 @@ absl::Status ParametricInstantiator::InstantiateOneArg(
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
-    const ConcreteType& annotated) {
-  XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
-      constraint_order_, parametric_default_exprs_, parametric_env_map_, span_,
-      GetKindName(), ctx_));
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ConcreteType> resolved,
-      annotated.MapSize(
-          [this](ConcreteTypeDim dim) -> absl::StatusOr<ConcreteTypeDim> {
-            if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(
-                    dim.value())) {
-              return dim;
-            }
-            const auto& parametric_expr =
-                std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-            ParametricExpression::Evaluated evaluated =
-                parametric_expr->Evaluate(
-                    ToParametricEnv(ParametricEnv(parametric_env_map_)));
-            return ConcreteTypeDim(std::move(evaluated));
-          }));
-  XLS_VLOG(5) << "Resolved " << annotated.ToString() << " to "
-              << resolved->ToString();
-  return resolved;
-}
-
 /* static */ absl::StatusOr<std::unique_ptr<FunctionInstantiator>>
 FunctionInstantiator::Make(
     Span span, const FunctionType& function_type,
@@ -292,12 +295,16 @@ FunctionInstantiator::Make(
 
 absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
   // Phase 1: instantiate actuals against parametrics in left-to-right order.
-  XLS_VLOG(10) << "Phase 1: isntantiate actuals";
+  XLS_VLOG(10) << "Phase 1: instantiate actuals";
   for (int64_t i = 0; i < args().size(); ++i) {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
     XLS_RETURN_IF_ERROR(InstantiateOneArg(i, param_type, arg_type));
   }
+
+  XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
+      constraint_order(), parametric_default_exprs(), parametric_env_map(),
+      span(), GetKindName(), &ctx()));
 
   // Phase 2: resolve and check.
   XLS_VLOG(10) << "Phase 2: resolve-and-check";
@@ -305,7 +312,7 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
     const ConcreteType& param_type = *param_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_param_type,
-                         Resolve(param_type));
+                         Resolve(param_type, parametric_env_map()));
     if (*instantiated_param_type != arg_type) {
       // Although it's not the *original* parameter (which could be a little
       // confusing to the user) we want to show what the mismatch was directly,
@@ -320,7 +327,8 @@ absl::StatusOr<TypeAndParametricEnv> FunctionInstantiator::Instantiate() {
 
   // Resolve the return type according to the bindings we collected.
   const ConcreteType& orig = function_type_->return_type();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved, Resolve(orig));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
+                       Resolve(orig, parametric_env_map()));
   XLS_VLOG(5) << "Resolved return type from " << orig.ToString() << " to "
               << resolved->ToString();
 
@@ -354,12 +362,17 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
     const ConcreteType& arg_type = *args()[i].type();
     XLS_RETURN_IF_ERROR(InstantiateOneArg(i, member_type, arg_type));
   }
+
+  XLS_RETURN_IF_ERROR(EagerlyPopulateParametricEnvMap(
+      constraint_order(), parametric_default_exprs(), parametric_env_map(),
+      span(), GetKindName(), &ctx()));
+
   // Phase 2: resolve and check.
   for (int64_t i = 0; i < member_types_.size(); ++i) {
     const ConcreteType& member_type = *member_types_[i];
     const ConcreteType& arg_type = *args()[i].type();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> instantiated_member_type,
-                         Resolve(member_type));
+                         Resolve(member_type, parametric_env_map()));
     if (*instantiated_member_type != arg_type) {
       return ctx().TypeMismatchError(
           args()[i].span(), nullptr, *instantiated_member_type, nullptr,
@@ -368,7 +381,7 @@ absl::StatusOr<TypeAndParametricEnv> StructInstantiator::Instantiate() {
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
-                       Resolve(*struct_type_));
+                       Resolve(*struct_type_, parametric_env_map()));
   return TypeAndParametricEnv{std::move(resolved),
                               ParametricEnv(parametric_env_map())};
 }

@@ -33,8 +33,7 @@ fn addr_width(size: u32) -> u32 { std::clog2(size) }
 fn half_floor(size: u32) -> u32 { (size >> u32: 1) }
 fn is_odd(size: u32) -> bool { size[0:1] != u1:0 }
 
-struct DelayState<DATA_WIDTH:u32, DELAY: u32,
- ADDR_WIDTH:u32={addr_width(half_floor(DELAY))}> {
+struct DelayState<DATA_WIDTH:u32, ADDR_WIDTH:u32> {
   // Current index into the RAM
   idx: bits[ADDR_WIDTH],
   // For the first DELAY cycles, the RAM has not been filled and whatever you
@@ -85,7 +84,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
     ram_wr_comp: chan<()> in;
 
     init {
-        DelayState<DATA_WIDTH, DELAY> {
+        DelayState {
             idx: bits[ADDR_WIDTH]: 0,
             init_done: false,
             prev_read: bits[DATA_WIDTH]: 0,
@@ -102,7 +101,7 @@ proc DelayInternal<DATA_WIDTH:u32, DELAY:u32, INIT_DATA:u32={u32:0},
         (data_in, data_out, ram_req, ram_resp, ram_wr_comp)
     }
 
-    next(tok: token, state: DelayState<DATA_WIDTH, DELAY, ADDR_WIDTH>) {
+    next(tok: token, state: DelayState<DATA_WIDTH, ADDR_WIDTH>) {
         let we = !state.is_read_stage;
         let re = state.is_read_stage && state.init_done;
 

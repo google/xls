@@ -70,14 +70,21 @@ class ParametricInstantiator {
   absl::Status InstantiateOneArg(int64_t i, const ConcreteType& param_type,
                                  const ConcreteType& arg_type);
 
-  // Verifies all constraints and then resolves possibly-parametric type
-  // 'annotated' via 'parametric_env_map_'.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(
-      const ConcreteType& annotated);
-
   const absl::flat_hash_map<std::string, InterpValue>& parametric_env_map()
       const {
     return parametric_env_map_;
+  }
+  absl::flat_hash_map<std::string, InterpValue>& parametric_env_map() {
+    return parametric_env_map_;
+  }
+
+  const absl::flat_hash_map<std::string, Expr*>& parametric_default_exprs()
+      const {
+    return parametric_default_exprs_;
+  }
+
+  absl::Span<const std::string> constraint_order() const {
+    return constraint_order_;
   }
 
   absl::Span<const InstantiateArg> args() const { return args_; }

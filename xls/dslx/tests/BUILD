@@ -751,6 +751,10 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "parametric_const_in_parametric_type_expr",
+)
+
+dslx_lang_test(
     name = "parametric_const_ref",
     # Only a parametric entry point, so no IR conversion.
     convert_to_ir = False,
