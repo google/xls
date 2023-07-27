@@ -32,9 +32,14 @@ fn test_shorthand_equality() {
   assert_eq(p0, p1)
 }
 
+fn main(p0: Point, p1: Point) -> bool {
+  p0 == p1
+}
+
 #[test]
 fn struct_equality() {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };
-  assert_eq(p0, p1)
+  assert_eq(p0, p1);
+  assert_eq(main(p0, p1), true);
 }

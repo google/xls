@@ -26,6 +26,17 @@ fn umulp_with_add<M: u32, N: u32, O: u32 = {max(M, N)}>(x: uN[M], y: uN[N]) -> u
     partial_product.0 + partial_product.1
 }
 
+fn main() -> uN[32] {
+    let s = smulp_with_add(s32:-7, s32:-3);
+    let u = umulp_with_add(u32:7, u32:3);
+    s as u32 + u
+}
+
+#[test]
+fn test_main() {
+    assert_eq(u32:42, main())
+}
+
 #[test]
 fn smulp_examples() {
     assert_eq(s10: 15, smulp_with_add<u32:10, u32:10>(s10: 5, s10: 3));

@@ -25,5 +25,9 @@ const MY_FOO_BARS = FooAndBar[2] : [
   FooAndBar{ foo: u32:3, bar: u32:4 },
 ];
 
-// Dummy main fn for build macro happiness.
-fn main() { () }
+fn main() -> u32 { array_size(MY_FOO_BARS) }
+
+#[test]
+fn test_main() {
+  assert_eq(main(), u32:2)
+}

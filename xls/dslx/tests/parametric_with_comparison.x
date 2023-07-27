@@ -57,7 +57,7 @@ const Y = u32:6;
 const Z = u1:0;
 const W = u1:1;
 
-fn caller() -> u32{
+fn main() -> u32{
   let x = u32:16;
   let y = callee<u32:32>(x);
   let z = callee<{(u32:32 > u32:16) as u32 + u32:4}>(x as u5) as u32;
