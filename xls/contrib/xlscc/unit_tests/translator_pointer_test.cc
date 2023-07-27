@@ -1060,24 +1060,6 @@ TEST_F(TranslatorPointerTest, PointerToPointer) {
                   testing::HasSubstr("Don't know how to convert")));
 }
 
-TEST_F(TranslatorPointerTest, ReturnReferenceToStatic) {
-  const std::string content = R"(
-       short& get_static() {
-        static short val_a = 11;
-        return val_a;
-       }
-
-       int my_package(int a) {
-        return get_static();
-       })";
-
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Don't know how to handle lvalue return")));
-}
-
 TEST_F(TranslatorPointerTest, MethodUsingMemberReference) {
   const std::string content = R"(
        struct Test {

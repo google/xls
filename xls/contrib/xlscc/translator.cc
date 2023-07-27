@@ -924,6 +924,19 @@ absl::StatusOr<xls::BValue> Translator::Generate_LValue_Return(
     if (is_this_expr) {
       return context().fb->Tuple({}, loc);
     }
+
+    if (auto decl_ref =
+            clang::dyn_cast<const clang::DeclRefExpr>(lvalue->leaf())) {
+      const clang::ValueDecl* decl = decl_ref->getDecl();
+
+      if (context().sf->static_values.contains(decl)) {
+        // Returned through side-effecting params
+        return context().fb->Tuple({}, loc);
+      }
+    }
+
+    lvalue->leaf()->dump();
+    // Fall through to error
   } else if (lvalue->is_select()) {
     std::vector<xls::BValue> tuple_bvals;
     XLS_RETURN_IF_ERROR(PushLValueSelectConditions(lvalue, tuple_bvals, loc));
@@ -975,9 +988,21 @@ absl::StatusOr<CValue> Translator::Generate_LValue_Return_Call(
       return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
                     *this_lval);
     }
+
+    if (auto decl_ref =
+            clang::dyn_cast<const clang::DeclRefExpr>(lval->leaf())) {
+      const clang::ValueDecl* decl = decl_ref->getDecl();
+
+      if (context().sf->static_values.contains(decl)) {
+        return CValue(xls::BValue(), return_type, /*disable_type_check=*/true,
+                      lval);
+      }
+    }
+
+    lval->leaf()->dump();
+    // Fall through to error
   }
 
-  lval->leaf()->dump();
   return absl::UnimplementedError(ErrorMessage(
       loc, "Don't know how to translate lvalue of type %s from callee context",
       lval->leaf()->getStmtClassName()));
