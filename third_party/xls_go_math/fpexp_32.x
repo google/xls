@@ -161,7 +161,7 @@ pub fn fpexp_32(x: F32) -> F32 {
 
   // Reduce
   // TODO(jbaileyhandle): Cheaper to truncate fp_k directly?
-  let fp_truncated_k = float32::cast_from_fixed(k);
+  let fp_truncated_k = float32::cast_from_fixed_using_rne(k);
   let hi = float32::mul(LN2HI, fp_truncated_k);
   let hi = float32::sub(x, hi);
   let lo = float32::mul( LN2LO, fp_truncated_k);

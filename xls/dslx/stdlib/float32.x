@@ -50,8 +50,8 @@ pub fn flatten(f: F32) -> u32 { apfloat::flatten<u32:8, u32:23>(f) }
 pub fn unflatten(f: u32) -> F32 { apfloat::unflatten<u32:8, u32:23>(f) }
 pub fn ldexp(f: F32, e : s32) -> F32 {apfloat::ldexp(f, e)}
 
-pub fn cast_from_fixed<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
-  apfloat::cast_from_fixed<u32:8, u32:23>(s)
+pub fn cast_from_fixed_using_rne<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> F32 {
+  apfloat::cast_from_fixed_using_rne<u32:8, u32:23>(s)
 }
 pub fn cast_to_fixed<NUM_DST_BITS:u32>(to_cast: F32) -> sN[NUM_DST_BITS] {
   apfloat::cast_to_fixed<NUM_DST_BITS, u32:8, u32:23>(to_cast)

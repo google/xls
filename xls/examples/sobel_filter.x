@@ -33,7 +33,7 @@ const Y_STENCIL = s32[3][3]:[s32[3]:[-1, -2, -1],
 // TODO(jbaileyhandle): Do we have a way to reshape multidimensional
 // arrays or to apply map to multidemnsional arrays?
 fn convert_triplet(input: s32[3]) -> F32[3] {
-  map(input, float32::cast_from_fixed)
+  map(input, float32::cast_from_fixed_using_rne)
 }
 const X_STENCIL_F32 = map(X_STENCIL, convert_triplet);
 const Y_STENCIL_F32 = map(Y_STENCIL, convert_triplet);
@@ -70,25 +70,25 @@ fn apply_stencil_float32_test() {
   let img1 = map(s32[16]:[1, 1, 1, 1,
                           1, -1, -2, 1,
                           1, -4, -3, 1,
-                          1, 1, 1, 1], float32::cast_from_fixed);
+                          1, 1, 1, 1], float32::cast_from_fixed_using_rne);
 
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, X_STENCIL_F32),
-                   float32::cast_from_fixed(s32:-10));
+                   float32::cast_from_fixed_using_rne(s32:-10));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, X_STENCIL_F32),
-                   float32::cast_from_fixed(s32:9));
+                   float32::cast_from_fixed_using_rne(s32:9));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, X_STENCIL_F32),
-                   float32::cast_from_fixed(s32:-11));
+                   float32::cast_from_fixed_using_rne(s32:-11));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, X_STENCIL_F32),
-                  float32::cast_from_fixed(s32:12));
+                  float32::cast_from_fixed_using_rne(s32:12));
 
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:0, Y_STENCIL_F32),
-                   float32::cast_from_fixed(s32:-14));
+                   float32::cast_from_fixed_using_rne(s32:-14));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:0, u32:1, Y_STENCIL_F32),
-                   float32::cast_from_fixed(s32:-13));
+                   float32::cast_from_fixed_using_rne(s32:-13));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:0, Y_STENCIL_F32),
-                   float32::cast_from_fixed(s32:7));
+                   float32::cast_from_fixed_using_rne(s32:7));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, Y_STENCIL_F32),
-                  float32::cast_from_fixed(s32:8));
+                  float32::cast_from_fixed_using_rne(s32:8));
 
   ()
 }
@@ -128,7 +128,7 @@ fn sobel_filter_float32_test() {
   let img1 = map(s32[16]:[1, 1, 1, 1,
                           1, -1, -2, 1,
                           1, -4, -3, 1,
-                          1, 1, 1, 1], float32::cast_from_fixed);
+                          1, 1, 1, 1], float32::cast_from_fixed_using_rne);
 
   let sobel_out = sobel_filter_float32<u32:4, u32:4>(img1);
   // Truncate before comparison for simplicity.
@@ -143,7 +143,7 @@ fn sobel_filter_float32_test() {
   // Try non-square image.
   let img1 = map(s32[12]:[1, 1, 1, 1,
                           1, -1, -2, 1,
-                          1, -4, -3, 1], float32::cast_from_fixed);
+                          1, -4, -3, 1], float32::cast_from_fixed_using_rne);
   let sobel_out = sobel_filter_float32<u32:3, u32:4>(img1);
   assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
   assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);

@@ -62,10 +62,10 @@ fn dot_product_fixed_test() {
 
 #[test]
 fn dot_product_float32_test() {
-   let a = map(s32[4]:[1, 2, 3, 4], float32::cast_from_fixed);
-   let b = map(s32[4]:[5, 6, 7, 8], float32::cast_from_fixed);
+   let a = map(s32[4]:[1, 2, 3, 4], float32::cast_from_fixed_using_rne);
+   let b = map(s32[4]:[5, 6, 7, 8], float32::cast_from_fixed_using_rne);
    let result = dot_product_float32(a, b);
-   assert_eq(result, float32::cast_from_fixed(s32:70));
+   assert_eq(result, float32::cast_from_fixed_using_rne(s32:70));
    ()
 
 }

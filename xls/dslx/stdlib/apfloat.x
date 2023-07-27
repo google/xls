@@ -299,18 +299,22 @@ pub fn unflatten<EXP_SZ:u32, FRACTION_SZ:u32,
 
 // Casts the fixed point number to a floating point number using RNE
 // (Round to Nearest Even) as the rounding mode.
-pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
-                       to_cast: sN[NUM_SRC_BITS])
+pub fn cast_from_fixed_using_rne<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
+                                 to_cast: sN[NUM_SRC_BITS])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
   const UEXP_SZ:u32 = EXP_SZ + u32:1;
   const EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + NUM_SRC_BITS;
+
   // Determine sign.
-  let sign = (to_cast as uN[NUM_SRC_BITS])[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
+  let is_negative = to_cast < sN[NUM_SRC_BITS]:0;
 
   // Determine exponent.
-  let abs_magnitude = (if sign == u1:0 { to_cast } else { -to_cast }) as uN[NUM_SRC_BITS];
+  let abs_magnitude = std::abs(to_cast) as uN[NUM_SRC_BITS];
   let lz = clz(abs_magnitude);
   let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
+
+  // The following computation of exp can overflow if num_trailing_nonzeros
+  // is larger than what uN[UEXP_SZ] can hold.
   let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
   let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
   let is_inf = exp >= max_exp_exclusive;
@@ -345,28 +349,28 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 
   let result =
     APFloat<EXP_SZ, FRACTION_SZ>{
-      sign: sign,
+      sign: is_negative,
       bexp: bexp,
       fraction: fraction
   };
 
   let is_zero = abs_magnitude == uN[NUM_SRC_BITS]:0;
-  let result = if is_inf { inf<EXP_SZ, FRACTION_SZ>(sign) } else { result };
-  let result = if is_zero { zero<EXP_SZ, FRACTION_SZ>(sign) } else { result };
+  let result = if is_inf { inf<EXP_SZ, FRACTION_SZ>(is_negative) } else { result };
+  let result = if is_zero { zero<EXP_SZ, FRACTION_SZ>(is_negative) } else { result };
   result
 }
 
 #[test]
-fn cast_from_fixed_test() {
+fn cast_from_fixed_using_rne_test() {
   // Zero is a special case.
   let zero_float = zero<u32:4, u32:4>(u1:0);
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:0), zero_float);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:0), zero_float);
 
   // +/-1
   let one_float = one<u32:4, u32:4>(u1:0);
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:1), one_float);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:1), one_float);
   let none_float = one<u32:4, u32:4>(u1:1);
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-1), none_float);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:-1), none_float);
 
   // +/-4
   let four_float =
@@ -375,14 +379,14 @@ fn cast_from_fixed_test() {
       bexp: u4:9,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:4), four_float);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:4), four_float);
   let nfour_float =
     APFloat<u32:4, u32:4>{
       sign: u1:1,
       bexp: u4:9,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:-4), nfour_float);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:-4), nfour_float);
 
   // Cast maximum representable exponent in target format.
   let max_representable =
@@ -391,10 +395,10 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:128), max_representable);
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:128), max_representable);
 
   // Cast minimum non-representable exponent in target format.
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:256),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:256),
                     inf<u32:4, u32:4>(u1:0));
 
   // Test rounding - maximum truncated bits that will round down, even fraction.
@@ -404,7 +408,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:131),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:131),
                     truncate);
 
   // Test rounding - maximum truncated bits that will round down, odd fraction.
@@ -414,7 +418,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:1
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:139),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:139),
                     truncate);
 
   // Test rounding - halfway and already even, round down
@@ -424,7 +428,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:132),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:132),
                     truncate);
 
   // Test rounding - halfway and odd, round up
@@ -434,7 +438,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:2
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:140),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:140),
                     round_up);
 
   // Test rounding - over halfway and even, round up
@@ -444,7 +448,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:1
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:133),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:133),
                     round_up);
 
   // Test rounding - over halfway and odd, round up
@@ -454,7 +458,7 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:2
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:141),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:141),
                     round_up);
 
   // Test rounding - Rounding up increases exponent.
@@ -464,15 +468,15 @@ fn cast_from_fixed_test() {
       bexp: u4:14,
       fraction: u4:0
     };
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:126),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:126),
                     round_inc_exponent);
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:127),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:127),
                     round_inc_exponent);
 
   // Test rounding - Rounding up overflows to infinity.
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:252),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:252),
                     inf<u32:4, u32:4>(u1:0));
-  assert_eq(cast_from_fixed<u32:4, u32:4>(sN[32]:254),
+  assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:254),
                     inf<u32:4, u32:4>(u1:0));
   ()
 }
@@ -731,21 +735,21 @@ fn cast_to_fixed_test() {
     cast_to_fixed<u32:32>(n_one_point_five), s32:-1);
 
   // Cast +/-4.0
-  let four = cast_from_fixed<u32:8, u32:23>(s32:4);
-  let neg_four = cast_from_fixed<u32:8, u32:23>(s32:-4);
+  let four = cast_from_fixed_using_rne<u32:8, u32:23>(s32:4);
+  let neg_four = cast_from_fixed_using_rne<u32:8, u32:23>(s32:-4);
   assert_eq(
     cast_to_fixed<u32:32>(four), s32:4);
   assert_eq(
     cast_to_fixed<u32:32>(neg_four), s32:-4);
 
   // Cast 7
-  let seven = cast_from_fixed<u32:8, u32:23>(s32:7);
+  let seven = cast_from_fixed_using_rne<u32:8, u32:23>(s32:7);
   assert_eq(
     cast_to_fixed<u32:32>(seven), s32:7);
 
   // Cast big number (more digits left of decimal than hidden bit + fraction).
   let big_num = (u1:0 ++ std::mask_bits<u32:23>() ++ u8:0) as s32;
-  let fp_big_num = cast_from_fixed<u32:8, u32:23>(big_num);
+  let fp_big_num = cast_from_fixed_using_rne<u32:8, u32:23>(big_num);
   assert_eq(
     cast_to_fixed<u32:32>(fp_big_num), big_num);
 

@@ -230,11 +230,11 @@ pub fn ldexp<EXP_SZ:u32, FRACTION_SZ:u32>(
    `NaN` representations as input.
 
 
-### `apfloat::cast_from_fixed`
+### `apfloat::cast_from_fixed_using_rne`
 
 ```dslx-snippet
-pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
-                       to_cast: sN[NUM_SRC_BITS])
+pub fn cast_from_fixed_using_rne<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
+                                 to_cast: sN[NUM_SRC_BITS])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
 ```
 
