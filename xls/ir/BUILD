@@ -70,7 +70,17 @@ cc_library(
     srcs = ["foreign_function.cc"],
     hdrs = ["foreign_function.h"],
     deps = [
+        ":code_template",
         ":foreign_function_data_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "code_template",
+    srcs = ["code_template.cc"],
+    hdrs = ["code_template.h"],
+    deps = [
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "@com_github_google_re2//:re2",
@@ -82,10 +92,10 @@ cc_library(
 )
 
 cc_test(
-    name = "foreign_function_test",
-    srcs = ["foreign_function_test.cc"],
+    name = "code_template_test",
+    srcs = ["code_template_test.cc"],
     deps = [
-        ":foreign_function",
+        ":code_template",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
@@ -326,6 +336,7 @@ cc_library(
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
+        ":code_template",
         ":foreign_function",
         ":format_strings",
         ":ir_scanner",
@@ -467,7 +478,7 @@ cc_library(
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
-        ":foreign_function",
+        ":code_template",
         ":foreign_function_data_cc_proto",
         ":format_strings",
         ":function_builder",

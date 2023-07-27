@@ -47,6 +47,7 @@
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/frontend/scanner.h"
+#include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
 #include "re2/re2.h"

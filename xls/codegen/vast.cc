@@ -29,7 +29,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
-#include "xls/ir/foreign_function.h"
+#include "xls/ir/code_template.h"
 
 namespace xls {
 namespace verilog {

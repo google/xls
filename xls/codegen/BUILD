@@ -138,7 +138,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
-        "//xls/ir:foreign_function",
+        "//xls/ir:code_template",
         "//xls/ir:source_location",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
