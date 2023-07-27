@@ -249,9 +249,18 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     // Assert memory being read is initialized by checking that all partitions
     // have been initialized.
     if read_req_valid && ASSERT_VALID_READ {
-      assert_eq(
-        mem_initialized[read_req.addr],
-        std::convert_to_bools_lsb0(read_req.mask))
+      let init_parts = mem_initialized[read_req.addr];
+      let requested_is_init = for (idx, requested_is_init): (u32, bool) in
+      range(u32:0, NUM_PARTITIONS) {
+        if read_req.mask[idx+:bool] {
+          if !init_parts[idx] {
+            trace_fmt!("reading partitions {} but part={} is not init: {}",
+              std::convert_to_bools_lsb0(read_req.mask), idx, init_parts);
+          } else { () };
+          requested_is_init && init_parts[idx]
+        } else { requested_is_init }
+      } (true);
+      assert_eq(requested_is_init, true)
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(
@@ -400,6 +409,92 @@ proc RamModelInitializationTest {
       assert_eq(read_data.data, u32:0);
       tok
     } (tok);
+
+    let tok = send(tok, terminator, true);
+    ()
+  }
+}
+
+// Tests that RAM works with partitions larger than 1 bit
+#[test_proc]
+proc RamModelFourBitMaskReadWriteTest {
+  read_req: chan<ReadReq<8, 2>> out;
+  read_resp: chan<ReadResp<8>> in;
+  write_req: chan<WriteReq<8, 8, 2>> out;
+  write_resp: chan<WriteResp> in;
+
+  terminator: chan<bool> out;
+
+  init { () }
+
+  config(terminator: chan<bool> out) {
+    let (read_req_s, read_req_r) = chan<ReadReq<8, 2>>;
+    let (read_resp_s, read_resp_r) = chan<ReadResp<8>>;
+    let (write_req_s, write_req_r) = chan<WriteReq<8, 8, 2>>;
+    let (write_resp_s, write_resp_r) = chan<WriteResp>;
+    spawn RamModel<
+      u32:8,   // DATA_WIDTH
+      u32:256, // SIZE
+      u32:4    // WORD_PARTITION_SIZE
+    >(
+      read_req_r, read_resp_s, write_req_r, write_resp_s);
+    (read_req_s, read_resp_r, write_req_s, write_resp_r, terminator)
+  }
+
+  next(tok: token, state: ()) {
+    // Write full words
+    let tok = send(tok, write_req, WriteWordReq<u32:2>(
+      u8:0,
+      u8:0xFF));
+    let (tok, _) = recv(tok, write_resp);
+    let tok = send(tok, write_req, WriteWordReq<u32:2>(
+      u8:1,
+      u8:0xBA));
+    let (tok, _) = recv(tok, write_resp);
+
+    // Check that full words are written as expected
+    let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:0));
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0xFF);
+    let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:1));
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0xBA);
+
+    // Write half-words
+    let tok = send(tok, write_req, WriteReq{
+      addr: u8:0,
+      data: u8:0xDE,
+      mask: u2:0b10,
+      });
+    let (tok, _) = recv(tok, write_resp);
+    let tok = send(tok, write_req, WriteReq{
+      addr: u8:1,
+      data: u8:0x78,
+      mask: u2:0b01,
+      });
+    let (tok, _) = recv(tok, write_resp);
+
+    // Check that half-words are written as expected
+    let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:0));
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0xDF);
+    let tok = send(tok, read_req, ReadWordReq<u32:2>(u8:1));
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0xB8);
+
+    // Read half-words and check the result
+    let tok = send(tok, read_req, ReadReq{
+      addr: u8:0,
+      mask: u2:0b01,
+      });
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0x0F);
+    let tok = send(tok, read_req, ReadReq{
+      addr: u8:1,
+      mask: u2:0b10,
+      });
+    let (tok, read_data) = recv(tok, read_resp);
+    assert_eq(read_data.data, u8:0xB0);
 
     let tok = send(tok, terminator, true);
     ()
