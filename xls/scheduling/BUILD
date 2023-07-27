@@ -112,6 +112,7 @@ cc_library(
         ":scheduling_options",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -122,7 +123,8 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
-        "@com_google_ortools//ortools/linear_solver",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+        "@com_google_ortools//ortools/math_opt/solvers:glop_solver",
     ],
 )
 

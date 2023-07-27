@@ -14,12 +14,14 @@
 
 #include "xls/scheduling/sdc_scheduler.h"
 
-#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <optional>
 #include <string_view>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -31,16 +33,19 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
-#include "ortools/linear_solver/linear_solver.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 
-namespace or_tools = ::operations_research;
+namespace math_opt = ::operations_research::math_opt;
 
 namespace xls {
 
 namespace {
+
+static constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
@@ -119,6 +124,7 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
     result[node];
   }
 
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> result_as_set;
   for (Node* node : TopoSort(f)) {
     int64_t node_index = node_to_index.at(node);
     int64_t node_delay = delay_map.at(node);
@@ -133,17 +139,24 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
           distances_to_node.at(operand);
       for (int64_t i = 0; i < f->node_count(); ++i) {
         int64_t operand_distance = distances_to_operand[i];
-        if (operand_distance != -1) {
-          if (distances[i] < operand_distance + node_delay) {
-            distances[i] = operand_distance + node_delay;
-            // Only add a constraint if the delay of `node` results in the
-            // length of the critical-path crossing the `clock_period_ps`
-            // boundary.
-            if (operand_distance <= clock_period_ps &&
-                operand_distance + node_delay > clock_period_ps) {
-              result[index_to_node[i]].push_back(node);
-            }
-          }
+        if (operand_distance == -1) {
+          continue;
+        }
+        if (distances[i] >= operand_distance + node_delay) {
+          continue;
+        }
+        distances[i] = operand_distance + node_delay;
+
+        // If the delay of `node` doesn't result in the length of the critical
+        // path crossing the `clock_period_ps` boundary, we don't need a
+        // constraint.
+        if (operand_distance > clock_period_ps ||
+            operand_distance + node_delay <= clock_period_ps) {
+          continue;
+        }
+        auto [_, inserted] = result_as_set[index_to_node[i]].insert(node);
+        if (inserted) {
+          result[index_to_node[i]].push_back(node);
         }
       }
     }
@@ -175,12 +188,11 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
   return result;
 }
 
-class ConstraintBuilder {
+class ModelBuilder {
  public:
-  ConstraintBuilder(FunctionBase* func, or_tools::MPSolver* solver,
-                    int64_t pipeline_length, int64_t clock_period_ps,
-                    const sched::ScheduleBounds& bounds,
-                    const DelayMap& delay_map);
+  ModelBuilder(FunctionBase* func, int64_t pipeline_length,
+               int64_t clock_period_ps, const sched::ScheduleBounds& bounds,
+               const DelayMap& delay_map, std::string_view model_name = "");
 
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
@@ -195,135 +207,127 @@ class ConstraintBuilder {
   absl::Status AddRFSLConstraint(
       const RecvsFirstSendsLastConstraint& constraint);
 
-  absl::Status AddObjective();
+  absl::Status SetObjective();
 
-  or_tools::MPSolver::ResultStatus Solve() { return solver_->Solve(); }
+  math_opt::Model& Build() { return model_; }
+  const math_opt::Model& Build() const { return model_; }
 
-  absl::StatusOr<ScheduleCycleMap> ExtractResult() const;
+  absl::StatusOr<ScheduleCycleMap> ExtractResult(
+      const math_opt::VariableMap<double>& variable_values) const;
 
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> GetCycleVars() const {
+  absl::flat_hash_map<Node*, math_opt::Variable> GetCycleVars() const {
     return cycle_var_;
   }
 
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> GetLifetimeVars() const {
+  absl::flat_hash_map<Node*, math_opt::Variable> GetLifetimeVars() const {
     return lifetime_var_;
   }
 
  private:
-  or_tools::MPConstraint* DiffAtMostConstraint(Node* x, Node* y, int64_t limit,
-                                               std::string_view name) {
-    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, static_cast<double>(limit),
+  math_opt::LinearConstraint DiffAtMostConstraint(Node* x, Node* y,
+                                                  int64_t limit,
+                                                  std::string_view name) {
+    return model_.AddLinearConstraint(
+        cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit),
         absl::StrFormat("%s:%s-%s≤%d", name, x->GetName(), y->GetName(),
                         limit));
-    constraint->SetCoefficient(cycle_var_.at(x), 1);
-    constraint->SetCoefficient(cycle_var_.at(y), -1);
-    return constraint;
   }
 
-  or_tools::MPConstraint* DiffLessThanConstraint(Node* x, Node* y,
-                                                 int64_t limit,
-                                                 std::string_view name) {
-    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, static_cast<double>(limit - 1),
-        absl::StrFormat("%s:%s-%s<%d", name, x->GetName(), y->GetName(),
-                        limit));
-    constraint->SetCoefficient(cycle_var_.at(x), 1);
-    constraint->SetCoefficient(cycle_var_.at(y), -1);
-    return constraint;
-  }
-
-  or_tools::MPConstraint* DiffAtLeastConstraint(Node* x, Node* y, int64_t limit,
-                                                std::string_view name) {
-    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, static_cast<double>(-limit),
-        absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
-                        limit));
-    constraint->SetCoefficient(cycle_var_.at(x), -1);
-    constraint->SetCoefficient(cycle_var_.at(y), 1);
-    return constraint;
-  }
-
-  or_tools::MPConstraint* DiffGreaterThanConstraint(Node* x, Node* y,
+  math_opt::LinearConstraint DiffLessThanConstraint(Node* x, Node* y,
                                                     int64_t limit,
                                                     std::string_view name) {
-    or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
-        -infinity_, static_cast<double>(-limit),
-        absl::StrFormat("%s:%s-%s>%d", name, x->GetName(), y->GetName(),
+    return model_.AddLinearConstraint(
+        cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit - 1),
+        absl::StrFormat("%s:%s-%s<%d", name, x->GetName(), y->GetName(),
                         limit));
-    constraint->SetCoefficient(cycle_var_.at(x), -1);
-    constraint->SetCoefficient(cycle_var_.at(y), 1);
-    return constraint;
   }
 
-  void DiffEqualsConstraint(Node* x, Node* y, int64_t diff,
-                            std::string_view name) {
+  math_opt::LinearConstraint DiffAtLeastConstraint(Node* x, Node* y,
+                                                   int64_t limit,
+                                                   std::string_view name) {
+    return model_.AddLinearConstraint(
+        cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit),
+        absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
+                        limit));
+  }
+
+  math_opt::LinearConstraint DiffGreaterThanConstraint(Node* x, Node* y,
+                                                       int64_t limit,
+                                                       std::string_view name) {
+    return model_.AddLinearConstraint(
+        cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit + 1),
+        absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
+                        limit));
+  }
+
+  math_opt::LinearConstraint DiffEqualsConstraint(Node* x, Node* y,
+                                                  int64_t diff,
+                                                  std::string_view name) {
     if (x == y) {
-      if (diff == 0) {
-        return;
-      }
       XLS_LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
                      << y->GetName() << " = " << diff << " is unsatisfiable";
     }
-    DiffAtMostConstraint(x, y, diff, name);
-    DiffAtLeastConstraint(x, y, diff, name);
+    return model_.AddLinearConstraint(
+        cycle_var_.at(x) - cycle_var_.at(y) == static_cast<double>(diff),
+        absl::StrFormat("%s:%s-%s=%d", name, x->GetName(), y->GetName(), diff));
   }
 
   FunctionBase* func_;
-  or_tools::MPSolver* solver_;
+  math_opt::Model model_;
   int64_t pipeline_length_;
   int64_t clock_period_ps_;
   const DelayMap& delay_map_;
-  double infinity_;
 
   // Node's cycle after scheduling
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> cycle_var_;
+  absl::flat_hash_map<Node*, math_opt::Variable> cycle_var_;
 
   // Node's lifetime, from when it finishes executing until it is consumed by
   // the last user.
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> lifetime_var_;
+  absl::flat_hash_map<Node*, math_opt::Variable> lifetime_var_;
 
-  // A dummy node to represent an artificial sink node on the data-dependence
-  // graph.
-  or_tools::MPVariable* cycle_at_sinknode_;
+  // A placeholder node to represent an artificial sink node on the
+  // data-dependence graph.
+  math_opt::Variable cycle_at_sinknode_;
 
   // A cache of the delay constraints.
   absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints_;
 };
 
-ConstraintBuilder::ConstraintBuilder(FunctionBase* func,
-                                     or_tools::MPSolver* solver,
-                                     int64_t pipeline_length,
-                                     int64_t clock_period_ps,
-                                     const sched::ScheduleBounds& bounds,
-                                     const DelayMap& delay_map)
+ModelBuilder::ModelBuilder(FunctionBase* func, int64_t pipeline_length,
+                           int64_t clock_period_ps,
+                           const sched::ScheduleBounds& bounds,
+                           const DelayMap& delay_map,
+                           std::string_view model_name)
     : func_(func),
-      solver_(solver),
+      model_(model_name),
       pipeline_length_(pipeline_length),
       clock_period_ps_(clock_period_ps),
       delay_map_(delay_map),
-      infinity_(solver->infinity()) {
+      cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
+                                                      "cycle_at_sinknode")) {
   for (Node* node : func_->nodes()) {
-    cycle_var_[node] =
-        solver_->MakeNumVar(bounds.lb(node), bounds.ub(node), node->GetName());
-    lifetime_var_[node] = solver_->MakeNumVar(
-        0.0, infinity_, absl::StrFormat("lifetime_%s", node->GetName()));
+    cycle_var_.emplace(
+        node, model_.AddContinuousVariable(static_cast<double>(bounds.lb(node)),
+                                           static_cast<double>(bounds.ub(node)),
+                                           node->GetName()));
+    lifetime_var_.emplace(
+        node,
+        model_.AddContinuousVariable(
+            0.0, kInfinity, absl::StrFormat("lifetime_%s", node->GetName())));
   }
-  cycle_at_sinknode_ =
-      solver->MakeNumVar(-infinity_, infinity_, "cycle_at_sinknode");
 }
 
-absl::Status ConstraintBuilder::AddDefUseConstraints(
-    Node* node, std::optional<Node*> user) {
+absl::Status ModelBuilder::AddDefUseConstraints(Node* node,
+                                                std::optional<Node*> user) {
   XLS_RETURN_IF_ERROR(AddCausalConstraint(node, user));
   XLS_RETURN_IF_ERROR(AddLifetimeConstraint(node, user));
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddCausalConstraint(Node* node,
-                                                    std::optional<Node*> user) {
-  or_tools::MPVariable* cycle_at_node = cycle_var_.at(node);
-  or_tools::MPVariable* cycle_at_user =
+absl::Status ModelBuilder::AddCausalConstraint(Node* node,
+                                               std::optional<Node*> user) {
+  math_opt::Variable cycle_at_node = cycle_var_.at(node);
+  math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
   // Explicit delay nodes must lag their inputs by a certain number of cycles.
@@ -334,13 +338,9 @@ absl::Status ConstraintBuilder::AddCausalConstraint(Node* node,
 
   std::string user_str = user.has_value() ? user.value()->GetName() : "«sink»";
 
-  // Constraint: cycle[node] - cycle[node_user] <= -min_delay
-  or_tools::MPConstraint* causal = solver_->MakeRowConstraint(
-      -infinity_, -min_delay,
+  model_.AddLinearConstraint(
+      cycle_at_user - cycle_at_node >= static_cast<double>(min_delay),
       absl::StrFormat("causal_%s_%s", node->GetName(), user_str));
-  causal->SetCoefficient(cycle_at_node, 1);
-  causal->SetCoefficient(cycle_at_user, -1);
-
   XLS_VLOG(2) << "Setting causal constraint: "
               << absl::StrFormat("cycle[%s] - cycle[%s] ≥ %d", user_str,
                                  node->GetName(), min_delay);
@@ -348,23 +348,18 @@ absl::Status ConstraintBuilder::AddCausalConstraint(Node* node,
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddLifetimeConstraint(
-    Node* node, std::optional<Node*> user) {
-  or_tools::MPVariable* cycle_at_node = cycle_var_.at(node);
-  or_tools::MPVariable* lifetime_at_node = lifetime_var_.at(node);
-  or_tools::MPVariable* cycle_at_user =
+absl::Status ModelBuilder::AddLifetimeConstraint(Node* node,
+                                                 std::optional<Node*> user) {
+  math_opt::Variable cycle_at_node = cycle_var_.at(node);
+  math_opt::Variable lifetime_at_node = lifetime_var_.at(node);
+  math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
   std::string user_str = user.has_value() ? user.value()->GetName() : "«sink»";
 
-  // Constraint: cycle[node_user] - cycle[node] - lifetime[node] <= 0
-  or_tools::MPConstraint* lifetime = solver_->MakeRowConstraint(
-      -infinity_, 0.0,
+  model_.AddLinearConstraint(
+      lifetime_at_node + cycle_at_node - cycle_at_user >= 0,
       absl::StrFormat("lifetime_%s_%s", node->GetName(), user_str));
-  lifetime->SetCoefficient(cycle_at_user, 1);
-  lifetime->SetCoefficient(cycle_at_node, -1);
-  lifetime->SetCoefficient(lifetime_at_node, -1);
-
   XLS_VLOG(2) << "Setting lifetime constraint: "
               << absl::StrFormat("lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
                                  node->GetName(), node->GetName(), user_str);
@@ -374,7 +369,7 @@ absl::Status ConstraintBuilder::AddLifetimeConstraint(
 
 // This ensures that state backedges don't span more than II cycles, which is
 // necessary while enforcing a target II.
-absl::Status ConstraintBuilder::AddBackedgeConstraints(
+absl::Status ModelBuilder::AddBackedgeConstraints(
     const BackedgeConstraint& constraint) {
   Proc* proc = dynamic_cast<Proc*>(func_);
   if (proc == nullptr) {
@@ -386,6 +381,9 @@ absl::Status ConstraintBuilder::AddBackedgeConstraints(
   for (StateIndex i = 0; i < proc->GetStateElementCount(); ++i) {
     Node* const state = proc->GetStateParam(i);
     Node* const next = proc->GetNextStateElement(i);
+    if (next == state) {
+      continue;
+    }
     DiffLessThanConstraint(next, state, II, "backedge");
     XLS_VLOG(2) << "Setting backedge constraint (II): "
                 << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
@@ -395,7 +393,7 @@ absl::Status ConstraintBuilder::AddBackedgeConstraints(
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddTimingConstraints() {
+absl::Status ModelBuilder::AddTimingConstraints() {
   if (delay_constraints_.empty()) {
     delay_constraints_ = ComputeCombinationalDelayConstraints(
         func_, clock_period_ps_, delay_map_);
@@ -413,7 +411,7 @@ absl::Status ConstraintBuilder::AddTimingConstraints() {
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddSchedulingConstraint(
+absl::Status ModelBuilder::AddSchedulingConstraint(
     const SchedulingConstraint& constraint) {
   if (std::holds_alternative<BackedgeConstraint>(constraint)) {
     return AddBackedgeConstraints(std::get<BackedgeConstraint>(constraint));
@@ -435,8 +433,7 @@ absl::Status ConstraintBuilder::AddSchedulingConstraint(
   return absl::InternalError("Unhandled scheduling constraint type");
 }
 
-absl::Status ConstraintBuilder::AddIOConstraint(
-    const IOConstraint& constraint) {
+absl::Status ModelBuilder::AddIOConstraint(const IOConstraint& constraint) {
   // Map from channel name to set of nodes that send/receive on that channel.
   absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
   for (Node* node : func_->nodes()) {
@@ -479,21 +476,20 @@ absl::Status ConstraintBuilder::AddIOConstraint(
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddNodeInCycleConstraint(
+absl::Status ModelBuilder::AddNodeInCycleConstraint(
     const NodeInCycleConstraint& constraint) {
   Node* node = constraint.GetNode();
   int64_t cycle = constraint.GetCycle();
-  or_tools::MPConstraint* row_constraint = solver_->MakeRowConstraint(
-      cycle, cycle, absl::StrFormat("nic_%s", node->GetName()));
-  row_constraint->SetCoefficient(cycle_var_.at(node), 1);
 
+  model_.AddLinearConstraint(cycle_var_.at(node) == static_cast<double>(cycle),
+                             absl::StrFormat("nic_%s", node->GetName()));
   XLS_VLOG(2) << "Setting node-in-cycle constraint: "
               << absl::StrFormat("cycle[%s] = %d", node->GetName(), cycle);
 
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddDifferenceConstraint(
+absl::Status ModelBuilder::AddDifferenceConstraint(
     const DifferenceConstraint& constraint) {
   Node* a = constraint.GetA();
   Node* b = constraint.GetB();
@@ -507,51 +503,49 @@ absl::Status ConstraintBuilder::AddDifferenceConstraint(
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddRFSLConstraint(
+absl::Status ModelBuilder::AddRFSLConstraint(
     const RecvsFirstSendsLastConstraint& constraint) {
   for (Node* node : func_->nodes()) {
     if (node->Is<Receive>()) {
-      or_tools::MPConstraint* recv_constraint = solver_->MakeRowConstraint(
-          -infinity_, 0, absl::StrFormat("recv_%s", node->GetName()));
-      recv_constraint->SetCoefficient(cycle_var_.at(node), 1);
-
       XLS_VLOG(2) << "Setting receive-in-first-cycle constraint: "
                   << absl::StrFormat("cycle[%s] ≤ 0", node->GetName());
-    }
-    if (node->Is<Send>()) {
-      or_tools::MPConstraint* send_constraint = solver_->MakeRowConstraint(
-          -infinity_, -(pipeline_length_ - 1),
-          absl::StrFormat("send_%s", node->GetName()));
-      send_constraint->SetCoefficient(cycle_var_.at(node), -1);
-
+      model_.AddLinearConstraint(cycle_var_.at(node) <= 0,
+                                 absl::StrFormat("recv_%s", node->GetName()));
+    } else if (node->Is<Send>()) {
       XLS_VLOG(2) << "Setting send-in-last-cycle constraint: "
                   << absl::StrFormat("%d ≤ cycle[%s]", pipeline_length_ - 1,
                                      node->GetName());
+      model_.AddLinearConstraint(
+          cycle_var_.at(node) >= static_cast<double>(pipeline_length_ - 1),
+          absl::StrFormat("send_%s", node->GetName()));
     }
   }
 
   return absl::OkStatus();
 }
 
-absl::Status ConstraintBuilder::AddObjective() {
-  or_tools::MPObjective* objective = solver_->MutableObjective();
+absl::Status ModelBuilder::SetObjective() {
+  math_opt::LinearExpression objective;
   for (Node* node : func_->nodes()) {
-    // This acts as a tie-breaker for underconstrained problems.
-    objective->SetCoefficient(cycle_var_.at(node), 1);
     // Minimize node lifetimes.
     // The scaling makes the tie-breaker small in comparison, and is a power
     // of two so that there's no imprecision (just add to exponent).
-    objective->SetCoefficient(lifetime_var_.at(node),
-                              1024 * node->GetType()->GetFlatBitCount());
+    objective += 1024 *
+                 static_cast<double>(node->GetType()->GetFlatBitCount()) *
+                 lifetime_var_.at(node);
+    // This acts as a tie-breaker for under-constrained problems, favoring ASAP
+    // schedules.
+    objective += cycle_var_.at(node);
   }
-  objective->SetMinimization();
+  model_.Minimize(objective);
   return absl::OkStatus();
 }
 
-absl::StatusOr<ScheduleCycleMap> ConstraintBuilder::ExtractResult() const {
+absl::StatusOr<ScheduleCycleMap> ModelBuilder::ExtractResult(
+    const math_opt::VariableMap<double>& variable_values) const {
   ScheduleCycleMap cycle_map;
   for (Node* node : func_->nodes()) {
-    double cycle = cycle_var_.at(node)->solution_value();
+    double cycle = variable_values.at(cycle_var_.at(node));
     if (std::fabs(cycle - std::round(cycle)) > 0.001) {
       return absl::InternalError(
           "The scheduling result is expected to be integer");
@@ -575,28 +569,22 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
   XLS_VLOG(4) << "Initial bounds:";
   XLS_VLOG_LINES(4, bounds->ToString());
 
-  std::unique_ptr<or_tools::MPSolver> solver(
-      or_tools::MPSolver::CreateSolver("GLOP"));
-  if (!solver) {
-    return absl::UnavailableError("GLOP solver unavailable.");
-  }
-
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
                        ComputeNodeDelays(f, delay_estimator));
 
-  ConstraintBuilder builder(f, solver.get(), pipeline_stages, clock_period_ps,
-                            *bounds, delay_map);
+  ModelBuilder model(f, pipeline_stages, clock_period_ps, *bounds, delay_map,
+                     absl::StrCat("sdc_schedule_", f->name()));
 
   for (const SchedulingConstraint& constraint : constraints) {
-    XLS_RETURN_IF_ERROR(builder.AddSchedulingConstraint(constraint));
+    XLS_RETURN_IF_ERROR(model.AddSchedulingConstraint(constraint));
   }
 
   for (Node* node : f->nodes()) {
     for (Node* user : node->users()) {
-      XLS_RETURN_IF_ERROR(builder.AddDefUseConstraints(node, user));
+      XLS_RETURN_IF_ERROR(model.AddDefUseConstraints(node, user));
     }
     if (f->IsFunction() && f->HasImplicitUse(node)) {
-      XLS_RETURN_IF_ERROR(builder.AddDefUseConstraints(node, std::nullopt));
+      XLS_RETURN_IF_ERROR(model.AddDefUseConstraints(node, std::nullopt));
     }
     if (f->IsProc()) {
       Proc* proc = f->AsProcOrDie();
@@ -604,26 +592,34 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
         // The next-state element always has lifetime extended to the state
         // param node, since we can't store the new value in the state register
         // until the old value's been used.
-        XLS_RETURN_IF_ERROR(builder.AddLifetimeConstraint(
+        XLS_RETURN_IF_ERROR(model.AddLifetimeConstraint(
             proc->GetNextStateElement(index), proc->GetStateParam(index)));
       }
     }
   }
 
-  XLS_RETURN_IF_ERROR(builder.AddTimingConstraints());
+  XLS_RETURN_IF_ERROR(model.AddTimingConstraints());
 
   if (!check_feasibility) {
-    XLS_RETURN_IF_ERROR(builder.AddObjective());
+    XLS_RETURN_IF_ERROR(model.SetObjective());
   }
 
-  or_tools::MPSolver::ResultStatus status = builder.Solve();
+  XLS_ASSIGN_OR_RETURN(
+      math_opt::SolveResult result,
+      math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
 
-  if (status != or_tools::MPSolver::OPTIMAL) {
-    XLS_VLOG(1) << "SDCScheduler failed with " << status;
-    return absl::InternalError("The problem does not have an optimal solution");
+  if (result.termination.reason != math_opt::TerminationReason::kOptimal) {
+    // We don't know why the solver failed to find an optimal solution to our LP
+    // problem; it could be an infeasibility issue (which needs more work to
+    // analyze), a timeout, a precision error, or more. For now, just return a
+    // simple error hinting at the problem.
+    return absl::InternalError(
+        absl::StrCat("The problem does not have an optimal solution; solver "
+                     "terminated with ",
+                     math_opt::EnumToString(result.termination.reason)));
   }
 
-  return builder.ExtractResult();
+  return model.ExtractResult(result.variable_values());
 }
 
 }  // namespace xls
