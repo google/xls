@@ -181,15 +181,15 @@ class Bytecode {
 
   // Indicates the amount by which the PC should be adjusted.
   // Used by kJumpRel and kJumpRelIf opcodes.
-  DEFINE_STRONG_INT_TYPE(JumpTarget, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(JumpTarget, int64_t);
 
   // Indicates the size of a data structure; used by kCreateArray and
   // kCreateTuple opcodes.
-  DEFINE_STRONG_INT_TYPE(NumElements, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(NumElements, int64_t);
 
   // Indicates the index into which to store or from which to load a value. Used
   // by kLoad and kStore opcodes.
-  DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
+  XLS_DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
 
   // Data needed to resolve a potentially parametric Function invocation to
   // its concrete implementation.

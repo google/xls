@@ -34,8 +34,8 @@ namespace xls {
 
 // For efficiency variables and nodes are referred to by indices into vector
 // data members in the BDD.
-DEFINE_STRONG_INT_TYPE(BddVariable, int32_t);
-DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(BddVariable, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(BddNodeIndex, int32_t);
 
 // A node in the BDD. The node is associated with a single variable and has
 // children corresponding to when the variable is true (high) and when it is

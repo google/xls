@@ -16,8 +16,8 @@
 
 #include "xls/common/strong_int.h"
 
-DEFINE_STRONG_INT_TYPE(USD, int32_t);
-DEFINE_STRONG_INT_TYPE(EUR, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(USD, int32_t);
+XLS_DEFINE_STRONG_INT_TYPE(EUR, int32_t);
 
 class Explicit {
  public:

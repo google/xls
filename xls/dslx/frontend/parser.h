@@ -64,7 +64,7 @@ enum class ExprRestriction {
 };
 
 // Flag set of ExprRestriction values.
-DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
+XLS_DEFINE_STRONG_INT_TYPE(ExprRestrictions, uint32_t);
 
 constexpr ExprRestrictions kNoRestrictions = ExprRestrictions(0);
 
