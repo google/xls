@@ -282,7 +282,7 @@ enum class BuiltinType {
 // All builtin types up to this limit have a concrete width and sign -- above
 // this point are things like "bits", "uN", "sN" which need a corresponding
 // array dimension to have a known bit count.
-constexpr int64_t kConcreteBuiltinTypeLimit =
+inline constexpr int64_t kConcreteBuiltinTypeLimit =
     static_cast<int64_t>(BuiltinType::kS64) + 1;
 
 std::string BuiltinTypeToString(BuiltinType t);

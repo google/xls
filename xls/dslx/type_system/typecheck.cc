@@ -643,7 +643,17 @@ absl::StatusOr<TypeAndParametricEnv> InstantiateParametricFunction(
   for (int64_t i = 0; i < invocation->explicit_parametrics().size(); ++i) {
     ParametricBinding* binding = parametric_bindings[i];
     ExprOrType eot = invocation->explicit_parametrics()[i];
-    XLS_RET_CHECK(std::holds_alternative<Expr*>(eot));
+
+    // We cannot currently provide types to user-defined parametric functions.
+    if (!std::holds_alternative<Expr*>(eot)) {
+      auto* type_annotation = std::get<TypeAnnotation*>(eot);
+      return TypeInferenceErrorStatus(
+          type_annotation->span(), nullptr,
+          absl::StrFormat("Parametric function invocation `%s` cannot take "
+                          "type `%s` -- parametric must be an expression",
+                          invocation->ToString(), type_annotation->ToString()));
+    }
+
     auto* value = std::get<Expr*>(eot);
 
     XLS_VLOG(5) << "Populating callee parametric `" << binding->ToString()
