@@ -18,7 +18,9 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <streambuf>
+#include <string>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
@@ -96,16 +98,31 @@ ABSL_FLAG(int, warn_unroll_iters, 100,
 ABSL_FLAG(int, z3_rlimit, -1,
           "rlimit to set for z3 solver (eg for loop unrolling)");
 
+ABSL_FLAG(std::string, io_op_token_ordering, "none",
+          "none (default), channel_wise");
+
 namespace xlscc {
 
 static absl::Status Run(std::string_view cpp_path) {
   // Warnings should print by default
   absl::SetFlag(&FLAGS_logtostderr, true);
 
+  xlscc::IOOpOrdering io_op_token_ordering = IOOpOrdering::kNone;
+
+  if (absl::GetFlag(FLAGS_io_op_token_ordering) == "none") {
+    io_op_token_ordering = IOOpOrdering::kNone;
+  } else if (absl::GetFlag(FLAGS_io_op_token_ordering) == "channel_wise") {
+    io_op_token_ordering = IOOpOrdering::kChannelWise;
+  } else {
+    std::cerr << "Unknown --io_op_token_ordering: "
+              << absl::GetFlag(FLAGS_io_op_token_ordering) << std::endl;
+  }
+
   xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval),
                                absl::GetFlag(FLAGS_max_unroll_iters),
                                absl::GetFlag(FLAGS_warn_unroll_iters),
-                               absl::GetFlag(FLAGS_z3_rlimit));
+                               absl::GetFlag(FLAGS_z3_rlimit),
+                               io_op_token_ordering);
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

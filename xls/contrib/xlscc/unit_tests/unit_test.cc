@@ -14,14 +14,17 @@
 
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -36,6 +39,7 @@
 #include "xls/interpreter/interpreter_proc_runtime.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/nodes.h"
+#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value_helpers.h"
@@ -221,7 +225,8 @@ absl::Status XlsccTestBase::ScanFile(
   translator_.reset(new xlscc::Translator(
       error_on_init_interval,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
-      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1, std::move(parser)));
+      /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
+      /*op_ordering=*/xlscc::IOOpOrdering::kChannelWise, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
@@ -481,6 +486,69 @@ absl::StatusOr<xlscc::HLSBlock> XlsccTestBase::GetBlockSpec() {
   return block_spec_;
 }
 
+absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetIOOpsForChannel(
+    xls::FunctionBase* proc, int64_t channel_id) {
+  std::vector<xls::Node*> ret;
+  for (xls::Node* node : proc->nodes()) {
+    if (node->Is<xls::Send>()) {
+      if (node->As<xls::Send>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+    }
+    if (node->Is<xls::Receive>()) {
+      if (node->As<xls::Receive>()->channel_id() == channel_id) {
+        ret.push_back(node);
+      }
+    }
+  }
+  return ret;
+}
+
+absl::Status XlsccTestBase::TokensForNode(
+    xls::Node* node, absl::flat_hash_set<xls::Node*>& predecessors) {
+  if (node->Is<xls::Send>()) {
+    predecessors.insert(node->As<xls::Send>()->token());
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::Receive>()) {
+    predecessors.insert(node->As<xls::Receive>()->token());
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::TupleIndex>()) {
+    predecessors.insert(node->As<xls::TupleIndex>()->operand(0));
+    return absl::OkStatus();
+  }
+  if (node->Is<xls::AfterAll>()) {
+    for (xls::Node* operand : node->As<xls::AfterAll>()->operands()) {
+      predecessors.insert(operand);
+    }
+    return absl::OkStatus();
+  }
+  return absl::UnimplementedError(absl::StrFormat(
+      "Don't know how to get token for node %s", node->ToString()));
+}
+
+absl::StatusOr<bool> XlsccTestBase::NodeIsAfterTokenWise(xls::Proc* proc,
+                                                         xls::Node* before,
+                                                         xls::Node* after) {
+  absl::flat_hash_set<xls::Node*> tokens_after = {after};
+
+  while (!tokens_after.contains(proc->TokenParam())) {
+    // Don't change the set while iterating through it
+    absl::flat_hash_set<xls::Node*> next_tokens_after = {};
+    for (xls::Node* node_after : tokens_after) {
+      XLS_RETURN_IF_ERROR(TokensForNode(node_after, next_tokens_after));
+    }
+    tokens_after = next_tokens_after;
+
+    if (tokens_after.contains(before)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 absl::StatusOr<std::vector<xls::Node*>> XlsccTestBase::GetOpsForChannel(
     int64_t channel_id) {
   std::vector<xls::Node*> ret;
@@ -508,10 +576,10 @@ void XlsccTestBase::IOTest(std::string_view content, std::list<IOOpTest> inputs,
                            SourceToIr(content, &func, /* clang_argv= */ {},
                                       /* io_test_mode= */ true));
 
-  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
-
   XLS_LOG(INFO) << "Package IR: ";
-  XLS_LOG(INFO) << package_->DumpIr();
+  XLS_LOG(INFO) << ir_src;
+
+  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
 
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
 

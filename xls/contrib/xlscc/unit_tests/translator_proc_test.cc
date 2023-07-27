@@ -4647,9 +4647,102 @@ TEST_F(TranslatorProcTest, NonblockingReadInSubroutine) {
 }
 
 TEST_F(TranslatorProcTest, LocalChannel) {
-  // This example uses pipelined loops to create separate procs
-  // This is to avoid the need to have a token chain between send and receive,
-  //  which at the time of authoring the test is not in place.
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static __xls_channel<int> internal;
+
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelUsedInSubroutine) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      int Subroutine(__xls_channel<int>& ch, int x) {
+        int xr = ch.read();
+        return xr;
+      }
+
+      #pragma hls_top
+      void foo() {
+        static __xls_channel<int> internal;
+        const int x = in.read();
+        internal.write(x*2);
+        const int xr = Subroutine(internal, x);
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInSubroutine) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      int Subroutine(int x) {
+        static __xls_channel<int> internal;
+        internal.write(x*2);
+        int xr = internal.read();
+        return xr;
+      }
+
+      #pragma hls_top
+      void foo() {
+        const int x = in.read();
+        const int xr = Subroutine(x);
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelPipelinedLoop) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4685,10 +4778,7 @@ TEST_F(TranslatorProcTest, LocalChannel) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalChannelInSubroutine) {
-  // This example uses pipelined loops to create separate procs
-  // This is to avoid the need to have a token chain between send and receive,
-  //  which at the time of authoring the test is not in place.
+TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopDeclaredInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
@@ -4732,20 +4822,207 @@ TEST_F(TranslatorProcTest, LocalChannelInSubroutine) {
   }
 }
 
-TEST_F(TranslatorProcTest, LocalMemory) {
+TEST_F(TranslatorProcTest, LocalChannelPipelinedLoopUsedInSubroutine) {
   const std::string content = R"(
     class Block {
       __xls_channel<int, __xls_channel_dir_In> in;
       __xls_channel<int, __xls_channel_dir_Out> out;
 
+      int Subroutine(__xls_channel<int>& ch, int x) {
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          ch.write(x*2);
+        }
+
+        int xr = 0;
+
+        #pragma hls_pipeline_init_interval 1
+        for(int i=0;i<1;++i) {
+          xr = ch.read();
+        }
+        
+        return xr;
+      }
+
       #pragma hls_top
       void foo() {
-        static __xls_memory<int, 32> local;
+        static __xls_channel<int> internal;
 
         const int x = in.read();
-        local[0] = x;
+        const int xr = Subroutine(internal, x);
+        out.write(xr);
+      }
+    };
+  )";
 
-        const int xr = local[0];
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelSubBlock) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      void Ping(__xls_channel<int>& internal) {
+        const int x = in.read();
+        internal.write(x*2);
+      }
+
+      void Pong(__xls_channel<int>& internal) {
+        const int xr = internal.read();
+        out.write(xr);
+      }
+
+      #pragma hls_top
+      void top() {
+        static __xls_channel<int> internal_in_top;
+        Ping(internal_in_top);
+        Pong(internal_in_top);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelSubBlockNonStatic) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      void Ping(__xls_channel<int>& internal) {
+        const int x = in.read();
+        internal.write(x*2);
+      }
+
+      void Pong(__xls_channel<int>& internal) {
+        const int xr = internal.read();
+        out.write(xr);
+      }
+
+      #pragma hls_top
+      void top() {
+        __xls_channel<int> internal_in_top;
+        Ping(internal_in_top);
+        Pong(internal_in_top);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("declaration uninitialized")));
+}
+
+TEST_F(TranslatorProcTest, LocalChannelPassUpAndDown) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+      
+      __xls_channel<int>& SubroutineWrite(int x) {
+        static __xls_channel<int> internal;
+        internal.write(x*2);
+        return internal;
+      }
+      
+      int SubroutineRead(__xls_channel<int>& ch) {
+        return ch.read();
+      }
+
+      #pragma hls_top
+      void foo() {
+        const int x = in.read();
+
+        __xls_channel<int>& internal = SubroutineWrite(x);
+        const int xr = SubroutineRead(internal);
+
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClassUnspecified) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+      __xls_channel<int> internal;
+
+      #pragma hls_top
+      void foo() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("unspecified")));
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInTopClass) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      __xls_channel<int, __xls_channel_dir_InOut> internal;
+
+      #pragma hls_top
+      void foo() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
         out.write(xr);
       }
     };
@@ -4761,7 +5038,343 @@ TEST_F(TranslatorProcTest, LocalMemory) {
   ASSERT_THAT(ret.status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("nternal memories unsupported")));
+                  testing::HasSubstr("Internal (InOut) channels")));
+}
+
+TEST_F(TranslatorProcTest, ChannelDeclaredInClassInitialized) {
+  const std::string content = R"(
+    class Impl {
+    private:
+
+      __xls_channel<int> internal;
+
+      __xls_channel<int, __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+
+    public:
+      Impl(__xls_channel<int> internal,
+           __xls_channel<int, __xls_channel_dir_In>& in,
+           __xls_channel<int, __xls_channel_dir_Out>& out) :
+        internal(internal), in(in), out(out) {
+      }
+      
+      void Run() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static __xls_channel<int> internal;
+        
+        Impl impl(internal, in, out);
+        
+        impl.Run();
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassUninitialized) {
+  const std::string content = R"(
+    class Impl {
+    private:
+      __xls_channel<int, __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+
+      __xls_channel<int> internal;
+
+    public:
+      Impl(__xls_channel<int, __xls_channel_dir_In>& in,
+           __xls_channel<int, __xls_channel_dir_Out>& out) :
+        in(in), out(out) {
+      }
+      
+      void Run() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static Impl impl(in, out);
+        
+        impl.Run();
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
+                                absl::StatusCode::kInvalidArgument,
+                                testing::HasSubstr("marked as InOut")));
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInClass) {
+  const std::string content = R"(
+    class Impl {
+    private:
+      __xls_channel<int, __xls_channel_dir_InOut> internal;
+
+      __xls_channel<int, __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+    public:
+      Impl(__xls_channel<int, __xls_channel_dir_In>& in,
+           __xls_channel<int, __xls_channel_dir_Out>& out) :
+        in(in), out(out) {
+      }
+      
+      void Run() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static Impl impl(in, out);
+        
+        impl.Run();
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStatic) {
+  const std::string content = R"(
+    class Impl {
+    private:
+      __xls_channel<int, __xls_channel_dir_InOut> internal;
+
+      __xls_channel<int, __xls_channel_dir_In>& in;
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+    public:
+      Impl(__xls_channel<int, __xls_channel_dir_In>& in,
+           __xls_channel<int, __xls_channel_dir_Out>& out) :
+        in(in), out(out) {
+      }
+      
+      void Run() {
+        const int x = in.read();
+        internal.write(x*2);
+
+        const int xr = internal.read();
+        out.write(xr);
+      }
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        Impl impl(in, out);
+        
+        impl.Run();
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelAddCondition) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      void Ping(__xls_channel<int>& internal, int x) {
+        internal.write(x*2);
+      }
+
+      #pragma hls_top
+      void Run() {
+        static __xls_channel<int> internal_in_top;
+
+        const int x = in.read();
+
+        if(x > 50) {
+          Ping(internal_in_top, x);
+        }
+
+        int xr = 0;
+        if(!internal_in_top.nb_read(xr)) {
+          xr = 100;
+        }
+
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32)),
+                      xls::Value(xls::SBits(100, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelAddCondition2) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      void Ping(__xls_channel<int>& internal, int x) {
+        internal.write(x*2);
+      }
+
+      #pragma hls_top
+      void Run() {
+        static __xls_channel<int> internal_in_top;
+
+        const int x = in.read();
+
+        if(x > 50) {
+          Ping(internal_in_top, x);
+        }
+
+        int xr = 0;
+        if(!internal_in_top.nb_read(xr)) {
+          xr = 100;
+        }
+
+        out.write(xr);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32)),
+                      xls::Value(xls::SBits(100, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
+  const std::string content = R"(
+    class Impl {
+    private:
+      __xls_channel<int, __xls_channel_dir_InOut> internal;
+
+      __xls_channel<int, __xls_channel_dir_Out>& out;
+    public:
+      Impl(__xls_channel<int, __xls_channel_dir_Out>& out) :
+        out(out) {
+      }
+      
+      void Ping(int x) {
+        internal.write(x*2);
+      }
+      
+      void Pong() {
+        int xr = 0;
+        if(!internal.nb_read(xr)) {
+          xr = 100;
+        }
+        out.write(xr);
+      }
+    };
+
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        static Impl impl(out);
+        
+        const int x = in.read();
+        if(x > 50) {
+          impl.Ping(x);
+        }
+        impl.Pong();
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(55, 32)),
+                  xls::Value(xls::SBits(10, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(110, 32)),
+                      xls::Value(xls::SBits(100, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
 }
 
 }  // namespace

@@ -108,6 +108,30 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.input_value = CValue(pbval, channel_item_type);
   }
 
+  // Sequence after the previous op on the channel
+  // TODO(seanhaskell): This is inefficient for memories. Parallelize operations
+  // once "token phi" type features are available.
+  if (op_ordering_ == IOOpOrdering::kChannelWise) {
+    std::vector<const IOOp*> previous_ops_on_channel;
+
+    for (const IOOp& existing_op : context().sf->io_ops) {
+      if (existing_op.channel != op.channel) {
+        continue;
+      }
+      previous_ops_on_channel.push_back(&existing_op);
+    }
+
+    if (!previous_ops_on_channel.empty()) {
+      const IOOp* last_op = previous_ops_on_channel.back();
+      op.after_ops.push_back(last_op);
+    }
+  } else if (op_ordering_ == IOOpOrdering::kNone) {
+    // No ordering
+  } else {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "IO op ordering %i", static_cast<int>(op_ordering_)));
+  }
+
   context().sf->io_ops.push_back(op);
 
   if (op.op == OpType::kRecv || op.op == OpType::kRead) {
@@ -568,6 +592,11 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
 
   switch (op.op) {
     case OpType::kNull:
+    case OpType::kSendRecv:
+      XLSCC_CHECK(
+          "AddConditionToIOReturn() unsupported for Null and InOut "
+          "directions" == nullptr,
+          loc);
       break;
     case OpType::kRecv:
       op_condition = retval;
@@ -612,6 +641,11 @@ absl::StatusOr<xls::BValue> Translator::AddConditionToIOReturn(
 
   switch (op.op) {
     case OpType::kNull:
+    case OpType::kSendRecv:
+      XLSCC_CHECK(
+          "AddConditionToIOReturn() unsupported for Null and InOut "
+          "directions" == nullptr,
+          loc);
       break;
     case OpType::kRecv:
       new_retval = op_condition;

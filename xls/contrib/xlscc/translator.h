@@ -416,7 +416,7 @@ class CReferenceType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
-enum class OpType { kNull = 0, kSend, kRecv, kRead, kWrite, kTrace };
+enum class OpType { kNull = 0, kSend, kRecv, kSendRecv, kRead, kWrite, kTrace };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
 
@@ -682,7 +682,10 @@ struct IOChannel {
   int total_ops = 0;
   // If not nullptr, the channel isn't explicitly present in the source
   // For example, the channels used for pipelined for loops
+  // (the record must be passed up)
   xls::Channel* generated = nullptr;
+  // Declared inside of a function, so that the record must be passed up
+  bool internal_to_function = false;
 };
 
 // Tracks information about an IO op on an __xls_channel parameter to a function
@@ -1034,6 +1037,11 @@ struct TranslationContext {
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
                                           const TranslationContext& after);
 
+enum IOOpOrdering {
+  kNone = 0,
+  kChannelWise = 1,
+};
+
 class Translator {
   void debug_prints(const TranslationContext& context);
 
@@ -1042,6 +1050,7 @@ class Translator {
   explicit Translator(
       bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
       int64_t warn_unroll_iters = 100, int64_t z3_rlimit = -1,
+      IOOpOrdering op_ordering = IOOpOrdering::kNone,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -1310,6 +1319,9 @@ class Translator {
   // Generate an error when an init interval > supported is requested?
   const bool error_on_init_interval_;
 
+  // How to generate the token dependencies for IO Ops
+  const IOOpOrdering op_ordering_;
+
   // Makes translation of external channel parameters optional,
   // so that IO operations can be generated without calling GenerateIR_Block()
   bool io_test_mode_ = false;
@@ -1365,6 +1377,7 @@ class Translator {
 
   int next_asm_number_ = 1;
   int next_for_number_ = 1;
+  int next_local_channel_number_ = 1;
 
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
@@ -1623,7 +1636,7 @@ class Translator {
   absl::Status GenerateIR_StaticDecl(const clang::VarDecl* vard,
                                      const clang::NamedDecl* namedecl,
                                      const xls::SourceInfo& loc);
-  absl::Status GenerateIR_LocalChannel(
+  absl::StatusOr<CValue> GenerateIR_LocalChannel(
       const clang::NamedDecl* namedecl,
       const std::shared_ptr<CChannelType>& channel_type,
       const xls::SourceInfo& loc);
@@ -1767,6 +1780,9 @@ class Translator {
   absl::Status GenerateIR_Function_Body(GeneratedFunction& sf,
                                         const clang::FunctionDecl* funcdecl,
                                         const FunctionInProgress& header);
+
+  absl::Status GenerateIR_Ctor_Initializers(
+      const clang::CXXConstructorDecl* constructor);
 
   absl::Status GenerateThisLValues(const clang::RecordDecl* this_struct_decl,
                                    const std::shared_ptr<CType> thisctype,

@@ -167,6 +167,14 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
 
   absl::StatusOr<xlscc::HLSBlock> GetBlockSpec();
 
+  absl::StatusOr<std::vector<xls::Node*>> GetIOOpsForChannel(
+      xls::FunctionBase* proc, int64_t channel_id);
+  static absl::Status TokensForNode(
+      xls::Node* node, absl::flat_hash_set<xls::Node*>& predecessors);
+  absl::StatusOr<bool> NodeIsAfterTokenWise(xls::Proc* proc,
+                                            xls::Node* before,
+                                            xls::Node* after);
+
   absl::StatusOr<std::vector<xls::Node*>> GetOpsForChannel(int64_t channel_id);
 
   std::unique_ptr<xls::Package> package_;

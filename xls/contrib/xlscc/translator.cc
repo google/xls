@@ -143,11 +143,13 @@ bool Translator::IOChannelInCurrentFunction(IOChannel* to_find,
 
 Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
                        int64_t warn_unroll_iters, int64_t z3_rlimit,
+                       IOOpOrdering op_ordering,
                        std::unique_ptr<CCParser> existing_parser)
     : max_unroll_iters_(max_unroll_iters),
       warn_unroll_iters_(warn_unroll_iters),
       z3_rlimit_(z3_rlimit),
-      error_on_init_interval_(error_on_init_interval) {
+      error_on_init_interval_(error_on_init_interval),
+      op_ordering_(op_ordering) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
     parser_ = std::move(existing_parser);
@@ -811,48 +813,7 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
   if (auto constructor =
           clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
     XLSCC_CHECK(add_this_return, GetLoc(*constructor));
-    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
-                         GetThisDecl(GetLoc(*constructor)));
-
-    for (const clang::CXXCtorInitializer* init : constructor->inits()) {
-      XLS_ASSIGN_OR_RETURN(CValue prev_this_val,
-                           GetIdentifier(this_decl, GetLoc(*constructor)));
-      XLS_ASSIGN_OR_RETURN(auto resolved_type,
-                           ResolveTypeInstance(prev_this_val.type()));
-      auto struct_type = std::dynamic_pointer_cast<CStructType>(resolved_type);
-      XLSCC_CHECK(struct_type, GetLoc(*constructor));
-
-      const auto& fields_by_name = struct_type->fields_by_name();
-      absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
-
-      // Base class constructors don't have member names
-      const clang::NamedDecl* member_name = nullptr;
-      if (init->getMember() != nullptr) {
-        member_name =
-            absl::implicit_cast<const clang::NamedDecl*>(init->getMember());
-      } else {
-        member_name = absl::implicit_cast<const clang::NamedDecl*>(
-            init->getInit()->getType()->getAsRecordDecl());
-        XLSCC_CHECK(member_name, GetLoc(*constructor));
-      }
-      auto found = fields_by_name.find(member_name);
-      XLSCC_CHECK(found != fields_by_name.end(), GetLoc(*constructor));
-      XLSCC_CHECK(found->second->name() == member_name, GetLoc(*constructor));
-
-      XLS_ASSIGN_OR_RETURN(
-          CValue rvalue,
-          GenerateIR_Expr(init->getInit(), GetLoc(*constructor)));
-
-      XLS_ASSIGN_OR_RETURN(
-          CValue new_this_val,
-          StructUpdate(prev_this_val, rvalue,
-                       /*field_name=*/member_name,
-                       /*type=*/*struct_type, GetLoc(*constructor)));
-
-      XLS_RETURN_IF_ERROR(
-          Assign(this_decl, new_this_val, GetLoc(*constructor)));
-      context().sf->this_lvalue = new_this_val.lvalue();
-    }
+    XLS_RETURN_IF_ERROR(GenerateIR_Ctor_Initializers(constructor));
   }
 
   auto context_copy = std::make_unique<TranslationContext>(context());
@@ -862,6 +823,74 @@ absl::StatusOr<FunctionInProgress> Translator::GenerateIR_Function_Header(
                                .builder = std::move(builder),
                                .translation_context = std::move(context_copy)};
   return header;
+}
+
+absl::Status Translator::GenerateIR_Ctor_Initializers(
+    const clang::CXXConstructorDecl* constructor) {
+  xls::SourceInfo ctor_loc = GetLoc(*constructor);
+  XLSCC_CHECK(constructor != nullptr, ctor_loc);
+  XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                       GetThisDecl(GetLoc(*constructor)));
+
+  for (const clang::CXXCtorInitializer* init : constructor->inits()) {
+    xls::SourceInfo init_loc = GetLoc(*init->getInit());
+
+    XLS_ASSIGN_OR_RETURN(CValue prev_this_val,
+                         GetIdentifier(this_decl, init_loc));
+    XLS_ASSIGN_OR_RETURN(auto resolved_type,
+                         ResolveTypeInstance(prev_this_val.type()));
+    auto struct_type = std::dynamic_pointer_cast<CStructType>(resolved_type);
+    XLSCC_CHECK(struct_type, init_loc);
+
+    const auto& fields_by_name = struct_type->fields_by_name();
+    absl::flat_hash_map<int64_t, std::shared_ptr<LValue>> compounds;
+
+    // Base class constructors don't have member names
+    const clang::NamedDecl* member_name = nullptr;
+    if (init->getMember() != nullptr) {
+      member_name =
+          absl::implicit_cast<const clang::NamedDecl*>(init->getMember());
+    } else {
+      member_name = absl::implicit_cast<const clang::NamedDecl*>(
+          init->getInit()->getType()->getAsRecordDecl());
+      XLSCC_CHECK(member_name, init_loc);
+    }
+    auto found = fields_by_name.find(member_name);
+    XLSCC_CHECK(found != fields_by_name.end(), init_loc);
+    std::shared_ptr<CField> field = found->second;
+    XLSCC_CHECK(field->name() == member_name, init_loc);
+
+    auto ctor_init = clang::dyn_cast<clang::CXXConstructExpr>(init->getInit());
+
+    CValue rvalue;
+
+    if (field->type()->Is<CChannelType>() && ctor_init &&
+        (ctor_init->getNumArgs() == 0)) {
+      auto channel_type =
+          std::dynamic_pointer_cast<CChannelType>(field->type());
+      if (channel_type->GetOpType() != OpType::kSendRecv) {
+        return absl::InvalidArgumentError(
+            ErrorMessage(init_loc,
+                         "Field %s is interpreted as an internal channel "
+                         "declaration, but it is not marked as InOut",
+                         field->name()->getQualifiedNameAsString()));
+      }
+
+      XLS_ASSIGN_OR_RETURN(rvalue, GenerateIR_LocalChannel(
+                                       field->name(), channel_type, init_loc));
+    } else {
+      XLS_ASSIGN_OR_RETURN(rvalue, GenerateIR_Expr(init->getInit(), init_loc));
+    }
+
+    XLS_ASSIGN_OR_RETURN(CValue new_this_val,
+                         StructUpdate(prev_this_val, rvalue,
+                                      /*field_name=*/member_name,
+                                      /*type=*/*struct_type, init_loc));
+
+    XLS_RETURN_IF_ERROR(Assign(this_decl, new_this_val, init_loc));
+    context().sf->this_lvalue = new_this_val.lvalue();
+  }
+  return absl::OkStatus();
 }
 
 absl::Status Translator::PushLValueSelectConditions(
@@ -1414,7 +1443,9 @@ absl::StatusOr<CValue> Translator::CreateInitValue(
     }
     if (cv.lvalue() == nullptr) {
       return absl::InvalidArgumentError(
-          ErrorMessage(loc, "Channel declaration uninitialized"));
+          ErrorMessage(loc,
+                       "Channel declaration uninitialized (local channel "
+                       "declarations should be static)"));
     }
     return cv;
   }
@@ -2798,6 +2829,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   }
 
   const clang::FunctionDecl* funcdecl = call->getDirectCallee();
+
   CValue this_value_orig;
 
   const clang::Expr* this_expr = nullptr;
@@ -3325,41 +3357,57 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
   }
 
-  // Translate generated channels
-  for (IOOp& callee_op : func->io_ops) {
-    if (callee_op.op == OpType::kTrace) {
+  // Propagate generated and internal channels up
+  for (IOChannel& callee_channel : func->io_channels) {
+    IOChannel* callee_channel_ptr = &callee_channel;
+
+    if (callee_channel_ptr->generated == nullptr &&
+        !callee_channel_ptr->internal_to_function) {
       continue;
     }
-    if (callee_op.channel->generated == nullptr) {
-      continue;
-    }
+
     // Don't add multiple times
     if (context().sf->callee_generated_channels_added.contains(
-            callee_op.channel)) {
+            callee_channel_ptr)) {
       IOChannel* to_add =
-          context().sf->callee_generated_channels_added.at(callee_op.channel);
+          context().sf->callee_generated_channels_added.at(callee_channel_ptr);
       XLSCC_CHECK(
-          !caller_channels_by_callee_channel.contains(callee_op.channel) ||
-              to_add == caller_channels_by_callee_channel.at(callee_op.channel),
+          !caller_channels_by_callee_channel.contains(callee_channel_ptr) ||
+              to_add ==
+                  caller_channels_by_callee_channel.at(callee_channel_ptr),
           loc);
 
-      caller_channels_by_callee_channel[callee_op.channel] = to_add;
+      caller_channels_by_callee_channel[callee_channel_ptr] = to_add;
       continue;
     }
-    IOChannel* callee_generated_channel = callee_op.channel;
+    IOChannel* callee_generated_channel = callee_channel_ptr;
     IOChannel* caller_generated_channel =
         AddChannel(*callee_generated_channel, loc);
 
     caller_generated_channel->total_ops = 0;
-    XLSCC_CHECK(!caller_channels_by_callee_channel.contains(callee_op.channel),
+    XLSCC_CHECK(!caller_channels_by_callee_channel.contains(callee_channel_ptr),
                 loc);
-    caller_channels_by_callee_channel[callee_op.channel] =
+    caller_channels_by_callee_channel[callee_channel_ptr] =
         caller_generated_channel;
     XLSCC_CHECK(!context().sf->callee_generated_channels_added.contains(
-                    callee_op.channel),
+                    callee_channel_ptr),
                 loc);
-    context().sf->callee_generated_channels_added[callee_op.channel] =
+    context().sf->callee_generated_channels_added[callee_channel_ptr] =
         caller_generated_channel;
+
+    if (callee_channel_ptr->internal_to_function) {
+      XLSCC_CHECK(
+          external_channels_by_internal_channel_.contains(callee_channel_ptr),
+          loc);
+      XLSCC_CHECK_EQ(
+          external_channels_by_internal_channel_.count(callee_channel_ptr), 1,
+          loc);
+      ChannelBundle callee_bundle =
+          external_channels_by_internal_channel_.find(callee_channel_ptr)
+              ->second;
+      external_channels_by_internal_channel_.insert(
+          std::make_pair(caller_generated_channel, callee_bundle));
+    }
   }
 
   // Map callee ops. There can be multiple for one channel
@@ -3408,8 +3456,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                       caller_op_ptr->channel->generated ||
                       IOChannelInCurrentFunction(caller_op_ptr->channel, loc),
                   loc);
-      XLSCC_CHECK_EQ(caller_op_ptr->after_ops.size(),
-                     callee_op.after_ops.size(), loc);
     }
 
     caller_ops_by_callee_op.insert(
@@ -4571,7 +4617,7 @@ absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_LocalChannel(
+absl::StatusOr<CValue> Translator::GenerateIR_LocalChannel(
     const clang::NamedDecl* namedecl,
     const std::shared_ptr<CChannelType>& channel_type,
     const xls::SourceInfo& loc) {
@@ -4581,8 +4627,8 @@ absl::Status Translator::GenerateIR_LocalChannel(
   }
 
   std::string ch_name = absl::StrFormat(
-      "__internal_%s_%s", context().sf->clang_decl->getNameAsString(),
-      namedecl->getNameAsString());
+      "__internal_%s_%s_%i", context().sf->clang_decl->getNameAsString(),
+      namedecl->getNameAsString(), next_local_channel_number_++);
   XLS_ASSIGN_OR_RETURN(xls::Type * item_type_xls,
                        TranslateTypeToXLS(channel_type->GetItemType(), loc));
   XLS_ASSIGN_OR_RETURN(
@@ -4591,9 +4637,11 @@ absl::Status Translator::GenerateIR_LocalChannel(
                                        item_type_xls,
                                        /*initial_values=*/{}, /*fifo_depth=*/0,
                                        xls::FlowControl::kReadyValid));
+
   IOChannel new_channel;
   new_channel.item_type = channel_type->GetItemType();
   new_channel.unique_name = ch_name;
+  new_channel.internal_to_function = true;
 
   IOChannel* new_channel_ptr = AddChannel(new_channel, loc);
   auto lvalue = std::make_shared<LValue>(new_channel_ptr);
@@ -4601,13 +4649,11 @@ absl::Status Translator::GenerateIR_LocalChannel(
   CValue cval(/*rvalue=*/xls::BValue(), channel_type,
               /*disable_type_check=*/true, lvalue);
 
-  XLS_RETURN_IF_ERROR(DeclareVariable(namedecl, cval, loc));
-
   ChannelBundle bundle = {.regular = xls_channel};
   external_channels_by_internal_channel_.insert(
       std::make_pair(new_channel_ptr, bundle));
 
-  return absl::OkStatus();
+  return cval;
 }
 
 absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
@@ -4623,8 +4669,13 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
 
     if (obj_type->Is<CChannelType>() &&
         clang::dyn_cast<clang::CXXConstructExpr>(vard->getAnyInitializer())) {
-      return GenerateIR_LocalChannel(
-          namedecl, std::dynamic_pointer_cast<CChannelType>(obj_type), loc);
+      XLS_ASSIGN_OR_RETURN(
+          CValue generated,
+          GenerateIR_LocalChannel(
+              namedecl, std::dynamic_pointer_cast<CChannelType>(obj_type),
+              loc));
+
+      return DeclareVariable(namedecl, generated, loc);
     }
   }
 

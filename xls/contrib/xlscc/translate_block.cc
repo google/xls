@@ -69,6 +69,7 @@ absl::Status Translator::GenerateExternalChannels(
       const auto xls_channel_op = top_decl.is_input
                                       ? xls::ChannelOps::kReceiveOnly
                                       : xls::ChannelOps::kSendOnly;
+
       XLS_ASSIGN_OR_RETURN(
           new_channel.regular,
           package_->CreateStreamingChannel(
@@ -329,7 +330,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
     static_next_values.push_back(next_val);
   }
   XLS_CHECK_EQ(static_next_values.size(), prepared.state_init_count);
-  // const xls::BValue next_state = pb.Tuple(static_next_values);
 
   return pb.Build(prepared.token, static_next_values);
 }
@@ -405,6 +405,12 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
     if (auto channel_type =
             std::dynamic_pointer_cast<CChannelType>(field->type())) {
       if (channel_type->GetOpType() != OpType::kNull) {
+        if (channel_type->GetOpType() == OpType::kSendRecv) {
+          return absl::UnimplementedError(
+              ErrorMessage(GetLoc(*field->name()),
+                           "Internal (InOut) channels in top class"));
+        }
+
         xlscc::HLSChannel* channel_spec = block_spec_out->add_channels();
         channel_spec->set_name(field->name()->getNameAsString());
         channel_spec->set_width_in_bits(resolved_field_type->GetBitWidth());
@@ -430,10 +436,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_BlockFromClass(
             .interface_type = InterfaceType::kMemory};
         top_decls.push_back(channel_info);
       } else {
-        return absl::InvalidArgumentError(ErrorMessage(
-            GetLoc(*field->name()),
-            "Direction or depth unspecified for external channel or memory %s",
-            field->name()->getNameAsString().c_str()));
+        return absl::InvalidArgumentError(
+            ErrorMessage(GetLoc(*field->name()),
+                         "Direction or depth unspecified for external channel "
+                         "or memory '%s'",
+                         field->name()->getNameAsString().c_str()));
       }
     } else if (auto channel_type =
                    std::dynamic_pointer_cast<CReferenceType>(field->type())) {
@@ -934,10 +941,10 @@ absl::Status Translator::GenerateIRBlockPrepare(
     }
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      XLSCC_CHECK_EQ(
-          external_channels_by_internal_channel_.contains(op.channel) &&
-              external_channels_by_internal_channel_.count(op.channel),
-          1, body_loc);
+      XLSCC_CHECK(external_channels_by_internal_channel_.contains(op.channel),
+                  body_loc);
+      XLSCC_CHECK_EQ(external_channels_by_internal_channel_.count(op.channel),
+                     1, body_loc);
       const ChannelBundle bundle =
           external_channels_by_internal_channel_.find(op.channel)->second;
       prepared.xls_channel_by_function_channel[op.channel] = bundle;
