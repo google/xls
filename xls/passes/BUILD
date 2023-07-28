@@ -646,6 +646,30 @@ cc_library(
 )
 
 cc_library(
+    name = "predicate_state",
+    hdrs = ["predicate_state.h"],
+    deps = [
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common/logging",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "predicate_dominator_analysis",
+    srcs = ["predicate_dominator_analysis.cc"],
+    hdrs = ["predicate_dominator_analysis.h"],
+    deps = [
+        ":predicate_state",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "//xls/common:strong_int",
+        "//xls/common/logging",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
     name = "token_provenance_analysis",
     srcs = ["token_provenance_analysis.cc"],
     hdrs = ["token_provenance_analysis.h"],
@@ -1491,6 +1515,21 @@ cc_test(
     deps = [
         ":dce_pass",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "predicate_dominator_analysis_test",
+    srcs = ["predicate_dominator_analysis_test.cc"],
+    deps = [
+        ":predicate_dominator_analysis",
+        ":predicate_state",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
