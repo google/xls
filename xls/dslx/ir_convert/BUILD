@@ -182,6 +182,7 @@ cc_library(
         "//xls/dslx/type_system:type_info",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:foreign_function",
         "//xls/ir:format_strings",
         "//xls/ir:function_builder",
         "//xls/ir:op",

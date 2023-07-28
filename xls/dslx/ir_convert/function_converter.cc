@@ -59,6 +59,7 @@
 #include "xls/dslx/warning_collector.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/fileno.h"
+#include "xls/ir/foreign_function.h"
 #include "xls/ir/format_strings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -2074,7 +2075,6 @@ absl::Status FunctionConverter::HandleFunction(
                      node->GetFreeParametricKeySet(), parametric_env));
   auto builder =
       std::make_unique<FunctionBuilder>(mangled_name, package(), true);
-  builder->SetForeignFunctionData(node->extern_verilog_module());
 
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
@@ -2095,6 +2095,10 @@ absl::Status FunctionConverter::HandleFunction(
     XLS_RETURN_IF_ERROR(Visit(param));
   }
 
+  // Replace const values known here with their values in FFI template to
+  // pass down templates with less variables.
+  FfiPartialValueSubstituteHelper const_prefill(node->extern_verilog_module());
+
   for (ParametricBinding* parametric_binding : node->parametric_bindings()) {
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
@@ -2109,10 +2113,15 @@ absl::Status FunctionConverter::HandleFunction(
                          parametric_type->GetTotalBitCount());
     XLS_ASSIGN_OR_RETURN(Value param_value,
                          InterpValueToValue(*parametric_value));
-    DefConst(parametric_binding, param_value);
+    const CValue evaluated = DefConst(parametric_binding, param_value);
+    const_prefill.SetNamedValue(parametric_binding->name_def()->identifier(),
+                                evaluated.ir_value);
     XLS_RETURN_IF_ERROR(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
   }
+
+  // If there is foreign function data, all constant values are replaced now.
+  builder_ptr->SetForeignFunctionData(const_prefill.GetUpdatedFfiData());
 
   XLS_VLOG(3) << "Function has " << constant_deps_.size() << " constant deps";
   for (ConstantDef* dep : constant_deps_) {

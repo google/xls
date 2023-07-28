@@ -70,9 +70,29 @@ cc_library(
     srcs = ["foreign_function.cc"],
     hdrs = ["foreign_function.h"],
     deps = [
+        ":bits",
         ":code_template",
         ":foreign_function_data_cc_proto",
+        ":format_preference",
+        ":value",
+        "//xls/common/logging",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "foreign_function_test",
+    srcs = ["foreign_function_test.cc"],
+    deps = [
+        ":bits",
+        ":foreign_function",
+        ":foreign_function_data_cc_proto",
+        ":value",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
     ],
 )
 

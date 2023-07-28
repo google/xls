@@ -27,10 +27,10 @@
 // If b is zero, error_division_by_zero == true and tuple contains original
 // values
 #[extern_verilog("external_divmod #(
-     .dividend_width($bits({a})),  // Refer to DSLX symbols in curly braces.
-     .divisor_width($bits({b}))
-    ) {fn} (                  // fn will be replace w/ generated instance name.
-     .dividend({a}),          // function parameters are passed to as-is
+     .dividend_width({A_WIDTH}),  // Refer to local DSLX symbols in curly braces,
+     .divisor_width({B_WIDTH})    // such as template parameters
+    ) {fn} (                      // fn will be replace w/ instance name.
+     .dividend({a}),              // Function parameter referenced in template
      .divisor({b}),
      .quotient({return.0}),   // Similar return. Here we return a tuple ...
      .remainder({return.1}),  // ... values referenced as return.0 and return.1

@@ -15,12 +15,47 @@
 #ifndef XLS_IR_FOREIGN_FUNCTION_H_
 #define XLS_IR_FOREIGN_FUNCTION_H_
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/foreign_function_data.pb.h"
+#include "xls/ir/value.h"
 
 namespace xls {
 absl::StatusOr<ForeignFunctionData> ForeignFunctionDataCreateFromTemplate(
     std::string_view annotation);
+
+// Helper to substitute some ffi template parameters with constant values.
+// Many constant values might only be available in earlier stages of processing;
+// this helps to update the template and replace template values already known.
+//
+// This helper allows partially fill the template with these values, while the
+// remaining template parameters are left as-is.
+// Parameter is an optional ForeignFunctionData; if nullopt, no replacmenets
+// will be done.
+// (Used in the FunctionConverter)
+class FfiPartialValueSubstituteHelper {
+ public:
+  explicit FfiPartialValueSubstituteHelper(
+      std::optional<ForeignFunctionData> ffi)
+      : ffi_(std::move(ffi)) {}
+
+  // Set a named value. If the name is referenced in the ForeingFunctionData
+  // template, it will be replaced with the value.
+  void SetNamedValue(std::string_view name, const Value& value);
+
+  // Get updated template with all the substituion values replaced.
+  // If the originally provided std::optional was empty, returns nullopt.
+  std::optional<ForeignFunctionData> GetUpdatedFfiData() const;
+
+ private:
+  const std::optional<ForeignFunctionData> ffi_;
+  absl::flat_hash_map<std::string, std::string> substitutions_;
+};
 }  // namespace xls
 
 #endif  // XLS_IR_FOREIGN_FUNCTION_H_
