@@ -830,6 +830,9 @@ absl::StatusOr<Expr*> Parser::ParseCastOrEnumRefOrStructInstance(
 absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
                                                   TypeAnnotation* type) {
   XLS_VLOG(5) << "ParseStructInstance @ " << GetPos();
+
+  // Note: any explicit parametrics will be codified in the type we parse ahead
+  // of the struct members.
   if (type == nullptr) {
     XLS_ASSIGN_OR_RETURN(type, ParseTypeAnnotation(bindings));
   }
@@ -837,17 +840,6 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings& bindings,
   const Pos start_pos = GetPos();
 
   XLS_ASSIGN_OR_RETURN(StructRef struct_ref, ResolveStruct(bindings, type));
-
-  XLS_ASSIGN_OR_RETURN(bool peek_is_oangle, PeekTokenIs(TokenKind::kOAngle));
-  if (peek_is_oangle) {
-    XLS_ASSIGN_OR_RETURN(std::vector<ExprOrType> struct_parametrics,
-                         ParseParametrics(bindings));
-
-    // TODO(https://github.com/google/xls/issues/247): If explicit parametrics
-    // are present, then they should be matched with the StructDef's to verify
-    // their types agree (a test should be written for this as well).
-    (void)struct_parametrics;
-  }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace, /*start=*/nullptr,
                                        "Opening brace for struct instance."));
