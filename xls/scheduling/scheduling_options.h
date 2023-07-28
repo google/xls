@@ -77,6 +77,25 @@ class IOConstraint {
 
   int64_t MaximumLatency() const { return maximum_latency_; }
 
+  friend bool operator==(const IOConstraint& lhs, const IOConstraint& rhs) {
+    return lhs.source_channel_ == rhs.source_channel_ &&
+           lhs.source_direction_ == rhs.source_direction_ &&
+           lhs.target_channel_ == rhs.target_channel_ &&
+           lhs.target_direction_ == rhs.target_direction_ &&
+           lhs.minimum_latency_ == rhs.minimum_latency_ &&
+           lhs.maximum_latency_ == rhs.maximum_latency_;
+  }
+  friend bool operator!=(const IOConstraint& lhs, const IOConstraint& rhs) {
+    return !(lhs == rhs);
+  }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const IOConstraint& s) {
+    return H::combine(std::move(h), s.source_channel_, s.source_direction_,
+                      s.target_channel_, s.target_direction_,
+                      s.minimum_latency_, s.maximum_latency_);
+  }
+
  private:
   std::string source_channel_;
   IODirection source_direction_;

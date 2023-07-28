@@ -129,11 +129,12 @@ absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
   }
 
   if (bounds.max_lower_bound() > upper_bound) {
-    return absl::ResourceExhaustedError(absl::StrFormat(
-        "Impossible to schedule Function/Proc %s; the following "
-        "node(s) must be scheduled in the final cycle but that "
-        "is impossible due to users of these node(s): %s",
-        f->name(), absl::StrJoin(FinalStageNodes(f), ", ")));
+    return absl::ResourceExhaustedError(
+        absl::StrFormat("Impossible to schedule %s %s; the following node(s) "
+                        "must be scheduled in the final cycle but that is "
+                        "impossible due to users of these node(s): %s",
+                        (f->IsProc() ? "proc" : "function"), f->name(),
+                        absl::StrJoin(FinalStageNodes(f), ", ")));
   }
 
   // Set and propagate upper bounds.
@@ -142,11 +143,10 @@ absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
   }
   for (Node* node : FirstStageNodes(f)) {
     if (bounds.lb(node) > 0) {
-      return absl::ResourceExhaustedError(
-          absl::StrFormat("Impossible to schedule Function/Proc %s; node `%s` "
-                          "must be scheduled in the first cycle but that is "
-                          "impossible due to the node's operand(s)",
-                          f->name(), node->GetName()));
+      return absl::ResourceExhaustedError(absl::StrFormat(
+          "Impossible to schedule %s %s; node `%s` must be scheduled in the "
+          "first cycle but that is impossible due to the node's operand(s)",
+          (f->IsProc() ? "Proc" : "Function"), f->name(), node->GetName()));
     }
     XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, 0));
   }
@@ -194,22 +194,32 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   int64_t search_end = function_cp;
   XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
                                     search_start, search_end);
-  XLS_ASSIGN_OR_RETURN(
-      int64_t min_period,
-      BinarySearchMinTrueWithStatus(
-          search_start, search_end,
-          [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
-            absl::StatusOr<sched::ScheduleBounds> bounds_or = ConstructBounds(
-                f, clk_period_ps, topo_sort, pipeline_stages, delay_estimator);
-            if (!bounds_or.ok()) {
-              return false;
-            }
-            sched::ScheduleBounds bounds = bounds_or.value();
-            absl::StatusOr<ScheduleCycleMap> scm =
-                SDCScheduler(f, pipeline_stages, clk_period_ps, delay_estimator,
-                             &bounds, constraints, /*check_feasibility=*/true);
-            return scm.ok();
-          }));
+
+  auto validate_period = [&](int64_t clk_period_ps,
+                             bool explain_infeasibility) -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(sched::ScheduleBounds bounds,
+                         ConstructBounds(f, clk_period_ps, topo_sort,
+                                         pipeline_stages, delay_estimator));
+    absl::StatusOr<ScheduleCycleMap> scm = SDCScheduler(
+        f, pipeline_stages, clk_period_ps, delay_estimator, &bounds,
+        constraints, /*check_feasibility=*/true, explain_infeasibility);
+    return scm.status();
+  };
+
+  XLS_RETURN_IF_ERROR(
+      validate_period(search_end, /*explain_infeasibility=*/true))
+          .SetPrepend()
+      << absl::StrFormat("Impossible to schedule %s %s as specified; ",
+                         (f->IsProc() ? "Proc" : "Function"), f->name());
+
+  int64_t min_period = BinarySearchMinTrue(
+      search_start, search_end,
+      [&](int64_t clk_period_ps) {
+        return validate_period(clk_period_ps,
+                               /*explain_infeasibility=*/false)
+            .ok();
+      },
+      BinarySearchAssumptions::kEndKnownTrue);
   XLS_VLOG(4) << "minimum clock period = " << min_period;
 
   return min_period;

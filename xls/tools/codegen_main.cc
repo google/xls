@@ -333,7 +333,10 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
   std::string_view ir_path = positional_arguments[0];
-  XLS_QCHECK_OK(xls::RealMain(ir_path));
+  if (absl::Status status = xls::RealMain(ir_path); !status.ok()) {
+    XLS_LOG(ERROR) << status;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

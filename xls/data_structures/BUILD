@@ -241,6 +241,7 @@ cc_library(
     hdrs = ["binary_search.h"],
     deps = [
         "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",

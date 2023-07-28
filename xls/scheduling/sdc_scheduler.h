@@ -46,7 +46,7 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
     FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
     absl::Span<const SchedulingConstraint> constraints,
-    bool check_feasibility = false);
+    bool check_feasibility = false, bool explain_infeasibility = true);
 
 }  // namespace xls
 

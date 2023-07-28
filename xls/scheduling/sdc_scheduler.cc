@@ -14,10 +14,14 @@
 
 #include "xls/scheduling/sdc_scheduler.h"
 
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
@@ -27,6 +31,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -209,10 +214,15 @@ class ModelBuilder {
 
   absl::Status SetObjective();
 
+  absl::Status AddSlackVariables();
+
   math_opt::Model& Build() { return model_; }
   const math_opt::Model& Build() const { return model_; }
 
   absl::StatusOr<ScheduleCycleMap> ExtractResult(
+      const math_opt::VariableMap<double>& variable_values) const;
+
+  absl::Status ExtractError(
       const math_opt::VariableMap<double>& variable_values) const;
 
   absl::flat_hash_map<Node*, math_opt::Variable> GetCycleVars() const {
@@ -272,6 +282,70 @@ class ModelBuilder {
         absl::StrFormat("%s:%s-%s=%d", name, x->GetName(), y->GetName(), diff));
   }
 
+  math_opt::Variable AddUpperBoundSlack(
+      math_opt::LinearConstraint c,
+      std::optional<math_opt::Variable> slack = std::nullopt) {
+    XLS_CHECK_LT(c.upper_bound(), kInfinity)
+        << "The constraint " << c.name() << " has no upper bound.";
+    if (slack.has_value()) {
+      XLS_CHECK_EQ(c.coefficient(*slack), 0.0)
+          << "The slack variable " << slack->name()
+          << " is already referenced in the constraint " << c.name() << ".";
+    } else {
+      slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                                 absl::StrCat(c.name(), "_ub_slack"));
+    }
+    model_.set_coefficient(c, *slack, -1.0);
+    return *slack;
+  }
+
+  math_opt::Variable AddLowerBoundSlack(
+      math_opt::LinearConstraint c,
+      std::optional<math_opt::Variable> slack = std::nullopt) {
+    XLS_CHECK_GT(c.lower_bound(), -kInfinity)
+        << "The constraint " << c.name() << " has no lower bound.";
+    if (slack.has_value()) {
+      XLS_CHECK_EQ(c.coefficient(*slack), 0.0)
+          << "The slack variable " << slack->name()
+          << " is already referenced in the constraint " << c.name() << ".";
+    } else {
+      slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                                 absl::StrCat(c.name(), "_lb_slack"));
+    }
+    model_.set_coefficient(c, *slack, 1.0);
+    return *slack;
+  }
+
+  std::pair<math_opt::Variable, math_opt::LinearConstraint> AddUpperBoundSlack(
+      math_opt::Variable v,
+      std::optional<math_opt::Variable> slack = std::nullopt) {
+    XLS_CHECK_LT(v.upper_bound(), kInfinity)
+        << "The variable " << v.name() << " has no fixed upper bound.";
+    if (!slack.has_value()) {
+      slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                                 absl::StrCat(v.name(), "_ub_slack"));
+    }
+    math_opt::LinearConstraint upper_bound = model_.AddLinearConstraint(
+        v - *slack <= v.upper_bound(), absl::StrCat(v.name(), "_ub"));
+    model_.set_upper_bound(v, kInfinity);
+    return {*slack, upper_bound};
+  }
+
+  std::pair<math_opt::Variable, math_opt::LinearConstraint> AddLowerBoundSlack(
+      math_opt::Variable v,
+      std::optional<math_opt::Variable> slack = std::nullopt) {
+    XLS_CHECK_GT(v.lower_bound(), -kInfinity)
+        << "The variable " << v.name() << " has no fixed lower bound.";
+    if (!slack.has_value()) {
+      slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                                 absl::StrCat(v.name(), "_lb_slack"));
+    }
+    math_opt::LinearConstraint lower_bound = model_.AddLinearConstraint(
+        v + *slack >= v.lower_bound(), absl::StrCat(v.name(), "_lb"));
+    model_.set_lower_bound(v, -kInfinity);
+    return {*slack, lower_bound};
+  }
+
   FunctionBase* func_;
   math_opt::Model model_;
   int64_t pipeline_length_;
@@ -291,6 +365,26 @@ class ModelBuilder {
 
   // A cache of the delay constraints.
   absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints_;
+
+  absl::flat_hash_map<std::pair<Node*, Node*>, math_opt::LinearConstraint>
+      backedge_constraint_;
+  absl::flat_hash_map<Node*, math_opt::LinearConstraint> send_last_constraint_;
+
+  struct ConstraintPair {
+    math_opt::LinearConstraint lower;
+    math_opt::LinearConstraint upper;
+  };
+  absl::flat_hash_map<IOConstraint, std::vector<ConstraintPair>>
+      io_constraints_;
+
+  std::optional<math_opt::Variable> pipeline_length_slack_;
+  std::optional<math_opt::Variable> backedge_slack_;
+
+  struct SlackPair {
+    math_opt::Variable min;
+    math_opt::Variable max;
+  };
+  absl::flat_hash_map<IOConstraint, SlackPair> io_slack_;
 };
 
 ModelBuilder::ModelBuilder(FunctionBase* func, int64_t pipeline_length,
@@ -384,10 +478,12 @@ absl::Status ModelBuilder::AddBackedgeConstraints(
     if (next == state) {
       continue;
     }
-    DiffLessThanConstraint(next, state, II, "backedge");
     XLS_VLOG(2) << "Setting backedge constraint (II): "
                 << absl::StrFormat("cycle[%s] - cycle[%s] < %d",
                                    next->GetName(), state->GetName(), II);
+    backedge_constraint_.emplace(
+        std::make_pair(state, next),
+        DiffLessThanConstraint(next, state, II, "backedge"));
   }
 
   return absl::OkStatus();
@@ -462,14 +558,17 @@ absl::Status ModelBuilder::AddIOConstraint(const IOConstraint& constraint) {
         continue;
       }
 
-      DiffAtLeastConstraint(target, source, constraint.MinimumLatency(), "io");
-      DiffAtMostConstraint(target, source, constraint.MaximumLatency(), "io");
-
       XLS_VLOG(2) << "Setting IO constraint: "
                   << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
                                      constraint.MinimumLatency(),
                                      target->GetName(), source->GetName(),
                                      constraint.MaximumLatency());
+      io_constraints_[constraint].push_back({
+          .lower = DiffAtLeastConstraint(target, source,
+                                         constraint.MinimumLatency(), "io"),
+          .upper = DiffAtMostConstraint(target, source,
+                                        constraint.MaximumLatency(), "io"),
+      });
     }
   }
 
@@ -515,9 +614,11 @@ absl::Status ModelBuilder::AddRFSLConstraint(
       XLS_VLOG(2) << "Setting send-in-last-cycle constraint: "
                   << absl::StrFormat("%d ≤ cycle[%s]", pipeline_length_ - 1,
                                      node->GetName());
-      model_.AddLinearConstraint(
-          cycle_var_.at(node) >= static_cast<double>(pipeline_length_ - 1),
-          absl::StrFormat("send_%s", node->GetName()));
+      send_last_constraint_.emplace(
+          node,
+          model_.AddLinearConstraint(
+              cycle_var_.at(node) >= static_cast<double>(pipeline_length_ - 1),
+              absl::StrFormat("send_%s", node->GetName())));
     }
   }
 
@@ -555,13 +656,137 @@ absl::StatusOr<ScheduleCycleMap> ModelBuilder::ExtractResult(
   return cycle_map;
 }
 
+absl::Status ModelBuilder::AddSlackVariables() {
+  // Add slack variables to all relevant constraints.
+
+  // Drop our objective; we only want to find out the minimum slacks required
+  // for feasibility.
+  model_.Minimize(0.0);
+
+  // First, add slack to our enforcement of pipeline length, which affects the
+  // cycle upper bounds and send-last constraints. We assume users are most
+  // willing to relax this; i.e., they care about throughput more than latency.
+  pipeline_length_slack_ = model_.AddVariable(
+      0.0, kInfinity, /*is_integer=*/false, "pipeline_length_slack");
+  model_.AddToObjective(*pipeline_length_slack_);
+  for (auto& [node, var] : cycle_var_) {
+    AddUpperBoundSlack(var, pipeline_length_slack_);
+  }
+  for (auto& [node, constraint] : send_last_constraint_) {
+    // Every send-last constraint is a lower bound specifying that this node's
+    // cycle is at least (pipeline_length - 1); by subtracting the slack
+    // variable from the linear expression, we ensure that the node's cycle is
+    // at least (pipeline_length + slack - 1), keeping it in the last cycle.
+    model_.set_coefficient(constraint, *pipeline_length_slack_, -1.0);
+  }
+
+  // Next, if this is a proc, relax the state backedge length restriction. We
+  // assume users are reasonably willing to relax this; i.e., they care about
+  // throughput, but they care more about the I/O constraints they've specified.
+  if (Proc* proc = dynamic_cast<Proc*>(func_); proc != nullptr) {
+    backedge_slack_ = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
+                                         "backedge_slack");
+    model_.AddToObjective((1 << 10) * *backedge_slack_);
+    for (auto& [nodes, constraint] : backedge_constraint_) {
+      AddUpperBoundSlack(constraint, backedge_slack_);
+    }
+  }
+
+  // Finally, relax the I/O constraints, if nothing else works.
+  for (auto& [io_constraint, constraints] : io_constraints_) {
+    math_opt::Variable min_slack = model_.AddVariable(
+        0, kInfinity, /*is_integer=*/false,
+        absl::StrCat("io_min_", io_constraint.SourceChannel(), "→",
+                     io_constraint.TargetChannel(), "_slack"));
+    math_opt::Variable max_slack = model_.AddVariable(
+        0, kInfinity, /*is_integer=*/false,
+        absl::StrCat("io_max_", io_constraint.SourceChannel(), "→",
+                     io_constraint.TargetChannel(), "_slack"));
+    model_.AddToObjective((1 << 20) * min_slack);
+    model_.AddToObjective((1 << 20) * max_slack);
+    io_slack_.emplace(io_constraint, SlackPair{
+                                         .min = min_slack,
+                                         .max = max_slack,
+                                     });
+
+    for (auto& [min_constraint, max_constraint] : constraints) {
+      AddLowerBoundSlack(min_constraint, min_slack);
+      AddUpperBoundSlack(max_constraint, max_slack);
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status ModelBuilder::ExtractError(
+    const math_opt::VariableMap<double>& variable_values) const {
+  double pipeline_length_slack = variable_values.at(*pipeline_length_slack_);
+  if (pipeline_length_slack > 0.001) {
+    int64_t new_pipeline_length =
+        pipeline_length_ +
+        static_cast<int64_t>(std::ceil(pipeline_length_slack));
+    return absl::InvalidArgumentError(absl::StrCat(
+        "cannot achieve the specified pipeline length. Try `--pipeline_stages=",
+        new_pipeline_length, "`"));
+  }
+
+  if (func_->IsProc()) {
+    double backedge_slack = variable_values.at(*backedge_slack_);
+    if (backedge_slack > 0.001) {
+      int64_t new_backedge_length =
+          func_->AsProcOrDie()->GetInitiationInterval().value_or(1) +
+          static_cast<int64_t>(std::ceil(backedge_slack));
+      return absl::InvalidArgumentError(absl::StrCat(
+          "cannot achieve full throughput. Try `--worst_case_throughput=",
+          static_cast<int64_t>(std::ceil(new_backedge_length)), "`"));
+    }
+  }
+
+  std::vector<std::string> io_problems;
+  for (auto& [io_constraint, slacks] : io_slack_) {
+    double min_slack = variable_values.at(slacks.min);
+    double max_slack = variable_values.at(slacks.max);
+
+    std::vector<std::string> latency_suggestions;
+    if (min_slack > 0.001) {
+      int64_t new_min_latency = io_constraint.MinimumLatency() -
+                                static_cast<int64_t>(std::ceil(min_slack));
+      latency_suggestions.push_back(
+          absl::StrCat("minimum latency ≤ ", new_min_latency));
+    }
+    if (max_slack > 0.001) {
+      int64_t new_max_latency = io_constraint.MaximumLatency() +
+                                static_cast<int64_t>(std::ceil(max_slack));
+      latency_suggestions.push_back(
+          absl::StrCat("maximum latency ≥ ", new_max_latency));
+    }
+
+    if (latency_suggestions.empty()) {
+      continue;
+    }
+    io_problems.push_back(absl::StrCat(
+        io_constraint.SourceChannel(), "→", io_constraint.TargetChannel(),
+        " with ", absl::StrJoin(latency_suggestions, ", ")));
+  }
+  if (!io_problems.empty()) {
+    return absl::InvalidArgumentError(absl::StrCat(
+        "cannot satisfy the given I/O constraints. Would succeed with: ",
+        absl::StrJoin(io_problems, ", ",
+                      [](std::string* out, const std::string& entry) {
+                        absl::StrAppend(out, "{", entry, "}");
+                      })));
+  }
+
+  return absl::UnknownError("reason unknown.");
+}
+
 }  // namespace
 
 absl::StatusOr<ScheduleCycleMap> SDCScheduler(
     FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
-    absl::Span<const SchedulingConstraint> constraints,
-    bool check_feasibility) {
+    absl::Span<const SchedulingConstraint> constraints, bool check_feasibility,
+    bool explain_infeasibility) {
   XLS_VLOG(3) << "SDCScheduler()";
   XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
   XLS_VLOG_LINES(4, f->DumpIr());
@@ -607,6 +832,23 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
   XLS_ASSIGN_OR_RETURN(
       math_opt::SolveResult result,
       math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+
+  if (explain_infeasibility &&
+      (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
+       result.termination.reason ==
+           math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
+    XLS_RETURN_IF_ERROR(model.AddSlackVariables());
+    XLS_ASSIGN_OR_RETURN(
+        math_opt::SolveResult result_with_slack,
+        math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+    if (result_with_slack.termination.reason ==
+            math_opt::TerminationReason::kOptimal ||
+        result_with_slack.termination.reason ==
+            math_opt::TerminationReason::kFeasible) {
+      XLS_RETURN_IF_ERROR(
+          model.ExtractError(result_with_slack.variable_values()));
+    }
+  }
 
   if (result.termination.reason != math_opt::TerminationReason::kOptimal) {
     // We don't know why the solver failed to find an optimal solution to our LP
