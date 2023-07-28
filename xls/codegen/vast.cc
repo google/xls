@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -1239,19 +1240,17 @@ std::string TemplateInstantiation::Emit(LineInfo* line_info) const {
   absl::StatusOr<CodeTemplate> code_template =
       CodeTemplate::Create(template_text_);
   XLS_CHECK(code_template.ok());  // Already verified earlier.
-  for (const std::string& original : code_template->Expressions()) {
-    if (original == "fn") {
-      replacements.push_back(instance_name_);
-      continue;
+  std::string result = code_template->Substitute([&](std::string_view tmpl) {
+    if (tmpl == "fn") {
+      return instance_name_;
     }
-    auto found = std::find_if(
-        connections_.begin(), connections_.end(),
-        [&](const Connection& c) { return c.port_name == original; });
-    XLS_CHECK(found != connections_.end())
-        << "ExternInstantiation: cant map: template value '" << original << "'";
-    replacements.push_back(found->expression->Emit(line_info));
-  }
-  std::string result = code_template->FillTemplate(replacements).value();
+    auto found =
+        std::find_if(connections_.begin(), connections_.end(),
+                     [&](const Connection& c) { return c.port_name == tmpl; });
+    XLS_CHECK(found != connections_.end())  // Should've been verified earlier
+        << "ExternInstantiation: can't map: template value '" << tmpl << "'";
+    return found->expression->Emit(line_info);
+  });
   absl::StrAppend(&result, ";");
   LineInfoIncrease(line_info, NumberOfNewlines(result));
   LineInfoEnd(line_info, this);

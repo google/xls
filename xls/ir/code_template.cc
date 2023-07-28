@@ -16,6 +16,8 @@
 
 #include <cstdint>
 #include <stack>
+#include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -146,9 +148,9 @@ absl::Status CodeTemplate::Parse(std::string_view template_text) {
 }
 
 // Unescape "{{" -> "{" and "}}" -> "}" if unescaping requested.
-static std::string UnescapeCurly(bool do_unescape, std::string_view in) {
+static std::string Unescape(CodeTemplate::Escaped esc, std::string_view in) {
   std::string result;
-  if (!do_unescape) {
+  if (esc == CodeTemplate::Escaped::kKeep) {
     result = in;
     return result;
   }
@@ -165,39 +167,22 @@ static std::string UnescapeCurly(bool do_unescape, std::string_view in) {
   return result;
 }
 
-absl::StatusOr<std::string> CodeTemplate::FillTemplate(
-    absl::Span<const std::string> replacements, bool escape_curly,
-    std::string_view expression_prefix,
-    std::string_view expression_suffix) const {
-  if (replacements.size() != expressions_.size()) {
-    return absl::InvalidArgumentError("Invalid count of {...} replacements.");
-  }
+std::string CodeTemplate::Substitute(const ParameterReplace& replacement_lookup,
+                                     Escaped escape_handling) const {
   std::string result;
   for (int i = 0; i < expressions_.size(); ++i) {
-    absl::StrAppend(&result, UnescapeCurly(!escape_curly, leading_text_[i]),
-                    expression_prefix, replacements[i], expression_suffix);
+    absl::StrAppend(&result, Unescape(escape_handling, leading_text_[i]));
+    absl::StrAppend(&result, replacement_lookup(expressions_[i]));
   }
   if (leading_text_.size() > expressions_.size()) {
-    absl::StrAppend(&result,
-                    UnescapeCurly(!escape_curly, leading_text_.back()));
+    absl::StrAppend(&result, Unescape(escape_handling, leading_text_.back()));
   }
   return result;
 }
 
-absl::StatusOr<std::string> CodeTemplate::FillTemplate(
-    absl::Span<const std::string> replacements) const {
-  return FillTemplate(replacements, false, "", "");
-}
-
-absl::StatusOr<std::string> CodeTemplate::FillEscapedTemplate(
-    absl::Span<const std::string> replacements) const {
-  return FillTemplate(replacements, true, "{", "}");
-}
-
 std::string CodeTemplate::ToString() const {
-  absl::StatusOr<std::string> result = FillEscapedTemplate(expressions_);
-  XLS_CHECK_OK(result.status());  // Should never happen: #expr count correct.
-  return *result;
+  return Substitute(
+      [](std::string_view tname) { return absl::StrCat("{", tname, "}"); },
+      Escaped::kKeep);
 }
-
 }  // namespace xls

@@ -14,8 +14,13 @@
 
 #include "xls/ir/code_template.h"
 
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/strings/str_cat.h"
 #include "xls/common/status/matchers.h"
 
 using testing::ElementsAre;
@@ -124,15 +129,9 @@ TEST(CodeTemplateTest, TemplateFilling) {
   EXPECT_EQ(code_template.Expressions().size(), 3);
   EXPECT_THAT(code_template.Expressions(), ElementsAre("width", "fn", "x"));
 
-  // Attempt expanding with not enough values
-  EXPECT_THAT(
-      code_template.FillTemplate({}),
-      StatusIs(absl::StatusCode::kInvalidArgument, HasSubstr("Invalid count")));
-
-  absl::StatusOr<std::string> result =
-      code_template.FillTemplate({"param", "instance", "42"});
-  XLS_EXPECT_OK(result.status());
-  EXPECT_EQ(result.value(), "foo #(.w(param)) instance (.a(42))");
+  const std::string result = code_template.Substitute(
+      [](std::string_view name) { return absl::StrCat(name, "_replaced"); });
+  EXPECT_EQ(result, "foo #(.w(width_replaced)) fn_replaced (.a(x_replaced))");
 }
 
 TEST(CodeTemplateTest, UnescapingBraces) {
@@ -144,14 +143,15 @@ TEST(CodeTemplateTest, UnescapingBraces) {
   EXPECT_EQ(code_template.Expressions().size(), 3);
   EXPECT_THAT(code_template.Expressions(), ElementsAre("e1", "e2", "e3"));
 
-  absl::StatusOr<std::string> result =
-      code_template.FillTemplate({"answer", "life", "42"});
-  XLS_EXPECT_OK(result.status());
-  EXPECT_EQ(result.value(), "foo answer {bar} life {{baz}} {42}");
+  absl::flat_hash_map<std::string, std::string> replacements{
+      {"e1", "answer"}, {"e2", "life"}, {"e3", "42"}};
+  const std::string result = code_template.Substitute(
+      [&replacements](std::string_view name) { return replacements[name]; });
+  EXPECT_EQ(result, "foo answer {bar} life {{baz}} {42}");
 }
 
 TEST(CodeTemplateTest, ToStringRecreatesOriginalTemplate) {
-  // Note, this implictly also tests FillTemplate() as it is used underneath.
+  // Note, this implictly also tests Substitute() as it is used underneath.
   CodeTemplate code_template = *CodeTemplate::Create("");
   for (std::string_view test_template : {"",                          //
                                          "((){x})"                    //

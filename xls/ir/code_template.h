@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CODE_TEMPLATE_H_
 #define XLS_IR_CODE_TEMPLATE_H_
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -52,25 +53,26 @@ class CodeTemplate {
   // Returns the content of the expressions found in the template.
   absl::Span<const std::string> Expressions() const { return expressions_; }
 
-  // Fill template with replacement text for each expression.
-  // The replacement sequence needs to contain as many elements as Expressions()
-  // returns. Unescapes "{{" and "}}" sequences to "{" and "}".
-  absl::StatusOr<std::string> FillTemplate(
-      absl::Span<const std::string> replacements) const;
+  // Handling of curly-brace escaping in Substitute().
+  enum class Escaped {
+    kUnescape,
+    kKeep,
+  };
 
-  // Recreate a template, but replace expressions.
-  // Keeps {} and escaped {{ }} as-is, so that the result can be parsed
-  // as template again.
-  absl::StatusOr<std::string> FillEscapedTemplate(
-      absl::Span<const std::string> replacements) const;
+  // Given a template parameter name, return the replacment.
+  using ParameterReplace = std::function<std::string(std::string_view name)>;
+
+  // Substitute all template parameters with the value provided by the
+  // "replacment_lookup" function and return the resulting string.
+  // By default, the "escape_handling" is Escaped::kUnescape so that e.g.
+  // '{{' will be replaced with '{' to be used as a regular template expansion.
+  // If "escape_handling" is set to Escaped::kKeep all escaped characters are
+  // kept escaped, so the result can be used as a valid escaped code template.
+  std::string Substitute(const ParameterReplace& replacement_lookup,
+                         Escaped escape_handling = Escaped::kUnescape) const;
 
   // Get the original template text.
   std::string ToString() const;
-
-  // There is no default constructor, but constructed CodeTemplates can
-  // be assignable. We need to be explicit here to be able to use
-  // this object with std::optional.
-  CodeTemplate& operator=(const CodeTemplate&) = default;
 
  private:
   CodeTemplate() = default;  // Use Create() to public construct
@@ -78,16 +80,6 @@ class CodeTemplate {
   // Parse template, return success. Used in the public Create()
   // method; see description there.
   absl::Status Parse(std::string_view template_text);
-
-  // Fill template with the choice of escaping curly braces
-  // in the template as well as surrounding replacments with
-  // a prefix and suffix. Underlying method to provide public
-  // functionality of FillTemplate(), FillEscapedTemplate() and
-  // ToString().
-  absl::StatusOr<std::string> FillTemplate(
-      absl::Span<const std::string> replacements, bool escape_curly,
-      std::string_view expression_prefix,
-      std::string_view expression_suffix) const;
 
   // Separate arrays to be able to hand out contained expressions cheaply.
   std::vector<std::string> leading_text_;  // text up to next expression

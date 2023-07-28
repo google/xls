@@ -98,6 +98,8 @@ cc_test(
         ":code_template",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )
