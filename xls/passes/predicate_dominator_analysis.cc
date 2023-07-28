@@ -178,7 +178,7 @@ class AnalysisHelper {
       // Find the actual join-point.
       head = FindJoinPoint(new_id, head);
     };
-    for (size_t i = 0; i < user->cases().size(); ++i) {
+    for (int64_t i = 0; i < user->cases().size(); ++i) {
       handle_arm(user->cases()[i], /*arm=*/i);
     }
     if (user->default_value().has_value()) {
