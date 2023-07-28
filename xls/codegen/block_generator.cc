@@ -690,6 +690,7 @@ class BlockGenerator {
     // Since instantiations are emitted at the end, and not the pipeline stages
     // they are in, separate with headline to reduce confusion.
     if (!block_->GetInstantiations().empty()) {
+      mb_.declaration_section()->Add<BlankLine>(SourceInfo());
       mb_.instantiation_section()->Add<Comment>(SourceInfo(),
                                                 "===== Instantiations");
     }
