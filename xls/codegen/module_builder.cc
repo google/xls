@@ -508,7 +508,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
             assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
                                                             rhs);
           });
-    } else if (is_statically_false(index_match)) {
+    }
+    if (is_statically_false(index_match)) {
       // Indices definitely do *NOT* match the subarray/element being replaced
       // with update value. Assign from rhs exclusively. E.g.:
       //   assign lhs[i][j] = rhs[j]

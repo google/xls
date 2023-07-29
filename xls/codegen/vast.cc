@@ -167,9 +167,8 @@ DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
   if (bit_count == 1) {
     if (is_signed) {
       return Make<DataType>(loc, /*width=*/nullptr, /*is_signed=*/true);
-    } else {
-      return Make<DataType>(loc);
     }
+    return Make<DataType>(loc);
   }
   return BitVectorTypeNoScalar(bit_count, loc, is_signed);
 }
@@ -658,10 +657,9 @@ std::string SystemTaskCall::Emit(LineInfo* line_info) const {
         }));
     LineInfoEnd(line_info, this);
     return result;
-  } else {
-    LineInfoEnd(line_info, this);
-    return absl::StrFormat("$%s;", name_);
   }
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("$%s;", name_);
 }
 
 std::string SystemFunctionCall::Emit(LineInfo* line_info) const {
@@ -674,11 +672,10 @@ std::string SystemFunctionCall::Emit(LineInfo* line_info) const {
         });
     LineInfoEnd(line_info, this);
     return absl::StrFormat("$%s(%s)", name_, arg_list);
-  } else {
-    LineInfoIncrease(line_info, NumberOfNewlines(name_));
-    LineInfoEnd(line_info, this);
-    return absl::StrFormat("$%s", name_);
   }
+  LineInfoIncrease(line_info, NumberOfNewlines(name_));
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("$%s", name_);
 }
 
 std::string Module::Emit(LineInfo* line_info) const {

@@ -374,8 +374,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
             absl::StrFormat("%s not found in input", signal_name));
       }
       return inputs.at(signal_name);
-    } else if (signal_type == SignalType::kOutput ||
-               signal_type == SignalType::kExpectedOutput) {
+    }
+    if (signal_type == SignalType::kOutput ||
+        signal_type == SignalType::kExpectedOutput) {
       if (!outputs.contains(signal_name)) {
         return absl::InternalError(
             absl::StrFormat("%s not found in output", signal_name));
