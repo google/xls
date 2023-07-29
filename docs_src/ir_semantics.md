@@ -897,11 +897,21 @@ Value      | Type
 
 Selects between operands based on a selector value.
 
+This behaves as if the `selector` indexes into the values given in `cases`,
+providing `default` if it is indexing beyond the given `cases`.
+
 **Syntax**
 
 ```
 result = sel(selector, cases=[case_{0}, ... , case_{N-1}], default=<default>)
 ```
+
+A default value must be provided **iff** the `selector` is not the correct width
+for the `cases` array. That is, if the number of cases is less than
+$2^{bitwidth(selector)}$ then a default value must be specified (because it must
+be well defined what happens when the selector takes on values outside the case
+range). If the selector is exactly the correct bitwidth a default value must not
+be provided.
 
 **Types**
 

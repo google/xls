@@ -905,10 +905,10 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Select has useless default value: selector has %d bits "
                     "with %d cases",
                     selector_width, sel->cases().size()));
-    } else if ((selector_width > minimum_selector_width ||
-                (selector_width == minimum_selector_width &&
-                 !power_of_2_cases)) &&
-               !sel->default_value().has_value()) {
+    }
+    if ((selector_width > minimum_selector_width ||
+         (selector_width == minimum_selector_width && !power_of_2_cases)) &&
+        !sel->default_value().has_value()) {
       return absl::InternalError(StrFormat(
           "Select has no default value: selector has %d bits with %d cases",
           selector_width, sel->cases().size()));
