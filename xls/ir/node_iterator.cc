@@ -80,6 +80,7 @@ void NodeIterator::Initialize() {
     // single user, even though we may refer to them multiple times in our
     // operands sequence.
     absl::flat_hash_set<Node*> seen_operands;
+    seen_operands.reserve(r->operand_count());
 
     for (auto it = r->operands().rbegin(); it != r->operands().rend(); ++it) {
       Node* o = *it;
