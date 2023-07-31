@@ -43,7 +43,7 @@ cc_binary(
         "//xls/common/file:temp_directory",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
-        "//xls/synthesis:server_credentials",
+        "//xls/synthesis:credentials",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@at_clifford_yosys//:json11",

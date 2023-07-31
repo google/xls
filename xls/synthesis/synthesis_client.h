@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/synthesis/server_credentials.h"
+#ifndef XLS_SYNTHESIS_CLIENT_H_
+#define XLS_SYNTHESIS_CLIENT_H_
+
+#include <string>
+
+#include "absl/status/statusor.h"
+#include "xls/synthesis/synthesis.pb.h"
 
 namespace xls {
 namespace synthesis {
 
-std::shared_ptr<::grpc::ServerCredentials> GetServerCredentials() {
-  return grpc::experimental::LocalServerCredentials(LOCAL_TCP);
-}
+// This creates a new channel and stub *each* invocation
+absl::StatusOr<CompileResponse> SynthesizeViaClient(
+    const std::string& server,
+    const CompileRequest& request);
 
 }  // namespace synthesis
 }  // namespace xls
+
+#endif  // XLS_SYNTHESIS_CLIENT_H_

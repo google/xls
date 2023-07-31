@@ -31,7 +31,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
-#include "xls/synthesis/server_credentials.h"
+#include "xls/synthesis/credentials.h"
 #include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
 #include "xls/synthesis/yosys/yosys_util.h"

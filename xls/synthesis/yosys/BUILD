@@ -35,7 +35,7 @@ cc_binary(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/synthesis:server_credentials",
+        "//xls/synthesis:credentials",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
         "@com_github_grpc_grpc//:grpc++",

@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_SYNTHESIS_SERVER_CREDENTIALS_H_
-#define XLS_SYNTHESIS_SERVER_CREDENTIALS_H_
+#ifndef XLS_SYNTHESIS_CREDENTIALS_H_
+#define XLS_SYNTHESIS_CREDENTIALS_H_
 
+#include <memory>
+
+#include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 
 namespace xls {
 namespace synthesis {
 
 std::shared_ptr<::grpc::ServerCredentials> GetServerCredentials();
+std::shared_ptr<::grpc::ChannelCredentials> GetChannelCredentials();
 
 }  // namespace synthesis
 }  // namespace xls
 
-#endif  // XLS_SYNTHESIS_SERVER_CREDENTIALS_H_
+#endif  // XLS_SYNTHESIS_CREDENTIALS_H_
