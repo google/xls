@@ -12,37 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements a parametric RLE encoder
+// This file implements a parametric multisymbol RLE encoder
 //
 // The encoder uses Run Length Encoding (RLE) to compress the input stream of
 // repeating symbols to the output stream that contains the symbols and
-// the number of its consequect occurrences in the input stream.
+// the number of its consecutive occurrences in the input stream.
 // Both the input and the output channels use additional `last` flag
 // that indicates whether the packet ends the transmission. After sending
 // the last packet encoder dumps all the data to the output stream.
 // The behavior of the encoder is presented on the waveform below:
-//                      ──────╥─────╥─────╥─────╥─────╥─────╥─────╥─────╥────
-// next evaluation      XXXXXX║ 0   ║ 1   ║ 2   ║ 3   ║ 4   ║ 5   ║ 6   ║ ...
-//                      ──────╨─────╨─────╨─────╨─────╨─────╨─────╨─────╨────
-//                      ──────╥───────────╥─────╥─────╥─────╥─────╥──────────
-// symbol               XXXXXX║ A         ║ B   ║XXXXX║ B   ║ C   ║XXXXXXXXXX
-// (input channel)      ──────╨───────────╨─────╨─────╨─────╨─────╨──────────
-// last                                   ┌─────┐           ┌─────┐
-// (input channel)      ──────────────────┘     └───────────┘     └──────────
-//                      ╥─────╥─────╥─────╥─────╥─────╥─────╥─────╥──────────
-// state.prev_symbol    ║ 0   ║ A   ║ A   ║ B   ║ 0   ║ B   ║ C   ║ 0
-// (set state value)    ╨─────╨─────╨─────╨─────╨─────╨─────╨─────╨──────────
-//                      ╥─────╥─────╥─────╥─────╥─────╥─────╥─────╥──────────
-// state.prev_count     ║ 0   ║ 1   ║ 2   ║ 1   ║ 0   ║ 1   ║ 1   ║ 0
-// (set state value)    ╨─────╨─────╨─────╨─────╨─────╨─────╨─────╨──────────
-//
-// do_send                                ┌───────────┐     ┌───────────┐
-//                      ──────────────────┘           └─────┘           └────
-//                      ──────────────────╥─────╥─────╥─────╥─────╥─────╥────
-// symbol, count        XXXXXXXXXXXXXXXXXX║ A,2 ║ B,1 ║XXXXX║ B,1 ║ C,1 ║XXXX
-// (output channel)     ──────────────────╨─────╨─────╨─────╨─────╨─────╨────
-// last                                         ┌─────┐           ┌─────┐
-// (output channel)     ────────────────────────┘     └───────────┘     └────
+
+// This encoder is implemented as a net of 4 processes.
+// 1. Reduce stage - this process takes incoming symbols and symbol_valid
+// and reduces them into symbol count pairs. This stage is stateless.
+// 2. Realign stage - this process moves pairs emitted from previous stage
+// so that they are align to the left, it also calculates propagation distance
+// for the first pair.
+// 3. Core stage - this stage is stateful. It takes align pairs,
+// and combines them with its state.It outputs multiple symbol/count pairs.
+// 4 - Adjust Width stage - this stage takes output from the core stage.
+// If output can handle more or equal number of pairs as
+// input number of symbols. This stage does nothing.
+// If the output is narrower than the input,
+// this stage will serialize symbol counter pairs.
+
 
 import std
 import xls.modules.rle.rle_common as rle_common
