@@ -313,14 +313,18 @@ pub fn cast_from_fixed_using_rne<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
   let lz = clz(abs_magnitude);
   let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
 
-  // The following computation of exp can overflow if num_trailing_nonzeros
-  // is larger than what uN[UEXP_SZ] can hold.
+  // TODO(sameeragarwal): The following computation of exp can overflow if
+  // num_trailing_nonzeros is larger than what uN[UEXP_SZ] can hold.
   let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
   let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
   let is_inf = exp >= max_exp_exclusive;
   let bexp = bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]);
 
   // Determine fraction (pre-rounding).
+  //
+  // TODO(sameeragarwal): This concatenation of FRACTION_SZ zeros followed by a shift
+  // and slice seems excessive, worth exploring if the compiler is able to optimize it
+  // or a smaller manual implementation will be more efficient.
   let extended_fraction = abs_magnitude ++ uN[FRACTION_SZ]:0;
   let fraction = extended_fraction >>
     ((num_trailing_nonzeros - uN[NUM_SRC_BITS]:1) as uN[EXTENDED_FRACTION_SZ]);
@@ -346,18 +350,22 @@ pub fn cast_from_fixed_using_rne<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 
   // Check if rounding up caused us to overflow to infinity.
   let is_inf = is_inf || bexp == std::mask_bits<EXP_SZ>();
-
-  let result =
-    APFloat<EXP_SZ, FRACTION_SZ>{
-      sign: is_negative,
-      bexp: bexp,
-      fraction: fraction
-  };
-
   let is_zero = abs_magnitude == uN[NUM_SRC_BITS]:0;
-  let result = if is_inf { inf<EXP_SZ, FRACTION_SZ>(is_negative) } else { result };
-  let result = if is_zero { zero<EXP_SZ, FRACTION_SZ>(is_negative) } else { result };
-  result
+  match (is_inf, is_zero) {
+    (true, false)   =>  inf<EXP_SZ, FRACTION_SZ>(is_negative),
+    // Technically is_inf and is_zero should never be true at the same time, however, currently
+    // the way is_inf is computed it can be true while is_zero is true. So we allow is_inf to be
+    // anything when deciding if the output should be zero or not.
+    //
+    // Further, input when zero does not have a sign, so we will always return +0.0
+    (_, true)   =>  zero<EXP_SZ, FRACTION_SZ>(false),
+    (false, false)  =>  APFloat<EXP_SZ, FRACTION_SZ>{
+                          sign: is_negative,
+                          bexp: bexp,
+                          fraction: fraction
+                        },
+               _   => qnan<EXP_SZ, FRACTION_SZ>()
+  }
 }
 
 #[test]
@@ -481,10 +489,228 @@ fn cast_from_fixed_using_rne_test() {
   ()
 }
 
-pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
-                          x: APFloat<EXP_SZ, FRACTION_SZ>)
+// Casts the fixed point number to a floating point number using RZ
+// (Round to Zero) as the rounding mode.
+pub fn cast_from_fixed_using_rz<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
+                                 to_cast: sN[NUM_SRC_BITS])
     -> APFloat<EXP_SZ, FRACTION_SZ> {
-  if x.bexp == bits[EXP_SZ]:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { x }
+  const UEXP_SZ:u32 = EXP_SZ + u32:1;
+  const EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + NUM_SRC_BITS;
+
+  // Determine sign.
+  let is_negative = to_cast < sN[NUM_SRC_BITS]:0;
+
+  // Determine exponent.
+  let abs_magnitude = std::abs(to_cast) as uN[NUM_SRC_BITS];
+  let lz = clz(abs_magnitude);
+  let num_trailing_nonzeros = (NUM_SRC_BITS as uN[NUM_SRC_BITS]) - lz;
+
+  // TODO(sameeragarwal): The following computation of exp can overflow if
+  // num_trailing_nonzeros is larger than what uN[UEXP_SZ] can hold.
+  let exp = (num_trailing_nonzeros as uN[UEXP_SZ]) - uN[UEXP_SZ]:1;
+  let max_exp_exclusive = uN[UEXP_SZ]:1 << ((EXP_SZ as uN[UEXP_SZ]) - uN[UEXP_SZ]:1);
+  let is_inf = exp >= max_exp_exclusive;
+  let bexp = bias<EXP_SZ, FRACTION_SZ>(exp as sN[EXP_SZ]);
+
+  // Determine fraction (pre-rounding).
+  //
+  // TODO(sameeragarwal): This concatenation of FRACTION_SZ zeros followed by a shift
+  // and slice seems excessive, worth exploring if the compiler is able to optimize it
+  // or a smaller manual implementation will be more efficient.
+  let extended_fraction = abs_magnitude ++ uN[FRACTION_SZ]:0;
+  let fraction = extended_fraction >>
+    ((num_trailing_nonzeros - uN[NUM_SRC_BITS]:1) as uN[EXTENDED_FRACTION_SZ]);
+  let fraction = fraction[0 : FRACTION_SZ as s32];
+
+  let is_zero = abs_magnitude == uN[NUM_SRC_BITS]:0;
+
+  match (is_inf, is_zero) {
+    (true, false)   =>  inf<EXP_SZ, FRACTION_SZ>(is_negative),
+    // Technically is_inf and is_zero should never be true at the same time, however, currently
+    // the way is_inf is computed it can be true while is_zero is true. So we allow is_inf to be
+    // anything when deciding if the output should be zero or not.
+    //
+    // Further, input when zero does not have a sign, so we will always return +0.0
+    (_, true)   =>  zero<EXP_SZ, FRACTION_SZ>(false),
+    (false, false)  =>  APFloat<EXP_SZ, FRACTION_SZ>{
+                          sign: is_negative,
+                          bexp: bexp,
+                          fraction: fraction
+                        },
+                _   => qnan<EXP_SZ, FRACTION_SZ>()
+  }
+}
+
+#[test]
+fn cast_from_fixed_using_rz_test() {
+  const EXP_SZ = u32:5;
+  const FRAC_SZ = u32:5;
+  // This gives us the maximum number of bits before things go to infinity
+  assert_eq(max_normal_exp<EXP_SZ>(), sN[EXP_SZ]:15);
+
+  type Float = APFloat<EXP_SZ, FRAC_SZ>;
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0),
+            zero<EXP_SZ, FRAC_SZ>(false));
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:1),
+            one<EXP_SZ, FRAC_SZ>(false));
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:1),
+            one<EXP_SZ, FRAC_SZ>(true));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:2),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+                    fraction: uN[FRAC_SZ]: 0
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:2),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+                    fraction: uN[FRAC_SZ]: 0
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:3),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+                    fraction: uN[FRAC_SZ]: 0b10000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:3),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:1),
+                    fraction: uN[FRAC_SZ]: 0b10000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111000),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+                    fraction: uN[FRAC_SZ]: 0b11000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111000),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+                    fraction: uN[FRAC_SZ]: 0b11000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1110000),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1110000),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11000
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b111111),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b111111),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:5),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111110),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111110),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b1111111),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b1111111),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:6),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b01111111111111111),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b01111111111111111),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111111),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111111),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[17]:0b00000011111111000),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[17]:0b00000011111111000),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:10),
+                    fraction: uN[FRAC_SZ]: 0b11111
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b01000000000000000),
+            Float { sign : false,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+                    fraction: uN[FRAC_SZ]: 0
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b01000000000000000),
+            Float { sign : true,
+                    bexp : bias<EXP_SZ, FRAC_SZ>(sN[EXP_SZ]:15),
+                    fraction: uN[FRAC_SZ]: 0
+            });
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b010000000000000000),
+            inf<EXP_SZ, FRAC_SZ>(false));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b010000000000000000),
+            inf<EXP_SZ, FRAC_SZ>(true));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[20]:0b010000111000000000),
+            inf<EXP_SZ, FRAC_SZ>(false));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[20]:0b010001110000000000),
+            inf<EXP_SZ, FRAC_SZ>(true));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(sN[30]:0b010000111000000000),
+            inf<EXP_SZ, FRAC_SZ>(false));
+
+  assert_eq(cast_from_fixed_using_rz<EXP_SZ, FRAC_SZ>(-sN[30]:0b010001110000000000),
+            inf<EXP_SZ, FRAC_SZ>(true));
+}
+
+pub fn subnormals_to_zero<EXP_SZ:u32, FRACTION_SZ:u32>(
+  x: APFloat<EXP_SZ, FRACTION_SZ>)
+-> APFloat<EXP_SZ, FRACTION_SZ> {
+if x.bexp == bits[EXP_SZ]:0 { zero<EXP_SZ, FRACTION_SZ>(x.sign) } else { x }
 }
 
 // Returns a normalized APFloat with the given components.

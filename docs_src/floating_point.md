@@ -229,7 +229,6 @@ pub fn ldexp<EXP_SZ:u32, FRACTION_SZ:u32>(
  - We emit a single, canonical representation for NaN (qnan) but accept all
    `NaN` representations as input.
 
-
 ### `apfloat::cast_from_fixed_using_rne`
 
 ```dslx-snippet
@@ -239,7 +238,18 @@ pub fn cast_from_fixed_using_rne<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
 ```
 
 Casts the fixed point number to a floating point number using RNE (Round to
-Nearest Even) as the rounding mode.
+Nearest Even) as the [rounding mode](https://en.wikipedia.org/wiki/Rounding).
+
+### `apfloat::cast_from_fixed_using_rz`
+
+```dslx-snippet
+pub fn cast_from_fixed_using_rz<EXP_SZ:u32, FRACTION_SZ:u32, NUM_SRC_BITS:u32>(
+                                 to_cast: sN[NUM_SRC_BITS])
+    -> APFloat<EXP_SZ, FRACTION_SZ> {
+```
+
+Casts the fixed point number to a floating point number using RZ (Round to Zero)
+as the [rounding mode](https://en.wikipedia.org/wiki/Rounding).
 
 ### `apfloat::normalize`
 

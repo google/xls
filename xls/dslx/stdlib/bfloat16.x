@@ -48,6 +48,9 @@ pub fn ldexp(f: BF16, e : s32) -> BF16 {apfloat::ldexp(f, e)}
 pub fn cast_from_fixed_using_rne<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> BF16 {
   apfloat::cast_from_fixed_using_rne<u32:8, u32:7>(s)
 }
+pub fn cast_from_fixed_using_rz<NUM_SRC_BITS:u32>(s: sN[NUM_SRC_BITS]) -> BF16 {
+  apfloat::cast_from_fixed_using_rz<u32:8, u32:7>(s)
+}
 pub fn cast_to_fixed<NUM_DST_BITS:u32>(to_cast: BF16) -> sN[NUM_DST_BITS] {
   apfloat::cast_to_fixed<NUM_DST_BITS, u32:8, u32:7>(to_cast)
 }
