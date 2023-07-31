@@ -43,9 +43,9 @@ cc_test(
     deps = [
         ":capture_stream",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -75,8 +75,8 @@ cc_test(
     deps = [
         ":errno_saver",
         "//xls/common:strerror",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -100,8 +100,8 @@ cc_test(
     deps = [
         ":log_entry",
         "@com_google_absl//absl/base:log_severity",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -125,8 +125,8 @@ cc_test(
         ":log_lines",
         ":scoped_mock_log",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -152,10 +152,10 @@ cc_test(
         ":log_flags",
         ":logging_test_base",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -202,8 +202,8 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:source_location",
         "//xls/common:strerror",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -249,8 +249,8 @@ cc_test(
     deps = [
         ":logging",
         "//xls/common:casts",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -265,10 +265,10 @@ cc_test(
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -298,8 +298,8 @@ cc_test(
     srcs = ["null_guard_test.cc"],
     deps = [
         ":null_guard",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -321,8 +321,8 @@ cc_test(
     srcs = ["null_stream_test.cc"],
     deps = [
         ":null_stream",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -359,8 +359,8 @@ cc_test(
     srcs = ["vlog_is_on_test.cc"],
     deps = [
         ":vlog_is_on",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -83,6 +83,7 @@ cc_test(
     shard_count = 4,
     deps = [
         ":booleanifier",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -90,7 +91,6 @@ cc_test(
         "//xls/interpreter:ir_interpreter",
         "//xls/ir:ir_test_base",
         "//xls/jit:function_jit",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -326,6 +326,7 @@ cc_test(
     srcs = ["proto_to_dslx_test.cc"],
     deps = [
         ":proto_to_dslx",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
@@ -333,7 +334,6 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -431,12 +431,12 @@ cc_test(
         ":null_io_strategy",
         ":wrap_io",
         "//xls/codegen:module_signature",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/simulation:module_testbench",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 

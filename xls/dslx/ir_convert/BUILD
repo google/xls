@@ -45,13 +45,13 @@ cc_test(
         ":ir_conversion_utils",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
         "//xls/dslx/type_system:concrete_type",
         "//xls/dslx/type_system:parametric_expression",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -94,6 +94,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "//xls/common:casts",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -107,7 +108,6 @@ cc_test(
         "//xls/ir:channel_cc_proto",
         "//xls/ir:channel_ops",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -123,12 +123,12 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
         "//xls/common:init_xls",
+        "//xls/common:xls_gunit",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -197,13 +197,13 @@ cc_test(
     srcs = ["function_converter_test.cc"],
     deps = [
         ":function_converter",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -282,11 +282,11 @@ cc_test(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 

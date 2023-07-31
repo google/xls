@@ -65,10 +65,10 @@ cc_test(
     srcs = ["language_server_adapter_test.cc"],
     deps = [
         ":language_server_adapter",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
-        "@com_google_googletest//:gtest",
     ],
 )
 

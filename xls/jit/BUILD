@@ -56,6 +56,7 @@ cc_test(
     deps = [
         ":compound_type_cc",
         ":null_function_cc",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/stdlib:float32_add_cc",
@@ -63,7 +64,6 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -142,11 +142,11 @@ cc_test(
     srcs = ["jit_wrapper_generator_test.cc"],
     deps = [
         ":jit_wrapper_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -189,6 +189,7 @@ cc_test(
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -196,7 +197,6 @@ cc_test(
         "//xls/interpreter:random_value",
         "//xls/ir:function_builder",
         "//xls/ir:value_view",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -228,13 +228,13 @@ cc_test(
     srcs = ["jit_channel_queue_test.cc"],
     deps = [
         ":jit_channel_queue",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:channel_queue_test_base",
         "//xls/ir",
         "//xls/ir:channel",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -420,6 +420,7 @@ cc_test(
         ":orc_jit",
         ":type_layout",
         "//xls/common:bits_util",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
@@ -429,7 +430,6 @@ cc_test(
         "//xls/ir:ir_test_base",
         "//xls/ir:number_parser",
         "//xls/ir:type",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -441,13 +441,13 @@ cc_test(
         ":jit_runtime",
         ":orc_jit",
         ":proc_jit",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:channel_queue",
         "//xls/interpreter:proc_evaluator",
         "//xls/interpreter:proc_evaluator_test_base",
         "//xls/ir",
-        "@com_google_googletest//:gtest",
     ],
 )
 

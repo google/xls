@@ -115,6 +115,7 @@ cc_test(
         ":bytecode_emitter",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -123,7 +124,6 @@ cc_test(
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "@com_github_google_re2//:re2",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -144,10 +144,10 @@ cc_test(
     deps = [
         ":interpreter_stack",
         "@com_google_absl//absl/status",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -254,6 +254,7 @@ cc_test(
         ":interpreter_stack",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:temp_file",
         "//xls/common/logging",
@@ -267,6 +268,5 @@ cc_test(
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:type_info",
         "//xls/ir:format_preference",
-        "@com_google_googletest//:gtest",
     ],
 )

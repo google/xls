@@ -49,9 +49,9 @@ cc_test(
         ":concrete_type",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -252,6 +252,7 @@ cc_test(
         ":typecheck_test_helpers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
@@ -259,7 +260,6 @@ cc_test(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/frontend:pos",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -271,13 +271,13 @@ cc_test(
         ":typecheck_test_helpers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx/frontend:ast",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -301,8 +301,8 @@ cc_test(
     deps = [
         ":parametric_expression",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -371,13 +371,13 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common:golden_files",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -417,9 +417,9 @@ cc_test(
     deps = [
         ":type_info",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -442,9 +442,9 @@ cc_test(
     deps = [
         ":parametric_bind",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 

@@ -86,9 +86,9 @@ cc_test(
         ":fail_on_42",
         ":identity",
         ":is_inf",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:value_helpers",
-        "@com_google_googletest//:gtest",
     ],
 )

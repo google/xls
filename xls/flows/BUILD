@@ -55,12 +55,12 @@ cc_test(
         ":ir_wrapper",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:golden_files",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:parse_and_typecheck",
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir:value_view",
-        "@com_google_googletest//:gtest",
     ],
 )

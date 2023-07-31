@@ -24,9 +24,9 @@ cc_test(
         ":verilog_simulator",
         ":verilog_simulators",
         ":verilog_test_base",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -91,13 +91,13 @@ cc_test(
         ":module_simulator",
         ":verilog_test_base",
         "//xls/codegen:module_signature",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -139,11 +139,11 @@ cc_test(
         ":verilog_test_base",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:vast",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -196,10 +196,10 @@ cc_test(
     data = glob(["testdata/verilog_test_base_test_*"]),
     deps = [
         ":verilog_test_base",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -214,6 +214,7 @@ cc_test(
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:signature_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
@@ -225,7 +226,6 @@ cc_test(
         "//xls/scheduling:pipeline_schedule",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -235,6 +235,7 @@ cc_test(
     deps = [
         ":verilog_test_base",
         "//xls/common:thread",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/file:named_pipe",
         "//xls/common/file:temp_directory",
@@ -242,6 +243,5 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:number_parser",
         "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
     ],
 )

@@ -35,8 +35,8 @@ cc_test(
     deps = [
         ":union_find_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -60,8 +60,8 @@ cc_test(
         ":graph_contraction",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -86,10 +86,10 @@ cc_test(
         ":graph_coloring",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/logging:log_message",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -112,10 +112,10 @@ cc_test(
     deps = [
         ":maximum_clique",
         "@com_google_absl//absl/container:btree",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/logging:log_message",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -139,10 +139,10 @@ cc_test(
         ":transitive_closure",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/logging:log_message",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -282,8 +282,8 @@ cc_test(
     srcs = ["inline_bitmap_test.cc"],
     deps = [
         ":inline_bitmap",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -293,12 +293,12 @@ cc_test(
     deps = [
         ":leaf_type_tree",
         "@com_google_absl//absl/strings",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -309,11 +309,11 @@ cc_test(
         ":algorithm",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -323,12 +323,12 @@ cc_test(
     deps = [
         ":binary_decision_diagram",
         "@com_google_absl//absl/container:inlined_vector",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:format_preference",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -342,9 +342,9 @@ cc_test(
         "@com_google_absl//absl/random:distributions",
         "@com_google_absl//absl/random:mocking_bit_gen",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -355,10 +355,10 @@ cc_test(
         ":path_cut",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:strong_int",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/logging:log_message",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -368,9 +368,9 @@ cc_test(
     deps = [
         ":binary_search",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -379,8 +379,8 @@ cc_test(
     srcs = ["strongly_connected_components_test.cc"],
     deps = [
         ":strongly_connected_components",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -389,7 +389,7 @@ cc_test(
     srcs = ["submodular_test.cc"],
     deps = [
         ":submodular",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "@com_google_googletest//:gtest",
     ],
 )

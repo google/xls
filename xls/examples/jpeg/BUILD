@@ -160,9 +160,9 @@ cc_test(
     srcs = ["idct_chen_jit_wrapper_test.cc"],
     deps = [
         ":idct_chen_jit_wrapper",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -193,9 +193,9 @@ cc_test(
     deps = [
         ":constants",
         ":streams",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -219,9 +219,9 @@ cc_test(
     deps = [
         ":jpeg_grm",
         "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
     ],
 )

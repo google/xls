@@ -117,6 +117,7 @@ cc_test(
     deps = [
         ":ir_to_json",
         "//xls/common:golden_files",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
         "//xls/common/status:matchers",
@@ -126,7 +127,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_absl//absl/memory",
-        "@com_google_googletest//:gtest",
     ],
 )
 

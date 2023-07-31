@@ -529,13 +529,13 @@ cc_test(
     srcs = ["ast_generator_test.cc"],
     deps = [
         ":ast_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -581,12 +581,12 @@ cc_test(
     srcs = ["dslx_mutator_test.cc"],
     deps = [
         ":dslx_mutator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/random:mock_distributions",
         "@com_google_absl//absl/status",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -606,10 +606,10 @@ cc_test(
     deps = [
         ":cpp_sample_generator",
         ":value_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx/type_system:concrete_type",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -676,11 +676,11 @@ cc_test(
     srcs = ["value_generator_test.cc"],
     deps = [
         ":value_generator",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
-        "@com_google_googletest//:gtest",
     ],
 )
 
@@ -689,10 +689,10 @@ cc_test(
     srcs = ["sample_cc_test.cc"],
     deps = [
         ":cpp_sample",
+        "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:interp_value",
-        "@com_google_googletest//:gtest",
     ],
 )
 
