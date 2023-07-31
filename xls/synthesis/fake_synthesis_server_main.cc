@@ -28,13 +28,13 @@
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
 
 const char kUsage[] = R"(
-Launches a XLS synthesis server which serves dummy results. The flag
+Launches a XLS synthesis server which serves fake results. The flag
 --max_frequency_ghz is used to determine whether a negative slack value is
 returned in the response.
 
 Invocation:
 
-  dummy_synthesis_server --max_frequency_ghz=4.2
+  fake_synthesis_server --max_frequency_ghz=4.2
 )";
 
 ABSL_FLAG(int32_t, port, 10000, "Port to listen on.");
@@ -48,9 +48,9 @@ namespace synthesis {
 namespace {
 
 // Service implementation that dispatches compile requests.
-class DummySynthesisServiceImpl : public SynthesisService::Service {
+class FakeSynthesisServiceImpl : public SynthesisService::Service {
  public:
-  explicit DummySynthesisServiceImpl(int64_t max_frequency_hz,
+  explicit FakeSynthesisServiceImpl(int64_t max_frequency_hz,
                                      bool serve_errors)
       : max_frequency_hz_(max_frequency_hz), serve_errors_(serve_errors) {}
 
@@ -70,7 +70,7 @@ class DummySynthesisServiceImpl : public SynthesisService::Service {
         absl::ToInt64Milliseconds(absl::Now() - start));
     if (serve_errors_) {
       return ::grpc::Status(grpc::StatusCode::INTERNAL,
-                            "Dummy synthesis server error");
+                            "Fake synthesis server error");
     }
     return ::grpc::Status::OK;
   }
@@ -85,7 +85,7 @@ void RealMain() {
       static_cast<int64_t>(1e9 * absl::GetFlag(FLAGS_max_frequency_ghz));
   int port = absl::GetFlag(FLAGS_port);
   std::string server_address = absl::StrCat("0.0.0.0:", port);
-  DummySynthesisServiceImpl service(max_frequency_hz,
+  FakeSynthesisServiceImpl service(max_frequency_hz,
                                     absl::GetFlag(FLAGS_serve_errors));
 
   ::grpc::ServerBuilder builder;

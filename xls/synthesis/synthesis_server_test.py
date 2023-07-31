@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Tests of the synthesis service: client and dummy server."""
+"""Tests of the synthesis service: client and fake server."""
 
 import subprocess
 
@@ -24,7 +24,7 @@ from xls.common import runfiles
 from xls.synthesis import synthesis_pb2
 
 CLIENT_PATH = runfiles.get_path('xls/synthesis/synthesis_client_main')
-SERVER_PATH = runfiles.get_path('xls/synthesis/dummy_synthesis_server_main')
+SERVER_PATH = runfiles.get_path('xls/synthesis/fake_synthesis_server_main')
 
 VERILOG = """
 module main(

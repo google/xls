@@ -119,8 +119,8 @@ py_test(
 )
 
 cc_binary(
-    name = "dummy_synthesis_server_main",
-    srcs = ["dummy_synthesis_server_main.cc"],
+    name = "fake_synthesis_server_main",
+    srcs = ["fake_synthesis_server_main.cc"],
     deps = [
         ":credentials",
         ":synthesis_cc_proto",
@@ -139,7 +139,7 @@ py_test(
     name = "synthesis_server_test",
     srcs = ["synthesis_server_test.py"],
     data = [
-        ":dummy_synthesis_server_main",
+        ":fake_synthesis_server_main",
         ":synthesis_client_main",
     ],
     python_version = "PY3",
@@ -202,7 +202,7 @@ py_library(
 py_test(
     name = "synthesis_utils_test",
     srcs = ["synthesis_utils_test.py"],
-    data = [":dummy_synthesis_server_main"],
+    data = [":fake_synthesis_server_main"],
     python_version = "PY3",
     shard_count = 7,
     srcs_version = "PY3",

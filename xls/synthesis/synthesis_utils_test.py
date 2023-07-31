@@ -26,7 +26,7 @@ from xls.common import runfiles
 from xls.synthesis import client_credentials
 from xls.synthesis import synthesis_utils
 
-SERVER_PATH = runfiles.get_path('xls/synthesis/dummy_synthesis_server_main')
+SERVER_PATH = runfiles.get_path('xls/synthesis/fake_synthesis_server_main')
 
 
 class SynthesisUtilsTest(absltest.TestCase):

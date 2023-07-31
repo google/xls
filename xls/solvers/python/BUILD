@@ -89,7 +89,7 @@ py_test(
     srcs = ["lec_characterizer_test.py"],
     data = [
         "//xls/netlist:fake_cell_library.textproto",
-        "//xls/synthesis:dummy_synthesis_server_main",
+        "//xls/synthesis:fake_synthesis_server_main",
     ],
     python_version = "PY3",
     deps = [

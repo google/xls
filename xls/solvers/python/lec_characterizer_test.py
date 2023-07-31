@@ -32,7 +32,7 @@ class LecCharacterizerTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    server_path = runfiles.get_path('xls/synthesis/dummy_synthesis_server_main')
+    server_path = runfiles.get_path('xls/synthesis/fake_synthesis_server_main')
     self._port = portpicker.pick_unused_port()
     self._synthesis_server = subprocess.Popen(
         [server_path, '--port={}'.format(self._port)], self._port)
