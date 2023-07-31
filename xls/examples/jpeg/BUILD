@@ -123,6 +123,7 @@ run_opensta(
     name = "idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
     sta_tcl = "//xls/synthesis/openroad:sta_by_stage.tcl",
     synth_target = ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
+    tags = ["manual"],
 )
 
 xls_synthesis_metrics(
@@ -131,6 +132,7 @@ xls_synthesis_metrics(
         ":idct_chen_13000ps_model_sky130_verilog_sta_by_stage",
         ":idct_chen_13000ps_model_sky130_verilog_synth_by_stage",
     ],
+    tags = ["manual"],
 )
 
 xls_dslx_test(
