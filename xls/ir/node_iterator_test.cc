@@ -14,11 +14,22 @@
 
 #include "xls/ir/node_iterator.h"
 
-#include "gmock/gmock.h"
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
@@ -266,6 +277,91 @@ TEST(NodeIteratorTest, RpoVsTopo) {
   ++it;
   EXPECT_EQ(rni.end(), it);
 }
+
+template <typename MakeLeaf>
+BValue MakeBalancedBinaryTree(FunctionBuilder& fb, int64_t depth,
+                              MakeLeaf make_leaf) {
+  if (depth == 0) {
+    return make_leaf();
+  }
+  BValue l = MakeBalancedBinaryTree(fb, depth - 1, make_leaf);
+  BValue r = MakeBalancedBinaryTree(fb, depth - 1, make_leaf);
+  return fb.Add(l, r);
+}
+
+void BM_TopoSortBinaryTree(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("balanced_tree_pkg");
+  FunctionBuilder fb("balanced_tree", p.get());
+  MakeBalancedBinaryTree(fb, state.range(0),
+                         [&]() { return fb.Literal(UBits(42, 8)); });
+  auto fs = fb.Build();
+  XLS_CHECK_OK(fs.status());
+  FunctionBase* f = fs.value();
+  for (auto _ : state) {
+    auto v = TopoSort(f);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// Wide and dense
+// Fully connected layers of a given width.
+void BM_TopoSortDense(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("dense_tree_pkg");
+  FunctionBuilder fb("dense_tree", p.get());
+  int64_t depth = state.range(0);
+  int64_t width = state.range(1);
+  std::vector<BValue> prev_layer;
+  prev_layer.reserve(width);
+  for (int64_t i = 0; i < width; ++i) {
+    prev_layer.push_back(fb.Literal(UBits(1, 8)));
+  }
+  for (int64_t i = 0; i < depth; ++i) {
+    std::vector<BValue> next_layer;
+    next_layer.reserve(width);
+    for (int64_t j = 0; j < width; ++j) {
+      next_layer.push_back(fb.Select(
+          prev_layer[0], absl::MakeSpan(prev_layer).subspan(2), prev_layer[1]));
+    }
+    prev_layer = std::move(next_layer);
+  }
+  fb.Select(prev_layer[0], absl::MakeSpan(prev_layer).subspan(2),
+            prev_layer[1]);
+  auto fs = fb.Build();
+  XLS_CHECK_OK(fs.status());
+  FunctionBase* f = fs.value();
+  for (auto _ : state) {
+    auto v = TopoSort(f);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+// Just a very deep ladder structure
+// ...
+// x_{n-2} : x_{n-3} + 1
+// x_n := x_{n-1} + 1
+// ...
+void BM_TopoSortLadder(benchmark::State& state) {
+  std::unique_ptr<VerifiedPackage> p =
+      std::make_unique<VerifiedPackage>("ladder_tree_pkg");
+  FunctionBuilder fb("ladder_tree", p.get());
+  BValue last = fb.Literal(UBits(1, 8));
+  for (int64_t i = 0; i < state.range(0); ++i) {
+    last = fb.Add(last, fb.Literal(UBits(1, 8)));
+  }
+  auto fs = fb.Build();
+  XLS_CHECK_OK(fs.status());
+  FunctionBase* f = fs.value();
+  for (auto _ : state) {
+    auto v = TopoSort(f);
+    benchmark::DoNotOptimize(v);
+  }
+}
+
+BENCHMARK(BM_TopoSortBinaryTree)->DenseRange(2, 20, 2);
+BENCHMARK(BM_TopoSortLadder)->Range(2, 1024);
+BENCHMARK(BM_TopoSortDense)->RangePair(2, 512, 3, 32);
 
 }  // namespace
 }  // namespace xls

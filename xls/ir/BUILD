@@ -402,11 +402,16 @@ cc_test(
     name = "node_iterator_test",
     srcs = ["node_iterator_test.cc"],
     deps = [
+        ":bits",
+        ":function_builder",
         ":ir",
         ":ir_parser",
+        ":ir_test_base",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
