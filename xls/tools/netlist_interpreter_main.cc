@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/flattening.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/ret_check.h"
@@ -176,9 +177,7 @@ int main(int argc, char* argv[]) {
 
   std::string output_type = absl::GetFlag(FLAGS_output_type);
 
-  XLS_QCHECK_OK(xls::RealMain(netlist_path, cell_library_path,
-                              cell_library_proto_path, module_name, inputs,
-                              output_type, dump_cells));
-
-  return 0;
+  return xls::ExitStatus(xls::RealMain(netlist_path, cell_library_path,
+                                       cell_library_proto_path, module_name,
+                                       inputs, output_type, dump_cells));
 }

@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -152,7 +153,7 @@ int main(int argc, char** argv) {
         argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], positional_arguments[1],
-                              positional_arguments[2]));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(positional_arguments[0],
+                                       positional_arguments[1],
+                                       positional_arguments[2]));
 }

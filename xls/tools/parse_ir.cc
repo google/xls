@@ -17,6 +17,7 @@
 // failure and emits failing absl::Status message to stderr.
 
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -47,5 +48,5 @@ static absl::Status RealMain(absl::Span<const std::string_view> args) {
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::tools::RealMain(positional_arguments));
+  return xls::ExitStatus(xls::tools::RealMain(positional_arguments));
 }

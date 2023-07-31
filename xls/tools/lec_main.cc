@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -331,10 +332,9 @@ int main(int argc, char* argv[]) {
   XLS_QCHECK(!(auto_stage && schedule_path.empty()))
       << "--schedule_path must be specified with --auto_stage.";
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       ir_path, absl::GetFlag(FLAGS_entry_function_name),
       absl::GetFlag(FLAGS_netlist_module_name), cell_lib_path, cell_proto_path,
       netlist_path, absl::GetFlag(FLAGS_constraints_file), schedule_path, stage,
       auto_stage, absl::GetFlag(FLAGS_timeout_sec)));
-  return 0;
 }

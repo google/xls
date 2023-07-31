@@ -18,10 +18,16 @@
 // TODO(leary): 2019-04-07 Probably want a way to select the desired output
 // format; e.g. -hex, -dec, -bin and so on.
 
+#include <ostream>
+#include <string_view>
+
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/tools/device_rpc_strategy.h"
 #include "xls/tools/device_rpc_strategy_factory.h"
@@ -37,7 +43,7 @@ namespace xls {
 namespace tools {
 namespace {
 
-void RealMain(absl::Span<const std::string_view> args) {
+absl::Status RealMain(absl::Span<const std::string_view> args) {
   std::string target_device = absl::GetFlag(FLAGS_target_device);
   XLS_QCHECK(!target_device.empty()) << "Must provide -target_device";
 
@@ -68,9 +74,10 @@ void RealMain(absl::Span<const std::string_view> args) {
 
   absl::StatusOr<Value> rpc_status =
       drpc->CallUnnamed(*function_type, arguments);
-  XLS_QCHECK_OK(rpc_status.status());
-
-  std::cout << rpc_status.value().ToString(FormatPreference::kHex) << std::endl;
+  if (rpc_status.ok()) {
+    std::cout << rpc_status->ToString(FormatPreference::kHex) << std::endl;
+  }
+  return rpc_status.status();
 }
 
 }  // namespace
@@ -80,5 +87,5 @@ void RealMain(absl::Span<const std::string_view> args) {
 int main(int argc, char** argv) {
   std::vector<std::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
-  xls::tools::RealMain(positional_arguments);
+  return xls::ExitStatus(xls::tools::RealMain(positional_arguments));
 }

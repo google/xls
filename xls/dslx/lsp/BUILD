@@ -79,7 +79,7 @@ cc_binary(
     deps = [
         ":language_server_adapter",
         "@com_google_absl//absl/flags:flag",
-        "@com_google_absl//absl/time",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "@verible//common/lsp:json-rpc-dispatcher",
         "@verible//common/lsp:lsp-protocol",

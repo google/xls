@@ -27,6 +27,7 @@
 #include "absl/strings/str_split.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -261,9 +262,7 @@ int main(int argc, char** argv) {
       xls::verilog::ModuleSignature::FromProto(signature_proto);
   XLS_QCHECK_OK(signature_status.status());
 
-  XLS_QCHECK_OK(xls::RealMain(verilog_text.value(), file_type,
-                              signature_status.value(), input,
-                              verilog_simulator));
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(verilog_text.value(), file_type,
+                                       signature_status.value(), input,
+                                       verilog_simulator));
 }

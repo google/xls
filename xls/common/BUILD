@@ -115,6 +115,13 @@ cc_library(
 )
 
 cc_library(
+    name = "exit_status",
+    srcs = ["exit_status.cc"],
+    hdrs = ["exit_status.h"],
+    deps = ["@com_google_absl//absl/status"],
+)
+
+cc_library(
     name = "math_util",
     srcs = ["math_util.cc"],
     hdrs = ["math_util.h"],

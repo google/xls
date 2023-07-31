@@ -17,6 +17,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -279,6 +280,5 @@ int main(int argc, char** argv) {
         "Expected invocation: %s [SUMMARY_FILE...]", argv[0]);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(positional_arguments));
 }

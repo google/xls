@@ -32,6 +32,7 @@
 #include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/ram_configuration.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -333,10 +334,5 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
   std::string_view ir_path = positional_arguments[0];
-  if (absl::Status status = xls::RealMain(ir_path); !status.ok()) {
-    XLS_LOG(ERROR) << status;
-    return EXIT_FAILURE;
-  }
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(ir_path));
 }

@@ -38,6 +38,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -990,7 +991,7 @@ int main(int argc, char* argv[]) {
                        "--expected_outputs_for_all_channels must be set.";
   }
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       positional_args[0], backend, absl::GetFlag(FLAGS_block_signature_proto),
       ticks, absl::GetFlag(FLAGS_max_cycles_no_output),
       absl::GetFlag(FLAGS_inputs_for_channels),
@@ -1010,6 +1011,4 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert),
       absl::GetFlag(FLAGS_show_trace)));
-
-  return 0;
 }

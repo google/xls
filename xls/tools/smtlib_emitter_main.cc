@@ -23,6 +23,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -70,6 +71,5 @@ int main(int argc, char* argv[]) {
   if (!absl::GetFlag(FLAGS_top).empty()) {
     top = absl::GetFlag(FLAGS_top);
   }
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), top));
-  return 0;
+  return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_ir_path), top));
 }

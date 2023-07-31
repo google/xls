@@ -17,6 +17,7 @@
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "libs/json11/json11.hpp"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -145,7 +146,5 @@ absl::Status RealMain() {
 int main(int argc, char** argv) {
   xls::InitXls(kUsage, argc, argv);
 
-  XLS_QCHECK_OK(xls::synthesis::RealMain());
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::synthesis::RealMain());
 }

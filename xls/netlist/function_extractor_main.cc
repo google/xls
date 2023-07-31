@@ -18,6 +18,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "google/protobuf/text_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -65,8 +66,6 @@ int main(int argc, char* argv[]) {
   std::string output_path = absl::GetFlag(FLAGS_output_path);
   XLS_QCHECK(!output_path.empty()) << "--output_path must be specified.";
 
-  XLS_QCHECK_OK(xls::netlist::function::RealMain(
+  return xls::ExitStatus(xls::netlist::function::RealMain(
       cell_library_path, output_path, absl::GetFlag(FLAGS_output_textproto)));
-
-  return 0;
 }

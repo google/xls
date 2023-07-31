@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
@@ -112,6 +113,5 @@ int main(int argc, char** argv) {
                     << "`; want " << argv[0] << " <input-file>";
   }
 
-  XLS_QCHECK_OK(xls::dslx::RealMain(std::filesystem::path(args[0])));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::dslx::RealMain(std::filesystem::path(args[0])));
 }

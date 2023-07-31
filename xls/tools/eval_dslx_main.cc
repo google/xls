@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -108,8 +109,6 @@ int main(int argc, char* argv[]) {
     additional_search_paths.push_back(piece);
   }
 
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], additional_search_paths,
-                              entry_fn_name, inputs));
-
-  return 0;
+  return xls::ExitStatus(xls::RealMain(
+      positional_arguments[0], additional_search_paths, entry_fn_name, inputs));
 }

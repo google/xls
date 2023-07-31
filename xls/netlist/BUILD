@@ -197,6 +197,7 @@ cc_binary(
     deps = [
         ":find_logic_clouds",
         ":netlist_parser",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -324,6 +325,7 @@ cc_binary(
         ":cell_library",
         ":function_extractor",
         ":netlist_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

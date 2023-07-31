@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/strip.h"
 #include "xls/common/case_converters.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -105,10 +106,8 @@ int main(int argc, char* argv[]) {
   std::string output_dir = absl::GetFlag(FLAGS_output_dir);
   XLS_QCHECK(!output_dir.empty()) << "-output_dir must be specified!";
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       ir_path, output_dir, absl::GetFlag(FLAGS_genfiles_dir),
       absl::GetFlag(FLAGS_class_name), absl::GetFlag(FLAGS_output_name),
       absl::GetFlag(FLAGS_function), absl::GetFlag(FLAGS_wrapper_namespace)));
-
-  return 0;
 }

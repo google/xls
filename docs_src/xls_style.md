@@ -54,6 +54,11 @@ in the XLS project, with the relevant Google style guides
     conditions that it would be too expensive to verify in production, but that
     are fast enough to include outside of production.
 
+*   Use `QCHECK` and `LOG(QFATAL)` during program startup when verifying startup
+    parameters (i.e., flags); prefer `CHECK` and `LOG(FATAL)` in all other
+    circumstances, as the `Q` variants suppress `atexit` handling (including
+    `--cpu_profile`).
+
 *   Follow the C++ style guide for capitalization guidelines; however, in the
     somewhat ambiguous case of I/O (short for Input/Output, which we use often),
     the slash counts as internal spacing and therefore the capitalization we use

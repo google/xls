@@ -19,6 +19,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -167,6 +168,6 @@ int main(int argc, char** argv) {
   std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   XLS_QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
-  XLS_QCHECK_OK(xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
-                              absl::GetFlag(FLAGS_timeout)));
+  return xls::ExitStatus(xls::RealMain(
+      positional_args, absl::GetFlag(FLAGS_top), absl::GetFlag(FLAGS_timeout)));
 }

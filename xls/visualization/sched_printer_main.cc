@@ -395,7 +395,7 @@ int main(int argc, char** argv) {
   if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
     pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
   }
-  XLS_QCHECK_OK(
+  XLS_CHECK_OK(
       xls::RealMain(positional_arguments[0], clock_period_ps, pipeline_stages));
   return EXIT_SUCCESS;
 }

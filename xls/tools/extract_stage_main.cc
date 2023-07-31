@@ -15,6 +15,7 @@
 // Simple driver for executing the ExtractStage() routine.
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -105,7 +106,6 @@ int main(int argc, char* argv[]) {
 
   std::string output_path = absl::GetFlag(FLAGS_output_path);
   XLS_QCHECK(!output_path.empty()) << "--output path can't be empty!";
-  XLS_QCHECK_OK(
+  return xls::ExitStatus(
       xls::RealMain(ir_path, function_name, schedule_path, stage, output_path));
-  return 0;
 }

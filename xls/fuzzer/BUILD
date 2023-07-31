@@ -387,6 +387,7 @@ cc_binary(
     srcs = ["summarize_ir_main.cc"],
     deps = [
         ":sample_summary_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -394,6 +395,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_protobuf//:protobuf",
     ],
 )
@@ -403,6 +405,7 @@ cc_binary(
     srcs = ["read_summary_main.cc"],
     deps = [
         ":sample_summary_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -420,6 +423,7 @@ cc_binary(
     name = "find_failing_input_main",
     srcs = ["find_failing_input_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

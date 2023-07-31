@@ -51,6 +51,7 @@ cc_binary(
     srcs = ["bogusys.cc"],
     data = ["testdata/netlist.json"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -68,6 +69,7 @@ cc_binary(
     srcs = ["nextpbr.cc"],
     data = ["testdata/nextpnr.out"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",

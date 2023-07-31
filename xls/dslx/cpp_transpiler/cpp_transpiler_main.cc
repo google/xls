@@ -19,6 +19,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -91,7 +92,7 @@ int main(int argc, char* argv[]) {
   std::string output_source_path = absl::GetFlag(FLAGS_output_source_path);
   XLS_QCHECK(!output_source_path.empty())
       << "--output_source_path must be specified.";
-  XLS_QCHECK_OK(xls::dslx::RealMain(
+  return xls::ExitStatus(xls::dslx::RealMain(
       args[0], absl::GetFlag(FLAGS_dslx_stdlib_path), output_header_path,
       output_source_path, absl::GetFlag(FLAGS_namespaces)));
 

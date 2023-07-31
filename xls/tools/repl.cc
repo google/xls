@@ -35,6 +35,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 // TODO(taktoa): 2021-03-10 maybe switch to https://github.com/injinj/linecook
 #include "linenoise.h"
 #include "xls/codegen/codegen_options.h"
@@ -580,7 +581,5 @@ int main(int argc, char** argv) {
         << " please define XLS_HISTORY_PATH (to /dev/null if necessary).";
   }
 
-  XLS_QCHECK_OK(xls::RealMain(dslx_path, history_path));
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(dslx_path, history_path));
 }

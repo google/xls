@@ -100,6 +100,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":booleanifier",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -142,6 +143,7 @@ cc_binary(
     name = "ir_stats_main",
     srcs = ["ir_stats_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -149,7 +151,6 @@ cc_binary(
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -158,6 +159,7 @@ cc_binary(
     srcs = ["check_ir_equivalence_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
@@ -193,6 +195,7 @@ cc_binary(
     name = "extract_stage_main",
     srcs = ["extract_stage_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -213,6 +216,7 @@ cc_binary(
         "//xls/dslx/ir_convert:ir_converter_main",
     ],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -243,6 +247,7 @@ cc_binary(
     srcs = ["netlist_interpreter_main.cc"],
     deps = [
         "//xls/codegen:flattening",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
@@ -312,6 +317,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":proto_to_dslx",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -341,13 +347,13 @@ cc_binary(
     name = "smtlib_emitter_main",
     srcs = ["smtlib_emitter_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:ir_parser",
         "//xls/solvers:z3_ir_translator",
-        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@z3//:api",
@@ -465,10 +471,12 @@ cc_binary(
         ":io_strategy_factory",
         ":wrap_io",
         "//xls/codegen:module_signature",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -491,11 +499,14 @@ cc_binary(
         ":device_rpc_strategy",
         ":device_rpc_strategy_factory",
         ":ice40_device_rpc_strategy_registry",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/logging",
+        "//xls/ir:format_preference",
         "//xls/ir:ir_parser",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -503,6 +514,7 @@ cc_binary(
     name = "parse_ir",
     srcs = ["parse_ir.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -526,6 +538,7 @@ cc_binary(
     srcs = ["eval_dslx_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -549,6 +562,7 @@ cc_binary(
     srcs = ["eval_ir_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -599,6 +613,7 @@ cc_binary(
     deps = [
         ":eval_helpers",
         "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -609,7 +624,6 @@ cc_binary(
         "//xls/interpreter:serial_proc_runtime",
         "//xls/ir",
         "//xls/ir:bits",
-        "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:value",
@@ -717,6 +731,7 @@ cc_binary(
     visibility = ["//xls:xls_users"],
     deps = [
         ":opt",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -748,6 +763,7 @@ cc_binary(
         ":opt_main",
     ],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
@@ -789,6 +805,7 @@ cc_binary(
     name = "llvm_main_generator",
     srcs = ["llvm_main_generator.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -931,6 +948,7 @@ cc_binary(
         "//xls/codegen:op_override_impls",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -947,7 +965,6 @@ cc_binary(
         "//xls/scheduling:scheduling_pass_pipeline",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -956,8 +973,10 @@ cc_binary(
     name = "simulate_module_main",
     srcs = ["simulate_module_main.cc"],
     deps = [
+        ":eval_helpers",
         "//xls/codegen:module_signature",
         "//xls/codegen:vast",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -967,7 +986,6 @@ cc_binary(
         "//xls/ir:value",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",
-        "//xls/tools:eval_helpers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
@@ -1038,6 +1056,7 @@ cc_binary(
     deps = [
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common:math_util",
         "//xls/common/file:filesystem",
@@ -1115,6 +1134,7 @@ cc_binary(
     name = "solver",
     srcs = ["solver.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -1131,6 +1151,7 @@ cc_binary(
     name = "bdd_stats",
     srcs = ["bdd_stats.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -1149,11 +1170,11 @@ cc_binary(
     name = "cell_library_extract_formula",
     srcs = ["cell_library_extract_formula.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/netlist:lib_parser",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
@@ -1168,6 +1189,7 @@ cc_binary(
         "//xls/codegen:module_signature",
         "//xls/codegen:module_signature_cc_proto",
         "//xls/codegen:pipeline_generator",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -1207,6 +1229,7 @@ cc_binary(
     name = "delay_info_main",
     srcs = ["delay_info_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
@@ -1228,6 +1251,7 @@ cc_binary(
     srcs = ["proto2bin_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -1238,7 +1262,6 @@ cc_binary(
         "//xls/ir:ram_rewrite_cc_proto",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -1249,6 +1272,7 @@ cc_binary(
     deps = [
         ":scheduling_options_flags",
         "//xls/codegen:block_metrics",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

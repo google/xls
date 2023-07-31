@@ -19,6 +19,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/init_xls.h"
@@ -909,10 +910,8 @@ int main(int argc, char** argv) {
              absl::GetFlag(FLAGS_test_llvm_jit))
       << "Must specify either --test_executable or --test_llvm_jit";
 
-  XLS_QCHECK_OK(xls::RealMain(
+  return xls::ExitStatus(xls::RealMain(
       positional_arguments[0], absl::GetFlag(FLAGS_failed_attempt_limit),
       absl::GetFlag(FLAGS_total_attempt_limit),
       absl::GetFlag(FLAGS_simplifications_between_tests)));
-
-  return EXIT_SUCCESS;
 }

@@ -17,6 +17,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_lines.h"
@@ -95,8 +96,7 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << "--output (binary proto output file path) required.";
   }
 
-  XLS_QCHECK_OK(xls::RealMain(text_proto_path, absl::GetFlag(FLAGS_message),
-                              absl::GetFlag(FLAGS_output)));
-
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(text_proto_path,
+                                       absl::GetFlag(FLAGS_message),
+                                       absl::GetFlag(FLAGS_output)));
 }

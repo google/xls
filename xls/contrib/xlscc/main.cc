@@ -28,6 +28,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
@@ -279,11 +280,5 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
   std::string_view cpp_path = positional_arguments[0];
-  //  XLS_QCHECK_OK(xlscc::Run(cpp_path));
-  absl::Status status = xlscc::Run(cpp_path);
-  if (!status.ok()) {
-    std::cerr << status.ToString() << std::endl;
-    return EXIT_FAILURE;
-  }
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xlscc::Run(cpp_path));
 }

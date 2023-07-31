@@ -494,6 +494,7 @@ cc_binary(
         ":command_line_utils",
         ":run_comparator",
         ":run_routines",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -510,6 +511,7 @@ cc_binary(
     name = "highlight_main",
     srcs = ["highlight_main.cc"],
     deps = [
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/dslx/frontend:builtins_metadata",

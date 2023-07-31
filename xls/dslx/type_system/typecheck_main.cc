@@ -26,6 +26,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/dslx/command_line_utils.h"
@@ -108,7 +109,6 @@ int main(int argc, char* argv[]) {
 
   std::filesystem::path dslx_stdlib_path(absl::GetFlag(FLAGS_dslx_stdlib_path));
 
-  XLS_QCHECK_OK(xls::dslx::RealMain(dslx_paths, dslx_stdlib_path, input_path,
-                                    output_path));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::dslx::RealMain(dslx_paths, dslx_stdlib_path,
+                                             input_path, output_path));
 }

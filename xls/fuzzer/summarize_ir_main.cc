@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/flags/flag.h"
 #include "google/protobuf/text_format.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -135,8 +137,7 @@ int main(int argc, char** argv) {
     XLS_LOG(QFATAL) << "Usage:\n" << kUsage;
   }
 
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_unoptimized_ir),
-                              absl::GetFlag(FLAGS_optimized_ir),
-                              absl::GetFlag(FLAGS_timing)));
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(xls::RealMain(absl::GetFlag(FLAGS_unoptimized_ir),
+                                       absl::GetFlag(FLAGS_optimized_ir),
+                                       absl::GetFlag(FLAGS_timing)));
 }

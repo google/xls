@@ -28,6 +28,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
@@ -181,9 +182,8 @@ static absl::Status CompareToReference(bool use_opt_ir, uint32_t error_bound,
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
 
-  XLS_QCHECK_OK(xls::CompareToReference(
+  return xls::ExitStatus(xls::CompareToReference(
       absl::GetFlag(FLAGS_reference_use_opt_ir),
       absl::GetFlag(FLAGS_error_bound), absl::GetFlag(FLAGS_flush_subnormals),
       absl::GetFlag(FLAGS_timeout)));
-  return 0;
 }

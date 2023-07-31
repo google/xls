@@ -28,6 +28,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -183,8 +184,7 @@ int main(int argc, char* argv[]) {
       args[0], dslx_paths, test_filter, preference, compare_flag, execute,
       warnings_as_errors, seed, trace_channels, max_ticks);
   if (!test_result.ok()) {
-    std::cerr << test_result.status() << "\n";
-    return EXIT_FAILURE;
+    return xls::ExitStatus(test_result.status());
   }
   if (*test_result != xls::dslx::TestResult::kAllPassed) {
     return EXIT_FAILURE;

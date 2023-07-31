@@ -28,6 +28,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
@@ -160,6 +161,5 @@ int main(int argc, char* argv[]) {
   if (printed_error) {
     return EXIT_FAILURE;
   }
-  XLS_QCHECK_OK(status);
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(status);
 }

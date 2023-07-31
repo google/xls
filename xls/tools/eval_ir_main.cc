@@ -21,6 +21,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -505,5 +506,6 @@ int main(int argc, char** argv) {
       << "At most one one of 'input_validator' or 'input_validator_path' may "
          "be specified.";
   std::string dslx_stdlib_path = absl::GetFlag(FLAGS_dslx_stdlib_path);
-  XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], dslx_stdlib_path));
+  return xls::ExitStatus(
+      xls::RealMain(positional_arguments[0], dslx_stdlib_path));
 }
