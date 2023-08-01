@@ -22,6 +22,7 @@
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -68,15 +69,13 @@ int main(int argc, char** argv) {
   XLS_QCHECK_OK(verilog_contents.status());
   request.set_module_text(verilog_contents.value());
 
-  // Container for the data we expect from the server.
+  // Use the client to perform the RPC
   absl::StatusOr<xls::synthesis::CompileResponse> compile_response_status =
       xls::synthesis::SynthesizeViaClient(server, request);
 
-  // Act upon its status.
-  // TODO(tcal) use helper fn for error exit from main()
-  if (!compile_response_status.ok()) {
-    XLS_LOG(QFATAL) << "RPC FAILED: " << compile_response_status.status();
+  // Examine the response
+  if (compile_response_status.ok()) {
+    std::cout << compile_response_status.value().DebugString() << '\n';
   }
-  std::cout << compile_response_status.value().DebugString() << '\n';
-  return EXIT_SUCCESS;
+  return xls::ExitStatus(compile_response_status.status());
 }

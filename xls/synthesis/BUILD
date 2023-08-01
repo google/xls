@@ -236,6 +236,7 @@ cc_binary(
     deps = [
         ":synthesis_cc_proto",
         ":synthesis_client",
+        "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
