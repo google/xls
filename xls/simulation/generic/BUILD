@@ -17,6 +17,16 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+proto_library(
+    name = "config_proto",
+    srcs = ["config.proto"],
+)
+
+cc_proto_library(
+    name = "cc_config_proto",
+    deps = [":config_proto"],
+)
+
 cc_library(
     name = "common",
     hdrs = [
@@ -24,6 +34,41 @@ cc_library(
     ],
     deps = [
         "//xls/common/logging",
+    ],
+)
+
+cc_library(
+    name = "config",
+    srcs = [
+        "config.cc",
+    ],
+    hdrs = [
+        "config.h",
+    ],
+    deps = [
+        ":cc_config_proto",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "config_test",
+    srcs = [
+        "config_test.cc",
+    ],
+    deps = [
+        ":config",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
     ],
 )
 
