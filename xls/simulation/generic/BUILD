@@ -197,3 +197,75 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "istream",
+    hdrs = [
+        "istream.h",
+    ],
+    deps = [
+        ":ichannel",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
+    name = "istream_stub",
+    srcs = [
+        "istream_stub.cc",
+    ],
+    hdrs = [
+        "istream_stub.h",
+    ],
+    deps = [
+        ":istream",
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "istream_stub_test",
+    size = "small",
+    srcs = [
+        "istream_stub_test.cc",
+    ],
+    deps = [
+        ":istream_stub",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "istream_mock",
+    hdrs = [
+        "istream_mock.h",
+    ],
+    deps = [
+        ":iregister_mock",
+        ":istream",
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "istream_mock_test",
+    size = "small",
+    srcs = [
+        "istream_mock_test.cc",
+    ],
+    deps = [
+        ":istream_mock",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
