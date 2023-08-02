@@ -272,6 +272,7 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
         }
         continue;
       }
+
       std::map<std::string, PragmaType>::iterator it =
           pragmas.find(absl::AsciiStrToLower(name));
       if (it != pragmas.end()) {
@@ -311,9 +312,21 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           case Pragma_SyntheticInt:
             hls_pragmas_[location] = Pragma(pragma_val);
             break;
-          case Pragma_Top:
-            hls_pragmas_[location] = Pragma(pragma_val, params);
+          case Pragma_Top: {
+            if (name == "design") {
+              if (params == "block") {
+                hls_pragmas_[location] = Pragma(Pragma_Block);
+              } else if (params == "top") {
+                hls_pragmas_[location] = Pragma(Pragma_Top);
+              } else {
+                return absl::InvalidArgumentError(
+                    absl::StrFormat("Unknown #pragma hls_design '%s'", name));
+              }
+            } else {
+              hls_pragmas_[location] = Pragma(Pragma_Top);
+            }
             break;
+          }
           case Pragma_Unroll:
             if (params.empty() || params == "yes") {
               hls_pragmas_[location] = Pragma(pragma_val);
@@ -333,6 +346,9 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
           case Pragma_Null:
           case Pragma_Label:
             prev_location = PragmaLoc("", -1);
+            break;
+          case Pragma_Block:
+            hls_pragmas_[location] = Pragma(pragma_val);
             break;
         }
       }

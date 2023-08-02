@@ -437,4 +437,59 @@ TEST_F(CCParserTest, TopClass) {
   EXPECT_NE(top_ptr, nullptr);
 }
 
+TEST_F(CCParserTest, DesignTopVsBlock) {
+  {
+    xlscc::CCParser parser;
+
+    const std::string cpp_src = R"(
+      #pragma hls_design top
+      int foo(int a, int b) {
+        const int foo = a + b;
+        return foo;
+      }
+    )";
+
+    XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+    XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+    ASSERT_NE(top_ptr, nullptr);
+
+    clang::PresumedLoc loc = parser.GetPresumedLoc(*top_ptr);
+
+    XLS_ASSERT_OK_AND_ASSIGN(xlscc::Pragma pragma,
+                             parser.FindPragmaForLoc(loc));
+
+    ASSERT_EQ(pragma.type(), xlscc::Pragma_Top);
+  }
+  {
+    xlscc::CCParser parser;
+
+    const std::string cpp_src = R"(
+      #pragma hls_design top
+      int atop(int a, int b) {
+        return a+b;
+      }
+      #pragma hls_design block
+      int foo(int a, int b) {
+        const int foo = a + b;
+        return foo;
+      }
+    )";
+
+    XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+
+    XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+    ASSERT_NE(top_ptr, nullptr);
+
+    clang::PresumedLoc loc = parser.GetPresumedLoc(*top_ptr);
+    clang::PresumedLoc second_func_loc(loc.getFilename(), loc.getFileID(),
+                                       loc.getLine() + 4, loc.getColumn(),
+                                       loc.getIncludeLoc());
+
+    XLS_ASSERT_OK_AND_ASSIGN(xlscc::Pragma pragma,
+                             parser.FindPragmaForLoc(second_func_loc));
+
+    ASSERT_EQ(pragma.type(), xlscc::Pragma_Block);
+  }
+}
+
 }  // namespace

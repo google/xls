@@ -37,6 +37,7 @@ enum PragmaType {
   Pragma_Label,
   Pragma_ArrayAllowDefaultPad,
   Pragma_SyntheticInt,
+  Pragma_Block,
 };
 
 class Pragma {
