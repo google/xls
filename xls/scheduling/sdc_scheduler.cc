@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -105,82 +106,74 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
   absl::flat_hash_map<Node*, std::vector<Node*>> result;
   result.reserve(f->node_count());
 
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> result_as_set;
+  result_as_set.reserve(f->node_count());
+
   // Compute all-pairs longest distance between all nodes in `f`. The distance
   // from node `a` to node `b` is defined as the length of the longest delay
   // path from `a` to `b` which includes the delay of the path endpoints `a` and
-  // `b`. The all-pairs distance is stored in the map of vectors `node_to_index`
-  // where `node_to_index[y]` holds the critical-path distances from each node
-  // `x` to `y`.
-  absl::flat_hash_map<Node*, std::vector<int64_t>> distances_to_node;
+  // `b`. The all-pairs distance is stored in the map of maps
+  // `distances_to_node` where `distances_to_node[y][x]` (if present) is the
+  // critical-path distance from `x` to `y`.
+  //
+  // We use absl::btree_map on the inner map to guarantee a deterministic
+  // iteration order, since that affects the constraints we will add.
+  absl::flat_hash_map<Node*,
+                      absl::btree_map<Node*, int64_t, Node::NodeIdLessThan>>
+      distances_to_node;
   distances_to_node.reserve(f->node_count());
-
-  // Compute a map from Node* to the interval [0, node_count). These map values
-  // serve as indices into a flat vector of distances.
-  absl::flat_hash_map<Node*, int32_t> node_to_index;
-  std::vector<Node*> index_to_node(f->node_count());
-  node_to_index.reserve(f->node_count());
-  int32_t index = 0;
   for (Node* node : f->nodes()) {
-    node_to_index[node] = index;
-    index_to_node[index] = node;
-    index++;
-
     // Initialize the constraint map entry to an empty vector.
     result[node];
+    // Initialize the constraint map record to an empty set.
+    result_as_set[node];
+    // Initialize the distance map entry to an empty map.
+    distances_to_node[node];
   }
 
-  absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>> result_as_set;
   for (Node* node : TopoSort(f)) {
-    int64_t node_index = node_to_index.at(node);
+    absl::btree_map<Node*, int64_t, Node::NodeIdLessThan>& distances =
+        distances_to_node.at(node);
+
+    // The critical path from `node` to `node` is always `node_delay` long.
     int64_t node_delay = delay_map.at(node);
-    std::vector<int64_t> distances = std::vector<int64_t>(f->node_count(), -1);
+    distances_to_node.at(node)[node] = node_delay;
 
-    // Compute the critical-path distance from `a` to `node` for all nodes `a`
-    // from the distances of `a` to each operand of `node`.
-    for (int64_t operand_i = 0; operand_i < node->operand_count();
-         ++operand_i) {
-      Node* operand = node->operand(operand_i);
-      const std::vector<int64_t>& distances_to_operand =
-          distances_to_node.at(operand);
-      for (int64_t i = 0; i < f->node_count(); ++i) {
-        int64_t operand_distance = distances_to_operand[i];
-        if (operand_distance == -1) {
-          continue;
+    // Compute the critical-path distance from `a` to `node` for all descendants
+    // `a` of each operand, extending the critical path from `a` to each operand
+    // of `node` by `node_delay`.
+    for (Node* operand : node->operands()) {
+      for (auto [a, operand_distance] : distances_to_node.at(operand)) {
+        auto [it, newly_reachable] =
+            distances.try_emplace(a, operand_distance + node_delay);
+        if (!newly_reachable) {
+          if (it->second >= operand_distance + node_delay) {
+            continue;
+          }
+          it->second = operand_distance + node_delay;
         }
-        if (distances[i] >= operand_distance + node_delay) {
-          continue;
-        }
-        distances[i] = operand_distance + node_delay;
-
-        // If the delay of `node` doesn't result in the length of the critical
-        // path crossing the `clock_period_ps` boundary, we don't need a
-        // constraint.
         if (operand_distance > clock_period_ps ||
             operand_distance + node_delay <= clock_period_ps) {
           continue;
         }
-        auto [_, inserted] = result_as_set[index_to_node[i]].insert(node);
+        auto [_, inserted] = result_as_set.at(a).insert(node);
         if (inserted) {
-          result[index_to_node[i]].push_back(node);
+          result.at(a).push_back(node);
         }
       }
     }
-
-    distances[node_index] = node_delay;
-    distances_to_node[node] = std::move(distances);
   }
 
   if (XLS_VLOG_IS_ON(4)) {
     XLS_VLOG(4) << "All-pairs critical-path distances:";
     for (Node* target : TopoSort(f)) {
       XLS_VLOG(4) << absl::StrFormat("  distances to %s:", target->GetName());
-      for (int64_t i = 0; i < f->node_count(); ++i) {
-        Node* source = index_to_node[i];
+      for (Node* source : TopoSort(f)) {
         XLS_VLOG(4) << absl::StrFormat(
             "    %s -> %s : %s", source->GetName(), target->GetName(),
-            distances_to_node[target][i] == -1
-                ? "(none)"
-                : absl::StrCat(distances_to_node[target][i]));
+            distances_to_node.at(target).contains(source)
+                ? absl::StrCat(distances_to_node.at(target).at(source))
+                : "(none)");
       }
     }
     XLS_VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
