@@ -80,3 +80,29 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "byteops",
+    hdrs = [
+        "byteops.h",
+    ],
+    deps = [
+        "//xls/common/logging",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "byteops_test",
+    size = "small",
+    srcs = [
+        "byteops_test.cc",
+    ],
+    deps = [
+        ":byteops",
+        "//xls/common/status:matchers",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
