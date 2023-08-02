@@ -28,3 +28,29 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "iactive",
+    hdrs = [
+        "iactive.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "iactive_test",
+    srcs = [
+        "iactive_stub.cc",
+        "iactive_stub.h",
+        "iactive_test.cc",
+    ],
+    deps = [
+        ":iactive",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
