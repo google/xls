@@ -175,6 +175,14 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
   XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function,
                        parser_->GetTopFunction());
 
+  PushContextGuard temporary_this_context(*this, GetLoc(*top_function));
+
+  // Don't allow "this" to be propagated up: it's only temporary for use
+  // within the initializer list
+  context().propagate_up = false;
+  context().override_this_decl_ = top_function;
+  context().ast_context = &top_function->getASTContext();
+
   xlscc_metadata::MetadataOutput ret;
 
   parser_->AddSourceInfoToMetadata(ret);
