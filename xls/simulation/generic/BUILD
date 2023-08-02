@@ -54,3 +54,29 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "iirq",
+    hdrs = [
+        "iirq.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_test(
+    name = "iirq_test",
+    srcs = [
+        "iirq_stub.cc",
+        "iirq_stub.h",
+        "iirq_test.cc",
+    ],
+    deps = [
+        ":iirq",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
