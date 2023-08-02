@@ -128,3 +128,72 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "iregister",
+    hdrs = [
+        "iregister.h",
+    ],
+    deps = [
+        ":ichannel",
+    ],
+)
+
+cc_library(
+    name = "iregister_stub",
+    srcs = [
+        "iregister_stub.cc",
+    ],
+    hdrs = [
+        "iregister_stub.h",
+    ],
+    deps = [
+        ":iregister",
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "iregister_stub_test",
+    size = "small",
+    srcs = [
+        "iregister_stub_test.cc",
+    ],
+    deps = [
+        ":iregister_stub",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "iregister_mock",
+    hdrs = [
+        "iregister_mock.h",
+    ],
+    deps = [
+        ":byteops",
+        ":iregister",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "iregister_mock_test",
+    size = "small",
+    srcs = [
+        "iregister_mock_test.cc",
+    ],
+    deps = [
+        ":iregister_mock",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
