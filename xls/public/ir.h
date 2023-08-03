@@ -22,9 +22,11 @@
 #ifndef XLS_PUBLIC_IR_H_
 #define XLS_PUBLIC_IR_H_
 
+// IWYU pragma: begin_exports
 #include "xls/ir/block.h"
 #include "xls/ir/events.h"
 #include "xls/ir/package.h"
+// IWYU pragma: end_exports
 
 namespace xls {
 
