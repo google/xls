@@ -26,6 +26,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/interval_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"

@@ -17,7 +17,9 @@
 #include <cstdint>
 #include <optional>
 
+#include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node.h"
 #include "xls/ir/ternary.h"

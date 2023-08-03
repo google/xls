@@ -183,9 +183,11 @@ cc_library(
     deps = [
         ":bits",
         ":bits_ops",
+        ":interval",
         ":interval_set",
         ":ir",
         ":ternary",
+        "//xls/common/logging",
     ],
 )
 

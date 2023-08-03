@@ -35,24 +35,28 @@ IntervalSet SetOf(absl::Span<const Interval> intervals) {
   is.Normalize();
   return is;
 }
+
 TEST(IntervalOpsTest, BitsPrecise) {
   IntervalSet is = SetOf({Interval::Precise(UBits(21, 8))});
   auto known = ExtractKnownBits(is);
   EXPECT_EQ(known.known_bits, Bits::AllOnes(8));
   EXPECT_EQ(known.known_bit_values, UBits(21, 8));
 }
+
 TEST(IntervalOpsTest, BitsMaximal) {
   IntervalSet is = SetOf({Interval::Maximal(8)});
   auto known = ExtractKnownBits(is);
   EXPECT_EQ(known.known_bits, Bits(8));
   EXPECT_EQ(known.known_bit_values, Bits(8));
 }
+
 TEST(IntervalOpsTest, BitsHalfFull) {
   IntervalSet is = SetOf({Interval::Maximal(4).ZeroExtend(8)});
   auto known = ExtractKnownBits(is);
   EXPECT_EQ(known.known_bits, UBits(0xf0, 8));
   EXPECT_EQ(known.known_bit_values, Bits(8));
 }
+
 TEST(IntervalOpsTest, MiddleOut) {
   IntervalSet is = SetOf({Interval(UBits(0, 8), UBits(0x4, 8)),
                           Interval(UBits(0x10, 8), UBits(0x14, 8))});
@@ -60,6 +64,7 @@ TEST(IntervalOpsTest, MiddleOut) {
   EXPECT_EQ(known.known_bits, UBits(0xe0, 8));
   EXPECT_EQ(known.known_bit_values, Bits(8));
 }
+
 TEST(IntervalOpsTest, MiddleOutHigh) {
   IntervalSet is = SetOf({Interval(UBits(0xe0, 8), UBits(0xe4, 8)),
                           Interval(UBits(0xf0, 8), UBits(0xf4, 8))});
@@ -67,6 +72,7 @@ TEST(IntervalOpsTest, MiddleOutHigh) {
   EXPECT_EQ(known.known_bits, UBits(0xe0, 8));
   EXPECT_EQ(known.known_bit_values, UBits(0xe0, 8));
 }
+
 TEST(IntervalOpsTest, MiddleOutTernary) {
   IntervalSet is = SetOf({Interval(UBits(0, 8), UBits(0x4, 8)),
                           Interval(UBits(0x10, 8), UBits(0x14, 8))});
