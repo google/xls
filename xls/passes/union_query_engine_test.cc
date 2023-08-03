@@ -29,14 +29,17 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -61,7 +64,9 @@ class FakeQueryEngine : public QueryEngine {
     return result;
   }
 
-  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+  LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
+      Node* node, const absl::flat_hash_set<PredicateState>& predicate_state)
+      const override {
     return intervals_.at(node);
   }
 

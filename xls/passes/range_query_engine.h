@@ -20,6 +20,7 @@
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -31,6 +32,7 @@
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/predicate_state.h"
 #include "xls/passes/query_engine.h"
 
 namespace xls {
@@ -62,7 +64,10 @@ class RangeQueryEngine : public QueryEngine {
     return tree;
   }
 
-  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+  LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
+      Node* node, const absl::flat_hash_set<PredicateState>& predicate_state)
+      const override {
+    // State is ignored for this query engine.
     return GetIntervalSetTree(node);
   }
 

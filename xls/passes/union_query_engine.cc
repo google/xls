@@ -14,7 +14,12 @@
 
 #include "xls/passes/union_query_engine.h"
 
+#include "absl/container/flat_hash_set.h"
+#include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
+#include "xls/passes/predicate_state.h"
 
 namespace xls {
 
@@ -65,7 +70,9 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   return result;
 }
 
-LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
+LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervalsGivenPredicates(
+    Node* node,
+    const absl::flat_hash_set<PredicateState>& predicate_state) const {
   LeafTypeTree<IntervalSet> result(node->GetType());
   for (int64_t i = 0; i < result.size(); ++i) {
     result.elements()[i] =

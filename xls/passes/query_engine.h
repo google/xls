@@ -15,13 +15,18 @@
 #ifndef XLS_PASSES_QUERY_ENGINE_H_
 #define XLS_PASSES_QUERY_ENGINE_H_
 
+#include <cstdint>
+
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
+#include "xls/passes/predicate_state.h"
 
 namespace xls {
 
@@ -85,9 +90,15 @@ class QueryEngine {
   // values for the given node and what that bit's known value is.
   virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
 
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
+    return GetIntervalsGivenPredicates(node, /*predicate_state=*/{});
+  }
+
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.
-  virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
+  virtual LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
+      Node* node,
+      const absl::flat_hash_set<PredicateState>& predicate_state) const {
     LeafTypeTree<TernaryVector> ternary = GetTernary(node);
     LeafTypeTree<IntervalSet> result(node->GetType());
     for (int64_t i = 0; i < ternary.elements().size(); ++i) {
