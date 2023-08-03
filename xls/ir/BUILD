@@ -177,6 +177,38 @@ cc_test(
 )
 
 cc_library(
+    name = "interval_ops",
+    srcs = ["interval_ops.cc"],
+    hdrs = ["interval_ops.h"],
+    deps = [
+        ":bits",
+        ":bits_ops",
+        ":interval_set",
+        ":ir",
+        ":ternary",
+    ],
+)
+
+cc_test(
+    name = "interval_ops_test",
+    size = "small",
+    srcs = [
+        "interval_ops_test.cc",
+    ],
+    deps = [
+        ":bits",
+        ":interval",
+        ":interval_ops",
+        ":interval_set",
+        ":ternary",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "interval_set",
     srcs = ["interval_set.cc"],
     hdrs = ["interval_set.h"],

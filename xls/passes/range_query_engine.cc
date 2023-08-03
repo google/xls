@@ -25,6 +25,8 @@
 #include "xls/ir/abstract_node_evaluator.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/interval_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
@@ -159,7 +161,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // If the given interval sets are disjoint, returns `false`.
   // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeEq(const IntervalSet& lhs,
-                                        const IntervalSet& rhs);
+                                       const IntervalSet& rhs);
 
   // Analyze whether elements of the two given interval sets must be less than,
   // must not be less than, or may be either.
@@ -170,7 +172,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // returns `false`.
   // In all other cases, returns `std::nullopt`.
   static std::optional<bool> AnalyzeLt(const IntervalSet& lhs,
-                                        const IntervalSet& rhs);
+                                       const IntervalSet& rhs);
 
   // An interval set covering exactly the binary representation of `false`.
   static IntervalSet FalseIntervalSet();
@@ -401,18 +403,11 @@ void RangeQueryEngine::SetIntervalSetTree(
   IntervalSetTree new_ist =
       LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
           IntervalSet::Intersect, old_ist, interval_sets);
-  int64_t size = node->GetType()->GetFlatBitCount();
   if (node->GetType()->IsBits()) {
-    IntervalSet interval_set = new_ist.Get({});
-    XLS_CHECK(interval_set.IsNormalized());
-    XLS_CHECK(!interval_set.Intervals().empty()) << node->ToString();
-    Bits lcs = bits_ops::LongestCommonPrefixMSB(
-        {interval_set.Intervals().front().LowerBound(),
-         interval_set.Intervals().back().UpperBound()});
-    known_bits_[node] = bits_ops::Concat(
-        {Bits::AllOnes(lcs.bit_count()), Bits(size - lcs.bit_count())});
-    known_bit_values_[node] =
-        bits_ops::Concat({lcs, Bits(size - lcs.bit_count())});
+    interval_ops::KnownBits bits =
+        interval_ops::ExtractKnownBits(new_ist.Get({}), /*source=*/node);
+    known_bits_[node] = bits.known_bits;
+    known_bit_values_[node] = bits.known_bit_values;
   }
   interval_sets_[node] = new_ist;
 }
@@ -561,7 +556,7 @@ absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
 }
 
 std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
-                                                  const IntervalSet& rhs) {
+                                                 const IntervalSet& rhs) {
   XLS_CHECK(lhs.IsNormalized());
   XLS_CHECK(rhs.IsNormalized());
 
@@ -586,7 +581,7 @@ std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
 }
 
 std::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
-                                                  const IntervalSet& rhs) {
+                                                 const IntervalSet& rhs) {
   if (std::optional<Interval> lhs_hull = lhs.ConvexHull()) {
     if (std::optional<Interval> rhs_hull = rhs.ConvexHull()) {
       if (Interval::Disjoint(*lhs_hull, *rhs_hull)) {
