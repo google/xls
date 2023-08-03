@@ -269,3 +269,37 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "ichannelmanager",
+    hdrs = [
+        "ichannelmanager.h",
+    ],
+    deps = [
+        ":ichannel",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ichannelmanager_stub_test",
+    srcs = [
+        "ichannelmanager_stub.cc",
+        "ichannelmanager_stub.h",
+        "ichannelmanager_stub_test.cc",
+    ],
+    deps = [
+        ":ichannel",
+        ":ichannelmanager",
+        ":istream_stub",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
