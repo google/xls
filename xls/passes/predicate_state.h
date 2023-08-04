@@ -31,7 +31,7 @@ namespace xls {
 struct DefaultArm : public std::monostate {
   template <typename H>
   friend H AbslHashValue(H h, const DefaultArm& a) {
-    return H::Combine(h, std::monostate{});
+    return H::combine(std::move(h), std::monostate{});
   }
 
   template <typename Sink>

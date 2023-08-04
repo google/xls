@@ -815,6 +815,20 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "predicate_state_test",
+    srcs = ["predicate_state_test.cc"],
+    deps = [
+        ":predicate_state",
+        "@com_google_absl//absl/hash",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+    ],
+)
+
 cc_library(
     name = "narrowing_pass",
     srcs = ["narrowing_pass.cc"],
