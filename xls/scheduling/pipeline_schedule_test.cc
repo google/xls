@@ -701,6 +701,138 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv = pb.Receive(ch_in, /*token=*/send);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(PipelineSchedule::Run(proc, *delay_estimator,
+                                    SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+}
+
+TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv_if = pb.ReceiveIf(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(PipelineSchedule::Run(proc, *delay_estimator,
+                                    SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedByNonblockingReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv = pb.ReceiveNonBlocking(ch_in, /*token=*/send);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(PipelineSchedule::Run(proc, *delay_estimator,
+                                    SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedByNonblockingReceiveIfCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), pb.Literal(Bits(32)));
+  BValue rcv_if =
+      pb.ReceiveIfNonBlocking(ch_in, /*token=*/send, pb.Literal(UBits(0, 1)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv_if, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(PipelineSchedule::Run(proc, *delay_estimator,
+                                    SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+}
+
+TEST_F(PipelineScheduleTest,
+       SendFollowedIndirectlyByReceiveCannotBeInSameCycle) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+
+  BValue rcv0 = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue rcv1 = pb.Receive(ch_in, pb.GetTokenParam());
+  BValue send = pb.Send(ch_out, pb.TupleIndex(rcv1, 0), pb.Literal(Bits(32)));
+  BValue joined_token = pb.AfterAll({pb.TupleIndex(rcv0, 0), send});
+  BValue rcv = pb.Receive(ch_in, joined_token);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  ASSERT_THAT(PipelineSchedule::Run(proc, *delay_estimator,
+                                    SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--pipeline_stages=2")));
+}
+
 TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {
   Package package = Package(TestName());
 

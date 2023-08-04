@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_map.h"
@@ -204,6 +205,8 @@ class ModelBuilder {
   absl::Status AddDifferenceConstraint(const DifferenceConstraint& constraint);
   absl::Status AddRFSLConstraint(
       const RecvsFirstSendsLastConstraint& constraint);
+  absl::Status AddSendThenRecvConstraint(
+      const SendThenRecvConstraint& constraint);
 
   absl::Status SetObjective();
 
@@ -519,6 +522,10 @@ absl::Status ModelBuilder::AddSchedulingConstraint(
     return AddRFSLConstraint(
         std::get<RecvsFirstSendsLastConstraint>(constraint));
   }
+  if (std::holds_alternative<SendThenRecvConstraint>(constraint)) {
+    return AddSendThenRecvConstraint(
+        std::get<SendThenRecvConstraint>(constraint));
+  }
   return absl::InternalError("Unhandled scheduling constraint type");
 }
 
@@ -615,6 +622,56 @@ absl::Status ModelBuilder::AddRFSLConstraint(
     }
   }
 
+  return absl::OkStatus();
+}
+
+absl::Status ModelBuilder::AddSendThenRecvConstraint(
+    const SendThenRecvConstraint& constraint) {
+  XLS_CHECK_GE(constraint.MinimumLatency(), 0);
+  if (constraint.MinimumLatency() == 0) {
+    return absl::OkStatus();
+  }
+
+  for (Node* recv : func_->nodes()) {
+    if (!recv->Is<Receive>()) {
+      continue;
+    }
+
+    // Look for a Send dependency.
+    //
+    // Technically, we probably don't need to trace back through the predicate
+    // operand; the only operation we have today that takes a token and returns
+    // data is a Receive (and technically tuple construction, but that just gets
+    // weird), so we'd end up terminating our search before reaching a Send
+    // anyway. But - just in case we ever add some other operation, we'll trace
+    // up both paths to be sure.
+    std::vector<Node*> stack(recv->operands().begin(), recv->operands().end());
+    absl::flat_hash_set<Node*> seen;
+    while (!stack.empty()) {
+      Node* node = stack.back();
+      stack.pop_back();
+      if (seen.contains(node)) {
+        continue;
+      }
+      seen.insert(node);
+
+      if (node->Is<Send>()) {
+        // Ensure that this send happens before the receive that depends on it.
+        DiffAtLeastConstraint(recv, node, constraint.MinimumLatency(),
+                              "send_then_recv");
+        // We don't need to trace any further back on this line, since any
+        // earlier sends are transitively handled.
+        continue;
+      }
+      if (node->Is<Receive>()) {
+        // No need to trace any further back on this line; this node will also
+        // be the root of a search, and will get a similar appropriate delay.
+        continue;
+      }
+      stack.insert(stack.end(), node->operands().begin(),
+                   node->operands().end());
+    }
+  }
   return absl::OkStatus();
 }
 

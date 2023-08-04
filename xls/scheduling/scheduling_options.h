@@ -155,9 +155,26 @@ class BackedgeConstraint {
   BackedgeConstraint() = default;
 };
 
+// When this is present, whenever we have a receive with a dependency on a send,
+// the receive will always be scheduled at least `MinimumLatency()` cycles
+// later. Since codegen currently blocks all execution within a stage if it
+// contains a blocked receive, having this present with minimum latency 1 more
+// accurately represents the user's expressed dependencies.
+class SendThenRecvConstraint {
+ public:
+  explicit SendThenRecvConstraint(int64_t minimum_latency)
+      : minimum_latency_(minimum_latency) {}
+
+  int64_t MinimumLatency() const { return minimum_latency_; }
+
+ private:
+  int64_t minimum_latency_;
+};
+
 using SchedulingConstraint =
     std::variant<IOConstraint, NodeInCycleConstraint, DifferenceConstraint,
-                 RecvsFirstSendsLastConstraint, BackedgeConstraint>;
+                 RecvsFirstSendsLastConstraint, BackedgeConstraint,
+                 SendThenRecvConstraint>;
 
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. See
@@ -166,7 +183,9 @@ class SchedulingOptions {
  public:
   explicit SchedulingOptions(
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
-      : strategy_(strategy), constraints_({BackedgeConstraint()}) {}
+      : strategy_(strategy),
+        constraints_({BackedgeConstraint(),
+                      SendThenRecvConstraint(/*minimum_latency=*/1)}) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
