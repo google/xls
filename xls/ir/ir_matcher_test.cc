@@ -28,6 +28,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/lsb_or_msb.h"
 #include "xls/ir/package.h"
+#include "xls/ir/register.h"
 #include "xls/ir/value.h"
 
 namespace m = xls::op_matchers;
@@ -65,11 +66,14 @@ TEST(IrMatchersTest, Basic) {
 
   EXPECT_THAT(x.node(), m::Param());
   EXPECT_THAT(x.node(), m::Name("x"));
+  EXPECT_THAT(x.node(), m::Name(HasSubstr("x")));
   EXPECT_THAT(x.node(), m::Type("bits[32]"));
   EXPECT_THAT(x.node(), AllOf(m::Name("x"), m::Type("bits[32]")));
 
   EXPECT_THAT(y.node(), m::Param());
   EXPECT_THAT(y.node(), m::Name("y"));
+  EXPECT_THAT(y.node(), m::Param("y"));
+  EXPECT_THAT(y.node(), m::Param(HasSubstr("y")));
   EXPECT_THAT(y.node(), m::Type("bits[32]"));
 
   EXPECT_THAT(f->return_value(), m::Add());
@@ -434,6 +438,7 @@ TEST(IrMatchersTest, PortMatcher) {
 
   EXPECT_THAT(x.node(), m::InputPort());
   EXPECT_THAT(x.node(), m::InputPort("x"));
+  EXPECT_THAT(x.node(), m::InputPort(HasSubstr("x")));
 
   EXPECT_THAT(y.node(), m::InputPort());
   EXPECT_THAT(y.node(), m::InputPort("y"));
@@ -441,6 +446,8 @@ TEST(IrMatchersTest, PortMatcher) {
   EXPECT_THAT(out.node(), m::OutputPort());
   EXPECT_THAT(out.node(), m::OutputPort("out"));
   EXPECT_THAT(out.node(), m::OutputPort("out", m::Add()));
+  EXPECT_THAT(out.node(), m::OutputPortWithName(HasSubstr("out")));
+  EXPECT_THAT(out.node(), m::OutputPort(HasSubstr("out"), m::Add()));
 
   // Check mismatch conditions.
   EXPECT_THAT(
@@ -456,6 +463,10 @@ TEST(IrMatchersTest, RegisterMatcher) {
   Type* u32 = p.GetBitsType(32);
   BValue in = bb.InputPort("in", u32);
   BValue in_d = bb.InsertRegister("reg", in);
+  XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
+                           bb.block()->AddRegister("other_reg", u32));
+  BValue x = bb.RegisterRead(reg);
+  BValue y = bb.RegisterWrite(reg, x);
   BValue out = bb.OutputPort("out", in_d);
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
 
@@ -464,7 +475,20 @@ TEST(IrMatchersTest, RegisterMatcher) {
   EXPECT_THAT(in_d.node(), m::Register());
   EXPECT_THAT(in_d.node(), m::Register(m::InputPort()));
   EXPECT_THAT(in_d.node(), m::Register("reg"));
+  EXPECT_THAT(in_d.node(), m::RegisterWithName(HasSubstr("reg")));
   EXPECT_THAT(in_d.node(), m::Register("reg", m::InputPort()));
+  EXPECT_THAT(in_d.node(), m::Register(HasSubstr("reg"), m::InputPort()));
+  EXPECT_THAT(x.node(), m::RegisterRead());
+  EXPECT_THAT(x.node(), m::RegisterRead("other_reg"));
+  EXPECT_THAT(x.node(), m::RegisterRead(HasSubstr("other")));
+  EXPECT_THAT(y.node(), m::RegisterWrite());
+  EXPECT_THAT(y.node(), m::RegisterWrite("other_reg"));
+  EXPECT_THAT(y.node(), m::RegisterWrite(HasSubstr("other")));
+  EXPECT_THAT(y.node(), m::RegisterWrite("other_reg", x.node()));
+  EXPECT_THAT(y.node(), m::RegisterWrite(HasSubstr("other"), x.node()));
+  EXPECT_THAT(y.node(), m::RegisterWrite("other_reg", m::RegisterRead()));
+  EXPECT_THAT(y.node(),
+              m::RegisterWrite(HasSubstr("other"), m::RegisterRead()));
   EXPECT_THAT(out.node(),
               m::OutputPort("out", m::Register(m::InputPort("in"))));
 
@@ -473,10 +497,17 @@ TEST(IrMatchersTest, RegisterMatcher) {
               HasSubstr("has incorrect op (input_port), expected: add"));
   EXPECT_THAT(Explain(in_d.node(), m::Register("wrong-reg")),
               HasSubstr("has incorrect register (reg), expected: wrong-reg"));
+  EXPECT_THAT(Explain(in_d.node(), m::RegisterWithName(HasSubstr("wrong-reg"))),
+              HasSubstr("has incorrect register (reg), expected: has substring "
+                        "\"wrong-reg\""));
   EXPECT_THAT(Explain(in_d.node(), m::Register("reg", m::Add())),
               HasSubstr("has incorrect op (input_port), expected: add"));
   EXPECT_THAT(Explain(in_d.node(), m::Register("wrong-reg", m::InputPort())),
               HasSubstr("has incorrect register (reg), expected: wrong-reg"));
+  EXPECT_THAT(
+      Explain(in_d.node(), m::Register(HasSubstr("wrong-reg"), m::InputPort())),
+      HasSubstr("has incorrect register (reg), expected: has substring "
+                "\"wrong-reg\""));
 }
 
 TEST(IrMatchersTest, FunctionBaseMatcher) {
@@ -506,13 +537,22 @@ TEST(IrMatchersTest, FunctionBaseMatcher) {
   EXPECT_THAT(
       p.GetFunctionBases(),
       UnorderedElementsAre(m::FunctionBase("f"), m::FunctionBase("test_proc")));
+  EXPECT_THAT(p.GetFunctionBases(),
+              UnorderedElementsAre(m::FunctionBase(HasSubstr("f")),
+                                   m::FunctionBase(HasSubstr("test"))));
   EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::FunctionBase("foobar"))));
 
   // Match Function and Proc.
   EXPECT_THAT(p.GetFunctionBases(),
               UnorderedElementsAre(m::Function("f"), m::Proc("test_proc")));
+  EXPECT_THAT(p.GetFunctionBases(),
+              UnorderedElementsAre(m::Function(HasSubstr("f")),
+                                   m::Proc(HasSubstr("test"))));
   EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Function("test_proc"))));
+  EXPECT_THAT(p.GetFunctionBases(),
+              Not(Contains(m::Function(HasSubstr("proc")))));
   EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Proc("f"))));
+  EXPECT_THAT(p.GetFunctionBases(), Not(Contains(m::Proc(HasSubstr("f")))));
 
   EXPECT_THAT(p.procs(), UnorderedElementsAre(m::Proc("test_proc")));
   EXPECT_THAT(p.functions(), UnorderedElementsAre(m::Function("f")));

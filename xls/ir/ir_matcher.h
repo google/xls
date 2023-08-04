@@ -15,15 +15,22 @@
 #ifndef XLS_IR_IR_MATCHER_H_
 #define XLS_IR_IR_MATCHER_H_
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/meta/type_traits.h"
 #include "absl/strings/match.h"
+#include "absl/types/span.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
@@ -35,6 +42,26 @@
 
 namespace xls {
 namespace op_matchers {
+namespace internal {
+// Internal matcher for IR names. When a matcher uses a name, e.g.
+// m::Name("some_string_literal"), a NameMatcherInternal is constructed and
+// passed as to the outer matcher, in the above example a NameMatcher.
+// We could use the default matcher, but this gives a slightly nicer message
+// that lets you know its a name.
+struct NameMatcherInternal {
+  using is_gtest_matcher = void;
+
+  explicit NameMatcherInternal(std::string_view name) : name_(name) {}
+  explicit NameMatcherInternal(std::string&& name) : name_(std::move(name)) {}
+
+  bool MatchAndExplain(std::string_view name,
+                       ::testing::MatchResultListener* listener) const;
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(::std::ostream* os) const;
+
+  std::string name_;
+};
+}  // namespace internal
 
 // Implements matching over XLS IR. Enables easy pattern matching of XLS
 // expressions in tests.
@@ -62,15 +89,22 @@ namespace op_matchers {
 
 // Base class for matchers. Has two constructions. The first checks the op and
 // then recursively checks the operands. The second simply matches the name.
-class NodeMatcher : public ::testing::MatcherInterface<const Node*> {
+class NodeMatcher {
  public:
-  NodeMatcher(const NodeMatcher&) = default;
+  using is_gtest_matcher = void;
+
   NodeMatcher(Op op, absl::Span<const ::testing::Matcher<const Node*>> operands)
       : op_(op), operands_(operands.begin(), operands.end()) {}
+  virtual ~NodeMatcher() = default;
 
-  bool MatchAndExplain(const Node* node,
-                       ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const override;
+  virtual bool MatchAndExplain(const Node* node,
+                               ::testing::MatchResultListener* listener) const;
+  virtual void DescribeTo(::std::ostream* os) const;
+
+  virtual void DescribeNegationTo(::std::ostream* os) const {
+    *os << "did not match: ";
+    DescribeTo(os);
+  }
 
  protected:
   // Helper for DescribeTo which emits a description of the match with optional
@@ -120,53 +154,37 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
 //
 // TODO(meheff): Through template wizardry it'd probably be possible to elide
 // the m::Name. For example: EXPECT_THAT(baz, m::Or("foo", "bar")).
-class NameMatcher : public ::testing::MatcherInterface<const Node*> {
+class NameMatcher {
  public:
-  explicit NameMatcher(std::string_view name)
-      : inner_matcher_(StringViewNameMatcherInternal(name)) {}
+  using is_gtest_matcher = void;
 
-  template <typename InnerMatcher>
-  explicit NameMatcher(InnerMatcher inner_matcher)
-      : inner_matcher_(
-            ::testing::SafeMatcherCast<const std::string>(inner_matcher)) {}
+  explicit NameMatcher(::testing::Matcher<const std::string> inner_matcher)
+      : inner_matcher_(std::move(inner_matcher)) {}
 
   bool MatchAndExplain(const Node* node,
-                       ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(std::ostream* os) const override;
+                       ::testing::MatchResultListener* listener) const;
+  void DescribeTo(std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
 
  private:
-  struct StringViewNameMatcherInternal {
-    using is_gtest_matcher = void;
-
-    explicit StringViewNameMatcherInternal(std::string_view name)
-        : name_(name) {}
-
-    bool MatchAndExplain(std::string_view name,
-                         ::testing::MatchResultListener* listener) const;
-    void DescribeTo(::std::ostream* os) const;
-    void DescribeNegationTo(::std::ostream* os) const;
-
-    std::string name_;
-  };
   const ::testing::Matcher<const std::string> inner_matcher_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Name(std::string_view name_str) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::NameMatcher(name_str));
+  return ::xls::op_matchers::NameMatcher(
+      internal::NameMatcherInternal(name_str));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Name(
-    ::testing::Matcher<const std::string> inner_matcher) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NameMatcher(std::move(inner_matcher)));
+    ::testing::Matcher<const std::string> matcher) {
+  return ::xls::op_matchers::NameMatcher(std::move(matcher));
 }
 
 // Node* matchers for ops which have no metadata beyond Op, type, and operands.
-#define NODE_MATCHER(op)                                                       \
-  template <typename... M>                                                     \
-  ::testing::Matcher<const ::xls::Node*> op(M... operands) {                   \
-    return ::testing::MakeMatcher(                                             \
-        new ::xls::op_matchers::NodeMatcher(::xls::Op::k##op, {operands...})); \
+#define NODE_MATCHER(op)                                                     \
+  template <typename... M>                                                   \
+  ::testing::Matcher<const ::xls::Node*> op(M... operands) {                 \
+    return ::xls::op_matchers::NodeMatcher(::xls::Op::k##op, {operands...}); \
   }
 NODE_MATCHER(Add);
 NODE_MATCHER(AfterAll);
@@ -231,28 +249,34 @@ NODE_MATCHER(Map);
 //
 //   EXPECT_THAT(x, m::Param());
 //   EXPECT_THAT(x, m::Param("x"));
+//   EXPECT_THAT(x, m::Param(HasSubstr("substr")));
 class ParamMatcher : public NodeMatcher {
  public:
-  explicit ParamMatcher(std::optional<std::string> name)
-      : NodeMatcher(Op::kParam, /*operands=*/{}), name_(std::move(name)) {}
+  explicit ParamMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
+      : NodeMatcher(Op::kParam, /*operands=*/{}),
+        name_matcher_(std::move(name)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_matcher_;
 };
 
+inline ::testing::Matcher<const ::xls::Node*> Param(const char* name) {
+  return ::xls::op_matchers::ParamMatcher(
+      std::make_optional(internal::NameMatcherInternal(std::string(name))));
+}
+
 inline ::testing::Matcher<const ::xls::Node*> Param(
-    std::optional<std::string> name) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ParamMatcher(std::move(name)));
+    ::testing::Matcher<const std::string> matcher) {
+  return ::xls::op_matchers::ParamMatcher(std::move(matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Param() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kParam, {}));
+  return ::xls::op_matchers::ParamMatcher(std::nullopt);
 }
 
 // BitSlice matcher. Supported forms:
@@ -281,26 +305,23 @@ class BitSliceMatcher : public NodeMatcher {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::BitSliceMatcher(std::nullopt, std::nullopt));
+  return ::xls::op_matchers::BitSliceMatcher(std::nullopt, std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice(
     ::testing::Matcher<const Node*> operand) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::BitSliceMatcher(
-      std::move(operand), std::nullopt, std::nullopt));
+  return ::xls::op_matchers::BitSliceMatcher(std::move(operand), std::nullopt,
+                                             std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice(
     ::testing::Matcher<const Node*> operand, int64_t start, int64_t width) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::BitSliceMatcher(
-      std::move(operand), start, width));
+  return ::xls::op_matchers::BitSliceMatcher(std::move(operand), start, width);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice(int64_t start,
                                                        int64_t width) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::BitSliceMatcher(start, width));
+  return ::xls::op_matchers::BitSliceMatcher(start, width);
 }
 
 // DynamicBitSlice matcher. Supported forms:
@@ -327,22 +348,21 @@ class DynamicBitSliceMatcher : public NodeMatcher {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::DynamicBitSliceMatcher());
+  return ::xls::op_matchers::DynamicBitSliceMatcher();
 }
 
 inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
     ::testing::Matcher<const Node*> operand,
     ::testing::Matcher<const Node*> start) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::DynamicBitSliceMatcher(
-      std::move(operand), std::move(start), std::nullopt));
+  return ::xls::op_matchers::DynamicBitSliceMatcher(
+      std::move(operand), std::move(start), std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice(
     ::testing::Matcher<const Node*> operand,
     ::testing::Matcher<const Node*> start, int64_t width) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::DynamicBitSliceMatcher(
-      std::move(operand), std::move(start), width));
+  return ::xls::op_matchers::DynamicBitSliceMatcher(std::move(operand),
+                                                    std::move(start), width);
 }
 
 // DynamicCountedFor mather. Supported forms:
@@ -383,10 +403,9 @@ inline ::testing::Matcher<const ::xls::Node*> DynamicCountedFor(
     ::testing::Matcher<const Node*> trip_count,
     ::testing::Matcher<const Node*> stride, FunctionBase* body,
     std::vector<::testing::Matcher<const Node*>> invariant_args) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::DynamicCountedForMatcher(
-          std::move(init), std::move(trip_count), std::move(stride), body,
-          std::move(invariant_args)));
+  return ::xls::op_matchers::DynamicCountedForMatcher(
+      std::move(init), std::move(trip_count), std::move(stride), body,
+      std::move(invariant_args));
 }
 
 // Literal matcher. Supported forms:
@@ -422,19 +441,18 @@ class LiteralMatcher : public NodeMatcher {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Literal() {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::LiteralMatcher());
+  return ::xls::op_matchers::LiteralMatcher();
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Literal(const Value& value) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::LiteralMatcher(value));
+  return ::xls::op_matchers::LiteralMatcher(value);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Literal(const Bits& bits) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::LiteralMatcher(Value(bits)));
+  return ::xls::op_matchers::LiteralMatcher(Value(bits));
 }
 inline ::testing::Matcher<const ::xls::Node*> Literal(uint64_t value) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::LiteralMatcher(value));
+  return ::xls::op_matchers::LiteralMatcher(value);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Literal(
@@ -446,8 +464,7 @@ inline ::testing::Matcher<const ::xls::Node*> Literal(
   } else if (absl::StrContains(value_str, "0x")) {
     format = FormatPreference::kHex;
   }
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::LiteralMatcher(value, format));
+  return ::xls::op_matchers::LiteralMatcher(value, format);
 }
 
 // OneHot matcher. Supported forms:
@@ -473,15 +490,13 @@ class OneHotMatcher : public NodeMatcher {
 
 inline ::testing::Matcher<const ::xls::Node*> OneHot(
     std::optional<LsbOrMsb> priority = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::OneHotMatcher(priority));
+  return ::xls::op_matchers::OneHotMatcher(priority);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OneHot(
     ::testing::Matcher<const ::xls::Node*> operand,
     std::optional<LsbOrMsb> priority = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::OneHotMatcher(std::move(operand), priority));
+  return ::xls::op_matchers::OneHotMatcher(std::move(operand), priority);
 }
 
 // Select matcher. Supported forms:
@@ -521,13 +536,12 @@ inline ::testing::Matcher<const ::xls::Node*> Select(
     std::vector<::testing::Matcher<const Node*>> cases,
     std::optional<::testing::Matcher<const Node*>> default_value =
         std::nullopt) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::SelectMatcher(
-      std::move(selector), std::move(cases), std::move(default_value)));
+  return ::xls::op_matchers::SelectMatcher(
+      std::move(selector), std::move(cases), std::move(default_value));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Select() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kSel, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kSel, {});
 }
 
 // OneHotSelect matcher. Supported forms:
@@ -541,13 +555,11 @@ inline ::testing::Matcher<const ::xls::Node*> OneHotSelect(
   std::vector<::testing::Matcher<const Node*>> operands;
   operands.push_back(selector);
   operands.insert(operands.end(), cases.begin(), cases.end());
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, operands));
+  return ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, operands);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OneHotSelect() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, {});
 }
 
 // PrioritySelect matcher. Supported forms:
@@ -561,13 +573,11 @@ inline ::testing::Matcher<const ::xls::Node*> PrioritySelect(
   std::vector<::testing::Matcher<const Node*>> operands;
   operands.push_back(selector);
   operands.insert(operands.end(), cases.begin(), cases.end());
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, operands));
+  return ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, operands);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> PrioritySelect() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, {});
 }
 
 // TupleIndex matcher. Supported forms:
@@ -592,15 +602,13 @@ class TupleIndexMatcher : public NodeMatcher {
 
 inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
     std::optional<int64_t> index = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::TupleIndexMatcher(index));
+  return ::xls::op_matchers::TupleIndexMatcher(index);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
     ::testing::Matcher<const ::xls::Node*> operand,
     std::optional<int64_t> index = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::TupleIndexMatcher(std::move(operand), index));
+  return ::xls::op_matchers::TupleIndexMatcher(std::move(operand), index);
 }
 
 // Matcher for various properties of channels. Used within matcher of nodes
@@ -684,7 +692,7 @@ class ChannelNodeMatcher : public NodeMatcher {
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const override;
+  void DescribeTo(::std::ostream* os) const;
 
  private:
   std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher_;
@@ -724,8 +732,7 @@ class SendMatcher : public ChannelNodeMatcher {
 inline ::testing::Matcher<const ::xls::Node*> Send(
     std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::SendMatcher(std::move(channel_matcher)));
+  return ::xls::op_matchers::SendMatcher(std::move(channel_matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
@@ -733,8 +740,8 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const Node*> data,
     std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         std::nullopt) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::SendMatcher(
-      std::move(token), std::move(data), std::move(channel_matcher)));
+  return ::xls::op_matchers::SendMatcher(std::move(token), std::move(data),
+                                         std::move(channel_matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
@@ -743,9 +750,9 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const Node*> predicate,
     std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         std::nullopt) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::SendMatcher(
-      std::move(token), std::move(data), std::move(predicate),
-      std::move(channel_matcher)));
+  return ::xls::op_matchers::SendMatcher(std::move(token), std::move(data),
+                                         std::move(predicate),
+                                         std::move(channel_matcher));
 }
 
 // Receive matcher. Supported forms:
@@ -777,24 +784,23 @@ class ReceiveMatcher : public ChannelNodeMatcher {
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::ReceiveMatcher(std::move(channel_matcher)));
+  return ::xls::op_matchers::ReceiveMatcher(std::move(channel_matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     ::testing::Matcher<const Node*> token,
     std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         std::nullopt) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ReceiveMatcher(
-      std::move(token), std::move(channel_matcher)));
+  return ::xls::op_matchers::ReceiveMatcher(std::move(token),
+                                            std::move(channel_matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     ::testing::Matcher<const Node*> token,
     ::testing::Matcher<const Node*> predicate,
     ::testing::Matcher<const ::xls::Channel*> channel_matcher) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ReceiveMatcher(
-      std::move(token), std::move(predicate), channel_matcher));
+  return ::xls::op_matchers::ReceiveMatcher(
+      std::move(token), std::move(predicate), channel_matcher);
 }
 
 // ArrayIndex matcher. Supported forms:
@@ -817,13 +823,12 @@ class ArrayIndexMatcher : public NodeMatcher {
 inline ::testing::Matcher<const ::xls::Node*> ArrayIndex(
     ::testing::Matcher<const Node*> array,
     std::vector<::testing::Matcher<const Node*>> indices) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ArrayIndexMatcher(
-      std::move(array), std::move(indices)));
+  return ::xls::op_matchers::ArrayIndexMatcher(std::move(array),
+                                               std::move(indices));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayIndex() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kArrayIndex, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kArrayIndex, {});
 }
 
 // ArrayUpdate matcher. Supported forms:
@@ -849,91 +854,134 @@ inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate(
     ::testing::Matcher<const Node*> array,
     ::testing::Matcher<const Node*> value,
     std::vector<::testing::Matcher<const Node*>> indices) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::ArrayUpdateMatcher(
-      std::move(array), std::move(value), std::move(indices)));
+  return ::xls::op_matchers::ArrayUpdateMatcher(
+      std::move(array), std::move(value), std::move(indices));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kArrayUpdate, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kArrayUpdate, {});
 }
 
 // InputPort matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::InputPort());
 //   EXPECT_THAT(foo, m::InputPort("foo"));
+//   EXPECT_THAT(foo, m::InputPort(HasSubstr("substr")));
 //
 class InputPortMatcher : public NodeMatcher {
  public:
-  explicit InputPortMatcher(std::optional<std::string> name)
-      : NodeMatcher(Op::kInputPort, /*operands=*/{}), name_(std::move(name)) {}
+  explicit InputPortMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
+      : NodeMatcher(Op::kInputPort, /*operands=*/{}),
+        name_matcher_(std::move(name)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_matcher_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> InputPort(
-    std::optional<std::string> name = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::InputPortMatcher(std::move(name)));
+    std::optional<const char*> name = std::nullopt) {
+  return ::xls::op_matchers::InputPortMatcher(
+      name.has_value() ? std::make_optional(
+                             internal::NameMatcherInternal(std::string(*name)))
+                       : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> InputPort(
+    ::testing::Matcher<const std::string> matcher) {
+  return ::xls::op_matchers::InputPortMatcher(std::move(matcher));
 }
 
 // OutputPort matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::OutputPort());
 //   EXPECT_THAT(foo, m::OutputPort("foo"));
+//   EXPECT_THAT(foo, m::OutputPort(HasSubstr("substr")));
 //   EXPECT_THAT(foo, m::OutputPort(m::Add()));
 //   EXPECT_THAT(foo, m::OutputPort("foo", m::Add());
+//   EXPECT_THAT(foo, m::OutputPort(HasSubstr("substr"), m::Add());
 //
 class OutputPortMatcher : public NodeMatcher {
  public:
-  explicit OutputPortMatcher(std::optional<std::string> name)
-      : NodeMatcher(Op::kOutputPort, /*operands=*/{}), name_(std::move(name)) {}
+  explicit OutputPortMatcher(
+      std::optional<::testing::Matcher<const std::string>> name_matcher)
+      : NodeMatcher(Op::kOutputPort, /*operands=*/{}),
+        name_matcher_(std::move(name_matcher)) {}
 
-  OutputPortMatcher(::testing::Matcher<const ::xls::Node*> data,
-                    std::optional<std::string> name)
+  OutputPortMatcher(
+      ::testing::Matcher<const ::xls::Node*> data,
+      std::optional<::testing::Matcher<const std::string>> name_matcher)
       : NodeMatcher(Op::kOutputPort, /*operands=*/{std::move(data)}),
-        name_(std::move(name)) {}
+        name_matcher_(std::move(name_matcher)) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_matcher_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> OutputPort(
-    std::optional<std::string> name = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::OutputPortMatcher(std::move(name)));
+    std::optional<const char*> name = std::nullopt) {
+  return ::xls::op_matchers::OutputPortMatcher(
+      name.has_value() ? std::make_optional(
+                             internal::NameMatcherInternal(std::string(*name)))
+                       : std::nullopt);
+}
+
+// Disambiguate calls to OutputPort(::testing::Matcher<const ::xls::Node*>) by
+// making a distinct name.
+inline ::testing::Matcher<const ::xls::Node*> OutputPortWithName(
+    ::testing::Matcher<const std::string> name) {
+  return ::xls::op_matchers::OutputPortMatcher(std::move(name));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OutputPort(
     ::testing::Matcher<const ::xls::Node*> data) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::OutputPortMatcher(
-      std::move(data), /*name=*/std::nullopt));
+  return ::xls::op_matchers::OutputPortMatcher(std::move(data),
+                                               /*name_matcher=*/std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OutputPort(
-    std::optional<std::string> name,
+    std::optional<const char*> name, const ::xls::Node* data) {
+  return ::xls::op_matchers::OutputPortMatcher(
+      data, name.has_value() ? std::make_optional(internal::NameMatcherInternal(
+                                   std::string(*name)))
+                             : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> OutputPort(
+    std::optional<const char*> name,
     ::testing::Matcher<const ::xls::Node*> data) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::OutputPortMatcher(
-      std::move(data), std::move(name)));
+  return ::xls::op_matchers::OutputPortMatcher(
+      std::move(data),
+      name.has_value() ? std::make_optional(
+                             internal::NameMatcherInternal(std::string(*name)))
+                       : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> OutputPort(
+    ::testing::Matcher<const std::string> name,
+    ::testing::Matcher<const ::xls::Node*> data) {
+  return ::xls::op_matchers::OutputPortMatcher(std::move(data),
+                                               std::move(name));
 }
 
 // RegisterRead matcher. Matches register name only. Supported forms:
 //
 //   EXPECT_THAT(x, m::RegisterRead());
 //   EXPECT_THAT(x, m::RegisterRead("x"));
+//   EXPECT_THAT(x, m::RegisterRead(HasSubstr("substr")));
 //
 class RegisterReadMatcher : public NodeMatcher {
  public:
-  explicit RegisterReadMatcher(std::optional<std::string> register_name)
+  explicit RegisterReadMatcher(
+      std::optional<::testing::Matcher<const std::string>> register_name)
       : NodeMatcher(Op::kRegisterRead, /*operands=*/{}),
         register_name_(std::move(register_name)) {}
 
@@ -942,35 +990,46 @@ class RegisterReadMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<std::string> register_name_;
+  std::optional<::testing::Matcher<const std::string>> register_name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterRead(
-    std::optional<std::string> register_name) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::RegisterReadMatcher(std::move(register_name)));
+    std::optional<const char*> register_name) {
+  return ::xls::op_matchers::RegisterReadMatcher(
+      register_name.has_value()
+          ? std::make_optional(
+                internal::NameMatcherInternal(std::string(*register_name)))
+          : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> RegisterRead(
+    ::testing::Matcher<const std::string> name) {
+  return ::xls::op_matchers::RegisterReadMatcher(std::move(name));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterRead() {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::NodeMatcher(Op::kRegisterRead, {}));
+  return ::xls::op_matchers::NodeMatcher(Op::kRegisterRead, {});
 }
 
 // RegisterWrite matcher. Matches register name only. Supported forms:
 //
 //   EXPECT_THAT(x, m::RegisterWrite());
 //   EXPECT_THAT(x, m::RegisterWrite("x"));
+//   EXPECT_THAT(x, m::RegisterWrite(HasSubstr("substr")));
 //   EXPECT_THAT(x, m::RegisterWrite(data));
 //   EXPECT_THAT(x, m::RegisterWrite("x", data));
+//   EXPECT_THAT(x, m::RegisterWrite(HasSubstr("substr"), data));
 //
 class RegisterWriteMatcher : public NodeMatcher {
  public:
-  explicit RegisterWriteMatcher(std::optional<std::string> register_name)
+  explicit RegisterWriteMatcher(
+      std::optional<::testing::Matcher<const std::string>> register_name)
       : NodeMatcher(Op::kRegisterWrite, /*operands=*/{}),
         register_name_(std::move(register_name)) {}
 
-  explicit RegisterWriteMatcher(::testing::Matcher<const ::xls::Node*> data,
-                                std::optional<std::string> register_name)
+  explicit RegisterWriteMatcher(
+      ::testing::Matcher<const ::xls::Node*> data,
+      std::optional<::testing::Matcher<const std::string>> register_name)
       : NodeMatcher(Op::kRegisterWrite, /*operands=*/{std::move(data)}),
         register_name_(std::move(register_name)) {}
 
@@ -979,40 +1038,73 @@ class RegisterWriteMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  std::optional<std::string> register_name_;
+  std::optional<::testing::Matcher<const std::string>> register_name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
-    std::optional<std::string> register_name = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::RegisterWriteMatcher(std::move(register_name)));
+    std::optional<const char*> register_name = std::nullopt) {
+  return ::xls::op_matchers::RegisterWriteMatcher(
+      register_name.has_value()
+          ? std::make_optional(
+                internal::NameMatcherInternal(std::string(*register_name)))
+          : std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
-    std::optional<std::string> register_name, const Node* node) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::RegisterWriteMatcher(
-      node, std::move(register_name)));
+    ::testing::Matcher<const std::string> matcher) {
+  return ::xls::op_matchers::RegisterWriteMatcher(std::move(matcher));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
+    std::optional<const char*> register_name, const Node* node) {
+  return ::xls::op_matchers::RegisterWriteMatcher(
+      node, register_name.has_value()
+                ? std::make_optional(internal::NameMatcherInternal(
+                      std::string(*register_name)))
+                : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
+    std::optional<const char*> register_name,
+    ::testing::Matcher<const ::xls::Node*> node) {
+  return ::xls::op_matchers::RegisterWriteMatcher(
+      std::move(node), register_name.has_value()
+                           ? std::make_optional(internal::NameMatcherInternal(
+                                 std::string(*register_name)))
+                           : std::nullopt);
+}
+inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
+    ::testing::Matcher<const std::string> register_name,
+    ::testing::Matcher<const ::xls::Node*> node) {
+  return ::xls::op_matchers::RegisterWriteMatcher(std::move(node),
+                                                  std::move(register_name));
 }
 
 // Register matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::Register());
 //   EXPECT_THAT(foo, m::Register("foo"));
+//   EXPECT_THAT(foo, m::Register(HasSusbtr("substr")));
 //   EXPECT_THAT(foo, m::Register(m::Add()));
 //   EXPECT_THAT(foo, m::Register("foo", m::Add()));
+//   EXPECT_THAT(foo, m::Register(HasSubstr("substr"), m::Add()));
 //
-class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
+class RegisterMatcher {
  public:
-  explicit RegisterMatcher(std::optional<std::string> register_name)
+  using is_gtest_matcher = void;
+  explicit RegisterMatcher(
+      std::optional<::testing::Matcher<const std::string>> register_name)
       : d_matcher_(std::move(register_name)) {}
-  RegisterMatcher(::testing::Matcher<const Node*> input,
-                  const std::optional<std::string>& register_name)
+  RegisterMatcher(
+      ::testing::Matcher<const Node*> input,
+      const std::optional<::testing::Matcher<const std::string>>& register_name)
       : q_matcher_(RegisterWriteMatcher(std::move(input), register_name)),
         d_matcher_(register_name) {}
 
   bool MatchAndExplain(const Node* node,
-                       ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const override;
+                       ::testing::MatchResultListener* listener) const;
+  void DescribeTo(::std::ostream* os) const;
+  void DescribeNegationTo(std::ostream* os) const;
 
  private:
   // Optional matcher for the send side of the register (the Q input port).
@@ -1024,22 +1116,41 @@ class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Register(
-    std::optional<std::string> register_name = std::nullopt) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::RegisterMatcher(std::move(register_name)));
+    std::optional<const char*> register_name = std::nullopt) {
+  return ::xls::op_matchers::RegisterMatcher(
+      register_name.has_value()
+          ? std::make_optional(
+                internal::NameMatcherInternal(std::string(*register_name)))
+          : std::nullopt);
+}
+
+// Disambiguate calls to Register(::testing::Matcher<const ::xls::Node*>) by
+// making a distinct name.
+inline ::testing::Matcher<const ::xls::Node*> RegisterWithName(
+    ::testing::Matcher<const std::string> matcher) {
+  return ::xls::op_matchers::RegisterMatcher(std::move(matcher));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Register(
     ::testing::Matcher<const Node*> input) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::RegisterMatcher(std::move(input), std::nullopt));
+  return ::xls::op_matchers::RegisterMatcher(std::move(input), std::nullopt);
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Register(
-    const std::optional<std::string>& register_name,
+    const std::optional<const char*>& register_name,
     ::testing::Matcher<const Node*> input) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::RegisterMatcher(std::move(input), register_name));
+  return ::xls::op_matchers::RegisterMatcher(
+      std::move(input), register_name.has_value()
+                            ? std::make_optional(internal::NameMatcherInternal(
+                                  std::string(*register_name)))
+                            : std::nullopt);
+}
+
+inline ::testing::Matcher<const ::xls::Node*> Register(
+    ::testing::Matcher<const std::string> register_name,
+    ::testing::Matcher<const ::xls::Node*> input) {
+  return ::xls::op_matchers::RegisterMatcher(std::move(input),
+                                             std::move(register_name));
 }
 
 // MinDelay matcher. Supported forms:
@@ -1066,23 +1177,23 @@ class MinDelayMatcher : public NodeMatcher {
 inline ::testing::Matcher<const ::xls::Node*> MinDelay(
     ::testing::Matcher<const ::xls::Node*> data = ::testing::_,
     ::testing::Matcher<int64_t> delay = ::testing::_) {
-  return ::testing::MakeMatcher(new ::xls::op_matchers::MinDelayMatcher(
-      std::move(data), std::move(delay)));
+  return ::xls::op_matchers::MinDelayMatcher(std::move(data), std::move(delay));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> MinDelay(int64_t delay) {
-  return ::testing::MakeMatcher(
-      new ::xls::op_matchers::MinDelayMatcher(::testing::_, delay));
+  return ::xls::op_matchers::MinDelayMatcher(::testing::_, delay);
 }
 
 // Matcher for FunctionBase. Supported form:
 //
 //   m::FunctionBase(/*name=*/"foo");
+//   m::FunctionBase(/*name=*/HasSubstr("substr"));
 //
 class FunctionBaseMatcher
     : public ::testing::MatcherInterface<const ::xls::FunctionBase*> {
  public:
-  explicit FunctionBaseMatcher(std::optional<std::string> name)
+  explicit FunctionBaseMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
       : name_(std::move(name)) {}
 
   bool MatchAndExplain(const ::xls::FunctionBase* fb,
@@ -1091,7 +1202,7 @@ class FunctionBaseMatcher
   void DescribeTo(::std::ostream* os) const override;
 
  protected:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_;
 };
 
 inline ::testing::Matcher<const ::xls::FunctionBase*> FunctionBase(
@@ -1100,16 +1211,24 @@ inline ::testing::Matcher<const ::xls::FunctionBase*> FunctionBase(
       new ::xls::op_matchers::FunctionBaseMatcher(std::move(name)));
 }
 
+inline ::testing::Matcher<const ::xls::FunctionBase*> FunctionBase(
+    std::optional<::testing::Matcher<const std::string>> name = std::nullopt) {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::FunctionBaseMatcher(std::move(name)));
+}
+
 // Matcher for functions. Supported forms:
 //
-//   m::Function(/*name=*/"foo");
 //   m::Function();
+//   m::Function(/*name=*/"foo");
+//   m::Function(/*name=*/HasSubstr("substr"));
 //
 class FunctionMatcher {
  public:
   using is_gtest_matcher = void;
 
-  explicit FunctionMatcher(std::optional<std::string> name)
+  explicit FunctionMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
       : name_(std::move(name)) {}
 
   template <typename T, typename = absl::enable_if_t<
@@ -1143,7 +1262,7 @@ class FunctionMatcher {
   void DescribeNegationTo(std::ostream* os) const;
 
  protected:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_;
 };
 
 inline ::testing::PolymorphicMatcher<FunctionMatcher> Function(
@@ -1152,16 +1271,24 @@ inline ::testing::PolymorphicMatcher<FunctionMatcher> Function(
       ::xls::op_matchers::FunctionMatcher(std::move(name)));
 }
 
+inline ::testing::PolymorphicMatcher<FunctionMatcher> Function(
+    ::testing::Matcher<const std::string> name) {
+  return testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::FunctionMatcher(std::move(name)));
+}
+
 // Matcher for procs. Supported forms:
 //
-//   m::Proc(/*name=*/"foo");
 //   m::Proc();
+//   m::Proc(/*name=*/"foo");
+//   m::Proc(/*name=*/HasSusbtr("substr"));
 //
 class ProcMatcher {
  public:
   using is_gtest_matcher = void;
 
-  explicit ProcMatcher(std::optional<std::string> name)
+  explicit ProcMatcher(
+      std::optional<::testing::Matcher<const std::string>> name)
       : name_(std::move(name)) {}
 
   template <typename T, typename = absl::enable_if_t<
@@ -1195,11 +1322,17 @@ class ProcMatcher {
   void DescribeNegationTo(std::ostream* os) const;
 
  protected:
-  std::optional<std::string> name_;
+  std::optional<::testing::Matcher<const std::string>> name_;
 };
 
 inline ::testing::PolymorphicMatcher<ProcMatcher> Proc(
     std::optional<std::string> name = std::nullopt) {
+  return ::testing::MakePolymorphicMatcher(
+      ::xls::op_matchers::ProcMatcher(std::move(name)));
+}
+
+inline ::testing::PolymorphicMatcher<ProcMatcher> Proc(
+    ::testing::Matcher<const std::string> name) {
   return ::testing::MakePolymorphicMatcher(
       ::xls::op_matchers::ProcMatcher(std::move(name)));
 }
