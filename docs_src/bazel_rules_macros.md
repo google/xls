@@ -78,7 +78,6 @@ Examples:
         src = ":generated_file.frozen.x",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -115,7 +114,6 @@ Examples:
         sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -150,7 +148,6 @@ Examples:
         src = "packet_selector.textproto",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -198,7 +195,6 @@ Examples:
         src = ":a_opt_ir",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -228,7 +224,6 @@ Example:
         verilog_target = "a_verilog_target",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -286,7 +281,6 @@ Examples:
         deps = [":a_dslx"],
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -333,7 +327,6 @@ Examples:
         dep = ":a_opt_ir",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -391,7 +384,6 @@ Examples:
         library = "b_dslx",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -440,7 +432,6 @@ Examples:
         src = ":a_opt_ir",
     )
     ```
-    
 
 **ATTRIBUTES**
 
@@ -491,7 +482,6 @@ Examples:
         src_1 = ":b_ir",
     )
     ```
-    
 
 **ATTRIBUTES**
 
