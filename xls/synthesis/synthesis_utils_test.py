@@ -15,6 +15,7 @@
 """Tests for xls.synthesis.synthesis_utils."""
 
 import subprocess
+import time
 
 from typing import Sequence, Tuple, List, Any, Optional
 
@@ -35,6 +36,10 @@ class SynthesisUtilsTest(absltest.TestCase):
     port = portpicker.pick_unused_port()
     proc = subprocess.Popen([runfiles.get_path(SERVER_PATH), f'--port={port}'] +
                             args)
+
+    # allow some time for the server to open the port before continuing
+    time.sleep(1)
+
     return port, proc
 
   def _run_bisect(self,
