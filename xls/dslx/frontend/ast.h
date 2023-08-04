@@ -2746,8 +2746,8 @@ class ConstantDef : public AstNode {
 class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
-  using Leaf =
-      std::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
+  using Leaf = std::variant<NameDef*, NameRef*, WildcardPattern*, Number*,
+                            ColonRef*, Range*>;
 
   NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(std::move(tree)) {}

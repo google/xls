@@ -461,6 +461,10 @@ class AstCloner : public AstNodeVisitor {
                 leaf = down_cast<WildcardPattern*>(old_to_new_.at(wp));
                 return absl::OkStatus();
               },
+              [&](Range* r) -> absl::Status {
+                leaf = down_cast<Range*>(old_to_new_.at(r));
+                return absl::OkStatus();
+              },
           },
           n->leaf()));
       old_to_new_[n] = module_->Make<NameDefTree>(n->span(), leaf);

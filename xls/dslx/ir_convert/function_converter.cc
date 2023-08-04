@@ -1103,6 +1103,9 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
             XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(ivar));
             return body_converter.function_builder_->Param("__", ivar_type);
           },
+          [&](Range*) -> absl::StatusOr<BValue> {
+            return absl::InternalError("Induction variable cannot be a range");
+          },
           [&](Number*) -> absl::StatusOr<BValue> {
             return absl::InternalError("Induction variable cannot be a number");
           },
@@ -1294,38 +1297,67 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     XLS_VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
                                       ToAstNode(leaf)->ToString(),
                                       ToAstNode(leaf)->GetNodeTypeName());
-    if (std::holds_alternative<WildcardPattern*>(leaf)) {
-      return Def(matcher, [&](const SourceInfo& loc) {
-        return function_builder_->Literal(UBits(1, 1), loc);
-      });
-    }
-    if (std::holds_alternative<Number*>(leaf) ||
-        std::holds_alternative<ColonRef*>(leaf)) {
+    auto equality = [&]() -> absl::StatusOr<BValue> {
       XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
       return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
-    }
-    if (std::holds_alternative<NameRef*>(leaf)) {
-      // Comparing for equivalence to a (referenced) name.
-      auto* name_ref = std::get<NameRef*>(leaf);
-      const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
-      XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
-      BValue result = Def(matcher, [&](const SourceInfo& loc) {
-        return function_builder_->Eq(to_match, matched_value);
-      });
-      XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
-      return result;
-    }
-    XLS_RET_CHECK(std::holds_alternative<NameDef*>(leaf));
-    auto* name_def = std::get<NameDef*>(leaf);
-    BValue ok = Def(name_def, [&](const SourceInfo& loc) {
-      return function_builder_->Literal(UBits(1, 1));
-    });
-    SetNodeToIr(matcher, matched_value);
-    SetNodeToIr(ToAstNode(leaf), matched_value);
-    return ok;
+    };
+    return absl::visit(
+        Visitor{
+            [&](WildcardPattern*) -> absl::StatusOr<BValue> {
+              return Def(matcher, [&](const SourceInfo& loc) {
+                return function_builder_->Literal(UBits(1, 1), loc);
+              });
+            },
+            [&](Number* n) -> absl::StatusOr<BValue> { return equality(); },
+            [&](ColonRef* n) -> absl::StatusOr<BValue> { return equality(); },
+            [&](Range* n) -> absl::StatusOr<BValue> {
+              XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->start())));
+              XLS_RETURN_IF_ERROR(Visit(ToAstNode(n->end())));
+              bool signed_input =
+                  down_cast<const BitsType*>(&matched_type)->is_signed();
+              XLS_ASSIGN_OR_RETURN(BValue start, Use(n->start()));
+              XLS_ASSIGN_OR_RETURN(BValue limit, Use(n->end()));
+              SourceInfo loc = ToSourceInfo(n->span());
+              auto ge = [&](const BValue& lhs, const BValue& rhs) {
+                if (signed_input) {
+                  return function_builder_->SGe(lhs, rhs, loc);
+                }
+                return function_builder_->UGe(lhs, rhs, loc);
+              };
+              auto lt = [&](const BValue& lhs, const BValue& rhs) {
+                if (signed_input) {
+                  return function_builder_->SLt(lhs, rhs, loc);
+                }
+                return function_builder_->ULt(lhs, rhs, loc);
+              };
+              return function_builder_->And(ge(matched_value, start),
+                                            lt(matched_value, limit));
+            },
+            [&](NameRef* n) -> absl::StatusOr<BValue> {
+              // Comparing for equivalence to a (referenced) name.
+              auto* name_ref = std::get<NameRef*>(leaf);
+              const auto* name_def =
+                  std::get<const NameDef*>(name_ref->name_def());
+              XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
+              BValue result = Def(matcher, [&](const SourceInfo& loc) {
+                return function_builder_->Eq(to_match, matched_value);
+              });
+              XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
+              return result;
+            },
+            [&](NameDef* name_def) -> absl::StatusOr<BValue> {
+              BValue ok = Def(name_def, [&](const SourceInfo& loc) {
+                return function_builder_->Literal(UBits(1, 1));
+              });
+              SetNodeToIr(matcher, matched_value);
+              SetNodeToIr(ToAstNode(leaf), matched_value);
+              return ok;
+            },
+        },
+        leaf);
   }
 
   auto* matched_tuple_type = dynamic_cast<const TupleType*>(&matched_type);
@@ -3036,9 +3068,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   if (!t.has_value()) {
     return ConversionErrorStatus(
         node->GetSpan(),
-        absl::StrFormat(
-            "Failed to convert IR because type was missing for AST node: %s",
-            node->ToString()));
+        absl::StrFormat("Failed to convert IR because type was missing for AST "
+                        "node: %s (kind: %s)",
+                        node->ToString(), AstNodeKindToString(node->kind())));
   }
 
   return t.value()->MapSize([this](const ConcreteTypeDim& dim) {

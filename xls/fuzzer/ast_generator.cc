@@ -707,12 +707,27 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     TypeAlias* alias = std::get<TypeAlias*>(type_definition);
     return GenerateMatchArmPattern(ctx, alias->type_annotation());
   }
+
   XLS_CHECK(IsBits(type));
+
   // Five percent of the time, generate a wildcardpattern.
   if (RandomFloat() < 0.05) {
     WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
     return module_->Make<NameDefTree>(fake_span_, wc);
   }
+
+  // Ten percent of the time, generate a range.
+  if (RandomFloat() < 0.15) {
+    TypedExpr start_type_expr = GenerateNumberWithType(BitsAndSignedness{
+        GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
+    TypedExpr limit_type_expr = GenerateNumberWithType(BitsAndSignedness{
+        GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
+    Range* range = module_->Make<Range>(fake_span_, start_type_expr.expr,
+                                        limit_type_expr.expr);
+    return module_->Make<NameDefTree>(fake_span_, range);
+  }
+
+  // Rest of the time we generate a simple number as the pattern to match.
   TypedExpr type_expr = GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
   Number* number = dynamic_cast<Number*>(type_expr.expr);

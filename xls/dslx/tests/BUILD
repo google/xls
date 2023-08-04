@@ -328,6 +328,10 @@ dslx_lang_test(name = "match_const")
 
 dslx_lang_test(name = "match_multi")
 
+dslx_lang_test(name = "match_range_or_wildcard")
+
+dslx_lang_test(name = "match_overlapping_range_and_value")
+
 dslx_lang_test(name = "elseif_sample")
 
 xls_dslx_library(

@@ -1279,6 +1279,25 @@ fn f(t: (u8, (u16, u32))) -> u32 {
 Here we use a "catch all" wildcard pattern in the last match arm to ensure the
 match expression always matches the input somehow.
 
+We can also match on ranges of values using the range syntax:
+
+```dslx
+fn f(x: u32) -> u32 {
+  match x {
+    u32:1..u32:3 => u32:0,
+    _ => x
+  }
+}
+
+#[test]
+fn test_f() {
+  assert_eq(f(u32:1), u32:0);
+  assert_eq(f(u32:2), u32:0);
+  // Note: the limit of the range syntax is exclusive.
+  assert_eq(f(u32:3), u32:3);
+}
+```
+
 #### Redundant Patterns
 
 `match` will flag an error if a _syntactically identical_ pattern is typed

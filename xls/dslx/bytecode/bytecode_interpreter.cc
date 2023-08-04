@@ -19,11 +19,9 @@
 #include <cstdint>
 #include <functional>
 #include <ios>
-#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -854,52 +852,69 @@ absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
     Frame* frame, const Bytecode::MatchArmItem& item,
     const InterpValue& value) {
   using Kind = Bytecode::MatchArmItem::Kind;
-  if (item.kind() == Kind::kInterpValue) {
-    XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
-    return arm_value.Eq(value);
-  }
-
-  if (item.kind() == Kind::kLoad) {
-    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-    if (frame->slots().size() <= slot_index.value()) {
-      return absl::InternalError(
-          absl::StrCat("MatchArm load item index was OOB: ", slot_index.value(),
-                       " vs. ", frame->slots().size(), "."));
+  switch (item.kind()) {
+    case Kind::kInterpValue: {
+      XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
+      return arm_value.Eq(value);
     }
-    InterpValue arm_value = frame->slots().at(slot_index.value());
-    return arm_value.Eq(value);
-  }
+    case Kind::kRange: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem::RangeData range,
+                           item.range());
+      XLS_VLOG(10) << "value: " << value.ToString()
+                   << " start: " << range.start.ToString()
+                   << " limit: " << range.limit.ToString();
+      XLS_ASSIGN_OR_RETURN(InterpValue val_ge_start, value.Ge(range.start));
+      XLS_ASSIGN_OR_RETURN(InterpValue val_lt_limit, value.Lt(range.limit));
+      XLS_ASSIGN_OR_RETURN(InterpValue conjunction,
+                           val_ge_start.BitwiseAnd(val_lt_limit));
+      XLS_VLOG(10) << "val_ge_start: " << val_ge_start.ToString()
+                   << " val_lt_limit: " << val_lt_limit.ToString()
+                   << " conjunction: " << conjunction.ToString();
+      return conjunction.IsTrue();
+    }
+    case Kind::kLoad: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      if (frame->slots().size() <= slot_index.value()) {
+        return absl::InternalError(absl::StrCat(
+            "MatchArm load item index was OOB: ", slot_index.value(), " vs. ",
+            frame->slots().size(), "."));
+      }
+      InterpValue arm_value = frame->slots().at(slot_index.value());
+      return arm_value.Eq(value);
+    }
 
-  if (item.kind() == Kind::kStore) {
-    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-    frame->StoreSlot(slot_index, value);
-    return true;
-  }
+    case Kind::kStore: {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      frame->StoreSlot(slot_index, value);
+      return true;
+    }
 
-  if (item.kind() == Kind::kWildcard) {
-    return true;
-  }
+    case Kind::kWildcard:
+      return true;
 
-  // Otherwise, we're a tuple. Recurse.
-  XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());
-  XLS_ASSIGN_OR_RETURN(auto* value_elements, value.GetValues());
-  if (item_elements.size() != value_elements->size()) {
-    return absl::InternalError(
-        absl::StrCat("Match arm item had a different number of elements "
-                     "than the corresponding InterpValue: ",
-                     item.ToString(), " vs. ", value.ToString()));
-  }
+    case Kind::kTuple: {
+      // Otherwise, we're a tuple. Recurse.
+      XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());
+      XLS_ASSIGN_OR_RETURN(auto* value_elements, value.GetValues());
+      if (item_elements.size() != value_elements->size()) {
+        return absl::InternalError(
+            absl::StrCat("Match arm item had a different number of elements "
+                         "than the corresponding InterpValue: ",
+                         item.ToString(), " vs. ", value.ToString()));
+      }
 
-  for (int i = 0; i < item_elements.size(); i++) {
-    XLS_ASSIGN_OR_RETURN(
-        bool equal, MatchArmEqualsInterpValue(&frames_.back(), item_elements[i],
-                                              value_elements->at(i)));
-    if (!equal) {
-      return false;
+      for (int i = 0; i < item_elements.size(); i++) {
+        XLS_ASSIGN_OR_RETURN(bool equal, MatchArmEqualsInterpValue(
+                                             &frames_.back(), item_elements[i],
+                                             value_elements->at(i)));
+        if (!equal) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
-
-  return true;
 }
 
 absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {

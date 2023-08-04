@@ -32,6 +32,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -1236,6 +1237,15 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
             [&](Number* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue number, HandleNumberInternal(n));
               return Bytecode::MatchArmItem::MakeInterpValue(number);
+            },
+            [&](Range* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
+              XLS_ASSIGN_OR_RETURN(
+                  InterpValue start,
+                  HandleNumberInternal(down_cast<Number*>(n->start())));
+              XLS_ASSIGN_OR_RETURN(
+                  InterpValue end,
+                  HandleNumberInternal(down_cast<Number*>(n->end())));
+              return Bytecode::MatchArmItem::MakeRange(start, end);
             },
             [&](ColonRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue value,

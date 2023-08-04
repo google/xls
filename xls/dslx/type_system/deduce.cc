@@ -1908,6 +1908,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(const Match* node,
     }
 
     for (NameDefTree* pattern : arm->patterns()) {
+      // Deduce types for all patterns with types that can be checked.
+      //
+      // Note that NameDef is handled in the Unify() call below, and
+      // WildcardPattern has no type because it's a black hole.
+      for (NameDefTree::Leaf leaf : pattern->Flatten()) {
+        if (!std::holds_alternative<NameDef*>(leaf) &&
+            !std::holds_alternative<WildcardPattern*>(leaf)) {
+          XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(leaf)).status());
+        }
+      }
+
       XLS_RETURN_IF_ERROR(Unify(pattern, *matched, ctx));
     }
   }

@@ -210,19 +210,27 @@ class Bytecode {
     static MatchArmItem MakeInterpValue(const InterpValue& interp_value);
     static MatchArmItem MakeLoad(SlotIndex slot_index);
     static MatchArmItem MakeStore(SlotIndex slot_index);
+    static MatchArmItem MakeRange(InterpValue start, InterpValue limit);
     static MatchArmItem MakeTuple(std::vector<MatchArmItem> elements);
     static MatchArmItem MakeWildcard();
 
     enum class Kind {
       kInterpValue,
       kLoad,
+      kRange,
       kStore,
       kTuple,
       kWildcard,
     };
 
+    struct RangeData {
+      InterpValue start;
+      InterpValue limit;
+    };
+
     absl::StatusOr<InterpValue> interp_value() const;
     absl::StatusOr<SlotIndex> slot_index() const;
+    absl::StatusOr<RangeData> range() const;
     absl::StatusOr<std::vector<MatchArmItem>> tuple_elements() const;
     Kind kind() const { return kind_; }
 
@@ -230,13 +238,13 @@ class Bytecode {
 
    private:
     explicit MatchArmItem(Kind kind);
-    MatchArmItem(
-        Kind kind,
-        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
+    MatchArmItem(Kind kind, std::variant<InterpValue, SlotIndex, RangeData,
+                                         std::vector<MatchArmItem>>
+                                data);
 
     Kind kind_;
-    std::optional<
-        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
+    std::optional<std::variant<InterpValue, SlotIndex, RangeData,
+                               std::vector<MatchArmItem>>>
         data_;
   };
 

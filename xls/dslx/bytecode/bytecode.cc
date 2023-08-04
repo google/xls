@@ -37,6 +37,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 #include "re2/re2.h"
@@ -346,12 +347,19 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return MatchArmItem(Kind::kWildcard);
 }
 
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeRange(
+    InterpValue start, InterpValue limit) {
+  return MatchArmItem(Kind::kRange,
+                      RangeData{std::move(start), std::move(limit)});
+}
+
 Bytecode::MatchArmItem::MatchArmItem(Kind kind)
     : kind_(kind), data_(std::nullopt) {}
 
 Bytecode::MatchArmItem::MatchArmItem(
     Kind kind,
-    std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data)
+    std::variant<InterpValue, SlotIndex, RangeData, std::vector<MatchArmItem>>
+        data)
     : kind_(kind), data_(std::move(data)) {}
 
 absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
@@ -363,6 +371,18 @@ absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
   }
 
   return std::get<InterpValue>(data_.value());
+}
+
+absl::StatusOr<Bytecode::MatchArmItem::RangeData>
+Bytecode::MatchArmItem::range() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("MatchArmItem does not hold data.");
+  }
+  if (!std::holds_alternative<RangeData>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not RangeData.");
+  }
+
+  return std::get<RangeData>(data_.value());
 }
 
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::MatchArmItem::slot_index() const {
@@ -393,6 +413,11 @@ std::string Bytecode::MatchArmItem::ToString() const {
     case Kind::kInterpValue:
       return absl::StrCat("value:",
                           std::get<InterpValue>(data_.value()).ToString());
+    case Kind::kRange: {
+      const auto& range_data = std::get<RangeData>(data_.value());
+      return absl::StrCat("range:", range_data.start.ToString(), "..",
+                          range_data.limit.ToString());
+    }
     case Kind::kLoad:
       return absl::StrCat("load:", std::get<SlotIndex>(data_.value()).value());
     case Kind::kStore:

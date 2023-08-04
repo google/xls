@@ -925,9 +925,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings& bindings) {
       return ParseNameDefTree(bindings);
     }
     XLS_ASSIGN_OR_RETURN(auto name_def, ParseNameDefOrWildcard(bindings));
-    auto tree_leaf =
-        WidenVariant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>(
-            name_def);
+    auto tree_leaf = WidenVariantTo<NameDefTree::Leaf>(name_def);
     return module_->Make<NameDefTree>(GetSpan(name_def), tree_leaf);
   };
 
@@ -1190,7 +1188,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(
 absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
   XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
                        TryPopToken(TokenKind::kOParen));
-  if (oparen) {
+  if (oparen.has_value()) {
     return ParseTuplePattern(oparen->span().start(), bindings);
   }
 
@@ -1235,6 +1233,15 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings& bindings) {
                       Keyword::kFalse}) ||
       peek->IsTypeKeyword()) {
     XLS_ASSIGN_OR_RETURN(Number * number, ParseNumber(bindings));
+    XLS_ASSIGN_OR_RETURN(bool peek_is_double_dot,
+                         PeekTokenIs(TokenKind::kDoubleDot));
+    if (peek_is_double_dot) {
+      XLS_RETURN_IF_ERROR(DropToken());
+      XLS_ASSIGN_OR_RETURN(Number * limit, ParseNumber(bindings));
+      auto* range = module_->Make<Range>(
+          Span(number->span().start(), limit->span().limit()), number, limit);
+      return module_->Make<NameDefTree>(range->span(), range);
+    }
     return module_->Make<NameDefTree>(number->span(), number);
   }
 
