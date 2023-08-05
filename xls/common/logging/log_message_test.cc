@@ -204,19 +204,19 @@ TEST_F(LogMessageTest, StreamOperatorAcceptsNullIntPointer) {
   // It's undefined behavior to send nullptr to a stream, but our
   // compilers/libraries output either "(nil)" or "0", so this is just a smoke
   // test.
-  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0"));
+  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0", "0x0"));
 }
 
 TEST_F(LogMessageTest, StreamOperatorAcceptsVoidPointer) {
   XLS_LOG(INFO) << static_cast<void*>(nullptr);
   // See above.
-  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0"));
+  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0", "0x0"));
 }
 
 TEST_F(LogMessageTest, StreamOperatorAcceptsConstVoidPointer) {
   XLS_LOG(INFO) << static_cast<const void*>(nullptr);
   // See above.
-  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0"));
+  EXPECT_THAT(GetSingleEntry().text_message, AnyOf(Eq("(nil)"), "0", "0x0"));
 }
 
 TEST_F(LogMessageTest, StreamOperatorAcceptsFloat) {
