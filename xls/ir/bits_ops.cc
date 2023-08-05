@@ -612,10 +612,10 @@ Bits operator^(const Bits& lhs, const Bits& rhs) {
 Bits operator~(const Bits& bits) { return bits_ops::Not(bits); }
 
 Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
-  int64_t offset_lsbs_size = std::max(0l, result_size - 2);
+  int64_t offset_lsbs_size = std::max(int64_t{0}, result_size - 2);
   int64_t msbs_size = result_size - offset_lsbs_size;
   int64_t offset_lsbs_shift_amount =
-      std::max(0l, std::min(offset_lsbs_size - 1, shift_size));
+      std::max(int64_t{0}, std::min(offset_lsbs_size - 1, shift_size));
   Bits offset_bits = bits_ops::ShiftRightLogical(
       Bits::AllOnes(offset_lsbs_size), offset_lsbs_shift_amount);
   if (msbs_size > 0) {
