@@ -128,8 +128,10 @@ class CCParser {
 
   void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
   void AddSourceInfoToPackage(xls::Package& package);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc,
+                                          bool ignore_label);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc,
+                                          bool ignore_label);
 
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);

@@ -248,11 +248,10 @@ cc_test(
         ":unit_test",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "//xls/contrib/xlscc:cc_parser",
         "//xls/contrib/xlscc:metadata_output_cc_proto",
-        "//xls/ir:ir_test_base",
+        "@llvm-project//clang:basic",
     ],
 )
 

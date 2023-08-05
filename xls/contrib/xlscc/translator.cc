@@ -2741,6 +2741,13 @@ absl::StatusOr<std::pair<bool, CValue>> Translator::GenerateIR_BuiltInCall(
     return absl::UnimplementedError(ErrorMessage(loc, "Unimplemented marker"));
   }
 
+  if (funcdecl->getNameAsString() == "__xlscc_pipeline" ||
+      funcdecl->getNameAsString() == "__xlscc_unroll" ||
+      funcdecl->getNameAsString() == "__xlscc_asap") {
+    context().last_intrinsic_call = call;
+    return std::make_pair(true, CValue());
+  }
+
   if (funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_double" ||
       funcdecl->getNameAsString() == "__xlscc_fixed_32_32_bits_for_float") {
     XLSCC_CHECK_EQ(call->getNumArgs(), 1, loc);
@@ -5916,16 +5923,63 @@ clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
   return parser_->GetPresumedLoc(decl);
 }
 
-absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
-    const clang::SourceLocation& loc) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->FindPragmaForLoc(loc);
+absl::StatusOr<const clang::CallExpr*> Translator::FindIntrinsicCall(
+    const clang::PresumedLoc& target_loc) {
+  // NOTE: Semantics should be the same as CCParser::FindPragmaForLoc()!
+
+  xls::SourceInfo xls_loc = parser_->GetLoc(target_loc);
+
+  const clang::CallExpr* ret = context().last_intrinsic_call;
+
+  // No intrinsics yet in this scope
+  if (ret == nullptr) {
+    return nullptr;
+  }
+
+  const clang::PresumedLoc intrinsic_loc = GetPresumedLoc(*ret);
+
+  // Not in the same file at all (macros?)
+
+  if (target_loc.getFilename() != intrinsic_loc.getFilename()) {
+    return absl::UnimplementedError(ErrorMessage(
+        xls_loc, "Intrinsic call in this scope, but in another file (macro?)"));
+  }
+
+  XLSCC_CHECK_GE(target_loc.getLine(), intrinsic_loc.getLine(), xls_loc);
+
+  // Does not apply if more than 2 lines behind
+  if (target_loc.getLine() > (intrinsic_loc.getLine() + 2)) {
+    return nullptr;
+  }
+
+  // Applies if it's the same line or the one before
+  if (target_loc.getLine() <= (intrinsic_loc.getLine() + 1)) {
+    return ret;
+  }
+
+  XLSCC_CHECK_GE(target_loc.getLine(), intrinsic_loc.getLine() + 2, xls_loc);
+
+  // Must be a label in between if it's two lines before
+  XLS_ASSIGN_OR_RETURN(Pragma pragma_before,
+                       FindPragmaForLoc(target_loc, /*ignore_label=*/false));
+
+  if (pragma_before.type() != PragmaType::Pragma_Label) {
+    return nullptr;
+  }
+
+  return ret;
 }
 
 absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc) {
+    const clang::SourceLocation& loc, bool ignore_label) {
   XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->FindPragmaForLoc(ploc);
+  return parser_->FindPragmaForLoc(loc, ignore_label);
+}
+
+absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
+    const clang::PresumedLoc& ploc, bool ignore_label) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->FindPragmaForLoc(ploc, ignore_label);
 }
 
 }  // namespace xlscc

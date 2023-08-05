@@ -165,6 +165,7 @@ cc_library(
         "//xls/ir:source_location",
         "@com_github_google_re2//:re2",
         "@llvm-project//clang:ast",
+        "@llvm-project//clang:basic",
         "@llvm-project//clang:frontend",
         "@llvm-project//clang:tooling",
     ],

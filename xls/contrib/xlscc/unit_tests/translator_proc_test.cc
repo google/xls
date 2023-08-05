@@ -731,6 +731,142 @@ TEST_F(TranslatorProcTest, ForPipelined) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
+TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotation) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        
+        __xlscc_pipeline(1);
+        for(long i=1;i<=4;++i) {
+          a += i;
+        }
+        
+        out.write(a);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationIgnoreLabel) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        
+        __xlscc_pipeline(1);
+        foo:
+        for(long i=1;i<=4;++i) {
+          a += i;
+        }
+        
+        out.write(a);
+      }
+    };
+  )";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+
+        
+        #pragma hls_pipeline_init_interval 1
+        __xlscc_pipeline(1);for(long i=1;i<=4;++i) {
+          a += i;
+        }
+        
+        out.write(a);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kInvalidArgument,
+                  testing::HasSubstr("intrinsic and a #pragma")));
+}
+
+TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
+  const std::string content = R"(
+    class Block {
+      __xls_channel<int, __xls_channel_dir_In> in;
+      __xls_channel<int, __xls_channel_dir_Out> out;
+
+      #pragma hls_top
+      void foo() {
+        int a = in.read();
+        
+        __xlscc_pipeline(1);
+        
+        
+        for(long i=1;i<=4;++i) {
+          a += i;
+        }
+        
+        out.write(a);
+      }
+    };
+  )";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("missing")));
+}
+
 TEST_F(TranslatorProcTest, ForPipelinedII2) {
   const std::string content = R"(
     #include "/xls_builtin.h"

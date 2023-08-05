@@ -22,8 +22,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "clang/include/clang/AST/Expr.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
@@ -61,23 +63,78 @@ absl::Status Translator::GenerateIR_Loop(
       return absl::OkStatus();
     }
   }
+
+  bool have_relevant_intrinsic = false;
+  bool intrinsic_unroll = false;
+
+  XLS_ASSIGN_OR_RETURN(const clang::CallExpr* intrinsic_call,
+                       FindIntrinsicCall(presumed_loc));
+  if (intrinsic_call != nullptr) {
+    const std::string& intrinsic_name =
+        intrinsic_call->getDirectCallee()->getNameAsString();
+
+    if (intrinsic_name == "__xlscc_pipeline") {
+      have_relevant_intrinsic = true;
+      intrinsic_unroll = false;
+    } else if (intrinsic_name == "__xlscc_unroll") {
+      have_relevant_intrinsic = true;
+      intrinsic_unroll = true;
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(presumed_loc));
-  if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
+
+  bool have_relevant_pragma =
+      (pragma.type() == Pragma_Unroll || pragma.type() == Pragma_InitInterval);
+
+  if (have_relevant_intrinsic && have_relevant_pragma) {
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc,
+                     "Have both an __xlscc_ intrinsic and a #pragma directive, "
+                     "don't know what to do"));
+  }
+
+  bool do_unroll = false;
+
+  if ((have_relevant_intrinsic && intrinsic_unroll) ||
+      (pragma.type() == Pragma_Unroll) || context().for_loops_default_unroll) {
+    do_unroll = true;
+  }
+
+  if (do_unroll) {
     return GenerateIR_UnrolledLoop(always_first_iter, init, cond_expr, inc,
                                    body, ctx, loc);
   }
+
+  int64_t init_interval = -1;
+
+  if (have_relevant_intrinsic) {
+    XLSCC_CHECK(!intrinsic_unroll, loc);
+    XLSCC_CHECK_EQ(intrinsic_call->getNumArgs(), 1, loc);
+    XLS_ASSIGN_OR_RETURN(init_interval,
+                         EvaluateInt64(*intrinsic_call->getArg(0), ctx, loc));
+  } else if (have_relevant_pragma) {
+    XLSCC_CHECK(pragma.type() == Pragma_InitInterval, loc);
+    init_interval = pragma.int_argument();
+  }
+
+  if (have_relevant_intrinsic || have_relevant_pragma) {
+    if (init_interval <= 0) {
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "Invalid initiation interval %i", init_interval));
+    }
+  }
+
   // Pipelined loops can inherit their initiation interval from enclosing
   // loops, so they can be allowed not to have a #pragma.
-  int init_interval = pragma.int_argument();
-  // Pragma might not be null, because labels get searched backwards
-  if (pragma.type() != Pragma_InitInterval) {
+  if (init_interval < 0) {
     XLS_CHECK(!context().in_pipelined_for_body ||
               (context().outer_pipelined_loop_init_interval > 0));
     init_interval = context().outer_pipelined_loop_init_interval;
   }
   if (init_interval <= 0) {
     return absl::UnimplementedError(
-        ErrorMessage(loc, "For loop missing #pragma"));
+        ErrorMessage(loc, "For loop missing #pragma or __xlscc_ intrinsic"));
   }
 
   // Pipelined do-while

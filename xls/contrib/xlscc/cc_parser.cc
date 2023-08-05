@@ -22,6 +22,7 @@
 #include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
+#include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/include/clang/Tooling/Tooling.h"
@@ -205,23 +206,26 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::SourceLocation& loc) {
-  return FindPragmaForLoc(sm_->getPresumedLoc(loc));
+    const clang::SourceLocation& loc, bool ignore_label) {
+  return FindPragmaForLoc(sm_->getPresumedLoc(loc), ignore_label);
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
-    const clang::PresumedLoc& ploc) {
+    const clang::PresumedLoc& ploc, bool ignore_label) {
+  // NOTE: Semantics should be the same as Translator::FindIntrinsicCall()!
   if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
     XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
   }
   // Look on the line before.
   PragmaLoc loc(ploc.getFilename(), ploc.getLine() - 1);
+
   if (!hls_pragmas_.contains(loc)) {
     return Pragma(Pragma_Null);
   }
 
   // Look for a label there. If found, look at the line before that.
-  if (hls_pragmas_.at(loc).type() == Pragma_Label && std::get<1>(loc) > 0) {
+  if (ignore_label && hls_pragmas_.at(loc).type() == Pragma_Label &&
+      std::get<1>(loc) > 0) {
     loc = PragmaLoc(ploc.getFilename(), ploc.getLine() - 2);
     if (!hls_pragmas_.contains(loc)) {
       return Pragma(Pragma_Null);
@@ -424,8 +428,9 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                       FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
+  XLS_ASSIGN_OR_RETURN(
+      Pragma pragma,
+      FindPragmaForLoc(GetPresumedLoc(*funcdecl), /*ignore_label=*/true));
 
   if (pragma.type() == Pragma_Top || fname == top_function_name_) {
     if (top_function_ == nullptr) {
@@ -547,6 +552,8 @@ class __xls_channel {
 template<typename T, unsigned long long Size>
 class __xls_memory {
  public:
+  static constexpr unsigned long long size = Size;
+
   T& operator[](long long int addr) {
     static T ret;
     return ret;
@@ -577,6 +584,10 @@ bool __xlscc_on_reset = false;
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_double(double input);
 __xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
 
+// For use with loops
+void __xlscc_pipeline(long long factor) { }
+void __xlscc_unroll(long long factor) { }
+
 #endif//__XLS_BUILTIN_H
           )"));
 
@@ -595,7 +606,6 @@ void __xlscc_top_class_instance_ref() {
 void __xlscc_top_class_instance_ref2() {
   __xlscc_top_class_instance_ref();
 }
-
 }  // namespace
 )",
                                                                top_class_name_);

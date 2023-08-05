@@ -1032,6 +1032,8 @@ struct TranslationContext {
 
   bool mask_io_other_than_memory_writes = false;
   bool mask_memory_writes = false;
+
+  const clang::CallExpr* last_intrinsic_call = nullptr;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -1959,9 +1961,16 @@ class Translator {
 
   std::unique_ptr<CCParser> parser_;
 
+  // Uses context's last_intrinsic_call
+  // Returns nullptr if no applicable intrinsic call is found
+  absl::StatusOr<const clang::CallExpr*> FindIntrinsicCall(
+      const clang::PresumedLoc& target_loc);
+
   // Convenience calls to CCParser
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc);
-  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc,
+                                          bool ignore_label = true);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc,
+                                          bool ignore_label = true);
   std::string LocString(const xls::SourceInfo& loc);
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
   xls::SourceInfo GetLoc(const clang::Decl& decl);
