@@ -693,6 +693,7 @@ class SampleRunner:
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
+      args.append('--warnings_as_errors=false')
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     logging.vlog(3, 'Unoptimized IR:\n%s', ir_text)
@@ -705,6 +706,7 @@ class SampleRunner:
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
+      args.append('--warnings_as_errors=false')
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     logging.vlog(3, 'Unoptimized IR:\n%s', ir_text)

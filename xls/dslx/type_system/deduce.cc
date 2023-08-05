@@ -2573,6 +2573,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
           ctx->import_data(), ctx->type_info(), ctx->warnings(),
           GetCurrentParametricEnv(ctx), node->end(), end_type.get()));
 
+  XLS_ASSIGN_OR_RETURN(InterpValue le, end_value.Le(start_value));
+  if (le.IsTrue()) {
+    ctx->warnings()->Add(
+        node->span(),
+        absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
+                        node->ToString(), start_value.ToString(),
+                        end_value.ToString()));
+  }
+
   InterpValue array_size = InterpValue::MakeUnit();
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
   if (start_ge_end.IsTrue()) {

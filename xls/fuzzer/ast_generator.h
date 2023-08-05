@@ -407,8 +407,11 @@ class AstGenerator {
       std::optional<int64_t> max_width_bits_types = std::nullopt);
 
   // Generates a number AST node with its associated type.
+  //
+  // The caller can optionally capture the bits value created in the AST via the
+  // "out" param.
   TypedExpr GenerateNumberWithType(
-      std::optional<BitsAndSignedness> bas = std::nullopt);
+      std::optional<BitsAndSignedness> bas = std::nullopt, Bits* out = nullptr);
 
   // Generates String AST node with a string literal of 'char_count'.
   String* GenerateString(int64_t char_count);
@@ -517,7 +520,7 @@ class AstGenerator {
 
   // Creates a number AST node with value 'value' represented in a decimal
   // format.
-  Number* MakeNumber(int64_t value);
+  Number* MakeNumber(int64_t value, TypeAnnotation* type = nullptr);
 
   // Creates a number AST node with value 'value' of type 'type' represented in
   // the format specified.

@@ -33,7 +33,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/value_generator.h"
+#include "xls/ir/bits.h"
 
 namespace xls::dslx {
 
@@ -716,12 +718,41 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     return module_->Make<NameDefTree>(fake_span_, wc);
   }
 
-  // Ten percent of the time, generate a range.
+  // Fifteen percent of the time, generate a range. (Note that this is an
+  // independent float from the one tested above, so it's a 15% chance not 10%
+  // chance.)
   if (RandomFloat() < 0.15) {
-    TypedExpr start_type_expr = GenerateNumberWithType(BitsAndSignedness{
-        GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
-    TypedExpr limit_type_expr = GenerateNumberWithType(BitsAndSignedness{
-        GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
+    int64_t bit_count = GetTypeBitCount(type);
+    bool is_signed = BitsTypeIsSigned(type).value();
+    Bits start_bits;
+    TypedExpr start_type_expr = GenerateNumberWithType(
+        BitsAndSignedness{bit_count, is_signed}, &start_bits);
+
+    auto start = InterpValue::MakeBits(is_signed, start_bits);
+    auto max = InterpValue::MakeMaxValue(is_signed, bit_count);
+    bool start_lt_max = start.Lt(max).value().IsTrue();
+
+    TypedExpr limit_type_expr;
+    // 30% of the time make a random number, rest of the time make it a
+    // non-empty range.
+    //
+    // TODO(leary): 2023-08-04 If the bit count is too high we don't have an
+    // easy RNG available to select out of the remaining range.
+    if (RandomFloat() < 0.3 || bit_count >= 64 || !start_lt_max) {
+      // Sometimes pick an arbitrary limit in the bitwidth.
+      limit_type_expr =
+          GenerateNumberWithType(BitsAndSignedness{bit_count, is_signed});
+    } else {
+      // Other times pick a limit that's >= the start value. Note that this can
+      // still be an empty range if we chose the value that's equal to the start
+      // value -- this simplifies the logic a bit since then we don't need to
+      // worry about whether start+1 exceeds the max value.
+      XLS_ASSIGN_OR_RETURN(int64_t start_int64, start.GetBitValueViaSign());
+      XLS_ASSIGN_OR_RETURN(int64_t max_int64, max.GetBitValueViaSign());
+      int64_t limit = RandRange(start_int64, max_int64);
+      limit_type_expr = TypedExpr{MakeNumber(limit, start_type_expr.type),
+                                  start_type_expr.type};
+    }
     Range* range = module_->Make<Range>(fake_span_, start_type_expr.expr,
                                         limit_type_expr.expr);
     return module_->Make<NameDefTree>(fake_span_, range);
@@ -916,9 +947,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
                    lhs.type};
 }
 
-Number* AstGenerator::MakeNumber(int64_t value) {
+Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
   return module_->Make<Number>(fake_span_, absl::StrFormat("%d", value),
-                               NumberKind::kOther, nullptr);
+                               NumberKind::kOther, type);
 }
 
 Number* AstGenerator::MakeNumberFromBits(const Bits& value,
@@ -1347,7 +1378,7 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
 }
 
 TypedExpr AstGenerator::GenerateNumberWithType(
-    std::optional<BitsAndSignedness> bas) {
+    std::optional<BitsAndSignedness> bas, Bits* out) {
   TypeAnnotation* type;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
@@ -1358,6 +1389,9 @@ TypedExpr AstGenerator::GenerateNumberWithType(
   int64_t bit_count = GetTypeBitCount(type);
 
   Bits value = value_gen_->GenerateBits(bit_count);
+  if (out != nullptr) {
+    *out = value;
+  }
   return TypedExpr{GenerateNumberFromBits(value, type), type};
 }
 
