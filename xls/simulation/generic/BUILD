@@ -348,3 +348,40 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "iaxistreamlike",
+    hdrs = [
+        "iaxistreamlike.h",
+    ],
+    deps = [
+        ":istream",
+    ],
+)
+
+cc_library(
+    name = "iaxistreamlike_stub",
+    srcs = [
+        "iaxistreamlike_stub.cc",
+    ],
+    hdrs = [
+        "iaxistreamlike_stub.h",
+    ],
+    deps = [
+        ":iaxistreamlike",
+        "//xls/common/logging",
+    ],
+)
+
+cc_test(
+    name = "iaxistreamlike_stub_test",
+    srcs = [
+        "iaxistreamlike_stub_test.cc",
+    ],
+    deps = [
+        ":iaxistreamlike_stub",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
