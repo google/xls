@@ -15,17 +15,157 @@
 #ifndef XLS_SCHEDULING_SDC_SCHEDULER_H_
 #define XLS_SCHEDULING_SDC_SCHEDULER_H_
 
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/node.h"
 #include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "ortools/math_opt/cpp/math_opt.h"
 
 namespace xls {
+
+class ModelBuilder {
+  using DelayMap = absl::flat_hash_map<Node*, int64_t>;
+
+  static constexpr double kInfinity = std::numeric_limits<double>::infinity();
+
+ public:
+  ModelBuilder(FunctionBase* func, int64_t pipeline_length,
+               int64_t clock_period_ps, const sched::ScheduleBounds& bounds,
+               const DelayMap& delay_map, std::string_view model_name = "");
+
+  absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
+  absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
+  absl::Status AddLifetimeConstraint(Node* node, std::optional<Node*> user);
+  absl::Status AddBackedgeConstraints(const BackedgeConstraint& constraint);
+  absl::Status AddTimingConstraints();
+  absl::Status AddSchedulingConstraint(const SchedulingConstraint& constraint);
+  absl::Status AddIOConstraint(const IOConstraint& constraint);
+  absl::Status AddNodeInCycleConstraint(
+      const NodeInCycleConstraint& constraint);
+  absl::Status AddDifferenceConstraint(const DifferenceConstraint& constraint);
+  absl::Status AddRFSLConstraint(
+      const RecvsFirstSendsLastConstraint& constraint);
+  absl::Status AddSendThenRecvConstraint(
+      const SendThenRecvConstraint& constraint);
+
+  absl::Status SetObjective();
+
+  absl::Status AddSlackVariables();
+
+  operations_research::math_opt::Model& Build() { return model_; }
+  const operations_research::math_opt::Model& Build() const { return model_; }
+
+  absl::StatusOr<ScheduleCycleMap> ExtractResult(
+      const operations_research::math_opt::VariableMap<double>& variable_values)
+      const;
+
+  absl::Status ExtractError(
+      const operations_research::math_opt::VariableMap<double>& variable_values)
+      const;
+
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+  GetCycleVars() const {
+    return cycle_var_;
+  }
+
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+  GetLifetimeVars() const {
+    return lifetime_var_;
+  }
+
+  operations_research::math_opt::LinearConstraint DiffAtMostConstraint(
+      Node* x, Node* y, int64_t limit, std::string_view name);
+
+  operations_research::math_opt::LinearConstraint DiffLessThanConstraint(
+      Node* x, Node* y, int64_t limit, std::string_view name);
+
+  operations_research::math_opt::LinearConstraint DiffAtLeastConstraint(
+      Node* x, Node* y, int64_t limit, std::string_view name);
+
+  operations_research::math_opt::LinearConstraint DiffGreaterThanConstraint(
+      Node* x, Node* y, int64_t limit, std::string_view name);
+
+  operations_research::math_opt::LinearConstraint DiffEqualsConstraint(
+      Node* x, Node* y, int64_t diff, std::string_view name);
+
+ private:
+  operations_research::math_opt::Variable AddUpperBoundSlack(
+      operations_research::math_opt::LinearConstraint c,
+      std::optional<operations_research::math_opt::Variable> slack =
+          std::nullopt);
+
+  operations_research::math_opt::Variable AddLowerBoundSlack(
+      operations_research::math_opt::LinearConstraint c,
+      std::optional<operations_research::math_opt::Variable> slack =
+          std::nullopt);
+
+  std::pair<operations_research::math_opt::Variable,
+            operations_research::math_opt::LinearConstraint>
+  AddUpperBoundSlack(operations_research::math_opt::Variable v,
+                     std::optional<operations_research::math_opt::Variable>
+                         slack = std::nullopt);
+
+  std::pair<operations_research::math_opt::Variable,
+            operations_research::math_opt::LinearConstraint>
+  AddLowerBoundSlack(operations_research::math_opt::Variable v,
+                     std::optional<operations_research::math_opt::Variable>
+                         slack = std::nullopt);
+
+  FunctionBase* func_;
+  operations_research::math_opt::Model model_;
+  int64_t pipeline_length_;
+  int64_t clock_period_ps_;
+  const DelayMap& delay_map_;
+
+  // Node's cycle after scheduling
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+      cycle_var_;
+
+  // Node's lifetime, from when it finishes executing until it is consumed by
+  // the last user.
+  absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
+      lifetime_var_;
+
+  // A placeholder node to represent an artificial sink node on the
+  // data-dependence graph.
+  operations_research::math_opt::Variable cycle_at_sinknode_;
+
+  // A cache of the delay constraints.
+  absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints_;
+
+  absl::flat_hash_map<std::pair<Node*, Node*>,
+                      operations_research::math_opt::LinearConstraint>
+      backedge_constraint_;
+  absl::flat_hash_map<Node*, operations_research::math_opt::LinearConstraint>
+      send_last_constraint_;
+
+  struct ConstraintPair {
+    operations_research::math_opt::LinearConstraint lower;
+    operations_research::math_opt::LinearConstraint upper;
+  };
+  absl::flat_hash_map<IOConstraint, std::vector<ConstraintPair>>
+      io_constraints_;
+
+  std::optional<operations_research::math_opt::Variable> pipeline_length_slack_;
+  std::optional<operations_research::math_opt::Variable> backedge_slack_;
+
+  struct SlackPair {
+    operations_research::math_opt::Variable min;
+    operations_research::math_opt::Variable max;
+  };
+  absl::flat_hash_map<IOConstraint, SlackPair> io_slack_;
+};
 
 // Schedule to minimize the total pipeline registers using SDC scheduling
 // the constraint matrix is totally unimodular, this ILP problem can be solved
