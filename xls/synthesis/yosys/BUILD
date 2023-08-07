@@ -25,24 +25,37 @@ cc_binary(
     name = "yosys_server_main",
     srcs = ["yosys_server_main.cc"],
     deps = [
-        ":yosys_util",
+        ":yosys_synthesis_service",
         "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/synthesis:credentials",
+        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "yosys_synthesis_service",
+    srcs = ["yosys_synthesis_service.cc"],
+    hdrs = ["yosys_synthesis_service.h"],
+    deps = [
+        ":yosys_util",
         "//xls/common:subprocess",
         "//xls/common/file:filesystem",
         "//xls/common/file:temp_directory",
-        "//xls/common/file:temp_file",
         "//xls/common/logging",
-        "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/synthesis:credentials",
         "//xls/synthesis:synthesis_cc_proto",
         "//xls/synthesis:synthesis_service_cc_grpc",
-        "@com_github_grpc_grpc//:grpc++",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
