@@ -14,6 +14,10 @@
 
 #include "xls/passes/union_query_engine.h"
 
+#include <memory>
+#include <optional>
+#include <utility>
+
 #include "absl/container/flat_hash_set.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits_ops.h"

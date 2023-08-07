@@ -14,6 +14,8 @@
 
 #include "xls/netlist/logical_effort.h"
 
+#include <cmath>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"

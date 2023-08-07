@@ -14,7 +14,10 @@
 
 #include "xls/dslx/interp_value.h"
 
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

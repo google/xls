@@ -14,6 +14,10 @@
 
 #include "xls/passes/query_engine.h"
 
+#include <algorithm>
+#include <string>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ternary.h"

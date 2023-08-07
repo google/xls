@@ -29,7 +29,9 @@
 //  - The sample is invoked with the allocas above.
 //  - The result is extracted from the output buffer and printed to the terminal
 //    (in XLS value textual form) via UnpackAndPrintBuffer().
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"

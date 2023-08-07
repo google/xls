@@ -13,6 +13,10 @@
 // limitations under the License.
 
 // Simple driver for executing the ExtractStage() routine.
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"

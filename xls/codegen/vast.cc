@@ -15,8 +15,11 @@
 #include "xls/codegen/vast.h"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"

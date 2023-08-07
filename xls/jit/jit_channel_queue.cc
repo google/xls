@@ -14,6 +14,12 @@
 
 #include "xls/jit/jit_channel_queue.h"
 
+#include <algorithm>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include "absl/memory/memory.h"
 #include "xls/common/status/status_macros.h"
 

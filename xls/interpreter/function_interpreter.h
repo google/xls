@@ -15,6 +15,8 @@
 #ifndef XLS_INTERPRETER_FUNCTION_INTERPRETER_H_
 #define XLS_INTERPRETER_FUNCTION_INTERPRETER_H_
 
+#include <string>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

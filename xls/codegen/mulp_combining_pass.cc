@@ -14,6 +14,8 @@
 
 #include "xls/codegen/mulp_combining_pass.h"
 
+#include <optional>
+
 #include "xls/ir/block.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"

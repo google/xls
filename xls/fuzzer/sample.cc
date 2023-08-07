@@ -15,7 +15,9 @@
 #include "xls/fuzzer/sample.h"
 
 #include <optional>
+#include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/strings/ascii.h"

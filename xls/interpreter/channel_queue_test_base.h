@@ -15,6 +15,9 @@
 #ifndef XLS_JIT_CHANNEL_QUEUE_TEST_BASE_H_
 #define XLS_JIT_CHANNEL_QUEUE_TEST_BASE_H_
 
+#include <functional>
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/interpreter/channel_queue.h"

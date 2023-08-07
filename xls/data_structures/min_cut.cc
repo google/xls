@@ -14,8 +14,13 @@
 
 #include "xls/data_structures/min_cut.h"
 
+#include <algorithm>
 #include <deque>
+#include <limits>
 #include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"

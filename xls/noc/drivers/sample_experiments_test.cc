@@ -14,6 +14,9 @@
 
 #include "xls/noc/drivers/sample_experiments.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

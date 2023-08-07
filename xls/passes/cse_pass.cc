@@ -14,6 +14,8 @@
 
 #include "xls/passes/cse_pass.h"
 
+#include <vector>
+
 #include "absl/hash/hash.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

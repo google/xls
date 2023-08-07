@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/dimension_bounds.h"
 
+#include <initializer_list>
+
 #include "xls/ir/bits.h"
 
 namespace xls::noc {

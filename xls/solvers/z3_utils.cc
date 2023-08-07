@@ -13,6 +13,11 @@
 // limitations under the License.
 #include "xls/solvers/z3_utils.h"
 
+#include <algorithm>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "absl/base/internal/sysinfo.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"

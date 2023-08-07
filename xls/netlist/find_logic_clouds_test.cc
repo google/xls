@@ -15,6 +15,8 @@
 #include "xls/netlist/find_logic_clouds.h"
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

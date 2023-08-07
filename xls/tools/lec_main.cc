@@ -15,6 +15,11 @@
 // Tool to prove or disprove logical equivalence of XLS IR and a netlist.
 
 #include <csignal>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"

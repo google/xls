@@ -16,7 +16,10 @@
 #define XLS_CODEGEN_VERILOG_TEST_BASE_H_
 
 #include <filesystem>
+#include <ostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

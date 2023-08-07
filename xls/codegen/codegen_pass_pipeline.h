@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_CODEGEN_PASS_PIPELINE_H_
 #define XLS_CODEGEN_CODEGEN_PASS_PIPELINE_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 

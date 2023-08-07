@@ -14,6 +14,9 @@
 
 #include "xls/common/logging/logging.h"
 
+#include <ostream>
+#include <sstream>
+#include <string>
 #include <string_view>
 
 #include "absl/strings/str_cat.h"

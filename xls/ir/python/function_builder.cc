@@ -15,6 +15,8 @@
 #include "xls/ir/function_builder.h"
 
 #include <memory>
+#include <optional>
+#include <string_view>
 
 #include "pybind11/pybind11.h"
 #include "pybind11_abseil/absl_casters.h"

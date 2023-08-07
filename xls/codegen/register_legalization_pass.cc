@@ -14,6 +14,8 @@
 
 #include "xls/codegen/register_legalization_pass.h"
 
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 #include "xls/ir/block.h"
 #include "xls/ir/value_helpers.h"

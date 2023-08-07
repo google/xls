@@ -15,6 +15,7 @@
 #ifndef XLS_IR_SOURCE_LOCATION_H_
 #define XLS_IR_SOURCE_LOCATION_H_
 
+#include <string>
 #include <vector>
 
 #include "absl/strings/str_format.h"

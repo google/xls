@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "xls/solvers/z3_utils.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

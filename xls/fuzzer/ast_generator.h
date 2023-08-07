@@ -15,9 +15,15 @@
 #ifndef XLS_FUZZER_CPP_AST_GENERATOR_H_
 #define XLS_FUZZER_CPP_AST_GENERATOR_H_
 
+#include <functional>
+#include <memory>
 #include <optional>
 #include <random>
 #include <stack>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"

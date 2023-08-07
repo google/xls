@@ -14,6 +14,10 @@
 
 #include "xls/contrib/integrator/integration_algorithms/basic_integration_algorithm.h"
 
+#include <memory>
+#include <optional>
+#include <utility>
+
 #include "xls/ir/node_iterator.h"
 
 namespace xls {

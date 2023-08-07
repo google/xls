@@ -16,6 +16,10 @@
 #define XLS_PASSES_QUERY_ENGINE_H_
 
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"

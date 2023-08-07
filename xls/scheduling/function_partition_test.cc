@@ -15,6 +15,9 @@
 #include "xls/scheduling/function_partition.h"
 
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -21,7 +21,11 @@
 //  - Output in formats other than DSLX.
 //
 // These will be added when/if needed.
+#include <iostream>
+#include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"

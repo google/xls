@@ -14,6 +14,12 @@
 
 #include "xls/ir/big_int.h"
 
+#include <algorithm>
+#include <limits>
+#include <ostream>
+#include <tuple>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "openssl/bn.h"

@@ -15,6 +15,9 @@
 #ifndef XLS_CODEGEN_CODEGEN_WRAPPER_PASS_H_
 #define XLS_CODEGEN_CODEGEN_WRAPPER_PASS_H_
 
+#include <memory>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/passes/passes.h"

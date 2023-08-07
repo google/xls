@@ -15,7 +15,9 @@
 #ifndef XLS_COMMON_MATH_UTIL_H_
 #define XLS_COMMON_MATH_UTIL_H_
 
+#include <functional>
 #include <limits>
+#include <vector>
 
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"

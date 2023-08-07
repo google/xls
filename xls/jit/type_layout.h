@@ -16,6 +16,8 @@
 #define XLS_JIT_TYPE_LAYOUT_H_
 
 #include <cstdint>
+#include <ostream>
+#include <string>
 #include <vector>
 
 #include "absl/strings/str_format.h"

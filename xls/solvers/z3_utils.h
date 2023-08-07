@@ -17,6 +17,7 @@
 #define XLS_SOLVERS_Z3_UTILS_H_
 
 #include <string>
+#include <vector>
 
 #include "xls/ir/type.h"
 #include "../z3/src/api/z3.h"

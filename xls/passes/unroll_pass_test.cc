@@ -14,6 +14,8 @@
 
 #include "xls/passes/unroll_pass.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

@@ -14,9 +14,15 @@
 
 #include "xls/common/logging/log_message.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <ios>
+#include <memory>
 #include <streambuf>
+#include <string>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "absl/base/attributes.h"

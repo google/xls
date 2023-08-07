@@ -14,6 +14,14 @@
 
 #include "xls/examples/jpeg/jpeg_grm.h"
 
+#include <array>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/jpeg/constants.h"

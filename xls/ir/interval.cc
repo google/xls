@@ -15,7 +15,12 @@
 #include "xls/ir/interval.h"
 
 #include <algorithm>
+#include <functional>
+#include <limits>
+#include <optional>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"

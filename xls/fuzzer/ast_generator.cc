@@ -16,10 +16,17 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
+#include <functional>
+#include <iterator>
+#include <memory>
 #include <optional>
+#include <random>
 #include <set>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 

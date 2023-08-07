@@ -16,6 +16,7 @@
 #define XLS_DSLX_BYTECODE_INTERPRETER_STACK_H_
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

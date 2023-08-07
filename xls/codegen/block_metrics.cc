@@ -14,6 +14,11 @@
 
 #include "xls/codegen/block_metrics.h"
 
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "absl/strings/str_format.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"

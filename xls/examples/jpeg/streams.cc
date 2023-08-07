@@ -14,6 +14,13 @@
 
 #include "xls/examples/jpeg/streams.h"
 
+#include <functional>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"

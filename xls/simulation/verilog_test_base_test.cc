@@ -14,6 +14,8 @@
 
 #include "xls/simulation/verilog_test_base.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
 #include "gtest/gtest.h"

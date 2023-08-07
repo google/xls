@@ -14,6 +14,8 @@
 
 #include "xls/passes/dce_pass.h"
 
+#include <deque>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"

@@ -15,8 +15,11 @@
 #include "xls/passes/pass_base.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "xls/common/math_util.h"

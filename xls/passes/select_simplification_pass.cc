@@ -14,6 +14,14 @@
 
 #include "xls/passes/select_simplification_pass.h"
 
+#include <algorithm>
+#include <deque>
+#include <functional>
+#include <iterator>
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/algorithm/container.h"

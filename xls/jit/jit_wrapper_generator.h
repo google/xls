@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 #include "xls/ir/function.h"
 

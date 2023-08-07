@@ -14,6 +14,13 @@
 
 #include "xls/tools/opt.h"
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_convert/ir_converter.h"

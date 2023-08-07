@@ -14,6 +14,8 @@
 
 #include "xls/codegen/pipeline_generator.h"
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "pybind11/pybind11.h"

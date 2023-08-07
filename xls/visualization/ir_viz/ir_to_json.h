@@ -15,6 +15,7 @@
 #ifndef XLS_IR_VISUALIZATION_IR_TO_JSON_H_
 #define XLS_IR_VISUALIZATION_IR_TO_JSON_H_
 
+#include <optional>
 #include <string>
 #include <string_view>
 

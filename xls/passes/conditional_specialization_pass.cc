@@ -14,7 +14,14 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"

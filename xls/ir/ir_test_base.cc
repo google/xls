@@ -14,6 +14,12 @@
 
 #include "xls/ir/ir_test_base.h"
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

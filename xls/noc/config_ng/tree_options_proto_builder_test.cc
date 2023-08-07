@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/tree_options_proto_builder.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/noc/config_ng/bidirectional_tree_options_proto_builder.h"

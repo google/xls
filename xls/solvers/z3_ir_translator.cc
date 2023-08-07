@@ -14,7 +14,14 @@
 
 #include "xls/solvers/z3_ir_translator.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/debugging/leak_check.h"
 #include "absl/status/status.h"

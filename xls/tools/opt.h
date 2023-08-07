@@ -18,6 +18,7 @@
 #define XLS_TOOLS_OPT_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>

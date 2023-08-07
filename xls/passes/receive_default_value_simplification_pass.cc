@@ -14,6 +14,8 @@
 
 #include "xls/passes/receive_default_value_simplification_pass.h"
 
+#include <optional>
+
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"

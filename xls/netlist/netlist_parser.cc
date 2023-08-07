@@ -14,6 +14,7 @@
 
 #include "xls/netlist/netlist_parser.h"
 
+#include <string>
 #include <tuple>
 
 #include "absl/container/flat_hash_map.h"

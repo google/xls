@@ -16,6 +16,7 @@
 #define XLS_PASSES_PASS_BASE_H_
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>

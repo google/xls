@@ -14,6 +14,9 @@
 
 #include "xls/data_structures/strongly_connected_components.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

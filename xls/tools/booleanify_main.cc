@@ -16,6 +16,7 @@
 // representation, i.e., consisting of only AND/OR/NOT ops.
 
 #include <filesystem>
+#include <iostream>
 #include <optional>
 #include <string>
 

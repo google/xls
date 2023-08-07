@@ -15,6 +15,8 @@
 #ifndef XLS_COMMON_BITS_UTIL_H_
 #define XLS_COMMON_BITS_UTIL_H_
 
+#include <algorithm>
+
 #include "xls/common/logging/logging.h"
 
 namespace xls {

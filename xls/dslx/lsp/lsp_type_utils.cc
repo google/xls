@@ -14,6 +14,8 @@
 
 #include "xls/dslx/lsp/lsp_type_utils.h"
 
+#include <string_view>
+
 namespace xls::dslx {
 
 verible::lsp::Range ConvertSpanToLspRange(const Span& span) {

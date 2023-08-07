@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_STANDARD_PIPELINE_H_
 #define XLS_PASSES_STANDARD_PIPELINE_H_
 
+#include <memory>
+
 #include "absl/status/statusor.h"
 #include "xls/passes/passes.h"
 

@@ -22,9 +22,13 @@
 #ifndef XLS_IR_IR_PARSER_H_
 #define XLS_IR_IR_PARSER_H_
 
+#include <functional>
+#include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

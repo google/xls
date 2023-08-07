@@ -14,6 +14,8 @@
 
 #include "xls/noc/config/port_config_proto_builder.h"
 
+#include <string_view>
+
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::noc {

@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

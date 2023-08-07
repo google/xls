@@ -14,6 +14,8 @@
 
 #include "xls/common/file/get_runfile_path.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

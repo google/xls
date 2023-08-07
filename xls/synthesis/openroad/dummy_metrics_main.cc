@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <cstdlib>
+#include <string>
+#include <string_view>
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"

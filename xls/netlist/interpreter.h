@@ -14,10 +14,12 @@
 #ifndef XLS_NETLIST_INTERPRETER_H_
 #define XLS_NETLIST_INTERPRETER_H_
 
+#include <atomic>
 #include <deque>
 #include <memory>
 #include <queue>
 #include <string>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"

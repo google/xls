@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/sim_objects.h"
 
+#include <queue>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

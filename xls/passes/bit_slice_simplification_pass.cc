@@ -14,6 +14,10 @@
 
 #include "xls/passes/bit_slice_simplification_pass.h"
 
+#include <algorithm>
+#include <deque>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"

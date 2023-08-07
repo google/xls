@@ -14,6 +14,10 @@
 
 #include "xls/ir/call_graph.h"
 
+#include <optional>
+#include <string_view>
+#include <vector>
+
 #include "absl/container/flat_hash_set.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/op.h"

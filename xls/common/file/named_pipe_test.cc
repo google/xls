@@ -15,6 +15,7 @@
 #include "xls/common/file/named_pipe.h"
 
 #include <filesystem>  // NOLINT
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

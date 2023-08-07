@@ -14,6 +14,7 @@
 
 #include "xls/codegen/vast.h"
 
+#include <string>
 #include <string_view>
 #include <vector>
 

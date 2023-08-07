@@ -17,7 +17,10 @@
 #ifndef XLS_IR_NODE_UTIL_H_
 #define XLS_IR_NODE_UTIL_H_
 
+#include <algorithm>
+#include <functional>
 #include <optional>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

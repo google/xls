@@ -15,6 +15,11 @@
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
 
 #include <cstdint>
+#include <list>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>

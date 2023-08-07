@@ -15,6 +15,11 @@
 #ifndef XLS_NOC_CONFIG_ROUTER_CONFIG_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_ROUTER_CONFIG_PROTO_BUILDER_H_
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "xls/noc/config/arbiter_scheme_config_proto_builder.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/port_config_proto_builder.h"

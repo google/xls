@@ -21,6 +21,8 @@
 //
 // This function is subject to change.
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"

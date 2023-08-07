@@ -14,6 +14,7 @@
 
 #include "xls/dslx/lsp/document_symbols.h"
 
+#include <utility>
 #include <vector>
 
 #include "absl/types/variant.h"

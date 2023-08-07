@@ -14,6 +14,10 @@
 
 #include "xls/common/logging/vlog_is_on.h"
 
+#include <atomic>
+#include <string>
+#include <string_view>
+
 #include "absl/base/internal/spinlock.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"

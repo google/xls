@@ -15,7 +15,10 @@
 #ifndef XLS_PASSES_CARET_H_
 #define XLS_PASSES_CARET_H_
 
+#include <functional>
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include "xls/ir/source_location.h"
 

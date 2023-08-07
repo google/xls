@@ -14,6 +14,8 @@
 
 #include "xls/passes/cse_pass.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

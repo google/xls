@@ -16,6 +16,8 @@
 #define XLS_TOOLS_BOOLEANIFIER_H_
 
 #include <memory>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

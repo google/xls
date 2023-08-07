@@ -14,8 +14,14 @@
 
 #include "xls/contrib/xlscc/cc_parser.h"
 
+#include <algorithm>
 #include <fstream>
+#include <map>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"

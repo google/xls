@@ -16,6 +16,8 @@
 // (which currently drives the sampling / running process).
 
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"

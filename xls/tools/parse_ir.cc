@@ -16,6 +16,9 @@
 // IR text. If no argument given reads from stdin. Returns non-zero value on
 // failure and emits failing absl::Status message to stderr.
 
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"

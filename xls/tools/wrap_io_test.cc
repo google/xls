@@ -14,6 +14,8 @@
 
 #include "xls/tools/wrap_io.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/codegen/module_signature.h"

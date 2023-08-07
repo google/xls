@@ -14,7 +14,12 @@
 
 #include "xls/delay_model/delay_estimator.h"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>

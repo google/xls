@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/packetizer.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

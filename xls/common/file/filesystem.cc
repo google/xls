@@ -20,7 +20,12 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <sstream>
 #include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

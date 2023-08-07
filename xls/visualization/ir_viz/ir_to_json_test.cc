@@ -16,6 +16,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -16,6 +16,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <type_traits>
 
 #include "absl/strings/str_format.h"
 

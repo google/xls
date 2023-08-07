@@ -15,6 +15,9 @@
 #include "xls/common/file/get_runfile_path.h"
 
 #include <cstdlib>
+#include <optional>
+#include <string>
+#include <string_view>
 
 #include "absl/base/const_init.h"
 #include "absl/status/status.h"

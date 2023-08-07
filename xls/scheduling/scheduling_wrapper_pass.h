@@ -16,6 +16,7 @@
 #define XLS_SCHEDULING_SCHEDULING_WRAPPER_PASS_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "xls/passes/passes.h"

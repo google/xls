@@ -17,6 +17,8 @@
 
 #include <unistd.h>
 
+#include <ios>
+#include <ostream>
 #include <string_view>
 
 #include "xls/common/logging/log_sink.h"

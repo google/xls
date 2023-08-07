@@ -14,6 +14,15 @@
 
 #include "xls/codegen/op_override_impls.h"
 
+#include <algorithm>
+#include <array>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/strings/str_replace.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"

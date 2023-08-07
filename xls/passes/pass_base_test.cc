@@ -15,6 +15,7 @@
 #include "xls/passes/pass_base.h"
 
 #include <optional>
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/status/status.h"

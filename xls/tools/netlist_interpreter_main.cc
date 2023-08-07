@@ -15,6 +15,10 @@
 // Driver for NetlistInterpreter: loads a netlist from disk, feeds Value input
 // (taken from the command line) into it, and prints the result.
 
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

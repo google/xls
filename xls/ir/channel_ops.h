@@ -16,6 +16,7 @@
 #define XLS_IR_CHANNEL_OPS_H_
 
 #include <ostream>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"

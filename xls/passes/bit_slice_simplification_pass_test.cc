@@ -15,6 +15,7 @@
 #include "xls/passes/bit_slice_simplification_pass.h"
 
 #include <memory>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

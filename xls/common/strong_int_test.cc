@@ -15,6 +15,8 @@
 #include "xls/common/strong_int.h"
 
 #include <cstdint>
+#include <iostream>
+#include <sstream>
 #include <type_traits>
 
 #include "gmock/gmock.h"

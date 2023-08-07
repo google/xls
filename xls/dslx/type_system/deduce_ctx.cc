@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_system/deduce_ctx.h"
 
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 

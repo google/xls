@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 
 #include "absl/status/statusor.h"
 #include "xls/passes/arith_simplification_pass.h"

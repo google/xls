@@ -16,6 +16,9 @@
 #define XLS_DATA_STRUCTURES_BINARY_DECISION_DIAGRAM_H_
 
 #include <cstdint>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

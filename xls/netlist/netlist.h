@@ -18,6 +18,7 @@
 #ifndef XLS_NETLIST_NETLIST_H_
 #define XLS_NETLIST_NETLIST_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>

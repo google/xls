@@ -16,8 +16,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "absl/status/status.h"

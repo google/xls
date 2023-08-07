@@ -15,6 +15,8 @@
 #include "xls/common/file/temp_directory.h"
 
 #include <filesystem>
+#include <system_error>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

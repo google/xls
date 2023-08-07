@@ -16,6 +16,7 @@
 #define XLS_PASSES_PROC_LOOP_FOLDING_H_
 
 #include <optional>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"

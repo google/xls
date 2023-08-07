@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <list>
 #include <memory>
 #include <ostream>
 #include <string>

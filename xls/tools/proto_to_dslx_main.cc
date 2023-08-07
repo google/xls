@@ -14,6 +14,8 @@
 
 // Converts a protobuf schema and instantiating message into DSLX structs and
 // constant data.
+#include <string>
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "google/protobuf/text_format.h"

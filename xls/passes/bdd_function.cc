@@ -14,6 +14,12 @@
 
 #include "xls/passes/bdd_function.h"
 
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"

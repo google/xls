@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_ARBITRARY_BASE_NUMBER_H_
 #define XLS_NOC_CONFIG_ARBITRARY_BASE_NUMBER_H_
 
+#include <optional>
 #include <vector>
 
 #include "absl/status/statusor.h"

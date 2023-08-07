@@ -16,6 +16,7 @@
 #define XLS_COMMON_FILE_GET_RUNFILE_PATH_H_
 
 #include <filesystem>
+#include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

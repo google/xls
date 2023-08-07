@@ -15,6 +15,11 @@
 
 #include "xls/synthesis/yosys/yosys_util.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_split.h"

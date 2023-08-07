@@ -17,6 +17,9 @@
 
 #include <array>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"

@@ -15,6 +15,8 @@
 #include "xls/public/runtime_build_actions.h"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
 
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"

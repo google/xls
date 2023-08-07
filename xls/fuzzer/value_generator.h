@@ -15,6 +15,7 @@
 #define XLS_FUZZER_VALUE_GENERATOR_H_
 
 #include <random>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

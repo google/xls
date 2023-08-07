@@ -14,6 +14,8 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"

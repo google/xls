@@ -21,7 +21,10 @@
 // subnormals are flushed to zero.
 
 #include <filesystem>
+#include <iostream>
+#include <memory>
 #include <thread>  // NOLINT(build/c++11)
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/flags/flag.h"

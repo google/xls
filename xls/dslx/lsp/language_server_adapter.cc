@@ -15,7 +15,10 @@
 #include "xls/dslx/lsp/language_server_adapter.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"

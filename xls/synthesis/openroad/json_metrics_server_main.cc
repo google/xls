@@ -14,6 +14,10 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/numbers.h"

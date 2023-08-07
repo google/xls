@@ -15,6 +15,9 @@
 #include "xls/tools/eval_helpers.h"
 
 #include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"

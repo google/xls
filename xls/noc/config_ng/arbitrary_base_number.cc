@@ -14,6 +14,9 @@
 
 #include "xls/noc/config_ng/arbitrary_base_number.h"
 
+#include <algorithm>
+#include <optional>
+
 namespace xls::noc {
 
 ArbitraryBaseNumber::ArbitraryBaseNumber(const int64_t digit_count,

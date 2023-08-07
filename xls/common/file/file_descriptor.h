@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include <filesystem>  // NOLINT
+#include <string>
 
 #include "absl/status/statusor.h"
 

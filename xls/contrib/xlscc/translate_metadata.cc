@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <list>
+#include <memory>
+
 #include "absl/status/status.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"

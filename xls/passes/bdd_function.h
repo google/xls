@@ -15,6 +15,11 @@
 #ifndef XLS_PASSES_BDD_FUNCTION_H_
 #define XLS_PASSES_BDD_FUNCTION_H_
 
+#include <functional>
+#include <memory>
+#include <optional>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

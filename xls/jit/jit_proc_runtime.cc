@@ -14,6 +14,10 @@
 
 #include "xls/jit/jit_proc_runtime.h"
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"

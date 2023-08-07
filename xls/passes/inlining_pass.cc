@@ -14,6 +14,11 @@
 
 #include "xls/passes/inlining_pass.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"

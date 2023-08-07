@@ -15,6 +15,7 @@
 #ifndef XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
 #define XLS_NETLIST_FIND_LOGIC_CLOUDS_H_
 
+#include <string>
 #include <vector>
 
 #include "xls/netlist/netlist.h"

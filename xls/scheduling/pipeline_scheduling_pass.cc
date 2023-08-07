@@ -14,6 +14,8 @@
 
 #include "xls/scheduling/pipeline_scheduling_pass.h"
 
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

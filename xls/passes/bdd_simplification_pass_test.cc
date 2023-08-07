@@ -14,6 +14,8 @@
 
 #include "xls/passes/bdd_simplification_pass.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

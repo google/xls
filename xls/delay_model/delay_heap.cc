@@ -15,6 +15,9 @@
 #include "xls/delay_model/delay_heap.h"
 
 #include <algorithm>
+#include <iterator>
+#include <string>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

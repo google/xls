@@ -14,6 +14,8 @@
 
 #include "xls/jit/proc_jit.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

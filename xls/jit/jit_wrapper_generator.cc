@@ -13,6 +13,12 @@
 // limitations under the License.
 #include "xls/jit/jit_wrapper_generator.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_replace.h"
 

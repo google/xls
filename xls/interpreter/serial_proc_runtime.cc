@@ -14,7 +14,11 @@
 
 #include "xls/interpreter/serial_proc_runtime.h"
 
+#include <algorithm>
 #include <deque>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/ret_check.h"

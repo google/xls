@@ -14,6 +14,7 @@
 #include "xls/dslx/frontend/ast_cloner.h"
 
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 

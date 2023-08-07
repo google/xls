@@ -14,6 +14,11 @@
 
 #include "xls/passes/comparison_simplification_pass.h"
 
+#include <algorithm>
+#include <functional>
+#include <optional>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"

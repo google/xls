@@ -14,7 +14,12 @@
 
 #include "xls/interpreter/proc_runtime.h"
 
+#include <algorithm>
 #include <deque>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"

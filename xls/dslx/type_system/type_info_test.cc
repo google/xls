@@ -14,6 +14,8 @@
 
 #include "xls/dslx/type_system/type_info.h"
 
+#include <optional>
+
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"

@@ -14,6 +14,9 @@
 
 #include "xls/passes/strength_reduction_pass.h"
 
+#include <algorithm>
+#include <utility>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"

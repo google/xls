@@ -15,6 +15,11 @@
 #ifndef XLS_IR_TERNARY_H_
 #define XLS_IR_TERNARY_H_
 
+#include <algorithm>
+#include <optional>
+#include <ostream>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"

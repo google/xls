@@ -16,6 +16,9 @@
 #define XLS_DSLX_LSP_LANGAUGE_SERVER_ADAPTER_H_
 
 #include <filesystem>  // NOLINT
+#include <iostream>
+#include <ostream>
+#include <string>
 #include <string_view>
 #include <vector>
 

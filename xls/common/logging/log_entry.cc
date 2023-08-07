@@ -15,6 +15,8 @@
 #include "xls/common/logging/log_entry.h"
 
 #include <ctime>
+#include <string>
+#include <string_view>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/strings/str_cat.h"

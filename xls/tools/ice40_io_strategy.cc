@@ -15,6 +15,8 @@
 #include "xls/tools/ice40_io_strategy.h"
 
 #include <filesystem>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/file/filesystem.h"

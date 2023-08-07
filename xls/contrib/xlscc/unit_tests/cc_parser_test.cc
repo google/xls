@@ -15,6 +15,7 @@
 #include "xls/contrib/xlscc/cc_parser.h"
 
 #include <string>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

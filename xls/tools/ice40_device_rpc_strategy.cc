@@ -22,6 +22,11 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <ios>
+#include <optional>
+#include <string>
+#include <system_error>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

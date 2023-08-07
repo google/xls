@@ -16,8 +16,10 @@
 
 #include <fcntl.h>
 
+#include <functional>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "xls/common/file/file_descriptor.h"

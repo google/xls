@@ -14,6 +14,8 @@
 
 #include "xls/ir/register.h"
 
+#include <string>
+
 #include "absl/strings/str_format.h"
 
 namespace xls {

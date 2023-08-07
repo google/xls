@@ -16,6 +16,12 @@
 // for use in logical equivalence checking.
 
 #include <functional>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"

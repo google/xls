@@ -14,6 +14,8 @@
 
 #include "xls/common/file/file_descriptor.h"
 
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/file/filesystem.h"

@@ -23,7 +23,9 @@
 #ifndef XLS_IR_VALUE_VIEW_H_
 #define XLS_IR_VALUE_VIEW_H_
 
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"

@@ -15,6 +15,8 @@
 #include "xls/ir/number_parser.h"
 
 #include <cstdint>
+#include <limits>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

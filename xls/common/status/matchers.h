@@ -138,7 +138,9 @@
 
 #include <ostream>  // NOLINT
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "absl/status/statusor.h"

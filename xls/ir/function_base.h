@@ -15,8 +15,12 @@
 #ifndef XLS_IR_FUNCTION_BASE_H_
 #define XLS_IR_FUNCTION_BASE_H_
 
+#include <list>
 #include <memory>
+#include <optional>
+#include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

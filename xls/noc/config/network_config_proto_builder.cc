@@ -14,6 +14,11 @@
 
 #include "xls/noc/config/network_config_proto_builder.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "xls/common/proto_adaptor_utils.h"
 
 namespace xls::noc {

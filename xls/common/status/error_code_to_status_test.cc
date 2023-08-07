@@ -16,6 +16,7 @@
 
 #include <cerrno>
 #include <system_error>  // NOLINT(build/c++11)
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

@@ -15,6 +15,8 @@
 #ifndef XLS_TOOLS_NULL_IO_STRATEGY_H_
 #define XLS_TOOLS_NULL_IO_STRATEGY_H_
 
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/vast.h"

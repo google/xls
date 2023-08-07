@@ -15,7 +15,9 @@
 #include "xls/ir/big_int.h"
 
 #include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

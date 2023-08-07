@@ -14,6 +14,9 @@
 
 #include "xls/codegen/port_legalization_pass.h"
 
+#include <variant>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 #include "xls/ir/block.h"
 #include "xls/ir/value_helpers.h"

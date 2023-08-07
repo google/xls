@@ -14,6 +14,12 @@
 
 #include "xls/passes/boolean_simplification_pass.h"
 
+#include <algorithm>
+#include <optional>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"

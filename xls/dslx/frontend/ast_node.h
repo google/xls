@@ -15,7 +15,11 @@
 #ifndef XLS_DSLX_FRONTEND_AST_NODE_H_
 #define XLS_DSLX_FRONTEND_AST_NODE_H_
 
+#include <optional>
+#include <ostream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "xls/dslx/frontend/pos.h"

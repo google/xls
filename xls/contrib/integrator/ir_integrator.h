@@ -15,6 +15,14 @@
 #ifndef XLS_INTEGRATOR_IR_INTEGRATOR_H_
 #define XLS_INTEGRATOR_IR_INTEGRATOR_H_
 
+#include <list>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/contrib/integrator/integration_options.h"
 #include "xls/ir/function.h"

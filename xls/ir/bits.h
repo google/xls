@@ -19,7 +19,10 @@
 #include <cmath>
 #include <cstdint>
 #include <numeric>
+#include <ostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

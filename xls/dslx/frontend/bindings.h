@@ -17,11 +17,13 @@
 #ifndef XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 #define XLS_DSLX_FRONTEND_CPP_BINDINGS_H_
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

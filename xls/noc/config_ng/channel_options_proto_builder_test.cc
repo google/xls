@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/channel_options_proto_builder.h"
 
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

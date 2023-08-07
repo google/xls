@@ -14,6 +14,10 @@
 
 #include "xls/passes/proc_state_flattening_pass.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"

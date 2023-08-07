@@ -14,6 +14,11 @@
 
 #include "xls/passes/standard_pipeline.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

@@ -14,6 +14,8 @@
 
 // Tool to evaluate DSLX + args and report the result.
 #include <filesystem>
+#include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 

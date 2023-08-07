@@ -14,6 +14,8 @@
 
 #include "xls/common/logging/log_entry.h"
 
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/log_severity.h"

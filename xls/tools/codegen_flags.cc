@@ -14,6 +14,9 @@
 
 #include "xls/tools/codegen_flags.h"
 
+#include <string>
+#include <string_view>
+
 #include "absl/flags/flag.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/status/status_macros.h"

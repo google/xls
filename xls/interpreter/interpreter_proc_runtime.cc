@@ -14,6 +14,10 @@
 
 #include "xls/interpreter/interpreter_proc_runtime.h"
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_evaluator.h"

@@ -14,6 +14,9 @@
 
 #include "xls/contrib/integrator/area_model/area_estimator.h"
 
+#include <memory>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 
 namespace xls {

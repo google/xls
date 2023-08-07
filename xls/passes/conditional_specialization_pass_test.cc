@@ -14,6 +14,8 @@
 
 #include "xls/passes/conditional_specialization_pass.h"
 
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

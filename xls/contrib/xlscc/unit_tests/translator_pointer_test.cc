@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <cstdio>
+#include <list>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"

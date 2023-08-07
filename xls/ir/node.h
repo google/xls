@@ -16,6 +16,9 @@
 #define XLS_IR_NODE_H_
 
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>

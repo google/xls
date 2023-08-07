@@ -14,6 +14,11 @@
 
 #include "xls/fuzzer/cpp_run_fuzz.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/logging/log_lines.h"

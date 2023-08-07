@@ -15,6 +15,7 @@
 #include "xls/passes/boolean_simplification_pass.h"
 
 #include <memory>
+#include <optional>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

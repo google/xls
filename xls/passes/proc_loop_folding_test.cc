@@ -15,6 +15,9 @@
 #include "xls/passes/proc_loop_folding.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

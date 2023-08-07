@@ -14,7 +14,11 @@
 
 #include "xls/codegen/block_generator.h"
 
+#include <algorithm>
 #include <deque>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 

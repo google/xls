@@ -14,7 +14,12 @@
 
 #include "xls/solvers/z3_netlist_translator.h"
 
+#include <memory>
 #include <optional>
+#include <ostream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

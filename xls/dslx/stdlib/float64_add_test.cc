@@ -16,6 +16,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <tuple>
 
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"

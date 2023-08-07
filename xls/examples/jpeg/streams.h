@@ -43,7 +43,12 @@
 #define XLS_EXAMPLES_JPEG_STREAMS_H_
 
 #include <cstdint>
+#include <functional>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"

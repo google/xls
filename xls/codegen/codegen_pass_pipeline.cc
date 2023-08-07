@@ -17,6 +17,8 @@
 
 #include "xls/codegen/codegen_pass_pipeline.h"
 
+#include <memory>
+
 #include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_wrapper_pass.h"

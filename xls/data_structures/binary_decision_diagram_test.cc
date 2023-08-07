@@ -14,6 +14,9 @@
 
 #include "xls/data_structures/binary_decision_diagram.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"

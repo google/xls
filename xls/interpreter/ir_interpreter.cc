@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

@@ -14,6 +14,9 @@
 
 #include "xls/dslx/type_system/typecheck_test_helpers.h"
 
+#include <string>
+#include <string_view>
+
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/type_system/type_info_to_proto.h"

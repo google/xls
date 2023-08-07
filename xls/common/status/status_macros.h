@@ -17,6 +17,8 @@
 #ifndef XLS_COMMON_STATUS_STATUS_MACROS_H_
 #define XLS_COMMON_STATUS_STATUS_MACROS_H_
 
+#include <utility>
+
 #include "absl/base/optimization.h"
 #include "xls/common/source_location.h"
 #include "xls/common/status/status_builder.h"  // IWYU pragma: export

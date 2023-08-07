@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_SIMULATION_NETWORK_GRAPH_BUILDER_H_
 #define XLS_NOC_SIMULATION_NETWORK_GRAPH_BUILDER_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/simulation/network_graph.h"

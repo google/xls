@@ -14,6 +14,10 @@
 
 #include "xls/dslx/type_system/concrete_type_zero_value.h"
 
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/errors.h"
 

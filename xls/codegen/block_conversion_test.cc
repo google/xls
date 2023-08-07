@@ -14,11 +14,18 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
+#include <ostream>
 #include <random>
+#include <sstream>
 #include <string>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"

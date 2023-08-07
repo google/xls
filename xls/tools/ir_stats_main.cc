@@ -15,7 +15,9 @@
 // Prints summary information about an IR file to the terminal.
 // Output will be added as needs warrant, so feel free to make additions!
 
+#include <iostream>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 

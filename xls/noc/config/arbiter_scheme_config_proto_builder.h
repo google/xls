@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_CONFIG_ARBITER_SCHEME_CONFIG_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_ARBITER_SCHEME_CONFIG_PROTO_BUILDER_H_
 
+#include <string_view>
+
 #include "xls/common/logging/logging.h"
 #include "xls/noc/config/network_config.pb.h"
 #include "xls/noc/config/network_config_proto_builder_utils.h"

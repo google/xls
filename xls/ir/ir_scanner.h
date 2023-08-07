@@ -16,7 +16,10 @@
 #define XLS_IR_IR_SCANNER_H_
 
 #include <cstdint>
+#include <ostream>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"

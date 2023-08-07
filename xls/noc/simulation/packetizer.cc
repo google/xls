@@ -14,6 +14,8 @@
 
 #include "xls/noc/simulation/packetizer.h"
 
+#include <vector>
+
 namespace xls::noc {
 
 absl::StatusOr<std::vector<Bits>*>

@@ -14,6 +14,7 @@
 
 #include "xls/simulation/module_testbench.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>

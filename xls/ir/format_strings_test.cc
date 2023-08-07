@@ -14,6 +14,9 @@
 
 #include "xls/ir/format_strings.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

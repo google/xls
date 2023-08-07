@@ -18,6 +18,13 @@
 #ifndef XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 #define XLS_TOOLS_Z3_IR_TRANSLATOR_H_
 
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"

@@ -15,6 +15,7 @@
 #include "xls/dslx/frontend/ast.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "gmock/gmock.h"

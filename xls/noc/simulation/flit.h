@@ -15,6 +15,8 @@
 #ifndef XLS_NOC_SIMULATION_FLIT_H_
 #define XLS_NOC_SIMULATION_FLIT_H_
 
+#include <string>
+
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"

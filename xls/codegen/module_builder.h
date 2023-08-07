@@ -15,8 +15,13 @@
 #ifndef XLS_CODEGEN_MODULE_BUILDER_H_
 #define XLS_CODEGEN_MODULE_BUILDER_H_
 
+#include <functional>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

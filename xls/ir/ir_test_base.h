@@ -15,6 +15,10 @@
 #ifndef XLS_IR_IR_TEST_BASE_H_
 #define XLS_IR_IR_TEST_BASE_H_
 
+#include <memory>
+#include <string>
+#include <string_view>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

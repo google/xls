@@ -14,6 +14,9 @@
 
 #include "xls/passes/arith_simplification_pass.h"
 
+#include <cstdlib>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

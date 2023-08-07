@@ -14,7 +14,10 @@
 
 #include "xls/data_structures/inline_bitmap.h"
 
+#include <ios>
+#include <limits>
 #include <memory>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

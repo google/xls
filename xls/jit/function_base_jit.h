@@ -14,6 +14,8 @@
 #ifndef XLS_JIT_FUNCTION_BASE_JIT_H_
 #define XLS_JIT_FUNCTION_BASE_JIT_H_
 
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

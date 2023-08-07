@@ -15,6 +15,11 @@
 #ifndef XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_H_
 #define XLS_NOC_CONFIG_NETWORK_CONFIG_PROTO_BUILDER_H_
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/noc/config/link_config_proto_builder.h"
 #include "xls/noc/config/network_config.pb.h"

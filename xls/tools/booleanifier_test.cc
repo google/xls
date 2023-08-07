@@ -14,7 +14,10 @@
 #include "xls/tools/booleanifier.h"
 
 #include <array>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

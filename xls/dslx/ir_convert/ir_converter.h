@@ -16,6 +16,7 @@
 #define XLS_DSLX_IR_CONVERT_IR_CONVERTER_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 

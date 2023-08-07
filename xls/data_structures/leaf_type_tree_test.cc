@@ -14,7 +14,10 @@
 
 #include "xls/data_structures/leaf_type_tree.h"
 
+#include <algorithm>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

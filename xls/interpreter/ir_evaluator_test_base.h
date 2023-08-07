@@ -15,6 +15,12 @@
 #ifndef XLS_IR_IR_EVALUATOR_TEST_H_
 #define XLS_IR_IR_EVALUATOR_TEST_H_
 
+#include <functional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

@@ -14,6 +14,9 @@
 
 #include "xls/noc/config_ng/coordinate.h"
 
+#include <initializer_list>
+#include <optional>
+
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

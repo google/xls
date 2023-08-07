@@ -16,6 +16,8 @@
 #define XLS_NOC_SIMULATION_PACKETIZER_H_
 
 #include <queue>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/status/statusor.h"

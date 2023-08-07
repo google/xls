@@ -14,7 +14,9 @@
 
 #include "xls/passes/ternary_query_engine.h"
 
+#include <algorithm>
 #include <limits>
+#include <vector>
 
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"

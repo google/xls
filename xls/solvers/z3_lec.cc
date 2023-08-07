@@ -14,7 +14,15 @@
 
 #include "xls/solvers/z3_lec.h"
 
+#include <algorithm>
+#include <deque>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
 #include <thread>  // NOLINT(build/c++11)
+#include <utility>
+#include <vector>
 
 #include "absl/base/internal/sysinfo.h"
 #include "absl/status/statusor.h"

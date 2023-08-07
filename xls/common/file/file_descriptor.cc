@@ -14,6 +14,9 @@
 
 #include "xls/common/file/file_descriptor.h"
 
+#include <string>
+#include <utility>
+
 #include "xls/common/status/error_code_to_status.h"
 
 namespace xls {

@@ -14,6 +14,9 @@
 
 #include "xls/passes/canonicalization_pass.h"
 
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

@@ -14,15 +14,19 @@
 
 #include "xls/contrib/xlscc/translator.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <list>
+#include <map>
 #include <memory>
 #include <optional>
 #include <ostream>
 #include <regex>  // NOLINT
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>

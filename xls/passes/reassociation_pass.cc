@@ -14,6 +14,9 @@
 
 #include "xls/passes/reassociation_pass.h"
 
+#include <algorithm>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"

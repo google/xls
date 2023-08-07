@@ -14,6 +14,10 @@
 
 #include "xls/ir/caret.h"
 
+#include <functional>
+#include <optional>
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

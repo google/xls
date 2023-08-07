@@ -18,7 +18,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <system_error>  // NOLINT
+#include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"

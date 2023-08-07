@@ -14,6 +14,12 @@
 
 #include "xls/fuzzer/ast_generator.h"
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/logging/log_lines.h"

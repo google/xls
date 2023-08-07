@@ -15,6 +15,7 @@
 #ifndef XLS_NOC_CONFIG_COORDINATE_H_
 #define XLS_NOC_CONFIG_COORDINATE_H_
 
+#include <optional>
 #include <vector>
 
 #include "absl/status/statusor.h"

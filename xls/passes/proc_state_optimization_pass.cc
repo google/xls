@@ -14,6 +14,12 @@
 
 #include "xls/passes/proc_state_optimization_pass.h"
 
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"

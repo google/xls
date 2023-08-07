@@ -13,6 +13,10 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
+#include <algorithm>
+#include <memory>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"

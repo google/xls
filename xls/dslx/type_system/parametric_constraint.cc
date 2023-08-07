@@ -14,6 +14,10 @@
 
 #include "xls/dslx/type_system/parametric_constraint.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+
 namespace xls::dslx {
 
 ParametricConstraint::ParametricConstraint(const ParametricBinding& binding,

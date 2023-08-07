@@ -14,7 +14,15 @@
 
 #include "xls/passes/range_query_engine.h"
 
+#include <algorithm>
+#include <functional>
 #include <limits>
+#include <optional>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"

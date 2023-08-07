@@ -16,6 +16,7 @@
 #define XLS_JIT_JIT_RUNTIME_H_
 
 #include <cstdint>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"

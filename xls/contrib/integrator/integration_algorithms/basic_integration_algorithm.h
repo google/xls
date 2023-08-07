@@ -16,6 +16,9 @@
 #ifndef XLS_INTEGRATOR_BASIC_INTEGRATION_ALGORITHM_
 #define XLS_INTEGRATOR_BASIC_INTEGRATION_ALGORITHM_
 
+#include <list>
+#include <memory>
+
 #include "xls/contrib/integrator/integration_algorithms/integration_algorithm.h"
 
 namespace xls {

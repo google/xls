@@ -15,11 +15,13 @@
 #ifndef XLS_COMMON_LOGGING_CHECK_OPS_H_
 #define XLS_COMMON_LOGGING_CHECK_OPS_H_
 
+#include <cstddef>
 #include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/attributes.h"
 #include "absl/base/optimization.h"

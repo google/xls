@@ -17,8 +17,12 @@
 // representation, i.e., consisting of only AND/OR/NOT ops.
 #include "xls/tools/booleanifier.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
+#include <string_view>
+#include <vector>
 
 #include "absl/status/status.h"
 #include "absl/types/span.h"

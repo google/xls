@@ -14,10 +14,12 @@
 
 #include "xls/passes/select_simplification_pass.h"
 
-#include "absl/status/statusor.h"
-#include "absl/strings/substitute.h"
+#include <string>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"

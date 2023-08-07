@@ -13,7 +13,10 @@
 // limitations under the License.
 #include "xls/ir/value_view.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

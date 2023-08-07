@@ -15,6 +15,8 @@
 #ifndef XLS_IR_VALUE_HELPERS_H_
 #define XLS_IR_VALUE_HELPERS_H_
 
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/logging/logging.h"

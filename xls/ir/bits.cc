@@ -14,6 +14,9 @@
 
 #include "xls/ir/bits.h"
 
+#include <algorithm>
+#include <string>
+
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"

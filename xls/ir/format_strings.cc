@@ -14,6 +14,12 @@
 
 #include "xls/ir/format_strings.h"
 
+#include <algorithm>
+#include <string>
+#include <string_view>
+#include <variant>
+#include <vector>
+
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"

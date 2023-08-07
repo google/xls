@@ -14,6 +14,13 @@
 
 #include "xls/codegen/ram_configuration.h"
 
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"

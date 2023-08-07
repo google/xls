@@ -14,6 +14,9 @@
 
 #include "xls/delay_model/delay_heap.h"
 
+#include <limits>
+#include <optional>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"

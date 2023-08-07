@@ -15,6 +15,8 @@
 #include "xls/visualization/ir_viz/ir_to_json.h"
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "absl/status/statusor.h"

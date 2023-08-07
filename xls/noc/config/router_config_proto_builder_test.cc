@@ -14,6 +14,11 @@
 
 #include "xls/noc/config/router_config_proto_builder.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 

@@ -15,6 +15,8 @@
 #ifndef XLS_TOOLS_WRAP_IO_H_
 #define XLS_TOOLS_WRAP_IO_H_
 
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"

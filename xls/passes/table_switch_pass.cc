@@ -13,6 +13,11 @@
 // limitations under the License.
 #include "xls/passes/table_switch_pass.h"
 
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"

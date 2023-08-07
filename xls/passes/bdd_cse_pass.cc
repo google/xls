@@ -14,6 +14,7 @@
 
 #include "xls/passes/bdd_cse_pass.h"
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 

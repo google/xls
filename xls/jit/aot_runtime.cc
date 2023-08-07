@@ -13,6 +13,12 @@
 // limitations under the License.
 #include "xls/jit/aot_runtime.h"
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include "google/protobuf/text_format.h"
 #include "xls/common/status/status_macros.h"
 

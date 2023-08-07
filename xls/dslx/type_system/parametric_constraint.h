@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"

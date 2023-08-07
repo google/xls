@@ -16,8 +16,11 @@
 #include <ctime>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"

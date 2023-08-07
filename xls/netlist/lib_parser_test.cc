@@ -14,7 +14,10 @@
 
 #include "xls/netlist/lib_parser.h"
 
+#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

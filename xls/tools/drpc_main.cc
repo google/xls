@@ -18,8 +18,13 @@
 // TODO(leary): 2019-04-07 Probably want a way to select the desired output
 // format; e.g. -hex, -dec, -bin and so on.
 
+#include <iostream>
+#include <memory>
 #include <ostream>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"

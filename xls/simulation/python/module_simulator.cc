@@ -14,6 +14,9 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include <string>
+#include <string_view>
+
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "pybind11/pybind11.h"

@@ -14,7 +14,10 @@
 
 #include "xls/ir/function.h"
 
+#include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"

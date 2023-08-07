@@ -16,6 +16,8 @@
 #define XLS_SYNTHESIS_YOSYS_UTIL_H_
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"

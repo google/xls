@@ -14,6 +14,7 @@
 
 #include "xls/jit/jit_channel_queue.h"
 
+#include <memory>
 #include <vector>
 
 #include "gmock/gmock.h"

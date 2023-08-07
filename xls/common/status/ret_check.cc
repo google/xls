@@ -14,6 +14,10 @@
 
 #include "xls/common/status/ret_check.h"
 
+#include <cstddef>
+#include <memory>
+#include <ostream>
+#include <sstream>
 #include <string>
 
 #include "absl/base/attributes.h"

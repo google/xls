@@ -14,6 +14,11 @@
 
 #include "xls/ir/bits.h"
 
+#include <algorithm>
+#include <limits>
+#include <string>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"

@@ -15,6 +15,7 @@
 // Driver function for JIT wrapper generator.
 
 #include <filesystem>
+#include <string>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"

@@ -15,6 +15,8 @@
 #ifndef XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 #define XLS_PASSES_BOOLEAN_SIMPLIFICATION_PASS_H_
 
+#include <optional>
+
 #include "absl/status/statusor.h"
 #include "xls/ir/function.h"
 #include "xls/passes/passes.h"

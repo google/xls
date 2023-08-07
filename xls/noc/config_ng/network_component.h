@@ -16,6 +16,8 @@
 #define XLS_NOC_CONFIG_NETWORK_COMPONENT_H_
 
 #include <cstdint>
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/status/status.h"

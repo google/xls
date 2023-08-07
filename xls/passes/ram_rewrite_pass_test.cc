@@ -15,8 +15,11 @@
 #include "xls/passes/ram_rewrite_pass.h"
 
 #include <array>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"

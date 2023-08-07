@@ -14,6 +14,9 @@
 
 #include "xls/noc/config_ng/network_view.h"
 
+#include <memory>
+#include <vector>
+
 namespace xls::noc {
 
 xabsl::iterator_range<UnwrappingIterator<

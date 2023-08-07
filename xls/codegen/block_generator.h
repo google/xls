@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_BLOCK_GENERATOR_H_
 #define XLS_CODEGEN_BLOCK_GENERATOR_H_
 
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/verilog_line_map.pb.h"

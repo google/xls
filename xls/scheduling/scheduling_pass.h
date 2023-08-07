@@ -16,6 +16,8 @@
 #define XLS_SCHEDULING_SCHEDULING_PASS_H_
 
 #include <optional>
+#include <string>
+#include <string_view>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"

@@ -16,6 +16,9 @@
 #ifndef XLS_INTEGRATOR_INTEGRATION_ALGORITHM_
 #define XLS_INTEGRATOR_INTEGRATION_ALGORITHM_
 
+#include <memory>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/contrib/integrator/integration_options.h"
 #include "xls/contrib/integrator/ir_integrator.h"

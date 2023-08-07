@@ -15,6 +15,8 @@
 #include "xls/noc/simulation/network_graph_builder.h"
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"

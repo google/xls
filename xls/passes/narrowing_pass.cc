@@ -14,8 +14,13 @@
 
 #include "xls/passes/narrowing_pass.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"

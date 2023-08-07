@@ -15,6 +15,8 @@
 #include "xls/dslx/type_system/parametric_bind.h"
 
 #include <cstdint>
+#include <memory>
+#include <string>
 
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"

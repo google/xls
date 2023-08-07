@@ -18,7 +18,12 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <random>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "absl/container/btree_map.h"
 #include "absl/status/status.h"

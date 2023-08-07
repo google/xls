@@ -12,10 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/btree_map.h"

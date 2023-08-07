@@ -14,7 +14,11 @@
 
 #include "xls/passes/query_engine.h"
 
+#include <functional>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

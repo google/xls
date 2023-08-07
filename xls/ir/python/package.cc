@@ -14,6 +14,10 @@
 
 #include "xls/ir/package.h"
 
+#include <memory>
+#include <string_view>
+#include <vector>
+
 #include "pybind11/pybind11.h"
 #include "pybind11_abseil/absl_casters.h"
 #include "pybind11_abseil/statusor_caster.h"

@@ -14,6 +14,9 @@
 
 #include "xls/passes/useless_io_removal_pass.h"
 
+#include <memory>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"

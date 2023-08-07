@@ -14,6 +14,8 @@
 
 #include "xls/codegen/bdd_io_analysis.h"
 
+#include <memory>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

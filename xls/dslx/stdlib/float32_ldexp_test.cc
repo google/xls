@@ -15,6 +15,7 @@
 // Random-sampling test for the DSLX 32-bit floating-point ldexp.
 #include <cmath>
 #include <limits>
+#include <tuple>
 
 #include "absl/flags/flag.h"
 #include "absl/random/random.h"

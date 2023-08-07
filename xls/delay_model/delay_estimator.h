@@ -16,7 +16,11 @@
 #define XLS_DELAY_MODEL_DELAY_ESTIMATOR_H_
 
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

@@ -13,6 +13,14 @@
 // limitations under the License.
 #include "xls/fuzzer/value_generator.h"
 
+#include <array>
+#include <cmath>
+#include <memory>
+#include <random>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"

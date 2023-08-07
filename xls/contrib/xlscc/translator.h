@@ -15,11 +15,17 @@
 #ifndef XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 #define XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 
+#include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <iostream>
 #include <list>
 #include <memory>
+#include <optional>
+#include <set>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/btree_map.h"

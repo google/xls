@@ -15,6 +15,8 @@
 #ifndef XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
 #define XLS_CODEGEN_RAM_CHANNEL_REWRITE_PASS_H_
 
+#include <functional>
+
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
 

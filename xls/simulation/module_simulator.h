@@ -15,6 +15,12 @@
 #ifndef XLS_SIMULATION_MODULE_SIMULATOR_H_
 #define XLS_SIMULATION_MODULE_SIMULATOR_H_
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "xls/codegen/module_signature.h"

@@ -15,6 +15,7 @@
 #include "xls/ir/node_util.h"
 
 #include <memory>
+#include <ostream>
 #include <string_view>
 #include <vector>
 

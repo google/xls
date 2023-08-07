@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 
 #include "absl/base/casts.h"
 #include "absl/container/inlined_vector.h"

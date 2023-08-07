@@ -14,6 +14,17 @@
 
 #include "xls/tools/proto_to_dslx.h"
 
+#include <algorithm>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
+
 #include "absl/container/btree_map.h"
 #include "absl/strings/str_replace.h"
 #include "google/protobuf/compiler/importer.h"

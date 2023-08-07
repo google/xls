@@ -15,6 +15,9 @@
 #ifndef XLS_IR_BIG_INT_H_
 #define XLS_IR_BIG_INT_H_
 
+#include <ostream>
+#include <tuple>
+
 #include "absl/status/statusor.h"
 #include "openssl/bn.h"
 #include "xls/ir/bits.h"

@@ -15,9 +15,12 @@
 // Test of the XLS GCM mode implementation against a reference (in this
 // case, BoringSSL's implementation).
 #include <filesystem>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/cleanup/cleanup.h"

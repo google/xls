@@ -14,6 +14,8 @@
 
 #include "xls/simulation/verilog_simulators.h"
 
+#include <string_view>
+
 #include "absl/flags/flag.h"
 #include "absl/status/statusor.h"
 

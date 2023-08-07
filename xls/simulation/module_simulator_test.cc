@@ -14,6 +14,11 @@
 
 #include "xls/simulation/module_simulator.h"
 
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"

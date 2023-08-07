@@ -15,7 +15,12 @@
 #ifndef XLS_NOC_EXPERIMENT_H_
 #define XLS_NOC_EXPERIMENT_H_
 
+#include <functional>
+#include <limits>
 #include <queue>
+#include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/btree_map.h"

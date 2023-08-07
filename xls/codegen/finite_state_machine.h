@@ -15,7 +15,13 @@
 #ifndef XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 #define XLS_CODEGEN_FINITE_STATE_MACHINE_H_
 
+#include <algorithm>
+#include <functional>
+#include <list>
+#include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"

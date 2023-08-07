@@ -14,6 +14,10 @@
 
 #include "xls/jit/jit_runtime.h"
 
+#include <memory>
+#include <utility>
+#include <vector>
+
 #include "absl/strings/str_format.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "xls/common/status/status_macros.h"

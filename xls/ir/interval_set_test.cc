@@ -15,6 +15,7 @@
 #include "xls/ir/interval_set.h"
 
 #include <cstdint>
+#include <limits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

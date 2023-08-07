@@ -14,6 +14,10 @@
 
 #include "xls/passes/array_simplification_pass.h"
 
+#include <algorithm>
+#include <optional>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"

@@ -14,6 +14,11 @@
 
 #include "xls/interpreter/proc_interpreter.h"
 
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/interpreter/ir_interpreter.h"

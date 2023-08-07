@@ -16,9 +16,11 @@
 #define XLS_PASSES_PASSES_H_
 
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 

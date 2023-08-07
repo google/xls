@@ -14,6 +14,9 @@
 
 #include "xls/fuzzer/sample_generator.h"
 
+#include <memory>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"

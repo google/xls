@@ -14,6 +14,8 @@
 
 #include "xls/noc/config_ng/node_options_proto_builder.h"
 
+#include <string_view>
+
 #include "xls/common/logging/logging.h"
 #include "xls/common/proto_adaptor_utils.h"
 

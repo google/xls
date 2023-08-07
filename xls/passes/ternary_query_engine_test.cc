@@ -14,7 +14,9 @@
 
 #include "xls/passes/ternary_query_engine.h"
 
+#include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "gmock/gmock.h"
