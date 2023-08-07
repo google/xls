@@ -692,7 +692,7 @@ class ChannelNodeMatcher : public NodeMatcher {
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
-  void DescribeTo(::std::ostream* os) const;
+  void DescribeTo(::std::ostream* os) const override;
 
  private:
   std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher_;
