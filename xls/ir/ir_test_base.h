@@ -15,21 +15,29 @@
 #ifndef XLS_IR_IR_TEST_BASE_H_
 #define XLS_IR_IR_TEST_BASE_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_replace.h"
 #include "xls/common/source_location.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
+#include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 
 namespace xls {
@@ -49,7 +57,12 @@ class IrTestBase : public ::testing::Test {
   IrTestBase() = default;
 
   static std::string TestName() {
-    return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    // If we try to run the program it can't have the '/' in its name. Remove
+    // them so this pattern works.
+    std::string name =
+        ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    absl::StrReplaceAll(std::vector{std::pair{"/", "_"}}, &name);
+    return name;
   }
 
   // Creates an empty package with a name equal to TestName().
