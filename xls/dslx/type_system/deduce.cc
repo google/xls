@@ -273,8 +273,10 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
   }
 
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
-  absl::StatusOr<Bits> bits = number.GetBits(bit_count);
-  if (!bits.ok()) {
+
+  // Helper to give an informative error on the appropriate range when we
+  // determine the numerical value given doesn't fit into the type.
+  auto does_not_fit = [&number, &type, bit_count]() {
     std::string low;
     std::string high;
     if (type.is_signed()) {
@@ -294,6 +296,11 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
                         "the bitwidth of a %s (%d). "
                         "Valid values are [%s, %s].",
                         number.text(), type.ToString(), bit_count, low, high));
+  };
+
+  XLS_ASSIGN_OR_RETURN(bool fits_in_type, number.FitsInType(bit_count));
+  if (!fits_in_type) {
+    return does_not_fit();
   }
   return absl::OkStatus();
 }

@@ -792,17 +792,10 @@ absl::Status FunctionConverter::HandleBuiltinCheckedCast(
       int64_t old_bit_count,
       std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueViaSign());
 
-  // Perform actual cast.
-  if (auto* array_type = dynamic_cast<ArrayType*>(output_type.get())) {
+  if (dynamic_cast<ArrayType*>(output_type.get()) != nullptr ||
+      dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
     return absl::UnimplementedError(
         absl::StrFormat("ConversionError: CheckedCast to and from arrays (%s) "
-                        "is not currently supported for IR conversion.",
-                        node->span().ToString()));
-  }
-
-  if (dynamic_cast<ArrayType*>(input_type.get()) != nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("ConversionError: Checkedast to and from arrays (%s) "
                         "is not currently supported for IR conversion.",
                         node->span().ToString()));
   }
