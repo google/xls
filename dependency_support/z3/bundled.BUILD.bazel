@@ -121,7 +121,7 @@ cc_library(
         "src/test/fuzzing/*.cpp",
         "src/util/*.cpp",
         "src/util/lp/*.cpp",
-    ]),
+    ], exclude=GEN_SRCS),
     hdrs = GEN_HDRS + glob([
         "src/ackermannization/*.h",
         "src/ackermannization/*.hpp",

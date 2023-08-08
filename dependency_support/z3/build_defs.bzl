@@ -83,7 +83,7 @@ def gen_srcs():
         srcs = [
             "LICENSE.txt",
             "scripts/mk_make.py",
-        ] + native.glob(["src/**", "examples/**"]),
+        ] + native.glob(["src/**", "examples/**"], exclude=GEN_HDRS + GEN_SRCS),
         tools = ["scripts/mk_make.py"],
         outs = MK_MAKE_SRCS + MK_MAKE_HDRS,
         # We can't use $(location) here, since the bundled script internally
