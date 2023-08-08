@@ -21,14 +21,17 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
 #include "google/protobuf/text_format.h"
 #include "google/protobuf/util/message_differencer.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/unit_tests/unit_test.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/value.h"
 
 namespace xlscc {
 namespace {
@@ -1265,6 +1268,93 @@ TEST_F(TranslatorMemoryTest, MemoryTokenNetworkReadAfterWrite) {
       NodeIsAfterTokenWise(ret, /*before=*/nodes_for_memory_write_request_id[0],
                            /*after=*/nodes_for_memory_read_request_id[0]));
   EXPECT_TRUE(write_before_read);
+}
+
+TEST_F(TranslatorMemoryTest, PingPong) {
+  const std::string content = R"(
+    class Block {
+    public:
+    static constexpr int N = 8;
+
+    __xls_memory<int, N>& storeA;
+    __xls_memory<int, N>& storeB;
+
+    __xls_channel<int, __xls_channel_dir_In>& in;
+    __xls_channel<int, __xls_channel_dir_Out>& out;
+
+    void Ping(bool phase)const {
+      __xls_memory<int, N>& store = phase ? storeA : storeB;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<N;++i) {
+        store[(N-1)-i] = in.read();
+      }
+    }
+    void Pong(bool phase)const {
+      __xls_memory<int, N>& store = phase ? storeA : storeB;
+      #pragma hls_pipeline_init_interval 1
+      for(int i=0;i<N;++i) {
+        out.write(store[i]);
+      }
+    }
+
+    #pragma hls_top
+    void Run() {
+      struct Nothing { };
+      static __xls_channel<Nothing, __xls_channel_dir_InOut> sync;
+
+      #pragma hls_pipeline_init_interval 1
+      __xlscc_asap();for(bool phase=false;;phase = !phase) {
+        Ping(phase);
+        sync.write(Nothing());
+      }
+
+      #pragma hls_pipeline_init_interval 1
+      __xlscc_asap();for(bool phase=true;;phase = !phase) {
+        (void)sync.read();
+        Pong(phase);
+      }
+    }
+  };)";
+
+  const int N = 8;
+  const int ITERS = 2;
+  const int32_t input_refs[ITERS][N] = {
+      {4, 5, 6, 7, 8, 9, 10, 11},
+      {3, 22, 10, 3, 8, 1, 2, 55},
+  };
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+
+  for (int iter = 0; iter < ITERS; ++iter) {
+    for (int i = 0; i < N; ++i) {
+      inputs["in"].push_back(xls::Value(xls::SBits(input_refs[iter][i], 32)));
+      inputs["out"].push_back(
+          xls::Value(xls::SBits(input_refs[iter][(N - 1) - i], 32)));
+
+      outputs[iter ? "storeA__write_request" : "storeB__write_request"]
+          .push_back(xls::Value::Tuple({
+              xls::Value(xls::UBits((N - 1) - i, 3)),           // addr
+              xls::Value(xls::SBits(input_refs[iter][i], 32)),  // value
+              xls::Value::Tuple({})                             // mask
+          }));
+      inputs[iter ? "storeA__write_response" : "storeB__write_response"]
+          .push_back(xls::Value::Tuple({}));
+
+      outputs[iter ? "storeB__read_request" : "storeA__read_request"].push_back(
+          xls::Value::Tuple({
+              xls::Value(xls::UBits(i, 3)),  // addr
+              xls::Value::Tuple({})          // mask
+          }));
+      inputs[iter ? "storeB__read_response" : "storeA__read_response"]
+          .push_back(xls::Value::Tuple(
+              {xls::Value(xls::SBits(input_refs[iter][(N - 1) - i], 32))}));
+    }
+  }
+
+  ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+           /* min_ticks = */ 3,
+           /* max_ticks = */ 16);
 }
 
 }  // namespace

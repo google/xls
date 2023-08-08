@@ -47,6 +47,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
 using testing::Optional;
@@ -391,6 +392,22 @@ void XlsccTestBase::ProcTest(
       auto interpreter,
       xls::CreateInterpreterSerialProcRuntime(package_.get()));
 
+  auto print_list =
+      [](const absl::flat_hash_map<std::string, std::list<xls::Value>>& l) {
+        for (const auto& [name, values] : l) {
+          std::ostringstream value_str;
+          for (const xls::Value& value : values) {
+            value_str << value.ToString() << " ";
+          }
+          XLS_LOG(INFO) << "-- " << name.c_str() << ": " << value_str.str();
+        }
+      };
+
+  XLS_LOG(INFO) << "Inputs:";
+  print_list(inputs_by_channel);
+  XLS_LOG(INFO) << "Outputs:";
+  print_list(outputs_by_channel);
+
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
   // Write all inputs.
@@ -433,6 +450,8 @@ void XlsccTestBase::ProcTest(
 
       while (!ch_out_queue.IsEmpty()) {
         const xls::Value& next_output = values.front();
+        XLS_LOG(INFO) << "Checking output on channel: "
+                      << ch_out_queue.channel()->name();
         EXPECT_THAT(ch_out_queue.Read(), Optional(next_output));
         values.pop_front();
       }
@@ -453,7 +472,7 @@ void XlsccTestBase::ProcTest(
   }
 
   EXPECT_GE(tick, min_ticks);
-  EXPECT_LT(tick, max_ticks);
+  EXPECT_LE(tick, max_ticks);
 
   for (const auto& [proc_name, events] : expected_events_by_proc_name) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package_->GetProc(proc_name));

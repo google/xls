@@ -115,7 +115,9 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/contrib/xlscc:hls_block_cc_proto",
         "//xls/ir",
-        "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_protobuf//:protobuf",
     ],
 )
