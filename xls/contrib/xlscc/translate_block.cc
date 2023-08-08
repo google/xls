@@ -519,10 +519,6 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->io_ops.size());
 
-  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
-
-  std::list<const IOOp*> fan_ins_ordered;
-
   // The function is first invoked with defaults for any
   //  read() IO Ops.
   // If there are any read() IO Ops, then it will be invoked again
@@ -531,21 +527,16 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   //  exchange any data with the outside world between iterations.
   xls::BValue last_ret_val =
       pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
-  for (const IOOp& op : prepared.xls_func->io_ops) {
-    const int return_index = prepared.return_index_for_op.at(&op);
+
+  // Returns token
+  auto generate_op_invoke =
+      [this, &prepared, &last_ret_val, &pb](
+          const IOOp& op,
+          xls::BValue before_token) -> absl::StatusOr<xls::BValue> {
     xls::SourceInfo op_loc = op.op_location;
+    const int return_index = prepared.return_index_for_op.at(&op);
 
-    xls::BValue before_token = prepared.token;
     xls::BValue new_token;
-    if (!op.after_ops.empty()) {
-      std::vector<xls::BValue> after_tokens;
-      after_tokens.reserve(op.after_ops.size());
-      for (const IOOp* op : op.after_ops) {
-        after_tokens.push_back(op_tokens.at(op));
-      }
-      before_token = pb.AfterAll(after_tokens, body_loc);
-    }
-
     const ChannelBundle* bundle_ptr = nullptr;
 
     if (op.op != OpType::kTrace) {
@@ -679,18 +670,93 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     } else {
       XLS_CHECK("Unknown IOOp type" == nullptr);
     }
+    return new_token;
+  };
+
+  // ASAP ops before
+  std::vector<xls::BValue> asap_befores_ordered;
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kASAPBefore) {
+      continue;
+    }
+
+    xls::BValue new_token;
+    xls::BValue before_token = prepared.token;
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
+
+    asap_befores_ordered.push_back(new_token);
+  }
+  std::optional<xls::BValue> asap_befores_token;
+  if (!asap_befores_ordered.empty()) {
+    asap_befores_token = pb.AfterAll(asap_befores_ordered, body_loc);
+  }
+
+  // ASAP ops after
+  std::vector<xls::BValue> asap_afters_ordered;
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kASAPAfter) {
+      continue;
+    }
+
+    xls::BValue new_token;
+    xls::BValue before_token = asap_befores_token.has_value()
+                                   ? asap_befores_token.value()
+                                   : prepared.token;
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
+
+    asap_afters_ordered.push_back(new_token);
+  }
+
+  std::optional<xls::BValue> asap_afters_token;
+  if (!asap_afters_ordered.empty()) {
+    asap_afters_token = pb.AfterAll(asap_afters_ordered, body_loc);
+  }
+
+  std::vector<xls::BValue> fan_ins_tokens;
+
+  // Add the ASAP after token if present, otherwise the before token if present
+  if (asap_befores_token.has_value() && !asap_afters_token.has_value()) {
+    fan_ins_tokens.push_back(asap_befores_token.value());
+  }
+  if (asap_afters_token.has_value()) {
+    fan_ins_tokens.push_back(asap_afters_token.value());
+  }
+
+  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
+
+  // Then default (possibly serialized) ops
+  for (const IOOp& op : prepared.xls_func->io_ops) {
+    if (op.scheduling_option != IOSchedulingOption::kNone) {
+      continue;
+    }
+
+    xls::SourceInfo op_loc = op.op_location;
+
+    xls::BValue before_token = prepared.token;
+    xls::BValue new_token;
+    if (!op.after_ops.empty()) {
+      XLSCC_CHECK(op.scheduling_option == IOSchedulingOption::kNone, op_loc);
+
+      std::vector<xls::BValue> after_tokens;
+      after_tokens.reserve(op.after_ops.size());
+      for (const IOOp* after_op : op.after_ops) {
+        XLSCC_CHECK(after_op->scheduling_option == IOSchedulingOption::kNone,
+                    op_loc);
+        XLSCC_CHECK_NE(&op, after_op, op_loc);
+        after_tokens.push_back(op_tokens.at(after_op));
+      }
+      before_token = pb.AfterAll(after_tokens, body_loc);
+    }
+
+    XLS_ASSIGN_OR_RETURN(new_token, generate_op_invoke(op, before_token));
 
     XLS_CHECK(!op_tokens.contains(&op));
     op_tokens[&op] = new_token;
 
-    fan_ins_ordered.push_back(&op);
+    fan_ins_tokens.push_back(new_token);
   }
 
-  if (!fan_ins_ordered.empty()) {
-    std::vector<xls::BValue> fan_ins_tokens;
-    for (const IOOp* op : fan_ins_ordered) {
-      fan_ins_tokens.push_back(op_tokens.at(op));
-    }
+  if (!fan_ins_tokens.empty()) {
     prepared.token = pb.AfterAll(fan_ins_tokens, body_loc);
   }
 

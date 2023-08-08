@@ -826,10 +826,9 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationAndPragma) {
   HLSBlock block_spec;
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
-  ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("intrinsic and a #pragma")));
+  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
+                                absl::StatusCode::kInvalidArgument,
+                                testing::HasSubstr("intrinsic and a #pragma")));
 }
 
 TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
@@ -862,9 +861,8 @@ TEST_F(TranslatorProcTest, ForPipelinedIntrinsicAnnotationFarAway) {
   auto ret =
       translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
   ASSERT_THAT(ret.status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("missing")));
+              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
+                                            testing::HasSubstr("missing")));
 }
 
 TEST_F(TranslatorProcTest, ForPipelinedII2) {
@@ -5510,6 +5508,211 @@ TEST_F(TranslatorProcTest, LocalChannelDeclaredInClassNonStaticAddCondition) {
                       xls::Value(xls::SBits(100, 32))};
 
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs);
+  }
+}
+
+// Test serialization of loops via min ticks
+TEST_F(TranslatorProcTest, PipelinedLoopSerial) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          for(int i=0;i<6;++i) {
+            out.write(i);
+          }
+          for(int i=0;i<6;++i) {
+            out.write(10+i);
+          }
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(0, 32)),  xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(2, 32)),  xls::Value(xls::SBits(3, 32)),
+        xls::Value(xls::SBits(4, 32)),  xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(11, 32)),
+        xls::Value(xls::SBits(12, 32)), xls::Value(xls::SBits(13, 32)),
+        xls::Value(xls::SBits(14, 32)), xls::Value(xls::SBits(15, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 11,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopASAP) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          // Use sync channel to enforce ordering
+          static __xls_channel<int, __xls_channel_dir_InOut> sync;
+
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            out.write(i);
+            sync.write(0);
+          }
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            (void)sync.read();
+            out.write(10+i);
+          }
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(10, 32)),
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(11, 32)),
+        xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(12, 32)),
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(13, 32)),
+        xls::Value(xls::SBits(4, 32)), xls::Value(xls::SBits(14, 32)),
+        xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(15, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 6,
+             /* max_ticks = */ 7,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependency) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          // Use sync channel to enforce ordering
+          static __xls_channel<int, __xls_channel_dir_InOut> sync;
+
+          int value = 0;
+
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            out.write(value++);
+            sync.write(0);
+          }
+
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            (void)sync.read();
+            out.write(10+value+i);
+          }
+         }
+      };)";
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec,
+                                             /*top_level_init_interval=*/1);
+  ASSERT_THAT(ret.status(), xls::status_testing::StatusIs(
+                                absl::StatusCode::kUnimplemented,
+                                testing::HasSubstr("variable in outside")));
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
+  const std::string content = R"(
+       class Block {
+        int value = 0;
+
+        public:
+         __xls_channel<int, __xls_channel_dir_Out> out;
+
+        void write_it(int off)const {
+          out.write(value + off);
+        }
+
+         #pragma hls_top
+         void Run() {
+          // Use sync channel to enforce ordering
+          static __xls_channel<int, __xls_channel_dir_InOut> sync;
+
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            write_it(i);
+            sync.write(0);
+          }
+
+          __xlscc_asap();
+          for(int i=0;i<6;++i) {
+            (void)sync.read();
+            out.write(10+value+i);
+          }
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(0, 32)), xls::Value(xls::SBits(10, 32)),
+        xls::Value(xls::SBits(1, 32)), xls::Value(xls::SBits(11, 32)),
+        xls::Value(xls::SBits(2, 32)), xls::Value(xls::SBits(12, 32)),
+        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(13, 32)),
+        xls::Value(xls::SBits(4, 32)), xls::Value(xls::SBits(14, 32)),
+        xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(15, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 6,
+             /* max_ticks = */ 7,
+             /* top_level_init_interval = */ 1);
+  }
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int value = 0;
+
+          for(int i=0;i<6;++i) {
+            out.write(value++);
+          }
+
+          for(int i=0;i<6;++i) {
+            out.write(10+value+i);
+          }
+         }
+      };)";
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {
+        xls::Value(xls::SBits(0, 32)),  xls::Value(xls::SBits(1, 32)),
+        xls::Value(xls::SBits(2, 32)),  xls::Value(xls::SBits(3, 32)),
+        xls::Value(xls::SBits(4, 32)),  xls::Value(xls::SBits(5, 32)),
+        xls::Value(xls::SBits(16, 32)), xls::Value(xls::SBits(17, 32)),
+        xls::Value(xls::SBits(18, 32)), xls::Value(xls::SBits(19, 32)),
+        xls::Value(xls::SBits(20, 32)), xls::Value(xls::SBits(21, 32))};
+    ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
+             /* min_ticks = */ 11,
+             /* max_ticks = */ 100,
+             /* top_level_init_interval = */ 1);
   }
 }
 

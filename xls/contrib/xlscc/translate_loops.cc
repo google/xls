@@ -65,6 +65,8 @@ absl::Status Translator::GenerateIR_Loop(
     }
   }
 
+  bool have_asap_intrinsic = false;
+
   bool have_relevant_intrinsic = false;
   bool intrinsic_unroll = false;
 
@@ -80,6 +82,8 @@ absl::Status Translator::GenerateIR_Loop(
     } else if (intrinsic_name == "__xlscc_unroll") {
       have_relevant_intrinsic = true;
       intrinsic_unroll = true;
+    } else if (intrinsic_name == "__xlscc_asap") {
+      have_asap_intrinsic = true;
     }
   }
 
@@ -140,7 +144,7 @@ absl::Status Translator::GenerateIR_Loop(
 
   // Pipelined do-while
   return GenerateIR_PipelinedLoop(always_first_iter, init, cond_expr, inc, body,
-                                  init_interval, ctx, loc);
+                                  init_interval, have_asap_intrinsic, ctx, loc);
 }
 
 absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
@@ -347,8 +351,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     bool always_first_iter, const clang::Stmt* init,
     const clang::Expr* cond_expr, const clang::Stmt* inc,
     const clang::Stmt* body, int64_t initiation_interval_arg,
-    clang::ASTContext& ctx, const xls::SourceInfo& loc) {
+    bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
+
+  const TranslationContext& outer_context = context();
 
   // Generate the loop counter declaration within a private context
   // By doing this here, it automatically gets rolled into proc state
@@ -518,6 +524,11 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         context_tuple_out.type());
   }
 
+  IOOp* after_op_ptr = nullptr;
+  if (!context().sf->io_ops.empty()) {
+    after_op_ptr = &context().sf->io_ops.back();
+  }
+
   // Send and receive context tuples
   IOOp* ctx_out_op_ptr = nullptr;
   {
@@ -530,6 +541,14 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
                          AddOpToChannel(op, context_out_channel, loc));
   }
 
+  if (!schedule_asap) {
+    if (after_op_ptr != nullptr) {
+      ctx_out_op_ptr->after_ops.push_back(after_op_ptr);
+    }
+  } else {
+    ctx_out_op_ptr->scheduling_option = IOSchedulingOption::kASAPBefore;
+  }
+
   IOOp* ctx_in_op_ptr;
   {
     IOOp op;
@@ -539,7 +558,11 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
                          AddOpToChannel(op, context_in_channel, loc));
   }
 
-  ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
+  if (!schedule_asap) {
+    ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
+  } else {
+    ctx_in_op_ptr->scheduling_option = IOSchedulingOption::kASAPAfter;
+  }
 
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
@@ -547,8 +570,17 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
     for (const clang::NamedDecl* decl : vars_changed_in_body) {
-      if (!variable_field_indices.contains(decl)) {
+      // Don't assign to variables that don't exist in the outside scope
+      if (!outer_context.variables.contains(decl)) {
         continue;
+      }
+
+      if (schedule_asap) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc,
+                         "Cannot assign to variable in outside scope from loop "
+                         "which runs asynchronously: %s",
+                         decl->getQualifiedNameAsString().c_str()));
       }
 
       const uint64_t field_idx = variable_field_indices.at(decl);

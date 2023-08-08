@@ -102,7 +102,7 @@ ABSL_FLAG(int, z3_rlimit, -1,
           "rlimit to set for z3 solver (eg for loop unrolling)");
 
 ABSL_FLAG(std::string, io_op_token_ordering, "none",
-          "none (default), channel_wise");
+          "none (default), channel_wise, lexical");
 
 namespace xlscc {
 
@@ -116,6 +116,8 @@ static absl::Status Run(std::string_view cpp_path) {
     io_op_token_ordering = IOOpOrdering::kNone;
   } else if (absl::GetFlag(FLAGS_io_op_token_ordering) == "channel_wise") {
     io_op_token_ordering = IOOpOrdering::kChannelWise;
+  } else if (absl::GetFlag(FLAGS_io_op_token_ordering) == "lexical") {
+    io_op_token_ordering = IOOpOrdering::kLexical;
   } else {
     std::cerr << "Unknown --io_op_token_ordering: "
               << absl::GetFlag(FLAGS_io_op_token_ordering) << std::endl;

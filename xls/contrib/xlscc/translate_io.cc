@@ -126,6 +126,11 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
       const IOOp* last_op = previous_ops_on_channel.back();
       op.after_ops.push_back(last_op);
     }
+  } else if (op_ordering_ == IOOpOrdering::kLexical) {
+    // Sequence after the previous op on any channel
+    if (!context().sf->io_ops.empty()) {
+      op.after_ops.push_back(&context().sf->io_ops.back());
+    }
   } else if (op_ordering_ == IOOpOrdering::kNone) {
     // No ordering
   } else {

@@ -231,7 +231,7 @@ absl::Status XlsccTestBase::ScanFile(
       error_on_init_interval,
       /*max_unroll_iters=*/(max_unroll_iters > 0) ? max_unroll_iters : 100,
       /*warn_unroll_iters=*/100, /*z3_rlimit=*/-1,
-      /*op_ordering=*/xlscc::IOOpOrdering::kChannelWise, std::move(parser)));
+      /*op_ordering=*/xlscc::IOOpOrdering::kLexical, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }

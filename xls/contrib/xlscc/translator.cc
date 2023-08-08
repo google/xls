@@ -3431,6 +3431,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     IOOp caller_op;
 
+    XLSCC_CHECK(!(callee_op.scheduling_option != IOSchedulingOption::kNone &&
+                  !callee_op.after_ops.empty()),
+                loc);
+
     // Translate ops that must be sequenced before first
     for (const IOOp* after_op : callee_op.after_ops) {
       XLSCC_CHECK(caller_ops_by_callee_op.find(after_op) !=
@@ -3455,6 +3459,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     caller_op.trace_type = callee_op.trace_type;
     caller_op.trace_message_string = callee_op.trace_message_string;
     caller_op.label_string = callee_op.label_string;
+    caller_op.scheduling_option = callee_op.scheduling_option;
 
     caller_op.sub_op = &callee_op;
 

@@ -425,6 +425,7 @@ class CReferenceType : public CType {
 enum class OpType { kNull = 0, kSend, kRecv, kSendRecv, kRead, kWrite, kTrace };
 enum class InterfaceType { kNull = 0, kDirect, kFIFO, kMemory, kTrace };
 enum class TraceType { kNull = 0, kAssert, kTrace };
+enum class IOSchedulingOption { kNone = 0, kASAPBefore = 1, kASAPAfter = 2 };
 
 // __xls_channel in C/C++
 class CChannelType : public CType {
@@ -713,10 +714,16 @@ struct IOOp {
   std::string trace_message_string;
   std::string label_string;
 
+  // If None is specified, then actions happen in parallel, except
+  // as sequenced by after_ops. If ASAP is specified, then after_ops
+  // is unused.
+  IOSchedulingOption scheduling_option = IOSchedulingOption::kNone;
+
   // --- Not preserved across calls ---
 
   // Must be sequenced after these ops via tokens
-  // Ops be in GeneratedFunction::io_ops respecting this order
+  // This is translated across calls
+  // Ops must be in GeneratedFunction::io_ops respecting this order
   std::vector<const IOOp*> after_ops;
 
   IOChannel* channel = nullptr;
@@ -1048,6 +1055,7 @@ std::string Debug_VariablesChangedBetween(const TranslationContext& before,
 enum IOOpOrdering {
   kNone = 0,
   kChannelWise = 1,
+  kLexical = 2,
 };
 
 class Translator {
@@ -1673,6 +1681,7 @@ class Translator {
       bool always_first_iter, const clang::Stmt* init,
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t initiation_interval_arg,
+      bool schedule_asap,
       clang::ASTContext& ctx, const xls::SourceInfo& loc);
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,

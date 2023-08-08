@@ -540,16 +540,16 @@ enum __xls_channel_dir {
 template<typename T, __xls_channel_dir Dir=__xls_channel_dir_Unknown>
 class __xls_channel {
  public:
-  T read() {
+  T read()const {
     return T();
   }
-  T write(T val) {
+  T write(T val)const {
     return val;
   }
-  void read(T& out) {
+  void read(T& out)const {
     (void)out;
   }
-  bool nb_read(T& out) {
+  bool nb_read(T& out)const {
     (void)out;
     return true;
   }
@@ -560,14 +560,11 @@ class __xls_memory {
  public:
   static constexpr unsigned long long size = Size;
 
-  T& operator[](long long int addr) {
+  T& operator[](long long int addr)const {
     static T ret;
     return ret;
   }
-  T operator[](long long int addr)const {
-    return T();
-  }
-  void write(long long int addr, const T& value) {
+  void write(long long int addr, const T& value) const {
     return;
   }
   T read(long long int addr) const {
@@ -593,6 +590,10 @@ __xls_bits<64> __xlscc_fixed_32_32_bits_for_float(float input);
 // For use with loops
 void __xlscc_pipeline(long long factor) { }
 void __xlscc_unroll(long long factor) { }
+
+// Place at the beginning of the token graph, connected to the end, in parallel
+// to anything else, rather than serializing as by default
+void __xlscc_asap() { }
 
 #endif//__XLS_BUILTIN_H
           )"));
