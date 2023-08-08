@@ -361,7 +361,8 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
   if (callee_nameref->identifier() == "array_size") {
     auto* array_type = down_cast<const ArrayType*>(fn_type->params()[0].get());
     XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
-    ctx->type_info()->NoteConstExpr(invocation, InterpValue::MakeU32(array_size));
+    ctx->type_info()->NoteConstExpr(invocation,
+                                    InterpValue::MakeU32(array_size));
   }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
