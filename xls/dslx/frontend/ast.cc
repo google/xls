@@ -2364,6 +2364,23 @@ std::string Number::ToStringInternal() const {
 
 std::string Number::ToStringNoType() const { return text_; }
 
+absl::StatusOr<bool> Number::FitsInType(int64_t bit_count) const {
+  XLS_RET_CHECK_GE(bit_count, 0);
+  switch (number_kind_) {
+    case NumberKind::kBool:
+      return bit_count >= 1;
+    case NumberKind::kCharacter:
+      return bit_count >= CHAR_BIT;
+    case NumberKind::kOther: {
+      XLS_ASSIGN_OR_RETURN(auto sm, GetSignAndMagnitude(text_));
+      auto [sign, bits] = sm;
+      return bit_count >= bits.bit_count();
+    }
+  }
+  return absl::InternalError(
+      absl::StrFormat("Unreachable; invalid number kind: %d", number_kind_));
+}
+
 absl::StatusOr<Bits> Number::GetBits(int64_t bit_count) const {
   XLS_RET_CHECK_GE(bit_count, 0);
   switch (number_kind_) {
@@ -2446,11 +2463,4 @@ Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
   }, expr_or_type);
 }
 
-static std::string ExprOrTypeToString(const ExprOrType& expr_or_type) {
-  return absl::visit(Visitor{
-                         [](Expr* expr) { return expr->ToString(); },
-                         [](TypeAnnotation* type) { return type->ToString(); },
-                     },
-                     expr_or_type);
-}
 }  // namespace xls::dslx

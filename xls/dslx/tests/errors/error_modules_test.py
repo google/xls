@@ -42,6 +42,10 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     logging.info('running: %s', subp.list2cmdline(cmd))
     p = subp.run(cmd, stderr=subp.PIPE, check=False, encoding='utf-8')
     logging.info('stderr: %r', p.stderr)
+
+    # Check that there is no RET_CHECK output in stderr.
+    self.assertNotIn('RET_CHECK', p.stderr)
+
     if want_err_retcode:
       self.assertNotEqual(p.returncode, 0)
     else:
