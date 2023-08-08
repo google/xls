@@ -19,8 +19,11 @@
 
 #include <memory>
 
+#include "absl/status/statusor.h"
+#include "xls/codegen/assert_condition_pass.h"
 #include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
+#include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
 #include "xls/codegen/ffi_instantiation_pass.h"
 #include "xls/codegen/mulp_combining_pass.h"
@@ -28,8 +31,10 @@
 #include "xls/codegen/ram_rewrite_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
+#include "xls/ir/block.h"
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/identity_removal_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
 
@@ -67,6 +72,9 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Create instantiations from ffi invocations.
   top->Add<FfiInstantiationPass>();
+
+  // Update assert conditions to be guarded by pipeline_valid signals.
+  top->Add<AssertConditionPass>();
 
   // Remove any identity ops which might have been added earlier in the
   // pipeline.

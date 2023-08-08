@@ -37,6 +37,7 @@
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
+#include "xls/common/casts.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -55,8 +56,10 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -1491,7 +1494,7 @@ static absl::Status AddOneShotLogicToRVNodes(
           Op::kAnd, name));
   XLS_RETURN_IF_ERROR(from_valid->ReplaceUsesWith(valid_and_not_has_been_sent));
 
-  // Data is transfered whenever valid and ready
+  // Data is transferred whenever valid and ready
   name = absl::StrFormat("__%s_valid_and_ready_txfr", name_prefix);
   XLS_ASSIGN_OR_RETURN(
       Node * valid_and_ready_txfr,
@@ -1760,6 +1763,7 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
 static absl::Status AddCombinationalFlowControl(
     std::vector<std::vector<StreamingInput>>& streaming_inputs,
     std::vector<std::vector<StreamingOutput>>& streaming_outputs,
+    std::vector<Node*>& stage_valid,
     const CodegenOptions& options, Block* block) {
   std::string_view valid_suffix = options.streaming_channel_valid_suffix();
   std::string_view ready_suffix = options.streaming_channel_ready_suffix();
@@ -1784,6 +1788,10 @@ static absl::Status AddCombinationalFlowControl(
 
   XLS_RETURN_IF_ERROR(MakeOutputReadyPortsForInputChannels(
       all_active_outputs_ready, streaming_inputs, ready_suffix, block));
+
+  XLS_RET_CHECK(stage_valid.empty());
+  XLS_RET_CHECK_EQ(all_active_inputs_valid.size(), 1);
+  stage_valid.push_back(all_active_inputs_valid.front());
 
   return absl::OkStatus();
 }
@@ -2864,6 +2872,8 @@ absl::StatusOr<CodegenPassUnit> FunctionBaseToPipelinedBlock(
 
 absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
     Function* f, const CodegenOptions& options) {
+  XLS_RET_CHECK(!options.valid_control().has_value())
+      << "Combinational block generator does not support valid control.";
   std::string module_name(
       options.module_name().value_or(SanitizeIdentifier(f->name())));
   Block* block = f->package()->AddBlock(
@@ -2898,7 +2908,9 @@ absl::StatusOr<CodegenPassUnit> FunctionToCombinationalBlock(
       block->AddOutputPort(kOutputPortName, node_map.at(f->return_value()))
           .status());
 
-  return CodegenPassUnit(block->package(), block);
+  CodegenPassUnit unit(block->package(), block);
+  unit.conversion_metadata.emplace<FunctionConversionMetadata>();
+  return unit;
 }
 
 absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
@@ -2957,8 +2969,9 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
 
   XLS_RET_CHECK_EQ(streaming_io.pipeline_registers.size(), 0);
 
-  XLS_RETURN_IF_ERROR(AddCombinationalFlowControl(
-      streaming_io.inputs, streaming_io.outputs, options, block));
+  XLS_RETURN_IF_ERROR(
+      AddCombinationalFlowControl(streaming_io.inputs, streaming_io.outputs,
+                                  streaming_io.stage_valid, options, block));
 
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
@@ -2970,7 +2983,10 @@ absl::StatusOr<CodegenPassUnit> ProcToCombinationalBlock(
   XLS_VLOG(3) << "After UpdateChannelMetadata";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  return CodegenPassUnit(block->package(), block);
+  CodegenPassUnit unit(block->package(), block);
+  unit.streaming_io_and_pipeline = std::move(streaming_io);
+  unit.conversion_metadata.emplace<ProcConversionMetadata>();
+  return unit;
 }
 
 absl::StatusOr<CodegenPassUnit> FunctionBaseToCombinationalBlock(
