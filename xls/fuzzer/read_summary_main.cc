@@ -212,9 +212,8 @@ void DumpSampleInfo(const SampleInfo& info) {
   auto fmt = [&](const std::string& s, bool first_col = false) {
     if (first_col) {
       return absl::StrFormat("%-20s", s);
-    } else {
-      return absl::StrFormat("%13s", s);
     }
+    return absl::StrFormat("%13s", s);
   };
   auto fmt_num = [&](int64_t n) { return fmt(absl::StrCat(n), false); };
 
