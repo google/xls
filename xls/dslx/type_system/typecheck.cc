@@ -356,6 +356,13 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
   if (callee_nameref->identifier() == "widening_cast") {
     XLS_RETURN_IF_ERROR(CheckIsAcceptableWideningCast(ctx, invocation));
   }
+  // array_size is always a constexpr result since it just needs the type
+  // information
+  if (callee_nameref->identifier() == "array_size") {
+    auto* array_type = down_cast<const ArrayType*>(fn_type->params()[0].get());
+    XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
+    ctx->type_info()->NoteConstExpr(invocation, InterpValue::MakeU32(array_size));
+  }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is
   // what we actually want). We hack up `tab` to make this consistent with

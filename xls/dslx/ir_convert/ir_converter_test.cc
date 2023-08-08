@@ -1921,6 +1921,20 @@ fn main(x: u8, y: s8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ArraySizeBuiltin) {
+  constexpr std::string_view program =
+      R"(
+fn main(x: u8[42]) -> u32 {
+  array_size(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 
