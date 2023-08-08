@@ -1610,6 +1610,8 @@ class Translator {
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
                                        const xls::SourceInfo& loc,
                                        bool mask = false);
+  absl::StatusOr<std::optional<const IOOp*>> GetPreviousOp(
+      const IOOp& op, const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::BValue> AddConditionToIOReturn(
       const IOOp& op, xls::BValue retval, const xls::SourceInfo& loc);
@@ -1681,8 +1683,7 @@ class Translator {
       bool always_first_iter, const clang::Stmt* init,
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t initiation_interval_arg,
-      bool schedule_asap,
-      clang::ASTContext& ctx, const xls::SourceInfo& loc);
+      bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,

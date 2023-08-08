@@ -83,6 +83,7 @@ absl::Status Translator::GenerateIR_Loop(
       have_relevant_intrinsic = true;
       intrinsic_unroll = true;
     } else if (intrinsic_name == "__xlscc_asap") {
+      have_relevant_intrinsic = false;
       have_asap_intrinsic = true;
     }
   }
@@ -524,11 +525,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         context_tuple_out.type());
   }
 
-  IOOp* after_op_ptr = nullptr;
-  if (!context().sf->io_ops.empty()) {
-    after_op_ptr = &context().sf->io_ops.back();
-  }
-
   // Send and receive context tuples
   IOOp* ctx_out_op_ptr = nullptr;
   {
@@ -542,9 +538,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   if (!schedule_asap) {
-    if (after_op_ptr != nullptr) {
-      ctx_out_op_ptr->after_ops.push_back(after_op_ptr);
-    }
+    // AddOpToChannel sequences automatically according to op_ordering_
   } else {
     ctx_out_op_ptr->scheduling_option = IOSchedulingOption::kASAPBefore;
   }
@@ -559,6 +553,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   if (!schedule_asap) {
+    // This must be added explicitly, as op_ordering_ may not add it
     ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
   } else {
     ctx_in_op_ptr->scheduling_option = IOSchedulingOption::kASAPAfter;

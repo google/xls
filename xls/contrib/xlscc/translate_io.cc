@@ -33,6 +33,7 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
 
 namespace xlscc {
@@ -109,35 +110,16 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     op.input_value = CValue(pbval, channel_item_type);
   }
 
+  XLS_ASSIGN_OR_RETURN(std::optional<const IOOp*> last_op,
+                       GetPreviousOp(op, loc));
+
+  if (last_op.has_value()) {
+    op.after_ops.push_back(last_op.value());
+  }
+
   // Sequence after the previous op on the channel
   // TODO(seanhaskell): This is inefficient for memories. Parallelize operations
   // once "token phi" type features are available.
-  if (op_ordering_ == IOOpOrdering::kChannelWise) {
-    std::vector<const IOOp*> previous_ops_on_channel;
-
-    for (const IOOp& existing_op : context().sf->io_ops) {
-      if (existing_op.channel != op.channel) {
-        continue;
-      }
-      previous_ops_on_channel.push_back(&existing_op);
-    }
-
-    if (!previous_ops_on_channel.empty()) {
-      const IOOp* last_op = previous_ops_on_channel.back();
-      op.after_ops.push_back(last_op);
-    }
-  } else if (op_ordering_ == IOOpOrdering::kLexical) {
-    // Sequence after the previous op on any channel
-    if (!context().sf->io_ops.empty()) {
-      op.after_ops.push_back(&context().sf->io_ops.back());
-    }
-  } else if (op_ordering_ == IOOpOrdering::kNone) {
-    // No ordering
-  } else {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "IO op ordering %i", static_cast<int>(op_ordering_)));
-  }
-
   context().sf->io_ops.push_back(op);
 
   if (op.op == OpType::kRecv || op.op == OpType::kRead) {
@@ -150,6 +132,51 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   }
 
   return &context().sf->io_ops.back();
+}
+
+absl::StatusOr<std::optional<const IOOp*>> Translator::GetPreviousOp(
+    const IOOp& op, const xls::SourceInfo& loc) {
+  if (op_ordering_ == IOOpOrdering::kNone) {
+    return std::nullopt;
+  }
+  if (op_ordering_ == IOOpOrdering::kChannelWise) {
+    std::vector<const IOOp*> previous_ops_on_channel;
+
+    for (const IOOp& existing_op : context().sf->io_ops) {
+      if (existing_op.channel != op.channel) {
+        continue;
+      }
+      if (existing_op.scheduling_option != IOSchedulingOption::kNone) {
+        continue;
+      }
+      previous_ops_on_channel.push_back(&existing_op);
+    }
+
+    if (!previous_ops_on_channel.empty()) {
+      const IOOp* last_op = previous_ops_on_channel.back();
+      return last_op;
+    }
+    return std::nullopt;
+  }
+  if (op_ordering_ == IOOpOrdering::kLexical) {
+    // Sequence after the previous op on any channel
+    std::vector<const IOOp*> previous_ops_on_channel;
+
+    for (const IOOp& existing_op : context().sf->io_ops) {
+      if (existing_op.scheduling_option != IOSchedulingOption::kNone) {
+        continue;
+      }
+      previous_ops_on_channel.push_back(&existing_op);
+    }
+
+    if (!previous_ops_on_channel.empty()) {
+      const IOOp* last_op = previous_ops_on_channel.back();
+      return last_op;
+    }
+    return std::nullopt;
+  }
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "IO op ordering %i", static_cast<int>(op_ordering_)));
 }
 
 absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,

@@ -5646,14 +5646,14 @@ TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
           // Use sync channel to enforce ordering
           static __xls_channel<int, __xls_channel_dir_InOut> sync;
 
-          __xlscc_asap();
-          for(int i=0;i<6;++i) {
+          #pragma hls_pipeline_init_interval 1
+          __xlscc_asap();for(int i=0;i<6;++i) {
             write_it(i);
             sync.write(0);
           }
 
-          __xlscc_asap();
-          for(int i=0;i<6;++i) {
+          #pragma hls_pipeline_init_interval 1
+          __xlscc_asap();for(int i=0;i<6;++i) {
             (void)sync.read();
             out.write(10+value+i);
           }
@@ -5673,8 +5673,7 @@ TEST_F(TranslatorProcTest, PipelinedLoopASAPDataDependencyMethod) {
         xls::Value(xls::SBits(5, 32)), xls::Value(xls::SBits(15, 32))};
     ProcTest(content, /*block_spec=*/std::nullopt, inputs, outputs,
              /* min_ticks = */ 6,
-             /* max_ticks = */ 7,
-             /* top_level_init_interval = */ 1);
+             /* max_ticks = */ 7);
   }
 }
 
@@ -5714,6 +5713,39 @@ TEST_F(TranslatorProcTest, PipelinedLoopSerialDataDependency) {
              /* max_ticks = */ 100,
              /* top_level_init_interval = */ 1);
   }
+}
+
+TEST_F(TranslatorProcTest, PipelinedLoopSerialAfterASAP) {
+  const std::string content = R"(
+       class Block {
+        public:
+         __xls_channel<int, __xls_channel_dir_Out>& out;
+
+         #pragma hls_top
+         void Run() {
+          int value = 0;
+
+          #pragma hls_pipeline_init_interval 1
+          __xlscc_asap();for(int i=0;i<6;++i) {
+            out.write(value);
+          }
+
+          #pragma hls_pipeline_init_interval 1
+          for(int i=0;i<6;++i) {
+            out.write(10+value+i);
+          }
+         }
+      };)";
+
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/false));
+  package_.reset(new xls::Package("my_package"));
+  HLSBlock block_spec;
+  auto ret =
+      translator_->GenerateIR_BlockFromClass(package_.get(), &block_spec);
+  ASSERT_THAT(ret.status(), xls::status_testing::IsOk());
 }
 
 }  // namespace
