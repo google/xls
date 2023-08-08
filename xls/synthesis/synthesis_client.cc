@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/synthesis/synthesis_client.h"
+
 #include <memory>
 #include <string>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "grpcpp/support/status.h"
 #include "grpcpp/channel.h"
 #include "grpcpp/client_context.h"
 #include "grpcpp/create_channel.h"
 #include "grpcpp/security/credentials.h"
-#include "grpcpp/support/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/synthesis/credentials.h"
-#include "xls/synthesis/synthesis_client.h"
 #include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
-
 
 namespace xls {
 namespace synthesis {

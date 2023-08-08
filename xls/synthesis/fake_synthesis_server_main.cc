@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/status/statusor.h"
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <string>
+
+#include "absl/flags/flag.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "grpcpp/grpcpp.h"
 #include "grpcpp/security/server_credentials.h"
 #include "grpcpp/server.h"
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
+#include "grpcpp/support/status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/synthesis/credentials.h"
 #include "xls/synthesis/synthesis.pb.h"
 #include "xls/synthesis/synthesis_service.grpc.pb.h"
+#include "grpcpp/support/status_code_enum.h"
 
 const char kUsage[] = R"(
 Launches a XLS synthesis server which serves fake results. The flag
@@ -59,10 +65,11 @@ class FakeSynthesisServiceImpl : public SynthesisService::Service {
                          CompileResponse* result) override {
     auto start = absl::Now();
 
-    result->set_slack_ps(request->target_frequency_hz() <= max_frequency_hz_
-                             ? 0
-                             : 1e12L / request->target_frequency_hz() -
-                                   1e12L / max_frequency_hz_);
+    result->set_slack_ps(
+        request->target_frequency_hz() <= max_frequency_hz_
+            ? 0
+            : static_cast<int64_t>(1e12L / request->target_frequency_hz() -
+                                   1e12L / max_frequency_hz_));
     result->set_power(42);
     result->set_area(123);
     result->set_netlist("// NETLIST");
