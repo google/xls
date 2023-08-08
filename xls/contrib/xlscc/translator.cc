@@ -868,7 +868,7 @@ absl::Status Translator::GenerateIR_Ctor_Initializers(
 
     CValue rvalue;
 
-    if (field->type()->Is<CChannelType>() && ctor_init &&
+    if (field->type()->Is<CChannelType>() && (ctor_init != nullptr) &&
         (ctor_init->getNumArgs() == 0)) {
       auto channel_type =
           std::dynamic_pointer_cast<CChannelType>(field->type());
@@ -4922,7 +4922,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   }
   if (auto rts = clang::dyn_cast<const clang::ReturnStmt>(stmt)) {
     return GenerateIR_ReturnStmt(rts, ctx, loc);
-  } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
+  }
+  if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
     for (auto decl : declstmt->decls()) {
       if (clang::isa<clang::TypedefDecl>(decl)) {
         continue;
