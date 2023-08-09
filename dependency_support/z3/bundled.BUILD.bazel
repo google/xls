@@ -15,7 +15,7 @@
 # Description:
 #   Z3 is a theorem prover from Microsoft Research.
 
-load("@com_google_xls//dependency_support/z3:build_defs.bzl", "gen_srcs", "GEN_SRCS", "GEN_HDRS")
+load("@com_google_xls//dependency_support/z3:build_defs.bzl", "GEN_HDRS", "GEN_SRCS", "gen_srcs")
 
 licenses(["notice"])
 
@@ -121,7 +121,7 @@ cc_library(
         "src/test/fuzzing/*.cpp",
         "src/util/*.cpp",
         "src/util/lp/*.cpp",
-    ], exclude=GEN_SRCS),
+    ], exclude = GEN_SRCS),
     hdrs = GEN_HDRS + glob([
         "src/ackermannization/*.h",
         "src/ackermannization/*.hpp",
