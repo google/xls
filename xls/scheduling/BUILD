@@ -123,6 +123,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
@@ -140,6 +141,7 @@ cc_library(
     deps = [
         ":pipeline_schedule_cc_proto",
         ":scheduling_options",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -149,9 +151,10 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
-        "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -179,8 +182,6 @@ cc_library(
         "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )

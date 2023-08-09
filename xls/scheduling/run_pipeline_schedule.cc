@@ -18,9 +18,6 @@
 #include <cstdint>
 #include <optional>
 #include <random>
-#include <string>
-#include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -35,12 +32,10 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/scheduling/min_cut_scheduler.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -79,18 +74,14 @@ std::vector<Node*> FinalStageNodes(FunctionBase* f) {
   return {};
 }
 
-// Construct ScheduleBounds for the given function assuming the given
-// clock period and delay estimator. `topo_sort` should be a topological sort of
-// the nodes of `f`. If `schedule_length` is given then the upper bounds are
-// set on the bounds object with the maximum upper bound set to
-// `schedule_length` - 1. Otherwise, the maximum upper bound is set to the
-// maximum lower bound.
-absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
-    FunctionBase* f, int64_t clock_period_ps,
-    const std::vector<Node*>& topo_sort, std::optional<int64_t> schedule_length,
-    const DelayEstimator& delay_estimator) {
-  sched::ScheduleBounds bounds(f, topo_sort, clock_period_ps, delay_estimator);
-
+// Tighten `bounds` to the ASAP/ALAP bounds for each node. If `schedule_length`
+// is given, then the ALAP bounds are computed with the given length. Otherwise,
+// we use the minimum viable pipeline length, per the ASAP bounds.
+//
+// Both schedules will be feasible if no other scheduling constraints are
+// applied.
+absl::Status TightenBounds(sched::ScheduleBounds& bounds, FunctionBase* f,
+                           std::optional<int64_t> schedule_length) {
   // Initially compute the lower bounds of all nodes.
   XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
 
@@ -148,7 +139,7 @@ absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
   }
   XLS_RETURN_IF_ERROR(bounds.PropagateUpperBounds());
 
-  return std::move(bounds);
+  return absl::OkStatus();
 }
 
 // Returns the critical path through the given nodes (ordered topologically).
@@ -179,46 +170,45 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
   std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
-  XLS_ASSIGN_OR_RETURN(int64_t function_cp,
+  XLS_ASSIGN_OR_RETURN(int64_t function_cp_ps,
                        ComputeCriticalPath(topo_sort, delay_estimator));
   // The lower bound of the search is the critical path delay evenly distributed
   // across all stages (rounded up), and the upper bound is simply the critical
   // path of the entire function. It's possible this upper bound is the best you
   // can do if there exists a single operation with delay equal to the
   // critical-path delay of the function.
-  int64_t search_start = (function_cp + pipeline_stages - 1) / pipeline_stages;
-  int64_t search_end = function_cp;
+  int64_t optimistic_clk_period_ps =
+      (function_cp_ps + pipeline_stages - 1) / pipeline_stages;
+  int64_t pessimistic_clk_period_ps = function_cp_ps;
   XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
-                                    search_start, search_end);
+                                    optimistic_clk_period_ps,
+                                    pessimistic_clk_period_ps);
 
   auto validate_period = [&](int64_t clk_period_ps,
                              bool explain_infeasibility) -> absl::Status {
-    XLS_ASSIGN_OR_RETURN(sched::ScheduleBounds bounds,
-                         ConstructBounds(f, clk_period_ps, topo_sort,
-                                         pipeline_stages, delay_estimator));
-    absl::StatusOr<ScheduleCycleMap> scm = SDCScheduler(
-        f, pipeline_stages, clk_period_ps, delay_estimator, &bounds,
-        constraints, /*check_feasibility=*/true, explain_infeasibility);
-    return scm.status();
+    return SDCScheduler(f, pipeline_stages, clk_period_ps, delay_estimator,
+                        constraints,
+                        /*check_feasibility=*/true, explain_infeasibility)
+        .status();
   };
 
-  XLS_RETURN_IF_ERROR(
-      validate_period(search_end, /*explain_infeasibility=*/true))
+  XLS_RETURN_IF_ERROR(validate_period(pessimistic_clk_period_ps,
+                                      /*explain_infeasibility=*/true))
           .SetPrepend()
       << absl::StrFormat("Impossible to schedule %s %s as specified; ",
-                         (f->IsProc() ? "Proc" : "Function"), f->name());
+                         (f->IsProc() ? "proc" : "function"), f->name());
 
-  int64_t min_period = BinarySearchMinTrue(
-      search_start, search_end,
+  int64_t min_clk_period_ps = BinarySearchMinTrue(
+      optimistic_clk_period_ps, pessimistic_clk_period_ps,
       [&](int64_t clk_period_ps) {
         return validate_period(clk_period_ps,
                                /*explain_infeasibility=*/false)
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
-  XLS_VLOG(4) << "minimum clock period = " << min_period;
+  XLS_VLOG(4) << "minimum clock period = " << min_clk_period_ps;
 
-  return min_period;
+  return min_clk_period_ps;
 }
 
 }  // namespace
@@ -274,99 +264,60 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      sched::ScheduleBounds bounds,
-      ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
-                      options.pipeline_stages(), input_delay_added));
-  int64_t schedule_length = bounds.max_lower_bound() + 1;
-  if (options.pipeline_stages().has_value()) {
-    schedule_length = options.pipeline_stages().value();
-  }
-
   ScheduleCycleMap cycle_map;
-  if (options.strategy() == SchedulingStrategy::MIN_CUT) {
+  if (options.strategy() == SchedulingStrategy::SDC) {
     XLS_ASSIGN_OR_RETURN(
-        cycle_map,
-        MinCutScheduler(f, schedule_length, clock_period_ps, input_delay_added,
-                        &bounds, options.constraints()));
-  } else if (options.strategy() == SchedulingStrategy::SDC) {
-    XLS_ASSIGN_OR_RETURN(
-        cycle_map,
-        SDCScheduler(f, schedule_length, clock_period_ps, input_delay_added,
-                     &bounds, options.constraints()));
-  } else if (options.strategy() == SchedulingStrategy::RANDOM) {
-    std::mt19937_64 gen(options.seed().value_or(0));
-
-    for (Node* node : TopoSort(f)) {
-      int64_t lower_bound = bounds.lb(node);
-      int64_t upper_bound = bounds.ub(node);
-      std::uniform_int_distribution<int64_t> distrib(lower_bound, upper_bound);
-      int64_t cycle = distrib(gen);
-      XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));
-      XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
-      XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, cycle));
-      XLS_RETURN_IF_ERROR(bounds.PropagateUpperBounds());
-      cycle_map[node] = cycle;
-    }
+        cycle_map, SDCScheduler(f, options.pipeline_stages(), clock_period_ps,
+                                input_delay_added, options.constraints()));
   } else {
-    XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
-    XLS_RET_CHECK(!options.pipeline_stages().has_value());
-    // Just schedule everything as soon as possible.
-    for (Node* node : f->nodes()) {
-      if (node->Is<MinDelay>()) {
-        return absl::InternalError(
-            "The ASAP scheduler doesn't support min_delay nodes.");
+    // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
+    // chosen scheduler.
+    sched::ScheduleBounds bounds(f, TopoSort(f).AsVector(), clock_period_ps,
+                                 input_delay_added);
+    XLS_RETURN_IF_ERROR(TightenBounds(bounds, f, options.pipeline_stages()));
+
+    if (options.strategy() == SchedulingStrategy::MIN_CUT) {
+      XLS_ASSIGN_OR_RETURN(cycle_map,
+                           MinCutScheduler(f,
+                                           options.pipeline_stages().value_or(
+                                               bounds.max_lower_bound() + 1),
+                                           clock_period_ps, input_delay_added,
+                                           &bounds, options.constraints()));
+    } else if (options.strategy() == SchedulingStrategy::RANDOM) {
+      std::mt19937_64 gen(options.seed().value_or(0));
+
+      for (Node* node : TopoSort(f)) {
+        int64_t lower_bound = bounds.lb(node);
+        int64_t upper_bound = bounds.ub(node);
+        std::uniform_int_distribution<int64_t> distrib(lower_bound,
+                                                       upper_bound);
+        int64_t cycle = distrib(gen);
+        XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));
+        XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
+        XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, cycle));
+        XLS_RETURN_IF_ERROR(bounds.PropagateUpperBounds());
+        cycle_map[node] = cycle;
       }
-      cycle_map[node] = bounds.lb(node);
+    } else {
+      XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
+      XLS_RET_CHECK(!options.pipeline_stages().has_value());
+      // Just schedule everything as soon as possible.
+      for (Node* node : f->nodes()) {
+        if (node->Is<MinDelay>()) {
+          return absl::InternalError(
+              "The ASAP scheduler doesn't support min_delay nodes.");
+        }
+        cycle_map[node] = bounds.lb(node);
+      }
     }
   }
 
-  auto schedule = PipelineSchedule(f, cycle_map, schedule_length);
+  auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
       schedule.VerifyTiming(clock_period_ps, input_delay_added));
-
-  // Verify that scheduling constraints are obeyed.
-  {
-    absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
-    for (Node* node : f->nodes()) {
-      if (node->Is<Receive>() || node->Is<Send>()) {
-        XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-        channel_to_nodes[channel->name()].push_back(node);
-      }
-    }
-
-    for (const SchedulingConstraint& constraint : options.constraints()) {
-      if (std::holds_alternative<IOConstraint>(constraint)) {
-        IOConstraint io_constr = std::get<IOConstraint>(constraint);
-        // We use `channel_to_nodes[...]` instead of `channel_to_nodes.at(...)`
-        // below because we don't want to error out if a constraint is specified
-        // that affects a channel with no associated send/receives in this proc.
-        for (Node* source : channel_to_nodes[io_constr.SourceChannel()]) {
-          for (Node* target : channel_to_nodes[io_constr.TargetChannel()]) {
-            if (source == target) {
-              continue;
-            }
-            int64_t source_cycle = cycle_map.at(source);
-            int64_t target_cycle = cycle_map.at(target);
-            int64_t latency = target_cycle - source_cycle;
-            if ((io_constr.MinimumLatency() <= latency) &&
-                (latency <= io_constr.MaximumLatency())) {
-              continue;
-            }
-            return absl::ResourceExhaustedError(absl::StrFormat(
-                "Scheduling constraint violated: node %s was scheduled %d "
-                "cycles before node %s which violates the constraint that ops "
-                "on channel %s must be between %d and %d cycles (inclusive) "
-                "before ops on channel %s.",
-                source->ToString(), latency, target->ToString(),
-                io_constr.SourceChannel(), io_constr.MinimumLatency(),
-                io_constr.MaximumLatency(), io_constr.TargetChannel()));
-          }
-        }
-      }
-    }
-  }
+  XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(options.constraints(),
+                                                 f->GetInitiationInterval()));
 
   XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;

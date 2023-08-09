@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -28,14 +29,16 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common//status/status_macros.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/proc.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -275,6 +278,61 @@ absl::Status PipelineSchedule::VerifyTiming(
                        "%s (%dps)", n->GetName(),
                        delay_estimator.GetOperationDelayInPs(n).value()));
         })));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status PipelineSchedule::VerifyConstraints(
+    absl::Span<const SchedulingConstraint> constraints,
+    std::optional<int64_t> worst_case_throughput) const {
+  absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
+  absl::flat_hash_map<Node*, absl::btree_set<Node*>> send_predecessors;
+  int64_t last_cycle = 0;
+  for (Node* node : TopoSort(function_base_)) {
+    if (node->Is<Receive>() || node->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      channel_to_nodes[channel->name()].push_back(node);
+    }
+    last_cycle = std::max(last_cycle, cycle_map_.at(node));
+
+    for (Node* operand : node->operands()) {
+      if (operand->Is<Send>()) {
+        send_predecessors[node].insert(operand);
+      }
+      send_predecessors[node].insert(send_predecessors[operand].begin(),
+                                     send_predecessors[operand].end());
+    }
+  }
+
+  for (const SchedulingConstraint& constraint : constraints) {
+    if (std::holds_alternative<IOConstraint>(constraint)) {
+      IOConstraint io_constr = std::get<IOConstraint>(constraint);
+      // We use `channel_to_nodes[...]` instead of `channel_to_nodes.at(...)`
+      // below because we don't want to error out if a constraint is specified
+      // that affects a channel with no associated send/receives in this proc.
+      for (Node* source : channel_to_nodes[io_constr.SourceChannel()]) {
+        for (Node* target : channel_to_nodes[io_constr.TargetChannel()]) {
+          if (source == target) {
+            continue;
+          }
+          int64_t source_cycle = cycle_map_.at(source);
+          int64_t target_cycle = cycle_map_.at(target);
+          int64_t latency = target_cycle - source_cycle;
+          if ((io_constr.MinimumLatency() <= latency) &&
+              (latency <= io_constr.MaximumLatency())) {
+            continue;
+          }
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: node %s was scheduled %d "
+              "cycles before node %s which violates the constraint that ops "
+              "on channel %s must be between %d and %d cycles (inclusive) "
+              "before ops on channel %s.",
+              source->ToString(), latency, target->ToString(),
+              io_constr.SourceChannel(), io_constr.MinimumLatency(),
+              io_constr.MaximumLatency(), io_constr.TargetChannel()));
+        }
+      }
+    }
   }
   return absl::OkStatus();
 }

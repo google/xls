@@ -36,6 +36,7 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/channel.h"
@@ -44,7 +45,6 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/proc.h"
-#include "xls/scheduling/schedule_bounds.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -53,14 +53,21 @@ namespace xls {
 namespace {
 
 using DelayMap = absl::flat_hash_map<Node*, int64_t>;
+namespace math_opt = ::operations_research::math_opt;
 
 // A helper function to compute each node's delay by calling the delay estimator
 absl::StatusOr<DelayMap> ComputeNodeDelays(
-    FunctionBase* f, const DelayEstimator& delay_estimator) {
+    FunctionBase* f, const DelayEstimator& delay_estimator,
+    int64_t clock_period_ps) {
   DelayMap result;
   for (Node* node : f->nodes()) {
     XLS_ASSIGN_OR_RETURN(result[node],
                          delay_estimator.GetOperationDelayInPs(node));
+    if (result[node] > clock_period_ps) {
+      return absl::ResourceExhaustedError(absl::StrFormat(
+          "Node %s has a greater delay (%dps) than the clock period (%dps)",
+          node->GetName(), result[node], clock_period_ps));
+    }
   }
   return result;
 }
@@ -110,8 +117,8 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
 
   // Compute all-pairs longest distance between all nodes in `f`. The distance
   // from node `a` to node `b` is defined as the length of the longest delay
-  // path from `a` to `b` which includes the delay of the path endpoints `a` and
-  // `b`. The all-pairs distance is stored in the map of maps
+  // path from `a`'s start to `b`'s end, which includes the delay of the path
+  // endpoints `a` and `b`. The all-pairs distance is stored in the map of maps
   // `distances_to_node` where `distances_to_node[y][x]` (if present) is the
   // critical-path distance from `x` to `y`.
   //
@@ -151,13 +158,16 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
           }
           it->second = operand_distance + node_delay;
         }
-        if (operand_distance > clock_period_ps ||
-            operand_distance + node_delay <= clock_period_ps) {
-          continue;
-        }
-        auto [_, inserted] = result_as_set.at(a).insert(node);
-        if (inserted) {
-          result.at(a).push_back(node);
+
+        // If the length of the critical path from `a`'s start to `node`'s end
+        // crosses a `clock_period_ps` boundary due to `node`'s delay, we need a
+        // constraint.
+        if (operand_distance <= clock_period_ps &&
+            operand_distance + node_delay > clock_period_ps) {
+          auto [_, inserted] = result_as_set.at(a).insert(node);
+          if (inserted) {
+            result.at(a).push_back(node);
+          }
         }
       }
     }
@@ -185,12 +195,43 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
   return result;
 }
 
+absl::Status BuildError(ModelBuilder& model,
+                        const math_opt::SolveResult& result,
+                        bool explain_infeasibility) {
+  XLS_CHECK_NE(result.termination.reason,
+               math_opt::TerminationReason::kOptimal);
+
+  if (explain_infeasibility &&
+      (result.termination.reason == math_opt::TerminationReason::kInfeasible ||
+       result.termination.reason ==
+           math_opt::TerminationReason::kInfeasibleOrUnbounded)) {
+    XLS_RETURN_IF_ERROR(model.AddSlackVariables());
+    XLS_ASSIGN_OR_RETURN(
+        math_opt::SolveResult result_with_slack,
+        math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+    if (result_with_slack.termination.reason ==
+            math_opt::TerminationReason::kOptimal ||
+        result_with_slack.termination.reason ==
+            math_opt::TerminationReason::kFeasible) {
+      XLS_RETURN_IF_ERROR(
+          model.ExtractError(result_with_slack.variable_values()));
+    }
+  }
+
+  // We don't know why the solver failed to find an optimal solution to our LP
+  // problem; it could be an infeasibility issue (which needs more work to
+  // analyze), a timeout, a precision error, or more. For now, just return a
+  // simple error hinting at the problem.
+  return absl::InternalError(
+      absl::StrCat("The problem does not have an optimal solution; solver "
+                   "terminated with ",
+                   math_opt::EnumToString(result.termination.reason)));
+}
+
 }  // namespace
 
 ModelBuilder::ModelBuilder(FunctionBase* func, int64_t pipeline_length,
-                           int64_t clock_period_ps,
-                           const sched::ScheduleBounds& bounds,
-                           const DelayMap& delay_map,
+                           int64_t clock_period_ps, const DelayMap& delay_map,
                            std::string_view model_name)
     : func_(func),
       model_(model_name),
@@ -200,14 +241,32 @@ ModelBuilder::ModelBuilder(FunctionBase* func, int64_t pipeline_length,
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
   for (Node* node : func_->nodes()) {
-    cycle_var_.emplace(
-        node, model_.AddContinuousVariable(static_cast<double>(bounds.lb(node)),
-                                           static_cast<double>(bounds.ub(node)),
-                                           node->GetName()));
+    cycle_var_.emplace(node, model_.AddContinuousVariable(
+                                 0.0, static_cast<double>(pipeline_length_ - 1),
+                                 node->GetName()));
     lifetime_var_.emplace(
         node,
         model_.AddContinuousVariable(
             0.0, kInfinity, absl::StrFormat("lifetime_%s", node->GetName())));
+  }
+
+  if (func_->IsFunction()) {
+    Function* function = func_->AsFunctionOrDie();
+    // For functions, all parameter nodes must be scheduled in the first stage
+    // of the pipeline...
+    for (Param* param : function->params()) {
+      model_.AddLinearConstraint(cycle_var_.at(param) <= 0,
+                                 absl::StrCat("param:", param->GetName()));
+    }
+
+    // ... and the return value must be scheduled in the final stage, unless
+    // it's a parameter.
+    if (!function->return_value()->Is<Param>()) {
+      return_last_constraint_ = model_.AddLinearConstraint(
+          cycle_var_.at(function->return_value()) >=
+              static_cast<double>(pipeline_length_ - 1),
+          absl::StrCat("return:", function->return_value()->GetName()));
+    }
   }
 }
 
@@ -220,8 +279,8 @@ absl::Status ModelBuilder::AddDefUseConstraints(Node* node,
 
 absl::Status ModelBuilder::AddCausalConstraint(Node* node,
                                                std::optional<Node*> user) {
-  operations_research::math_opt::Variable cycle_at_node = cycle_var_.at(node);
-  operations_research::math_opt::Variable cycle_at_user =
+  math_opt::Variable cycle_at_node = cycle_var_.at(node);
+  math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
   // Explicit delay nodes must lag their inputs by a certain number of cycles.
@@ -244,10 +303,9 @@ absl::Status ModelBuilder::AddCausalConstraint(Node* node,
 
 absl::Status ModelBuilder::AddLifetimeConstraint(Node* node,
                                                  std::optional<Node*> user) {
-  operations_research::math_opt::Variable cycle_at_node = cycle_var_.at(node);
-  operations_research::math_opt::Variable lifetime_at_node =
-      lifetime_var_.at(node);
-  operations_research::math_opt::Variable cycle_at_user =
+  math_opt::Variable cycle_at_node = cycle_var_.at(node);
+  math_opt::Variable lifetime_at_node = lifetime_var_.at(node);
+  math_opt::Variable cycle_at_user =
       user.has_value() ? cycle_var_.at(user.value()) : cycle_at_sinknode_;
 
   std::string user_str = user.has_value() ? user.value()->GetName() : "«sink»";
@@ -481,7 +539,7 @@ absl::Status ModelBuilder::AddSendThenRecvConstraint(
 }
 
 absl::Status ModelBuilder::SetObjective() {
-  operations_research::math_opt::LinearExpression objective;
+  math_opt::LinearExpression objective;
   for (Node* node : func_->nodes()) {
     // Minimize node lifetimes.
     // The scaling makes the tie-breaker small in comparison, and is a power
@@ -498,8 +556,7 @@ absl::Status ModelBuilder::SetObjective() {
 }
 
 absl::StatusOr<ScheduleCycleMap> ModelBuilder::ExtractResult(
-    const operations_research::math_opt::VariableMap<double>& variable_values)
-    const {
+    const math_opt::VariableMap<double>& variable_values) const {
   ScheduleCycleMap cycle_map;
   for (Node* node : func_->nodes()) {
     double cycle = variable_values.at(cycle_var_.at(node));
@@ -512,6 +569,80 @@ absl::StatusOr<ScheduleCycleMap> ModelBuilder::ExtractResult(
   return cycle_map;
 }
 
+absl::Status ModelBuilder::SetPipelineLength(int64_t pipeline_length) {
+  if (pipeline_length_slack_.has_value()) {
+    XLS_RETURN_IF_ERROR(RemovePipelineLengthSlack());
+  }
+
+  pipeline_length_ = pipeline_length;
+  for (auto& [node, cycle_var] : cycle_var_) {
+    XLS_VLOG(2) << "Resetting node upper bound: "
+                << absl::StrFormat("cycle[%s] ≤ %d, was %d", node->GetName(),
+                                   pipeline_length_ - 1,
+                                   static_cast<int64_t>(
+                                       std::round(cycle_var.upper_bound())));
+    model_.set_upper_bound(cycle_var,
+                           static_cast<double>(pipeline_length_ - 1));
+  }
+  for (auto& [node, send_last_constraint] : send_last_constraint_) {
+    XLS_VLOG(2) << "Resetting send-in-last-cycle constraint: "
+                << absl::StrFormat("%d ≤ cycle[%s]", pipeline_length_ - 1,
+                                   node->GetName());
+    model_.set_lower_bound(send_last_constraint,
+                           static_cast<double>(pipeline_length - 1));
+  }
+  if (return_last_constraint_.has_value()) {
+    model_.set_lower_bound(*return_last_constraint_,
+                           static_cast<double>(pipeline_length - 1));
+  }
+  return absl::OkStatus();
+}
+
+void ModelBuilder::AddPipelineLengthSlack() {
+  if (pipeline_length_slack_.has_value()) {
+    return;
+  }
+
+  pipeline_length_slack_ = model_.AddVariable(
+      0.0, kInfinity, /*is_integer=*/false, "pipeline_length_slack");
+  model_.AddToObjective(*pipeline_length_slack_);
+  for (auto& [node, var] : cycle_var_) {
+    auto [_, upper_bound_with_slack] =
+        AddUpperBoundSlack(var, pipeline_length_slack_);
+    cycle_upper_bound_with_slack_.emplace(node, upper_bound_with_slack);
+  }
+  for (auto& [node, constraint] : send_last_constraint_) {
+    // Every send-last constraint is a lower bound specifying that this node's
+    // cycle is at least (pipeline_length - 1); by subtracting the slack
+    // variable from the linear expression, we ensure that the node's cycle is
+    // at least (pipeline_length + slack - 1), keeping it in the last cycle.
+    model_.set_coefficient(constraint, *pipeline_length_slack_, -1.0);
+  }
+}
+
+absl::Status ModelBuilder::RemovePipelineLengthSlack() {
+  XLS_RET_CHECK(pipeline_length_slack_.has_value());
+  for (auto& [node, upper_bound_with_slack] : cycle_upper_bound_with_slack_) {
+    XLS_RETURN_IF_ERROR(RemoveUpperBoundSlack(
+        cycle_var_.at(node), upper_bound_with_slack, *pipeline_length_slack_));
+  }
+  cycle_upper_bound_with_slack_.clear();
+  model_.DeleteVariable(*pipeline_length_slack_);
+  pipeline_length_slack_ = std::nullopt;
+  return absl::OkStatus();
+}
+
+absl::StatusOr<int64_t> ModelBuilder::ExtractPipelineLength(
+    const math_opt::VariableMap<double>& variable_values) const {
+  XLS_RET_CHECK(pipeline_length_slack_.has_value());
+  double pipeline_length_slack = variable_values.at(*pipeline_length_slack_);
+  if (pipeline_length_slack > 0.001) {
+    return pipeline_length_ +
+           static_cast<int64_t>(std::ceil(pipeline_length_slack));
+  }
+  return pipeline_length_;
+}
+
 absl::Status ModelBuilder::AddSlackVariables() {
   // Add slack variables to all relevant constraints.
 
@@ -522,19 +653,7 @@ absl::Status ModelBuilder::AddSlackVariables() {
   // First, add slack to our enforcement of pipeline length, which affects the
   // cycle upper bounds and send-last constraints. We assume users are most
   // willing to relax this; i.e., they care about throughput more than latency.
-  pipeline_length_slack_ = model_.AddVariable(
-      0.0, kInfinity, /*is_integer=*/false, "pipeline_length_slack");
-  model_.AddToObjective(*pipeline_length_slack_);
-  for (auto& [node, var] : cycle_var_) {
-    AddUpperBoundSlack(var, pipeline_length_slack_);
-  }
-  for (auto& [node, constraint] : send_last_constraint_) {
-    // Every send-last constraint is a lower bound specifying that this node's
-    // cycle is at least (pipeline_length - 1); by subtracting the slack
-    // variable from the linear expression, we ensure that the node's cycle is
-    // at least (pipeline_length + slack - 1), keeping it in the last cycle.
-    model_.set_coefficient(constraint, *pipeline_length_slack_, -1.0);
-  }
+  AddPipelineLengthSlack();
 
   // Next, if this is a proc, relax the state back-edge length restriction. We
   // assume users are reasonably willing to relax this; i.e., they care about
@@ -550,11 +669,11 @@ absl::Status ModelBuilder::AddSlackVariables() {
 
   // Finally, relax the I/O constraints, if nothing else works.
   for (auto& [io_constraint, constraints] : io_constraints_) {
-    operations_research::math_opt::Variable min_slack = model_.AddVariable(
+    math_opt::Variable min_slack = model_.AddVariable(
         0, kInfinity, /*is_integer=*/false,
         absl::StrCat("io_min_", io_constraint.SourceChannel(), "→",
                      io_constraint.TargetChannel(), "_slack"));
-    operations_research::math_opt::Variable max_slack = model_.AddVariable(
+    math_opt::Variable max_slack = model_.AddVariable(
         0, kInfinity, /*is_integer=*/false,
         absl::StrCat("io_max_", io_constraint.SourceChannel(), "→",
                      io_constraint.TargetChannel(), "_slack"));
@@ -575,8 +694,7 @@ absl::Status ModelBuilder::AddSlackVariables() {
 }
 
 absl::Status ModelBuilder::ExtractError(
-    const operations_research::math_opt::VariableMap<double>& variable_values)
-    const {
+    const math_opt::VariableMap<double>& variable_values) const {
   double pipeline_length_slack = variable_values.at(*pipeline_length_slack_);
   if (pipeline_length_slack > 0.001) {
     int64_t new_pipeline_length =
@@ -637,41 +755,36 @@ absl::Status ModelBuilder::ExtractError(
   return absl::UnknownError("reason unknown.");
 }
 
-operations_research::math_opt::LinearConstraint
-ModelBuilder::DiffAtMostConstraint(Node* x, Node* y, int64_t limit,
-                                   std::string_view name) {
+math_opt::LinearConstraint ModelBuilder::DiffAtMostConstraint(
+    Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit),
       absl::StrFormat("%s:%s-%s≤%d", name, x->GetName(), y->GetName(), limit));
 }
 
-operations_research::math_opt::LinearConstraint
-ModelBuilder::DiffLessThanConstraint(Node* x, Node* y, int64_t limit,
-                                     std::string_view name) {
+math_opt::LinearConstraint ModelBuilder::DiffLessThanConstraint(
+    Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) <= static_cast<double>(limit - 1),
       absl::StrFormat("%s:%s-%s<%d", name, x->GetName(), y->GetName(), limit));
 }
 
-operations_research::math_opt::LinearConstraint
-ModelBuilder::DiffAtLeastConstraint(Node* x, Node* y, int64_t limit,
-                                    std::string_view name) {
+math_opt::LinearConstraint ModelBuilder::DiffAtLeastConstraint(
+    Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit),
       absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(), limit));
 }
 
-operations_research::math_opt::LinearConstraint
-ModelBuilder::DiffGreaterThanConstraint(Node* x, Node* y, int64_t limit,
-                                        std::string_view name) {
+math_opt::LinearConstraint ModelBuilder::DiffGreaterThanConstraint(
+    Node* x, Node* y, int64_t limit, std::string_view name) {
   return model_.AddLinearConstraint(
       cycle_var_.at(x) - cycle_var_.at(y) >= static_cast<double>(limit + 1),
       absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(), limit));
 }
 
-operations_research::math_opt::LinearConstraint
-ModelBuilder::DiffEqualsConstraint(Node* x, Node* y, int64_t diff,
-                                   std::string_view name) {
+math_opt::LinearConstraint ModelBuilder::DiffEqualsConstraint(
+    Node* x, Node* y, int64_t diff, std::string_view name) {
   if (x == y) {
     XLS_LOG(FATAL) << "DiffEqualsConstraint: " << x->GetName() << " - "
                    << y->GetName() << " = " << diff << " is unsatisfiable";
@@ -681,9 +794,8 @@ ModelBuilder::DiffEqualsConstraint(Node* x, Node* y, int64_t diff,
       absl::StrFormat("%s:%s-%s=%d", name, x->GetName(), y->GetName(), diff));
 }
 
-operations_research::math_opt::Variable ModelBuilder::AddUpperBoundSlack(
-    operations_research::math_opt::LinearConstraint c,
-    std::optional<operations_research::math_opt::Variable> slack) {
+math_opt::Variable ModelBuilder::AddUpperBoundSlack(
+    math_opt::LinearConstraint c, std::optional<math_opt::Variable> slack) {
   XLS_CHECK_LT(c.upper_bound(), kInfinity)
       << "The constraint " << c.name() << " has no upper bound.";
   if (slack.has_value()) {
@@ -698,9 +810,18 @@ operations_research::math_opt::Variable ModelBuilder::AddUpperBoundSlack(
   return *slack;
 }
 
-operations_research::math_opt::Variable ModelBuilder::AddLowerBoundSlack(
-    operations_research::math_opt::LinearConstraint c,
-    std::optional<operations_research::math_opt::Variable> slack) {
+absl::Status ModelBuilder::RemoveUpperBoundSlack(
+    math_opt::Variable v, math_opt::LinearConstraint upper_bound_with_slack,
+    math_opt::Variable slack) {
+  XLS_RET_CHECK_EQ(upper_bound_with_slack.coefficient(v), 1.0);
+  XLS_RET_CHECK_EQ(upper_bound_with_slack.coefficient(slack), -1.0);
+  model_.set_upper_bound(v, upper_bound_with_slack.upper_bound());
+  model_.DeleteLinearConstraint(upper_bound_with_slack);
+  return absl::OkStatus();
+}
+
+math_opt::Variable ModelBuilder::AddLowerBoundSlack(
+    math_opt::LinearConstraint c, std::optional<math_opt::Variable> slack) {
   XLS_CHECK_GT(c.lower_bound(), -kInfinity)
       << "The constraint " << c.name() << " has no lower bound.";
   if (slack.has_value()) {
@@ -715,58 +836,54 @@ operations_research::math_opt::Variable ModelBuilder::AddLowerBoundSlack(
   return *slack;
 }
 
-std::pair<operations_research::math_opt::Variable,
-          operations_research::math_opt::LinearConstraint>
-ModelBuilder::AddUpperBoundSlack(
-    operations_research::math_opt::Variable v,
-    std::optional<operations_research::math_opt::Variable> slack) {
+std::pair<math_opt::Variable, math_opt::LinearConstraint>
+ModelBuilder::AddUpperBoundSlack(math_opt::Variable v,
+                                 std::optional<math_opt::Variable> slack) {
   XLS_CHECK_LT(v.upper_bound(), kInfinity)
       << "The variable " << v.name() << " has no fixed upper bound.";
   if (!slack.has_value()) {
     slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
                                absl::StrCat(v.name(), "_ub_slack"));
   }
-  operations_research::math_opt::LinearConstraint upper_bound =
-      model_.AddLinearConstraint(v - *slack <= v.upper_bound(),
-                                 absl::StrCat(v.name(), "_ub"));
+  math_opt::LinearConstraint upper_bound = model_.AddLinearConstraint(
+      v - *slack <= v.upper_bound(), absl::StrCat(v.name(), "_ub"));
   model_.set_upper_bound(v, kInfinity);
   return {*slack, upper_bound};
 }
 
-std::pair<operations_research::math_opt::Variable,
-          operations_research::math_opt::LinearConstraint>
-ModelBuilder::AddLowerBoundSlack(
-    operations_research::math_opt::Variable v,
-    std::optional<operations_research::math_opt::Variable> slack) {
+std::pair<math_opt::Variable, math_opt::LinearConstraint>
+ModelBuilder::AddLowerBoundSlack(math_opt::Variable v,
+                                 std::optional<math_opt::Variable> slack) {
   XLS_CHECK_GT(v.lower_bound(), -kInfinity)
       << "The variable " << v.name() << " has no fixed lower bound.";
   if (!slack.has_value()) {
     slack = model_.AddVariable(0.0, kInfinity, /*is_integer=*/false,
                                absl::StrCat(v.name(), "_lb_slack"));
   }
-  operations_research::math_opt::LinearConstraint lower_bound =
-      model_.AddLinearConstraint(v + *slack >= v.lower_bound(),
-                                 absl::StrCat(v.name(), "_lb"));
+  math_opt::LinearConstraint lower_bound = model_.AddLinearConstraint(
+      v + *slack >= v.lower_bound(), absl::StrCat(v.name(), "_lb"));
   model_.set_lower_bound(v, -kInfinity);
   return {*slack, lower_bound};
 }
 
 absl::StatusOr<ScheduleCycleMap> SDCScheduler(
-    FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
-    const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    int64_t clock_period_ps, const DelayEstimator& delay_estimator,
     absl::Span<const SchedulingConstraint> constraints, bool check_feasibility,
     bool explain_infeasibility) {
   XLS_VLOG(3) << "SDCScheduler()";
-  XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
+  XLS_VLOG(3) << "  pipeline stages = "
+              << (pipeline_stages.has_value()
+                      ? absl::StrCat(pipeline_stages.value())
+                      : "(unspecified)");
   XLS_VLOG_LINES(4, f->DumpIr());
 
-  XLS_VLOG(4) << "Initial bounds:";
-  XLS_VLOG_LINES(4, bounds->ToString());
-
   XLS_ASSIGN_OR_RETURN(DelayMap delay_map,
-                       ComputeNodeDelays(f, delay_estimator));
+                       ComputeNodeDelays(f, delay_estimator, clock_period_ps));
 
-  ModelBuilder model(f, pipeline_stages, clock_period_ps, *bounds, delay_map,
+  // If we don't know the target number of pipeline stages yet, build our model
+  // assuming the shortest-possible pipeline: one stage.
+  ModelBuilder model(f, pipeline_stages.value_or(1), clock_period_ps, delay_map,
                      absl::StrCat("sdc_schedule_", f->name()));
 
   for (const SchedulingConstraint& constraint : constraints) {
@@ -794,49 +911,48 @@ absl::StatusOr<ScheduleCycleMap> SDCScheduler(
 
   XLS_RETURN_IF_ERROR(model.AddTimingConstraints());
 
+  if (!pipeline_stages.has_value()) {
+    // Find the minimum feasible pipeline length.
+    model.AddPipelineLengthSlack();
+    XLS_ASSIGN_OR_RETURN(
+        math_opt::SolveResult result_with_pipeline_length_slack,
+        math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+
+    if (check_feasibility) {
+      // We don't need to re-compute with the new pipeline length; we've already
+      // either failed or found a feasible solution.
+      if (result_with_pipeline_length_slack.termination.reason ==
+              math_opt::TerminationReason::kOptimal ||
+          result_with_pipeline_length_slack.termination.reason ==
+              math_opt::TerminationReason::kFeasible) {
+        return model.ExtractResult(
+            result_with_pipeline_length_slack.variable_values());
+      }
+      return BuildError(model, result_with_pipeline_length_slack,
+                        explain_infeasibility);
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        const int64_t min_pipeline_length,
+        model.ExtractPipelineLength(
+            result_with_pipeline_length_slack.variable_values()));
+    XLS_RETURN_IF_ERROR(model.SetPipelineLength(min_pipeline_length));
+  }
+
   if (!check_feasibility) {
     XLS_RETURN_IF_ERROR(model.SetObjective());
   }
 
   XLS_ASSIGN_OR_RETURN(
-      operations_research::math_opt::SolveResult result,
-      operations_research::math_opt::Solve(
-          model.Build(), operations_research::math_opt::SolverType::kGlop));
+      math_opt::SolveResult result,
+      math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
 
-  if (explain_infeasibility &&
-      (result.termination.reason ==
-           operations_research::math_opt::TerminationReason::kInfeasible ||
-       result.termination.reason ==
-           operations_research::math_opt::TerminationReason::
-               kInfeasibleOrUnbounded)) {
-    XLS_RETURN_IF_ERROR(model.AddSlackVariables());
-    XLS_ASSIGN_OR_RETURN(
-        operations_research::math_opt::SolveResult result_with_slack,
-        operations_research::math_opt::Solve(
-            model.Build(), operations_research::math_opt::SolverType::kGlop));
-    if (result_with_slack.termination.reason ==
-            operations_research::math_opt::TerminationReason::kOptimal ||
-        result_with_slack.termination.reason ==
-            operations_research::math_opt::TerminationReason::kFeasible) {
-      XLS_RETURN_IF_ERROR(
-          model.ExtractError(result_with_slack.variable_values()));
-    }
+  if (result.termination.reason == math_opt::TerminationReason::kOptimal ||
+      (check_feasibility &&
+       result.termination.reason == math_opt::TerminationReason::kFeasible)) {
+    return model.ExtractResult(result.variable_values());
   }
-
-  if (result.termination.reason !=
-      operations_research::math_opt::TerminationReason::kOptimal) {
-    // We don't know why the solver failed to find an optimal solution to our LP
-    // problem; it could be an infeasibility issue (which needs more work to
-    // analyze), a timeout, a precision error, or more. For now, just return a
-    // simple error hinting at the problem.
-    return absl::InternalError(
-        absl::StrCat("The problem does not have an optimal solution; solver "
-                     "terminated with ",
-                     operations_research::math_opt::EnumToString(
-                         result.termination.reason)));
-  }
-
-  return model.ExtractResult(result.variable_values());
+  return BuildError(model, result, explain_infeasibility);
 }
 
 }  // namespace xls

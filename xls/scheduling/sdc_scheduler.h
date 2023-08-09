@@ -25,6 +25,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -41,8 +42,8 @@ class ModelBuilder {
 
  public:
   ModelBuilder(FunctionBase* func, int64_t pipeline_length,
-               int64_t clock_period_ps, const sched::ScheduleBounds& bounds,
-               const DelayMap& delay_map, std::string_view model_name = "");
+               int64_t clock_period_ps, const DelayMap& delay_map,
+               std::string_view model_name = "");
 
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
@@ -60,6 +61,15 @@ class ModelBuilder {
       const SendThenRecvConstraint& constraint);
 
   absl::Status SetObjective();
+
+  absl::Status SetPipelineLength(int64_t pipeline_length);
+
+  void AddPipelineLengthSlack();
+  absl::Status RemovePipelineLengthSlack();
+
+  absl::StatusOr<int64_t> ExtractPipelineLength(
+      const operations_research::math_opt::VariableMap<double>& variable_values)
+      const;
 
   absl::Status AddSlackVariables();
 
@@ -105,6 +115,11 @@ class ModelBuilder {
       std::optional<operations_research::math_opt::Variable> slack =
           std::nullopt);
 
+  absl::Status RemoveUpperBoundSlack(
+      operations_research::math_opt::Variable v,
+      operations_research::math_opt::LinearConstraint upper_bound_with_slack,
+      operations_research::math_opt::Variable slack);
+
   operations_research::math_opt::Variable AddLowerBoundSlack(
       operations_research::math_opt::LinearConstraint c,
       std::optional<operations_research::math_opt::Variable> slack =
@@ -132,6 +147,10 @@ class ModelBuilder {
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
       cycle_var_;
 
+  // Return-last constraint, if present
+  std::optional<operations_research::math_opt::LinearConstraint>
+      return_last_constraint_;
+
   // Node's lifetime, from when it finishes executing until it is consumed by
   // the last user.
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
@@ -158,6 +177,9 @@ class ModelBuilder {
       io_constraints_;
 
   std::optional<operations_research::math_opt::Variable> pipeline_length_slack_;
+  absl::flat_hash_map<Node*, operations_research::math_opt::LinearConstraint>
+      cycle_upper_bound_with_slack_;
+
   std::optional<operations_research::math_opt::Variable> backedge_slack_;
 
   struct SlackPair {
@@ -175,6 +197,9 @@ class ModelBuilder {
 // the LP solver will merely attempt to show that the generated set of
 // constraints is feasible, rather than find an register-optimal schedule.
 //
+// If `pipeline_stages` is not specified, the solver will use the smallest
+// feasible value.
+//
 // References:
 //   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
 //   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
@@ -183,8 +208,8 @@ class ModelBuilder {
 //   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided Design
 //   (ICCAD). IEEE, 2013.
 absl::StatusOr<ScheduleCycleMap> SDCScheduler(
-    FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
-    const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    int64_t clock_period_ps, const DelayEstimator& delay_estimator,
     absl::Span<const SchedulingConstraint> constraints,
     bool check_feasibility = false, bool explain_infeasibility = true);
 

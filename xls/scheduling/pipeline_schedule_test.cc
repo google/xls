@@ -725,6 +725,13 @@ TEST_F(PipelineScheduleTest, SendFollowedByReceiveCannotBeInSameCycle) {
                                   SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
@@ -750,6 +757,13 @@ TEST_F(PipelineScheduleTest, SendFollowedByReceiveIfCannotBeInSameCycle) {
                                   SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest,
@@ -776,6 +790,13 @@ TEST_F(PipelineScheduleTest,
                                   SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest,
@@ -803,6 +824,13 @@ TEST_F(PipelineScheduleTest,
                                   SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv_if.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest,
@@ -832,6 +860,13 @@ TEST_F(PipelineScheduleTest,
                                   SchedulingOptions().pipeline_stages(1)),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("--pipeline_stages=2")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(proc, *delay_estimator,
+                          SchedulingOptions().clock_period_ps(10'000)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(send.node()), 0);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 1);
 }
 
 TEST_F(PipelineScheduleTest, SendFollowedByDelayedReceive) {

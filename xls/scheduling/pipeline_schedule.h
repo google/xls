@@ -86,6 +86,11 @@ class PipelineSchedule {
   absl::Status VerifyTiming(int64_t clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
 
+  // Verifies that all scheduling constraints are followed.
+  absl::Status VerifyConstraints(
+      absl::Span<const SchedulingConstraint> constraints,
+      std::optional<int64_t> worst_case_throughput) const;
+
   // Returns a protobuf holding this object's scheduling info.
   PipelineScheduleProto ToProto(const DelayEstimator& delay_estimator) const;
 
