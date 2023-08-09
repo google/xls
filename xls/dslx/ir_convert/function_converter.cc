@@ -1760,6 +1760,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
                       decltype(&FunctionConverter::HandleBuiltinClz)>
       map = {
           {"array_rev", &FunctionConverter::HandleBuiltinArrayRev},
+          {"array_size", &FunctionConverter::HandleBuiltinArraySize},
           {"clz", &FunctionConverter::HandleBuiltinClz},
           {"ctz", &FunctionConverter::HandleBuiltinCtz},
           {"gate!", &FunctionConverter::HandleBuiltinGate},
@@ -2736,6 +2737,15 @@ absl::Status FunctionConverter::HandleBuiltinAndReduce(const Invocation* node) {
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->AndReduce(arg, loc);
   });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinArraySize(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 1);
+  // All array sizes are constexpr since they're based on known types.
+  XLS_ASSIGN_OR_RETURN(InterpValue iv, current_type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(Value v, InterpValueToValue(iv));
+  DefConst(node, v);
   return absl::OkStatus();
 }
 
