@@ -98,7 +98,6 @@ class DslxModuleAndPath {
   dslx::Module* GetDslxModule() { return module_.get(); }
 
   // Return module name.
-  std::string GetDslxModuleName() const { return module_name_; }
 
   // Return path of the dslx module.
   std::string GetFilePath() const { return file_path_; }
@@ -154,7 +153,6 @@ class IrWrapper {
   absl::StatusOr<Package*> GetIrPackage() const;
 
   // Optimize the top-level package.
-  absl::Status OptimizeIr();
 
   // Retrieve and create (if needed) the JIT for the given function name.
   absl::StatusOr<FunctionJit*> GetAndMaybeCreateFunctionJit(
