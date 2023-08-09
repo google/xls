@@ -28,6 +28,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/python/wrapper_types.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 
 namespace py = pybind11;
 
@@ -41,8 +42,8 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, GetStandardDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(stages)));
+      RunPipelineSchedule(f, GetStandardDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(stages)));
   CodegenOptions options = BuildPipelineOptions();
   options.module_name(module_name);
   options.use_system_verilog(false);
@@ -53,11 +54,10 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
 absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
     Package* package, int64_t clock_period_ps, std::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
-  XLS_ASSIGN_OR_RETURN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(
-          f, GetStandardDelayEstimator(),
-          SchedulingOptions().clock_period_ps(clock_period_ps)));
+  XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                       RunPipelineSchedule(f, GetStandardDelayEstimator(),
+                                           SchedulingOptions().clock_period_ps(
+                                               clock_period_ps)));
   CodegenOptions options = BuildPipelineOptions();
   options.module_name(module_name);
   options.use_system_verilog(false);

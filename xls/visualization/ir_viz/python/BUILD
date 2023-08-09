@@ -31,6 +31,7 @@ xls_pybind_extension(
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
+        "//xls/scheduling:run_pipeline_schedule",
         "//xls/visualization/ir_viz:ir_to_json",
         "@pybind11_abseil//pybind11_abseil:absl_casters",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",

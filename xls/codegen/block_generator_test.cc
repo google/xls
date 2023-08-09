@@ -28,6 +28,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -1008,8 +1010,8 @@ TEST_P(BlockGeneratorTest, RecvDataFeedingSendPredicate) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *estimator,
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(true).clock_name("clk");
   options.reset("rst", false, false, true);

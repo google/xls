@@ -41,6 +41,7 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/proc.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
@@ -265,7 +266,7 @@ class RamRewritePassTest
     XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
-        PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
+        RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
 
     XLS_ASSIGN_OR_RETURN(auto unit,
                          ProcToPipelinedBlock(schedule, codegen_options, proc));
@@ -997,7 +998,7 @@ absl::StatusOr<Block*> MakeBlockAndRunPasses(Package* package,
   XLS_ASSIGN_OR_RETURN(auto delay_estimator, GetDelayEstimator("unit"));
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *delay_estimator, scheduling_options));
+      RunPipelineSchedule(proc, *delay_estimator, scheduling_options));
   XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
                        ProcToPipelinedBlock(schedule, codegen_options, proc));
   XLS_RET_CHECK_OK(RunCodegenPassPipeline(pass_options, unit.block));

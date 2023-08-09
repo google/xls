@@ -24,6 +24,8 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace {
@@ -157,8 +159,8 @@ TEST_F(ExtractStageTest, ProcSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().pipeline_stages(3)));
+      RunPipelineSchedule(proc, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
   for (int stage = 0; stage < schedule.length(); stage++) {
     XLS_ASSERT_OK_AND_ASSIGN(Function * stage_fn,
                              ExtractStage(proc, schedule, stage));

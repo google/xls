@@ -30,6 +30,8 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulators.h"
@@ -116,8 +118,8 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(entry, *delay_estimator,
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(entry, *delay_estimator,
+                          SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,

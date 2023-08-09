@@ -40,7 +40,7 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",
-        "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
         "//xls/tools:scheduling_options_flags",
     ],
 )

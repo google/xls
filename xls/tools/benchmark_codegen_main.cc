@@ -32,6 +32,7 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
@@ -61,7 +62,7 @@ absl::Status ScheduleAndPrintStats(Package* package,
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(top.value(), delay_estimator, options));
+      RunPipelineSchedule(top.value(), delay_estimator, options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));

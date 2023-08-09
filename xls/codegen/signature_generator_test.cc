@@ -28,6 +28,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 namespace verilog {
@@ -81,8 +83,8 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(f, *estimator,
-                            SchedulingOptions().pipeline_stages(4)));
+      RunPipelineSchedule(f, *estimator,
+                          SchedulingOptions().pipeline_stages(4)));
 
   {
     XLS_ASSERT_OK_AND_ASSIGN(
@@ -231,8 +233,8 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
                            GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, *estimator,
-                            SchedulingOptions().pipeline_stages(1)));
+      RunPipelineSchedule(proc, *estimator,
+                          SchedulingOptions().pipeline_stages(1)));
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
   options.valid_control("input_valid", "output_valid");

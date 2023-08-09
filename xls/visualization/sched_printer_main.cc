@@ -40,7 +40,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
-#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
@@ -308,7 +308,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
   absl::StatusOr<PipelineSchedule> schedule_status =
-      PipelineSchedule::Run(main, *delay_estimator, scheduling_options);
+      RunPipelineSchedule(main, *delay_estimator, scheduling_options);
 
   if (!schedule_status.ok()) {
     if (absl::IsResourceExhausted(schedule_status.status())) {

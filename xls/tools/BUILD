@@ -1281,6 +1281,7 @@ cc_binary(
         "//xls/delay_model:delay_estimators",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

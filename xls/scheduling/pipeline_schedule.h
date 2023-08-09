@@ -15,17 +15,17 @@
 #ifndef XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 #define XLS_SCHEDULING_PIPELINE_SCHEDULE_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/node.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -34,12 +34,6 @@ namespace xls {
 // Abstraction describing the binding of Nodes to cycles.
 class PipelineSchedule {
  public:
-  // Produces a feed-forward pipeline schedule using the given delay model and
-  // scheduling options.
-  static absl::StatusOr<PipelineSchedule> Run(
-      FunctionBase* f, const DelayEstimator& delay_estimator,
-      const SchedulingOptions& options);
-
   // Reconstructs a PipelineSchedule object from a proto representation.
   static absl::StatusOr<PipelineSchedule> FromProto(
       FunctionBase* function, const PipelineScheduleProto& proto);

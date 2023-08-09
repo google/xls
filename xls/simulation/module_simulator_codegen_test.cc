@@ -32,6 +32,8 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -58,8 +60,8 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -88,8 +90,8 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -129,8 +131,8 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -160,8 +162,8 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(1)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -206,8 +208,8 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(40)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(40)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
       ToPipelineModuleText(
@@ -242,8 +244,8 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(40)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -279,8 +281,8 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().pipeline_stages(5)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -315,8 +317,8 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, *delay_estimator_,
-                            SchedulingOptions().clock_period_ps(40)));
+      RunPipelineSchedule(func, *delay_estimator_,
+                          SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,

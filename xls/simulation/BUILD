@@ -224,6 +224,8 @@ cc_test(
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
