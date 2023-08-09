@@ -66,6 +66,39 @@ cc_library(
 )
 
 cc_library(
+    name = "benchmark_support",
+    testonly = True,
+    srcs = ["benchmark_support.cc"],
+    hdrs = ["benchmark_support.h"],
+    deps = [
+        ":bits",
+        ":function_builder",
+        ":ir",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "benchmark_support_test",
+    srcs = ["benchmark_support_test.cc"],
+    deps = [
+        ":benchmark_support",
+        ":bits",
+        ":function_builder",
+        ":ir",
+        ":ir_matcher",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "foreign_function",
     srcs = ["foreign_function.cc"],
     hdrs = ["foreign_function.h"],
@@ -436,6 +469,7 @@ cc_test(
     name = "node_iterator_test",
     srcs = ["node_iterator_test.cc"],
     deps = [
+        ":benchmark_support",
         ":bits",
         ":function_builder",
         ":ir",

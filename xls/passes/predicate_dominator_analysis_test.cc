@@ -23,6 +23,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/benchmark_support.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -449,57 +450,18 @@ TEST_F(PredicateDominatorAnalysisTest, NestedPartialDisjointCovering) {
             PredicateState(s_xatbt, 1));
 }
 
-template <typename Builder>
-Function* MakeBalancedTree(Package* p, int64_t depth) {
-  Builder b(p);
-  auto res = b.Execute(depth);
-  XLS_CHECK_OK(res.status());
-  return res.value();
-}
-
-class AbstractBalancedTree {
- public:
-  explicit AbstractBalancedTree(Package* p)
-      : package_(p), fb_("BalancedTree", package_) {}
-  virtual ~AbstractBalancedTree() = default;
-  virtual BValue GetBaseValue() = 0;
-  virtual BValue GetSelectorValue() = 0;
-  absl::StatusOr<Function*> Execute(int64_t depth) {
-    XLS_RETURN_IF_ERROR(GenerateSegment(depth).status());
-    return fb_.Build();
-  }
-
- private:
-  absl::StatusOr<BValue> GenerateSegment(int64_t depth) {
-    if (depth == 0) {
-      // We rely on the function builder not doing any CSE.
-      return GetBaseValue();
-    }
-    XLS_ASSIGN_OR_RETURN(BValue l, GenerateSegment(depth - 1));
-    XLS_ASSIGN_OR_RETURN(BValue r, GenerateSegment(depth - 1));
-    return fb_.Select(GetSelectorValue(), {l, r});
-  }
-
- protected:
-  Package* package_;
-  FunctionBuilder fb_;
-};
-
 // A balanced tree with all leaf nodes and all selector nodes fully independent
 // of one another. NB They are all Literals. Binary trees with deep predicate
 // chains is the near-worst-case for the analysis performance.
 void BM_NoShareBalancedTree(benchmark::State& state) {
-  class NoShareBalancedBinaryTree : public AbstractBalancedTree {
-   public:
-    using AbstractBalancedTree::AbstractBalancedTree;
-    BValue GetBaseValue() override { return fb_.Literal(UBits(42, 8)); }
-    BValue GetSelectorValue() override { return fb_.Literal(UBits(1, 1)); }
-  };
-
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("balanced_tree_pkg");
-  auto* f =
-      MakeBalancedTree<NoShareBalancedBinaryTree>(p.get(), state.range(0));
+  benchmark_support::strategy::DistinctLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::DistinctLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f);
     benchmark::DoNotOptimize(v);
@@ -510,21 +472,14 @@ void BM_NoShareBalancedTree(benchmark::State& state) {
 // one another. All selectors share a single Param node. Binary trees with deep
 // predicate chains is the near-worst-case for the analysis performance.
 void BM_ShareSelectorBalancedTree(benchmark::State& state) {
-  class ShareSelectorBalancedBinaryTree : public AbstractBalancedTree {
-   public:
-    explicit ShareSelectorBalancedBinaryTree(Package* p)
-        : AbstractBalancedTree(p),
-          selector_val_(fb_.Param("selector", package_->GetBitsType(1))) {}
-    BValue GetBaseValue() override { return fb_.Literal(UBits(42, 8)); }
-    BValue GetSelectorValue() override { return selector_val_; }
-
-   private:
-    BValue selector_val_;
-  };
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("balanced_tree_pkg");
-  auto* f = MakeBalancedTree<ShareSelectorBalancedBinaryTree>(p.get(),
-                                                              state.range(0));
+  benchmark_support::strategy::SharedLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::DistinctLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f);
     benchmark::DoNotOptimize(v);
@@ -535,21 +490,14 @@ void BM_ShareSelectorBalancedTree(benchmark::State& state) {
 // one another. All leaf nodes share a single Param node. Binary trees with deep
 // predicate chains is the near-worst-case for the analysis performance.
 void BM_ShareReturnBalancedTree(benchmark::State& state) {
-  class ShareReturnBalancedBinaryTree : public AbstractBalancedTree {
-   public:
-    explicit ShareReturnBalancedBinaryTree(Package* p)
-        : AbstractBalancedTree(p),
-          return_val_(fb_.Param("return_value", package_->GetBitsType(8))) {}
-    BValue GetBaseValue() override { return return_val_; }
-    BValue GetSelectorValue() override { return fb_.Literal(UBits(1, 1)); }
-
-   private:
-    BValue return_val_;
-  };
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("balanced_tree_pkg");
-  auto* f =
-      MakeBalancedTree<ShareReturnBalancedBinaryTree>(p.get(), state.range(0));
+  benchmark_support::strategy::DistinctLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::SharedLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f);
     benchmark::DoNotOptimize(v);
@@ -560,22 +508,14 @@ void BM_ShareReturnBalancedTree(benchmark::State& state) {
 // Binary trees with deep predicate chains is the near-worst-case for the
 // analysis performance.
 void BM_ShareAllBalancedTree(benchmark::State& state) {
-  class ShareBalancedBinaryTree : public AbstractBalancedTree {
-   public:
-    explicit ShareBalancedBinaryTree(Package* p)
-        : AbstractBalancedTree(p),
-          selector_val_(fb_.Param("selector", package_->GetBitsType(1))),
-          return_val_(fb_.Param("return_value", package_->GetBitsType(8))) {}
-    BValue GetBaseValue() override { return return_val_; }
-    BValue GetSelectorValue() override { return selector_val_; }
-
-   private:
-    BValue selector_val_;
-    BValue return_val_;
-  };
   std::unique_ptr<VerifiedPackage> p =
       std::make_unique<VerifiedPackage>("balanced_tree_pkg");
-  auto* f = MakeBalancedTree<ShareBalancedBinaryTree>(p.get(), state.range(0));
+  benchmark_support::strategy::SharedLiteral selectors(UBits(1, 1));
+  benchmark_support::strategy::SharedLiteral leaf(UBits(42, 8));
+  benchmark_support::strategy::CaseSelect csts(selectors);
+  XLS_ASSERT_OK_AND_ASSIGN(auto* f, benchmark_support::GenerateBalancedTree(
+                                        p.get(), /*depth=*/state.range(0),
+                                        /*fan_out=*/2, csts, leaf));
   for (auto _ : state) {
     auto v = PredicateDominatorAnalysis::Run(f);
     benchmark::DoNotOptimize(v);
