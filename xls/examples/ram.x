@@ -249,18 +249,9 @@ proc RamModel<DATA_WIDTH:u32, SIZE:u32, WORD_PARTITION_SIZE:u32={u32:0},
     // Assert memory being read is initialized by checking that all partitions
     // have been initialized.
     if read_req_valid && ASSERT_VALID_READ {
-      let init_parts = mem_initialized[read_req.addr];
-      let requested_is_init = for (idx, requested_is_init): (u32, bool) in
-      range(u32:0, NUM_PARTITIONS) {
-        if read_req.mask[idx+:bool] {
-          if !init_parts[idx] {
-            trace_fmt!("reading partitions {} but part={} is not init: {}",
-              std::convert_to_bools_lsb0(read_req.mask), idx, init_parts);
-          } else { () };
-          requested_is_init && init_parts[idx]
-        } else { requested_is_init }
-      } (true);
-      assert_eq(requested_is_init, true)
+      let mem_initialized_as_bits =
+        std::convert_to_bits_msb0(array_rev(mem_initialized[read_req.addr]));
+      assert_eq(read_req.mask & !mem_initialized_as_bits, uN[NUM_PARTITIONS]:0)
     } else { () };
 
     let (value_to_write, written_mem_initialized) = write_word(
