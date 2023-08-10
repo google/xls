@@ -329,8 +329,8 @@ absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
               } else if (params == "top") {
                 hls_pragmas_[location] = Pragma(Pragma_Top);
               } else {
-                return absl::InvalidArgumentError(
-                    absl::StrFormat("Unknown #pragma hls_design '%s'", name));
+                XLS_LOG(WARNING)
+                    << "Ignoring unknown #pragma hls_design: " << params;
               }
             } else {
               hls_pragmas_[location] = Pragma(Pragma_Top);

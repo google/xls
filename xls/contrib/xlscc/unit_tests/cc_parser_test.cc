@@ -567,4 +567,20 @@ TEST_F(CCParserTest, DesignTopVsBlock) {
   }
 }
 
+TEST_F(CCParserTest, DesignUnknown) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_design unknown
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  absl::StatusOr<const clang::FunctionDecl*> top = parser.GetTopFunction();
+  EXPECT_THAT(top, xls::status_testing::StatusIs(absl::StatusCode::kNotFound));
+}
+
 }  // namespace
