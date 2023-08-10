@@ -186,18 +186,19 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     if (absl::IsResourceExhausted(scheduling_status)) {
       // Resource exhausted error indicates that the schedule was
       // infeasible. Emit a meaningful error in this case.
-      if (scheduling_options.pipeline_stages().has_value() &&
-          scheduling_options.clock_period_ps().has_value()) {
-        // TODO(meheff): Add link to documentation with more information and
-        // guidance.
-        XLS_LOG(QFATAL) << absl::StreamFormat(
-            "Design cannot be scheduled in %d stages with a %dps clock.",
-            scheduling_options.pipeline_stages().value(),
-            scheduling_options.clock_period_ps().value());
+      std::string error_message = "Design cannot be scheduled";
+      if (scheduling_options.pipeline_stages().has_value()) {
+        absl::StrAppendFormat(&error_message, " in %d stages",
+                              scheduling_options.pipeline_stages().value());
       }
-    } else {
-      return scheduling_status;
+      if (scheduling_options.clock_period_ps().has_value()) {
+        absl::StrAppendFormat(&error_message, " with a %dps clock",
+                              scheduling_options.clock_period_ps().value());
+      }
+      return xabsl::StatusBuilder(scheduling_status).SetPrepend()
+             << error_message << ": ";
     }
+    return scheduling_status;
   }
   XLS_RET_CHECK(scheduling_unit.schedule.has_value());
 
