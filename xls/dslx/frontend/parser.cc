@@ -1926,11 +1926,7 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
 absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
     Bindings& bindings) {
   std::vector<Param*> members;
-  Transaction txn(this, &bindings);
-  absl::Cleanup cleanup = [&txn] { txn.Rollback(); };
 
-  // TODO(rspringer): This'll need to be reworked to enable members to be
-  // declared anywhere in a proc, and not just at the top.
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   while (!peek->IsIdentifier("config") && !peek->IsIdentifier("next") &&
          !peek->IsIdentifier("init")) {
@@ -1944,7 +1940,6 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
     bindings.Add(member->identifier(), member->name_def());
   }
 
-  txn.CommitAndCancelCleanup(&cleanup);
   return members;
 }
 
