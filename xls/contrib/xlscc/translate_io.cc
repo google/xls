@@ -186,6 +186,11 @@ absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
 
   const clang::Type* type = stripped.base.getTypePtr();
 
+  if (auto subst =
+          clang::dyn_cast<const clang::SubstTemplateTypeParmType>(type)) {
+    return TypeIsChannel(subst->getReplacementType(), loc);
+  }
+
   if (type->getTypeClass() == clang::Type::TypeClass::TemplateSpecialization) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
     std::shared_ptr<CInstantiableTypeAlias> ret(
@@ -240,6 +245,11 @@ absl::StatusOr<std::shared_ptr<CChannelType>> Translator::GetChannelType(
 
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_type));
+
+  if (auto subst = clang::dyn_cast<const clang::SubstTemplateTypeParmType>(
+          stripped.base.getTypePtr())) {
+    return GetChannelType(subst->getReplacementType(), ctx, loc);
+  }
 
   if (auto template_spec =
           clang::dyn_cast<const clang::TemplateSpecializationType>(

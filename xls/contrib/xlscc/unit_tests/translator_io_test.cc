@@ -1499,6 +1499,64 @@ TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitch) {
           IOOpTest("out", 9, true)});
 }
 
+TEST_F(TranslatorIOTest, TernaryOnChannelsReadSubroutineSwitchTemplated) {
+  const std::string content = R"(
+
+       template<typename C>
+       C& SelectCh(int idx, C& a, C& b) {
+        switch (idx) {
+          default:
+            __xlscc_assert("Unsupported index to SelectIf!", false);
+            // Fall through to make all paths return
+          case 0:
+            return b;
+          case 1:
+            return a;
+          }
+        }
+  
+       template<typename T>
+       using my_ch = __xls_channel<T>;
+
+       #pragma hls_top
+       void my_package(my_ch<int>& dir_in, 
+                       my_ch<int>& in1,
+                       my_ch<int>& in2,
+                       my_ch<int>& out) {
+          const int dir = dir_in.read();
+          my_ch<int>& ch_r = SelectCh(dir, in1, in2);
+          out.write(3*ch_r.read());
+       })";
+
+  auto one_bit_0 = xls::Value(xls::UBits(0, 1));
+  auto one_bit_1 = xls::Value(xls::UBits(1, 1));
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 1, true), IOOpTest("in2", 3, false),
+          IOOpTest("in1", 5, true)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          IOOpTest("out", 15, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 0, true), IOOpTest("in2", 3, true),
+          IOOpTest("in1", 5, false)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_0, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          IOOpTest("out", 9, true)});
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("dir_in", 2, true), IOOpTest("in2", 3, true),
+          IOOpTest("in1", 5, false)},
+         /*outputs=*/
+         {IOOpTest("__trace", one_bit_1, "Unsupported index to SelectIf!",
+                   TraceType::kAssert),
+          // Fall through outputs on b
+          IOOpTest("out", 9, true)});
+}
+
 TEST_F(TranslatorIOTest, TernaryOnChannelsReadAssign) {
   const std::string content = R"(
        #include "/xls_builtin.h"
