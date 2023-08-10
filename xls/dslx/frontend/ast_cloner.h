@@ -25,6 +25,12 @@ namespace xls::dslx {
 // Creates a deep copy of the given AST node (inside the same module). All nodes
 // in the tree are duplicated.
 absl::StatusOr<AstNode*> CloneAst(AstNode* root);
+
+// Variant of CloneAst that won't clone type definitions -- this is useful for
+// e.g. cloning return types without recursing into cloned definitions which
+// would change nominal types.
+absl::StatusOr<AstNode*> CloneAstSansTypeDefinitions(AstNode* root);
+
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module);
 
 // Verifies that the AST node tree rooted at `new_root` does not contain any of

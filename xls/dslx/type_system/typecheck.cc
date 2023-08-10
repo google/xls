@@ -808,6 +808,8 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                                     "Types cannot be returned from functions");
   }
   if (*return_type != *body_type) {
+    XLS_VLOG(5) << "return type: " << return_type->ToString()
+                << " body type: " << body_type->ToString();
     if (f->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
           f->body()->span(), f->body(), *body_type, f->return_type(),
@@ -1028,23 +1030,24 @@ absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
   if (annotated_return_type != *resolved_body_type) {
     XLS_VLOG(5) << "annotated_return_type: " << annotated_return_type
                 << " resolved_body_type: " << resolved_body_type->ToString();
+
     if (callee_fn->tag() == Function::Tag::kProcInit) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *callee_tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+          nullptr, annotated_return_type,
           absl::StrFormat("'next' state param and 'init' types differ."));
     }
 
     if (callee_fn->tag() == Function::Tag::kProcNext) {
       return ctx->TypeMismatchError(
-          callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-          *callee_tab.type,
+          callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+          nullptr, annotated_return_type,
           absl::StrFormat("'next' input and output state types differ."));
     }
 
     return ctx->TypeMismatchError(
-        callee_fn->body()->span(), callee_fn->body(), *body_type, nullptr,
-        *callee_tab.type,
+        callee_fn->body()->span(), callee_fn->body(), *resolved_body_type,
+        nullptr, annotated_return_type,
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         callee_fn->identifier()));

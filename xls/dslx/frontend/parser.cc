@@ -36,6 +36,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_builder.h"
 #include "xls/common/status/status_macros.h"
@@ -2104,52 +2105,8 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
 }
 
 absl::StatusOr<TypeAnnotation*> Parser::CloneReturnType(TypeAnnotation* input) {
-  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(input);
-      builtin_type != nullptr) {
-    return module_->Make<BuiltinTypeAnnotation>(
-        input->span(), builtin_type->builtin_type(),
-        builtin_type->builtin_name_def());
-  }
-
-  if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(input);
-      array_type != nullptr) {
-    XLS_ASSIGN_OR_RETURN(TypeAnnotation * clone_element,
-                         CloneReturnType(array_type->element_type()));
-    XLS_ASSIGN_OR_RETURN(AstNode * new_dim, CloneAst(array_type->dim()));
-    return module_->Make<ArrayTypeAnnotation>(input->span(), clone_element,
-                                              down_cast<Expr*>(new_dim));
-  }
-
-  if (auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(input);
-      tuple_type != nullptr) {
-    std::vector<TypeAnnotation*> members;
-    members.reserve(tuple_type->members().size());
-    for (auto* member : tuple_type->members()) {
-      XLS_ASSIGN_OR_RETURN(TypeAnnotation * new_member,
-                           CloneReturnType(member));
-      members.push_back(new_member);
-    }
-    return module_->Make<TupleTypeAnnotation>(tuple_type->span(), members);
-  }
-
-  if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(input);
-      typeref_type != nullptr) {
-    TypeRef* old_ref = typeref_type->type_ref();
-    TypeRef* new_ref =
-        module_->Make<TypeRef>(old_ref->span(), old_ref->type_definition());
-
-    std::vector<ExprOrType> new_parametrics;
-    for (const ExprOrType& parametric : typeref_type->parametrics()) {
-      XLS_ASSIGN_OR_RETURN(AstNode * new_parametric,
-                           CloneAst(ToAstNode(parametric)));
-      new_parametrics.push_back(ToExprOrType(new_parametric));
-    }
-    return module_->Make<TypeRefTypeAnnotation>(typeref_type->span(), new_ref,
-                                                new_parametrics);
-  }
-
-  XLS_RET_CHECK_NE(dynamic_cast<ChannelTypeAnnotation*>(input), nullptr);
-  return absl::UnimplementedError("Cannot clone channel type annotations.");
+  XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAstSansTypeDefinitions(input));
+  return down_cast<TypeAnnotation*>(cloned);
 }
 
 absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
