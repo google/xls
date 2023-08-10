@@ -23,6 +23,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -85,7 +86,7 @@ class Proc : public FunctionBase {
 
   // Return the state element indices for which the given `node` is the next
   // recurrent state value for that element.
-  std::vector<int64_t> GetNextStateIndices(Node* node) const;
+  absl::btree_set<int64_t> GetNextStateIndices(Node* node) const;
 
   // Returns the type of the given state element.
   Type* GetStateElementType(int64_t index) const {
@@ -171,6 +172,9 @@ class Proc : public FunctionBase {
   // proc.
   Node* next_token_;
   std::vector<Node*> next_state_;
+
+  // A map from the `next_state_` nodes back to the indices they control.
+  absl::flat_hash_map<Node*, absl::btree_set<int64_t>> next_state_indices_;
 };
 
 }  // namespace xls

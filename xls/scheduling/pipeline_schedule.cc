@@ -146,10 +146,6 @@ bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
   }
 
   if (as_proc != nullptr) {
-    // TODO: Consider optimizing this loop.
-    // It seems a bit redundant to loop over the state indices to identify the
-    // next-state indices, then loop over those again to get their corresponding
-    // state nodes.
     for (int64_t index : as_proc->GetNextStateIndices(node)) {
       if (cycle(as_proc->GetStateParam(index)) > c) {
         return true;

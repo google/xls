@@ -1380,12 +1380,17 @@ cc_test(
     name = "proc_test",
     srcs = ["proc_test.cc"],
     deps = [
+        ":bits",
+        ":function_builder",
         ":ir",
         ":ir_matcher",
         ":ir_test_base",
+        ":source_location",
+        ":value",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/status",
     ],
 )
 
