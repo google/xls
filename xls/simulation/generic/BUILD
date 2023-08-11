@@ -533,6 +533,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "runtime_manager_test",
+    srcs = [
+        "runtime_manager_test.cc",
+    ],
+    data = [
+        "//xls/simulation/generic/testdata:pasthrough_opt_ir",
+    ],
+    deps = [
+        ":runtime_manager",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "iaxistreamlike",
     hdrs = [
