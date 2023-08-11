@@ -42,8 +42,10 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
   XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
-      RunPipelineSchedule(f, GetStandardDelayEstimator(),
-                          SchedulingOptions().pipeline_stages(stages)));
+      stages == 1 ?
+        PipelineSchedule::SingleStage(f) :
+        RunPipelineSchedule(f, GetStandardDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(stages)));
   CodegenOptions options = BuildPipelineOptions();
   options.module_name(module_name);
   options.use_system_verilog(false);

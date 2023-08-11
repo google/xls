@@ -116,6 +116,15 @@ absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
   return PipelineSchedule(function, cycle_map);
 }
 
+absl::StatusOr<PipelineSchedule> PipelineSchedule::SingleStage(
+    FunctionBase* function) {
+  ScheduleCycleMap cycle_map;
+  for (Node* node : function->nodes()) {
+    cycle_map.emplace(node, 0);
+  }
+  return PipelineSchedule(function, cycle_map);
+}
+
 absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
   if (cycle < cycle_to_nodes_.size()) {
     return cycle_to_nodes_[cycle];

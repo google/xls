@@ -38,6 +38,9 @@ class PipelineSchedule {
   static absl::StatusOr<PipelineSchedule> FromProto(
       FunctionBase* function, const PipelineScheduleProto& proto);
 
+  // Builds trivial pipeline schedule with all nodes in a single stage
+  static absl::StatusOr<PipelineSchedule> SingleStage(FunctionBase* function);
+
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.

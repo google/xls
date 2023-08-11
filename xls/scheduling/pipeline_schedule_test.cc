@@ -1227,5 +1227,26 @@ TEST_F(PipelineScheduleTest, RandomSchedule) {
   }
 }
 
+TEST_F(PipelineScheduleTest, SingleStageSchedule) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  for (int64_t i = 0; i < 20; ++i) {
+    x = fb.Negate(x);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  // This simply puts all of func's nodes into a single pipeline stage.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      absl::StatusOr<PipelineSchedule> schedule,
+      PipelineSchedule::SingleStage(func));
+
+  EXPECT_EQ(schedule.value().length(), 1);
+
+  // 20 negates plus the input param
+  EXPECT_EQ(schedule.value().nodes_in_cycle(0).size(), 21);
+}
+
 }  // namespace
 }  // namespace xls
