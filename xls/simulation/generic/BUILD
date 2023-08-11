@@ -510,6 +510,30 @@ cc_test(
 )
 
 cc_library(
+    name = "runtime_manager",
+    srcs = [
+        "runtime_manager.cc",
+        "runtime_status.cc",
+    ],
+    hdrs = [
+        "managed_serial_proc_runtime.h",
+        "runtime_manager.h",
+        "runtime_status.h",
+    ],
+    deps = [
+        ":iactive",
+        ":iregister",
+        "//xls/interpreter:interpreter_proc_runtime",
+        "//xls/ir",
+        "//xls/jit:jit_proc_runtime",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
     name = "iaxistreamlike",
     hdrs = [
         "iaxistreamlike.h",
