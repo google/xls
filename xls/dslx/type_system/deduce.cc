@@ -310,6 +310,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
   return ctx->Deduce(node->operand());
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceProcMember(
+    const ProcMember* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                       ctx->Deduce(node->type_annotation()));
+  auto* meta_type = dynamic_cast<MetaType*>(concrete_type.get());
+  std::unique_ptr<ConcreteType>& param_type = meta_type->wrapped();
+  return std::move(param_type);
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
                                                           DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(auto concrete_type,
@@ -322,6 +331,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
     return std::move(param_type);
   }
 
+  // Special case handling for parameters to config functions. These must be
+  // made constexpr.
+  //
   // When deducing a proc at top level, we won't have constexpr values for its
   // config params, which will cause Spawn deduction to fail, so we need to
   // create dummy InterpValues for its parameter channels.
@@ -2602,12 +2614,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
 
 // Generic function to do the heavy lifting of deducing the type of an
 // Invocation or Spawn's constituent functions.
-absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
+static absl::StatusOr<TypeAndParametricEnv> DeduceInstantiation(
     DeduceCtx* ctx, const Invocation* invocation,
     const std::vector<InstantiateArg>& args,
     const std::function<absl::StatusOr<Function*>(const Instantiation*,
                                                   DeduceCtx*)>& resolve_fn,
-    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env = {}) {
+    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                              InterpValue>& constexpr_env = {}) {
   bool is_parametric_fn = false;
   // We can't resolve builtins as AST Functions, hence this check.
   if (!IsBuiltinFn(invocation->callee())) {
@@ -2688,7 +2701,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       node, node->callee(), node->next()->args(), ctx, &next_args));
 
   // For each [constexpr] arg, mark the associated Param as constexpr.
-  absl::flat_hash_map<const Param*, InterpValue> constexpr_env;
+  absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                      InterpValue>
+      constexpr_env;
   size_t argc = node->config()->args().size();
   size_t paramc = proc->config()->params().size();
   if (argc != paramc) {
@@ -2945,6 +2960,7 @@ class DeduceVisitor : public AstNodeVisitor {
 
   DEDUCE_DISPATCH(Unop)
   DEDUCE_DISPATCH(Param)
+  DEDUCE_DISPATCH(ProcMember)
   DEDUCE_DISPATCH(ConstantDef)
   DEDUCE_DISPATCH(Number)
   DEDUCE_DISPATCH(String)

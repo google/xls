@@ -232,6 +232,7 @@ class NameDefCollector : public AstNodeVisitor {
   }
   DEFAULT_HANDLER(Number);
   DEFAULT_HANDLER(Param);
+  DEFAULT_HANDLER(ProcMember);
   DEFAULT_HANDLER(ParametricBinding);
   absl::Status HandleProc(const Proc* n) override {
     return absl::InternalError(

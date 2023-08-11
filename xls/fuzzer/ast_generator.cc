@@ -40,6 +40,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
@@ -407,7 +408,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
                                            chan_op_info.channel_direction,
                                            channel_type, std::nullopt);
   Param* param = GenerateParam(channel_type_annotation);
-  proc_properties_.params.push_back(param);
+  auto to_member = [this](const Param* p) -> absl::StatusOr<ProcMember*> {
+    XLS_ASSIGN_OR_RETURN(NameDef * name_def, CloneNode(p->name_def()));
+    XLS_ASSIGN_OR_RETURN(AstNode * type_annotation,
+                         CloneAstSansTypeDefinitions(p->type_annotation()));
+    return module_->Make<ProcMember>(
+        name_def, down_cast<TypeAnnotation*>(type_annotation));
+  };
+  XLS_ASSIGN_OR_RETURN(ProcMember * member, to_member(param));
+  proc_properties_.members.push_back(member);
+  proc_properties_.config_params.push_back(param);
   NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
                                               param->name_def());
 
@@ -2494,7 +2504,7 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
 
   XLS_ASSIGN_OR_RETURN(
       Function * config_function,
-      GenerateProcConfigFunction("config", proc_properties_.params));
+      GenerateProcConfigFunction("config", proc_properties_.config_params));
 
   XLS_CHECK_EQ(proc_properties_.state_types.size(), 1);
   XLS_ASSIGN_OR_RETURN(
@@ -2508,7 +2518,7 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
       fake_span_, name_def, config_function->name_def(),
       next_function->name_def(),
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      proc_properties_.params, config_function, next_function, init_fn,
+      proc_properties_.members, config_function, next_function, init_fn,
       /*is_public=*/false);
   name_def->set_definer(proc);
   return proc;

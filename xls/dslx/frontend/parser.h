@@ -416,6 +416,9 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Param*> ParseParam(Bindings& bindings);
 
+  // Parses a member declaration in the body of a `proc` definition.
+  absl::StatusOr<ProcMember*> ParseProcMember(Bindings& bindings);
+
   // Parses a sequence of parameters, starting with cursor over '(', returns
   // after ')' is consumed.
   //
@@ -542,13 +545,14 @@ class Parser : public TokenParser {
   // Traverses a Proc declaration to collect all the member data elements
   // present therein - in other words, it collects everything but the "config"
   // and "next" elements.
-  absl::StatusOr<std::vector<Param*>> CollectProcMembers(Bindings& bindings);
+  absl::StatusOr<std::vector<ProcMember*>> CollectProcMembers(
+      Bindings& bindings);
 
   // Parses Proc config, next, and init functions, respectively.
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings& bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      const std::vector<Param*>& proc_members, std::string_view proc_name,
+      const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
       bool is_public);
   absl::StatusOr<Function*> ParseProcNext(
       Bindings& bindings,

@@ -1923,20 +1923,20 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   return result;
 }
 
-absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
+absl::StatusOr<std::vector<ProcMember*>> Parser::CollectProcMembers(
     Bindings& bindings) {
-  std::vector<Param*> members;
+  std::vector<ProcMember*> members;
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   while (!peek->IsIdentifier("config") && !peek->IsIdentifier("next") &&
          !peek->IsIdentifier("init")) {
-    XLS_ASSIGN_OR_RETURN(Param * param, ParseParam(bindings));
-    members.push_back(param);
+    XLS_ASSIGN_OR_RETURN(ProcMember * member, ParseProcMember(bindings));
+    members.push_back(member);
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
     XLS_ASSIGN_OR_RETURN(peek, PeekToken());
   }
 
-  for (const auto* member : members) {
+  for (const ProcMember* member : members) {
     bindings.Add(member->identifier(), member->name_def());
   }
 
@@ -1946,7 +1946,7 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
 absl::StatusOr<Function*> Parser::ParseProcConfig(
     Bindings& outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
-    const std::vector<Param*>& proc_members, std::string_view proc_name,
+    const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
     bool is_public) {
   Bindings bindings(&outer_bindings);
   XLS_ASSIGN_OR_RETURN(Token config_tok,
@@ -1989,7 +1989,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
       config_tok.span(), absl::StrCat(proc_name, ".config"), nullptr);
   std::vector<TypeAnnotation*> return_elements;
   return_elements.reserve(proc_members.size());
-  for (const auto* member : proc_members) {
+  for (const ProcMember* member : proc_members) {
     return_elements.push_back(member->type_annotation());
   }
   TypeAnnotation* return_type =
@@ -2122,11 +2122,6 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   std::vector<Param*> params;
 
-  std::vector<Param*> proc_members;
-  Function* config = nullptr;
-  Function* next = nullptr;
-  Function* init = nullptr;
-
   // We need to collect proc members 2x, the reason being that otherwise (if we
   // used the same members for both the config fn as well as the overall proc),
   // then we'd end up with dual ownership, which is forbidden. Cloning Param
@@ -2135,16 +2130,21 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // TODO(rspringer): Use the AST cloner so that members can be declared
   // anywhere - and relax that proc members must be declared at proc top.
   Transaction txn(this, &bindings);
-  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
+  absl::Cleanup cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
   // Create a separate Bindings object to see what's added during member
   // collection, so we can report better errors below. Members will be added to
   // "bindings" in the next call.
   Bindings memberless_bindings = bindings.Clone();
-  XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_members,
+  XLS_ASSIGN_OR_RETURN(std::vector<ProcMember*> config_members,
                        CollectProcMembers(bindings));
   std::move(cleanup).Invoke();
-  XLS_ASSIGN_OR_RETURN(proc_members, CollectProcMembers(bindings));
+  XLS_ASSIGN_OR_RETURN(std::vector<ProcMember*> proc_members,
+                       CollectProcMembers(bindings));
+
+  Function* config = nullptr;
+  Function* next = nullptr;
+  Function* init = nullptr;
 
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   while (peek->kind() != TokenKind::kCBrace) {
@@ -2510,6 +2510,16 @@ absl::StatusOr<Param*> Parser::ParseParam(Bindings& bindings) {
   auto* param = module_->Make<Param>(name, type);
   name->set_definer(param);
   return param;
+}
+
+absl::StatusOr<ProcMember*> Parser::ParseProcMember(Bindings& bindings) {
+  XLS_ASSIGN_OR_RETURN(NameDef * name, ParseNameDef(bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kColon, /*start=*/nullptr,
+                                       "Expect type annotation on parameters"));
+  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type, ParseTypeAnnotation(bindings));
+  auto* member = module_->Make<ProcMember>(name, type);
+  name->set_definer(member);
+  return member;
 }
 
 absl::StatusOr<Number*> Parser::ParseNumber(Bindings& bindings) {

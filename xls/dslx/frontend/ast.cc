@@ -186,6 +186,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "function";
     case AstNodeKind::kProc:
       return "proc";
+    case AstNodeKind::kProcMember:
+      return "proc member";
     case AstNodeKind::kNameRef:
       return "name reference";
     case AstNodeKind::kConstRef:
@@ -766,6 +768,17 @@ std::optional<Import*> ColonRef::ResolveImportSubject() const {
   }
   return import;
 }
+
+// -- class ProcMember
+
+ProcMember::ProcMember(Module* owner, NameDef* name_def,
+                       TypeAnnotation* type_annotation)
+    : AstNode(owner),
+      name_def_(name_def),
+      type_annotation_(type_annotation),
+      span_(name_def_->span().start(), type_annotation_->span().limit()) {}
+
+ProcMember::~ProcMember() = default;
 
 // -- class Param
 
@@ -1904,7 +1917,7 @@ TestFunction::~TestFunction() = default;
 Proc::Proc(Module* owner, Span span, NameDef* name_def,
            NameDef* config_name_def, NameDef* next_name_def,
            const std::vector<ParametricBinding*>& parametric_bindings,
-           const std::vector<Param*>& members, Function* config, Function* next,
+           std::vector<ProcMember*> members, Function* config, Function* next,
            Function* init, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
@@ -1915,7 +1928,7 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
       config_(config),
       next_(next),
       init_(init),
-      members_(members),
+      members_(std::move(members)),
       is_public_(is_public) {}
 
 Proc::~Proc() = default;
@@ -1925,7 +1938,7 @@ std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   for (ParametricBinding* pb : parametric_bindings_) {
     results.push_back(pb);
   }
-  for (Param* p : members_) {
+  for (ProcMember* p : members_) {
     results.push_back(p);
   }
   results.push_back(config_);
@@ -1946,14 +1959,17 @@ std::string Proc::ToString() const {
               absl::StrAppend(out, parametric_binding->ToString());
             }));
   }
-  auto param_append = [](std::string* out, const Param* param) {
-    out->append(absl::StrCat(param->ToString(), ";"));
+  auto param_append = [](std::string* out, const Param* p) {
+    out->append(absl::StrCat(p->ToString(), ";"));
+  };
+  auto member_append = [](std::string* out, const ProcMember* member) {
+    out->append(absl::StrCat(member->ToString(), ";"));
   };
   std::string config_params_str =
       absl::StrJoin(config_->params(), ", ", param_append);
   std::string state_params_str =
       absl::StrJoin(next_->params(), ", ", param_append);
-  std::string members_str = absl::StrJoin(members_, "\n", param_append);
+  std::string members_str = absl::StrJoin(members_, "\n", member_append);
   if (!members_str.empty()) {
     members_str.append("\n");
   }

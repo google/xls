@@ -101,6 +101,7 @@
   X(Param)                        \
   X(ParametricBinding)            \
   X(Proc)                         \
+  X(ProcMember)                   \
   X(QuickCheck)                   \
   X(Slice)                        \
   X(Statement)                    \
@@ -1580,6 +1581,46 @@ class Function : public AstNode {
   std::optional<::xls::ForeignFunctionData> extern_verilog_module_;
 };
 
+// A member held in a proc, e.g. a channel declaration initialized by a
+// configuration block.
+//
+// This is very similar to a `Param` at the moment, but we make them distinct
+// types for structural clarity in the AST. Params are really "parameters to
+// functions".
+class ProcMember : public AstNode {
+ public:
+  ProcMember(Module* owner, NameDef* name_def, TypeAnnotation* type);
+
+  ~ProcMember() override;
+
+  AstNodeKind kind() const override { return AstNodeKind::kProcMember; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleProcMember(this);
+  }
+
+  std::string_view GetNodeTypeName() const override { return "ProcMember"; }
+  std::string ToString() const override {
+    return absl::StrFormat("%s: %s", name_def_->ToString(),
+                           type_annotation_->ToString());
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {name_def_, type_annotation_};
+  }
+
+  const Span& span() const { return span_; }
+  NameDef* name_def() const { return name_def_; }
+  TypeAnnotation* type_annotation() const { return type_annotation_; }
+  const std::string& identifier() const { return name_def_->identifier(); }
+  std::optional<Span> GetSpan() const override { return span_; }
+
+ private:
+  NameDef* name_def_;
+  TypeAnnotation* type_annotation_;
+  Span span_;
+};
+
 // Represents a parsed 'process' specification in the DSL.
 class Proc : public AstNode {
  public:
@@ -1588,7 +1629,7 @@ class Proc : public AstNode {
   Proc(Module* owner, Span span, NameDef* name_def, NameDef* config_name_def,
        NameDef* next_name_def,
        const std::vector<ParametricBinding*>& parametric_bindings,
-       const std::vector<Param*>& members, Function* config, Function* next,
+       std::vector<ProcMember*> members, Function* config, Function* next,
        Function* init, bool is_public);
 
   ~Proc() override;
@@ -1624,7 +1665,7 @@ class Proc : public AstNode {
   Function* config() const { return config_; }
   Function* next() const { return next_; }
   Function* init() const { return init_; }
-  const std::vector<Param*>& members() const { return members_; }
+  const std::vector<ProcMember*>& members() const { return members_; }
 
  private:
   Span span_;
@@ -1636,7 +1677,7 @@ class Proc : public AstNode {
   Function* config_;
   Function* next_;
   Function* init_;
-  std::vector<Param*> members_;
+  std::vector<ProcMember*> members_;
   bool is_public_;
 };
 

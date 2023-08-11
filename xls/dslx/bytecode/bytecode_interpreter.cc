@@ -1557,7 +1557,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
   std::vector<NameDef*> member_defs;
   member_defs.reserve(proc->members().size());
-  for (const Param* param : proc->members()) {
+  for (const ProcMember* param : proc->members()) {
     member_defs.push_back(param->name_def());
   }
 

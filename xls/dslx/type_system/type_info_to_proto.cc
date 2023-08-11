@@ -159,6 +159,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_STATEMENT;
     case AstNodeKind::kUnrollFor:
       return AST_NODE_KIND_UNROLL_FOR;
+    case AstNodeKind::kProcMember:
+      return AST_NODE_KIND_PROC_MEMBER;
   }
   // Fatal since enum class values should not be out of range.
   XLS_LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);

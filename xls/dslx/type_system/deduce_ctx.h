@@ -119,7 +119,8 @@ using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 using TypecheckInvocationFn =
     std::function<absl::StatusOr<TypeAndParametricEnv>(
         DeduceCtx* ctx, const Invocation*,
-        const absl::flat_hash_map<const Param*, InterpValue>&)>;
+        const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                                  InterpValue>&)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.

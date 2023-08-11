@@ -19,7 +19,6 @@
 #include <memory>
 #include <optional>
 #include <random>
-#include <stack>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,15 +43,6 @@ struct TypedExpr {
 struct BitsAndSignedness {
   int64_t bits;
   bool signedness;
-};
-
-struct ProcProperties {
-  // A list of the state types in the proc's next function. Currently, at most a
-  // single state is supported. The order of types as they appear in the
-  // container mirrors the order present in the proc's next function.
-  std::vector<TypeAnnotation*> state_types;
-  // Parameters of the proc.
-  std::vector<Param*> params;
 };
 
 // Options that are used to configure the AST generator.
@@ -645,6 +635,19 @@ class AstGenerator {
     }
     return absl::OkStatus();
   }
+
+  struct ProcProperties {
+    // A list of the state types in the proc's next function. Currently, at most
+    // a single state is supported. The order of types as they appear in the
+    // container mirrors the order present in the proc's next function.
+    std::vector<TypeAnnotation*> state_types;
+
+    // Parameters of the proc config function.
+    std::vector<Param*> config_params;
+
+    // Members of the proc.
+    std::vector<ProcMember*> members;
+  };
 
   ValueGenerator* value_gen_;
 

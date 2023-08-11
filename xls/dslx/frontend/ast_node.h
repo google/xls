@@ -61,6 +61,7 @@ enum class AstNodeKind {
   kParam,
   kParametricBinding,
   kProc,
+  kProcMember,
   kQuickCheck,
   kRange,
   kRecv,

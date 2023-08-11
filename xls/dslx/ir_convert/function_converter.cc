@@ -318,6 +318,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(QuickCheck)
   INVALID(Spawn)
   INVALID(StructDef)
+  INVALID(ProcMember)
 
   // This should have been unrolled into a sequence of statements and is
   // unconvertible.

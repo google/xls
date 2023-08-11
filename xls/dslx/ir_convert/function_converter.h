@@ -293,6 +293,7 @@ class FunctionConverter {
   absl::Status HandleNameRef(const NameRef* node);
   absl::Status HandleNumber(const Number* node);
   absl::Status HandleParam(const Param* node);
+  absl::Status HandleProcMember(const ProcMember* node);
   absl::Status HandleString(const String* node);
   absl::Status HandleUnop(const Unop* node);
   absl::Status HandleXlsTuple(const XlsTuple* node);

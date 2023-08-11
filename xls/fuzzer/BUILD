@@ -518,6 +518,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:scanner",
         "//xls/ir:bits",
         "//xls/ir:format_preference",

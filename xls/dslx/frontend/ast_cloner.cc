@@ -510,6 +510,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleProcMember(const ProcMember* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<ProcMember>(
+        down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleParametricBinding(const ParametricBinding* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -534,10 +542,10 @@ class AstCloner : public AstNodeVisitor {
           down_cast<ParametricBinding*>(old_to_new_.at(pb)));
     }
 
-    std::vector<Param*> new_members;
+    std::vector<ProcMember*> new_members;
     new_members.reserve(n->members().size());
-    for (const Param* member : n->members()) {
-      new_members.push_back(down_cast<Param*>(old_to_new_.at(member)));
+    for (const ProcMember* member : n->members()) {
+      new_members.push_back(down_cast<ProcMember*>(old_to_new_.at(member)));
     }
 
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));

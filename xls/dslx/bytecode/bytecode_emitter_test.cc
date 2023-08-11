@@ -1371,7 +1371,7 @@ proc Parent {
   }
 
   std::vector<NameDef*> members;
-  for (const Param* member : child->members()) {
+  for (const ProcMember* member : child->members()) {
     members.push_back(member->name_def());
   }
   child_ti =

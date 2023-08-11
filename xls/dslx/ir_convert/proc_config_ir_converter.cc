@@ -72,7 +72,7 @@ absl::Status ProcConfigIrConverter::Finalize() {
 
   XLS_RET_CHECK_EQ(p->members().size(), final_tuple_->members().size());
   for (int i = 0; i < p->members().size(); i++) {
-    Param* member = p->members()[i];
+    ProcMember* member = p->members()[i];
     proc_data_->id_to_members.at(proc_id_)[member->identifier()] =
         node_to_ir_.at(final_tuple_->members()[i]);
   }

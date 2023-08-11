@@ -38,6 +38,14 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module);
 // that a clone doesn't contain any 'old' AST nodes.
 absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root);
 
+// Helper for CloneAst that uses the apparent (derived) type given by the
+// parameter as the return type. (This helps encapsulate casts to be safer.)
+template <typename T>
+inline absl::StatusOr<T*> CloneNode(T* node) {
+  XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(node));
+  return down_cast<T*>(cloned);
+}
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_FRONTEND_AST_CLONER_H_

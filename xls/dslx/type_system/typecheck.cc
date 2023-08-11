@@ -34,6 +34,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/bytecode/bytecode_emitter.h"
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
@@ -870,7 +871,8 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
 
 absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
-    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env) {
+    const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
+                              InterpValue>& constexpr_env) {
   XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
   Expr* callee = invocation->callee();
 
@@ -986,11 +988,19 @@ absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     }
   }
 
+  auto get_name_def =
+      [](std::variant<const Param*, const ProcMember*> v) -> NameDef* {
+    return absl::visit(
+        Visitor{[](const Param* n) { return n->name_def(); },
+                [](const ProcMember* n) { return n->name_def(); }},
+        v);
+  };
+
   // Mark params (for proc config fns) or proc members (for proc next fns) as
   // constexpr.
   for (const auto& [k, v] : constexpr_env) {
-    ctx->type_info()->NoteConstExpr(k, v);
-    ctx->type_info()->NoteConstExpr(k->name_def(), v);
+    ctx->type_info()->NoteConstExpr(ToAstNode(k), v);
+    ctx->type_info()->NoteConstExpr(get_name_def(k), v);
   }
 
   // Add the new parametric bindings to the constexpr set.
