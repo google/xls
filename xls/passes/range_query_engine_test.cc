@@ -1242,6 +1242,50 @@ TEST_F(RangeQueryEngineTest, UMul) {
             BitsLTT(overflow.node(), {Interval::Maximal(12)}));
 }
 
+TEST_F(RangeQueryEngineTest, UMulOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue expr = fb.UMul(x, y, 8);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 8), UBits(4, 8))}));
+  engine.SetIntervalSetTree(y.node(),
+                            BitsLTT(y.node(), {Interval::Maximal(8)}));
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Overflow so we have maximal range
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval::Maximal(8)}));
+}
+
+TEST_F(RangeQueryEngineTest, UMulNoOverflow) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue expr = fb.UMul(x, y, 8);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(0, 8), UBits(4, 8))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval(UBits(0, 8), UBits(4, 8))}));
+
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // None of the results can overflow so we have a real range.
+  EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
+            BitsLTT(expr.node(), {Interval(UBits(0, 8), UBits(16, 8))}));
+}
+
 TEST_F(RangeQueryEngineTest, XorReduce) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

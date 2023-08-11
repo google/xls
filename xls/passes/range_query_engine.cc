@@ -1374,20 +1374,23 @@ absl::Status RangeQueryVisitor::HandleUMod(BinOp* mod) {
 
 absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {
   engine_->InitializeNode(mul);
-  // Only provably non-overflowing multiplies can be handled properly.
-  // Hopefully soonish we'll replace overflowing multiplies with multiply
-  // followed by truncate, after which this code will work well automatically.
-  if (mul->GetType()->GetFlatBitCount() >=
-      (mul->operand(0)->GetType()->GetFlatBitCount() +
-       mul->operand(1)->GetType()->GetFlatBitCount())) {
-    return HandleMonotoneMonotoneBinOp(
-        [mul](const Bits& x, const Bits& y) -> std::optional<Bits> {
-          return bits_ops::ZeroExtend(bits_ops::UMul(x, y),
-                                      mul->GetType()->GetFlatBitCount());
-        },
-        mul);
-  }
-  return absl::OkStatus();
+  // NB this is only monotone given we are checking for the overflow condition
+  // inside the lambda. Otherwise it would not be monotonic.  Only provably
+  // non-overflowing multiplies can be handled properly.
+  // TODO(allight) 2023-08-10 google/xls#1098 We should consider replacing
+  // potentially overflowing multiplies with multiply followed by truncate,
+  // after which this code will work well automatically.
+  return HandleMonotoneMonotoneBinOp(
+      [mul](const Bits& x, const Bits& y) -> std::optional<Bits> {
+        int64_t bit_count = mul->GetType()->GetFlatBitCount();
+        Bits result = bits_ops::UMul(x, y);
+        if (result.FitsInNBitsUnsigned(bit_count)) {
+          return bits_ops::ZeroExtend(bits_ops::DropLeadingZeroes(result),
+                                      bit_count);
+        }
+        return std::nullopt;
+      },
+      mul);
 }
 
 absl::Status RangeQueryVisitor::HandleUMulp(PartialProductOp* mul) {
