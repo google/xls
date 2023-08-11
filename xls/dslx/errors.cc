@@ -43,12 +43,12 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
 absl::Status TypeInferenceErrorStatus(const Span& span,
                                       const ConcreteType* type,
                                       std::string_view message) {
-  std::string type_str = "<>";
+  std::string type_str;
   if (type != nullptr) {
-    type_str = type->ToString();
+    type_str = type->ToString() + " ";
   }
   return absl::InvalidArgumentError(absl::StrFormat(
-      "TypeInferenceError: %s %s %s", span.ToString(), type_str, message));
+      "TypeInferenceError: %s %s%s", span.ToString(), type_str, message));
 }
 
 absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {

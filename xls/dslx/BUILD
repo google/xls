@@ -109,6 +109,18 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "errors_test",
+    srcs = ["errors_test.cc"],
+    deps = [
+        ":errors",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/type_system:concrete_type",
+    ],
+)
+
 cc_library(
     name = "interp_value_helpers",
     srcs = ["interp_value_helpers.cc"],
