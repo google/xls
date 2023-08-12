@@ -23,10 +23,13 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "xls/common/status/status_macros.h"
+#include "xls/common/test_macros.h"
 #include "xls/ir/node.h"
 
 namespace xls {
@@ -77,12 +80,46 @@ class FirstMatchDelayEstimator : public DelayEstimator {
                            std::vector<const DelayEstimator*> estimators);
 
   // Returns the result of the first estimator that is returning an ok status.
-  // If none of the estiamators return an ok result, the status of the
-  // last one is returned.
+  // If none of the estimators return an ok result, the status of the last one
+  // is returned.
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const final;
 
  private:
   const std::vector<const DelayEstimator*> estimators_;
+};
+
+// Cache the delay of an underlying delay estimator. This class is safe for
+// concurrent access.
+class CachingDelayEstimator : public DelayEstimator {
+ public:
+  CachingDelayEstimator(std::string_view name, const DelayEstimator& cached);
+
+  ~CachingDelayEstimator() override = default;
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override;
+
+ private:
+  bool ContainsNodeDelay(Node* node) const {
+    absl::ReaderMutexLock lock(&cache_mutex_);
+    return cache_.contains(node);
+  }
+
+  int64_t GetNodeDelay(Node* node) const {
+    absl::ReaderMutexLock lock(&cache_mutex_);
+    return cache_.at(node);
+  }
+
+  void AddNodeDelay(Node* node, int64_t delay) const {
+    absl::WriterMutexLock lock(&cache_mutex_);
+    cache_.emplace(node, delay);
+  }
+
+  XLS_FRIEND_TEST(DelayEstimatorTest, CachingDelayEstimator);
+
+  const DelayEstimator& cached_;
+  mutable absl::Mutex cache_mutex_;
+  mutable absl::flat_hash_map<Node*, int64_t> cache_
+      ABSL_GUARDED_BY(cache_mutex_);
 };
 
 enum class DelayEstimatorPrecedence {

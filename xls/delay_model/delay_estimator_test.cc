@@ -15,31 +15,30 @@
 #include "xls/delay_model/delay_estimator.h"
 
 #include <cstdint>
+#include <memory>
 #include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 
 namespace xls {
-namespace {
 
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 
 // A test delay estimator that returns a fixed delay for every node.
-class TestDelayEstimator : public DelayEstimator {
+class FakeDelayEstimator : public DelayEstimator {
  public:
-  explicit TestDelayEstimator(int64_t delay, std::string_view name)
+  explicit FakeDelayEstimator(int64_t delay, std::string_view name)
       : DelayEstimator(name), delay_(delay) {}
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
@@ -57,10 +56,10 @@ TEST_F(DelayEstimatorTest, DelayEstimatorManager) {
   EXPECT_THAT(manager.estimator_names(), ElementsAre());
 
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      std::make_unique<TestDelayEstimator>(42, "forty_two"),
+      std::make_unique<FakeDelayEstimator>(42, "forty_two"),
       DelayEstimatorPrecedence::kLow));
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      std::make_unique<TestDelayEstimator>(1, "one"),
+      std::make_unique<FakeDelayEstimator>(1, "one"),
       DelayEstimatorPrecedence::kLow));
 
   EXPECT_THAT(manager.estimator_names(), ElementsAre("forty_two", "one"));
@@ -118,7 +117,7 @@ TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
                            fb.BuildWithReturnValue(fb.Xor({x, x})));
   DelayEstimatorManager manager;
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      std::make_unique<TestDelayEstimator>(1, "one"),
+      std::make_unique<FakeDelayEstimator>(1, "one"),
       DelayEstimatorPrecedence::kLow));
   XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * one,
                            manager.GetDelayEstimator("one"));
@@ -130,6 +129,25 @@ TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
                                       });
   EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
               IsOkAndHolds(42));
+}
+
+TEST_F(DelayEstimatorTest, CachingDelayEstimator) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  BValue node = fb.Xor({x, x});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(node));
+  DelayEstimatorManager manager;
+  XLS_ASSERT_OK(manager.RegisterDelayEstimator(
+      std::make_unique<FakeDelayEstimator>(1, "one"),
+      DelayEstimatorPrecedence::kLow));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * one,
+                           manager.GetDelayEstimator("one"));
+  CachingDelayEstimator caching("caching", *one);
+  EXPECT_THAT(caching.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(1));
+  EXPECT_THAT(caching.ContainsNodeDelay(f->return_value()), true);
+  EXPECT_THAT(caching.GetNodeDelay(f->return_value()), 1);
 }
 
 // A Delay Estimator that can only handle one kind of operation.
@@ -183,5 +201,4 @@ TEST_F(DelayEstimatorTest, FirstMatchDelegationEstimator) {
   }
 }
 
-}  // namespace
 }  // namespace xls

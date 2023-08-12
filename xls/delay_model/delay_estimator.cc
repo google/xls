@@ -24,11 +24,15 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
+#include "xls/ir/op.h"
+#include "xls/netlist/cell_library.h"
 #include "xls/netlist/logical_effort.h"
 
 namespace xls {
@@ -192,6 +196,21 @@ absl::StatusOr<int64_t> FirstMatchDelayEstimator::GetOperationDelayInPs(
     }
   }
   return result;
+}
+
+CachingDelayEstimator::CachingDelayEstimator(std::string_view name,
+                                             const DelayEstimator& cached)
+    : DelayEstimator(name), cached_(cached) {}
+
+absl::StatusOr<int64_t> CachingDelayEstimator::GetOperationDelayInPs(
+    Node* node) const {
+  if (ContainsNodeDelay(node)) {
+    return GetNodeDelay(node);
+  }
+
+  XLS_ASSIGN_OR_RETURN(int64_t delay, cached_.GetOperationDelayInPs(node));
+  AddNodeDelay(node, delay);
+  return delay;
 }
 
 /* static */ absl::StatusOr<int64_t> DelayEstimator::GetLogicalEffortDelayInPs(
