@@ -254,6 +254,7 @@ project, see our
 *   [Ethan Mahintorabi](https://github.com/QuantamHD)
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Georges Rotival](https://github.com/grotival)
+*   [Hanchen Ye](https://github.com/hanchenye)
 *   [Hans Montero](https://github.com/hmontero1205)
 *   [Iliyan Malchev](https://github.com/malchev)
 *   [Johan Euphrosine](https://github.com/proppy)
