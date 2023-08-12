@@ -244,6 +244,7 @@ project, see our
 *   [Chen-hao Chang](https://github.com/cchao)
 *   [Chris Drake](https://github.com/cjdrake)
 *   [Chris Leary](https://github.com/cdleary)
+*   [Conor McCullough](https://github.com/crmymh)
 *   [Dan Killebrew](https://github.com/dkillebrew-g)
 *   [Derek Lockhart](https://github.com/dmlockhart)
 *   [Eric Astor](https://github.com/ericastor)
