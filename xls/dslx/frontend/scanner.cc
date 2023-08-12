@@ -267,18 +267,21 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
 }
 
 absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
+  const Pos start_pos = GetPos();
+
   std::string result;
   while (!AtCharEof() && PeekChar() != '\"') {
     XLS_ASSIGN_OR_RETURN(std::string next, ProcessNextStringChar());
     absl::StrAppend(&result, next);
   }
 
-  if (PeekChar() == '"') {
-    return result;
+  if (AtEof()) {
+    return ScanError(
+        Span(start_pos, GetPos()),
+        "Reached end of file without finding a closing double quote.");
   }
 
-  return absl::InvalidArgumentError(
-      "Consumed all input without finding a closing double quote.");
+  return result;
 }
 
 /* static */ std::optional<Keyword> Scanner::GetKeyword(std::string_view s) {

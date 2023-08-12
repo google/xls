@@ -1796,4 +1796,15 @@ TEST_F(ParserTest, ChannelDeclWithFifoDepthExpression) {
   XLS_EXPECT_OK(parser.ParseModule());
 }
 
+TEST_F(ParserTest, UnterminatedString) {
+  constexpr std::string_view kProgram = R"(const A=")";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(
+      parser.ParseModule(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("ScanError: test.x:1:10-1:10 Reached end of file "
+                         "without finding a closing double quote")));
+}
+
 }  // namespace xls::dslx
