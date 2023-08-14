@@ -68,7 +68,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
+        "//xls/dslx:default_dslx_stdlib_path",
     ],
 )
 
@@ -81,6 +81,7 @@ cc_binary(
         "@com_google_absl//absl/flags:flag",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
+        "//xls/dslx:default_dslx_stdlib_path",
         "@verible//common/lsp:json-rpc-dispatcher",
         "@verible//common/lsp:lsp-protocol",
         "@verible//common/lsp:lsp-text-buffer",

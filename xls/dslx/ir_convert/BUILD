@@ -313,12 +313,12 @@ cc_binary(
         ":ir_converter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/status:status_macros",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/ir",
     ],
 )

@@ -37,6 +37,7 @@
 #include "external/verible/common/lsp/message-stream-splitter.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/lsp/language_server_adapter.h"
 
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,

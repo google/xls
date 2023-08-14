@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Frontend syntax.
+# Domain Specific Language implementation for HW construction that mimics Rust.
 
 # pytype tests are present in this file
 

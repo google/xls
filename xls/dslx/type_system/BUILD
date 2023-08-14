@@ -468,7 +468,6 @@ cc_binary(
     srcs = ["typecheck_main.cc"],
     deps = [
         ":type_info_to_proto",
-        ":typecheck",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -479,6 +478,7 @@ cc_binary(
         "//xls/common/file:filesystem",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
     ],

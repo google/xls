@@ -19,18 +19,17 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/ir/package.h"
 
