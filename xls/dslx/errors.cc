@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 #include "xls/dslx/errors.h"
 
 #include <string>
@@ -18,6 +19,8 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
@@ -51,19 +54,16 @@ absl::Status TypeInferenceErrorStatus(const Span& span,
       "TypeInferenceError: %s %s%s", span.ToString(), type_str, message));
 }
 
-absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {
-  std::string span_string;
-  if (user != nullptr) {
-    span_string = SpanToString(user->GetSpan()) + " ";
-  } else if (node != nullptr) {
-    span_string = SpanToString(node->GetSpan()) + " ";
-  }
-  return absl::InternalError(
-      absl::StrFormat("TypeMissingError: %s%p %p internal error: AST node is "
-                      "missing a corresponding type: %s (%s) defined @ %s. "
-                      "This may be due to recursion, which is not supported.",
-                      span_string, node, user, node->ToString(),
-                      node->GetNodeTypeName(), SpanToString(node->GetSpan())));
+absl::Status TypeMissingErrorStatus(const AstNode& node, const AstNode* user) {
+  std::string span_string = user == nullptr ? SpanToString(node.GetSpan())
+                                            : SpanToString(user->GetSpan());
+
+  return absl::InternalError(absl::StrFormat(
+      "TypeMissingError: %s node: %p user: %p internal error: AST node is "
+      "missing a corresponding type: %s %p (kind: %s) defined @ %s. "
+      "This may be due to recursion, which is not supported.",
+      span_string, &node, user, node.ToString(), &node, node.GetNodeTypeName(),
+      SpanToString(node.GetSpan())));
 }
 
 absl::Status RecursiveImportErrorStatus(const Span& nested_import,

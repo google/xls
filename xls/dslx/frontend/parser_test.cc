@@ -1667,6 +1667,40 @@ proc main {
                "from within a proc config function."));
 }
 
+TEST_F(ParserTest, ProcDuplicateConfig) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+    x12: chan<u8> in;
+    config(x27: chan<u8> in) { (x27,) }
+    config(x27: chan<u8> in) { (x27,) }
+    next(x0: token, s: ()) { () }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  auto module_status = parser.ParseModule();
+  ASSERT_THAT(module_status,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("proc `main` config function was already "
+                                 "specified @ test.x:5:5-5:11")));
+}
+
+TEST_F(ParserTest, ProcDuplicateNext) {
+  constexpr std::string_view kProgram = R"(
+proc main {
+    x12: chan<u8> in;
+    config(x27: chan<u8> in) { (x27,) }
+    next(x0: token, s: ()) { () }
+    next(x0: token, s: ()) { () }
+})";
+  Scanner s{"test.x", std::string{kProgram}};
+  Parser parser{"test", &s};
+  auto module_status = parser.ParseModule();
+  ASSERT_THAT(module_status,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("proc `main` next function was already "
+                                 "specified @ test.x:6:5-6:9")));
+}
+
 TEST_F(ParserTest, NumberSpan) {
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr("u32:42"));
   auto* number = dynamic_cast<Number*>(e);

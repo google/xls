@@ -548,12 +548,17 @@ class Parser : public TokenParser {
   absl::StatusOr<std::vector<ProcMember*>> CollectProcMembers(
       Bindings& bindings);
 
-  // Parses Proc config, next, and init functions, respectively.
+  // Parses a proc config function.
+  //
+  // Args:
+  //  parametric_bindings: Parametric bindings created at the proc level.
+  //  proc_members: Member declarations at the proc scope.
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings& bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
       const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
       bool is_public);
+
   absl::StatusOr<Function*> ParseProcNext(
       Bindings& bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
@@ -562,13 +567,6 @@ class Parser : public TokenParser {
       Bindings& bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
       std::string_view proc_name);
-
-  // We use this function instead of CloneAst because we don't want to clone the
-  // underlying StructDefs, EnumDefs, etc., or else ConcreteType comparisons
-  // will fail (StructType::operator==).
-  // TODO(rspringer): Should we change that operator to use structural instead
-  // of pointer equality?
-  absl::StatusOr<TypeAnnotation*> CloneReturnType(TypeAnnotation* input);
 
   std::unique_ptr<Module> module_;
 

@@ -101,10 +101,10 @@ cc_library(
     hdrs = ["errors.h"],
     deps = [
         ":import_record",
+        "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:pos",
         "//xls/dslx/type_system:concrete_type",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
 )

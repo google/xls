@@ -30,6 +30,20 @@
 
 namespace xls::dslx {
 
+std::optional<std::string_view> MaybeExtractParseNameError(
+    const absl::Status& status) {
+  if (status.code() != absl::StatusCode::kInvalidArgument) {
+    return std::nullopt;
+  }
+  std::string_view name;
+  if (RE2::PartialMatch(status.message(),
+                        R"(Cannot find a definition for name: \"(\w+)\")",
+                        &name)) {
+    return name;
+  }
+  return std::nullopt;
+}
+
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status, std::optional<std::string_view> target_type) {
   auto error = [&] {

@@ -70,5 +70,21 @@ TEST(BindingsTest, ResolveNameOrNulloptMissingCase) {
   EXPECT_FALSE(result.has_value());
 }
 
+TEST(ParseNameErrorTest, ExtractName) {
+  const std::string_view kName = "shoobadooba";
+  const Span kFakeSpan = FakeSpan();
+  const absl::Status name_error = ParseNameErrorStatus(kFakeSpan, kName);
+  std::optional<std::string_view> name = MaybeExtractParseNameError(name_error);
+  ASSERT_TRUE(name.has_value());
+  EXPECT_EQ(name.value(), kName);
+}
+
+TEST(ParseNameErrorTest, ExtractFromNonNameError) {
+  const absl::Status error = absl::InvalidArgumentError(
+      "Cannot find a definition for stuff: \"andthings\"");
+  std::optional<std::string_view> name = MaybeExtractParseNameError(error);
+  ASSERT_FALSE(name.has_value());
+}
+
 }  // namespace
 }  // namespace xls::dslx

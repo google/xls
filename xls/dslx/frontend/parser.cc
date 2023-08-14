@@ -51,7 +51,6 @@
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
-#include "re2/re2.h"
 
 namespace xls::dslx {
 namespace {
@@ -1987,10 +1986,14 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
 
   NameDef* name_def = module_->Make<NameDef>(
       config_tok.span(), absl::StrCat(proc_name, ".config"), nullptr);
+
   std::vector<TypeAnnotation*> return_elements;
   return_elements.reserve(proc_members.size());
   for (const ProcMember* member : proc_members) {
-    return_elements.push_back(member->type_annotation());
+    XLS_ASSIGN_OR_RETURN(
+        TypeAnnotation * member_type_clone,
+        CloneNodeSansTypeDefinitions(member->type_annotation()));
+    return_elements.push_back(member_type_clone);
   }
   TypeAnnotation* return_type =
       module_->Make<TupleTypeAnnotation>(config_tok.span(), return_elements);
@@ -2099,11 +2102,6 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   return init;
 }
 
-absl::StatusOr<TypeAnnotation*> Parser::CloneReturnType(TypeAnnotation* input) {
-  XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAstSansTypeDefinitions(input));
-  return down_cast<TypeAnnotation*>(cloned);
-}
-
 absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
                                         Bindings& outer_bindings) {
   XLS_ASSIGN_OR_RETURN(Token proc_token, PopKeywordOrError(Keyword::kProc));
@@ -2120,25 +2118,11 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   }
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  std::vector<Param*> params;
-
-  // We need to collect proc members 2x, the reason being that otherwise (if we
-  // used the same members for both the config fn as well as the overall proc),
-  // then we'd end up with dual ownership, which is forbidden. Cloning Param
-  // nodes could be difficult, so instead, we can just parse 2x by using the
-  // transaction mechanism.
-  // TODO(rspringer): Use the AST cloner so that members can be declared
-  // anywhere - and relax that proc members must be declared at proc top.
-  Transaction txn(this, &bindings);
-  absl::Cleanup cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
   // Create a separate Bindings object to see what's added during member
   // collection, so we can report better errors below. Members will be added to
   // "bindings" in the next call.
   Bindings memberless_bindings = bindings.Clone();
-  XLS_ASSIGN_OR_RETURN(std::vector<ProcMember*> config_members,
-                       CollectProcMembers(bindings));
-  std::move(cleanup).Invoke();
   XLS_ASSIGN_OR_RETURN(std::vector<ProcMember*> proc_members,
                        CollectProcMembers(bindings));
 
@@ -2146,42 +2130,54 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   Function* next = nullptr;
   Function* init = nullptr;
 
+  auto check_not_yet_specified = [name_def](Function* f,
+                                            const Token* peek) -> absl::Status {
+    if (f != nullptr) {
+      return ParseErrorStatus(
+          peek->span(),
+          absl::StrFormat("proc `%s` %s function was already specified @ %s",
+                          name_def->identifier(), *peek->GetValue(),
+                          peek->span().ToString()));
+    }
+    return absl::OkStatus();
+  };
+
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   while (peek->kind() != TokenKind::kCBrace) {
     if (peek->IsIdentifier("config")) {
-      absl::StatusOr<Function*> config_or =
-          ParseProcConfig(memberless_bindings, parametric_bindings,
-                          config_members, name_def->identifier(), is_public);
-      if (!config_or.ok()) {
-        absl::Status status = config_or.status();
-        std::string bad_name;
-        if (RE2::PartialMatch(
-                status.message(),
-                "Cannot find a definition for name: \"([a-zA-Z0-9_]+)\"",
-                &bad_name) &&
-            !memberless_bindings.HasName(bad_name) &&
-            bindings.HasName(bad_name)) {
-          xabsl::StatusBuilder builder(status);
-          builder << absl::StrFormat(
-              "\"%s\" is a proc member, "
-              "but those cannot be referenced "
-              "from within a proc config function.",
-              bad_name);
-          return builder;
-        }
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(config, peek));
 
-        return status;
+      Bindings this_bindings = memberless_bindings.Clone();
+      auto config_or =
+          ParseProcConfig(this_bindings, parametric_bindings, proc_members,
+                          name_def->identifier(), is_public);
+      if (std::optional<std::string_view> bad_name =
+              MaybeExtractParseNameError(config_or.status());
+          bad_name.has_value() && bindings.HasName(*bad_name) &&
+          !memberless_bindings.HasName(*bad_name)) {
+        xabsl::StatusBuilder builder(config_or.status());
+        builder << absl::StreamFormat(
+            "\"%s\" is a proc member, "
+            "but those cannot be referenced "
+            "from within a proc config function.",
+            bad_name.value());
+        return builder;
       }
+      XLS_RETURN_IF_ERROR(config_or.status());
       config = config_or.value();
       outer_bindings.Add(config->name_def()->identifier(), config->name_def());
       XLS_RETURN_IF_ERROR(module_->AddTop(config));
     } else if (peek->IsIdentifier("next")) {
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(next, peek));
+
       XLS_ASSIGN_OR_RETURN(next,
                            ParseProcNext(bindings, parametric_bindings,
                                          name_def->identifier(), is_public));
       XLS_RETURN_IF_ERROR(module_->AddTop(next));
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
     } else if (peek->IsIdentifier("init")) {
+      XLS_RETURN_IF_ERROR(check_not_yet_specified(init, peek));
+
       XLS_ASSIGN_OR_RETURN(init, ParseProcInit(bindings, parametric_bindings,
                                                name_def->identifier()));
       XLS_RETURN_IF_ERROR(module_->AddTop(init));
@@ -2206,13 +2202,13 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // Just as with proc member decls, we need the init fn to have its own return
   // type, to avoid parent/child relationship violations.
   XLS_ASSIGN_OR_RETURN(auto* init_return_type,
-                       CloneReturnType(next->return_type()));
+                       CloneNodeSansTypeDefinitions(next->return_type()));
   init_return_type->SetParentage();
   init->set_return_type(down_cast<TypeAnnotation*>(init_return_type));
   init->SetParentage();
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-  Span span(proc_token.span().start(), cbrace.span().limit());
+  const Span span(proc_token.span().start(), cbrace.span().limit());
   auto proc = module_->Make<Proc>(span, name_def, config->name_def(),
                                   next->name_def(), parametric_bindings,
                                   proc_members, config, next, init, is_public);

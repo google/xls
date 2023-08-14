@@ -2925,13 +2925,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceZeroMacro(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
+  XLS_RET_CHECK(name_def != nullptr);
+
   std::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
     auto concrete_type = (*item)->CloneToUnique();
     return concrete_type;
   }
 
-  return TypeMissingErrorStatus(/*node=*/name_def, /*user=*/node);
+  return TypeMissingErrorStatus(/*node=*/*name_def, /*user=*/node);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstRef(
@@ -3090,9 +3092,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                        DeduceInternal(node, ctx));
   XLS_RET_CHECK(type != nullptr);
   ctx->type_info()->SetItem(node, *type);
-  XLS_VLOG(5) << "Deduced type of `" << node->ToString()
-              << "` (kind: " << node->GetNodeTypeName() << ") => "
-              << type->ToString() << " in " << ctx->type_info();
+  XLS_VLOG(5) << absl::StreamFormat(
+      "Deduced type of `%s` @ %p (kind: %s) => %s in %p", node->ToString(),
+      node, node->GetNodeTypeName(), type->ToString(), ctx->type_info());
 
   return type;
 }

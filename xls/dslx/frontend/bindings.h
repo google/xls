@@ -59,6 +59,19 @@ inline absl::Status ParseErrorStatus(const Span& span,
       absl::StrFormat("ParseError: %s %s", span.ToString(), message));
 }
 
+inline absl::Status ParseNameErrorStatus(const Span& span,
+                                         std::string_view name) {
+  return ParseErrorStatus(
+      span, absl::StrFormat("Cannot find a definition for name: \"%s\"", name));
+}
+
+// If `status` has a message containing a ParseNameErrorStatus payload as
+// created above, extracts the name that the ParseNameError is referring to, or
+// returns nullopt (e.g. if the status error code is not as expected, or it's
+// not an appropriate error message).
+std::optional<std::string_view> MaybeExtractParseNameError(
+    const absl::Status& status);
+
 struct PositionalErrorData {
   Span span;
   std::string message;
@@ -168,9 +181,7 @@ class Bindings {
     if (result.has_value()) {
       return *result;
     }
-    return ParseErrorStatus(
-        span,
-        absl::StrFormat("Cannot find a definition for name: \"%s\"", name));
+    return ParseNameErrorStatus(span, name);
   }
 
   // Resolves "name" as an AST binding and returns the associated NameDefNode.

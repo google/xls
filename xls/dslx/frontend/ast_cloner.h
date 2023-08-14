@@ -31,6 +31,14 @@ absl::StatusOr<AstNode*> CloneAst(AstNode* root);
 // would change nominal types.
 absl::StatusOr<AstNode*> CloneAstSansTypeDefinitions(AstNode* root);
 
+// Helper wrapper for the above that downcasts the result to the given
+// apparent type (derived type of AstNode).
+template <typename T>
+inline absl::StatusOr<T*> CloneNodeSansTypeDefinitions(T* root) {
+  XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAstSansTypeDefinitions(root));
+  return down_cast<T*>(cloned);
+}
+
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module);
 
 // Verifies that the AST node tree rooted at `new_root` does not contain any of
