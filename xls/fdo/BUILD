@@ -59,3 +59,20 @@ cc_test(
         "//xls/ir:ir_test_base",
     ],
 )
+
+cc_library(
+    name = "synthesizer",
+    srcs = ["synthesizer.cc"],
+    hdrs = ["synthesizer.h"],
+    deps = [
+        ":extract_nodes",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:thread",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/synthesis:synthesis_cc_proto",
+        "//xls/synthesis/yosys:yosys_synthesis_service",
+    ],
+)
