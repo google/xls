@@ -1841,4 +1841,14 @@ TEST_F(ParserTest, UnterminatedString) {
                          "without finding a closing double quote")));
 }
 
+TEST_F(ParserTest, UnterminatedEscapedChar) {
+  constexpr std::string_view kProgram = "'\\d";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("ScanError: test.x:1:2-1:3 Unrecognized "
+                                 "escape sequence: `\\d`")));
+}
+
 }  // namespace xls::dslx

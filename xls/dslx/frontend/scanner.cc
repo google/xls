@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 
@@ -150,6 +151,7 @@ static int HexCharToInt(char hex_char) {
 
 // Returns the next character literal.
 absl::StatusOr<char> Scanner::ScanCharLiteral() {
+  const Pos start_pos = GetPos();
   char current = PopChar();
   if (current != '\\' || AtCharEof()) {
     return current;
@@ -200,8 +202,9 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
 
     return code & 255;
   }
-  return absl::InvalidArgumentError(
-      absl::StrCat("Unrecognized escape sequence: \\", std::string(1, next)));
+  return ScanError(Span(start_pos, GetPos()),
+                   absl::StrCat("Unrecognized escape sequence: `\\",
+                                std::string(1, next), "`"));
 }
 
 // Returns a string with the next "character" in the string. A string is
