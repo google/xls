@@ -1829,6 +1829,18 @@ TEST(IrConverterTest, ChannelDecl) {
                        HasSubstr("AST node unsupported for IR conversion:")));
 }
 
+TEST(IrConverterTest, StringWithUnsignedRangeCharacter) {
+  constexpr std::string_view kProgram = R"(fn main() -> u8[1] {
+  "\x80"  // -128 in signed char interpretation
+})";
+  ConvertOptions options;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 // TODO(google/xls#917): Remove this test when empty arrays are supported.
 TEST(IrConverterTest, EmptyArray) {
   constexpr std::string_view kProgram = R"(
@@ -1937,8 +1949,3 @@ fn main(x: u8[42]) -> u32 {
 
 }  // namespace
 }  // namespace xls::dslx
-
-int main(int argc, char* argv[]) {
-  xls::InitXls(argv[0], argc, argv);
-  return RUN_ALL_TESTS();
-}

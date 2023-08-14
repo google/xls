@@ -904,6 +904,11 @@ class Number : public Expr {
     type_annotation_ = type_annotation;
   }
 
+  // Warning: be careful not to iterate over signed chars of the result, as they
+  // may sign extend on platforms that compile with signed chars. Preferred
+  // pattern is:
+  //
+  //    for (const uint8_t c : n->text()) { ... }
   const std::string& text() const { return text_; }
 
   // Determines whether the number fits in the given `bit_count`.

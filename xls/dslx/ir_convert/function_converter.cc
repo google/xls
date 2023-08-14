@@ -560,7 +560,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
 
 absl::Status FunctionConverter::HandleString(const String* node) {
   std::vector<Value> elements;
-  for (const char letter : node->text()) {
+  for (const uint8_t letter : node->text()) {
     elements.push_back(Value(UBits(letter, /*bit_count=*/8)));
   }
   XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));

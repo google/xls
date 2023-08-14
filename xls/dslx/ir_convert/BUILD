@@ -124,6 +124,7 @@ cc_test(
         "//xls/common:golden_files",
         "//xls/common:init_xls",
         "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:create_import_data",
