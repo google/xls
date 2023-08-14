@@ -258,36 +258,6 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
 
   if (callee_name == "fail!" || callee_name == "cover!") {
     ctx->type_info()->NoteRequiresImplicitToken(caller, true);
-
-    if (callee_nameref->identifier() == "cover!") {
-      // Make sure that the coverpoint's identifier is valid in both Verilog
-      // and DSLX - notably, we don't support Verilog escaped strings.
-      // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
-      // in a design.
-      String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
-      XLS_RET_CHECK(identifier_node != nullptr);
-      if (identifier_node->text().empty()) {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(),
-            "An identifier must be specified with a cover! op.");
-      }
-
-      std::string identifier = identifier_node->text();
-      if (identifier[0] == '\\') {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(), "Verilog escaped strings are not supported.");
-      }
-
-      // We don't support Verilog "escaped strings", so we only have to worry
-      // about regular identifier matching.
-      if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
-        return InvalidIdentifierErrorStatus(
-            invocation->span(),
-            "A coverpoint identifier must start with a letter or underscore, "
-            "and otherwise consist of letters, digits, underscores, and/or "
-            "dollar signs.");
-      }
-    }
   }
 
   XLS_VLOG(5) << "Instantiating builtin parametric: "
@@ -364,6 +334,36 @@ absl::StatusOr<TypeAndParametricEnv> CheckParametricBuiltinInvocation(
     XLS_ASSIGN_OR_RETURN(int64_t array_size, array_type->size().GetAsInt64());
     ctx->type_info()->NoteConstExpr(invocation,
                                     InterpValue::MakeU32(array_size));
+  }
+
+  if (callee_nameref->identifier() == "cover!") {
+    // Make sure that the coverpoint's identifier is valid in both Verilog
+    // and DSLX - notably, we don't support Verilog escaped strings.
+    // TODO(rspringer): 2021-05-26: Ensure only one instance of an identifier
+    // in a design.
+    String* identifier_node = dynamic_cast<String*>(invocation->args()[0]);
+    XLS_RET_CHECK(identifier_node != nullptr);
+    if (identifier_node->text().empty()) {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(),
+          "An identifier must be specified with a cover! op.");
+    }
+
+    std::string identifier = identifier_node->text();
+    if (identifier[0] == '\\') {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(), "Verilog escaped strings are not supported.");
+    }
+
+    // We don't support Verilog "escaped strings", so we only have to worry
+    // about regular identifier matching.
+    if (!RE2::FullMatch(identifier, "[a-zA-Z_][a-zA-Z0-9$_]*")) {
+      return InvalidIdentifierErrorStatus(
+          invocation->span(),
+          "A coverpoint identifier must start with a letter or underscore, "
+          "and otherwise consist of letters, digits, underscores, and/or "
+          "dollar signs.");
+    }
   }
 
   // fsignature returns a tab w/a fn type, not the fn return type (which is

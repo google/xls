@@ -709,6 +709,17 @@ fn f() -> u32 {
                                  "of right hand side")));
 }
 
+TEST(TypecheckErrorTest, CoverBuiltinWrongArgc) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() -> () {
+  cover!()
+}
+)"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Invalid number of arguments passed to 'cover!'")));
+}
+
 TEST(TypecheckTest, UpdateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {

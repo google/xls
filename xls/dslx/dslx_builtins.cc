@@ -856,6 +856,8 @@ void PopulateSignatureToLambdaMap(
                        .Len(2)
                        .IsArray(0, &array_type)
                        .IsU1(1);
+    // Need to ensure we didn't get an error before we use the array type.
+    XLS_RETURN_IF_ERROR(checker.status());
     checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
       return absl::StrFormat("Element type of argument 0 %s should be a u8.",
                              array_type->ToString());
@@ -871,6 +873,8 @@ void PopulateSignatureToLambdaMap(
     auto checker = Checker(data.arg_types, data.name, data.span, *ctx)
                        .Len(2)
                        .IsArray(0, &array_type);
+    // Need to ensure we didn't get an error before we use the array type.
+    XLS_RETURN_IF_ERROR(checker.status());
     checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
       return absl::StrFormat("Element type of argument 0 %s should be a u8.",
                              array_type->ToString());
