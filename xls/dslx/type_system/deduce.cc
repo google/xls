@@ -1183,6 +1183,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
     }
   }
 
+  if (node->has_ellipsis() && node->members().empty()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Array cannot have an ellipsis without an element to repeat; please "
+        "add at least one element");
+  }
+
   auto dim = ConcreteTypeDim::CreateU32(member_types.size());
 
   // Try to infer the array type from the first member.

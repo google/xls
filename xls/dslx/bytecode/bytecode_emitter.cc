@@ -328,6 +328,7 @@ absl::Status BytecodeEmitter::HandleArray(const Array* node) {
   // If we've got an ellipsis, then repeat the last element until we reach the
   // full array size.
   if (node->has_ellipsis()) {
+    XLS_RET_CHECK(!node->members().empty());
     XLS_ASSIGN_OR_RETURN(ArrayType * array_type,
                          type_info_->GetItemAs<ArrayType>(node));
     const ConcreteTypeDim& dim = array_type->size();
