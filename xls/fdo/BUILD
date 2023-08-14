@@ -76,3 +76,39 @@ cc_library(
         "//xls/synthesis/yosys:yosys_synthesis_service",
     ],
 )
+
+cc_library(
+    name = "delay_manager",
+    srcs = ["delay_manager.cc"],
+    hdrs = ["delay_manager.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:function_ref",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/scheduling:scheduling_options",
+    ],
+)
+
+cc_test(
+    name = "delay_manager_test",
+    srcs = ["delay_manager_test.cc"],
+    deps = [
+        ":delay_manager",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:ir_test_base",
+        "//xls/scheduling:scheduling_options",
+    ],
+)
