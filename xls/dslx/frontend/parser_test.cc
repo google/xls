@@ -1851,4 +1851,15 @@ TEST_F(ParserTest, UnterminatedEscapedChar) {
                                  "escape sequence: `\\d`")));
 }
 
+TEST_F(ParserTest, ConstShadowsImport) {
+  constexpr std::string_view kProgram = R"(import x
+const x)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       "ParseError: test.x:2:7-2:8 Constant definition is "
+                       "shadowing an existing definition from test.x:1:1-1:7"));
+}
+
 }  // namespace xls::dslx

@@ -39,9 +39,8 @@ namespace xls::dslx {
 // Bindings (name references in the environment that map back to definition
 // points in the AST) resolve to this BoundNode variant, which are all kinds of
 // definitions.
-using BoundNode =
-    std::variant<EnumDef*, TypeAlias*, ConstantDef*, const NameDef*,
-                 BuiltinNameDef*, StructDef*, Import*>;
+using BoundNode = std::variant<EnumDef*, TypeAlias*, ConstantDef*, NameDef*,
+                               BuiltinNameDef*, StructDef*, Import*>;
 
 // Returns a string, useful for reporting in error messages, for the type of the
 // AST node contained inside of the given BoundNode variant; e.g. "Import".

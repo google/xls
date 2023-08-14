@@ -26,6 +26,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_split.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -79,8 +80,8 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (std::holds_alternative<ConstantDef*>(bn)) {
     return std::get<ConstantDef*>(bn)->name_def();
   }
-  if (std::holds_alternative<const NameDef*>(bn)) {
-    return std::get<const NameDef*>(bn);
+  if (std::holds_alternative<NameDef*>(bn)) {
+    return std::get<NameDef*>(bn);
   }
   if (std::holds_alternative<BuiltinNameDef*>(bn)) {
     return std::get<BuiltinNameDef*>(bn);
@@ -97,27 +98,21 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
 }
 
 Span BoundNodeGetSpan(BoundNode bn) {
-  if (std::holds_alternative<ConstantDef*>(bn)) {
-    return std::get<ConstantDef*>(bn)->span();
-  }
-  if (std::holds_alternative<TypeAlias*>(bn)) {
-    return std::get<TypeAlias*>(bn)->span();
-  }
-  if (std::holds_alternative<StructDef*>(bn)) {
-    return std::get<StructDef*>(bn)->span();
-  }
-  if (std::holds_alternative<EnumDef*>(bn)) {
-    return std::get<EnumDef*>(bn)->span();
-  }
-  if (std::holds_alternative<const NameDef*>(bn)) {
-    return std::get<const NameDef*>(bn)->span();
-  }
-  if (std::holds_alternative<BuiltinNameDef*>(bn)) {
-    Pos p("<builtin>", 0, 0);
-    return Span(p, p);
-  }
-  XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
-                 << ToAstNode(bn)->ToString();
+  return absl::visit(Visitor{
+                         [](EnumDef* n) { return n->span(); },
+                         [](TypeAlias* n) { return n->span(); },
+                         [](ConstantDef* n) { return n->span(); },
+                         [](NameDef* n) { return n->span(); },
+                         [](BuiltinNameDef* n) {
+                           // Builtin name defs have no real span, so we provide
+                           // a fake one here.
+                           Pos p("<builtin>", 0, 0);
+                           return Span(p, p);
+                         },
+                         [](StructDef* n) { return n->span(); },
+                         [](Import* n) { return n->span(); },
+                     },
+                     bn);
 }
 
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
@@ -126,7 +121,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
   if (std::holds_alternative<TypeAlias*>(bn)) { return "TypeAlias"; }
   if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
   if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
-  if (std::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }
+  if (std::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
   if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
   if (std::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on

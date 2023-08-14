@@ -763,9 +763,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings& bindings,
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
   }
 
-  if (std::holds_alternative<const NameDef*>(bn)) {
+  if (std::holds_alternative<NameDef*>(bn)) {
     // As opposed to the AnyNameDef above.
-    const AstNode* node = std::get<const NameDef*>(bn);
+    const AstNode* node = std::get<NameDef*>(bn);
     while (node->parent() != nullptr &&
            node->parent()->kind() == AstNodeKind::kNameDefTree) {
       node = node->parent();
