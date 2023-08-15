@@ -180,17 +180,22 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
   }
   if (next == '\'') {
     DropChar();
-    return '\x27';  // Single quote/apostraphe.
+    return '\x27';  // Single quote/apostrophe.
   }
   if (next == '"') {
     DropChar();
-    return '\x22';  // Double quote/apostraphe.
+    return '\x22';  // Double quote/apostrophe.
   }
   if (next == 'x') {
     // Hex character code. Now read [exactly] two more digits.
     DropChar();
+
     uint8_t code = 0;
     for (int i = 0; i < 2; i++) {
+      if (AtEof()) {
+        return ScanError(Span(start_pos, GetPos()),
+                         "Unexpected EOF in escaped hexadecimal character.");
+      }
       next = PeekChar();
       if (!absl::ascii_isxdigit(next)) {
         return absl::InvalidArgumentError(
@@ -211,19 +216,25 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
 // returned instead of a "char", since multi-byte Unicode characters are valid
 // constituents of a string.
 absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
+  const Pos start_pos = GetPos();
   if (PeekChar() == '\\' && PeekChar2OrNull() == 'u') {
     // Unicode character code.
     DropChar();
     DropChar();
+    if (AtEof()) {
+      return ScanError(Span(start_pos, GetPos()),
+                       "Unexpected EOF in escaped unicode character.");
+    }
     if (PeekChar() != '{') {
       return absl::InvalidArgumentError(
           "Unicode character code escape sequence start (\\u) "
           "must be followed by a character code, such as \"{...}\".");
     }
     DropChar();
+
     // At most 6 hex digits allowed.
     std::string unicode;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6 && !AtEof(); i++) {
       char next = PeekChar();
       if (absl::ascii_isxdigit(next)) {
         absl::StrAppend(&unicode, std::string(1, next));
@@ -235,7 +246,7 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
             "Only hex digits are allowed within a Unicode character code.");
       }
     }
-    if (PeekChar() != '}') {
+    if (AtEof() || PeekChar() != '}') {
       return absl::InvalidArgumentError(
           "Unicode character code escape sequence must terminate "
           "(after 6 digits at most) with a '}'");
