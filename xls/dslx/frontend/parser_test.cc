@@ -1851,6 +1851,28 @@ TEST_F(ParserTest, UnterminatedEscapedChar) {
                                  "escape sequence: `\\d`")));
 }
 
+TEST_F(ParserTest, UnterminatedEscapedUnicodeChar) {
+  constexpr std::string_view kProgram = R"(const A="\u)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unexpected EOF in escaped unicode character")));
+}
+
+TEST_F(ParserTest, UnterminatedEscapedHexChar) {
+  constexpr std::string_view kProgram = "const A='\\x";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unexpected EOF in escaped hexadecimal character")))
+      << module_or.status();
+}
 TEST_F(ParserTest, ConstShadowsImport) {
   constexpr std::string_view kProgram = R"(import x
 const x)";
