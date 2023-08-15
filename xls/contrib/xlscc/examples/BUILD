@@ -150,6 +150,7 @@ xls_cc_ir(
         synthesize_rtl(
             name = "mem_iterated_read_{iterations}_synth_asap7".format(iterations = read_iterations),
             standard_cells = "@org_theopenroadproject_asap7//:asap7_rvt_1x",
+            tags = ["manual"],
             top_module = "mem_iterated_read",
             deps = [
                 ":mem_iterated_read_{iterations}".format(iterations = read_iterations),
@@ -158,6 +159,7 @@ xls_cc_ir(
         benchmark_synth(
             name = "mem_iterated_read_{iterations}_benchmark_synth_asap7".format(iterations = read_iterations),
             synth_target = ":mem_iterated_read_{iterations}_synth_asap7".format(iterations = read_iterations),
+            tags = ["manual"],
         ),
     )
     for read_iterations in [
