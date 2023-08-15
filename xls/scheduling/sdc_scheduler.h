@@ -35,6 +35,10 @@
 
 namespace xls {
 
+// A class used to build linear programming (LP) model for SDC scheduling. This
+// class uses the LP solver from OR tools for problem solving. It provides
+// methods to add scheduling constraints, set objectives, and extract solving
+// results.
 class ModelBuilder {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 

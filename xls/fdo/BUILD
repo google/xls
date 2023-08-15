@@ -146,3 +146,30 @@ cc_test(
         "//xls/scheduling:scheduling_options",
     ],
 )
+
+cc_library(
+    name = "iterative_sdc_scheduler",
+    srcs = ["iterative_sdc_scheduler.cc"],
+    hdrs = ["iterative_sdc_scheduler.h"],
+    deps = [
+        ":delay_manager",
+        ":node_cut",
+        ":synthesizer",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/scheduling:scheduling_options",
+        "//xls/scheduling:sdc_scheduler",
+        "@com_google_ortools//ortools/math_opt/cpp:math_opt",
+    ],
+)
