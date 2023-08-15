@@ -68,13 +68,19 @@ def _do_worker_task(config: WorkerConfig):
     summary_file = None
     summary_temp_file = None
 
-  if config.seed:
+  if config.seed is None:
+    seed = random.randrange(0, 1 << 31)
+    # Chose a nondeterministic seed.
+    termcolor.cprint(
+        f'--- NOTE: Worker {config.worker_number:3} chose a'
+        f' nondeterministic seed for value generation: {seed:#x}',
+        color='blue',
+    )
+    rng = ast_generator.ValueGenerator(seed)
+  else:
     # Set seed deterministically based on the worker number so different workers
     # generate different samples.
     rng = ast_generator.ValueGenerator(config.seed + config.worker_number)
-  else:
-    # Chose a nondeterministic seed.
-    rng = ast_generator.ValueGenerator(random.randrange(0, 1 << 31))
 
   i = 0  # Silence pylint warning.
   for i in itertools.count():
