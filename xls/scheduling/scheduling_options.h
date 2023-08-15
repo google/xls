@@ -24,12 +24,13 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/ir/node.h"
 
 namespace xls {
 
 // The strategy to use when scheduling pipelines.
-enum class SchedulingStrategy {
+enum class SchedulingStrategy : int8_t {
   // Schedule all nodes a early as possible while satisfying dependency and
   // timing constraints.
   ASAP,
@@ -46,7 +47,13 @@ enum class SchedulingStrategy {
   RANDOM,
 };
 
-enum class IODirection { kReceive, kSend };
+enum class PathEvaluateStrategy : int8_t {
+  PATH,
+  CONE,
+  WINDOW,
+};
+
+enum class IODirection : int8_t { kReceive, kSend };
 
 // This represents a constraint saying that interactions on the given
 // `source_channel` of the type specified by the given `source_direction`
@@ -185,7 +192,12 @@ class SchedulingOptions {
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
       : strategy_(strategy),
         constraints_({BackedgeConstraint(),
-                      SendThenRecvConstraint(/*minimum_latency=*/1)}) {}
+                      SendThenRecvConstraint(/*minimum_latency=*/1)}),
+        fdo_iteration_number_(1),
+        fdo_delay_driven_path_number_(0),
+        fdo_fanout_driven_path_number_(0),
+        fdo_refinement_stochastic_ratio_(1.0),
+        fdo_path_evaluate_strategy_(PathEvaluateStrategy::WINDOW) {}
 
   // Returns the scheduling strategy.
   SchedulingStrategy strategy() const { return strategy_; }
@@ -286,6 +298,66 @@ class SchedulingOptions {
     return mutual_exclusion_z3_rlimit_;
   }
 
+  // The number of FDO iterations during the pipeline scheduling.
+  SchedulingOptions& fdo_iteration_number(int64_t value) {
+    fdo_iteration_number_ = value;
+    return *this;
+  }
+  int64_t fdo_iteration_number() const { return fdo_iteration_number_; }
+
+  // The number of delay-driven subgraphs in each FDO iteration.
+  SchedulingOptions& fdo_delay_driven_path_number(int64_t value) {
+    fdo_delay_driven_path_number_ = value;
+    return *this;
+  }
+  int64_t fdo_delay_driven_path_number() const {
+    return fdo_delay_driven_path_number_;
+  }
+
+  // The number of fanout-driven subgraphs in each FDO iteration.
+  SchedulingOptions& fdo_fanout_driven_path_number(int64_t value) {
+    fdo_fanout_driven_path_number_ = value;
+    return *this;
+  }
+  int64_t fdo_fanout_driven_path_number() const {
+    return fdo_fanout_driven_path_number_;
+  }
+
+  // *path_number over refinement_stochastic_ratio paths are extracted and
+  // *path_number paths are randomly selected from them for synthesis in each
+  // FDO iteration.
+  SchedulingOptions& fdo_refinement_stochastic_ratio(float value) {
+    fdo_refinement_stochastic_ratio_ = value;
+    return *this;
+  }
+  float fdo_refinement_stochastic_ratio() const {
+    return fdo_refinement_stochastic_ratio_;
+  }
+
+  // Support window, cone, and path for now.
+  SchedulingOptions& fdo_path_evaluate_strategy(std::string_view value) {
+    if (value == "path") {
+      fdo_path_evaluate_strategy_ = PathEvaluateStrategy::PATH;
+    } else if (value == "cone") {
+      fdo_path_evaluate_strategy_ = PathEvaluateStrategy::CONE;
+    } else {
+      XLS_CHECK_EQ(value, "window")
+          << "Unknown path evaluate strategy: " << value;
+      fdo_path_evaluate_strategy_ = PathEvaluateStrategy::WINDOW;
+    }
+    return *this;
+  }
+  PathEvaluateStrategy fdo_path_evaluate_strategy() const {
+    return fdo_path_evaluate_strategy_;
+  }
+
+  // Only support yosys for now.
+  SchedulingOptions& fdo_synthesizer_name(std::string_view value) {
+    fdo_synthesizer_name_ = value;
+    return *this;
+  }
+  std::string fdo_synthesizer_name() const { return fdo_synthesizer_name_; }
+
  private:
   SchedulingStrategy strategy_;
   std::optional<int64_t> clock_period_ps_;
@@ -298,6 +370,12 @@ class SchedulingOptions {
   std::vector<SchedulingConstraint> constraints_;
   std::optional<int32_t> seed_;
   std::optional<int64_t> mutual_exclusion_z3_rlimit_;
+  int64_t fdo_iteration_number_;
+  int64_t fdo_delay_driven_path_number_;
+  int64_t fdo_fanout_driven_path_number_;
+  float fdo_refinement_stochastic_ratio_;
+  PathEvaluateStrategy fdo_path_evaluate_strategy_;
+  std::string fdo_synthesizer_name_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

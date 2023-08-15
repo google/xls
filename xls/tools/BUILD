@@ -901,6 +901,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "//xls/scheduling:scheduling_options",
         "@com_google_absl//absl/flags:flag",

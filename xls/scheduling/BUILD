@@ -69,6 +69,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
         "//xls/ir",
     ],
 )

@@ -76,6 +76,30 @@ control the scheduler.
     [this example](https://github.com/google/xls/tree/main/xls/examples/constraint.x) and
     the associated BUILD rule.
 
+# Feedback-driven Optimization (FDO) Options
+
+The following flags control the feedback-driven optimizations in XLS. For now,
+an iterative SDC scheduling method is implemented, which can take low-level
+feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
+estimation refinements in XLS. For now, FDO is disabled by default
+(`--fdo_iteration_number=1`).
+
+-   `--fdo_iteration_number=...` The number of FDO iterations during the
+    pipeline scheduling. Must be an integer >= 1.
+-   `--fdo_delay_driven_path_number=...` The number of delay-driven subgraphs in
+    each FDO iteration. Must be a non-negative integer.
+-   `--fdo_fanout_driven_path_number=...` The number of fanout-driven subgraphs
+    in each FDO iteration. Must be a non-negative integer.
+-   `--fdo_refinement_stochastic_ratio=...` \*path_number over
+    refinement_stochastic_ratio paths are extracted and \*path_number paths are
+    randomly selected from them for synthesis in each FDO iteration. Must be a
+    positive float <= 1.0.
+-   `--fdo_path_evaluate_strategy=...` Support path, cone, and window for now.
+-   `--fdo_synthesizer_name=...` Only support yosys for now.
+-   `--fdo_yosys_path=...` Absolute path of Yosys.
+-   `--fdo_sta_path=...` Absolute path of OpenSTA.
+-   `--fdo_synthesis_libraries=...` Synthesis and STA libraries.
+
 # Naming
 
 Some names can be set at codegen via the following flags:
@@ -226,13 +250,17 @@ string. These format strings use placeholders to fill in relevant information.
 
 ![Flop Outputs](./flop_outputs.svg)
 
-    -   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
-        skid buffer can hold 2 entries.
+```
+-   `skid`: Adds a skid buffer at the inputs or outputs of the block. The
+    skid buffer can hold 2 entries.
+```
 
 ![Skid Buffer](./skid_buffer.svg)
 
-    -   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
-        block. This is essentially a single-element FIFO with bypass.
+```
+-   `zerolatency`: Adds a zero-latency buffer at the beginning or end of the
+    block. This is essentially a single-element FIFO with bypass.
+```
 
 ![Zero Latency Buffer](./zero_latency_buffer.svg)
 

@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/package.h"
 #include "xls/scheduling/scheduling_options.h"
 
@@ -79,6 +80,28 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
           "the last cycle.");
 ABSL_FLAG(int64_t, mutual_exclusion_z3_rlimit, -1,
           "Resource limit for solver in mutual exclusion pass");
+
+ABSL_FLAG(int64_t, fdo_iteration_number, 1,
+          "The number of FDO iterations during the pipeline scheduling. Must "
+          "be an integer >= 1.");
+ABSL_FLAG(int64_t, fdo_delay_driven_path_number, 0,
+          "The number of delay-driven subgraphs in each FDO iteration. Must be "
+          "a non-negative integer.");
+ABSL_FLAG(int64_t, fdo_fanout_driven_path_number, 0,
+          "The number of fanout-driven subgraphs in each FDO iteration. Must "
+          "be a non-negative integer.");
+ABSL_FLAG(
+    float, fdo_refinement_stochastic_ratio, 1.0,
+    "*path_number over refinement_stochastic_ratio paths are extracted and "
+    "*path_number paths are randomly selected from them for synthesis in each "
+    "FDO iteration. Must be a positive float <= 1.0.");
+ABSL_FLAG(std::string, fdo_path_evaluate_strategy, "window",
+          "Support path, cone, and window for now");
+ABSL_FLAG(std::string, fdo_synthesizer_name, "", "Only support yosys for now");
+ABSL_FLAG(std::string, fdo_yosys_path, "", "Absolute path of Yosys");
+ABSL_FLAG(std::string, fdo_sta_path, "", "Absolute path of OpenSTA");
+ABSL_FLAG(std::string, fdo_synthesis_libraries, "",
+          "Synthesis and STA libraries");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -188,11 +211,68 @@ absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
     }
   }
 
+  if (absl::GetFlag(FLAGS_fdo_iteration_number) < 1) {
+    return absl::InternalError("fdo_iteration_number must be >= 1");
+  }
+  scheduling_options.fdo_iteration_number(
+      absl::GetFlag(FLAGS_fdo_iteration_number));
+
+  if (absl::GetFlag(FLAGS_fdo_delay_driven_path_number) < 0) {
+    return absl::InternalError("delay_driven_path_number must be >= 0");
+  }
+  scheduling_options.fdo_delay_driven_path_number(
+      absl::GetFlag(FLAGS_fdo_delay_driven_path_number));
+
+  if (absl::GetFlag(FLAGS_fdo_fanout_driven_path_number) < 0) {
+    return absl::InternalError("fanout_driven_path_number must be >= 0");
+  }
+  scheduling_options.fdo_fanout_driven_path_number(
+      absl::GetFlag(FLAGS_fdo_fanout_driven_path_number));
+
+  if (absl::GetFlag(FLAGS_fdo_refinement_stochastic_ratio) > 1.0 ||
+      absl::GetFlag(FLAGS_fdo_refinement_stochastic_ratio) <= 0.0) {
+    return absl::InternalError(
+        "refinement_stochastic_ratio must be <= 1.0 and > 0.0");
+  }
+  scheduling_options.fdo_refinement_stochastic_ratio(
+      absl::GetFlag(FLAGS_fdo_refinement_stochastic_ratio));
+
+  if (absl::GetFlag(FLAGS_fdo_path_evaluate_strategy) != "path" &&
+      absl::GetFlag(FLAGS_fdo_path_evaluate_strategy) != "cone" &&
+      absl::GetFlag(FLAGS_fdo_path_evaluate_strategy) != "window") {
+    return absl::InternalError(
+        "path_evaluate_strategy must be 'path', 'cone', or 'window'");
+  }
+  scheduling_options.fdo_path_evaluate_strategy(
+      absl::GetFlag(FLAGS_fdo_path_evaluate_strategy));
+
+  scheduling_options.fdo_synthesizer_name(
+      absl::GetFlag(FLAGS_fdo_synthesizer_name));
+
   return scheduling_options;
 }
 
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator() {
   return GetDelayEstimator(absl::GetFlag(FLAGS_delay_model));
+}
+
+absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer() {
+  if (absl::GetFlag(FLAGS_fdo_synthesizer_name) == "yosys") {
+    if (absl::GetFlag(FLAGS_fdo_yosys_path).empty() ||
+        absl::GetFlag(FLAGS_fdo_sta_path).empty() ||
+        absl::GetFlag(FLAGS_fdo_synthesis_libraries).empty()) {
+      return absl::InternalError(
+          "yosys_path, sta_path, and synthesis_libraries must not be empty");
+    }
+    synthesis::YosysSynthesizer* yosys_synthesizer =
+        new synthesis::YosysSynthesizer(
+            absl::GetFlag(FLAGS_fdo_yosys_path),
+            absl::GetFlag(FLAGS_fdo_sta_path),
+            absl::GetFlag(FLAGS_fdo_synthesis_libraries));
+    return yosys_synthesizer;
+  }
+
+  return absl::InternalError("Synthesis service is invalid");
 }
 
 }  // namespace xls

@@ -248,6 +248,15 @@ def xls_ir_verilog_impl(ctx, src):
         "mutual_exclusion_z3_rlimit",
         "inline_procs",
         "worst_case_throughput",
+        "fdo_iteration_number",
+        "fdo_delay_driven_path_number",
+        "fdo_fanout_driven_path_number",
+        "fdo_refinement_stochastic_ratio",
+        "fdo_path_evaluate_strategy",
+        "fdo_synthesizer_name",
+        "fdo_yosys_path",
+        "fdo_sta_path",
+        "fdo_synthesis_libraries",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)
