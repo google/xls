@@ -585,6 +585,10 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
   } else if (std::holds_alternative<TestFunction*>(member)) {
     TestFunction* tf = std::get<TestFunction*>(member);
+    if (tf->fn()->IsParametric()) {
+      return TypeInferenceErrorStatus(tf->fn()->span(), nullptr,
+                                      "Test functions cannot be parametric.");
+    }
     ScopedFnStackEntry scoped_entry(tf->fn(), ctx, WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(tf->fn(), ctx));
     scoped_entry.Finish();

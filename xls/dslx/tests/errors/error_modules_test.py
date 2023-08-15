@@ -851,6 +851,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_parametric_test_fn(self):
+    stderr = self._run('xls/dslx/tests/errors/parametric_test_fn.x')
+    self.assertIn(
+        'Test functions cannot be parametric.',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

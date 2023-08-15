@@ -167,6 +167,13 @@ dslx_lang_test(
 )
 
 dslx_lang_test(
+    name = "parametric_shift",
+    # TODO(leary): 2023-08-14 Runs into "cannot translate zero length bitvector
+    # with uses".
+    test_ir_equivalence = False,
+)
+
+dslx_lang_test(
     name = "for_over_range_u8",
     convert_to_ir = False,
 )
