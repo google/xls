@@ -2030,3 +2030,49 @@ cc_test(
         "//xls/ir:value",
     ],
 )
+
+cc_library(
+    name = "minimal_feedback_arcs",
+    srcs = ["minimal_feedback_arcs.cc"],
+    hdrs = ["minimal_feedback_arcs.h"],
+    deps = [
+        ":token_provenance_analysis",
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:node_util",
+        "//xls/ir:op",
+    ],
+)
+
+cc_test(
+    name = "minimal_feedback_arcs_test",
+    srcs = ["minimal_feedback_arcs_test.cc"],
+    deps = [
+        ":minimal_feedback_arcs",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+    ],
+)
