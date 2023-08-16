@@ -14,28 +14,40 @@
 
 #include "xls/fuzzer/sample_generator.h"
 
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
+#include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/type_system/concrete_type.h"
+#include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"
+#include "xls/fuzzer/sample.pb.h"
+#include "xls/fuzzer/value_generator.h"
 
 namespace xls {
 namespace {
@@ -53,29 +65,46 @@ using dslx::ModuleMember;
 using dslx::ParseModule;
 using dslx::TypecheckedModule;
 
-bool IsBuiltinNameRef(const dslx::Expr* e, std::string_view target) {
-  if (auto* name_ref = dynamic_cast<const dslx::NameRef*>(e)) {
-    std::variant<const dslx::NameDef*, dslx::BuiltinNameDef*> any_name_def =
-        name_ref->name_def();
-    return std::holds_alternative<dslx::BuiltinNameDef*>(any_name_def) &&
-           std::get<dslx::BuiltinNameDef*>(any_name_def)->identifier() ==
-               target;
-  }
-  return false;
-}
-
 class HasNonBlockingRecvVisitor : public AstNodeVisitorWithDefault {
  public:
   bool GetHasNbRecv() const { return has_nb_recv_; }
 
   absl::Status HandleInvocation(const dslx::Invocation* n) override {
-    has_nb_recv_ = IsBuiltinNameRef(n->callee(), "recv_non_blocking") ||
-                   IsBuiltinNameRef(n->callee(), "recv_if_non_blocking");
+    absl::StatusOr<std::string> builtin_name =
+        dslx::GetBuiltinName(n->callee());
+    if (builtin_name.ok()) {
+      has_nb_recv_ = (*builtin_name == "recv_non_blocking") ||
+                     (*builtin_name == "recv_if_non_blocking");
+    }
     return absl::OkStatus();
   }
 
  private:
   bool has_nb_recv_ = false;
+};
+
+class IsPotentiallyDelayingNodeVisitor : public AstNodeVisitorWithDefault {
+ public:
+  bool IsSend() const { return is_send_; }
+  bool IsRecv() const { return is_recv_; }
+  bool IsDelaying() const { return is_send_ || is_recv_; }
+
+  absl::Status HandleInvocation(const dslx::Invocation* n) override {
+    absl::StatusOr<std::string> builtin_name =
+        dslx::GetBuiltinName(n->callee());
+    if (builtin_name.ok()) {
+      is_send_ = absl::StartsWith(*builtin_name, "send");
+      is_recv_ = absl::StartsWith(*builtin_name, "recv");
+    } else {
+      is_send_ = false;
+      is_recv_ = false;
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  bool is_send_ = false;
+  bool is_recv_ = false;
 };
 
 }  // namespace
@@ -106,7 +135,8 @@ static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text) {
 //
 // These arguments are flags which are passed to codegen_main for generating
 // Verilog. Randomly chooses either a purely combinational module or a
-// feed-forward pipeline of a randome length.
+// feed-forward pipeline of a random length (sufficient to support known
+// delays).
 //
 // Args:
 //   use_system_verilog: Whether to use SystemVerilog.
@@ -115,11 +145,9 @@ static absl::StatusOr<bool> HasNonBlockingRecv(const std::string& dslx_text) {
 //   has_nb_recv: Whether the IR semantics of the circuit has a non-blocking
 //     receive operation.
 //   rng: Random number generator state.
-static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
-                                                    bool has_proc,
-                                                    bool has_registers,
-                                                    bool has_nb_recv,
-                                                    ValueGenerator* value_gen) {
+static std::vector<std::string> GenerateCodegenArgs(
+    bool use_system_verilog, bool has_proc, bool has_registers,
+    int64_t min_stages, bool has_nb_recv, ValueGenerator* value_gen) {
   std::vector<std::string> args;
   if (use_system_verilog) {
     args.push_back("--use_system_verilog");
@@ -137,8 +165,8 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
     if (has_nb_recv) {
       args.push_back("--pipeline_stages=1");
     } else {
-      args.push_back(
-          absl::StrCat("--pipeline_stages=", value_gen->RandRange(10) + 1));
+      args.push_back(absl::StrCat("--pipeline_stages=",
+                                  value_gen->RandRange(10) + min_stages));
     }
   } else {
     args.push_back("--generator=combinational");
@@ -174,12 +202,15 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
   return args;
 }
 
-static absl::StatusOr<std::string> Generate(
+// This function generates a module satisfying `ast_options`, and returns the
+// DSLX for that module and the minimum number of stages it can be safely
+// scheduled in.
+static absl::StatusOr<std::pair<std::string, int64_t>> Generate(
     const AstGeneratorOptions& ast_options, ValueGenerator* value_gen) {
   AstGenerator g(ast_options, value_gen);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+  XLS_ASSIGN_OR_RETURN(dslx::AnnotatedModule module,
                        g.Generate("main", "test"));
-  return module->ToString();
+  return std::make_pair(module.module->ToString(), module.min_stages);
 }
 
 // The function translates a list of ConcreteType unique_ptrs to a list of
@@ -316,10 +347,18 @@ absl::StatusOr<Sample> GenerateSample(
            "function sample.";
   }
 
-  XLS_ASSIGN_OR_RETURN(std::string dslx_text,
-                       Generate(generator_options, value_gen));
+  std::string dslx_text;
+  bool has_nb_recv = false;
+  int64_t min_stages = 1;
+  do {
+    XLS_ASSIGN_OR_RETURN(std::tie(dslx_text, min_stages),
+                         Generate(generator_options, value_gen));
+    XLS_ASSIGN_OR_RETURN(has_nb_recv, HasNonBlockingRecv(dslx_text));
+    // If this sample is going through codegen, regenerate the sample until it's
+    // legal; we currently can't verify latency-sensitive samples, which means
+    // we can't have a non-blocking recv except with 1 pipeline stage.
+  } while (sample_options.codegen() && has_nb_recv && min_stages > 1);
 
-  XLS_ASSIGN_OR_RETURN(bool has_nb_recv, HasNonBlockingRecv(dslx_text));
   // Generate the sample options which is how to *run* the generated
   // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
   SampleOptions sample_options_copy = sample_options;
@@ -336,7 +375,7 @@ absl::StatusOr<Sample> GenerateSample(
                             generator_options.generate_proc,
                             generator_options.generate_proc &&
                                 !generator_options.emit_stateless_proc,
-                            has_nb_recv, value_gen));
+                            min_stages, has_nb_recv, value_gen));
   }
 
   // Parse and type check the DSLX input to retrieve the top entity. The top

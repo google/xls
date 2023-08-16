@@ -14,19 +14,28 @@
 
 #include "xls/fuzzer/ast_generator.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/fuzzer/value_generator.h"
 
 namespace xls::dslx {
 namespace {
@@ -107,9 +116,9 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
     AstGenerator g(options, &value_gen);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
-    std::string text = module->ToString();
+    std::string text = module.module->ToString();
     // Parses/typechecks as well, which is primarily what we're testing here.
     XLS_ASSERT_OK(ParseAndTypecheck<Function>(text, module_name));
   }
@@ -129,10 +138,10 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithEmptyState) {
     AstGenerator g(options, &value_gen);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
 
-    std::string text = module->ToString();
+    std::string text = module.module->ToString();
     //  Parses/typechecks as well, which is primarily what we're testing here.
     XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
     EXPECT_THAT(text, ContainsRegex(kWantPattern));
@@ -154,10 +163,10 @@ TEST(AstGeneratorTest, GeneratesValidProcsWithRandomState) {
     AstGenerator g(options, &value_gen);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", module_name));
 
-    std::string text = module->ToString();
+    std::string text = module.module->ToString();
     //  Parses/typechecks as well, which is primarily what we're testing here.
     XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
     EXPECT_THAT(text, ContainsRegex(kWantPattern));
@@ -173,9 +182,9 @@ static void TestRepeatable(uint64_t seed) {
   for (int64_t i = 0; i < 32; ++i) {
     ValueGenerator value_gen(std::mt19937_64{seed});
     AstGenerator g(options, &value_gen);
-    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+    XLS_ASSERT_OK_AND_ASSIGN(AnnotatedModule module,
                              g.Generate("main", "test"));
-    std::string text = module->ToString();
+    std::string text = module.module->ToString();
     if (first.has_value()) {
       ASSERT_EQ(text, *first) << "sample " << i << " seed " << seed;
     } else {

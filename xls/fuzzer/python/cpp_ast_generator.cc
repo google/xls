@@ -99,15 +99,6 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
                 .emit_stateless_proc = t[6].cast<bool>()};
           }));
 
-  m.def("generate",
-        [](const AstGeneratorOptions& options,
-           ValueGenerator& value_gen) -> absl::StatusOr<std::string> {
-          AstGenerator g(options, &value_gen);
-          XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
-                               g.Generate("main", "test"));
-          return module->ToString();
-        });
-
   m.def(
       "choose_bit_pattern",
       [](int64_t bit_count, ValueGenerator& value_gen) -> absl::StatusOr<Bits> {

@@ -19,6 +19,7 @@
 #include <cmath>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -26,37 +27,85 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/casts.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/symbolized_stacktrace.h"
+#include "xls/dslx/channel_direction.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_cloner.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
-/* static */ std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>>
+namespace {
+
+// Given a collection of delaying operations for the dependencies of a value,
+// determine the effective delaying operation we need to propagate along with
+// that value.
+//
+// We return the strongest delaying operation according to the order:
+//   Send > Recv > None
+LastDelayingOp ComposeDelayingOps(
+    absl::Span<const LastDelayingOp> delaying_ops) {
+  absl::flat_hash_set<LastDelayingOp> delaying_ops_set(delaying_ops.begin(),
+                                                       delaying_ops.end());
+  if (delaying_ops_set.contains(LastDelayingOp::kSend)) {
+    return LastDelayingOp::kSend;
+  }
+  if (delaying_ops_set.contains(LastDelayingOp::kRecv)) {
+    return LastDelayingOp::kRecv;
+  }
+  return LastDelayingOp::kNone;
+}
+
+LastDelayingOp ComposeDelayingOps(
+    std::initializer_list<LastDelayingOp> delaying_ops) {
+  return ComposeDelayingOps(
+      absl::MakeConstSpan(delaying_ops.begin(), delaying_ops.end()));
+}
+
+LastDelayingOp ComposeDelayingOps(LastDelayingOp op1, LastDelayingOp op2) {
+  return ComposeDelayingOps({op1, op2});
+}
+
+LastDelayingOp ComposeDelayingOps(LastDelayingOp op1, LastDelayingOp op2,
+                                  LastDelayingOp op3) {
+  return ComposeDelayingOps({op1, op2, op3});
+}
+
+}  // namespace
+
+/* static */ std::tuple<std::vector<Expr*>, std::vector<TypeAnnotation*>,
+                        std::vector<LastDelayingOp>>
 AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   std::vector<Expr*> exprs;
   std::vector<TypeAnnotation*> types;
+  std::vector<LastDelayingOp> delaying_ops;
   for (auto& typed_expr : typed_exprs) {
     exprs.push_back(typed_expr.expr);
     types.push_back(typed_expr.type);
+    delaying_ops.push_back(typed_expr.last_delaying_op);
   }
-  return std::make_pair(std::move(exprs), std::move(types));
+  return std::make_tuple(std::move(exprs), std::move(types),
+                         std::move(delaying_ops));
 }
 
 /* static */ bool AstGenerator::IsUBits(const TypeAnnotation* t) {
@@ -205,24 +254,16 @@ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
   });
 }
 
-Param* AstGenerator::GenerateParam(TypeAnnotation* type) {
+AnnotatedParam AstGenerator::GenerateParam(AnnotatedType type) {
   std::string identifier = GenSym();
-  if (type == nullptr) {
-    type = GenerateType();
-  }
+  XLS_CHECK_NE(type.type, nullptr);
   NameDef* name_def = module_->Make<NameDef>(fake_span_, std::move(identifier),
                                              /*definer=*/nullptr);
-  Param* param = module_->Make<Param>(name_def, type);
+  Param* param = module_->Make<Param>(name_def, type.type);
   name_def->set_definer(param);
-  return param;
-}
-
-std::vector<Param*> AstGenerator::GenerateParams(int64_t count) {
-  std::vector<Param*> params;
-  for (int64_t i = 0; i < count; ++i) {
-    params.push_back(GenerateParam());
-  }
-  return params;
+  return {.param = param,
+          .last_delaying_op = type.last_delaying_op,
+          .min_stage = type.min_stage};
 }
 
 std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
@@ -287,12 +328,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Context* ctx) {
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   Binop* binop = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr);
-  return TypedExpr{binop, MakeTypeAnnotation(false, 1)};
+  return TypedExpr{.expr = binop,
+                   .type = MakeTypeAnnotation(false, 1),
+                   .last_delaying_op = ComposeDelayingOps(lhs.last_delaying_op,
+                                                          rhs.last_delaying_op),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 namespace {
 
-enum class ChannelOpType {
+enum class ChannelOpType : std::uint8_t {
   kRecv,
   kRecvNonBlocking,
   kRecvIf,
@@ -348,6 +393,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
        ChannelOpType::kRecvIf, ChannelOpType::kSend, ChannelOpType::kSendIf});
   ChannelOpInfo chan_op_info = GetChannelOpInfo(chan_op_type);
 
+  int64_t min_stage = 1;
+
   // If needed, generate a predicate.
   std::optional<TypedExpr> predicate;
   if (chan_op_info.requires_predicate) {
@@ -362,6 +409,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
       Number* boolean = MakeBool(RandomBool());
       predicate = TypedExpr{boolean, boolean->type_annotation()};
     }
+
+    int64_t successor_min_stage = predicate->min_stage;
+    if (predicate->last_delaying_op == LastDelayingOp::kSend &&
+        chan_op_info.channel_direction == ChannelDirection::kIn) {
+      // Send depended on by recv - make sure we have a delay.
+      successor_min_stage++;
+    }
+    min_stage = std::max(min_stage, successor_min_stage);
   }
 
   // The recv_non_blocking has an implicit bool in its return type, resulting in
@@ -390,6 +445,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     // random constant of arbitrary type.
     XLS_ASSIGN_OR_RETURN(default_value,
                          ChooseEnvValue(&ctx->env, channel_type));
+
+    int64_t successor_min_stage = default_value->min_stage;
+    if (default_value->last_delaying_op == LastDelayingOp::kSend &&
+        chan_op_info.channel_direction == ChannelDirection::kIn) {
+      // Send depended on by recv - make sure we have a delay.
+      successor_min_stage++;
+    }
+    min_stage = std::max(min_stage, successor_min_stage);
   }
 
   // If needed, choose a payload from the environment.
@@ -399,6 +462,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
     // env. Create payload of the type enabling more ops requiring a payload
     // (e.g. send and send_if).
     XLS_ASSIGN_OR_RETURN(payload, ChooseEnvValue(&ctx->env, channel_type));
+
+    int64_t successor_min_stage = payload->min_stage;
+    if (payload->last_delaying_op == LastDelayingOp::kSend &&
+        chan_op_info.channel_direction == ChannelDirection::kIn) {
+      // Send depended on by recv - make sure we have a delay.
+      successor_min_stage++;
+    }
+    min_stage = std::max(min_stage, successor_min_stage);
   }
 
   // Create the channel.
@@ -408,7 +479,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
       module_->Make<ChannelTypeAnnotation>(fake_span_,
                                            chan_op_info.channel_direction,
                                            channel_type, std::nullopt);
-  Param* param = GenerateParam(channel_type_annotation);
+  Param* param = GenerateParam({.type = channel_type_annotation}).param;
   auto to_member = [this](const Param* p) -> absl::StatusOr<ProcMember*> {
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, CloneNode(p->name_def()));
     XLS_ASSIGN_OR_RETURN(AstNode * type_annotation,
@@ -428,39 +499,57 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Context* ctx) {
   auto* token_name_ref = dynamic_cast<NameRef*>(token.expr);
   XLS_CHECK(token_name_ref != nullptr);
 
+  int64_t successor_min_stage = token.min_stage;
+  if (token.last_delaying_op == LastDelayingOp::kSend &&
+      chan_op_info.channel_direction == ChannelDirection::kIn) {
+    // Send depended on by recv - make sure we have a delay.
+    successor_min_stage++;
+  }
+  min_stage = std::max(min_stage, successor_min_stage);
+
   switch (chan_op_type) {
     case ChannelOpType::kRecv:
-      return TypedExpr{module_->Make<Invocation>(
+      return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv"),
                            std::vector<Expr*>{token_name_ref, chan_expr}),
-                       MakeTupleType({token.type, channel_type})};
+                       .type = MakeTupleType({token.type, channel_type}),
+                       .last_delaying_op = LastDelayingOp::kRecv,
+                       .min_stage = min_stage};
     case ChannelOpType::kRecvNonBlocking:
-      return TypedExpr{module_->Make<Invocation>(
+      return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv_non_blocking"),
                            std::vector<Expr*>{token_name_ref, chan_expr,
                                               default_value.value().expr}),
-                       MakeTupleType({token.type, channel_type,
-                                      MakeTypeAnnotation(false, 1)})};
+                       .type = MakeTupleType({token.type, channel_type,
+                                              MakeTypeAnnotation(false, 1)}),
+                       .last_delaying_op = LastDelayingOp::kRecv,
+                       .min_stage = min_stage};
     case ChannelOpType::kRecvIf:
-      return TypedExpr{module_->Make<Invocation>(
+      return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("recv_if"),
                            std::vector<Expr*>{token_name_ref, chan_expr,
                                               predicate.value().expr,
                                               default_value.value().expr}),
-                       MakeTupleType({token.type, channel_type})};
+                       .type = MakeTupleType({token.type, channel_type}),
+                       .last_delaying_op = LastDelayingOp::kRecv,
+                       .min_stage = min_stage};
     case ChannelOpType::kSend:
-      return TypedExpr{module_->Make<Invocation>(
+      return TypedExpr{.expr = module_->Make<Invocation>(
                            fake_span_, MakeBuiltinNameRef("send"),
                            std::vector<Expr*>{token_name_ref, chan_expr,
                                               payload.value().expr}),
-                       token.type};
+                       .type = token.type,
+                       .last_delaying_op = LastDelayingOp::kSend,
+                       .min_stage = min_stage};
     case ChannelOpType::kSendIf:
       return TypedExpr{
-          module_->Make<Invocation>(
+          .expr = module_->Make<Invocation>(
               fake_span_, MakeBuiltinNameRef("send_if"),
               std::vector<Expr*>{token_name_ref, chan_expr,
                                  predicate.value().expr, payload.value().expr}),
-          token.type};
+          .type = token.type,
+          .last_delaying_op = LastDelayingOp::kSend,
+          .min_stage = min_stage};
   }
 
   XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
@@ -474,21 +563,31 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Context* ctx) {
   std::vector<TypedExpr> tokens = GatherAllValues(&ctx->env, token_predicate);
   int64_t token_count = RandRange(1, tokens.size() + 1);
   std::vector<Expr*> tokens_to_join(token_count);
+  std::vector<LastDelayingOp> delaying_ops(token_count);
+  int64_t min_stage = 1;
   for (int64_t i = 0; i < token_count; ++i) {
     int64_t token_index = RandRange(0, tokens.size());
     tokens_to_join[i] = tokens[token_index].expr;
+    delaying_ops[i] = tokens[token_index].last_delaying_op;
+    min_stage = std::max(min_stage, tokens[token_index].min_stage);
   }
-  return TypedExpr{module_->Make<Invocation>(
+  return TypedExpr{.expr = module_->Make<Invocation>(
                        fake_span_, MakeBuiltinNameRef("join"), tokens_to_join),
-                   MakeTokenType()};
+                   .type = MakeTokenType(),
+                   .last_delaying_op = ComposeDelayingOps(delaying_ops),
+                   .min_stage = min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueArray(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-                   MakeTypeAnnotation(false, 1)};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+      .type = MakeTypeAnnotation(false, 1),
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 class FindTokenTypeVisitor : public AstNodeVisitorWithDefault {
@@ -630,43 +729,60 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Context* ctx) {
                        ChooseEnvValueTupleWithoutToken(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(&ctx->env, lhs.type));
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-                   MakeTypeAnnotation(false, 1)};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+      .type = MakeTypeAnnotation(false, 1),
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
-absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
-    Context* ctx, const TypeAnnotation* type) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateExprOfType(
+    Context* ctx, TypeAnnotation* type) {
   if (IsTuple(type)) {
-    auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+    auto tuple_type = dynamic_cast<TupleTypeAnnotation*>(type);
     std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, tuple_type);
     // Twenty percent of the time, generate a reference if one exists.
     if (!candidates.empty() && RandomFloat() < 0.20) {
-      return candidates[RandRange(candidates.size())].expr;
+      return candidates[RandRange(candidates.size())];
     }
-    std::vector<Expr*> tuple_values(tuple_type->size(), nullptr);
+    int64_t min_stage = 1;
+    std::vector<TypedExpr> tuple_entries(tuple_type->size());
     for (int64_t index = 0; index < tuple_type->size(); ++index) {
       XLS_ASSIGN_OR_RETURN(
-          tuple_values[index],
+          tuple_entries[index],
           GenerateExprOfType(ctx, tuple_type->members()[index]));
+      min_stage = std::max(min_stage, tuple_entries[index].min_stage);
     }
-    return module_->Make<XlsTuple>(fake_span_, tuple_values,
-                                   /*has_trailing_comma=*/false);
+    auto [tuple_values, tuple_types, tuple_delaying_ops] = Unzip(tuple_entries);
+    return TypedExpr{
+        .expr = module_->Make<XlsTuple>(fake_span_, tuple_values,
+                                        /*has_trailing_comma=*/false),
+        .type = type,
+        .last_delaying_op = ComposeDelayingOps(tuple_delaying_ops),
+        .min_stage = min_stage};
   }
   if (IsArray(type)) {
-    auto array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+    auto array_type = dynamic_cast<ArrayTypeAnnotation*>(type);
     std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, array_type);
     // Twenty percent of the time, generate a reference if one exists.
     if (!candidates.empty() && RandomFloat() < 0.20) {
-      return candidates[RandRange(candidates.size())].expr;
+      return candidates[RandRange(candidates.size())];
     }
+    int64_t min_stage = 1;
     int64_t array_size = GetArraySize(array_type);
-    std::vector<Expr*> array_values(array_size, nullptr);
+    std::vector<TypedExpr> array_entries(array_size);
     for (int64_t index = 0; index < array_size; ++index) {
-      XLS_ASSIGN_OR_RETURN(array_values[index],
+      XLS_ASSIGN_OR_RETURN(array_entries[index],
                            GenerateExprOfType(ctx, array_type->element_type()));
+      min_stage = std::max(min_stage, array_entries[index].min_stage);
     }
-    return module_->Make<Array>(fake_span_, array_values,
-                                /*has_ellipsis=*/false);
+    auto [array_values, array_types, array_delaying_ops] = Unzip(array_entries);
+    return TypedExpr{.expr = module_->Make<Array>(fake_span_, array_values,
+                                                  /*has_ellipsis=*/false),
+                     .type = type,
+                     .last_delaying_op = ComposeDelayingOps(array_delaying_ops),
+                     .min_stage = min_stage};
   }
   if (auto* type_ref_type = dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = type_ref_type->type_ref();
@@ -679,18 +795,17 @@ absl::StatusOr<Expr*> AstGenerator::GenerateExprOfType(
   std::vector<TypedExpr> candidates = GatherAllValues(&ctx->env, type);
   // Twenty percent of the time, generate a reference if one exists.
   if (!candidates.empty() && RandomFloat() < 0.20) {
-    return candidates[RandRange(candidates.size())].expr;
+    return candidates[RandRange(candidates.size())];
   }
-  TypedExpr type_expr = GenerateNumberWithType(
+  return GenerateNumberWithType(
       BitsAndSignedness{GetTypeBitCount(type), BitsTypeIsSigned(type).value()});
-  return type_expr.expr;
 }
 
 absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     Context* ctx, const TypeAnnotation* type) {
   if (IsTuple(type)) {
     auto tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
-    // Twenty percent of the time, generate a wildcardpattern.
+    // Twenty percent of the time, generate a wildcard pattern.
     if (RandomFloat() < 0.20) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
@@ -711,7 +826,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
     };
     std::vector<TypedExpr> array_candidates =
         GatherAllValues(&ctx->env, array_matches);
-    // Twenty percent of the time, generate a wildcardpattern.
+    // Twenty percent of the time, generate a wildcard pattern.
     if (array_candidates.empty() || RandomFloat() < 0.20) {
       WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
       return module_->Make<NameDefTree>(fake_span_, wc);
@@ -730,7 +845,7 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
 
   XLS_CHECK(IsBits(type));
 
-  // Five percent of the time, generate a wildcardpattern.
+  // Five percent of the time, generate a wildcard pattern.
   if (RandomFloat() < 0.05) {
     WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
     return module_->Make<NameDefTree>(fake_span_, wc);
@@ -787,6 +902,8 @@ absl::StatusOr<NameDefTree*> AstGenerator::GenerateMatchArmPattern(
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr match,
                        ChooseEnvValueNotContainingToken(&ctx->env));
+  LastDelayingOp last_delaying_op = match.last_delaying_op;
+  int64_t min_stage = match.min_stage;
   TypeAnnotation* match_return_type = GenerateType();
   // Attempt to create at least one additional match arm aside from the wildcard
   // pattern.
@@ -821,20 +938,30 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMatch(Context* ctx) {
     if (match_arm_patterns.empty()) {
       continue;
     }
-    XLS_ASSIGN_OR_RETURN(Expr * ret,
+    XLS_ASSIGN_OR_RETURN(TypedExpr ret,
                          GenerateExprOfType(ctx, match_return_type));
+    last_delaying_op =
+        ComposeDelayingOps(last_delaying_op, ret.last_delaying_op);
+    min_stage = std::max(min_stage, ret.min_stage);
     match_arms.push_back(
-        module_->Make<MatchArm>(fake_span_, match_arm_patterns, ret));
+        module_->Make<MatchArm>(fake_span_, match_arm_patterns, ret.expr));
   }
   // Add wildcard pattern as last match arm.
-  XLS_ASSIGN_OR_RETURN(Expr * wc_return,
+  XLS_ASSIGN_OR_RETURN(TypedExpr wc_return,
                        GenerateExprOfType(ctx, match_return_type));
   WildcardPattern* wc = module_->Make<WildcardPattern>(fake_span_);
   NameDefTree* wc_pattern = module_->Make<NameDefTree>(fake_span_, wc);
   match_arms.push_back(module_->Make<MatchArm>(
-      fake_span_, std::vector<NameDefTree*>{wc_pattern}, wc_return));
-  return TypedExpr{module_->Make<Match>(fake_span_, match.expr, match_arms),
-                   match_return_type};
+      fake_span_, std::vector<NameDefTree*>{wc_pattern}, wc_return.expr));
+  last_delaying_op =
+      ComposeDelayingOps(last_delaying_op, wc_return.last_delaying_op);
+  min_stage = std::max(min_stage, wc_return.min_stage);
+  return TypedExpr{
+      .expr = module_->Make<Match>(fake_span_, match.expr, match_arms),
+      .type = match_return_type,
+      .last_delaying_op = last_delaying_op,
+      .min_stage = min_stage,
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
@@ -848,9 +975,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = value_gen_->GenerateBits(bit_count);
   Number* divisor_node = GenerateNumberFromBits(divisor, lhs.type);
-  return TypedExpr{
-      module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
-      lhs.type};
+  return TypedExpr{.expr = module_->Make<Binop>(fake_span_, BinopKind::kDiv,
+                                                lhs.expr, divisor_node),
+                   .type = lhs.type,
+                   .last_delaying_op = lhs.last_delaying_op,
+                   .min_stage = lhs.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
@@ -869,8 +998,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Context* ctx) {
     rhs = TypedExpr();
     rhs.expr = MakeNumber(shift_amount);
   }
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-                   lhs.type};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+      .type = lhs.type,
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 absl::StatusOr<TypedExpr>
@@ -892,6 +1025,8 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   } else {
     lhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(lhs.type));
     lhs_cast.expr = module_->Make<Cast>(fake_span_, lhs.expr, lhs_cast.type);
+    lhs_cast.last_delaying_op = lhs.last_delaying_op;
+    lhs_cast.min_stage = lhs.min_stage;
   }
   // Don't need a cast if rhs.type matches the sign of the op
   if (is_signed != IsUBits(rhs.type)) {
@@ -899,16 +1034,21 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
   } else {
     rhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(rhs.type));
     rhs_cast.expr = module_->Make<Cast>(fake_span_, rhs.expr, rhs_cast.type);
+    rhs_cast.last_delaying_op = rhs.last_delaying_op;
+    rhs_cast.min_stage = rhs.min_stage;
   }
 
   TypeAnnotation* unsigned_type =
       MakeTypeAnnotation(false, GetTypeBitCount(lhs.type));
   TypeAnnotation* signed_type =
       MakeTypeAnnotation(true, GetTypeBitCount(lhs.type));
-  auto mulp = TypedExpr{module_->Make<Invocation>(
+  auto mulp = TypedExpr{.expr = module_->Make<Invocation>(
                             fake_span_, MakeBuiltinNameRef(op),
                             std::vector<Expr*>{lhs_cast.expr, rhs_cast.expr}),
-                        MakeTupleType({unsigned_type, unsigned_type})};
+                        .type = MakeTupleType({unsigned_type, unsigned_type}),
+                        .last_delaying_op = ComposeDelayingOps(
+                            {lhs.last_delaying_op, rhs.last_delaying_op}),
+                        .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
   std::string mulp_identifier = GenSym();
   auto* mulp_name_def =
       module_->Make<NameDef>(fake_span_, mulp_identifier, /*definer=*/nullptr);
@@ -933,7 +1073,10 @@ AstGenerator::GeneratePartialProductDeterministicGroup(Context* ctx) {
                                          module_->Make<Statement>(sum),
                                      },
                                      /*trailing_semi=*/false);
-  return TypedExpr{block, lhs_cast.type};
+  return TypedExpr{.expr = block,
+                   .type = lhs_cast.type,
+                   .last_delaying_op = mulp.last_delaying_op,
+                   .min_stage = mulp.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
@@ -948,8 +1091,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Context* ctx) {
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(ctx);
   }
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-                   lhs.type};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+      .type = lhs.type,
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
@@ -961,8 +1108,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Context* ctx) {
   // Pick some operation to do.
   BinopKind op = RandomChoice<BinopKind>(
       {BinopKind::kAnd, BinopKind::kOr, BinopKind::kXor});
-  return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
-                   lhs.type};
+  return TypedExpr{
+      .expr = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
+      .type = lhs.type,
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
@@ -1146,13 +1297,19 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
     int64_t bits = RandRange(1, kMaxBitCount);
     lhs = GenerateNumberWithType(BitsAndSignedness{bits, false});
   }
+  LastDelayingOp last_delaying_op = lhs->last_delaying_op;
+  int64_t min_stage = lhs->min_stage;
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
   std::vector<Expr*> cases = {rhs.expr};
   int64_t total_operands = GetTypeBitCount(lhs->type);
+  last_delaying_op = ComposeDelayingOps(last_delaying_op, rhs.last_delaying_op);
+  min_stage = std::max(min_stage, rhs.min_stage);
   for (int64_t i = 0; i < total_operands - 1; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(&ctx->env, rhs.type));
     cases.push_back(e.expr);
+    last_delaying_op = ComposeDelayingOps(last_delaying_op, e.last_delaying_op);
+    min_stage = std::max(min_stage, e.min_stage);
   }
 
   XLS_RETURN_IF_ERROR(
@@ -1163,7 +1320,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(
   auto* invocation =
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("one_hot_sel"),
                                 std::vector<Expr*>{lhs->expr, cases_array});
-  return TypedExpr{invocation, rhs.type};
+  return TypedExpr{.expr = invocation,
+                   .type = rhs.type,
+                   .last_delaying_op = last_delaying_op,
+                   .min_stage = min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
@@ -1172,8 +1332,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
       TypedExpr lhs,
       ChooseEnvValueBits(&ctx->env, /*bit_count=*/RandomIntWithExpectedValue(
                              5, /*lower_limit=*/1)));
+  LastDelayingOp last_delaying_op = lhs.last_delaying_op;
+  int64_t min_stage = lhs.min_stage;
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
+  last_delaying_op = ComposeDelayingOps(last_delaying_op, rhs.last_delaying_op);
+  min_stage = std::max(min_stage, rhs.min_stage);
   std::vector<Expr*> cases = {rhs.expr};
   int64_t total_operands = GetTypeBitCount(lhs.type);
   for (int64_t i = 0; i < total_operands - 1; ++i) {
@@ -1189,7 +1353,12 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
   auto* invocation =
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("priority_sel"),
                                 std::vector<Expr*>{lhs.expr, cases_array});
-  return TypedExpr{invocation, rhs.type};
+  return TypedExpr{
+      .expr = invocation,
+      .type = rhs.type,
+      .last_delaying_op = last_delaying_op,
+      .min_stage = min_stage,
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSignExtendBuiltin(
@@ -1197,9 +1366,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSignExtendBuiltin(
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(&ctx->env));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(&ctx->env));
   return TypedExpr{
-      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("signex"),
-                                std::vector<Expr*>{lhs.expr, rhs.expr}),
-      rhs.type};
+      .expr =
+          module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("signex"),
+                                    std::vector<Expr*>{lhs.expr, rhs.expr}),
+      .type = rhs.type,
+      .last_delaying_op =
+          ComposeDelayingOps(lhs.last_delaying_op, rhs.last_delaying_op),
+      .min_stage = std::max(lhs.min_stage, rhs.min_stage),
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
@@ -1230,7 +1404,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Context* ctx) {
   Number* dim = MakeNumber(result_size);
   auto* result_type = module_->Make<ArrayTypeAnnotation>(
       fake_span_, lhs_array_type->element_type(), dim);
-  return TypedExpr{result, result_type};
+  return TypedExpr{.expr = result,
+                   .type = result_type,
+                   .last_delaying_op = ComposeDelayingOps(
+                       {lhs.last_delaying_op, rhs.last_delaying_op}),
+                   .min_stage = std::max(lhs.min_stage, rhs.min_stage)};
 }
 
 String* AstGenerator::GenerateString(int64_t char_count) {
@@ -1272,11 +1450,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
     }
   }
   std::vector<Expr*> value_exprs;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 0;
   int64_t total_width = 0;
   value_exprs.reserve(values.size());
   for (TypedExpr t : values) {
     value_exprs.push_back(t.expr);
     total_width += GetTypeBitCount(t.type);
+    last_delaying_op = ComposeDelayingOps(last_delaying_op, t.last_delaying_op);
+    min_stage = std::max(min_stage, t.min_stage);
   }
 
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_width));
@@ -1298,9 +1480,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Context* ctx) {
   auto* result_type = module_->Make<ArrayTypeAnnotation>(
       fake_span_, element_type_alias, MakeNumber(values.size()));
 
-  return TypedExpr{
-      module_->Make<Array>(fake_span_, value_exprs, /*has_ellipsis=*/false),
-      result_type};
+  return TypedExpr{.expr = module_->Make<Array>(fake_span_, value_exprs,
+                                                /*has_ellipsis=*/false),
+                   .type = result_type,
+                   .last_delaying_op = last_delaying_op,
+                   .min_stage = min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
@@ -1316,8 +1500,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayIndex(Context* ctx) {
     int64_t index_bound = RandRange(array_size);
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
-  return TypedExpr{module_->Make<Index>(fake_span_, array.expr, index.expr),
-                   array_type->element_type()};
+  return TypedExpr{
+      .expr = module_->Make<Index>(fake_span_, array.expr, index.expr),
+      .type = array_type->element_type(),
+      .last_delaying_op =
+          ComposeDelayingOps(array.last_delaying_op, index.last_delaying_op),
+      .min_stage = std::max(array.min_stage, index.min_stage),
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Context* ctx) {
@@ -1336,10 +1525,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayUpdate(Context* ctx) {
     XLS_ASSIGN_OR_RETURN(index.expr, GenerateUmin(index, index_bound));
   }
   return TypedExpr{
-      module_->Make<Invocation>(
+      .expr = module_->Make<Invocation>(
           fake_span_, MakeBuiltinNameRef("update"),
           std::vector<Expr*>{array.expr, index.expr, element.expr}),
-      array.type};
+      .type = array.type,
+      .last_delaying_op =
+          ComposeDelayingOps(array.last_delaying_op, index.last_delaying_op,
+                             element.last_delaying_op),
+      .min_stage = std::max(std::max(array.min_stage, index.min_stage),
+                            element.min_stage),
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Context* ctx) {
@@ -1347,9 +1542,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateGate(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr p, GenerateCompare(ctx));
   XLS_ASSIGN_OR_RETURN(TypedExpr value, ChooseEnvValueBits(&ctx->env));
   return TypedExpr{
-      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("gate!"),
-                                std::vector<Expr*>{p.expr, value.expr}),
-      value.type};
+      .expr = module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("gate!"),
+                                        std::vector<Expr*>{p.expr, value.expr}),
+      .type = value.type,
+      .last_delaying_op =
+          ComposeDelayingOps(p.last_delaying_op, value.last_delaying_op),
+      .min_stage = std::max(p.min_stage, value.min_stage),
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
@@ -1362,11 +1561,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(int64_t count,
                        GenerateNaryOperandCount(ctx, /*lower_limit=*/1));
   std::vector<TypedExpr> operands;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 0;
   int64_t total_width = 0;
   for (int64_t i = 0; i < count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(&ctx->env));
     operands.push_back(e);
     total_width += GetTypeBitCount(e.type);
+    last_delaying_op = ComposeDelayingOps(last_delaying_op, e.last_delaying_op);
+    min_stage = std::max(min_stage, e.min_stage);
   }
 
   XLS_RETURN_IF_ERROR(VerifyBitsWidth(total_width));
@@ -1379,7 +1582,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Context* ctx) {
   }
 
   TypeAnnotation* return_type = MakeTypeAnnotation(false, total_width);
-  return TypedExpr{result, return_type};
+  return TypedExpr{.expr = result,
+                   .type = return_type,
+                   .last_delaying_op = last_delaying_op,
+                   .min_stage = min_stage};
 }
 
 BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType(
@@ -1431,6 +1637,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
   XLS_RET_CHECK(!env_params.empty() || !env_non_params.empty());
 
   std::vector<TypedExpr> typed_exprs;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
   int64_t total_bit_count = 0;
   for (int64_t i = 0; i < retval_count; ++i) {
     TypedExpr expr;
@@ -1450,6 +1658,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
 
     typed_exprs.push_back(expr);
     total_bit_count += GetTypeBitCount(expr.type);
+    last_delaying_op =
+        ComposeDelayingOps(last_delaying_op, expr.last_delaying_op);
+    min_stage = std::max(min_stage, expr.min_stage);
   }
 
   // If only a single return value is selected, most of the time just return it
@@ -1458,25 +1669,40 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Context* ctx) {
     return typed_exprs[0];
   }
 
-  auto [exprs, types] = Unzip(typed_exprs);
+  auto [exprs, types, delaying_ops] = Unzip(typed_exprs);
   auto* tuple =
       module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false);
-  return TypedExpr{tuple, MakeTupleType(types)};
+  return TypedExpr{.expr = tuple,
+                   .type = MakeTupleType(types),
+                   .last_delaying_op = last_delaying_op,
+                   .min_stage = min_stage};
 }
 
 // The return value for a proc's next function must be of the state type if a
 // state is present.
 absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
     Context* ctx) {
+  TypedExpr retval;
   if (proc_properties_.state_types.empty()) {
     // Return an empty tuple.
-    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
-                                             /*has_trailing_comma=*/false),
-                     MakeTupleType(std::vector<TypeAnnotation*>())};
+    retval = TypedExpr{
+        .expr = module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>{},
+                                        /*has_trailing_comma=*/false),
+        .type = MakeTupleType(std::vector<TypeAnnotation*>()),
+    };
+  } else {
+    // A state is present, therefore the return value for a proc's next function
+    // must be of the state type.
+    XLS_ASSIGN_OR_RETURN(
+        retval, ChooseEnvValue(&ctx->env, proc_properties_.state_types[0]));
   }
-  // A state is present, therefore the return value for a proc's next function
-  // must be of the state type.
-  return ChooseEnvValue(&ctx->env, proc_properties_.state_types[0]);
+  retval.last_delaying_op = LastDelayingOp::kNone;
+  for (auto& [name, value] : ctx->env) {
+    if (IsToken(value.type)) {
+      retval.min_stage = std::max(retval.min_stage, value.min_stage);
+    }
+  }
+  return retval;
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Context* ctx) {
@@ -1517,11 +1743,17 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
     int64_t i = RandRange(tuple_type->size());
     Number* index_expr = MakeNumber(i);
-    return TypedExpr{module_->Make<TupleIndex>(fake_span_, e.expr, index_expr),
-                     tuple_type->members()[i]};
+    return TypedExpr{
+        .expr = module_->Make<TupleIndex>(fake_span_, e.expr, index_expr),
+        .type = tuple_type->members()[i],
+        .last_delaying_op = e.last_delaying_op,
+        .min_stage = e.min_stage,
+    };
   }
 
   std::vector<TypedExpr> members;
+  LastDelayingOp last_delaying_op = LastDelayingOp::kNone;
+  int64_t min_stage = 1;
   int64_t total_bit_count = 0;
   XLS_ASSIGN_OR_RETURN(int64_t element_count, GenerateNaryOperandCount(ctx, 0));
   for (int64_t i = 0; i < element_count; ++i) {
@@ -1529,14 +1761,20 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Context* ctx) {
                          ChooseEnvValueNotContainingToken(&ctx->env));
     members.push_back(e);
     total_bit_count += GetTypeBitCount(e.type);
+    last_delaying_op = ComposeDelayingOps(last_delaying_op, e.last_delaying_op);
+    min_stage = std::max(min_stage, e.min_stage);
   }
 
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_bit_count));
 
-  auto [exprs, types] = Unzip(members);
+  auto [exprs, types, delaying_ops] = Unzip(members);
   return TypedExpr{
-      module_->Make<XlsTuple>(fake_span_, exprs, /*has_trailing_comma=*/false),
-      MakeTupleType(types)};
+      .expr = module_->Make<XlsTuple>(fake_span_, exprs,
+                                      /*has_trailing_comma=*/false),
+      .type = MakeTupleType(types),
+      .last_delaying_op = last_delaying_op,
+      .min_stage = min_stage,
+  };
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
@@ -1554,27 +1792,34 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
   // function which takes an element of that array.
   XLS_ASSIGN_OR_RETURN(TypedExpr array, ChooseEnvValueArray(&ctx->env));
   ArrayTypeAnnotation* array_type = down_cast<ArrayTypeAnnotation*>(array.type);
-  XLS_ASSIGN_OR_RETURN(Function * map_fn,
-                       GenerateFunction(map_fn_name, call_depth + 1,
-                                        /*param_types=*/
-                                        std::vector<TypeAnnotation*>(
-                                            {array_type->element_type()})));
+  XLS_ASSIGN_OR_RETURN(
+      AnnotatedFunction map_fn,
+      GenerateFunction(map_fn_name, call_depth + 1,
+                       /*param_types=*/
+                       std::vector<AnnotatedType>({AnnotatedType{
+                           .type = array_type->element_type(),
+                           .last_delaying_op = array.last_delaying_op,
+                           .min_stage = array.min_stage}})));
 
   // We put the function into the functions_ member so we know to emit it at the
   // top level of the module.
-  functions_.push_back(map_fn);
+  functions_.push_back(map_fn.function);
 
-  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(
-      GetTypeBitCount(map_fn->return_type()) * GetArraySize(array_type)));
+  XLS_RETURN_IF_ERROR(
+      VerifyAggregateWidth(GetTypeBitCount(map_fn.function->return_type()) *
+                           GetArraySize(array_type)));
 
   TypeAnnotation* return_type =
-      MakeArrayType(map_fn->return_type(), GetArraySize(array_type));
+      MakeArrayType(map_fn.function->return_type(), GetArraySize(array_type));
 
   NameRef* fn_ref = MakeNameRef(MakeNameDef(map_fn_name));
   auto* invocation =
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("map"),
                                 std::vector<Expr*>{array.expr, fn_ref});
-  return TypedExpr{invocation, return_type};
+  return TypedExpr{.expr = invocation,
+                   .type = return_type,
+                   .last_delaying_op = map_fn.last_delaying_op,
+                   .min_stage = map_fn.min_stage};
 }
 
 // TODO(vmirian): 11-16-2022 Add support to override the default parametric
@@ -1590,21 +1835,36 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateInvoke(int64_t call_depth,
 
   std::string fn_name = GenSym();
 
-  XLS_ASSIGN_OR_RETURN(Function * fn,
-                       GenerateFunction(fn_name, call_depth + 1));
-
+  // When we're a nested call, 90% of the time make sure we have at least one
+  // parameter.  Sometimes it's ok to try out what happens with 0 parameters.
+  //
+  // (Note we still pick a number of params with an expected value of 4 even
+  // when 0 is permitted.)
+  int64_t num_params = RandomIntWithExpectedValue(
+      4,
+      /*lower_limit=*/(RandomFloat() >= 0.10 ? 1 : 0));
   std::vector<Expr*> args;
-  for (const Param* param : fn->params()) {
-    XLS_ASSIGN_OR_RETURN(TypedExpr candidate,
-                         ChooseEnvValue(&ctx->env, param->type_annotation()));
+  std::vector<AnnotatedType> param_types;
+  args.reserve(num_params);
+  param_types.reserve(num_params);
+  for (int64_t i = 0; i < num_params; ++i) {
+    XLS_ASSIGN_OR_RETURN(TypedExpr candidate, ChooseEnvValue(&ctx->env));
     args.push_back(candidate.expr);
+    param_types.push_back({.type = candidate.type,
+                           .last_delaying_op = candidate.last_delaying_op,
+                           .min_stage = candidate.min_stage});
   }
+  XLS_ASSIGN_OR_RETURN(AnnotatedFunction fn,
+                       GenerateFunction(fn_name, call_depth + 1, param_types));
 
   NameRef* fn_ref = MakeNameRef(MakeNameDef(fn_name));
   auto* invocation = module_->Make<Invocation>(fake_span_, fn_ref, args);
-  functions_.push_back(fn);
+  functions_.push_back(fn.function);
 
-  return TypedExpr{invocation, fn->return_type()};
+  return TypedExpr{.expr = invocation,
+                   .type = fn.function->return_type(),
+                   .last_delaying_op = fn.last_delaying_op,
+                   .min_stage = fn.min_stage};
 }
 
 TypeAnnotation* AstGenerator::GenerateBitsType(
@@ -1730,7 +1990,12 @@ AstGenerator::ChooseEnvValueBitsPair(Env* env,
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(&ctx->env));
   UnopKind op = RandomChoice<UnopKind>({UnopKind::kInvert, UnopKind::kNegate});
-  return TypedExpr{module_->Make<Unop>(fake_span_, op, arg.expr), arg.type};
+  return TypedExpr{
+      .expr = module_->Make<Unop>(fake_span_, op, arg.expr),
+      .type = arg.type,
+      .last_delaying_op = arg.last_delaying_op,
+      .min_stage = arg.min_stage,
+  };
 }
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
@@ -1764,7 +2029,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     arg.expr = module_->Make<Cast>(fake_span_, arg.expr,
                                    MakeTypeAnnotation(false, bit_count));
   }
-  enum class SliceType {
+  enum class SliceType : std::uint8_t {
     kBitSlice,
     kWidthSlice,
     kDynamicSlice,
@@ -1778,11 +2043,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
     int64_t start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
     bool should_have_start = RandomBool();
     start = should_have_start
-                ? absl::make_optional(RandRange(start_low, bit_count + 1))
+                ? std::make_optional(RandRange(start_low, bit_count + 1))
                 : std::nullopt;
     bool should_have_limit = RandomBool();
     limit = should_have_limit
-                ? absl::make_optional(RandRange(-bit_count - 1, bit_count + 1))
+                ? std::make_optional(RandRange(-bit_count - 1, bit_count + 1))
                 : std::nullopt;
     width = ResolveBitSliceIndices(bit_count, start, limit).second;
     if (width > 0) {  // Make sure we produce non-zero-width things.
@@ -1791,6 +2056,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
   }
   XLS_RET_CHECK_GT(width, 0);
 
+  LastDelayingOp last_delaying_op = arg.last_delaying_op;
+  int64_t min_stage = arg.min_stage;
   IndexRhs rhs;
   switch (which) {
     case SliceType::kBitSlice: {
@@ -1809,12 +2076,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Context* ctx) {
       XLS_ASSIGN_OR_RETURN(TypedExpr start, ChooseEnvValueUBits(&ctx->env));
       rhs = module_->Make<WidthSlice>(fake_span_, start.expr,
                                       MakeTypeAnnotation(false, width));
+      last_delaying_op =
+          ComposeDelayingOps(last_delaying_op, start.last_delaying_op);
+      min_stage = std::max(min_stage, start.min_stage);
       break;
     }
   }
   TypeAnnotation* type = MakeTypeAnnotation(false, width);
   auto* expr = module_->Make<Index>(fake_span_, arg.expr, rhs);
-  return TypedExpr{expr, type};
+  return TypedExpr{.expr = expr,
+                   .type = type,
+                   .last_delaying_op = last_delaying_op,
+                   .min_stage = min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
@@ -1823,9 +2096,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Context* ctx) {
       {"and_reduce", "or_reduce", "xor_reduce"});
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
   TypeAnnotation* type = MakeTypeAnnotation(false, 1);
-  return TypedExpr{module_->Make<Invocation>(fake_span_, callee,
-                                             std::vector<Expr*>{arg.expr}),
-                   type};
+  return TypedExpr{.expr = module_->Make<Invocation>(
+                       fake_span_, callee, std::vector<Expr*>{arg.expr}),
+                   .type = type,
+                   .last_delaying_op = arg.last_delaying_op,
+                   .min_stage = arg.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
@@ -1851,7 +2126,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Context* ctx) {
   ArrayTypeAnnotation* outer_array_type =
       MakeArrayType(element_type, array_size);
   Cast* expr = module_->Make<Cast>(fake_span_, arg.expr, outer_array_type);
-  return TypedExpr{expr, outer_array_type};
+  return TypedExpr{.expr = expr,
+                   .type = outer_array_type,
+                   .last_delaying_op = arg.last_delaying_op,
+                   .min_stage = arg.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Context* ctx) {
@@ -1862,7 +2140,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSliceUpdate(Context* ctx) {
   auto* invocation = module_->Make<Invocation>(
       fake_span_, MakeBuiltinNameRef("bit_slice_update"),
       std::vector<Expr*>{arg.expr, start.expr, update_value.expr});
-  return TypedExpr{invocation, arg.type};
+  return TypedExpr{
+      .expr = invocation,
+      .type = arg.type,
+      .last_delaying_op =
+          ComposeDelayingOps(arg.last_delaying_op, start.last_delaying_op,
+                             update_value.last_delaying_op),
+      .min_stage = std::max(std::max(arg.min_stage, start.min_stage),
+                            update_value.min_stage)};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
@@ -1903,7 +2188,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Context* ctx) {
   auto* invocation = module_->Make<Invocation>(
       fake_span_, MakeBuiltinNameRef("slice"),
       std::vector<Expr*>{arg.expr, start.expr, width.expr});
-  return TypedExpr{invocation, width_type};
+  return TypedExpr{
+      .expr = invocation,
+      .type = width_type,
+      .last_delaying_op =
+          ComposeDelayingOps(arg.last_delaying_op, start.last_delaying_op),
+      .min_stage = std::max(arg.min_stage, start.min_stage),
+  };
 }
 
 absl::StatusOr<int64_t> AstGenerator::GenerateNaryOperandCount(
@@ -2199,7 +2490,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   // picking up the expression ASTs directly (which would cause duplication).
   auto* name_def = module_->Make<NameDef>(fake_span_, identifier, rhs.expr);
   auto* name_ref = MakeNameRef(name_def);
-  ctx->env[identifier] = TypedExpr{name_ref, rhs.type};
+  ctx->env[identifier] = TypedExpr{.expr = name_ref,
+                                   .type = rhs.type,
+                                   .last_delaying_op = rhs.last_delaying_op,
+                                   .min_stage = rhs.min_stage};
 
   // Unpack result tuples from channel operations and place them in environment
   // to be easily accessible creating more interesting behavior.
@@ -2216,14 +2510,19 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
             fake_span_, member_identifier, /*definer=*/nullptr);
         auto* member_name_ref = MakeNameRef(member_name_def);
         ctx->env[member_identifier] =
-            TypedExpr{member_name_ref, tuple_type->members()[index]};
+            TypedExpr{.expr = member_name_ref,
+                      .type = tuple_type->members()[index],
+                      .last_delaying_op = rhs.last_delaying_op,
+                      .min_stage = rhs.min_stage};
         // Insert in reverse order so the identifier are consecutive when
         // displayed on the output.
         channel_tuples[index] = std::pair<NameDef*, TypedExpr>{
             member_name_def,
-            TypedExpr{module_->Make<TupleIndex>(fake_span_, name_ref,
-                                                MakeNumber(index)),
-                      tuple_type->members()[index]}};
+            TypedExpr{.expr = module_->Make<TupleIndex>(fake_span_, name_ref,
+                                                        MakeNumber(index)),
+                      .type = tuple_type->members()[index],
+                      .last_delaying_op = rhs.last_delaying_op,
+                      .min_stage = rhs.min_stage}};
       }
     }
   }
@@ -2260,12 +2559,15 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
 
   Block* block =
       module_->Make<Block>(fake_span_, statements, /*trailing_semi=*/false);
-  return TypedExpr{block, body.type};
+  return TypedExpr{.expr = block,
+                   .type = body.type,
+                   .last_delaying_op = body.last_delaying_op,
+                   .min_stage = body.min_stage};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(&ctx->env));
-  enum UnopBuiltin {
+  enum UnopBuiltin : std::uint8_t {
     kClz,
     kCtz,
     kRev,
@@ -2317,11 +2619,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnopBuiltin(Context* ctx) {
   }
 
   TypeAnnotation* result_type = MakeTypeAnnotation(false, result_bits);
-  return TypedExpr{invocation, result_type};
+  return TypedExpr{.expr = invocation,
+                   .type = result_type,
+                   .last_delaying_op = arg.last_delaying_op,
+                   .min_stage = arg.min_stage};
 }
 
-absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
-    int64_t call_depth, absl::Span<Param* const> params, Context* ctx) {
+absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(int64_t call_depth,
+                                                     Context* ctx) {
   // To produce 'interesting' behavior (samples that contain computation/work),
   // the environment of the initial call depth should not be empty, so we can
   // draw references from the environment. The environment can be empty for
@@ -2330,53 +2635,40 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
   return GenerateExpr(/*expr_size=*/0, call_depth, ctx);
 }
 
-absl::StatusOr<Function*> AstGenerator::GenerateFunction(
-    std::string name, int64_t call_depth,
-    std::optional<absl::Span<TypeAnnotation* const>> param_types) {
+absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateFunction(
+    const std::string& name, int64_t call_depth,
+    absl::Span<const AnnotatedType> param_types) {
   Context context{.is_generating_proc = false};
 
-  std::vector<ParametricBinding*> parametric_bindings;
   std::vector<Param*> params;
-  if (param_types.has_value()) {
-    for (TypeAnnotation* param_type : param_types.value()) {
-      params.push_back(GenerateParam(param_type));
-    }
-  } else {
-    // If we're the main function we have to have at least one parameter,
-    // because some Generate* methods expect to be able to draw from a non-empty
-    // env.
-    //
-    // TODO(https://github.com/google/xls/issues/475): Cleanup to make
-    // productions that are ok with empty env separate from those which require
-    // a populated env.
-    //
-    // When we're a nested call, 90% of the time make sure we have at least one
-    // parameter.  Sometimes it's ok to try out what happens with 0 parameters.
-    //
-    // (Note we still pick a number of params with an expected value of 4 even
-    // when 0 is permitted.)
-    int64_t lower_limit = (call_depth == 0 || RandomFloat() >= 0.10) ? 1 : 0;
-    params = GenerateParams(RandomIntWithExpectedValue(4, lower_limit));
+  std::vector<AnnotatedParam> annotated_params;
+  params.reserve(param_types.size());
+  annotated_params.reserve(param_types.size());
+  for (const AnnotatedType& param_type : param_types) {
+    annotated_params.push_back(GenerateParam(param_type));
+    params.push_back(annotated_params.back().param);
+  }
+  for (AnnotatedParam param : annotated_params) {
+    context.env[param.param->identifier()] =
+        TypedExpr{.expr = MakeNameRef(param.param->name_def()),
+                  .type = param.param->type_annotation(),
+                  .last_delaying_op = param.last_delaying_op,
+                  .min_stage = param.min_stage};
   }
 
   // When we're not the main function, 10% of the time put some parametrics on
   // the function.
+  std::vector<ParametricBinding*> parametric_bindings;
   if (call_depth != 0 && RandomFloat() >= 0.90) {
     parametric_bindings = GenerateParametricBindings(
         RandomIntWithExpectedValue(2, /*lower_limit=*/1));
-  }
-
-  for (Param* param : params) {
-    context.env[param->identifier()] =
-        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
   for (ParametricBinding* pb : parametric_bindings) {
     context.env[pb->identifier()] =
         TypedExpr{MakeNameRef(pb->name_def()), pb->type_annotation()};
   }
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval,
-                       GenerateBody(call_depth, params, &context));
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(call_depth, &context));
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Statement* retval_statement = module_->Make<Statement>(retval.expr);
@@ -2391,11 +2683,27 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
       /*is_public=*/false);
   name_def->set_definer(f);
 
-  return f;
+  return AnnotatedFunction{.function = f,
+                           .last_delaying_op = retval.last_delaying_op,
+                           .min_stage = retval.min_stage};
 }
 
-absl::Status AstGenerator::GenerateFunctionInModule(std::string name) {
-  XLS_ASSIGN_OR_RETURN(Function * f, GenerateFunction(name));
+absl::StatusOr<int64_t> AstGenerator::GenerateFunctionInModule(
+    const std::string& name) {
+  // If we're the main function we have to have at least one parameter,
+  // because some Generate* methods expect to be able to draw from a non-empty
+  // env.
+  //
+  // TODO(https://github.com/google/xls/issues/475): Cleanup to make
+  // productions that are ok with empty env separate from those which require
+  // a populated env.
+  int64_t num_params = RandomIntWithExpectedValue(4, /*lower_limit=*/1);
+  std::vector<AnnotatedType> param_types(num_params);
+  for (int64_t i = 0; i < num_params; ++i) {
+    param_types[i] = {.type = GenerateType()};
+  }
+  XLS_ASSIGN_OR_RETURN(AnnotatedFunction f,
+                       GenerateFunction(name, /*call_depth=*/0, param_types));
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
@@ -2405,8 +2713,8 @@ absl::Status AstGenerator::GenerateFunctionInModule(std::string name) {
   for (auto& item : functions_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
-  XLS_RETURN_IF_ERROR(module_->AddTop(f));
-  return absl::OkStatus();
+  XLS_RETURN_IF_ERROR(module_->AddTop(f.function));
+  return f.min_stage;
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
@@ -2439,7 +2747,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
   return f;
 }
 
-absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
+absl::StatusOr<AnnotatedFunction> AstGenerator::GenerateProcNextFunction(
     std::string name) {
   Context context{.is_generating_proc = true};
 
@@ -2447,13 +2755,15 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
   NameDef* token_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
                                                    /*definer=*/nullptr);
   Param* token_param = module_->Make<Param>(token_name_def, MakeTokenType());
-  std::vector<Param*> params = {token_param};
+  std::vector<Param*> params({token_param});
 
   TypeAnnotation* state_param_type = nullptr;
   if (options_.emit_stateless_proc) {
     state_param_type = MakeTupleType({});
+  } else {
+    state_param_type = GenerateType();
   }
-  params.insert(params.end(), GenerateParam(state_param_type));
+  params.insert(params.end(), GenerateParam({.type = state_param_type}).param);
   proc_properties_.state_types.push_back(params.back()->type_annotation());
 
   for (Param* param : params) {
@@ -2461,7 +2771,7 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
         TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
   }
 
-  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, params, &context));
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, &context));
 
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
@@ -2477,7 +2787,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
       /*is_public=*/false);
   name_def->set_definer(f);
 
-  return f;
+  return AnnotatedFunction{.function = f,
+                           .last_delaying_op = retval.last_delaying_op,
+                           .min_stage = retval.min_stage};
 }
 
 absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
@@ -2500,8 +2812,9 @@ absl::StatusOr<Function*> AstGenerator::GenerateProcInitFunction(
   return f;
 }
 
-absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
-  XLS_ASSIGN_OR_RETURN(Function * next_function,
+absl::StatusOr<AnnotatedProc> AstGenerator::GenerateProc(
+    const std::string& name) {
+  XLS_ASSIGN_OR_RETURN(AnnotatedFunction next_function,
                        GenerateProcNextFunction("next"));
 
   XLS_ASSIGN_OR_RETURN(
@@ -2518,16 +2831,18 @@ absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Proc* proc = module_->Make<Proc>(
       fake_span_, name_def, config_function->name_def(),
-      next_function->name_def(),
+      next_function.function->name_def(),
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      proc_properties_.members, config_function, next_function, init_fn,
+      proc_properties_.members, config_function, next_function.function,
+      init_fn,
       /*is_public=*/false);
   name_def->set_definer(proc);
-  return proc;
+  return AnnotatedProc{.proc = proc, .min_stages = next_function.min_stage};
 }
 
-absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
-  XLS_ASSIGN_OR_RETURN(Proc * proc, GenerateProc(proc_name));
+absl::StatusOr<int64_t> AstGenerator::GenerateProcInModule(
+    const std::string& proc_name) {
+  XLS_ASSIGN_OR_RETURN(AnnotatedProc proc, GenerateProc(proc_name));
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
@@ -2537,19 +2852,21 @@ absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
   for (auto& item : functions_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
-  XLS_RETURN_IF_ERROR(module_->AddTop(proc));
-  return absl::OkStatus();
+  XLS_RETURN_IF_ERROR(module_->AddTop(proc.proc));
+  return proc.min_stages;
 }
 
-absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
-    std::string top_entity_name, std::string module_name) {
+absl::StatusOr<AnnotatedModule> AstGenerator::Generate(
+    const std::string& top_entity_name, const std::string& module_name) {
   module_ = std::make_unique<Module>(module_name, /*fs_path=*/std::nullopt);
+  int64_t min_stages = 1;
   if (options_.generate_proc) {
-    XLS_RETURN_IF_ERROR(GenerateProcInModule(top_entity_name));
+    XLS_ASSIGN_OR_RETURN(min_stages, GenerateProcInModule(top_entity_name));
   } else {
-    XLS_RETURN_IF_ERROR(GenerateFunctionInModule(top_entity_name));
+    XLS_ASSIGN_OR_RETURN(min_stages, GenerateFunctionInModule(top_entity_name));
   }
-  return std::move(module_);
+  return AnnotatedModule{.module = std::move(module_),
+                         .min_stages = min_stages};
 }
 
 AstGenerator::AstGenerator(AstGeneratorOptions options,
