@@ -49,6 +49,9 @@ class BigInt {
   bool operator==(const BigInt& other) const;
   bool operator!=(const BigInt& other) const { return !(*this == other); }
 
+  std::string ToDecimalString() const;
+  std::string ToHexString() const;
+
   // Returns the BigInt value as a (un)signed Bits object. The Bits object
   // returned from ToSignedBits is in twos-complement representation. If a width
   // is unspecified, then the Bits object has the minimum number of bits

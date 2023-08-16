@@ -831,12 +831,19 @@ void TestHex(const Bits& b, const std::string& expected) {
             ToPlainString(expected));
 }
 
+void TestDecimal(const Bits& b, const std::string& unsigned_str,
+                 const std::string& signed_str) {
+  EXPECT_EQ(BitsToString(b, FormatPreference::kUnsignedDecimal), unsigned_str);
+  EXPECT_EQ(BitsToString(b, FormatPreference::kSignedDecimal), signed_str);
+}
+
 TEST(BitsOpsTest, ToStringEmptyBits) {
   Bits empty_bits(0);
   EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kUnsignedDecimal), "0");
   EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kSignedDecimal), "0");
   TestHex(empty_bits, "0x0");
   TestBinary(empty_bits, "0b0");
+  TestDecimal(empty_bits, "0", "0");
   EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kUnsignedDecimal,
                          /*include_bit_count=*/true),
             "0 [0 bits]");
@@ -845,17 +852,31 @@ TEST(BitsOpsTest, ToStringEmptyBits) {
             "0 [0 bits]");
 }
 
+TEST(BitsOpsTest, U128HighBit) {
+  auto b = Bits(128).UpdateWithSet(127, true);
+  TestHex(b, "0x8000_0000_0000_0000_0000_0000_0000_0000");
+  TestBinary(b,
+             "0b1000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+             "0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_"
+             "0000_0000_0000_0000_0000_0000_0000");
+  TestDecimal(b, "170141183460469231731687303715884105728",
+              "-170141183460469231731687303715884105728");
+}
+
 TEST(BitsOpsTest, ToStringValue1U1) {
   Bits b1 = UBits(1, 1);
   EXPECT_EQ(BitsToString(b1, FormatPreference::kUnsignedDecimal), "1");
   EXPECT_EQ(BitsToString(b1, FormatPreference::kSignedDecimal), "-1");
   TestHex(b1, "0x1");
   TestBinary(b1, "0b1");
+  TestDecimal(b1, "1", "-1");
 }
 
 TEST(BitsOptTest, ToStringValue1U16) {
-  TestBinary(UBits(1, 16), "0b1");
-  TestHex(UBits(1, 16), "0x1");
+  const Bits b = UBits(1, 16);
+  TestBinary(b, "0b1");
+  TestHex(b, "0x1");
+  TestDecimal(b, "1", "1");
 }
 
 TEST(BitsOptTest, ToStringValue42U7) {
@@ -864,6 +885,7 @@ TEST(BitsOptTest, ToStringValue42U7) {
   EXPECT_EQ(BitsToString(b42, FormatPreference::kSignedDecimal), "42");
   TestHex(b42, "0x2a");
   TestBinary(b42, "0b10_1010");
+  TestDecimal(b42, "42", "42");
 }
 
 TEST(BitsOptTest, ToStringPrimeBits64) {
@@ -879,28 +901,33 @@ TEST(BitsOptTest, ToStringPrimeBits64) {
   TestBinary(prime64,
              "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
              "1010_1011_1100");
+  TestDecimal(prime64, "2892025783495830204", "2892025783495830204");
 }
 
 TEST(BitsOptTest, ToStringPrimeBits65) {
   // Test widths wider than 64. Decimal output for wide bit counts is not
   // supported.
+  const Bits b = PrimeBits(65);
   EXPECT_EQ(
-      PrimeBits(65).ToDebugString(),
+      b.ToDebugString(),
       "0b00010100000100010100010100010000010100010100010100010101010111100");
-  TestHex(PrimeBits(65), "0x2822_8a20_a28a_2abc");
-  TestBinary(PrimeBits(65),
+  TestHex(b, "0x2822_8a20_a28a_2abc");
+  TestBinary(b,
              "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
              "1010_1011_1100");
+  TestDecimal(b, "2892025783495830204", "2892025783495830204");
 }
 
 TEST(BitsOptTest, ToStringPrimeBits96) {
-  EXPECT_EQ(PrimeBits(96).ToDebugString(),
+  const Bits b = PrimeBits(96);
+  EXPECT_EQ(b.ToDebugString(),
             "0b0000001000001000100000101000100000101000001000101000101000100000"
             "10100010100010100010101010111100");
-  TestHex(PrimeBits(96), "0x208_8288_2822_8a20_a28a_2abc");
-  TestBinary(PrimeBits(96),
+  TestHex(b, "0x208_8288_2822_8a20_a28a_2abc");
+  TestBinary(b,
              "0b10_0000_1000_1000_0010_1000_1000_0010_1000_0010_0010_1000_1010_"
              "0010_0000_1010_0010_1000_1010_0010_1010_1011_1100");
+  TestDecimal(b, "629257845491600032719841980", "629257845491600032719841980");
 }
 
 TEST(BitsOpsTest, ToRawStringEmptyBits) {

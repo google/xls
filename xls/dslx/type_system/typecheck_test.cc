@@ -1849,5 +1849,18 @@ fn main(x: s8) -> s32 {
                                  "uN[9] (9 bits) with widening_cast")));
 }
 
+TEST(TypecheckTest, OverlargeValue80Bits) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f() {
+  let x:sN[0] = sN[80]:0x800000000000000000000;
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Value '0x800000000000000000000' does not fit "
+                                 "in the bitwidth of a sN[80] (80)")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -23,6 +23,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "openssl/bn.h"
+#include "openssl/mem.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -151,6 +152,22 @@ Bits BigInt::ToUnsignedBits() const {
   // FromBytes expects bytes in little endian order.
   std::reverse(byte_vector.begin(), byte_vector.end());
   return Bits::FromBytes(byte_vector, bit_count);
+}
+
+std::string BigInt::ToDecimalString() const {
+  char* s = BN_bn2dec(&bn_);
+  XLS_CHECK(s != nullptr) << "BigNum allocation failure";
+  std::string str(s);
+  OPENSSL_free(s);
+  return str;
+}
+
+std::string BigInt::ToHexString() const {
+  char* s = BN_bn2hex(&bn_);
+  XLS_CHECK(s != nullptr) << "BigNum allocation failure";
+  std::string str(s);
+  OPENSSL_free(s);
+  return str;
 }
 
 absl::StatusOr<Bits> BigInt::ToSignedBitsWithBitCount(int64_t bit_count) const {

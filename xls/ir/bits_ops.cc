@@ -618,12 +618,7 @@ std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
     XLS_CHECK(!emit_leading_zeros)
         << "emit_leading_zeros not supported for decimal format.";
 
-    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
-    // emission.
-    XLS_CHECK(bits.FitsInInt64())
-        << "Decimal output not supported for values which do "
-           "not fit in an int64_t";
-    return absl::StrCat(bits.ToInt64().value());
+    return BigInt::MakeSigned(bits).ToDecimalString();
   }
 
   if (preference == FormatPreference::kUnsignedDecimal) {
@@ -631,12 +626,8 @@ std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
     // clean correspondence between decimal digits and binary digits.
     XLS_CHECK(!emit_leading_zeros)
         << "emit_leading_zeros not supported for decimal format.";
-    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
-    // emission.
-    XLS_CHECK(bits.FitsInUint64())
-        << "Decimal output not supported for values which do "
-           "not fit in a uint64_t";
-    return absl::StrCat(bits.ToUint64().value());
+
+    return BigInt::MakeUnsigned(bits).ToDecimalString();
   }
   if (bits.bit_count() == 0) {
     return "0";
