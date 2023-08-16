@@ -56,3 +56,69 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "renode_protocol_native",
+    hdrs = [
+        "renode_protocol_native.h",
+    ],
+    deps = [
+        ":renode_protocol",
+    ],
+)
+
+cc_library(
+    name = "sharedlibconnection",
+    srcs = [
+        "renode_masterport.cc",
+        "sharedlibconnection.cc",
+    ],
+    hdrs = [
+        "renode_masterport.h",
+        "sharedlibconnection.h",
+    ],
+    deps = [
+        ":renode_logger",
+        ":renode_protocol",
+        ":renode_protocol_native",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/simulation/generic:iconnection",
+        "//xls/simulation/generic:imasterport",
+        "//xls/simulation/generic:iperipheral",
+        "//xls/simulation/generic:peripheral_factory",
+        "@com_google_absl//absl/log",
+    ],
+    alwayslink = True,
+)
+
+cc_test(
+    name = "sharedlibconnection_test",
+    size = "small",
+    srcs = [
+        "sharedlibconnection_test.cc",
+    ],
+    deps = [
+        ":renode_protocol",
+        ":renode_protocol_native",
+        ":sharedlibconnection",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/simulation/generic:iconnection",
+        "//xls/simulation/generic:iperipheral_stub",
+        "//xls/simulation/generic:peripheral_factory",
+        "@com_google_absl//absl/log",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+# Main output of this project - a VerilatedPeripheral plugin, a shared
+# library that can be loaded by Renode.
+cc_binary(
+    name = "renode_xls_peripheral_plugin",
+    linkshared = True,
+    deps = [
+        ":sharedlibconnection",
+    ],
+)
