@@ -863,3 +863,32 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "xlsperipheral",
+    srcs = [
+        "xlsperipheral.cc",
+    ],
+    hdrs = [
+        "xlsperipheral.h",
+    ],
+    deps = [
+        ":axistreamlikedmaendpoint",
+        ":config",
+        ":dmastreammanager",
+        ":ichannelmanager",
+        ":iconnection",
+        ":iperipheral",
+        ":ir_axistreamlike",
+        ":ir_single_value",
+        ":ir_stream",
+        ":runtime_manager",
+        ":singlevaluemanager",
+        ":streamdmaendpoint",
+        ":streammanager",
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
