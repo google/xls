@@ -892,3 +892,17 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+cc_library(
+    name = "peripheral_factory",
+    srcs = [
+        "peripheral_factory.cc",
+    ],
+    hdrs = [
+        "peripheral_factory.h",
+    ],
+    deps = [
+        ":iconnection",
+        ":iperipheral",
+        ":xlsperipheral",
+    ],
+)
