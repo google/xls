@@ -613,3 +613,11 @@ xls_dslx_test(
     },
     library = ":fp32_fmac_dslx",
 )
+
+xls_dslx_opt_ir(
+    name = "overflow_detect",
+    srcs = ["overflow_detect.x"],
+    dslx_top = "main",
+    ir_file = "overflow_detect.ir",
+    opt_ir_file = "overflow_detect.opt.ir",
+)

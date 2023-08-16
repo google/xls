@@ -354,6 +354,39 @@ fn umax_test() {
   assert_eq(u2:3, umax(u2:3, u2:2));
 }
 
+// Returns the maximum of two signed integers.
+pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
+  if x < y { x } else { y }
+}
+
+#[test]
+fn smin_test() {
+  assert_eq(s1:0, smin(s1:0, s1:0));
+  assert_eq(s1:-1, smin(s1:0, s1:1));
+  assert_eq(s1:-1, smin(s1:1, s1:0));
+  assert_eq(s1:-1, smin(s1:1, s1:1));
+
+  assert_eq(s2:-2, smin(s2:0, s2:-2));
+  assert_eq(s2:-1, smin(s2:0, s2:-1));
+  assert_eq(s2:0,  smin(s2:0, s2:0));
+  assert_eq(s2:0, smin(s2:0, s2:1));
+
+  assert_eq(s2:-2, smin(s2:1, s2:-2));
+  assert_eq(s2:-1, smin(s2:1, s2:-1));
+  assert_eq(s2:0,  smin(s2:1, s2:0));
+  assert_eq(s2:1, smin(s2:1, s2:1));
+
+  assert_eq(s2:-2, smin(s2:-2, s2:-2));
+  assert_eq(s2:-2, smin(s2:-2, s2:-1));
+  assert_eq(s2:-2,  smin(s2:-2, s2:0));
+  assert_eq(s2:-2, smin(s2:-2, s2:1));
+
+  assert_eq(s2:-2, smin(s2:-1, s2:-2));
+  assert_eq(s2:-1, smin(s2:-1, s2:-1));
+  assert_eq(s2:-1,  smin(s2:-1, s2:0));
+  assert_eq(s2:-1, smin(s2:-1, s2:1));
+}
+
 // Returns the minimum of two unsigned integers.
 pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   if x < y { x } else { y }
@@ -613,4 +646,273 @@ fn test_to_unsigned() {
   let x = s8:42;
   assert_eq(u8:42, to_unsigned(x));
   assert_eq(x as uN[sizeof_signed(x)], to_unsigned(x));
+}
+
+// Adds two unsigned integers and detects for overflow.
+//
+// uadd_with_overflow<V: u32>(x: uN[N], y : uN[M]) returns a 2-tuple
+// indicating overflow (boolean) and a sum (x+y) as uN[V).  An overflow
+// occurs if the result does not fit within a uN[V].
+//
+// Example usage:
+//  let result : (bool, u16) = uadd_with_overflow_detection<u32:16>(x, y);
+//
+pub fn uadd_with_overflow<V: u32, N: u32, M: u32,
+                                    MAX_N_M: u32 = {umax(N, M)},
+                                    MAX_N_M_V: u32 = {umax(MAX_N_M, V)}>
+  (x: uN[N], y: uN[M]) -> (bool, uN[V]) {
+
+  let x_extended = widening_cast<uN[MAX_N_M_V+u32:1]>(x);
+  let y_extended = widening_cast<uN[MAX_N_M_V+u32:1]>(y);
+
+  let full_result : uN[MAX_N_M_V+u32:1] = x_extended + y_extended;
+  let narrowed_result = full_result as uN[V];
+  let overflow_detected = or_reduce(full_result[V as s32:]);
+
+  (overflow_detected, narrowed_result)
+}
+
+#[test]
+fn test_uadd_with_overflow() {
+  assert_eq(uadd_with_overflow<u32:1>(u4:0, u5:0),  (false, u1:0));
+  assert_eq(uadd_with_overflow<u32:1>(u4:1, u5:0),  (false, u1:1));
+  assert_eq(uadd_with_overflow<u32:1>(u4:1, u5:1),  (true,  u1:0));
+  assert_eq(uadd_with_overflow<u32:1>(u4:2, u5:1),  (true,  u1:1));
+
+  assert_eq(uadd_with_overflow<u32:4>(u4:15, u3:0), (false, u4:15));
+  assert_eq(uadd_with_overflow<u32:4>(u4:8, u3:7), (false, u4:15));
+  assert_eq(uadd_with_overflow<u32:4>(u4:9, u3:7), (true, u4:0));
+  assert_eq(uadd_with_overflow<u32:4>(u4:10, u3:6), (true, u4:0));
+  assert_eq(uadd_with_overflow<u32:4>(u4:11, u3:6), (true, u4:1));
+}
+
+// Extract bits given a fixed-point integer with a constant offset.
+//   i.e. let x_extended = x as uN[max(unsigned_sizeof(x) + fixed_shift, to_exclusive)];
+//        (x_extended << fixed_shift)[from_inclusive:to_exclusive]
+//
+// This function behaves as-if x has reasonably infinite precision so that
+// the result is zero-padded if from_inclusive or to_exclusive are out of
+// range of the original x's bitwidth.
+//
+// If to_exclusive <= from_exclusive, the result will be a zero-bit uN[0].
+pub fn extract_bits<from_inclusive: u32,
+                    to_exclusive: u32,
+                    fixed_shift: u32,
+                    N: u32,
+                    extract_width : u32 = {smax(s32:0, to_exclusive as s32 - from_inclusive as s32) as u32},
+                    >(x : uN[N]) -> uN[extract_width] {
+  if(to_exclusive <= from_inclusive) {
+    uN[extract_width]:0
+  } else {
+    // With a non-zero fixed width, all lower bits of index < fixed_shift are
+    // are zero.
+    let lower_bits = uN[checked_cast<u32>(smax(s32:0,
+                                 fixed_shift as s32 - from_inclusive as s32))]:0;
+
+    // Based on the input of N bits and a fixed shift, there are an effective
+    // count of N + fixed_shift known bits.  All bits of index >
+    // N + fixed_shift - 1 are zero's.
+    let upper_bits = uN[checked_cast<u32>(smax(s32:0,
+                                 N as s32 + fixed_shift as s32 - to_exclusive as s32 - s32:1))]:0;
+
+    if(fixed_shift < from_inclusive) {
+      // The bits extracted start within or after the middle span.
+      //  upper_bits ++ middle_bits
+     let middle_bits = upper_bits ++
+                       x[smin(from_inclusive as s32 - fixed_shift as s32, N as s32) :
+                         smin(to_exclusive as s32 - fixed_shift as s32, N as s32)];
+     (upper_bits ++ middle_bits) as uN[extract_width]
+    } else if (fixed_shift <= to_exclusive) {
+      // The bits extracted start within the fixed_shift span.
+      let middle_bits = x[0:
+                          smin(to_exclusive as s32 - fixed_shift as s32, N as s32)];
+
+      (upper_bits ++ middle_bits ++ lower_bits) as uN[extract_width]
+    } else {
+      uN[extract_width]:0
+    }
+  }
+}
+
+#[test]
+fn test_extract_bits() {
+  assert_eq(extract_bits<u32:4, u32:4, u32:0>(u4:0x9), uN[0]:0);
+  assert_eq(extract_bits<u32:0, u32:4, u32:0>(u4:0x9), u4:0x9); // 0b[1001]
+
+  assert_eq(extract_bits<u32:0, u32:5, u32:0>(u4:0xf), u5:0xf); // 0b[01111]
+  assert_eq(extract_bits<u32:0, u32:5, u32:1>(u4:0xf), u5:0x1e); // 0b0[11110]
+  assert_eq(extract_bits<u32:0, u32:5, u32:2>(u4:0xf), u5:0x1c); // 0b1[11100]
+  assert_eq(extract_bits<u32:0, u32:5, u32:3>(u4:0xf), u5:0x18); // 0b11[11000]
+  assert_eq(extract_bits<u32:0, u32:5, u32:4>(u4:0xf), u5:0x10); // 0b111[10000]
+  assert_eq(extract_bits<u32:0, u32:5, u32:5>(u4:0xf), u5:0x0); // 0b1111[00000]
+
+  assert_eq(extract_bits<u32:2, u32:5, u32:0>(u4:0xf), u3:0x3); // 0b[011]11
+  assert_eq(extract_bits<u32:2, u32:5, u32:1>(u4:0xf), u3:0x7); // 0b[111]10
+  assert_eq(extract_bits<u32:2, u32:5, u32:2>(u4:0xf), u3:0x7); // 0b1[111]00
+  assert_eq(extract_bits<u32:2, u32:5, u32:3>(u4:0xf), u3:0x6); // 0b11[110]00
+  assert_eq(extract_bits<u32:2, u32:5, u32:4>(u4:0xf), u3:0x4); // 0b111[100]00
+  assert_eq(extract_bits<u32:2, u32:5, u32:5>(u4:0xf), u3:0x0); // 0b1111[000]00
+
+  assert_eq(extract_bits<u32:0, u32:4, u32:0>(u4:0xf), u4:0xf); // 0b[1111]
+  assert_eq(extract_bits<u32:0, u32:4, u32:1>(u4:0xf), u4:0xe); // 0b1[1110]
+  assert_eq(extract_bits<u32:0, u32:4, u32:2>(u4:0xf), u4:0xc); // 0b11[1100]
+  assert_eq(extract_bits<u32:0, u32:4, u32:3>(u4:0xf), u4:0x8); // 0b111[1000]
+  assert_eq(extract_bits<u32:0, u32:4, u32:4>(u4:0xf), u4:0x0); // 0b1111[0000]
+  assert_eq(extract_bits<u32:0, u32:4, u32:5>(u4:0xf), u4:0x0); // 0b11110[0000]
+
+  assert_eq(extract_bits<u32:1, u32:4, u32:0>(u4:0xf), u3:0x7); // 0b[111]1
+  assert_eq(extract_bits<u32:1, u32:4, u32:1>(u4:0xf), u3:0x7); // 0b1[111]0
+  assert_eq(extract_bits<u32:1, u32:4, u32:2>(u4:0xf), u3:0x6); // 0b11[110]0
+  assert_eq(extract_bits<u32:1, u32:4, u32:3>(u4:0xf), u3:0x4); // 0b111[100]0
+  assert_eq(extract_bits<u32:1, u32:4, u32:4>(u4:0xf), u3:0x0); // 0b1111[000]0
+  assert_eq(extract_bits<u32:1, u32:4, u32:5>(u4:0xf), u3:0x0); // 0b11110[000]0
+
+  assert_eq(extract_bits<u32:2, u32:4, u32:0>(u4:0xf), u2:0x3); // 0b[11]11
+  assert_eq(extract_bits<u32:2, u32:4, u32:1>(u4:0xf), u2:0x3); // 0b1[11]10
+  assert_eq(extract_bits<u32:2, u32:4, u32:2>(u4:0xf), u2:0x3); // 0b11[11]00
+  assert_eq(extract_bits<u32:2, u32:4, u32:3>(u4:0xf), u2:0x2); // 0b111[10]00
+  assert_eq(extract_bits<u32:2, u32:4, u32:4>(u4:0xf), u2:0x0); // 0b1111[00]00
+  assert_eq(extract_bits<u32:2, u32:4, u32:5>(u4:0xf), u2:0x0); // 0b11110[00]00
+
+  assert_eq(extract_bits<u32:3, u32:4, u32:0>(u4:0xf), u1:0x1); // 0b[1]111
+  assert_eq(extract_bits<u32:3, u32:4, u32:1>(u4:0xf), u1:0x1); // 0b1[1]110
+  assert_eq(extract_bits<u32:3, u32:4, u32:2>(u4:0xf), u1:0x1); // 0b11[1]100
+  assert_eq(extract_bits<u32:3, u32:4, u32:3>(u4:0xf), u1:0x1); // 0b111[1]000
+  assert_eq(extract_bits<u32:3, u32:4, u32:4>(u4:0xf), u1:0x0); // 0b1111[0]000
+  assert_eq(extract_bits<u32:3, u32:4, u32:5>(u4:0xf), u1:0x0); // 0b11110[0]000
+
+  assert_eq(extract_bits<u32:0, u32:3, u32:0>(u4:0xf), u3:0x7); // 0b1[111]
+  assert_eq(extract_bits<u32:0, u32:3, u32:1>(u4:0xf), u3:0x6); // 0b11[110]
+  assert_eq(extract_bits<u32:0, u32:3, u32:2>(u4:0xf), u3:0x4); // 0b111[100]
+  assert_eq(extract_bits<u32:0, u32:3, u32:3>(u4:0xf), u3:0x0); // 0b1111[000]
+  assert_eq(extract_bits<u32:0, u32:3, u32:4>(u4:0xf), u3:0x0); // 0b11110[000]
+  assert_eq(extract_bits<u32:0, u32:3, u32:5>(u4:0xf), u3:0x0); // 0b111100[000]
+
+  assert_eq(extract_bits<u32:1, u32:3, u32:0>(u4:0xf), u2:0x3); // 0b1[11]1
+  assert_eq(extract_bits<u32:1, u32:3, u32:1>(u4:0xf), u2:0x3); // 0b11[11]0
+  assert_eq(extract_bits<u32:1, u32:3, u32:2>(u4:0xf), u2:0x2); // 0b111[10]0
+  assert_eq(extract_bits<u32:1, u32:3, u32:3>(u4:0xf), u2:0x0); // 0b1111[00]0
+  assert_eq(extract_bits<u32:1, u32:3, u32:4>(u4:0xf), u2:0x0); // 0b11110[00]0
+  assert_eq(extract_bits<u32:1, u32:3, u32:5>(u4:0xf), u2:0x0); // 0b111100[00]0
+
+  assert_eq(extract_bits<u32:2, u32:3, u32:0>(u4:0xf), u1:0x1); // 0b1[1]11
+  assert_eq(extract_bits<u32:2, u32:3, u32:1>(u4:0xf), u1:0x1); // 0b11[1]10
+  assert_eq(extract_bits<u32:2, u32:3, u32:2>(u4:0xf), u1:0x1); // 0b111[1]00
+  assert_eq(extract_bits<u32:2, u32:3, u32:3>(u4:0xf), u1:0x0); // 0b1111[0]00
+  assert_eq(extract_bits<u32:2, u32:3, u32:4>(u4:0xf), u1:0x0); // 0b11110[0]00
+  assert_eq(extract_bits<u32:2, u32:3, u32:5>(u4:0xf), u1:0x0); // 0b111100[0]00
+}
+
+// Multiplies two numbers and detects for overflow.
+//
+// umul_with_overflow<V: u32>(x: uN[N], y : uN[M]) returns a 2-tuple
+// indicating overflow (boolean) and a product (x*y) as uN[V].  An overflow
+// occurs if the result does not fit within a uN[V].
+//
+// Example usage:
+//  let result : (bool, u16) = umul_with_overflow<u32:16>(x, y);
+//
+pub fn umul_with_overflow<V: u32,
+                                    N: u32,
+                                    M: u32,
+                                    N_lower_bits : u32 = {N >> u32:1},
+                                    N_upper_bits : u32 = {N - N_lower_bits},
+                                    M_lower_bits : u32 = {M >> u32:1},
+                                    M_upper_bits : u32 = {M - M_lower_bits},
+                                    Min_N_M_lower_bits : u32 = {umin(N_lower_bits, M_lower_bits)},
+                                    N_Plus_M: u32 = {N + M},
+                                   >(x: uN[N], y: uN[M]) -> (bool, uN[V]) {
+  // Break x and y into two halves.
+  // x = x1 ++ x0,
+  // y = y1 ++ x1,
+  let x1 = x[N_lower_bits as s32:];
+  let x0 = x[s32:0:N_lower_bits as s32];
+
+  let y1 = y[M_lower_bits as s32:];
+  let y0 = y[s32:0:M_lower_bits as s32];
+
+  // Bits [0 : N_lower_bits+M_lower_bits]]
+  let x0y0 : uN[N_lower_bits+M_lower_bits]= umul(x0, y0);
+
+  // Bits [M_lower_bits +: N_upper_bits+M_lower_bits]
+  let x1y0 : uN[N_upper_bits+M_lower_bits] = umul(x1, y0);
+
+  // Bits [N_lower_bits +: N_lower_bits+M_upper_bits]
+  let x0y1 : uN[M_upper_bits+N_lower_bits] = umul(x0, y1);
+
+  // Bits [N_lower_bits+M_lower_bits += N_upper_bits+M_upper_bits]
+  let x1y1 : uN[N_upper_bits+M_upper_bits] = umul(x1, y1);
+
+  // Break the above numbers into three buckets
+  //  [0: min(N_lower_bits, M_lower_bits)] --> only from x0y0
+  //  [min(N_lower_bits, M_lower_bits : V] --> need to add together
+  //  [V : N+M] --> need to or_reduce
+  let x0y0_a = extract_bits<u32:0, Min_N_M_lower_bits, u32:0>(x0y0);
+  let x0y0_b = extract_bits<Min_N_M_lower_bits, V, u32:0>(x0y0);
+  let x0y0_c = extract_bits<V, N_Plus_M, u32:0>(x0y0);
+
+  // x1 has a shift of N_lower_bits
+  let x1y0_b = extract_bits<Min_N_M_lower_bits, V, N_lower_bits>(x1y0);
+  let x1y0_c = extract_bits<V, N_Plus_M, N_lower_bits>(x1y0);
+
+  // y1 has a shift of M_lower_bits
+  let x0y1_b = extract_bits<Min_N_M_lower_bits, V, M_lower_bits>(x0y1);
+  let x0y1_c = extract_bits<V, N_Plus_M, M_lower_bits>(x0y1);
+
+  // x1y1 has a shift of N_lower_bits + M_lower_bits
+  let x1y1_b = extract_bits<Min_N_M_lower_bits, V, {N_lower_bits+M_lower_bits}>(x1y1);
+  let x1y1_c = extract_bits<V, N_Plus_M, {N_lower_bits+M_lower_bits}>(x1y1);
+
+  // Add partial shifts to obtain the narrowed results, keeping 2 bits for overflow.
+  // (x0y0_b + x1y0_b + x1y1_b + x1y1_b) ++ x0y0a
+  let x0y0_b_extended = widening_cast<uN[V - Min_N_M_lower_bits + u32:2]>(x0y0_b);
+  let x0y1_b_extended = widening_cast<uN[V - Min_N_M_lower_bits + u32:2]>(x0y1_b);
+  let x1y0_b_extended = widening_cast<uN[V - Min_N_M_lower_bits + u32:2]>(x1y0_b);
+  let x1y1_b_extended = widening_cast<uN[V - Min_N_M_lower_bits + u32:2]>(x1y1_b);
+  let narrowed_result_upper = x0y0_b_extended + x1y0_b_extended +
+                              x0y1_b_extended + x1y1_b_extended;
+  let overflow_narrowed_result_upper_sum =
+    or_reduce(narrowed_result_upper[V as s32 - Min_N_M_lower_bits as s32:]);
+
+  let partial_narrowed_result =
+    narrowed_result_upper[0:V as s32 - Min_N_M_lower_bits as s32] ++ x0y0_a;
+
+  let narrowed_result = partial_narrowed_result[0:V as s32];
+  let overflow_detected = or_reduce(x0y0_c) ||
+                          or_reduce(x0y1_c) ||
+                          or_reduce(x1y0_c) ||
+                          or_reduce(x1y1_c) ||
+                          or_reduce(partial_narrowed_result[V as s32:]) ||
+                          overflow_narrowed_result_upper_sum;
+
+  (overflow_detected, narrowed_result)
+}
+
+// TODO(tedhong): 2023-08-11 Exhaustively test umul_with_overflow for
+// certain bitwith combinations.
+#[test]
+fn test_umul_with_overflow() {
+  assert_eq(umul_with_overflow<u32:1>(u4:0, u4:0),  (false, u1:0));
+  assert_eq(umul_with_overflow<u32:1>(u4:15, u4:0), (false, u1:0));
+  assert_eq(umul_with_overflow<u32:1>(u4:1, u4:1),  (false, u1:1));
+  assert_eq(umul_with_overflow<u32:1>(u4:2, u4:1),  (true, u1:0));
+  assert_eq(umul_with_overflow<u32:1>(u4:8, u4:8),  (true, u1:0));
+  assert_eq(umul_with_overflow<u32:1>(u4:15, u4:15),  (true, u1:1));
+
+  assert_eq(umul_with_overflow<u32:4>(u4:0, u3:0), (false, u4:0));
+  assert_eq(umul_with_overflow<u32:4>(u4:2, u3:7), (false, u4:14));
+  assert_eq(umul_with_overflow<u32:4>(u4:5, u3:3), (false, u4:15));
+  assert_eq(umul_with_overflow<u32:4>(u4:4, u3:4), (true, u4:0));
+  assert_eq(umul_with_overflow<u32:4>(u4:9, u3:2), (true, u4:2));
+  assert_eq(umul_with_overflow<u32:4>(u4:15, u3:7), (true, u4:9));
+
+  for (i, ()) : (u32, ()) in u32:0..u32:7 {
+    for (j, ()) : (u32, ()) in u32:0..u32:15 {
+      let result = i * j;
+      let overflow = result > u32:15;
+
+      assert_eq(umul_with_overflow<u32:4>(i as u3, j as u4),
+                (overflow, result as u4))
+    } (())
+  } (());
 }

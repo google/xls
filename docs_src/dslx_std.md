@@ -137,6 +137,22 @@ pub fn popcount<N: u32>(x: bits[N]) -> bits[N]
 
 Counts the number of bits in `x` that are '1'.
 
+### `std::extract_bits`
+
+```dslx-snippet
+pub fn extract_bits<from_inclusive: u32, to_exclusive: u32, fixed_shift: u32,
+                    N: u32>(x : bits[N]) -> bits[std::max(0, to_exclusive - from_inclusive)] {
+    let x_extended = x as uN[max(unsigned_sizeof(x) + fixed_shift, to_exclusive)];
+    (x_extended << fixed_shift)[from_inclusive:to_exclusive]
+}
+```
+
+Extracts a bit-slice from x shifted left by fixed_shift.  This function behaves as-if x as
+resonably infinite precision so that the shift does not drop any bits and that the bit slice
+will be in-range.
+
+If `to_exclusive <= from_excsuive`, the result will be a zero-bit `bits[0]`.
+
 ## Mathematical Functions
 
 ### `std::bounded_minus_1`
@@ -265,13 +281,34 @@ pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N]
 
 Returns the maximum of two integers.
 
-### `std::umin`
+### `std::?min`
 
 ```dslx-snippet
+pub fn smin<N: u32>(x: sN[N], y: sN[N]) -> sN[N]
 pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N]
 ```
 
 Returns the minimum of two unsigned integers.
+
+### `std::uadd_with_overflow`
+
+
+```dslx-snippet
+pub fn uadd_with_overflow<V: u32>(x: uN[N], y: uN[M]) -> (bool, uN[V])
+```
+
+Returns a 2-tuple indicating overflow (boolean) and a sum `(x + y) as uN[V]`.
+An overflow occurs if the result does not fit within a `uN[V]`.
+
+### `std::umul_with_overflow`
+
+
+```dslx-snippet
+pub fn umul_with_overflow<V: u32>(x: uN[N], y: uN[M]) -> (bool, uN[V])
+```
+
+Returns a 2-tuple indicating overflow (boolean) and a product `(x * y) as uN[V]`.
+An overflow occurs if the result does not fit within a `uN[V]`.
 
 ## Misc Functions
 

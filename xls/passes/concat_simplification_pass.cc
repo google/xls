@@ -372,10 +372,18 @@ absl::StatusOr<bool> TryBypassReductionOfConcatenation(Node* node) {
 
   // Create reductions of concat operands.
   Concat* concat = node->operand(0)->As<Concat>();
+
+  // Early exit if concat results in bitwith 0.
+  if (concat->GetType()->GetFlatBitCount() == 0) {
+    return false;
+  }
+
   std::vector<Node*> new_reductions;
   for (Node* cat_operand : concat->operands()) {
-    XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
-    new_reductions.push_back(reduce);
+    if (cat_operand->GetType()->GetFlatBitCount() > 0) {
+      XLS_ASSIGN_OR_RETURN(Node * reduce, node->Clone({cat_operand}));
+      new_reductions.push_back(reduce);
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(Op non_reductive_op,
@@ -425,7 +433,7 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 
   // For zero-bit concatenations, we simply report we didn't change anything
   // (there's nothing to change with respect to operands).
-  if (concat->operands().empty()) {
+  if (concat->GetType()->GetFlatBitCount() == 0) {
     return false;
   }
 
