@@ -14,13 +14,20 @@
 
 #include "xls/scheduling/pipeline_schedule.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <vector>
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/fdo/delay_manager.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
@@ -28,6 +35,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
 #include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -303,6 +311,16 @@ TEST_F(PipelineScheduleTest, TestVerifyTiming) {
       schedule.VerifyTiming(/*clock_period_ps=*/5, TestDelayEstimator()));
   EXPECT_THAT(
       schedule.VerifyTiming(/*clock_period_ps=*/1, TestDelayEstimator()),
+      status_testing::StatusIs(
+          absl::StatusCode::kInternal,
+          ::testing::HasSubstr(
+              "Schedule does not meet timing (1ps). Longest failing path "
+              "(3ps): add.3 (1ps) -> neg.4 (1ps) -> sub.5 (1ps)")));
+
+  DelayManager delay_manager(func, TestDelayEstimator());
+  XLS_EXPECT_OK(schedule.VerifyTiming(/*clock_period_ps=*/5, delay_manager));
+  EXPECT_THAT(
+      schedule.VerifyTiming(/*clock_period_ps=*/1, delay_manager),
       status_testing::StatusIs(
           absl::StatusCode::kInternal,
           ::testing::HasSubstr(
@@ -1238,9 +1256,8 @@ TEST_F(PipelineScheduleTest, SingleStageSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
 
   // This simply puts all of func's nodes into a single pipeline stage.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      absl::StatusOr<PipelineSchedule> schedule,
-      PipelineSchedule::SingleStage(func));
+  XLS_ASSERT_OK_AND_ASSIGN(absl::StatusOr<PipelineSchedule> schedule,
+                           PipelineSchedule::SingleStage(func));
 
   EXPECT_EQ(schedule.value().length(), 1);
 

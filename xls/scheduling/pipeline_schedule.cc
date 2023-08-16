@@ -33,7 +33,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/ir/channel.h"
+#include "xls/fdo/delay_manager.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -282,6 +282,29 @@ absl::Status PipelineSchedule::VerifyTiming(
               out, absl::StrFormat(
                        "%s (%dps)", n->GetName(),
                        delay_estimator.GetOperationDelayInPs(n).value()));
+        })));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status PipelineSchedule::VerifyTiming(
+    int64_t clock_period_ps, const DelayManager& delay_manager) const {
+  PathExtractOptions options;
+  options.cycle_map = &cycle_map_;
+  XLS_ASSIGN_OR_RETURN(PathInfo critical_path,
+                       delay_manager.GetLongestPath(options));
+
+  auto [delay, source, target] = critical_path;
+  if (delay > clock_period_ps) {
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> path,
+                         delay_manager.GetFullCriticalPath(source, target));
+    return absl::InternalError(absl::StrFormat(
+        "Schedule does not meet timing (%dps). Longest failing path (%dps): %s",
+        clock_period_ps, delay,
+        absl::StrJoin(path, " -> ", [&](std::string* out, Node* n) {
+          absl::StrAppend(
+              out, absl::StrFormat("%s (%dps)", n->GetName(),
+                                   delay_manager.GetNodeDelay(n).value()));
         })));
   }
   return absl::OkStatus();

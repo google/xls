@@ -24,6 +24,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/fdo/delay_manager.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
@@ -88,6 +89,8 @@ class PipelineSchedule {
   // given clock period.
   absl::Status VerifyTiming(int64_t clock_period_ps,
                             const DelayEstimator& delay_estimator) const;
+  absl::Status VerifyTiming(int64_t clock_period_ps,
+                            const DelayManager& delay_manager) const;
 
   // Verifies that all scheduling constraints are followed.
   absl::Status VerifyConstraints(
