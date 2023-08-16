@@ -521,6 +521,7 @@ cc_library(
         "//xls/dslx/frontend:ast_cloner",
         "//xls/dslx/frontend:scanner",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:format_preference",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",

@@ -35,6 +35,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 
@@ -150,7 +151,7 @@ std::string ConcreteTypeDim::ToString() const {
   // InterpValues to be passed as parametrics, not just ones that become (used)
   // dimension data -- we need to allow for e.g. signed types which may not end
   // up in any particular dimension position.
-  return std::get<InterpValue>(value_).GetBitsOrDie().ToString();
+  return BitsToString(std::get<InterpValue>(value_).GetBitsOrDie());
 }
 
 bool ConcreteTypeDim::operator==(

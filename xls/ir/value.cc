@@ -26,6 +26,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls {
 
@@ -199,7 +200,7 @@ std::string Value::ToString(FormatPreference preference) const {
       return "<invalid value>";
     case ValueKind::kBits:
       return absl::StrFormat("bits[%d]:%s", bits().bit_count(),
-                             bits().ToString(preference));
+                             BitsToString(bits(), preference));
     case ValueKind::kTuple:
       return absl::StrCat(
           "(",
@@ -260,7 +261,7 @@ std::string Value::ToHumanString(FormatPreference preference) const {
     case ValueKind::kInvalid:
       return "<invalid value>";
     case ValueKind::kBits:
-      return bits().ToString(preference);
+      return BitsToString(bits(), preference);
     case ValueKind::kArray:
       return absl::StrCat("[",
                           absl::StrJoin(elements(), ", ",

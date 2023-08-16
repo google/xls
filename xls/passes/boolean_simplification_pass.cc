@@ -446,7 +446,7 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
       XLS_ASSIGN_OR_RETURN(Bits result, FlowFromFrontierToNode(
                                             frontier, node, memoized_results));
       XLS_VLOG(3) << "Flow result for " << node << ": "
-                  << result.ToString(FormatPreference::kBinary, true);
+                  << BitsToString(result, FormatPreference::kBinary, true);
       XLS_ASSIGN_OR_RETURN(Node * replacement,
                            ResolveTruthTable(result, operands, node));
       if (replacement == nullptr) {

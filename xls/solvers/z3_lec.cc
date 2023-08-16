@@ -30,6 +30,7 @@
 #include "xls/codegen/vast.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/node_util.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -299,12 +300,12 @@ std::string Lec::ResultToString() {
 
       output.push_back(
           absl::StrCat("\nOutput IR node ", node->ToString(), ":"));
-      output.push_back(
-          absl::StrCat("  IR: ", ir_string, " (",
-                       ir_rope.Build().ToString(FormatPreference::kHex), ")"));
-      output.push_back(
-          absl::StrCat("  NL: ", outputs.second, " (",
-                       nl_rope.Build().ToString(FormatPreference::kHex), ")"));
+      output.push_back(absl::StrCat(
+          "  IR: ", ir_string, " (",
+          BitsToString(ir_rope.Build(), FormatPreference::kHex), ")"));
+      output.push_back(absl::StrCat(
+          "  NL: ", outputs.second, " (",
+          BitsToString(nl_rope.Build(), FormatPreference::kHex), ")"));
     }
   }
 

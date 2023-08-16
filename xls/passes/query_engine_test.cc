@@ -127,9 +127,10 @@ class QueryEngineTest : public IrTestBase,
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     XLS_VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-    return absl::StrCat(
-        "0b", engine->MaxUnsignedValue(n.node()).ToRawDigits(
-                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+    return absl::StrCat("0b",
+                        BitsToRawDigits(engine->MaxUnsignedValue(n.node()),
+                                        FormatPreference::kBinary,
+                                        /*emit_leading_zeros=*/true));
   }
 
   absl::StatusOr<std::string> GetMinUnsignedValue(
@@ -141,9 +142,10 @@ class QueryEngineTest : public IrTestBase,
     XLS_ASSIGN_OR_RETURN(Function * f, fb.Build());
     XLS_VLOG(3) << f->DumpIr();
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> engine, GetEngine(f));
-    return absl::StrCat(
-        "0b", engine->MinUnsignedValue(n.node()).ToRawDigits(
-                  FormatPreference::kBinary, /*emit_leading_zeros=*/true));
+    return absl::StrCat("0b",
+                        BitsToRawDigits(engine->MinUnsignedValue(n.node()),
+                                        FormatPreference::kBinary,
+                                        /*emit_leading_zeros=*/true));
   }
 
   absl::StatusOr<bool> GetNodesKnownUnsignedNotEquals(

@@ -46,8 +46,8 @@ struct DataPacket {
   std::string ToString() const {
     return absl::StrFormat(
         "{valid: %d, source_index: %d, dest_index: %d, "
-        "vc: %d, data: %s}",
-        valid, source_index, destination_index, vc, data.ToString());
+        "vc: %d, data: %v}",
+        valid, source_index, destination_index, vc, data);
   }
 
   // String converter to support absl::StrFormat() and related functions.

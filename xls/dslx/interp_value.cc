@@ -30,10 +30,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 
@@ -125,8 +127,9 @@ std::string TagToString(InterpValueTag tag) {
 
 // Converts an interp value (precondition: `v.IsBits()`) to a string, given a
 // format preference.
-static std::string BitsToString(const InterpValue& v, FormatPreference format,
-                                bool include_type_prefix = true) {
+static std::string InterpValueBitsToString(const InterpValue& v,
+                                           FormatPreference format,
+                                           bool include_type_prefix = true) {
   const Bits& bits = v.GetBitsOrDie();
   const int64_t bit_count = v.GetBitCount().value();
 
@@ -142,9 +145,10 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
 
   switch (v.tag()) {
     case InterpValueTag::kUBits: {
-      std::string value_str = bits.ToString(format);
+      std::string value_str = BitsToString(bits, format);
       if (format == FormatPreference::kSignedDecimal && bits.msb()) {
-        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+        value_str =
+            absl::StrCat("-", BitsToString(bits_ops::Negate(bits), format));
       }
       if (!include_type_prefix) {
         return value_str;
@@ -153,13 +157,14 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
       return absl::StrCat(type_str, ":", value_str);
     }
     case InterpValueTag::kSBits: {
-      std::string value_str = bits.ToString(format);
+      std::string value_str = BitsToString(bits, format);
       if ((format == FormatPreference::kSignedDecimal ||
            format == FormatPreference::kDefault) &&
           bits.msb()) {
         // If we're a signed number in decimal format, give the value for the
         // bit pattern that has the leading negative sign.
-        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+        value_str =
+            absl::StrCat("-", BitsToString(bits_ops::Negate(bits), format));
       }
       if (!include_type_prefix) {
         return value_str;
@@ -170,7 +175,7 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
     default:
       break;
   }
-  XLS_LOG(FATAL) << "Invalid tag for BitsToString: " << v.tag();
+  XLS_LOG(FATAL) << "Invalid tag for InterpValueBitsToString: " << v.tag();
 }
 
 std::string InterpValue::ToString(bool humanize,
@@ -180,9 +185,9 @@ std::string InterpValue::ToString(bool humanize,
         GetValuesOrDie(), ", ",
         [humanize, format](std::string* out, const InterpValue& v) {
           if (humanize && v.IsBits()) {
-            absl::StrAppend(
-                out,
-                BitsToString(v, format, /*include_type_prefix=*/!humanize));
+            absl::StrAppend(out,
+                            InterpValueBitsToString(
+                                v, format, /*include_type_prefix=*/!humanize));
             return;
           }
           absl::StrAppend(out, v.ToString(humanize, format));
@@ -192,16 +197,16 @@ std::string InterpValue::ToString(bool humanize,
   switch (tag_) {
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
-      return BitsToString(*this, format,
-                          /*include_type_prefix=*/!humanize);
+      return InterpValueBitsToString(*this, format,
+                                     /*include_type_prefix=*/!humanize);
     case InterpValueTag::kArray:
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:
       return absl::StrFormat("(%s)", make_guts());
     case InterpValueTag::kEnum: {
       EnumData enum_data = std::get<EnumData>(payload_);
-      return absl::StrFormat("%s:%s", enum_data.def->identifier(),
-                             enum_data.value.ToString());
+      return absl::StrFormat("%s:%v", enum_data.def->identifier(),
+                             enum_data.value);
     }
     case InterpValueTag::kFunction:
       if (std::holds_alternative<Builtin>(GetFunctionOrDie())) {

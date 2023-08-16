@@ -33,7 +33,9 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/code_template.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls {
 namespace verilog {
@@ -712,26 +714,27 @@ std::string Literal::Emit(LineInfo* line_info) const {
   LineInfoEnd(line_info, this);
   if (format_ == FormatPreference::kDefault) {
     XLS_CHECK_LE(bits_.bit_count(), 32);
-    return absl::StrFormat("%s",
-                           bits_.ToString(FormatPreference::kUnsignedDecimal));
+    return absl::StrFormat(
+        "%s", BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
   if (format_ == FormatPreference::kUnsignedDecimal) {
     std::string prefix;
     if (emit_bit_count_) {
       prefix = absl::StrFormat("%d'd", bits_.bit_count());
     }
-    return absl::StrFormat("%s%s", prefix,
-                           bits_.ToString(FormatPreference::kUnsignedDecimal));
+    return absl::StrFormat(
+        "%s%s", prefix,
+        BitsToString(bits_, FormatPreference::kUnsignedDecimal));
   }
   if (format_ == FormatPreference::kBinary) {
     return absl::StrFormat(
         "%d'b%s", bits_.bit_count(),
-        bits_.ToRawDigits(format_, /*emit_leading_zeros=*/true));
+        BitsToRawDigits(bits_, format_, /*emit_leading_zeros=*/true));
   }
   XLS_CHECK_EQ(format_, FormatPreference::kHex);
-  return absl::StrFormat(
-      "%d'h%s", bits_.bit_count(),
-      bits_.ToRawDigits(FormatPreference::kHex, /*emit_leading_zeros=*/true));
+  return absl::StrFormat("%d'h%s", bits_.bit_count(),
+                         BitsToRawDigits(bits_, FormatPreference::kHex,
+                                         /*emit_leading_zeros=*/true));
 }
 
 bool Literal::IsLiteralWithValue(int64_t target) const {

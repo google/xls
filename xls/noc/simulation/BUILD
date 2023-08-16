@@ -235,6 +235,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
     ],
 )
 

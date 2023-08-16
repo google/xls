@@ -39,6 +39,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/dslx:interp_value",
         "//xls/dslx/frontend:ast",
+        "//xls/ir:bits_ops",
     ],
 )
 
@@ -113,6 +114,9 @@ cc_library(
         "//xls/dslx/frontend:ast_node",
         "//xls/dslx/frontend:ast_utils",
         "//xls/dslx/frontend:token_utils",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
     ],
 )
 

@@ -834,30 +834,28 @@ absl::Status ModuleTestbench::CaptureOutputsAndCheckExpectations(
       if (std::holds_alternative<Bits>(expectation.expected)) {
         const Bits& expected_bits = std::get<Bits>(expectation.expected);
         if (std::holds_alternative<IsX>(bits_or_x)) {
-          return absl::FailedPreconditionError(absl::StrFormat(
-              "%s: expected output `%s`, instance #%d to "
-              "have value: %s, has X",
-              get_source_location(), signal_capture.signal.name,
-              signal_capture.instance_id, expected_bits.ToString()));
+          return absl::FailedPreconditionError(
+              absl::StrFormat("%s: expected output `%s`, instance #%d to "
+                              "have value: %v, has X",
+                              get_source_location(), signal_capture.signal.name,
+                              signal_capture.instance_id, expected_bits));
         }
         const Bits& actual_bits = std::get<Bits>(bits_or_x);
         if (actual_bits != expected_bits) {
           return absl::FailedPreconditionError(absl::StrFormat(
-              "%s: expected output `%s`, instance #%d to have value: %s, "
-              "actual: %s",
+              "%s: expected output `%s`, instance #%d to have value: %v, "
+              "actual: %v",
               get_source_location(), signal_capture.signal.name,
-              signal_capture.instance_id, expected_bits.ToString(),
-              actual_bits.ToString()));
+              signal_capture.instance_id, expected_bits, actual_bits));
         }
       } else {
         XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
         if (std::holds_alternative<Bits>(bits_or_x)) {
           return absl::FailedPreconditionError(absl::StrFormat(
               "%s: expected output `%s`, instance #%d to have X value, has "
-              "non X value: %s",
+              "non X value: %v",
               get_source_location(), signal_capture.signal.name,
-              signal_capture.instance_id,
-              std::get<Bits>(bits_or_x).ToString()));
+              signal_capture.instance_id, std::get<Bits>(bits_or_x)));
         }
       }
     }

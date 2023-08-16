@@ -272,9 +272,9 @@ std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
       query_engine->ImpliedNodeValue(predicates, node);
 
   if (implied_value.has_value()) {
-    XLS_VLOG(3) << absl::StreamFormat("%s implies %s==%s",
+    XLS_VLOG(3) << absl::StreamFormat("%s implies %s==%v",
                                       condition_set.ToString(), node->GetName(),
-                                      implied_value->ToString());
+                                      implied_value.value());
   }
   return implied_value;
 }
@@ -401,9 +401,9 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       if (std::optional<Bits> implied_value =
               ImpliedNodeValue(edge_set, operand, query_engine.get());
           implied_value.has_value()) {
-        XLS_VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %s",
+        XLS_VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %v",
                                           operand_no, node->GetName(),
-                                          implied_value->ToString());
+                                          implied_value.value());
         XLS_ASSIGN_OR_RETURN(
             Literal * literal,
             f->MakeNode<Literal>(operand->loc(), Value(implied_value.value())));
@@ -448,10 +448,10 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
               GetSelectedCase(select, implied_selector.value());
           XLS_VLOG(4) << absl::StreamFormat(
               "Conditions for edge (%s, %s) imply selector %s of select %s has "
-              "value %s",
+              "value %v",
               operand->GetName(), node->GetName(),
               select->selector()->GetName(), select->GetName(),
-              implied_selector->ToString());
+              implied_selector.value());
           replacement = implied_case;
           src = implied_case;
         }

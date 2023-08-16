@@ -74,17 +74,16 @@ bool SimplePipelineImpl<DataTimePhitT>::TryPropagation(
   if (stage_count_ == 0) {
     // No pipeline stages, so output is updated when input is ready.
     if (from_.cycle == current_cycle) {
-      XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
-                                        from_.flit.data.ToString(),
-                                        from_.flit.type);
+      XLS_VLOG(2) << absl::StreamFormat("... link received data %v type %d",
+                                        from_.flit.data, from_.flit.type);
 
       to_.flit = from_.flit;
       to_.cycle = current_cycle;
       to_.metadata = from_.metadata;
 
       XLS_VLOG(2) << absl::StreamFormat(
-          "... link sending data %s type %d connection",
-          to_.flit.data.ToString(), to_.flit.type);
+          "... link sending data %v type %d connection", to_.flit.data,
+          to_.flit.type);
 
       internal_propagated_cycle_ = current_cycle;
     }
@@ -104,15 +103,14 @@ bool SimplePipelineImpl<DataTimePhitT>::TryPropagation(
       }
 
       XLS_VLOG(2) << absl::StreamFormat(
-          "... link sending data %s type %d connection",
-          to_.flit.data.ToString(), to_.flit.type);
+          "... link sending data %v type %d connection", to_.flit.data,
+          to_.flit.type);
     }
 
     if (from_.cycle == current_cycle) {
       state_.push(from_);
-      XLS_VLOG(2) << absl::StreamFormat("... link received data %s type %d",
-                                        from_.flit.data.ToString(),
-                                        from_.flit.type);
+      XLS_VLOG(2) << absl::StreamFormat("... link received data %v type %d",
+                                        from_.flit.data, from_.flit.type);
 
       internal_propagated_cycle_ = current_cycle;
     }
@@ -1016,10 +1014,9 @@ bool SimNetworkInterfaceSink::TryForwardPropagation(NocSimulator& simulator) {
     src.reverse_channels[vc].flit.data = UBits(1, 32);
 
     XLS_VLOG(2) << absl::StreamFormat(
-        "... sink %x received data %s on vc %d cycle %d, sending 1 credit on "
+        "... sink %x received data %v on vc %d cycle %d, sending 1 credit on "
         "%x",
-        GetId().AsUInt64(), data.ToString(), vc, current_cycle,
-        src.id.AsUInt64());
+        GetId().AsUInt64(), data, vc, current_cycle, src.id.AsUInt64());
   }
 
   // In cycle 0, a full credit update is sent

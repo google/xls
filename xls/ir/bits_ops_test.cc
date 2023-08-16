@@ -18,39 +18,19 @@
 #include <utility>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
-#include "xls/common/math_util.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits_test_helpers.h"
 #include "xls/ir/number_parser.h"
-#include "xls/ir/value.h"
 
 namespace xls {
 namespace {
 
-// Create a Bits of the given bit count with the prime number index bits set to
-// one.
-Bits PrimeBits(int64_t bit_count) {
-  auto is_prime = [](int64_t n) {
-    if (n < 2) {
-      return false;
-    }
-    for (int64_t i = 2; i * i < n; ++i) {
-      if (n % i == 0) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  std::vector<uint8_t> bytes(CeilOfRatio(bit_count, int64_t{8}), 0);
-  for (int64_t i = 0; i < bit_count; ++i) {
-    if (is_prime(i)) {
-      bytes[CeilOfRatio(bytes.size(), size_t{8})] |= 1 << (i % 8);
-    }
-  }
-  return Bits::FromBytes(bytes, bit_count);
+std::string ToPlainString(const std::string& s) {
+  return absl::StrJoin(absl::StrSplit(s.substr(2), '_'), "");
 }
 
 TEST(BitsOpsTest, LogicalOps) {
@@ -108,7 +88,7 @@ TEST(BitsOpsTest, Concat) {
   Bits deadbeef2 = UBits(0xdeadbeefdeadbeefULL, 64);
   Bits fofo = UBits(0xf0f0f0f0f0f0f0f0ULL, 64);
   EXPECT_EQ(
-      bits_ops::Concat({deadbeef2, fofo}).ToString(FormatPreference::kHex),
+      BitsToString(bits_ops::Concat({deadbeef2, fofo}), FormatPreference::kHex),
       "0xdead_beef_dead_beef_f0f0_f0f0_f0f0_f0f0");
 }
 
@@ -128,8 +108,9 @@ TEST(BitsOpsTest, Add) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits wide_rhs,
       ParseNumber("0x1000_0000_0000_0000_0001_1234_4444_3333_0000_1234"));
-  EXPECT_EQ(bits_ops::Add(wide_lhs, wide_rhs).ToString(FormatPreference::kHex),
-            "0x1000_0000_0000_0000_0000_1234_4444_3333_0000_1276");
+  EXPECT_EQ(
+      BitsToString(bits_ops::Add(wide_lhs, wide_rhs), FormatPreference::kHex),
+      "0x1000_0000_0000_0000_0000_1234_4444_3333_0000_1276");
 }
 
 TEST(BitsOpsTest, Sub) {
@@ -151,7 +132,7 @@ TEST(BitsOpsTest, Sub) {
         Bits wide_rhs,
         ParseNumber("0x1000_0000_0000_0000_0001_1234_4444_3333_0000_1234"));
     EXPECT_EQ(
-        bits_ops::Sub(wide_lhs, wide_rhs).ToString(FormatPreference::kHex),
+        BitsToString(bits_ops::Sub(wide_lhs, wide_rhs), FormatPreference::kHex),
         "0xfff_ffff_ffff_ffff_fffd_edcb_bbbb_cccc_ffff_ee0e");
   }
   {
@@ -161,7 +142,7 @@ TEST(BitsOpsTest, Sub) {
         ParseNumber("0x1000_0000_0000_0000_0000_0000_0000_0000_0000"));
     Bits wide_rhs = UBits(42, wide_lhs.bit_count());
     EXPECT_EQ(
-        bits_ops::Sub(wide_lhs, wide_rhs).ToString(FormatPreference::kHex),
+        BitsToString(bits_ops::Sub(wide_lhs, wide_rhs), FormatPreference::kHex),
         "0xfff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffd6");
   }
 }
@@ -179,13 +160,14 @@ TEST(BitsOpsTest, UMul) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits wide_rhs,
       ParseNumber("0x1000_0000_0000_0000_0001_1234_4444_3333_0000_1234"));
-  EXPECT_EQ(bits_ops::UMul(wide_lhs, wide_rhs).ToString(FormatPreference::kHex),
-            "0x200_0000_0000_0000_0000_1246_8888_8666_6000_0249_8dcb_bbbb_cccc_"
-            "ffff_ee12_b179_9995_3326_0004_b168");
+  EXPECT_EQ(
+      BitsToString(bits_ops::UMul(wide_lhs, wide_rhs), FormatPreference::kHex),
+      "0x200_0000_0000_0000_0000_1246_8888_8666_6000_0249_8dcb_bbbb_cccc_"
+      "ffff_ee12_b179_9995_3326_0004_b168");
 
   Bits result = bits_ops::UMul(Bits::AllOnes(65), Bits::AllOnes(65));
   EXPECT_EQ(result.bit_count(), 130);
-  EXPECT_EQ(result.ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(result, FormatPreference::kHex),
             "0x3_ffff_ffff_ffff_fffc_0000_0000_0000_0001");
 }
 
@@ -203,9 +185,10 @@ TEST(BitsOpsTest, SMul) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Bits wide_rhs,
       ParseNumber("0x1000_0000_0000_0000_0001_1234_4444_3333_0000_1234"));
-  EXPECT_EQ(bits_ops::SMul(wide_lhs, wide_rhs).ToString(FormatPreference::kHex),
-            "0xfff_ffff_ffff_ffff_fffa_cdcb_bbbb_cccc_ffff_ee12_b179_9995_3326_"
-            "0004_b168");
+  EXPECT_EQ(
+      BitsToString(bits_ops::SMul(wide_lhs, wide_rhs), FormatPreference::kHex),
+      "0xfff_ffff_ffff_ffff_fffa_cdcb_bbbb_cccc_ffff_ee12_b179_9995_3326_"
+      "0004_b168");
 }
 
 TEST(BitsOpsTest, UDiv) {
@@ -224,9 +207,10 @@ TEST(BitsOpsTest, UDiv) {
       Bits wide_lhs,
       ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
-  EXPECT_EQ(bits_ops::UDiv(wide_lhs,
-                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
-                .ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(
+                bits_ops::UDiv(wide_lhs, bits_ops::ZeroExtend(
+                                             wide_rhs, wide_lhs.bit_count())),
+                FormatPreference::kHex),
             "0xf_ffff_ffff_ffff_ffff_fff0_0000");
 }
 
@@ -246,9 +230,10 @@ TEST(BitsOpsTest, UMod) {
       Bits wide_lhs,
       ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_1002_3004_5006"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
-  EXPECT_EQ(bits_ops::UMod(wide_lhs,
-                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
-                .ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(
+                bits_ops::UMod(wide_lhs, bits_ops::ZeroExtend(
+                                             wide_rhs, wide_lhs.bit_count())),
+                FormatPreference::kHex),
             "0x1002_3004_5006");
 }
 
@@ -285,9 +270,10 @@ TEST(BitsOpsTest, SDiv) {
       Bits wide_lhs,
       ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_0000_0000_0000"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
-  EXPECT_EQ(bits_ops::SDiv(wide_lhs,
-                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
-                .ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(
+                bits_ops::SDiv(wide_lhs, bits_ops::ZeroExtend(
+                                             wide_rhs, wide_lhs.bit_count())),
+                FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_fff0_0000");
 }
 
@@ -320,9 +306,10 @@ TEST(BitsOpsTest, SMod) {
       Bits wide_lhs,
       ParseNumber("0xffff_ffff_ffff_ffff_ffff_0000_0000_a000_b000_c000"));
   XLS_ASSERT_OK_AND_ASSIGN(Bits wide_rhs, ParseNumber("0x1000_0000_0000_0000"));
-  EXPECT_EQ(bits_ops::SMod(wide_lhs,
-                           bits_ops::ZeroExtend(wide_rhs, wide_lhs.bit_count()))
-                .ToString(FormatPreference::kHex),
+  EXPECT_EQ(BitsToString(
+                bits_ops::SMod(wide_lhs, bits_ops::ZeroExtend(
+                                             wide_rhs, wide_lhs.bit_count())),
+                FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_f000_a000_b000_c000");
 }
 
@@ -830,6 +817,159 @@ TEST(BitsOpsTest, LongestCommonPrefixLSBMoreThan2) {
   Bits z(absl::InlinedVector<bool, 1>{0, 1, 1, 1, 0});
   Bits expected(absl::InlinedVector<bool, 1>{0, 1, 1});
   EXPECT_EQ(bits_ops::LongestCommonPrefixLSB({x, y, z}), expected);
+}
+
+void TestBinary(const Bits& b, const std::string& expected) {
+  EXPECT_EQ(BitsToString(b, FormatPreference::kBinary), expected);
+  EXPECT_EQ(BitsToString(b, FormatPreference::kPlainBinary),
+            ToPlainString(expected));
+}
+
+void TestHex(const Bits& b, const std::string& expected) {
+  EXPECT_EQ(BitsToString(b, FormatPreference::kHex), expected);
+  EXPECT_EQ(BitsToString(b, FormatPreference::kPlainHex),
+            ToPlainString(expected));
+}
+
+TEST(BitsOpsTest, ToStringEmptyBits) {
+  Bits empty_bits(0);
+  EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kUnsignedDecimal), "0");
+  EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kSignedDecimal), "0");
+  TestHex(empty_bits, "0x0");
+  TestBinary(empty_bits, "0b0");
+  EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kUnsignedDecimal,
+                         /*include_bit_count=*/true),
+            "0 [0 bits]");
+  EXPECT_EQ(BitsToString(empty_bits, FormatPreference::kSignedDecimal,
+                         /*include_bit_count=*/true),
+            "0 [0 bits]");
+}
+
+TEST(BitsOpsTest, ToStringValue1U1) {
+  Bits b1 = UBits(1, 1);
+  EXPECT_EQ(BitsToString(b1, FormatPreference::kUnsignedDecimal), "1");
+  EXPECT_EQ(BitsToString(b1, FormatPreference::kSignedDecimal), "-1");
+  TestHex(b1, "0x1");
+  TestBinary(b1, "0b1");
+}
+
+TEST(BitsOptTest, ToStringValue1U16) {
+  TestBinary(UBits(1, 16), "0b1");
+  TestHex(UBits(1, 16), "0x1");
+}
+
+TEST(BitsOptTest, ToStringValue42U7) {
+  Bits b42 = UBits(42, 7);
+  EXPECT_EQ(BitsToString(b42, FormatPreference::kUnsignedDecimal), "42");
+  EXPECT_EQ(BitsToString(b42, FormatPreference::kSignedDecimal), "42");
+  TestHex(b42, "0x2a");
+  TestBinary(b42, "0b10_1010");
+}
+
+TEST(BitsOptTest, ToStringPrimeBits64) {
+  const Bits prime64 = PrimeBits(64);
+  EXPECT_EQ(
+      prime64.ToDebugString(),
+      "0b0010100000100010100010100010000010100010100010100010101010111100");
+  EXPECT_EQ(BitsToString(prime64, FormatPreference::kUnsignedDecimal),
+            "2892025783495830204");
+  EXPECT_EQ(BitsToString(prime64, FormatPreference::kSignedDecimal),
+            "2892025783495830204");
+  TestHex(prime64, "0x2822_8a20_a28a_2abc");
+  TestBinary(prime64,
+             "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
+             "1010_1011_1100");
+}
+
+TEST(BitsOptTest, ToStringPrimeBits65) {
+  // Test widths wider than 64. Decimal output for wide bit counts is not
+  // supported.
+  EXPECT_EQ(
+      PrimeBits(65).ToDebugString(),
+      "0b00010100000100010100010100010000010100010100010100010101010111100");
+  TestHex(PrimeBits(65), "0x2822_8a20_a28a_2abc");
+  TestBinary(PrimeBits(65),
+             "0b10_1000_0010_0010_1000_1010_0010_0000_1010_0010_1000_1010_0010_"
+             "1010_1011_1100");
+}
+
+TEST(BitsOptTest, ToStringPrimeBits96) {
+  EXPECT_EQ(PrimeBits(96).ToDebugString(),
+            "0b0000001000001000100000101000100000101000001000101000101000100000"
+            "10100010100010100010101010111100");
+  TestHex(PrimeBits(96), "0x208_8288_2822_8a20_a28a_2abc");
+  TestBinary(PrimeBits(96),
+             "0b10_0000_1000_1000_0010_1000_1000_0010_1000_0010_0010_1000_1010_"
+             "0010_0000_1010_0010_1000_1010_0010_1010_1011_1100");
+}
+
+TEST(BitsOpsTest, ToRawStringEmptyBits) {
+  Bits empty_bits(0);
+  EXPECT_EQ(empty_bits.ToDebugString(), "0b");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kUnsignedDecimal),
+            "0");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kSignedDecimal), "0");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kHex), "0");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kBinary), "0");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kHex,
+                            /*emit_leading_zeros=*/true),
+            "0");
+  EXPECT_EQ(BitsToRawDigits(empty_bits, FormatPreference::kBinary,
+                            /*emit_leading_zeros=*/true),
+            "0");
+}
+
+TEST(BitsOpsTest, ToRawDigitsValue1U16) {
+  EXPECT_EQ(UBits(1, 16).ToDebugString(), "0b0000000000000001");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kBinary), "1");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kHex), "1");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kBinary,
+                            /*emit_leading_zeros=*/true),
+            "0000_0000_0000_0001");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kPlainBinary,
+                            /*emit_leading_zeros=*/true),
+            "0000000000000001");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kHex,
+                            /*emit_leading_zeros=*/true),
+            "0001");
+  EXPECT_EQ(BitsToRawDigits(UBits(1, 16), FormatPreference::kPlainHex,
+                            /*emit_leading_zeros=*/true),
+            "0001");
+}
+
+TEST(BitsOpsTest, ToRawDigitsValue0x1bU13) {
+  EXPECT_EQ(UBits(0x1b, 13).ToDebugString(), "0b0000000011011");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kBinary),
+            "1_1011");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kHex), "1b");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kBinary,
+                            /*emit_leading_zeros=*/true),
+            "0_0000_0001_1011");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kPlainBinary,
+                            /*emit_leading_zeros=*/true),
+            "0000000011011");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kHex,
+                            /*emit_leading_zeros=*/true),
+            "001b");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x1b, 13), FormatPreference::kPlainHex,
+                            /*emit_leading_zeros=*/true),
+            "001b");
+}
+
+TEST(BitsOpsTest, ToRawDigitsValue0x55U17) {
+  EXPECT_EQ(UBits(0x55, 17).ToDebugString(), "0b00000000001010101");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x55, 17), FormatPreference::kBinary,
+                            /*emit_leading_zeros=*/true),
+            "0_0000_0000_0101_0101");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x55, 17), FormatPreference::kPlainBinary,
+                            /*emit_leading_zeros=*/true),
+            "00000000001010101");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x55, 17), FormatPreference::kHex,
+                            /*emit_leading_zeros=*/true),
+            "0_0055");
+  EXPECT_EQ(BitsToRawDigits(UBits(0x55, 17), FormatPreference::kPlainHex,
+                            /*emit_leading_zeros=*/true),
+            "00055");
 }
 
 }  // namespace

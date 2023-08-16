@@ -104,6 +104,7 @@ cc_library(
     hdrs = ["foreign_function.h"],
     deps = [
         ":bits",
+        ":bits_ops",
         ":code_template",
         ":foreign_function_data_cc_proto",
         ":format_preference",
@@ -304,15 +305,20 @@ cc_test(
 cc_test(
     name = "bits_test",
     size = "small",
-    srcs = ["bits_test.cc"],
+    srcs = [
+        "bits_test.cc",
+        "bits_test_helpers.h",
+    ],
     deps = [
         ":bits",
+        ":bits_ops",
         ":number_parser",
         ":value",
         "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@rapidcheck",
@@ -743,6 +749,8 @@ cc_library(
     hdrs = ["value.h"],
     deps = [
         ":bits",
+        ":bits_ops",
+        ":format_preference",
         ":xls_type_cc_proto",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -1044,8 +1052,10 @@ cc_library(
     deps = [
         ":big_int",
         ":bits",
+        ":format_preference",
         ":op",
         "//xls/common/logging",
+        "@com_google_absl//absl/strings:str_format",
     ],
 )
 
@@ -1080,6 +1090,7 @@ cc_library(
     hdrs = ["big_int.h"],
     deps = [
         ":bits",
+        ":format_preference",
         "//xls/common/logging",
         "@boringssl//:crypto",
         "@com_google_absl//absl/status:statusor",
@@ -1105,26 +1116,30 @@ cc_test(
     deps = [
         ":big_int",
         ":bits",
+        ":bits_ops",
         ":number_parser",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "@com_google_absl//absl/strings",
     ],
 )
 
 cc_test(
     name = "bits_ops_test",
-    srcs = ["bits_ops_test.cc"],
+    srcs = [
+        "bits_ops_test.cc",
+        "bits_test_helpers.h",
+    ],
     deps = [
+        ":bits",
         ":bits_ops",
         ":number_parser",
-        ":value",
-        "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/strings",
     ],
 )
 

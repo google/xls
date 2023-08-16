@@ -59,6 +59,9 @@
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 
 namespace xls::dslx {
 namespace {
@@ -280,14 +283,14 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
     std::string low;
     std::string high;
     if (type.is_signed()) {
-      low =
-          Bits::MinSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
-      high =
-          Bits::MaxSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
+      low = BitsToString(Bits::MinSigned(bit_count),
+                         FormatPreference::kSignedDecimal);
+      high = BitsToString(Bits::MaxSigned(bit_count),
+                          FormatPreference::kSignedDecimal);
     } else {
-      low = Bits(bit_count).ToString(FormatPreference::kUnsignedDecimal);
-      high =
-          Bits::AllOnes(bit_count).ToString(FormatPreference::kUnsignedDecimal);
+      low = BitsToString(Bits(bit_count), FormatPreference::kUnsignedDecimal);
+      high = BitsToString(Bits::AllOnes(bit_count),
+                          FormatPreference::kUnsignedDecimal);
     }
 
     return TypeInferenceErrorStatus(

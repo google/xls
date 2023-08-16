@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
@@ -31,11 +32,11 @@ namespace {
 Bits TruncateOrSignExtend(const Bits& bits, int64_t bit_count) {
   if (bits.bit_count() == bit_count) {
     return bits;
-  } else if (bits.bit_count() < bit_count) {
-    return SignExtend(bits, bit_count);
-  } else {
-    return bits.Slice(0, bit_count);
   }
+  if (bits.bit_count() < bit_count) {
+    return SignExtend(bits, bit_count);
+  }
+  return bits.Slice(0, bit_count);
 }
 
 }  // namespace
@@ -606,6 +607,99 @@ Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
     offset_bits = bits_ops::Concat({Bits::MaxSigned(msbs_size), offset_bits});
   }
   return offset_bits;
+}
+
+std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
+                            bool emit_leading_zeros) {
+  XLS_CHECK_NE(preference, FormatPreference::kDefault);
+  if (preference == FormatPreference::kSignedDecimal) {
+    // Leading zeros don't make a lot of sense in decimal format as there is no
+    // clean correspondence between decimal digits and binary digits.
+    XLS_CHECK(!emit_leading_zeros)
+        << "emit_leading_zeros not supported for decimal format.";
+
+    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
+    // emission.
+    XLS_CHECK(bits.FitsInInt64())
+        << "Decimal output not supported for values which do "
+           "not fit in an int64_t";
+    return absl::StrCat(bits.ToInt64().value());
+  }
+
+  if (preference == FormatPreference::kUnsignedDecimal) {
+    // Leading zeros don't make a lot of sense in decimal format as there is no
+    // clean correspondence between decimal digits and binary digits.
+    XLS_CHECK(!emit_leading_zeros)
+        << "emit_leading_zeros not supported for decimal format.";
+    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
+    // emission.
+    XLS_CHECK(bits.FitsInUint64())
+        << "Decimal output not supported for values which do "
+           "not fit in a uint64_t";
+    return absl::StrCat(bits.ToUint64().value());
+  }
+  if (bits.bit_count() == 0) {
+    return "0";
+  }
+
+  const bool binary_format = (preference == FormatPreference::kBinary) ||
+                             (preference == FormatPreference::kPlainBinary);
+  const bool hex_format = (preference == FormatPreference::kHex) ||
+                          (preference == FormatPreference::kPlainHex);
+  const bool plain_format = (preference == FormatPreference::kPlainBinary) ||
+                            (preference == FormatPreference::kPlainHex);
+
+  XLS_CHECK(binary_format || hex_format);
+
+  const int64_t digit_width = binary_format ? 1 : 4;
+  const int64_t digit_count = CeilOfRatio(bits.bit_count(), digit_width);
+  // Include separators every 4 digits (to break up binary and hex numbers),
+  // unless we are printing in a plain format.
+  const bool include_separators = !plain_format;
+  const int64_t kSeparatorPeriod = 4;
+
+  std::string result;
+  bool eliding_leading_zeros = !emit_leading_zeros;
+  for (int64_t digit_no = digit_count - 1; digit_no >= 0; --digit_no) {
+    // If including separators, add one every kSeparatorPeriod digits.
+    if (include_separators && ((digit_no + 1) % kSeparatorPeriod == 0) &&
+        !result.empty()) {
+      absl::StrAppend(&result, "_");
+    }
+    // Slice out a Bits which contains 1 digit.
+    int64_t start = digit_no * digit_width;
+    int64_t width = std::min(digit_width, bits.bit_count() - start);
+    // As single digit necessarily fits in a uint64_t, so the value() is safe.
+    uint64_t digit_value = bits.Slice(start, width).ToUint64().value();
+    if (digit_value == 0 && eliding_leading_zeros && digit_no != 0) {
+      continue;
+    }
+    eliding_leading_zeros = false;
+    absl::StrAppend(&result, absl::StrFormat("%x", digit_value));
+  }
+  return result;
+}
+
+std::string BitsToString(const Bits& bits, FormatPreference preference,
+                         bool include_bit_count) {
+  if (preference == FormatPreference::kDefault) {
+    if (bits.bit_count() <= 64) {
+      preference = FormatPreference::kUnsignedDecimal;
+    } else {
+      preference = FormatPreference::kHex;
+    }
+  }
+  std::string result;
+  if (preference == FormatPreference::kBinary) {
+    result = "0b";
+  } else if (preference == FormatPreference::kHex) {
+    result = "0x";
+  }
+  absl::StrAppend(&result, BitsToRawDigits(bits, preference));
+  if (include_bit_count) {
+    absl::StrAppendFormat(&result, " [%d bits]", bits.bit_count());
+  }
+  return result;
 }
 
 }  // namespace xls

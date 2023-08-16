@@ -44,6 +44,7 @@
 #include "xls/dslx/interp_value.h"
 #include "xls/fuzzer/value_generator.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 
@@ -972,7 +973,8 @@ Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
 Number* AstGenerator::MakeNumberFromBits(const Bits& value,
                                          TypeAnnotation* type,
                                          FormatPreference format_preference) {
-  return module_->Make<Number>(fake_span_, value.ToString(format_preference),
+  return module_->Make<Number>(fake_span_,
+                               BitsToString(value, format_preference),
                                NumberKind::kOther, type);
 }
 

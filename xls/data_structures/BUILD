@@ -298,6 +298,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
+        "//xls/ir:bits_ops",
         "//xls/ir:ir_parser",
     ],
 )

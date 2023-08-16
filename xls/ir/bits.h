@@ -16,11 +16,7 @@
 #define XLS_IR_BITS_H_
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
-#include <numeric>
-#include <ostream>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,7 +25,6 @@
 #include "xls/common/math_util.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/bit_push_buffer.h"
-#include "xls/ir/format_preference.h"
 
 namespace xls {
 namespace internal {
@@ -113,31 +108,20 @@ class Bits {
     bitmap_.WriteBytesToBuffer(bytes);
   }
 
-  // Return the Bits object as a vector of bits. The n-th element of the
-  // returned vector is the n-th bit of the Bits object. Returns
-  // absl::InlinedVector to avoid std::vector<bool> specialization.
+  // Returns the underlying bitmap contents as a binary string (suitable for
+  // debugging printouts in e.g. error messages) -- this is used for any error
+  // reporting that needs to happen at the `Bits` level of functionality --
+  // nicer pretty printing is available in `bits_ops.h`.
+  std::string ToDebugString() const;
+
+  // Returns the Bits object as a vector of bits. The n-th element of the
+  // returned vector is the n-th bit of the Bits object, i.e. the msb is at the
+  // end of the vector.
+  //
+  // Returns absl::InlinedVector to avoid std::vector<bool> specialization.
   absl::InlinedVector<bool, 1> ToBitVector() const;
 
   int64_t bit_count() const { return bitmap_.bit_count(); }
-
-  // Returns a string representation of the Bits object. A kDefault format
-  // preference emits a decimal string if the bit count is less than or equal to
-  // 64, or a hexadecimal string otherwise. If include_bit_count is true, then
-  // also emit the bit width as a suffix; example: "0xabcd [16 bits]".
-  std::string ToString(FormatPreference preference = FormatPreference::kDefault,
-                       bool include_bit_count = false) const;
-
-  // Emits the bits value as an string of digits. Supported FormatPreferences
-  // are: kDecimal, kHex, and kBinary. The string is not prefixed (e.g., no
-  // leading "0x"). Hexadecimal and binary numbers have '_' separators inserted
-  // every 4th digit. For example, the decimal number 1000 in binary:
-  // 111_1110_1000. If emit_leading_zeros is true, binary and hexadecimal
-  // formatted number will include leading zero up to the width of the
-  // underlying Bits object. For example, if emit_leading_zeros is true:
-  // Bits(42, 11) will result in '02a' and '000_0010_1010' for binary and
-  // hexadecimal format respectively.
-  std::string ToRawDigits(FormatPreference preference,
-                          bool emit_leading_zeros = false) const;
 
   // Return the most-significant bit.
   bool msb() const { return bit_count() == 0 ? false : Get(bit_count() - 1); }
@@ -307,11 +291,6 @@ inline Bits UBits(uint64_t value, int64_t bit_count) {
 }
 inline Bits SBits(int64_t value, int64_t bit_count) {
   return SBitsWithStatus(value, bit_count).value();
-}
-
-inline std::ostream& operator<<(std::ostream& os, const Bits& bits) {
-  os << bits.ToString(FormatPreference::kDefault, /*include_bit_count=*/true);
-  return os;
 }
 
 }  // namespace xls

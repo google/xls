@@ -18,7 +18,6 @@
 #ifndef XLS_CODEGEN_VAST_H_
 #define XLS_CODEGEN_VAST_H_
 
-#include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -34,6 +33,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/source_location.h"
 
 namespace xls {

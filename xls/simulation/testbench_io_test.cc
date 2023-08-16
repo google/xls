@@ -25,6 +25,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/thread.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -106,7 +107,7 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
       XLS_ASSIGN_OR_RETURN(
           Bits value, ParseUnsignedNumberWithoutPrefix(
                           *line, FormatPreference::kHex, /*bit_count=*/32));
-      XLS_VLOG(1) << absl::StreamFormat("Value: %s", value.ToString());
+      XLS_VLOG(1) << absl::StreamFormat("Value: %v", value);
       values.push_back(static_cast<int32_t>(value.ToUint64().value()));
     }
     return values;

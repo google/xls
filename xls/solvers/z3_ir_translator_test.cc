@@ -1895,7 +1895,7 @@ fn f() -> bits[64] {
       Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " sdiv " << test_case_rhs << " -> expect "
-          << expected_bits.ToRawDigits(FormatPreference::kSignedDecimal);
+          << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
       Z3_solver_dec_ref(ctx, solver);
     }
   }
@@ -1981,7 +1981,7 @@ fn f() -> bits[64] {
       Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " umod " << test_case_rhs << " -> expect "
-          << expected_bits.ToRawDigits(FormatPreference::kUnsignedDecimal);
+          << BitsToRawDigits(expected_bits, FormatPreference::kUnsignedDecimal);
       Z3_solver_dec_ref(ctx, solver);
     }
   }
@@ -2028,7 +2028,7 @@ fn f() -> bits[64] {
       Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
       EXPECT_EQ(satisfiable, Z3_L_TRUE)
           << test_case_lhs << " smod " << test_case_rhs << " -> expect "
-          << expected_bits.ToRawDigits(FormatPreference::kSignedDecimal);
+          << BitsToRawDigits(expected_bits, FormatPreference::kSignedDecimal);
       Z3_solver_dec_ref(ctx, solver);
     }
   }

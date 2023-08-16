@@ -303,8 +303,8 @@ bool Interval::CoversMax() const { return Covers(Bits::AllOnes(BitCount())); }
 
 std::string Interval::ToString() const {
   FormatPreference pref = FormatPreference::kDefault;
-  return absl::StrFormat("[%s, %s]", lower_bound_.ToString(pref, false),
-                         upper_bound_.ToString(pref, false));
+  return absl::StrFormat("[%s, %s]", BitsToString(lower_bound_, pref, false),
+                         BitsToString(upper_bound_, pref, false));
 }
 
 Interval Interval::Random(uint64_t seed, int64_t bit_count) {

@@ -351,12 +351,9 @@ std::tuple<BigInt, int64_t> BigInt::FactorizePowerOfTwo(const BigInt& input) {
 
 std::ostream& operator<<(std::ostream& os, const BigInt& big_int) {
   if (BigInt::LessThan(big_int, BigInt())) {
-    os << "-"
-       << BigInt::Negate(big_int).ToUnsignedBits().ToString(
-              FormatPreference::kHex, /*include_bit_count=*/true);
+    os << "-" << BigInt::Negate(big_int).ToUnsignedBits().ToDebugString();
   } else {
-    os << big_int.ToUnsignedBits().ToString(FormatPreference::kHex,
-                                            /*include_bit_count=*/true);
+    os << big_int.ToUnsignedBits().ToDebugString();
   }
   return os;
 }

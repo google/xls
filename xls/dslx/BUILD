@@ -187,11 +187,13 @@ cc_library(
     hdrs = ["interp_value.h"],
     deps = [
         ":value_format_descriptor",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/dslx/frontend:ast",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_preference",
         "//xls/ir:value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

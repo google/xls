@@ -68,7 +68,7 @@ absl::Status Packetizer::AcceptNewFlit(DataFlit flit) {
     for (Bits& b : *partial_packet_store) {
       XLS_VLOG(1) << absl::StreamFormat(
           "... packetizer concat %s",
-          b.ToString(FormatPreference::kBinary, true));
+          BitsToString(b, FormatPreference::kBinary, true));
       received_data.push_back(b);
     }
 

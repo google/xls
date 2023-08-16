@@ -20,8 +20,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/matchers.h"
 
 using ::testing::Optional;
 
@@ -94,7 +92,7 @@ TEST(IntervalTest, ForEachElement) {
 
   for (const Interval& interval : example.Intervals()) {
     interval.ForEachElement([&](const Bits& bits) -> bool {
-      EXPECT_TRUE(visited.contains(bits)) << bits.ToString();
+      EXPECT_TRUE(visited.contains(bits)) << bits;
       visited.erase(bits);
       return false;
     });

@@ -160,7 +160,7 @@ std::string HexifyOutput(const std::string& input) {
       rope.push_back(match[i] == '1');
     }
 
-    std::string new_text = rope.Build().ToString(FormatPreference::kHex);
+    std::string new_text = BitsToString(rope.Build(), FormatPreference::kHex);
     new_text[0] = '#';
     XLS_CHECK(RE2::Replace(&text, "#b[01]+", new_text));
   }
@@ -178,8 +178,8 @@ std::string BitVectorToString(Z3_context ctx,
     rope.push_back(QueryNode(ctx, model, z3_bit) == kZ3One);
   }
   Bits bits = bits_ops::Reverse(rope.Build());
-  return absl::StrCat("0b", bits.ToRawDigits(FormatPreference::kBinary,
-                                             /*emit_leading_zeros=*/true));
+  return absl::StrCat("0b", BitsToRawDigits(bits, FormatPreference::kBinary,
+                                            /*emit_leading_zeros=*/true));
 }
 
 Z3_sort TypeToSort(Z3_context ctx, const Type& type) {

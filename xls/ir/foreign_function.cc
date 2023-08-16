@@ -23,6 +23,7 @@
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function_data.pb.h"
 #include "xls/ir/format_preference.h"
@@ -54,7 +55,7 @@ void FfiPartialValueSubstituteHelper::SetNamedValue(std::string_view name,
   // Verilog-specific templates.
   substitutions_[name] = absl::StrFormat(
       "%d'h%s", value.bits().bit_count(),
-      value.bits().ToRawDigits(FormatPreference::kPlainHex, true));
+      BitsToRawDigits(value.bits(), FormatPreference::kPlainHex, true));
 }
 
 std::optional<::xls::ForeignFunctionData>

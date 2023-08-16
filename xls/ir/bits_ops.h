@@ -16,8 +16,10 @@
 #define XLS_IR_BITS_OPS_H_
 
 #include <cstdint>
+#include <ostream>
 
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/op.h"
 
 namespace xls {
@@ -212,6 +214,42 @@ Bits operator~(const Bits& bits);
 //  shift_size: the amount the right-shift the LSBs by, should be distinct for
 //  each runtime.
 Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size);
+
+// Emits the bits value as a string of digits. Supported FormatPreferences
+// are: kDecimal, kHex, and kBinary. The string is not prefixed (e.g., no
+// leading "0x"). Hexadecimal and binary numbers have '_' separators inserted
+// every 4th digit. For example, the decimal number 1000 in binary:
+// 111_1110_1000. If emit_leading_zeros is true, binary and hexadecimal
+// formatted number will include leading zero up to the width of the
+// underlying Bits object. For example, if emit_leading_zeros is true:
+// Bits(42, 11) will result in '02a' and '000_0010_1010' for binary and
+// hexadecimal format respectively.
+std::string BitsToRawDigits(const Bits& bits, FormatPreference preference,
+                            bool emit_leading_zeros = false);
+
+// Returns a string representation of the Bits object. A kDefault format
+// preference emits a decimal string if the bit count is less than or equal to
+// 64, or a hexadecimal string otherwise. If include_bit_count is true, then
+// also emit the bit width as a suffix; example: "0xabcd [16 bits]".
+std::string BitsToString(
+    const Bits& bits, FormatPreference preference = FormatPreference::kDefault,
+    bool include_bit_count = false);
+
+// Implementation note: the operator<< and AbslStringify definitions for the
+// Bits datatype are defined here so that we can layer on top of BigNum
+// functionality, which avoids having a massive translation unit for all
+// bits-like-things (and bits.h stays a simple bitmap structure).
+
+inline std::ostream& operator<<(std::ostream& os, const Bits& bits) {
+  os << BitsToString(bits, FormatPreference::kDefault,
+                     /*include_bit_count=*/true);
+  return os;
+}
+
+template <typename Sink>
+void AbslStringify(Sink& sink, const Bits& bits) {
+  sink.Append(BitsToString(bits));
+}
 
 }  // namespace xls
 
