@@ -19,6 +19,10 @@
 
 #include "xls/common/logging/logging.h"
 
+enum class AccessWidth : uint8_t { BYTE, WORD, DWORD, QWORD };
+
+enum class IRQEnum : uint8_t { NoChange, SetIRQ, UnsetIRQ };
+
 inline uint64_t BytesToBits(uint64_t byte_count) {
   XLS_DCHECK_GE(byte_count, 0);
   XLS_DCHECK_LE(byte_count, 8);

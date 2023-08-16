@@ -385,3 +385,29 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+cc_library(
+    name = "iperipheral",
+    hdrs = [
+        "iperipheral.h",
+    ],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "iperipheral_stub",
+    srcs = [
+        "iperipheral_stub.cc",
+    ],
+    hdrs = [
+        "iperipheral_stub.h",
+    ],
+    deps = [
+        ":iperipheral",
+        "//xls/common/logging",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
