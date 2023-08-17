@@ -17,7 +17,7 @@
         <link rel="next" href="../ir_lowering/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.1.21">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.eebd395e.min.css">
       
       
 
@@ -1438,6 +1438,7 @@ SystemVerilog.</p>
 <li><a href="#input-specification">Input specification</a></li>
 <li><a href="#output-locations">Output locations</a></li>
 <li><a href="#pipelining-and-scheduling-options">Pipelining and Scheduling Options</a></li>
+<li><a href="#feedback-driven-optimization-fdo-options">Feedback-driven Optimization (FDO) Options</a></li>
 <li><a href="#naming">Naming</a></li>
 <li><a href="#reset-signal-configuration">Reset Signal Configuration</a></li>
 <li><a href="#codegen-mapping">Codegen Mapping</a><ul>
@@ -1492,9 +1493,16 @@ control the scheduler.</p>
 <li><code>--period_relaxation_percent=...</code> sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     <code>--clock_period_ps</code>.</li>
+<li><code>--worst_case_throughput=...</code> sets the worst-case throughput bound to use
+    when <code>--generator=pipeline</code>. If set, allows scheduling a pipeline with
+    worst-case throughput no slower than once per N cycles (assuming no stalling
+    <code>recv</code>s).</li>
 <li><code>--additional_input_delay_ps=...</code> adds additional input delay to the inputs.
     This can be helpful to meet timing when integrating XLS designs with other
     RTL.</li>
+<li><code>--ffi_fallback_delay_ps=...</code> Delay of foreign function calls if not
+    otherwise specified. If there is no measurement or configuration for the
+    delay of an invoked modules, this is the value used in the scheduler.</li>
 <li><code>--io_constraints=...</code> adds constraints to the scheduler. The flag takes a
     comma-separated list of constraints of the form <code>foo:send:bar:recv:3:5</code>
     which means that sends on channel <code>foo</code> must occur between 3 and 5 cycles
@@ -1507,6 +1515,29 @@ control the scheduler.</p>
     example of the use of this, see
     <a href="https://github.com/google/xls/tree/main/xls/examples/constraint.x">this example</a> and
     the associated BUILD rule.</li>
+</ul>
+<h1 id="feedback-driven-optimization-fdo-options">Feedback-driven Optimization (FDO) Options</h1>
+<p>The following flags control the feedback-driven optimizations in XLS. For now,
+an iterative SDC scheduling method is implemented, which can take low-level
+feedbacks (typically from downstream tools, e.g., OpenROAD) to guide the delay
+estimation refinements in XLS. For now, FDO is disabled by default
+(<code>--fdo_iteration_number=1</code>).</p>
+<ul>
+<li><code>--fdo_iteration_number=...</code> The number of FDO iterations during the
+    pipeline scheduling. Must be an integer &gt;= 1.</li>
+<li><code>--fdo_delay_driven_path_number=...</code> The number of delay-driven subgraphs in
+    each FDO iteration. Must be a non-negative integer.</li>
+<li><code>--fdo_fanout_driven_path_number=...</code> The number of fanout-driven subgraphs
+    in each FDO iteration. Must be a non-negative integer.</li>
+<li><code>--fdo_refinement_stochastic_ratio=...</code> *path_number over
+    refinement_stochastic_ratio paths are extracted and *path_number paths are
+    randomly selected from them for synthesis in each FDO iteration. Must be a
+    positive float &lt;= 1.0.</li>
+<li><code>--fdo_path_evaluate_strategy=...</code> Support path, cone, and window for now.</li>
+<li><code>--fdo_synthesizer_name=...</code> Only support yosys for now.</li>
+<li><code>--fdo_yosys_path=...</code> Absolute path of Yosys.</li>
+<li><code>--fdo_sta_path=...</code> Absolute path of OpenSTA.</li>
+<li><code>--fdo_synthesis_libraries=...</code> Synthesis and STA libraries.</li>
 </ul>
 <h1 id="naming">Naming</h1>
 <p>Some names can be set at codegen via the following flags:</p>

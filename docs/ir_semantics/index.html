@@ -17,7 +17,7 @@
         <link rel="next" href="../optimizations/optimizations/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.1.21">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.eebd395e.min.css">
       
       
 
@@ -3943,9 +3943,17 @@ are listed directly in the function signature with their type.</p>
 </table>
 <h4 id="sel"><strong><code>sel</code></strong></h4>
 <p>Selects between operands based on a selector value.</p>
+<p>This behaves as if the <code>selector</code> indexes into the values given in <code>cases</code>,
+providing <code>default</code> if it is indexing beyond the given <code>cases</code>.</p>
 <p><strong>Syntax</strong></p>
 <div class="highlight"><pre><span></span><code>result = sel(selector, cases=[case_{0}, ... , case_{N-1}], default=&lt;default&gt;)
 </code></pre></div>
+<p>A default value must be provided <strong>iff</strong> the <code>selector</code> is not the correct width
+for the <code>cases</code> array. That is, if the number of cases is less than
+<span class="arithmatex">\(2^{bitwidth(selector)}\)</span> then a default value must be specified (because it must
+be well defined what happens when the selector takes on values outside the case
+range). If the selector is exactly the correct bitwidth a default value must not
+be provided.</p>
 <p><strong>Types</strong></p>
 <table>
 <thead>

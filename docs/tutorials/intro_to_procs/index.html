@@ -17,7 +17,7 @@
         <link rel="next" href="../xlscc_overview/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
+      <meta name="generator" content="mkdocs-1.5.2, mkdocs-material-9.1.21">
     
     
       
@@ -25,7 +25,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.26e3688c.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.eebd395e.min.css">
       
       
 
@@ -1578,7 +1578,9 @@ into a channel by a <code>send</code> op can be pulled out by a <code>recv</code
 DSLX implementation of
 <a href="https://en.wikipedia.org/wiki/Multiply%E2%80%93accumulate_operation">FMAC (fused multiply-accumulate)</a>,
 which computes <code>C = A * B + C</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">modules</span><span class="p">.</span><span class="n">fp</span><span class="p">.</span><span class="n">fp32_fma</span>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">float32</span>
+
+<span class="k">type</span> <span class="nc">F32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span>::<span class="n">F32</span><span class="p">;</span>
 
 <span class="n">proc</span><span class="w"> </span><span class="n">Fmac</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">input_a_consumer</span>: <span class="nc">chan</span><span class="o">&lt;</span><span class="n">F32</span><span class="o">&gt;</span><span class="w"> </span><span class="k">in</span><span class="p">;</span>
@@ -1593,7 +1595,7 @@ which computes <code>C = A * B + C</code>:</p>
 <span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_a_consumer</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_b</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">);</span>
-<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fp32_fma</span>::<span class="n">fp32_fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">float32</span>::<span class="n">fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">tok_b</span><span class="p">);</span>
 <span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">);</span>
 <span class="w">    </span><span class="p">(</span><span class="n">result</span><span class="p">,)</span>
