@@ -86,6 +86,14 @@ fn widening_casts() {
 }
 
 #[test]
+fn array_casts() {
+  assert_eq(uN[32]:0xff_aa_55_00,
+            uN[8][4]:[u8:0xff, u8:0xaa, u8:0x55, u8:0x00] as u32);
+  assert_eq(uN[32]:0xff_aa_55_00 as u8[4],
+            uN[8][4]:[u8:0xff, u8:0xaa, u8:0x55, u8:0x00]);
+}
+
+#[test]
 fn checked_casts() {
   // TODO(tedhong): 2023-05-25 Uncomment when assert_fail is supported.
   // https://github.com/google/xls/issues/481

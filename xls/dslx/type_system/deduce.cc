@@ -1050,16 +1050,24 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnrollFor(
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).
 static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
-  auto is_array = [](const ConcreteType& ct) -> bool {
-    return dynamic_cast<const ArrayType*>(&ct) != nullptr;
-  };
   auto is_bits = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const BitsType*>(&ct) != nullptr;
   };
   auto is_enum = [](const ConcreteType& ct) -> bool {
     return dynamic_cast<const EnumType*>(&ct) != nullptr;
   };
-  if ((is_array(from) && is_bits(to)) || (is_bits(from) && is_array(to))) {
+  auto is_bits_array = [&](const ConcreteType& ct) -> bool {
+    const ArrayType* at = dynamic_cast<const ArrayType*>(&ct);
+    if (at == nullptr) {
+      return false;
+    }
+    if (is_bits(at->element_type())) {
+      return true;
+    }
+    return false;
+  };
+  if ((is_bits_array(from) && is_bits(to)) ||
+      (is_bits(from) && is_bits_array(to))) {
     return from.GetTotalBitCount() == to.GetTotalBitCount();
   }
   if ((is_bits(from) || is_enum(from)) && is_bits(to)) {

@@ -325,6 +325,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_cast_bits_to_struct_array(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/cast_bits_to_struct_array.x'
+    )
+    self.assertIn(
+        'Cannot cast from expression type uN[64] to S { member: uN[32] }[2]',
+        stderr,
+    )
+
   def test_cast_int_to_struct(self):
     stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')
     self.assertIn("Cannot cast from expression type uN[32] to struct 'S'",
@@ -335,6 +344,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         "Cannot cast from expression type struct 'S' structure: S { member: uN[32] } to uN[32]",
         stderr)
+
+  def test_cast_struct_array_to_bits(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/cast_struct_array_to_bits.x'
+    )
+    self.assertIn(
+        'Cannot cast from expression type S { member: uN[32] }[2] to uN[64]',
+        stderr,
+    )
 
   def test_destructure_fallible(self):
     stderr = self._run(
