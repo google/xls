@@ -1510,7 +1510,7 @@ class Function : public AstNode {
   static std::string_view GetDebugTypeName() { return "function"; }
 
   // Indicates if a function is normal or is part of a proc instantiation.
-  enum class Tag {
+  enum class Tag : uint8_t {
     kNormal,
     kProcConfig,
     kProcNext,

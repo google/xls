@@ -18,6 +18,8 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/frontend/ast.h"
 
 namespace xls::dslx {
@@ -52,6 +54,18 @@ template <typename T>
 inline absl::StatusOr<T*> CloneNode(T* node) {
   XLS_ASSIGN_OR_RETURN(AstNode * cloned, CloneAst(node));
   return down_cast<T*>(cloned);
+}
+
+// Helper that vectorizes the CloneNode routine.
+template <typename T>
+inline absl::StatusOr<std::vector<T*>> CloneNodes(absl::Span<T* const> nodes) {
+  std::vector<T*> results;
+  results.reserve(nodes.size());
+  for (T* n : nodes) {
+    XLS_ASSIGN_OR_RETURN(T * cloned, CloneNode<T>(n));
+    results.push_back(cloned);
+  }
+  return results;
 }
 
 }  // namespace xls::dslx

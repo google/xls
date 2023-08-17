@@ -55,6 +55,29 @@
 namespace xls::dslx {
 namespace {
 
+absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
+    absl::Span<const ExprOrType> eots) {
+  std::vector<ExprOrType> results;
+  results.reserve(eots.size());
+  for (const ExprOrType& eot : eots) {
+    XLS_RETURN_IF_ERROR(
+        absl::visit(Visitor{
+                        [&](Expr* n) -> absl::Status {
+                          XLS_ASSIGN_OR_RETURN(auto* cloned, CloneNode(n));
+                          results.push_back(cloned);
+                          return absl::OkStatus();
+                        },
+                        [&](TypeAnnotation* n) -> absl::Status {
+                          XLS_ASSIGN_OR_RETURN(auto* cloned, CloneNode(n));
+                          results.push_back(cloned);
+                          return absl::OkStatus();
+                        },
+                    },
+                    eot));
+  }
+  return results;
+}
+
 ColonRef::Subject CloneSubject(Module* module,
                                const ColonRef::Subject subject) {
   if (std::holds_alternative<NameRef*>(subject)) {
@@ -1375,8 +1398,8 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
 
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(bindings));
   Function* f = module_->Make<Function>(
-      Span(start_pos, GetPos()), name_def, parametric_bindings, params,
-      return_type, body, Function::Tag::kNormal, is_public);
+      Span(start_pos, GetPos()), name_def, std::move(parametric_bindings),
+      params, return_type, body, Function::Tag::kNormal, is_public);
   name_def->set_definer(f);
   return f;
 }
@@ -1856,19 +1879,24 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings& bindings) {
   // not. Thus, we unconditionally create an invocation of the `init` function
   // and set that as the state.
   Pos next_start = GetPos();
+  XLS_ASSIGN_OR_RETURN(auto init_parametrics, CloneParametrics(parametrics));
   auto* init_invocation = module_->Make<Invocation>(
-      init_ref->span(), init_ref, std::vector<Expr*>(), parametrics);
+      init_ref->span(), init_ref, std::vector<Expr*>(),
+      std::move(init_parametrics));
   Pos next_limit = GetPos();
 
-  auto* config_invoc = module_->Make<Invocation>(
-      Span(config_start, config_limit), config_ref, config_args, parametrics);
+  XLS_ASSIGN_OR_RETURN(auto config_parametrics, CloneParametrics(parametrics));
+  auto* config_invoc =
+      module_->Make<Invocation>(Span(config_start, config_limit), config_ref,
+                                config_args, std::move(config_parametrics));
 
+  XLS_ASSIGN_OR_RETURN(auto next_parametrics, CloneParametrics(parametrics));
   auto* next_invoc = module_->Make<Invocation>(
       Span(next_start, next_limit), next_ref,
-      std::vector<Expr*>({init_invocation}), parametrics);
+      std::vector<Expr*>({init_invocation}), std::move(next_parametrics));
 
   return module_->Make<Spawn>(Span(spawn.span().start(), next_limit), spawnee,
-                              config_invoc, next_invoc, parametrics);
+                              config_invoc, next_invoc, std::move(parametrics));
 }
 
 absl::StatusOr<Index*> Parser::ParseBitSlice(const Pos& start_pos, Expr* lhs,
@@ -1960,7 +1988,7 @@ absl::StatusOr<std::vector<ProcMember*>> Parser::CollectProcMembers(
 
 absl::StatusOr<Function*> Parser::ParseProcConfig(
     Bindings& outer_bindings,
-    const std::vector<ParametricBinding*>& parametric_bindings,
+    std::vector<ParametricBinding*> parametric_bindings,
     const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
     bool is_public) {
   Bindings bindings(&outer_bindings);
@@ -2014,16 +2042,16 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   TypeAnnotation* return_type =
       module_->Make<TupleTypeAnnotation>(config_tok.span(), return_elements);
   Function* config = module_->Make<Function>(
-      block->span(), name_def, parametric_bindings, std::move(config_params),
-      return_type, block, Function::Tag::kProcConfig, is_public);
+      block->span(), name_def, std::move(parametric_bindings),
+      std::move(config_params), return_type, block, Function::Tag::kProcConfig,
+      is_public);
   name_def->set_definer(config);
 
   return config;
 }
 
 absl::StatusOr<Function*> Parser::ParseProcNext(
-    Bindings& bindings,
-    const std::vector<ParametricBinding*>& parametric_bindings,
+    Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name, bool is_public) {
   Bindings inner_bindings(&bindings);
   inner_bindings.NoteFunctionScoped();
@@ -2084,9 +2112,9 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   Span span(oparen.span().start(), GetPos());
   NameDef* name_def =
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
-  Function* next = module_->Make<Function>(span, name_def, parametric_bindings,
-                                           next_params, return_type, body,
-                                           Function::Tag::kProcNext, is_public);
+  Function* next = module_->Make<Function>(
+      span, name_def, std::move(parametric_bindings), next_params, return_type,
+      body, Function::Tag::kProcNext, is_public);
   name_def->set_definer(next);
 
   return next;
@@ -2094,8 +2122,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
 
 // Basically ParseFunction, except with no return type.
 absl::StatusOr<Function*> Parser::ParseProcInit(
-    Bindings& bindings,
-    const std::vector<ParametricBinding*>& parametric_bindings,
+    Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
     std::string_view proc_name) {
   Bindings inner_bindings(&bindings);
   XLS_ASSIGN_OR_RETURN(Token init_identifier, PopToken());
@@ -2111,7 +2138,7 @@ absl::StatusOr<Function*> Parser::ParseProcInit(
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(inner_bindings));
   Span span(init_identifier.span().start(), GetPos());
   Function* init = module_->Make<Function>(
-      span, name_def, parametric_bindings, std::vector<Param*>(),
+      span, name_def, std::move(parametric_bindings), std::vector<Param*>(),
       /*return_type=*/nullptr, body, Function::Tag::kProcInit,
       /*is_public=*/false);
   name_def->set_definer(init);
@@ -2225,9 +2252,10 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   const Span span(proc_token.span().start(), cbrace.span().limit());
-  auto proc = module_->Make<Proc>(span, name_def, config->name_def(),
-                                  next->name_def(), parametric_bindings,
-                                  proc_members, config, next, init, is_public);
+  auto proc =
+      module_->Make<Proc>(span, name_def, config->name_def(), next->name_def(),
+                          std::move(parametric_bindings), proc_members, config,
+                          next, init, is_public);
   name_def->set_definer(proc);
   config->set_proc(proc);
   next->set_proc(proc);
@@ -2594,7 +2622,7 @@ absl::StatusOr<StructDef*> Parser::ParseStruct(bool is_public,
       ParseCommaSeq<StructMember>(parse_struct_member, TokenKind::kCBrace));
   Span span(start_pos, GetPos());
   auto* struct_def = module_->Make<StructDef>(
-      span, name_def, parametric_bindings, members, is_public);
+      span, name_def, std::move(parametric_bindings), members, is_public);
   bindings.Add(name_def->identifier(), struct_def);
   return struct_def;
 }

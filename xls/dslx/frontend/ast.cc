@@ -1410,6 +1410,9 @@ Invocation::~Invocation() = default;
 
 std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {callee()};
+  for (const ExprOrType& eot : explicit_parametrics()) {
+    results.push_back(ToAstNode(eot));
+  }
   for (Expr* arg : args_) {
     results.push_back(arg);
   }

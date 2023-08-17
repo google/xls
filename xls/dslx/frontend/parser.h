@@ -554,18 +554,16 @@ class Parser : public TokenParser {
   //  parametric_bindings: Parametric bindings created at the proc level.
   //  proc_members: Member declarations at the proc scope.
   absl::StatusOr<Function*> ParseProcConfig(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       const std::vector<ProcMember*>& proc_members, std::string_view proc_name,
       bool is_public);
 
   absl::StatusOr<Function*> ParseProcNext(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       std::string_view proc_name, bool is_public);
+
   absl::StatusOr<Function*> ParseProcInit(
-      Bindings& bindings,
-      const std::vector<ParametricBinding*>& parametric_bindings,
+      Bindings& bindings, std::vector<ParametricBinding*> parametric_bindings,
       std::string_view proc_name);
 
   std::unique_ptr<Module> module_;
