@@ -40,6 +40,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/ffi_delay_estimator.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
@@ -169,12 +170,14 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
 
 absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
-    const DelayEstimator* delay_estimator) {
+    const DelayEstimator* delay_estimator,
+    synthesis::Synthesizer* synthesizer) {
   Package* p = main->package();
   SchedulingPassOptions sched_options;
   sched_options.inline_procs = absl::GetFlag(FLAGS_inline_procs);
   sched_options.scheduling_options = scheduling_options;
   sched_options.delay_estimator = delay_estimator;
+  sched_options.synthesizer = synthesizer;
   std::unique_ptr<SchedulingCompoundPass> scheduling_pipeline =
       CreateSchedulingPassPipeline();
   SchedulingPassResults results;
@@ -253,9 +256,15 @@ absl::Status RealMain(std::string_view ir_path) {
 
     FirstMatchDelayEstimator delay_estimator("combined_estimator",
                                              {base_estimator, &ffi_estimator});
-    XLS_ASSIGN_OR_RETURN(
-        PipelineSchedule schedule,
-        RunSchedulingPipeline(main(), scheduling_options, &delay_estimator));
+
+    synthesis::Synthesizer* synthesizer = nullptr;
+    if (!scheduling_options.fdo_synthesizer_name().empty()) {
+      XLS_ASSIGN_OR_RETURN(synthesizer, SetUpSynthesizer());
+    }
+
+    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                         RunSchedulingPipeline(main(), scheduling_options,
+                                               &delay_estimator, synthesizer));
 
     XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 

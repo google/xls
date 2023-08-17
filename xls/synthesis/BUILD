@@ -67,7 +67,10 @@ cc_grpc_library(
     name = "synthesis_service_cc_grpc",
     srcs = [":synthesis_service_proto"],
     grpc_only = 1,
-    deps = [":synthesis_service_cc_proto"],
+    deps = [
+        ":synthesis_service_cc_proto",
+        "@com_github_grpc_grpc//:grpc++",
+    ],
 )
 
 py_grpc_library(

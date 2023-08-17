@@ -17,6 +17,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/function_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
@@ -24,10 +25,12 @@
 namespace xls {
 
 // Produces a pipeline schedule using the given delay model and scheduling
-// options.
+// options. The synthesizer argument should be non-null when we are doing
+// feedback-directed scheduling.
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
-    const SchedulingOptions& options);
+    const SchedulingOptions& options,
+    const synthesis::Synthesizer* synthesizer = nullptr);
 
 }  // namespace xls
 

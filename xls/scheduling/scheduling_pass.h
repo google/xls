@@ -19,12 +19,15 @@
 #include <string>
 #include <string_view>
 
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/package.h"
 #include "xls/passes/pass_base.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace xls {
 
@@ -61,6 +64,7 @@ struct SchedulingPassOptions : public PassOptions {
 
   // Delay estimator to use for scheduling.
   const DelayEstimator* delay_estimator = nullptr;
+  const synthesis::Synthesizer* synthesizer = nullptr;
 };
 
 using SchedulingPassResults = PassResults;

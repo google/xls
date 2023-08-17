@@ -957,6 +957,7 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:ffi_delay_estimator",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:op",

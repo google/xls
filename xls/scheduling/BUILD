@@ -184,6 +184,8 @@ cc_library(
         "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
         "//xls/fdo:delay_manager",
+        "//xls/fdo:iterative_sdc_scheduler",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "//xls/ir:op",
     ],
@@ -339,8 +341,11 @@ cc_library(
     hdrs = ["scheduling_pass.h"],
     deps = [
         ":pipeline_schedule",
+        ":scheduling_options",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/delay_model:delay_estimator",
+        "//xls/fdo:synthesizer",
         "//xls/ir",
         "//xls/passes:pass_base",
     ],
@@ -409,9 +414,12 @@ cc_library(
     hdrs = ["pipeline_scheduling_pass.h"],
     deps = [
         ":run_pipeline_schedule",
+        ":scheduling_options",
         ":scheduling_pass",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/ir",
     ],
 )

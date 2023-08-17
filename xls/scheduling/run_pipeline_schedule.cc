@@ -32,6 +32,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/binary_search.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/fdo/delay_manager.h"
+#include "xls/fdo/iterative_sdc_scheduler.h"
+#include "xls/fdo/synthesizer.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -215,7 +218,8 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
 
 absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     FunctionBase* f, const DelayEstimator& delay_estimator,
-    const SchedulingOptions& options) {
+    const SchedulingOptions& options,
+    const synthesis::Synthesizer* synthesizer) {
   int64_t input_delay = options.additional_input_delay_ps().has_value()
                             ? options.additional_input_delay_ps().value()
                             : 0;
@@ -266,6 +270,43 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
 
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::SDC) {
+    // Enable iterative SDC scheduling when iteration number is larger than 1.
+    if (options.fdo_iteration_number() > 1) {
+      if (!options.clock_period_ps().has_value()) {
+        return absl::UnimplementedError(
+            "Iterative SDC scheduling is only supported when a clock period is "
+            "specified.");
+      }
+
+      IterativeSDCSchedulingOptions isdc_options;
+      isdc_options.synthesizer = synthesizer;
+      isdc_options.iteration_number = options.fdo_iteration_number();
+      isdc_options.delay_driven_path_number =
+          options.fdo_delay_driven_path_number();
+      isdc_options.fanout_driven_path_number =
+          options.fdo_fanout_driven_path_number();
+      isdc_options.stochastic_ratio = options.fdo_refinement_stochastic_ratio();
+      isdc_options.path_evaluate_strategy =
+          options.fdo_path_evaluate_strategy();
+
+      DelayManager delay_manager(f, delay_estimator);
+      XLS_ASSIGN_OR_RETURN(
+          cycle_map, ScheduleByIterativeSDC(
+                         f, options.pipeline_stages(), clock_period_ps,
+                         delay_manager, options.constraints(), isdc_options));
+
+      // Use delay manager for scheduling timing verification.
+      auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
+      XLS_RETURN_IF_ERROR(schedule.Verify());
+      XLS_RETURN_IF_ERROR(
+          schedule.VerifyTiming(clock_period_ps, delay_manager));
+      XLS_RETURN_IF_ERROR(schedule.VerifyConstraints(
+          options.constraints(), f->GetInitiationInterval()));
+
+      XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
+      return schedule;
+    }
+
     XLS_ASSIGN_OR_RETURN(
         cycle_map, SDCScheduler(f, options.pipeline_stages(), clock_period_ps,
                                 input_delay_added, options.constraints()));
