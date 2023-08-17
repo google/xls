@@ -1768,8 +1768,8 @@ class Match : public Expr {
 //                       (this dot makes an attr) ---+
 class Attr : public Expr {
  public:
-  Attr(Module* owner, Span span, Expr* lhs, NameDef* attr)
-      : Expr(owner, std::move(span)), lhs_(lhs), attr_(attr) {}
+  Attr(Module* owner, Span span, Expr* lhs, std::string attr)
+      : Expr(owner, std::move(span)), lhs_(lhs), attr_(std::move(attr)) {}
 
   ~Attr() override;
 
@@ -1785,14 +1785,12 @@ class Attr : public Expr {
   std::string_view GetNodeTypeName() const override { return "Attr"; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {lhs_, attr_};
+    return {lhs_};
   }
 
   Expr* lhs() const { return lhs_; }
 
-  // TODO(leary): 2020-12-02 This probably can just be a string, because the
-  // attribute access is not really defining a name.
-  NameDef* attr() const { return attr_; }
+  std::string_view attr() const { return attr_; }
 
  private:
   Precedence GetPrecedenceInternal() const final {
@@ -1800,11 +1798,11 @@ class Attr : public Expr {
   }
 
   std::string ToStringInternal() const final {
-    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
+    return absl::StrFormat("%s.%s", lhs_->ToString(), attr_);
   }
 
   Expr* lhs_;
-  NameDef* attr_;
+  const std::string attr_;
 };
 
 class Instantiation : public Expr {

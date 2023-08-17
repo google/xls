@@ -1577,8 +1577,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
         XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
         Span span(new_pos, GetPos());
         if (tok.kind() == TokenKind::kIdentifier) {
-          XLS_ASSIGN_OR_RETURN(NameDef * attr, TokenToNameDef(tok));
-          lhs = module_->Make<Attr>(span, lhs, attr);
+          lhs = module_->Make<Attr>(span, lhs, *tok.GetValue());
         } else if (tok.kind() == TokenKind::kNumber) {
           XLS_ASSIGN_OR_RETURN(Number * number, TokenToNumber(tok));
           lhs = module_->Make<TupleIndex>(span, lhs, number);

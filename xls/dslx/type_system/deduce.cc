@@ -1277,7 +1277,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
                                                     type->ToString()));
   }
 
-  const std::string& attr_name = node->attr()->identifier();
+  std::string_view attr_name = node->attr();
   if (!struct_type->HasNamedMember(attr_name)) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,

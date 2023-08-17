@@ -78,7 +78,7 @@ class AstCloner : public AstNodeVisitor {
     // We must've seen the NameDef here, so we don't need to visit it.
     old_to_new_[n] = module_->Make<Attr>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
-        down_cast<NameDef*>(old_to_new_.at(n->attr())));
+        std::string{n->attr()});
     return absl::OkStatus();
   }
 

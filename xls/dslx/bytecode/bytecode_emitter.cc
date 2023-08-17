@@ -352,7 +352,7 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   XLS_ASSIGN_OR_RETURN(StructType * struct_type,
                        type_info_->GetItemAs<StructType>(node->lhs()));
   XLS_ASSIGN_OR_RETURN(int64_t member_index,
-                       struct_type->GetMemberIndex(node->attr()->identifier()));
+                       struct_type->GetMemberIndex(node->attr()));
 
   XLS_VLOG(10) << "BytecodeEmitter::HandleAttr; member_index: " << member_index;
 

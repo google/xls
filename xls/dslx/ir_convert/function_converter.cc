@@ -2624,7 +2624,7 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* struct_type = dynamic_cast<const StructType*>(lhs_type.value());
-  const std::string& identifier = node->attr()->identifier();
+  std::string_view identifier = node->attr();
   XLS_ASSIGN_OR_RETURN(int64_t index, struct_type->GetMemberIndex(identifier));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
   BValue ir = Def(node, [&](const SourceInfo& loc) {
