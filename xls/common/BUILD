@@ -525,3 +525,10 @@ cc_library(
     hdrs = ["endian.h"],
     deps = ["@com_google_absl//absl/base:config"],
 )
+
+cc_library(
+    name = "undeclared_outputs",
+    testonly = True,
+    srcs = ["undeclared_outputs.cc"],
+    hdrs = ["undeclared_outputs.h"],
+)

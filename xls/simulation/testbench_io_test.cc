@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <filesystem>  // NOLINT
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -19,13 +22,21 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "xls/common/file/named_pipe.h"
 #include "xls/common/file/temp_directory.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
+#include "xls/common/undeclared_outputs.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 #include "xls/simulation/verilog_test_base.h"
 
@@ -40,37 +51,77 @@ using ::testing::Not;
 // writes the value + 42 to the file `{{output}}``.
 constexpr std::string_view kInputOutputTestbench = R"(
 module testbench;
+  reg [256 * 8:0] err_string;
   reg [31:0] input_value;
-  integer cnt, in_fd, out_fd;
+  integer log_fd, cnt, in_fd, out_fd, errno;
 
   initial begin
+    log_fd = $fopen("{{log_file}}","w");
+    $fwrite(log_fd, "Simulation started\n");
     in_fd = $fopen("{{input}}","r");
     if (in_fd == 0) begin
+      errno = $ferror(in_fd, err_string);
+      $fwrite(log_fd, "Failed to open input file [errno %d]: %s\n",
+              errno, err_string);
+      $fwrite(log_fd, "Failed to open input file\n");
       $display("FAILED: Cannot open input file `{{input}}`.");
       $finish;
     end
+    $fwrite(log_fd, "Input file opened\n");
     out_fd = $fopen("{{output}}","w");
     if (out_fd == 0) begin
+      errno = $ferror(out_fd, err_string);
+      $fwrite(log_fd, "Failed to open output file [errno %d]: %s\n",
+              errno, err_string);
       $display("FAILED: Cannot open output file `{{output}}`.");
       $finish;
     end
+    $fwrite(log_fd, "Output file open\n");
     while ($feof(in_fd) == 0) begin
       cnt = $fscanf(in_fd, "%x\n", input_value);
       if (cnt == 0) begin
+        $fwrite(log_fd, "$fscanf failed\n");
         $display("FAILED: $fscanf failed.");
         $finish;
       end
+      $fwrite(log_fd, "output written\n");
       $fwriteh(out_fd, input_value + 32'd42);
       $fwrite(out_fd, "\n");
       #1;
     end
+    $fwrite(log_fd, "Simulation completed\n");
     $display("SUCCESS");
     $finish;
   end
 endmodule
 )";
 
-class TestbenchIoTest : public VerilogTestBase {};
+class TestbenchIoTest : public VerilogTestBase {
+ public:
+  // The length of time in ms to delay starting the simulator.
+  static constexpr int64_t kSimulatorDelayMs = 1000;
+
+  absl::StatusOr<std::pair<std::string, std::string>> RunSimulator(
+      std::string_view verilog) {
+    XLS_VLOG(1) << "Starting simulator.";
+    std::pair<std::string, std::string> stdout_stderr;
+    // Some simulators sporadically deadlock without this delay.
+    // TODO(b/296308742): Get to the bottom of this and remove the sleep call.
+    absl::SleepFor(absl::Milliseconds(kSimulatorDelayMs));
+    return GetSimulator()->Run(verilog, GetFileType());
+  }
+
+  std::string GenerateVerilogFile(
+      const std::filesystem::path& input_pipe_path,
+      const std::filesystem::path& output_pipe_path) {
+    std::string log_file = GetUndeclaredOutputDirectory().value() /
+                           absl::StrFormat("%s.log.txt", SanitizedTestName());
+    return absl::StrReplaceAll(kInputOutputTestbench,
+                               {{"{{log_file}}", log_file},
+                                {"{{input}}", input_pipe_path.c_str()},
+                                {"{{output}}", output_pipe_path.c_str()}});
+  }
+};
 
 TEST_P(TestbenchIoTest, SimpleInputOutput) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
@@ -78,12 +129,12 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
                            NamedPipe::Create(temp_dir.path() / "input_pipe"));
   XLS_ASSERT_OK_AND_ASSIGN(NamedPipe output_pipe,
                            NamedPipe::Create(temp_dir.path() / "output_pipe"));
-  std::string verilog = absl::StrReplaceAll(
-      kInputOutputTestbench, {{"{{input}}", input_pipe.path().string()},
-                              {"{{output}}", output_pipe.path().string()}});
+  std::string verilog =
+      GenerateVerilogFile(input_pipe.path(), output_pipe.path());
 
   const int64_t kSampleCount = 10;
   Thread write_thread([&]() {
+    XLS_VLOG(1) << "Opening input pipe for writing.";
     FileLineWriter fw = input_pipe.OpenForWriting().value();
     XLS_VLOG(1) << "Feeding input:";
     for (int32_t i = 0; i < kSampleCount; ++i) {
@@ -94,6 +145,7 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
 
   // Read all lines from the output named pipe and return as int32_t's.
   auto read_lines_and_convert = [&]() -> absl::StatusOr<std::vector<int32_t>> {
+    XLS_VLOG(1) << "Opening output pipe for reading.";
     XLS_ASSIGN_OR_RETURN(FileLineReader fr, output_pipe.OpenForReading());
     XLS_VLOG(1) << "Reading output:";
     std::vector<int32_t> values;
@@ -121,8 +173,9 @@ TEST_P(TestbenchIoTest, SimpleInputOutput) {
   });
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr,
-                           GetSimulator()->Run(verilog, GetFileType()));
+  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr, RunSimulator(verilog));
+
+  XLS_VLOG(1) << "Joining threads.";
   read_thread.Join();
   write_thread.Join();
 
@@ -141,23 +194,26 @@ TEST_P(TestbenchIoTest, BadInput) {
                            NamedPipe::Create(temp_dir.path() / "input_pipe"));
   XLS_ASSERT_OK_AND_ASSIGN(NamedPipe output_pipe,
                            NamedPipe::Create(temp_dir.path() / "output_pipe"));
-  std::string verilog = absl::StrReplaceAll(
-      kInputOutputTestbench, {{"{{input}}", input_pipe.path().string()},
-                              {"{{output}}", output_pipe.path().string()}});
+  std::string verilog =
+      GenerateVerilogFile(input_pipe.path(), output_pipe.path());
 
   Thread write_thread([&]() {
+    XLS_VLOG(1) << "Opening input pipe for writing.";
     FileLineWriter fw = input_pipe.OpenForWriting().value();
+    XLS_VLOG(1) << "Writing input.";
     XLS_CHECK_OK(fw.WriteLine("thisisnotahexnumber"));
   });
 
   Thread read_thread([&]() {
     // Open the pipe to unblock simulation.
+    XLS_VLOG(1) << "Opening output pipe for reading.";
     output_pipe.OpenForReading().value();
+    XLS_VLOG(1) << "read_thread done.";
   });
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr,
-                           GetSimulator()->Run(verilog, GetFileType()));
+  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr, RunSimulator(verilog));
+  XLS_VLOG(1) << "Joining threads.";
   read_thread.Join();
   write_thread.Join();
 
@@ -169,13 +225,11 @@ TEST_P(TestbenchIoTest, InvalidInputFile) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
   XLS_ASSERT_OK_AND_ASSIGN(NamedPipe output_pipe,
                            NamedPipe::Create(temp_dir.path() / "output_pipe"));
-  std::string verilog = absl::StrReplaceAll(
-      kInputOutputTestbench, {{"{{input}}", "/not/a/filename"},
-                              {"{{output}}", output_pipe.path().string()}});
+  std::string verilog =
+      GenerateVerilogFile("/not/a/filename", output_pipe.path());
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr,
-                           GetSimulator()->Run(verilog, GetFileType()));
+  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr, RunSimulator(verilog));
 
   EXPECT_THAT(stdout_stderr.first, Not(HasSubstr("SUCCESS")));
   EXPECT_THAT(stdout_stderr.first, HasSubstr("FAILED: Cannot open input file"));
@@ -185,17 +239,15 @@ TEST_P(TestbenchIoTest, InvalidOutputFile) {
   XLS_ASSERT_OK_AND_ASSIGN(TempDirectory temp_dir, TempDirectory::Create());
   XLS_ASSERT_OK_AND_ASSIGN(NamedPipe input_pipe,
                            NamedPipe::Create(temp_dir.path() / "input_pipe"));
-  std::string verilog = absl::StrReplaceAll(
-      kInputOutputTestbench, {{"{{input}}", input_pipe.path().string()},
-                              {"{{output}}", "/not/a/filename"}});
+  std::string verilog =
+      GenerateVerilogFile(input_pipe.path(), "/not/a/filename");
 
   // We need to open the input pipe to unblock the $fopen in the testbench.
   Thread write_thread(
       [&]() { XLS_CHECK_OK(input_pipe.OpenForWriting().status()); });
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr,
-                           GetSimulator()->Run(verilog, GetFileType()));
+  XLS_ASSERT_OK_AND_ASSIGN(stdout_stderr, RunSimulator(verilog));
   write_thread.Join();
 
   EXPECT_THAT(stdout_stderr.first, Not(HasSubstr("SUCCESS")));
