@@ -1873,6 +1873,7 @@ TEST_F(ParserTest, UnterminatedEscapedHexChar) {
                HasSubstr("Unexpected EOF in escaped hexadecimal character")))
       << module_or.status();
 }
+
 TEST_F(ParserTest, ConstShadowsImport) {
   constexpr std::string_view kProgram = R"(import x
 const x)";
@@ -1882,6 +1883,17 @@ const x)";
               StatusIs(absl::StatusCode::kInvalidArgument,
                        "ParseError: test.x:2:7-2:8 Constant definition is "
                        "shadowing an existing definition from test.x:1:1-1:7"));
+}
+
+TEST_F(ParserTest, ZeroLengthStringAtEof) {
+  constexpr std::string_view kProgram = "const A=\"\"";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Zero-length strings are not supported.")))
+      << module_or.status();
 }
 
 }  // namespace xls::dslx

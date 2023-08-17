@@ -1436,11 +1436,15 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
     XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(outer_bindings));
   } else if (peek->IsKindIn({TokenKind::kDoubleQuote})) {
     // Eat characters until the first unescaped double quote.
-    Span span = peek->span();
+    //
+    // Make a defensive copy of the peek token span as it may/will be
+    // invalidated via the PopString() call.
+    const Span span_copy = peek->span();
     XLS_ASSIGN_OR_RETURN(std::string text, PopString());
     if (text.empty()) {
-      // TODO(rspringer): 2021-05-20 Add zero-length support.
-      return ParseErrorStatus(peek->span(),
+      // TODO(https://github.com/google/xls/issues/1105): 2021-05-20 Add
+      // zero-length support.
+      return ParseErrorStatus(span_copy,
                               "Zero-length strings are not supported.");
     }
     return module_->Make<String>(Span(start_pos, GetPos()), text);
