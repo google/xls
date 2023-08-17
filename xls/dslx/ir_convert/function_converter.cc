@@ -1243,9 +1243,22 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   if (implicit_token_data_.has_value()) {
     XLS_ASSIGN_OR_RETURN(BValue retval,
                          body_converter.function_builder_->GetLastValue());
+    std::vector<BValue> after_all_tokens(
+        body_converter.implicit_token_data_->control_tokens.begin(),
+        body_converter.implicit_token_data_->control_tokens.end());
+    after_all_tokens.push_back(
+        body_converter.implicit_token_data_->entry_token);
+    BValue implicit_token;
+    if (after_all_tokens.size() > 1) {
+      implicit_token =
+          body_converter.function_builder_->AfterAll(after_all_tokens);
+    } else {
+      implicit_token = after_all_tokens[0];
+    }
+
     body_converter.function_builder_->Tuple(
-        {body_converter.implicit_token_data_->entry_token,
-         body_converter.implicit_token_data_->activated, retval});
+        {implicit_token, body_converter.implicit_token_data_->activated,
+         retval});
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Function * body_function,

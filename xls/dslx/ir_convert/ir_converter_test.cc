@@ -1947,5 +1947,27 @@ fn main(x: u8[42]) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, InvokeFunctionWithTraceInForLoop) {
+  constexpr std::string_view program =
+      R"(
+fn foo(x: u32, y: u32) -> u32 {
+  trace_fmt!("x is {}", x);
+  trace_fmt!("y is {}", y);
+  x + y
+}
+
+fn main(x: u32[4]) -> u32[4] {
+  for (i, accum): (u32, u32[4]) in u32:0..u32:4 {
+    update(x, i, foo(accum[i], x[i]))
+  }(x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
