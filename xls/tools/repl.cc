@@ -232,7 +232,7 @@ char* HintsCallback(const char* buf, int* color, int* bold) {
     *bold = 0;
     return (char*)" <id>";
   }
-  return NULL;
+  return nullptr;
 }
 
 // Given a prefix string and a pointer to a DSLX module, this populates the
