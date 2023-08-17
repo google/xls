@@ -1328,6 +1328,19 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings& bindings) {
   } else {
     XLS_ASSIGN_OR_RETURN(name_def, TokenToNameDef(toks.back()));
   }
+
+  if (std::optional<ModuleMember*> existing_member =
+          module_->FindMemberWithName(name_def->identifier())) {
+    const std::optional<Span> maybe_span =
+        ToAstNode(*existing_member.value())->GetSpan();
+    std::string span_str =
+        maybe_span.has_value() ? " at " + maybe_span->ToString() : "";
+    return ParseErrorStatus(
+        name_def->span(),
+        absl::StrFormat("Import of `%s` is shadowing an existing definition%s",
+                        name_def->identifier(), span_str));
+  }
+
   auto* import = module_->Make<Import>(kw.span(), subject, name_def, alias);
   name_def->set_definer(import);
   bindings.Add(name_def->identifier(), import);

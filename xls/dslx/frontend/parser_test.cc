@@ -1896,4 +1896,18 @@ TEST_F(ParserTest, ZeroLengthStringAtEof) {
       << module_or.status();
 }
 
+TEST_F(ParserTest, RepetitiveImport) {
+  constexpr std::string_view kProgram = R"(import repetitively
+import repetitively)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Import of `repetitively` is shadowing an existing "
+                         "definition at test.x:1:1-1:7")))
+      << module_or.status();
+}
+
 }  // namespace xls::dslx
