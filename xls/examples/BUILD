@@ -621,3 +621,14 @@ xls_dslx_opt_ir(
     ir_file = "overflow_detect.ir",
     opt_ir_file = "overflow_detect.opt.ir",
 )
+
+xls_dslx_opt_ir(
+    name = "nested_sel",
+    srcs = ["nested_sel.x"],
+    dslx_top = "main",
+)
+
+xls_dslx_opt_ir_test(
+    name = "nested_sel_test",
+    dep = ":nested_sel",
+)
