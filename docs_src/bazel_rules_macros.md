@@ -156,8 +156,8 @@ Examples:
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="proto_data-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="proto_data-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="proto_data-proto_name"></a>proto_name |  The name of the message type in the .proto files that 'src' file represents.   | String | optional | <code>"xlscc.HLSBlock"</code> |
-| <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by a .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  |
+| <a id="proto_data-proto_name"></a>proto_name |  The name of the message type in the .proto files that 'src' file represents.   | String | optional |  `"xlscc.HLSBlock"`  |
+| <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by a .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
 <a id="xls_benchmark_ir"></a>
@@ -203,8 +203,8 @@ Examples:
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_benchmark_ir-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="xls_benchmark_ir-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
-| <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
+| <a id="xls_benchmark_ir-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
 <a id="xls_benchmark_verilog"></a>
@@ -231,7 +231,7 @@ Example:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_benchmark_verilog-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
 <a id="xls_dslx_library"></a>
@@ -288,9 +288,9 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_library-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
-| <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
-| <a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors |  Whether warnings are errors within this library definition.   | Boolean | optional | <code>False</code> |
+| <a id="xls_dslx_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors |  Whether warnings are errors within this library definition.   | Boolean | optional |  `False`  |
 
 
 <a id="xls_dslx_opt_ir_test"></a>
@@ -334,14 +334,14 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
-| <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
-| <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
-| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
-| <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | <code>""</code> |
-| <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
-| <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{"random_inputs": "100", "optimize_ir": "true"}</code> |
-| <a id="xls_dslx_opt_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
+| <a id="xls_dslx_opt_ir_test-benchmark_ir_args"></a>benchmark_ir_args |  Arguments of the benchmark IR tool. For details on the arguments, refer to the benchmark_main application at //xls/tools/benchmark_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-dep"></a>dep |  The xls_dslx_opt_ir target to test.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_dslx_opt_ir_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_dslx_opt_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional |  `""`  |
+| <a id="xls_dslx_opt_ir_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_opt_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{"random_inputs": "100", "optimize_ir": "true"}`  |
+| <a id="xls_dslx_opt_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
 <a id="xls_dslx_test"></a>
@@ -391,10 +391,10 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
-| <a id="xls_dslx_test-srcs"></a>srcs |  Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | <code>[]</code> |
-| <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
-| <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
+| <a id="xls_dslx_test-deps"></a>deps |  Dependency targets for the files in the 'srcs' attribute. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="xls_dslx_test-srcs"></a>srcs |  Source files for the rule. The files must have a '.x' extension. This attribute is mutually exclusive with the 'library' attribute.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="xls_dslx_test-dslx_test_args"></a>dslx_test_args |  Arguments of the DSLX interpreter executable. For details on the arguments, refer to the interpreter_main application at //xls/dslx/interpreter_main.cc.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
+| <a id="xls_dslx_test-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This attribute is mutually exclusive with the 'srcs' and 'deps' attribute.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
 
 
 <a id="xls_eval_ir_test"></a>
@@ -440,10 +440,10 @@ Examples:
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_eval_ir_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="xls_eval_ir_test-src"></a>src |  The IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | <code>None</code> |
-| <a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional | <code>""</code> |
-| <a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{"random_inputs": "100", "optimize_ir": "true"}</code> |
-| <a id="xls_eval_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
+| <a id="xls_eval_ir_test-input_validator"></a>input_validator |  The DSLX library defining the input validator for this test. Mutually exclusive with "input_validator_expr".   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  `None`  |
+| <a id="xls_eval_ir_test-input_validator_expr"></a>input_validator_expr |  The expression to validate an input for the test function. Mutually exclusive with "input_validator".   | String | optional |  `""`  |
+| <a id="xls_eval_ir_test-ir_eval_args"></a>ir_eval_args |  Arguments of the IR interpreter. For details on the arguments, refer to the eval_ir_main application at //xls/tools/eval_ir_main.cc.The 'top' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{"random_inputs": "100", "optimize_ir": "true"}`  |
+| <a id="xls_eval_ir_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
 <a id="xls_ir_equivalence_test"></a>
@@ -489,10 +489,10 @@ Examples:
 | Name  | Description | Type | Mandatory | Default |
 | :------------- | :------------- | :------------- | :------------- | :------------- |
 | <a id="xls_ir_equivalence_test-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
-| <a id="xls_ir_equivalence_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional | <code>{}</code> |
+| <a id="xls_ir_equivalence_test-ir_equivalence_args"></a>ir_equivalence_args |  Arguments of the IR equivalence tool. For details on the arguments, refer to the check_ir_equivalence_main application at //xls/tools/check_ir_equivalence_main.cc. The 'function' argument is not assigned using this attribute.   | <a href="https://bazel.build/rules/lib/dict">Dictionary: String -> String</a> | optional |  `{}`  |
 | <a id="xls_ir_equivalence_test-src_0"></a>src_0 |  An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 | <a id="xls_ir_equivalence_test-src_1"></a>src_1 |  An IR source file for the rule. A single source file must be provided. The file must have a '.ir' extension.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
-| <a id="xls_ir_equivalence_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | <code>""</code> |
+| <a id="xls_ir_equivalence_test-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional |  `""`  |
 
 
 <a id="cc_xls_ir_jit_wrapper"></a>
@@ -517,7 +517,7 @@ identical to this macro.
 | :------------- | :------------- | :------------- |
 | <a id="cc_xls_ir_jit_wrapper-name"></a>name |  The name of the cc_library target.   |  none |
 | <a id="cc_xls_ir_jit_wrapper-src"></a>src |  The path to the IR file.   |  none |
-| <a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args |  Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.   |  <code>{}</code> |
+| <a id="cc_xls_ir_jit_wrapper-jit_wrapper_args"></a>jit_wrapper_args |  Arguments of the JIT wrapper tool. Note: argument 'output_name' cannot be defined.   |  `{}` |
 | <a id="cc_xls_ir_jit_wrapper-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -545,9 +545,9 @@ converted, we use their mangled names to refer to them in the IR namespace.
 | :------------- | :------------- | :------------- |
 | <a id="get_mangled_ir_symbol-module_name"></a>module_name |  The DSLX module name that the function is within.   |  none |
 | <a id="get_mangled_ir_symbol-function_name"></a>function_name |  The DSLX function name within the module.   |  none |
-| <a id="get_mangled_ir_symbol-parametric_values"></a>parametric_values |  Any parametric values used for instantiation (e.g. for a parametric entry point that is known to be instantiated in the IR converted module). This is generally for more advanced use cases like internals testing. The argument is mutually exclusive with argument 'is_proc_next'.   |  <code>None</code> |
-| <a id="get_mangled_ir_symbol-is_implicit_token"></a>is_implicit_token |  A boolean flag denoting whether the symbol contains an implicit token. The argument is mutually exclusive with argument 'is_proc_next'.   |  <code>False</code> |
-| <a id="get_mangled_ir_symbol-is_proc_next"></a>is_proc_next |  A boolean flag denoting whether the symbol is a next proc function. The argument is mutually exclusive with arguments: 'parametric_values' and 'is_implicit_token'.   |  <code>False</code> |
+| <a id="get_mangled_ir_symbol-parametric_values"></a>parametric_values |  Any parametric values used for instantiation (e.g. for a parametric entry point that is known to be instantiated in the IR converted module). This is generally for more advanced use cases like internals testing. The argument is mutually exclusive with argument 'is_proc_next'.   |  `None` |
+| <a id="get_mangled_ir_symbol-is_implicit_token"></a>is_implicit_token |  A boolean flag denoting whether the symbol contains an implicit token. The argument is mutually exclusive with argument 'is_proc_next'.   |  `False` |
+| <a id="get_mangled_ir_symbol-is_proc_next"></a>is_proc_next |  A boolean flag denoting whether the symbol is a next proc function. The argument is mutually exclusive with arguments: 'parametric_values' and 'is_implicit_token'.   |  `False` |
 
 **RETURNS**
 
@@ -616,7 +616,7 @@ a cc_library with its target name identical to this macro.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_cpp_type_library-name"></a>name |  The name of the eventual cc_library.   |  none |
 | <a id="xls_dslx_cpp_type_library-src"></a>src |  The DSLX file whose types to compile as C++.   |  none |
-| <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., <code>foo::bar</code>).   |  <code>None</code> |
+| <a id="xls_dslx_cpp_type_library-namespace"></a>namespace |  The C++ namespace to generate the code in (e.g., `foo::bar`).   |  `None` |
 
 
 <a id="xls_dslx_ir"></a>
@@ -656,12 +656,12 @@ An IR conversion with a top entity defined.
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_ir-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_dslx_ir-dslx_top"></a>dslx_top |  The top entity to perform the IR conversion.   |  none |
-| <a id="xls_dslx_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
-| <a id="xls_dslx_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
-| <a id="xls_dslx_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
-| <a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_dslx_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  `None` |
+| <a id="xls_dslx_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  `None` |
+| <a id="xls_dslx_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  `None` |
+| <a id="xls_dslx_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_dslx_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  `True` |
+| <a id="xls_dslx_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  `False` |
 | <a id="xls_dslx_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -708,13 +708,13 @@ Examples:
 | :------------- | :------------- | :------------- |
 | <a id="xls_dslx_opt_ir-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_dslx_opt_ir-dslx_top"></a>dslx_top |  The top entity to perform the IR conversion.   |  none |
-| <a id="xls_dslx_opt_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
-| <a id="xls_dslx_opt_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
-| <a id="xls_dslx_opt_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_opt_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_dslx_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_dslx_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
-| <a id="xls_dslx_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_dslx_opt_ir-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  `None` |
+| <a id="xls_dslx_opt_ir-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  `None` |
+| <a id="xls_dslx_opt_ir-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  `None` |
+| <a id="xls_dslx_opt_ir-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_dslx_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_dslx_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  `True` |
+| <a id="xls_dslx_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  `False` |
 | <a id="xls_dslx_opt_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -766,14 +766,14 @@ Examples:
 | <a id="xls_dslx_verilog-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_dslx_verilog-dslx_top"></a>dslx_top |  The top entity to perform the IR conversion.   |  none |
 | <a id="xls_dslx_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' extension.   |  none |
-| <a id="xls_dslx_verilog-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  <code>None</code> |
-| <a id="xls_dslx_verilog-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  <code>None</code> |
-| <a id="xls_dslx_verilog-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  <code>None</code> |
-| <a id="xls_dslx_verilog-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_dslx_verilog-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_dslx_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  <code>{}</code> |
-| <a id="xls_dslx_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
-| <a id="xls_dslx_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_dslx_verilog-srcs"></a>srcs |  Top level source files for the conversion. Files must have a '.x' extension. There must be single source file.   |  `None` |
+| <a id="xls_dslx_verilog-deps"></a>deps |  Dependency targets for the files in the 'srcs' argument.   |  `None` |
+| <a id="xls_dslx_verilog-library"></a>library |  A DSLX library target where the direct (non-transitive) files of the target are tested. This argument is mutually exclusive with the 'srcs' and 'deps' arguments.   |  `None` |
+| <a id="xls_dslx_verilog-ir_conv_args"></a>ir_conv_args |  Arguments of the IR conversion tool. For details on the arguments, refer to the ir_converter_main application at //xls/dslx/ir_convert/ir_converter_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_dslx_verilog-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_dslx_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  `{}` |
+| <a id="xls_dslx_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  `True` |
+| <a id="xls_dslx_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  `False` |
 | <a id="xls_dslx_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -814,8 +814,8 @@ This will produce a cc_library that will execute the fn `bar` from the
 | :------------- | :------------- | :------------- |
 | <a id="xls_ir_cc_library-name"></a>name |  The name of the resulting library.   |  none |
 | <a id="xls_ir_cc_library-src"></a>src |  The path to the IR file to compile.   |  none |
-| <a id="xls_ir_cc_library-top"></a>top |  The entry point in the IR file of interest.   |  <code>None</code> |
-| <a id="xls_ir_cc_library-namespaces"></a>namespaces |  A comma-separated list of namespaces into which the generated code should go.   |  <code>""</code> |
+| <a id="xls_ir_cc_library-top"></a>top |  The entry point in the IR file of interest.   |  `None` |
+| <a id="xls_ir_cc_library-namespaces"></a>namespaces |  A comma-separated list of namespaces into which the generated code should go.   |  `""` |
 
 
 <a id="xls_ir_opt_ir"></a>
@@ -864,10 +864,10 @@ Examples:
 | :------------- | :------------- | :------------- |
 | <a id="xls_ir_opt_ir-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_ir_opt_ir-src"></a>src |  The IR source file. A single source file must be provided. The file must have a '.ir' extension.   |  none |
-| <a id="xls_ir_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
-| <a id="xls_ir_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
-| <a id="xls_ir_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
-| <a id="xls_ir_opt_ir-debug_srcs"></a>debug_srcs |  List of additional source files for debugging info. Allows opt_main to correctly display lines from original source file (e.g. the .cc file before the xlscc pass) when an error occurs.   |  <code>[]</code> |
+| <a id="xls_ir_opt_ir-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  `{}` |
+| <a id="xls_ir_opt_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  `True` |
+| <a id="xls_ir_opt_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  `False` |
+| <a id="xls_ir_opt_ir-debug_srcs"></a>debug_srcs |  List of additional source files for debugging info. Allows opt_main to correctly display lines from original source file (e.g. the .cc file before the xlscc pass) when an error occurs.   |  `[]` |
 | <a id="xls_ir_opt_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -908,9 +908,9 @@ Example:
 | <a id="xls_ir_verilog-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_ir_verilog-src"></a>src |  The IR source file. A single source file must be provided. The file must have a '.ir' extension.   |  none |
 | <a id="xls_ir_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' or '.sv', extension.   |  none |
-| <a id="xls_ir_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  <code>{}</code> |
-| <a id="xls_ir_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
-| <a id="xls_ir_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
+| <a id="xls_ir_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  `{}` |
+| <a id="xls_ir_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  `True` |
+| <a id="xls_ir_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  `False` |
 | <a id="xls_ir_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
@@ -942,7 +942,7 @@ Recognized metrics from OpenSTA log:
 
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
-| <a id="xls_synthesis_metrics-name"></a>name |  Output "DesignStats" textproto will be &lt;name&gt;.textproto   |  none |
+| <a id="xls_synthesis_metrics-name"></a>name |  Output "DesignStats" textproto will be `<name>.textproto`   |  none |
 | <a id="xls_synthesis_metrics-srcs"></a>srcs |  Targets from which log files will be scanned. For post-synth, use "synthesize_rtl" and "run_opensta" targets.   |  none |
 | <a id="xls_synthesis_metrics-kwargs"></a>kwargs |  Accepts add'l keyword arguments. Passed to native.genrule().   |  none |
 
