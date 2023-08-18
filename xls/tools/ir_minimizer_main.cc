@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -22,22 +23,36 @@
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/flags/flag.h"
 #include "absl/random/distributions.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/types/span.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/subprocess.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
+#include "xls/ir/events.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node_util.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
+#include "xls/ir/source_location.h"
+#include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
@@ -51,6 +66,7 @@
 #include "xls/passes/dce_pass.h"
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
@@ -143,16 +159,33 @@ ABSL_FLAG(int64_t, simplifications_between_tests, 1,
           "Number of simplifications to do in-between tests. Increasing this "
           "value may speed minimization for large designs, especially when "
           "--test_executable is long-running.");
+ABSL_FLAG(
+    bool, verify_ir, true,
+    "Verify IR whenever parsing. In most cases, this is a good check that the "
+    "simplifications the minimizer makes are sound, but in cases where mostly "
+    "well-formed IR fails to parse, it is useful to disable IR verification so "
+    "the minimizer can proceed and help you understand why it fails to "
+    "verify.");
 
 namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
     std::string_view ir_text) {
-  if (absl::GetFlag(FLAGS_top).empty()) {
-    return Parser::ParsePackage(ir_text);
+  std::optional<std::string_view> entry;
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    entry = absl::GetFlag(FLAGS_top);
   }
-  return Parser::ParsePackageWithEntry(ir_text, absl::GetFlag(FLAGS_top));
+  // Do not verify unless the flag is set- we may want to minimize IR that fails
+  // to minimize.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<Package> package,
+      Parser::ParsePackageNoVerify(ir_text, /*filename=*/std::nullopt,
+                                   /*entry=*/entry));
+  if (absl::GetFlag(FLAGS_verify_ir)) {
+    XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
+  }
+  return package;
 }
 
 // Return a uniform random number over the interval [0, 1).
@@ -787,7 +820,9 @@ absl::Status RealMain(std::string_view path, const int64_t failed_attempt_limit,
                          ParsePackage(knownf_ir_text));
     FunctionBase* main = package->GetTop().value();
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
-    XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
+    if (absl::GetFlag(FLAGS_verify_ir)) {
+      XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
+    }
     knownf_ir_text = package->DumpIr();
     XLS_RETURN_IF_ERROR(VerifyStillFails(
         knownf_ir_text, inputs,
