@@ -137,14 +137,14 @@ proc test_proc {
     } (tok);
 
     // Send extra inputs to keep the system moving while our results are processing.
-    let tok = for (j, tok): (u32, token) in range(u32:0, u32:4) {
+    let tok = for (_, tok): (u32, token) in range(u32:0, u32:4) {
       for (i, tok): (u32, token) in range(u32:0, u32:4) {
           send(tok, activations_out[i], f32_0)
       } (tok)
     } (tok);
 
     // Flush the intermediate values.
-    let tok = for (j, tok): (u32, token) in range(u32:0, u32:0) {
+    let tok = for (_, tok): (u32, token) in range(u32:0, u32:0) {
       for (i, tok): (u32, token) in range(u32:0, u32:4) {
           let (tok, _) = recv(tok, results_in[i]);
           tok

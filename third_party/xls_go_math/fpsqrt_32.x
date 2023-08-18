@@ -112,7 +112,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
 
   // s is scaled version of the square root calculated down to a
   let (scaled_fixed_point_x, sqrt_in_progress, _) =
-    for (idx, (scaled_fixed_point_x,
+    for (_, (scaled_fixed_point_x,
                sqrt_in_progress,
                shifting_bit_mask)):
         (u32, (u32,

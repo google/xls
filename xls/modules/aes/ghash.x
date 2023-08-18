@@ -95,7 +95,6 @@ fn gf128_mul_test() {
     assert_eq(z, a);
 
     // By two.
-    let a = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
     let a = Block:[
         [u8:0x66, u8:0xe9, u8:0x4b, u8:0xd4],
         [u8:0xef, u8:0x8a, u8:0x2c, u8:0x3b],

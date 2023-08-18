@@ -306,7 +306,7 @@ const TEST1_DELAY = u32:2047;
             send(tok, data_in_r, i)
         } (tok);
         // first, receive the inits
-        let rtok = for (i, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
+        let rtok = for (_, tok): (u32, token) in range(u32:0, TEST1_DELAY) {
             let (tok, result) = recv(tok, data_out_s);
             assert_eq(result, u32:3);
             tok

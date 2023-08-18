@@ -98,7 +98,6 @@ const COS_COEF =
 // series approximation of cos in range [0, Pi/4).
 fn cos_taylor(z_sq: F32) -> F32 {
   const one = float32::one(u1:0);
-  const neg_one = float32::one(u1:1);
 
   // cos = 1.0
   //       - 0.5*z_sq

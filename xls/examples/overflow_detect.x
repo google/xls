@@ -16,8 +16,8 @@ import std
 
 // Example usage of detecting addition and multiplication overflows.
 fn main(x : u16, y : u16) -> bool {
-  let (add_overflow, result) = std::uadd_with_overflow<u32:8>(x, y);
-  let (mul_overflow, result) = std::umul_with_overflow<u32:8>(x, y);
+  let (add_overflow, _result) = std::uadd_with_overflow<u32:8>(x, y);
+  let (mul_overflow, _result) = std::umul_with_overflow<u32:8>(x, y);
 
   let overflow = add_overflow || mul_overflow;
 
