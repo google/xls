@@ -88,7 +88,6 @@ class Callee {
                                      ParametricEnv parametric_env,
                                      std::optional<ProcId> proc_id);
 
-  bool IsFunction() const;
   Function* f() const { return f_; }
   const Invocation* invocation() const { return invocation_; }
   Module* m() const { return m_; }
@@ -144,9 +143,7 @@ class ConversionRecord {
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
   const ParametricEnv& parametric_env() const { return parametric_env_; }
-  const std::vector<Callee>& callees() const { return callees_; }
   std::optional<ProcId> proc_id() const { return proc_id_; }
-  bool HasProcId() const { return proc_id_.has_value(); }
   bool IsTop() const { return is_top_; }
 
   std::string ToString() const;
