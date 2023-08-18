@@ -107,7 +107,7 @@ class FunctionJit {
   template <typename... ArgsT>
   absl::Status RunWithPackedViews(ArgsT... args) {
     XLS_RET_CHECK(jitted_function_base_.packed_function.has_value());
-    uint8_t* arg_buffers[sizeof...(ArgsT)];
+    const uint8_t* arg_buffers[sizeof...(ArgsT)];
     uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
     PackArgBuffers(arg_buffers, &result_buffer, args...);
@@ -118,6 +118,20 @@ class FunctionJit {
         arg_buffers, output_buffers, temp_buffer_.data(), &events,
         /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
+    return InterpreterEventsToStatus(events);
+  }
+
+  // Same as RunWithPackedViews but expects a View rather than a PackedView.
+  template <typename... ArgsT>
+  absl::Status RunWithUnpackedViews(ArgsT... args) {
+    const uint8_t* arg_buffers[sizeof...(ArgsT)];
+    uint8_t* result_buffer;
+
+    // Walk the type tree to get each arg's data buffer into our view/arg list.
+    PackArgBuffers(arg_buffers, &result_buffer, args...);
+
+    InterpreterEvents events;
+    InvokeJitFunction(arg_buffers, result_buffer, &events);
     return InterpreterEventsToStatus(events);
   }
 
@@ -186,7 +200,7 @@ class FunctionJit {
   // Simple templates to walk down the arg tree and populate the corresponding
   // arg/buffer pointer.
   template <typename FrontT, typename... RestT>
-  void PackArgBuffers(uint8_t** arg_buffers, uint8_t** result_buffer,
+  void PackArgBuffers(const uint8_t** arg_buffers, uint8_t** result_buffer,
                       FrontT front, RestT... rest) {
     arg_buffers[0] = front.buffer();
     PackArgBuffers(&arg_buffers[1], result_buffer, rest...);
@@ -194,13 +208,13 @@ class FunctionJit {
 
   // Base case for the above recursive template.
   template <typename LastT>
-  void PackArgBuffers(uint8_t** arg_buffers, uint8_t** result_buffer,
+  void PackArgBuffers(const uint8_t** arg_buffers, uint8_t** result_buffer,
                       LastT front) {
-    *result_buffer = front.buffer();
+    *result_buffer = front.mutable_buffer();
   }
 
   // Invokes the jitted function with the given argument and outputs.
-  void InvokeJitFunction(absl::Span<uint8_t* const> arg_buffers,
+  void InvokeJitFunction(absl::Span<const uint8_t* const> arg_buffers,
                          uint8_t* output_buffer, InterpreterEvents* events);
 
   std::unique_ptr<OrcJit> orc_jit_;

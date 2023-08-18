@@ -22,6 +22,8 @@ type F32 = float32::F32;
 
 pub fn identity(x: F32) -> F32 { x }
 
+pub fn wide_identity(x: bits[512]) -> bits[512] { x }
+
 pub fn is_inf(x: F32) -> bool { float32::is_inf(x) }
 
 pub fn fail_on_42(x: u32) -> u32 {

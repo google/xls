@@ -20,6 +20,7 @@
 #include "xls/tests/jit_wrapper/identity.h"
 #include "xls/tests/jit_wrapper/is_inf.h"
 #include "xls/tests/jit_wrapper/make_tuple.h"
+#include "xls/tests/jit_wrapper/wide_identity.h"
 
 namespace xls {
 namespace {
@@ -38,6 +39,24 @@ TEST(SimpleJitWrapperTest, InvokeIdentity) {
   Value input = F32ToTuple(kInput);
   XLS_ASSERT_OK_AND_ASSIGN(Value output_value, f->Run(input));
   EXPECT_EQ(output_value, input);
+}
+
+TEST(SimpleJitWrapperTest, InvokeWideIdentity) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::test::WideIdentity> f,
+                           xls::test::WideIdentity::Create());
+
+  uint8_t input[64];
+  uint8_t output[64];
+  for (uint8_t i = 0; i < 64; ++i) {
+    input[i] = i;
+    output[i] = 0;
+  }
+
+  BitsView<512> input_view(input);
+  MutableBitsView<512> output_view(output);
+  XLS_ASSERT_OK(f->Run(input_view, output_view));
+
+  EXPECT_THAT(output, testing::ElementsAreArray(input));
 }
 
 TEST(SimpleJitWrapperTest, IsInf) {

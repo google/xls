@@ -1267,6 +1267,7 @@ cc_library(
         "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common/logging",
+        "@com_google_absl//absl/numeric:int128",
     ],
 )
 

@@ -48,6 +48,22 @@ cc_xls_ir_jit_wrapper(
 )
 
 xls_dslx_opt_ir(
+    name = "simple_wide_identity",
+    srcs = ["simple.x"],
+    dslx_top = "wide_identity",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "wide_identity",
+    src = ":simple_wide_identity.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "WideIdentity",
+        "function": "wide_identity",
+        "namespace": "xls::test",
+    },
+)
+
+xls_dslx_opt_ir(
     name = "simple_is_inf",
     srcs = ["simple.x"],
     dslx_top = "is_inf",
@@ -103,6 +119,7 @@ cc_test(
         ":identity",
         ":is_inf",
         ":make_tuple",
+        ":wide_identity",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
