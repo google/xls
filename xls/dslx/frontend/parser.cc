@@ -478,6 +478,14 @@ Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
 absl::StatusOr<Expr*> Parser::ParseExpression(Bindings& bindings,
                                               ExprRestrictions restrictions) {
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+
+  if (++approximate_expression_depth_ >= kApproximateExpressionDepthLimit) {
+    return ParseErrorStatus(peek->span(),
+                            "Expression is too deeply nested, please break "
+                            "into multiple statements");
+  }
+  auto bump_down = absl::Cleanup([this] { approximate_expression_depth_--; });
+
   XLS_VLOG(5) << "ParseExpression @ " << GetPos() << " peek: `"
               << peek->ToString() << "`";
   if (peek->IsKeyword(Keyword::kFor)) {

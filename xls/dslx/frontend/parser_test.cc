@@ -1910,4 +1910,17 @@ import repetitively)";
       << module_or.status();
 }
 
+TEST_F(ParserTest, UnreasonablyDeepExpr) {
+  // Note: this is the minimum number of parentheses required to trigger the
+  // error.
+  constexpr std::string_view kProgram = R"(const E=
+((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(module_or, StatusIs(absl::StatusCode::kInvalidArgument,
+                                  HasSubstr("Expression is too deeply nested")))
+      << module_or.status();
+}
+
 }  // namespace xls::dslx

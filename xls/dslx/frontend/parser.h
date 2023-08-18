@@ -574,6 +574,12 @@ class Parser : public TokenParser {
   // we can emit either a ConstRef or NameRef. This set holds those NDTs known
   // to be constant for that purpose.
   absl::flat_hash_set<NameDefTree*> const_ndts_;
+
+  // To avoid over-recursion (and ensuing stack overflows) we keep track of the
+  // approximate expression depth, and bail when expressions are unreasonably
+  // deeply nested.
+  static constexpr int64_t kApproximateExpressionDepthLimit = 64;
+  int64_t approximate_expression_depth_ = 0;
 };
 
 const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v);
