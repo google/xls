@@ -1929,6 +1929,9 @@ std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
   if (take == nullptr) {
     // Fast path if there's no take function, we don't need to inspect/copy
     // things.
+    if (env->empty()) {
+      return std::nullopt;
+    }
     int64_t index = RandRange(env->size());
     auto it = env->begin();
     std::advance(it, index);
