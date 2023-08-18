@@ -705,5 +705,93 @@ TEST(FunctionJitTest, CompoundTokenCompareError) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr("Tokens are incomparable")));
 }
+
+TEST(FunctionJitTest, TupleViewSmokeTest2) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+fn f(x: bits[1], y: bits[21]) -> (bits[1], bits[21]) {
+  ret tuple.4: (bits[1], bits[21]) = tuple(x, y)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
+  // Test using values.
+  {
+    Value x(UBits(0x1, 1));
+    Value y(UBits(0xabcd, 21));
+    Value ret = Value::Tuple(std::vector<Value>{x, y});
+
+    std::vector args{x, y};
+    EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
+  }
+
+  // Test using views.
+  {
+    int64_t x = 0x1;
+    int64_t y = 0xabcd;
+    uint8_t result[8] = {0};
+
+    std::vector<uint8_t*> args{reinterpret_cast<uint8_t*>(&x),
+                               reinterpret_cast<uint8_t*>(&y)};
+    absl::Span<uint8_t> result_buffer(result);
+    InterpreterEvents events;
+    XLS_ASSERT_OK(jit->RunWithViews(args, result_buffer, &events));
+
+    xls::TupleView<xls::BitsView<1>, xls::BitsView<21>> result_view(result);
+    EXPECT_EQ(result_view.Get<0>().GetValue(), 0x1);
+    EXPECT_EQ(result_view.Get<1>().GetValue(), 0xabcd);
+    EXPECT_THAT(result, testing::ElementsAreArray(
+                            {0x1, 0x00, 0x00, 0x00, 0xcd, 0xab, 0x00, 0x00}));
+  }
+}
+
+TEST(FunctionJitTest, TupleViewSmokeTest) {
+  Package package("my_package");
+
+  std::string ir_text = R"(
+fn f(x: bits[1], y: bits[8]) -> (bits[1], bits[8], bits[16]) {
+  literal.3: bits[16] = literal(value=43981)
+  ret tuple.4: (bits[1], bits[8], bits[16]) = tuple(x, y, literal.3)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+
+  // Test using values.
+  {
+    Value x(UBits(0x1, 1));
+    Value y(UBits(0x34, 8));
+    Value ret =
+        Value::Tuple(std::vector<Value>{x, y, Value(UBits(0xabcd, 16))});
+
+    std::vector args{x, y};
+    EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
+  }
+
+  // Test using views.
+  {
+    int64_t x = 0x1;
+    int64_t y = 0x34;
+    uint8_t result[4] = {0};
+
+    std::vector<uint8_t*> args{reinterpret_cast<uint8_t*>(&x),
+                               reinterpret_cast<uint8_t*>(&y)};
+    absl::Span<uint8_t> result_buffer(result);
+    InterpreterEvents events;
+    XLS_ASSERT_OK(jit->RunWithViews(args, result_buffer, &events));
+
+    xls::TupleView<xls::BitsView<1>, xls::BitsView<8>, xls::BitsView<16>>
+        result_view(result);
+    EXPECT_EQ(result_view.Get<0>().GetValue(), 0x1);
+    EXPECT_EQ(result_view.Get<1>().GetValue(), 0x34);
+    EXPECT_EQ(result_view.Get<2>().GetValue(), 0xabcd);
+    EXPECT_THAT(result, testing::ElementsAreArray({0x1, 0x34, 0xcd, 0xab}));
+  }
+}
+
 }  // namespace
 }  // namespace xls

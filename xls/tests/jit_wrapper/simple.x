@@ -30,3 +30,7 @@ pub fn fail_on_42(x: u32) -> u32 {
     _ => x
   }
 }
+
+pub fn make_tuple(x: u1, y: u8) -> (u1, u8, u16) {
+  (x, y, u16:0xabcd)
+}

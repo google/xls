@@ -160,8 +160,7 @@ class TupleView {
     // If offset isn't aligned to our type size, then add padding.
     // TODO(rspringer): We need to require the buffer to be aligned, too.
     // TODO(rspringer): Aligned to min(our_type_size, 8)?
-    uint64_t padding = offset % FrontT::GetTypeSize();
-    return offset + padding;
+    return RoundUpToNearest<uint64_t>(offset, FrontT::GetTypeSize());
   }
 
   // ---- Element type access.

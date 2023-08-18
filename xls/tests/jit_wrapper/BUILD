@@ -79,6 +79,22 @@ cc_xls_ir_jit_wrapper(
     },
 )
 
+xls_dslx_opt_ir(
+    name = "simple_make_tuple",
+    srcs = ["simple.x"],
+    dslx_top = "make_tuple",
+)
+
+cc_xls_ir_jit_wrapper(
+    name = "make_tuple",
+    src = ":simple_make_tuple.opt.ir",
+    jit_wrapper_args = {
+        "class_name": "MakeTuple",
+        "function": "make_tuple",
+        "namespace": "xls::test",
+    },
+)
+
 cc_test(
     name = "simple_jit_wrapper_test",
     srcs = ["simple_jit_wrapper_test.cc"],
@@ -86,6 +102,7 @@ cc_test(
         ":fail_on_42",
         ":identity",
         ":is_inf",
+        ":make_tuple",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
