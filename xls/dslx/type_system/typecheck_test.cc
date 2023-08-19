@@ -19,7 +19,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -1860,6 +1859,19 @@ fn f() {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Value '0x800000000000000000000' does not fit "
                                  "in the bitwidth of a sN[80] (80)")));
+}
+
+TEST(TypecheckTest, NegateTuple) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f() -> (u32, u32) {
+  -(u32:42, u32:64)
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unary operation `-` can only be applied to "
+                                 "bits-typed operands")));
 }
 
 }  // namespace

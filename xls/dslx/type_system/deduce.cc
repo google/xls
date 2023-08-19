@@ -310,7 +310,18 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
                                                          DeduceCtx* ctx) {
-  return ctx->Deduce(node->operand());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> operand_type,
+                       ctx->Deduce(node->operand()));
+
+  if (dynamic_cast<BitsType*>(operand_type.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), operand_type.get(),
+        absl::StrFormat(
+            "Unary operation `%s` can only be applied to bits-typed operands.",
+            UnopKindToString(node->unop_kind())));
+  }
+
+  return operand_type;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceProcMember(
