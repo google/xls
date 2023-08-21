@@ -219,23 +219,6 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(diff, lhs.bit_count());
 }
 
-static Bits Mul(const Bits& lhs, const Bits& rhs) {
-  XLS_CHECK_EQ(lhs.bit_count(), rhs.bit_count());
-  if (lhs.bit_count() <= 64) {
-    uint64_t lhs_int = lhs.ToUint64().value();
-    uint64_t rhs_int = rhs.ToUint64().value();
-    uint64_t result = (lhs_int * rhs_int) & Mask(lhs.bit_count());
-    return UBits(result, lhs.bit_count());
-  }
-
-  BigInt product =
-      BigInt::Mul(BigInt::MakeSigned(SignExtend(lhs, lhs.bit_count())),
-                  BigInt::MakeSigned(SignExtend(rhs, lhs.bit_count())));
-  return product.ToSignedBitsWithBitCount(lhs.bit_count() * 2)
-      .value()
-      .Slice(0, lhs.bit_count());
-}
-
 Bits SMul(const Bits& lhs, const Bits& rhs) {
   const int64_t result_width = lhs.bit_count() + rhs.bit_count();
   if (result_width <= 64) {
@@ -612,10 +595,10 @@ Bits operator^(const Bits& lhs, const Bits& rhs) {
 Bits operator~(const Bits& bits) { return bits_ops::Not(bits); }
 
 Bits MulpOffsetForSimulation(int64_t result_size, int64_t shift_size) {
-  int64_t offset_lsbs_size = std::max(0l, result_size - 2);
+  int64_t offset_lsbs_size = std::max(int64_t{0}, result_size - 2);
   int64_t msbs_size = result_size - offset_lsbs_size;
   int64_t offset_lsbs_shift_amount =
-      std::max(0l, std::min(offset_lsbs_size - 1, shift_size));
+      std::max(int64_t{0}, std::min(offset_lsbs_size - 1, shift_size));
   Bits offset_bits = bits_ops::ShiftRightLogical(
       Bits::AllOnes(offset_lsbs_size), offset_lsbs_shift_amount);
   if (msbs_size > 0) {

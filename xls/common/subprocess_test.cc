@@ -42,7 +42,7 @@ TEST(SubprocessTest, EmptyArgvFails) {
 
 TEST(SubprocessTest, NonZeroExitWorks) {
   auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "echo -n hey && echo -n hello >&2 && exit 10"},
+      {"/bin/bash", "-c", "echo -n hey && echo -n hello >&2 && exit 10"},
       std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
@@ -55,7 +55,7 @@ TEST(SubprocessTest, NonZeroExitWorks) {
 
 TEST(SubprocessTest, CrashingExitWorks) {
   auto result = InvokeSubprocess(
-      {"/bin/sh", "-c", "echo -n hey && echo -n hello >&2 && kill -ABRT $$"},
+      {"/bin/bash", "-c", "echo -n hey && echo -n hello >&2 && kill -ABRT $$"},
       std::nullopt);
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
@@ -68,7 +68,7 @@ TEST(SubprocessTest, CrashingExitWorks) {
 
 TEST(SubprocessTest, WatchdogFastExitWorks) {
   absl::Time start_time = absl::Now();
-  auto result = InvokeSubprocess({"/bin/sh", "-c", "exit 0"}, std::nullopt,
+  auto result = InvokeSubprocess({"/bin/bash", "-c", "exit 0"}, std::nullopt,
                                  absl::Milliseconds(60000));
   absl::Duration duration = absl::Now() - start_time;
 
@@ -82,7 +82,7 @@ TEST(SubprocessTest, WatchdogFastExitWorks) {
 }
 
 TEST(SubprocessTest, WatchdogWorks) {
-  auto result = InvokeSubprocess({"/bin/sh", "-c", "sleep 10s"}, std::nullopt,
+  auto result = InvokeSubprocess({"/bin/bash", "-c", "sleep 10"}, std::nullopt,
                                  absl::Milliseconds(50));
 
   EXPECT_THAT(result, IsOkAndHolds(FieldsAre(
@@ -95,7 +95,7 @@ TEST(SubprocessTest, WatchdogWorks) {
 
 TEST(SubprocessTest, ErrorAsStatusFailingCommand) {
   auto result = SubprocessErrorAsStatus(InvokeSubprocess(
-      {"/bin/sh", "-c", "echo hey && echo hello >&2 && /bin/false"},
+      {"/bin/bash", "-c", "echo hey && echo hello >&2 && /bin/false"},
       std::nullopt));
 
   ASSERT_THAT(result, StatusIs(absl::StatusCode::kInternal));
@@ -106,7 +106,7 @@ TEST(SubprocessTest, ErrorAsStatusFailingCommand) {
 TEST(SubprocessTest, WorkingCommandWorks) {
   absl::StatusOr<SubprocessResult> result_or_status =
       SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/sh", "-c", "echo hey && echo hello >&2"}, std::nullopt));
+          {"/bin/bash", "-c", "echo hey && echo hello >&2"}, std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
   EXPECT_EQ(result_or_status->stdout, "hey\n");
@@ -116,7 +116,7 @@ TEST(SubprocessTest, WorkingCommandWorks) {
 TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
   absl::StatusOr<SubprocessResult> result_or_status =
       SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/sh", "-c", "/usr/bin/env seq 10000 && echo hello >&2"},
+          {"/bin/bash", "-c", "/usr/bin/env seq 10000 && echo hello >&2"},
           std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);
@@ -127,7 +127,7 @@ TEST(SubprocessTest, LargeOutputToStdoutFirstWorks) {
 TEST(SubprocessTest, LargeOutputToStderrFirstWorks) {
   absl::StatusOr<SubprocessResult> result_or_status =
       SubprocessErrorAsStatus(InvokeSubprocess(
-          {"/bin/sh", "-c", "/usr/bin/env seq 10000 >&2 && echo hello"},
+          {"/bin/bash", "-c", "/usr/bin/env seq 10000 >&2 && echo hello"},
           std::nullopt));
 
   XLS_ASSERT_OK(result_or_status);

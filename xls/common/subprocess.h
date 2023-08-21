@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 
@@ -47,6 +48,14 @@ struct SubprocessResult {
   bool timeout_expired;
 };
 std::ostream &operator<<(std::ostream &os, const SubprocessResult &other);
+inline void PrintTo(const SubprocessResult& result, std::ostream* os) {
+  *os << absl::StreamFormat(
+      "SubprocessResult "
+      "{\n\tstdout=%s\n\tstderr=%s\n\texit_status=%d\n\tnormal_termination=%"
+      "d\n\ttimeout_expired=%d\n}}",
+      result.stdout, result.stderr, result.exit_status,
+      result.normal_termination, result.timeout_expired);
+}
 
 // Returns Status::kInternalError if the subprocess unexpectedly terminated or
 // terminated with return code != 0 rather than StatusOk(). This is helpful when

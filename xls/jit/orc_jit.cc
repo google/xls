@@ -338,6 +338,11 @@ absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
 
 absl::StatusOr<llvm::orc::ExecutorAddr> OrcJit::LoadSymbol(
     std::string_view function_name) {
+#ifdef __APPLE__
+  // On Apple systems, symbols are still prepended with an underscore.
+  std::string function_name_with_underscore = absl::StrCat("_", function_name);
+  function_name = function_name_with_underscore;
+#endif /* __APPLE__ */
   llvm::Expected<llvm::orc::ExecutorSymbolDef> symbol =
       execution_session_.lookup(&dylib_, function_name);
   if (!symbol) {
