@@ -1887,5 +1887,52 @@ fn f() -> (u32, u32) {
                                  "bits-typed operands")));
 }
 
+TEST(TypecheckErrorTest, MatchOnBitsWithEmptyTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: u32) -> u32 {
+  match x {
+    () => x,
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple")));
+}
+
+TEST(TypecheckErrorTest, MatchOnBitsWithIrrefutableTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: u32) -> u32 {
+  match x {
+    (y) => y,
+  }
+}
+)";
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("uN[32] Pattern expected matched-on type to be a tuple.")));
+}
+
+TEST(TypecheckErrorTest, MatchOnTupleWithWrongSizedTuplePattern) {
+  constexpr std::string_view kProgram =
+      R"(
+fn f(x: (u32)) -> u32 {
+  match x {
+    (x, y) => x,
+  }
+}
+)";
+  EXPECT_THAT(Typecheck(kProgram),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("(uN[32]) Pattern wanted 2 tuple elements, "
+                                 "matched-on value had 1 element")));
+}
+
 }  // namespace
 }  // namespace xls::dslx

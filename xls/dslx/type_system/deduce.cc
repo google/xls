@@ -1917,13 +1917,24 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
     }
   } else {
     const NameDefTree::Nodes& nodes = name_def_tree->nodes();
-    if (auto* type = dynamic_cast<const TupleType*>(&other);
-        type != nullptr && type->size() == nodes.size()) {
-      for (int64_t i = 0; i < nodes.size(); ++i) {
-        const ConcreteType& subtype = type->GetMemberType(i);
-        NameDefTree* subtree = nodes[i];
-        XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
+    if (auto* type = dynamic_cast<const TupleType*>(&other)) {
+      if (type->size() == nodes.size()) {
+        for (int64_t i = 0; i < nodes.size(); ++i) {
+          const ConcreteType& subtype = type->GetMemberType(i);
+          NameDefTree* subtree = nodes[i];
+          XLS_RETURN_IF_ERROR(Unify(subtree, subtype, ctx));
+        }
+      } else {
+        return TypeInferenceErrorStatus(
+            name_def_tree->span(), &other,
+            absl::StrFormat("Pattern wanted %d tuple elements, matched-on "
+                            "value had %d element",
+                            nodes.size(), type->size()));
       }
+    } else {
+      return TypeInferenceErrorStatus(
+          name_def_tree->span(), &other,
+          "Pattern expected matched-on type to be a tuple.");
     }
   }
   return absl::OkStatus();
@@ -1994,6 +2005,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(const Match* node,
           "preceding match arms.");
     }
   }
+
   return std::move(arm_types[0]);
 }
 
