@@ -25,6 +25,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/dslx/frontend/bindings.h"
 
 namespace xls::dslx {
 namespace {
@@ -32,7 +33,12 @@ namespace {
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
-static absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {
+bool IsScanError(const absl::Status& status) {
+  return status.code() == absl::StatusCode::kInvalidArgument &&
+         GetPositionalErrorData(status, "ScanError").ok();
+}
+
+absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {
   Scanner s("fake_file.x", std::move(text));
   return s.PopAll();
 }
@@ -310,6 +316,86 @@ TEST(ScannerTest, TokenEqNeqTests) {
 
   Token keyword_token_mismatch(span_a, Keyword::kFn);
   EXPECT_NE(keyword_token, keyword_token_mismatch);
+}
+
+TEST(ScannerTest, HexCharLiteralBadDigit) {
+  std::string text = R"('\xjk')";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::vector<Token>> result = s.PopAll();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(result, StatusIs(absl::StatusCode::kInvalidArgument,
+                               HasSubstr("Only hex digits are allowed")));
+}
+
+TEST(ScannerTest, StringCharUnicodeEscapeNonHexDigit) {
+  std::string text = R"(\u{jk}")";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(
+      result,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Only hex digits are allowed within a Unicode character code")));
+}
+
+TEST(ScannerTest, StringCharUnicodeEscapeEmpty) {
+  std::string text = R"(\u{}")";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(
+      result,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Unicode escape must contain at least one character")));
+}
+
+TEST(ScannerTest, StringCharUnicodeInvalidSequence) {
+  std::string text = R"(\u{d835}")";  // surrogate character
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(result,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Invalid unicode sequence: '\\u{d835}'")));
+}
+
+TEST(ScannerTest, StringCharUnicodeMoreThanSixDigits) {
+  std::string text = R"(\u{1234567}")";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(result,
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Unicode character code escape sequence must "
+                                 "terminate (after 6 digits at most)")));
+}
+
+TEST(ScannerTest, StringCharUnicodeBadTerminator) {
+  std::string text = R"(\u{123456!")";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(
+      result,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Unicode character code escape sequence must "
+                         "terminate (after 6 digits at most) with a '}'")));
+}
+
+TEST(ScannerTest, StringCharUnicodeBadStartChar) {
+  std::string text = R"(\u!")";
+  Scanner s("fake_file.x", text);
+  absl::StatusOr<std::string> result = s.ScanUntilDoubleQuote();
+  EXPECT_TRUE(IsScanError(result.status()));
+  EXPECT_THAT(
+      result,
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Unicode character code escape sequence start (\\u) must "
+                    "be followed by a character code, such as \"{...}\"")));
 }
 
 }  // namespace

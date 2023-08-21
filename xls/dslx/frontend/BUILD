@@ -198,6 +198,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
     ],
 )
@@ -206,6 +207,7 @@ cc_test(
     name = "scanner_test",
     srcs = ["scanner_test.cc"],
     deps = [
+        ":bindings",
         ":scanner",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",

@@ -32,6 +32,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/ret_check.h"
 #include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
@@ -136,7 +137,7 @@ absl::StatusOr<Token> Scanner::PopWhitespace(const Pos& start_pos) {
 
 // This is too simple to need to return absl::Status. Just never call it
 // with a non-hex character.
-static int HexCharToInt(char hex_char) {
+static uint8_t HexCharToU8(char hex_char) {
   if (std::isdigit(hex_char) != 0) {
     return hex_char - '0';
   }
@@ -198,10 +199,11 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
       }
       next = PeekChar();
       if (!absl::ascii_isxdigit(next)) {
-        return absl::InvalidArgumentError(
+        return ScanError(
+            Span(start_pos, GetPos()),
             "Only hex digits are allowed within a 7-bit character code.");
       }
-      code = (code << 4) | HexCharToInt(next);
+      code = static_cast<uint8_t>((code << 4) | HexCharToU8(next));
       DropChar();
     }
 
@@ -226,7 +228,8 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
                        "Unexpected EOF in escaped unicode character.");
     }
     if (PeekChar() != '{') {
-      return absl::InvalidArgumentError(
+      return ScanError(
+          Span(start_pos, GetPos()),
           "Unicode character code escape sequence start (\\u) "
           "must be followed by a character code, such as \"{...}\".");
     }
@@ -242,37 +245,44 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
       } else if (next == '}') {
         break;
       } else {
-        return absl::InvalidArgumentError(
+        return ScanError(
+            Span(start_pos, GetPos()),
             "Only hex digits are allowed within a Unicode character code.");
       }
     }
     if (AtEof() || PeekChar() != '}') {
-      return absl::InvalidArgumentError(
-          "Unicode character code escape sequence must terminate "
-          "(after 6 digits at most) with a '}'");
+      return ScanError(Span(start_pos, GetPos()),
+                       "Unicode character code escape sequence must terminate "
+                       "(after 6 digits at most) with a '}'");
     }
     DropChar();
 
     if (unicode.empty()) {
-      return absl::InvalidArgumentError(
-          "Unicode escape must contain at least one character.");
+      return ScanError(Span(start_pos, GetPos()),
+                       "Unicode escape must contain at least one character.");
     }
 
     // Add padding and unicode escape characters to conform with
     // absl::CUnescape.
-    if (unicode.size() < 4) {
-      unicode.insert(0, 4 - unicode.size(), '0');
-      unicode.insert(0, R"(\u)");
-    } else if (unicode.size() < 8) {
-      unicode.insert(0, 8 - unicode.size(), '0');
-      unicode.insert(0, R"(\U)");
+    std::string to_unescape;
+    if (unicode.size() <= 4) {
+      to_unescape = "\\u";
+      to_unescape.insert(to_unescape.size(), 4 - unicode.size(), '0');
+      to_unescape += unicode;
+    } else {
+      XLS_RET_CHECK(unicode.size() <= 8);
+      to_unescape = "\\U";
+      to_unescape.insert(to_unescape.size(), 8 - unicode.size(), '0');
+      to_unescape += unicode;
     }
 
     std::string utf8;
-    if (!absl::CUnescape(unicode, &utf8)) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid unicode sequence: '%s'.",
-                          absl::StrCat(R"(\u{)", unicode, "}")));
+    if (!absl::CUnescape(to_unescape, &utf8)) {
+      // Note: we report the error using the characters the user provided
+      // instead of what we created to feed CUnescape.
+      return ScanError(Span(start_pos, GetPos()),
+                       absl::StrFormat("Invalid unicode sequence: '%s'.",
+                                       absl::StrCat(R"(\u{)", unicode, "}")));
     }
     return utf8;
   }

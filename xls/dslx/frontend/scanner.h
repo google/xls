@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "absl/base/attributes.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -246,6 +245,9 @@ class Scanner {
   }
 
   // Proceeds through the stream until an unescaped double quote is encountered.
+  //
+  // Note: since there are special character escapes in strings, they are
+  // specially handled by this routine when an open quote is encountered.
   absl::StatusOr<std::string> ScanUntilDoubleQuote();
 
   void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
