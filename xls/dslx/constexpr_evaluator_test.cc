@@ -13,7 +13,6 @@
 // limitations under the License.
 #include "xls/dslx/constexpr_evaluator.h"
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -36,6 +35,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -58,7 +58,7 @@ absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   TestData test_data{std::move(module), CreateImportDataForTest()};
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSIGN_OR_RETURN(
       test_data.type_info,
       CheckModule(test_data.module.get(), &test_data.import_data, &warnings));
@@ -99,7 +99,7 @@ fn Foo() -> u64 {
 
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, attr));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(), attr,
                                              type));
@@ -122,7 +122,7 @@ const kFoo = u32:7;
 
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, number));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(), number,
                                              type));
@@ -150,7 +150,7 @@ fn Foo() -> u64 {
   Cast* cast = down_cast<Cast*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, cast));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(), cast,
                                              type));
@@ -174,7 +174,7 @@ fn main() -> u32 {
   Conditional* conditional = down_cast<Conditional*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, conditional));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(),
                                              conditional, type));
@@ -206,7 +206,7 @@ fn Foo() -> MyStruct {
       down_cast<StructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(),
                                              struct_instance, type));
@@ -243,7 +243,7 @@ fn main() -> MyStruct {
       down_cast<SplatStructInstance*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
                                              &warnings, ParametricEnv(),
                                              struct_instance, type));
@@ -279,7 +279,7 @@ fn main() -> u32 {
   ColonRef* colon_ref = down_cast<ColonRef*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), colon_ref, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -314,7 +314,7 @@ fn main() -> imported::MyEnum {
   ColonRef* colon_ref = down_cast<ColonRef*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), colon_ref, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -341,7 +341,7 @@ fn main() -> u32 {
   Index* index = down_cast<Index*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -369,7 +369,7 @@ fn main() -> u16 {
   Index* index = down_cast<Index*>(body_expr);
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -396,7 +396,7 @@ fn main() -> u16 {
   Index* index = down_cast<Index*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), index, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -426,7 +426,7 @@ fn main() -> (u32, u32, u32) {
 
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_tuple));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), xls_tuple, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -455,7 +455,7 @@ fn main() -> u32 {
   Match* match = down_cast<Match*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, match));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), match, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
@@ -480,7 +480,7 @@ fn main() -> s32 {
   Unop* unop = down_cast<Unop*>(GetSingleBodyExpr(f));
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, unop));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
       &import_data, tm.type_info, &warnings, ParametricEnv(), unop, type));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, tm.type_info->GetConstExpr(unop));
@@ -501,7 +501,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
                                              &warnings, ParametricEnv(),
                                              f->body(), nullptr));
@@ -528,7 +528,7 @@ fn main() -> MyStruct {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
                                              &warnings, ParametricEnv(),
                                              f->body(), nullptr));
@@ -557,7 +557,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  WarningCollector warnings;
+  WarningCollector warnings(kAllWarningsSet);
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
                                              &warnings, ParametricEnv(),
                                              f->body(), nullptr));

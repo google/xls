@@ -28,6 +28,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 
 ABSL_FLAG(std::string, output_header_path, "",
           "Path at which to write the generated header.");
@@ -60,8 +61,8 @@ absl::Status RealMain(const std::filesystem::path& module_path,
                       std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
-  ImportData import_data(
-      CreateImportData(dslx_stdlib_path, /*additional_search_paths=*/{}));
+  ImportData import_data(CreateImportData(
+      dslx_stdlib_path, /*additional_search_paths=*/{}, kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(TypecheckedModule module,
                        ParseAndTypecheck(module_text, std::string(module_path),
                                          "source", &import_data));

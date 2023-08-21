@@ -108,6 +108,7 @@ cc_library(
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -154,6 +155,7 @@ cc_library(
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:errors",
         "//xls/dslx:interp_value",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -225,6 +227,7 @@ cc_library(
         "//xls/dslx:constexpr_evaluator",
         "//xls/dslx:dslx_builtins",
         "//xls/dslx:errors",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/bytecode:bytecode_emitter",
         "//xls/dslx/bytecode:bytecode_interpreter",
         "//xls/dslx/frontend:ast",
@@ -242,7 +245,7 @@ cc_library(
     deps = [
         ":type_info_to_proto",
         ":typecheck",
-        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:create_import_data",
         "//xls/dslx:parse_and_typecheck",
@@ -485,6 +488,7 @@ cc_binary(
         "//xls/dslx:default_dslx_stdlib_path",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
     ],
 )
 

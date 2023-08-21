@@ -426,7 +426,7 @@ absl::Status AddContentsToPackage(
       std::unique_ptr<Module> module,
       ParseText(file_contents, module_name, /*print_on_error=*/true,
                 /*filename=*/path.value_or("<UNKNOWN>"), printed_error));
-  WarningCollector warnings;
+  WarningCollector warnings(import_data->enabled_warnings());
   absl::StatusOr<TypeInfo*> type_info_or =
       CheckModule(module.get(), import_data, &warnings);
   if (!type_info_or.ok()) {
@@ -483,7 +483,8 @@ absl::StatusOr<std::unique_ptr<Package>> ConvertFilesToPackage(
         "path to know where to resolve the entry function");
   }
   for (std::string_view path : paths) {
-    ImportData import_data(CreateImportData(stdlib_path, dslx_paths));
+    ImportData import_data(CreateImportData(stdlib_path, dslx_paths,
+                                            convert_options.enabled_warnings));
     XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
     XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(path));
     XLS_RETURN_IF_ERROR(AddContentsToPackage(

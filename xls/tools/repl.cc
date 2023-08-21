@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <cstddef>
 #include <cstdlib>
-#include <cstring>
 #include <filesystem>
 #include <initializer_list>
 #include <iostream>
@@ -26,7 +24,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/ascii.h"
@@ -41,20 +38,13 @@
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
-#include "xls/codegen/module_signature.pb.h"
-#include "xls/codegen/pipeline_generator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/logging/logging_internal.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
-#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
-#include "xls/dslx/error_printer.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/parser.h"
 #include "xls/dslx/frontend/scanner.h"
@@ -64,11 +54,11 @@
 #include "xls/dslx/type_system/concrete_type.h"
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/typecheck.h"
+#include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
 #include "xls/passes/standard_pipeline.h"
-#include "xls/scheduling/pipeline_schedule.h"
-#include "xls/scheduling/scheduling_pass.h"
 
 const char kUsage[] = R"(
 Allows interactively exploring the functionality of XLS.
@@ -329,8 +319,9 @@ absl::Status CommandReload() {
   std::unique_ptr<dslx::Module> module = std::move(maybe_module).value();
   dslx::ImportData import_data(dslx::CreateImportData(
       /*dslx_stdlib_path=*/"",
-      /*additional_search_paths=*/{}));
-  dslx::WarningCollector warnings;
+      /*additional_search_paths=*/{},
+      /*enabled_warnings=*/dslx::kAllWarningsSet));
+  dslx::WarningCollector warnings(import_data.enabled_warnings());
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
                        CheckModule(module.get(), &import_data, &warnings));
   globals->dslx = std::make_unique<DslxGlobals>(std::move(import_data),

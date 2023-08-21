@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -35,11 +36,12 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/ir_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
@@ -318,9 +320,9 @@ absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
     Function* f, std::string_view dslx_stdlib_path,
     std::string_view validator_dslx) {
-  dslx::ImportData import_data(
-      dslx::CreateImportData(std::string(dslx_stdlib_path),
-                             absl::Span<const std::filesystem::path>{}));
+  dslx::ImportData import_data(dslx::CreateImportData(
+      std::string(dslx_stdlib_path), absl::Span<const std::filesystem::path>{},
+      dslx::kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(dslx::TypecheckedModule module,
                        dslx::ParseAndTypecheck(validator_dslx, "fake_path",
                                                kPackageName, &import_data));

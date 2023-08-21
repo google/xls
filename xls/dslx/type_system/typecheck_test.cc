@@ -1383,7 +1383,7 @@ struct Point {
   y: u32,
 }
 )" + program;
-  return Typecheck(program);
+  return Typecheck(program).status();
 }
 
 TEST(TypecheckStructInstanceTest, AccessMissingMember) {
@@ -1504,7 +1504,7 @@ struct Point<N: u32, M: u32 = {N + N}> {
   y: bits[M],
 }
 )" + program;
-  return Typecheck(program);
+  return Typecheck(program).status();
 }
 
 TEST(TypecheckParametricStructInstanceTest, WrongDerivedType) {
@@ -1636,8 +1636,7 @@ struct S {
 }
 fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
 )";
-  TypecheckedModule tm;
-  XLS_EXPECT_OK(Typecheck(program, &tm));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,
@@ -1659,8 +1658,7 @@ fn f(x: u32) -> u32 {
   x
 }
 )";
-  TypecheckedModule tm;
-  XLS_EXPECT_OK(Typecheck(program, &tm));
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
   ASSERT_THAT(tm.warnings.warnings().size(), 1);
   std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).span,

@@ -48,6 +48,7 @@ class InterpreterTest(test_base.TestCase):
       want_error: bool = False,
       alsologtostderr: bool = False,
       warnings_as_errors: bool = True,
+      disable_warnings: Sequence[str] = (),
       extra_flags: Sequence[str] = (),
   ) -> str:
     temp_file = self.create_tempfile(content=program)
@@ -57,6 +58,8 @@ class InterpreterTest(test_base.TestCase):
       cmd.append('--alsologtostderr')
     if not warnings_as_errors:
       cmd.append('--warnings_as_errors=false')
+    if disable_warnings:
+      cmd.append('--disable_warnings=%s' % ','.join(disable_warnings))
     cmd.extend(extra_flags)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
@@ -527,6 +530,37 @@ class InterpreterTest(test_base.TestCase):
         self.assertIn(want.kind, stderr)
       else:
         stderr = self._parse_and_test(program, want_error=False)
+
+  def test_disable_warning(self):
+    """Tests that we can disable one kind of warning."""
+    program = """
+    fn f() { let _ = (); }
+    """
+    self._parse_and_test(
+        program,
+        want_error=False,
+        alsologtostderr=True,
+        warnings_as_errors=True,
+        disable_warnings=['useless_let_binding'],
+    )
+
+  def test_disable_warning_does_not_affect_another_kind(self):
+    """Disable one kind of warning without affecting another."""
+    program = """
+    fn f(a: u32, b: u32, c: u32) -> (u32, u32, u32) { (a, b, c,) }
+    """
+    stderr = self._parse_and_test(
+        program,
+        want_error=True,
+        alsologtostderr=True,
+        warnings_as_errors=True,
+        disable_warnings=['useless_let_binding'],
+    )
+    self.assertIn(
+        'Tuple expression (with >1 element) is on a single line, but has a'
+        ' trailing comma.',
+        stderr,
+    )
 
 
 if __name__ == '__main__':

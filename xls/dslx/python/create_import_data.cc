@@ -22,6 +22,7 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 #include "pybind11_abseil/absl_casters.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace py = pybind11;
 
@@ -30,7 +31,10 @@ namespace xls::dslx {
 PYBIND11_MODULE(create_import_data, m) {
   py::class_<ImportData>(m, "ImportData");
 
-  m.def("create_import_data", &CreateImportData);
+  m.def("create_import_data", [](const std::string& stdlib_path) {
+    return CreateImportData(stdlib_path, /*additional_search_paths=*/{},
+                            kAllWarningsSet);
+  });
 }
 
 }  // namespace xls::dslx

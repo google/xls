@@ -31,6 +31,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/ir_convert/ir_converter.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/package.h"
 
 // LINT.IfChange
@@ -52,6 +53,10 @@ ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 ABSL_FLAG(bool, verify, true,
           "If true, verifies the generated IR for correctness.");
+
+ABSL_FLAG(std::string, disable_warnings, "",
+          "Comma-delimited list of warnings to disable -- not generally "
+          "recommended, but can be used in exceptional circumstances");
 ABSL_FLAG(bool, warnings_as_errors, true,
           "Whether to fail early, as an error, if warnings are detected");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
@@ -81,11 +86,15 @@ absl::Status RealMain(absl::Span<const std::string_view> paths,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool verify_ir,
                       bool warnings_as_errors, bool* printed_error) {
+  XLS_ASSIGN_OR_RETURN(
+      WarningKindSet enabled_warnings,
+      WarningKindSetFromDisabledString(absl::GetFlag(FLAGS_disable_warnings)));
   const ConvertOptions convert_options = {
-    .emit_positions = true,
-    .emit_fail_as_assert = emit_fail_as_assert,
-    .verify_ir = verify_ir,
-    .warnings_as_errors = warnings_as_errors,
+      .emit_positions = true,
+      .emit_fail_as_assert = emit_fail_as_assert,
+      .verify_ir = verify_ir,
+      .warnings_as_errors = warnings_as_errors,
+      .enabled_warnings = enabled_warnings,
   };
 
   // The following checks are performed inside ConvertFilesToPackage(), but we

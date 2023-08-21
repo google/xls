@@ -19,7 +19,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -28,6 +27,7 @@
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/interpreter/serial_proc_runtime.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
@@ -186,8 +186,10 @@ class IrWrapper {
  private:
   // Construct this object with a default ImportData.
   explicit IrWrapper(std::string_view package_name)
-      : import_data_(dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
-                                            /*additional_search_paths=*/{})),
+      : import_data_(
+            dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
+                                   /*additional_search_paths=*/{},
+                                   /*enabled_warnings=*/dslx::kAllWarningsSet)),
         package_(std::make_unique<Package>(package_name)) {}
 
   // Pointers to the each of the DSLX modules explicitly given to this wrapper.

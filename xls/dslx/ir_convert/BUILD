@@ -100,6 +100,7 @@ cc_test(
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/dslx:warning_kind",
         "//xls/dslx/frontend:ast",
         "//xls/dslx/type_system:parametric_env",
         "//xls/ir",
@@ -142,6 +143,9 @@ filegroup(
 cc_library(
     name = "convert_options",
     hdrs = ["convert_options.h"],
+    deps = [
+        "//xls/dslx:warning_kind",
+    ],
 )
 
 cc_library(
@@ -319,6 +323,7 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/status:status_macros",
         "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:warning_kind",
         "//xls/ir",
     ],
 )

@@ -59,6 +59,7 @@
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/format_preference.h"
@@ -474,7 +475,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceXlsTuple(
   if (node->span().start().lineno() == node->span().limit().lineno() &&
       node->members().size() > 1 && node->has_trailing_comma()) {
     ctx->warnings()->Add(
-        node->span(),
+        node->span(), WarningKind::kSingleLineTupleTrailingComma,
         absl::StrFormat("Tuple expression (with >1 element) is on a single "
                         "line, but has a trailing comma."));
   }
@@ -970,7 +971,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
 
   if (node->name_def_tree()->IsWildcardLeaf()) {
     ctx->warnings()->Add(
-        node->name_def_tree()->span(),
+        node->name_def_tree()->span(), WarningKind::kUselessLetBinding,
         "`let _ = expr;` statement can be simplified to `expr;` -- there is no "
         "need for a `let` binding here");
   }
@@ -2250,7 +2251,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSplatStructInstance(
 
   if (validated.seen_names.size() == all_names.size()) {
     ctx->warnings()->Add(
-        node->splatted()->span(),
+        node->splatted()->span(), WarningKind::kUselessStructSplat,
         absl::StrFormat("'Splatted' struct instance has all members of struct "
                         "defined, consider removing the `..%s`",
                         node->splatted()->ToString()));
@@ -2630,7 +2631,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   XLS_ASSIGN_OR_RETURN(InterpValue le, end_value.Le(start_value));
   if (le.IsTrue()) {
     ctx->warnings()->Add(
-        node->span(),
+        node->span(), WarningKind::kEmptyRangeLiteral,
         absl::StrFormat("`%s` from `%s` to `%s` is an empty range",
                         node->ToString(), start_value.ToString(),
                         end_value.ToString()));

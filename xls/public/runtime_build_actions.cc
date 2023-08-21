@@ -25,6 +25,7 @@
 #include "xls/dslx/ir_convert/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 #include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/proto_to_dslx.h"
@@ -39,8 +40,9 @@ absl::StatusOr<std::string> ConvertDslxToIr(
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_VLOG(5) << "path: " << path << " module name: " << module_name
               << " stdlib_path: " << dslx_stdlib_path;
-  dslx::ImportData import_data(dslx::CreateImportData(
-      std::string(dslx_stdlib_path), additional_search_paths));
+  dslx::ImportData import_data(
+      dslx::CreateImportData(std::string(dslx_stdlib_path),
+                             additional_search_paths, dslx::kAllWarningsSet));
   XLS_ASSIGN_OR_RETURN(
       dslx::TypecheckedModule typechecked,
       dslx::ParseAndTypecheck(dslx, path, module_name, &import_data));

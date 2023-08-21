@@ -672,12 +672,16 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 )";
 
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
-                           ParseAndTypecheck(kImportedProgram, "import_0.x",
-                                             "import_0", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
@@ -708,12 +712,16 @@ fn imported_enum_ref() -> u3 {
 )";
 
   auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
-                           ParseAndTypecheck(kImportedProgram, "import_0.x",
-                                             "import_0", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm,
+                             ParseAndTypecheck(kImportedProgram, "import_0.x",
+                                               "import_0", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kBaseProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
@@ -1234,12 +1242,16 @@ fn main() -> u32 {
 )";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
 
@@ -1420,12 +1432,16 @@ fn main() -> u32 {
 )";
 
   ImportData import_data(CreateImportDataForTest());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        TypecheckedModule tm,
+        ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+  }
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
   Function* f = tf->fn();

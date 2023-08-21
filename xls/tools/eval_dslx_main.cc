@@ -32,9 +32,11 @@
 #include "xls/dslx/bytecode/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/warning_kind.h"
 
 const char kUsage[] = R"(
 Evaluates a DSLX file with user-specified or random inputs using the DSLX
@@ -55,11 +57,11 @@ ABSL_FLAG(std::string, input, "",
 namespace xls {
 
 static absl::Status RealMain(
-    std::filesystem::path dslx_path,
+    const std::filesystem::path& dslx_path,
     const std::vector<std::filesystem::path>& additional_search_paths,
     std::string_view entry_fn_name, std::string_view args_text) {
-  dslx::ImportData import_data(
-      dslx::CreateImportData(kDefaultDslxStdlibPath, additional_search_paths));
+  dslx::ImportData import_data(dslx::CreateImportData(
+      kDefaultDslxStdlibPath, additional_search_paths, dslx::kAllWarningsSet));
 
   XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
                        dslx::ParseArgs(args_text));
@@ -84,7 +86,7 @@ static absl::Status RealMain(
   XLS_ASSIGN_OR_RETURN(
       dslx::InterpValue result,
       dslx::BytecodeInterpreter::Interpret(&import_data, bf.get(), args));
-  std::cout << "Result: " << result.ToString() << std::endl;
+  std::cout << "Result: " << result.ToString() << "\n";
 
   return absl::OkStatus();
 }

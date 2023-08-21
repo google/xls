@@ -29,9 +29,11 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
-#include "xls/common/file/filesystem.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/import_record.h"
 
 namespace xls::dslx {
 
@@ -57,7 +59,7 @@ absl::StatusOr<ModuleInfo*> ImportData::Put(
     return absl::InvalidArgumentError(
         "Module is already loaded for import of " + subject.ToString());
   }
-  path_to_module_info_[std::string(pmodule_info->path())] = pmodule_info;
+  path_to_module_info_[std::string{pmodule_info->path()}] = pmodule_info;
   return pmodule_info;
 }
 
@@ -155,22 +157,11 @@ absl::StatusOr<const AstNode*> ImportData::FindNode(AstNodeKind kind,
   return node;
 }
 
-absl::Status ImportData::AddToImporterStack(const Span& import_span,
-                                            std::filesystem::path imported) {
-  XLS_VLOG(3) << "Checking import span: " << import_span;
+absl::Status ImportData::AddToImporterStack(
+    const Span& importer_span, const std::filesystem::path& imported) {
+  XLS_VLOG(3) << "Checking import span: " << importer_span;
 
-#if 0
-  // Try to get a realpath to help properly unique-ify filesystem entities --
-  // some filesystems may not support this, so we attempt and fall back to
-  // whatever path was discovered if we can't obtain a realpath.
-  absl::StatusOr<std::filesystem::path> imported_realpath_or =
-      GetRealPath(std::string(imported));
-  if (imported_realpath_or.ok()) {
-    imported = imported_realpath_or.value();
-  }
-#endif
-
-  ImportRecord new_import_record{imported, import_span};
+  ImportRecord new_import_record{imported, importer_span};
 
   // Note: linear scan over importers for simplicity, this will likely need to
   // improve as we scale.
@@ -180,12 +171,12 @@ absl::Status ImportData::AddToImporterStack(const Span& import_span,
       std::vector<ImportRecord> cycle(importer_stack_.begin() + i,
                                       importer_stack_.end());
       cycle.push_back(new_import_record);
-      return RecursiveImportErrorStatus(import_span, existing.imported_from,
+      return RecursiveImportErrorStatus(importer_span, existing.imported_from,
                                         cycle);
     }
   }
 
-  XLS_VLOG(3) << "Adding import span to stack: " << import_span;
+  XLS_VLOG(3) << "Adding import span to stack: " << importer_span;
   importer_stack_.push_back(new_import_record);
   return absl::OkStatus();
 }

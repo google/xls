@@ -15,17 +15,15 @@
 #ifndef XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_H_
 #define XLS_DSLX_TYPE_SYSTEM_TYPECHECK_TEST_H_
 
-#include <string>
 #include <string_view>
 
-#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
 
 // Helper for parsing/typechecking a snippet of DSLX text.
-absl::Status Typecheck(std::string_view text,
-                       TypecheckedModule* tm_out = nullptr);
+absl::StatusOr<TypecheckedModule> Typecheck(std::string_view text);
 
 }  // namespace xls::dslx
 

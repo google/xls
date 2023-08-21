@@ -30,11 +30,13 @@
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/lsp/document_symbols.h"
 #include "xls/dslx/lsp/find_definition.h"
 #include "xls/dslx/lsp/lsp_type_utils.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -82,7 +84,8 @@ LanguageServerAdapter::LanguageServerAdapter(
 absl::Status LanguageServerAdapter::Update(std::string_view file_uri,
                                            std::string_view dslx_code) {
   // TODO(hzeller): remember per file_uri for more sophisticated features.
-  ImportData import_data = CreateImportData(stdlib_, dslx_paths_);
+  ImportData import_data =
+      CreateImportData(stdlib_, dslx_paths_, kAllWarningsSet);
   const absl::Time start = absl::Now();
   std::string contents{dslx_code};
 

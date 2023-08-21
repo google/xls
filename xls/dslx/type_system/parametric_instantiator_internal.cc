@@ -41,6 +41,7 @@
 #include "xls/dslx/type_system/parametric_bind.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -101,7 +102,7 @@ absl::StatusOr<InterpValue> InterpretExpr(DeduceCtx* ctx, Expr* expr,
                                               /*args=*/{}, options));
 
   for (const Span& s : rollovers) {
-    ctx->warnings()->Add(s,
+    ctx->warnings()->Add(s, WarningKind::kConstexprEvalRollover,
                          "constexpr evaluation detected rollover in operation");
   }
 

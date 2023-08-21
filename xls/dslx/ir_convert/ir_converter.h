@@ -20,16 +20,13 @@
 #include <string>
 #include <string_view>
 
-#include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_convert/convert_options.h"
 #include "xls/dslx/type_system/parametric_env.h"
 #include "xls/ir/package.h"
-#include "xls/ir/value.h"
 
 namespace xls::dslx {
 

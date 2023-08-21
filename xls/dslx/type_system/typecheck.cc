@@ -50,6 +50,7 @@
 #include "xls/dslx/type_system/parametric_instantiator.h"
 #include "xls/dslx/type_system/type_and_parametric_env.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
+#include "xls/dslx/warning_kind.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -756,9 +757,10 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     AstNode* parent = f->parent();
     if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
       ctx->warnings()->Add(
-          f->span(), absl::StrFormat("Function `%s` ends with `_test` but is "
-                                     "not marked as a unit test via #[test]",
-                                     f->identifier()));
+          f->span(), WarningKind::kMisleadingFunctionName,
+          absl::StrFormat("Function `%s` ends with `_test` but is "
+                          "not marked as a unit test via #[test]",
+                          f->identifier()));
     }
   }
 

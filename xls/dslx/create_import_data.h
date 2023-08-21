@@ -24,6 +24,7 @@
 
 #include "absl/types/span.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 
@@ -31,7 +32,8 @@ namespace xls::dslx {
 // BytecodeCache as the bytecode cache on the result.
 ImportData CreateImportData(
     std::string stdlib_path,
-    absl::Span<const std::filesystem::path> additional_search_paths);
+    absl::Span<const std::filesystem::path> additional_search_paths,
+    WarningKindSet warnings);
 
 // Creates an ImportData with reasonable defaults (standard path to the stdlib
 // and no additional search paths).

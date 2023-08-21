@@ -33,6 +33,7 @@
 #include "xls/dslx/import_record.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_system/type_info.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 
@@ -118,7 +119,7 @@ class ImportData {
   // If we try to add a span to the importer stack where the file is already
   // active, we've detected a cycle, and so we return an error.
   absl::Status AddToImporterStack(const Span& importer_span,
-                                  std::filesystem::path imported);
+                                  const std::filesystem::path& imported);
 
   // This pops the entry from the import stack and verifies it's the latest
   // entry, returning an error iff it is not.
@@ -194,18 +195,25 @@ class ImportData {
   absl::StatusOr<const AstNode*> FindNode(AstNodeKind kind,
                                           const Span& span) const;
 
+  // Returns the set of warnings that are enabled for translation units imported
+  // into this ImportData set.
+  WarningKindSet enabled_warnings() const { return enabled_warnings_; }
+
  private:
   friend ImportData CreateImportData(std::string,
-                                     absl::Span<const std::filesystem::path>);
+                                     absl::Span<const std::filesystem::path>,
+                                     WarningKindSet);
   friend std::unique_ptr<ImportData> CreateImportDataPtr(
-      std::string, absl::Span<const std::filesystem::path>);
+      std::string, absl::Span<const std::filesystem::path>, WarningKindSet);
   friend ImportData CreateImportDataForTest();
   friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
   ImportData(std::string stdlib_path,
-             absl::Span<const std::filesystem::path> additional_search_paths)
+             absl::Span<const std::filesystem::path> additional_search_paths,
+             WarningKindSet enabled_warnings)
       : stdlib_path_(std::move(stdlib_path)),
-        additional_search_paths_(additional_search_paths) {}
+        additional_search_paths_(additional_search_paths),
+        enabled_warnings_(enabled_warnings) {}
 
   // Attempts to find a module owned by this ImportData according to the
   // filename present in "span". Returns a NotFound error if a corresponding
@@ -221,6 +229,7 @@ class ImportData {
   TypeInfoOwner type_info_owner_;
   std::string stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
+  WarningKindSet enabled_warnings_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;
 
   // See comment on AddToImporterStack() above.

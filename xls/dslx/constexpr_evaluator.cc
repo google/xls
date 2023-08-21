@@ -50,6 +50,7 @@
 #include "xls/dslx/type_system/type_info.h"
 #include "xls/dslx/type_system/unwrap_meta_type.h"
 #include "xls/dslx/warning_collector.h"
+#include "xls/dslx/warning_kind.h"
 
 namespace xls::dslx {
 namespace {
@@ -640,7 +641,8 @@ absl::Status ConstexprEvaluator::InterpretExpr(const Expr* expr) {
   if (warning_collector_ != nullptr) {
     for (const Span& s : rollovers) {
       warning_collector_->Add(
-          s, "constexpr evaluation detected rollover in operation");
+          s, WarningKind::kConstexprEvalRollover,
+          "constexpr evaluation detected rollover in operation");
     }
   }
   type_info_->NoteConstExpr(expr, constexpr_value);

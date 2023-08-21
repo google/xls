@@ -593,7 +593,7 @@ class SampleRunner:
     """Interprets a DSLX module with a function as the top returns the result Values.
     """
     import_data = create_import_data.create_import_data(
-        runtime_build_actions.get_default_dslx_stdlib_path(), []
+        runtime_build_actions.get_default_dslx_stdlib_path()
     )
     tm = parse_and_typecheck.parse_and_typecheck(
         text, 'sample.x', 'sample', import_data
@@ -614,7 +614,7 @@ class SampleRunner:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     import_data = create_import_data.create_import_data(
-        runtime_build_actions.get_default_dslx_stdlib_path(), []
+        runtime_build_actions.get_default_dslx_stdlib_path()
     )
     tm = parse_and_typecheck.parse_and_typecheck(
         text, 'sample.x', 'sample', import_data
