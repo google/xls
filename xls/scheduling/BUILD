@@ -318,7 +318,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
     ],
 )
 
@@ -331,7 +331,7 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
     ],
 )
 
@@ -380,7 +380,7 @@ cc_library(
         "//xls/ir:source_location",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
         "//xls/passes:post_dominator_analysis",
         "//xls/passes:token_provenance_analysis",
         "//xls/solvers:z3_ir_translator",
@@ -402,9 +402,9 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
-        "//xls/passes",
         "//xls/passes:cse_pass",
         "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
     ],
 )
 

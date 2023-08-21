@@ -16,8 +16,9 @@
 #define XLS_PASSES_TUPLE_SIMPLIFICATION_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/ir/function_base.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 

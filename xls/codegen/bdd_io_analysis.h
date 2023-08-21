@@ -16,9 +16,7 @@
 #define XLS_CODEGEN_BDD_IO_ANALYSIS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/common/casts.h"
-#include "xls/ir/function.h"
-#include "xls/passes/passes.h"
+#include "xls/ir/function_base.h"
 
 namespace xls {
 

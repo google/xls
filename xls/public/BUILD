@@ -39,7 +39,7 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/dslx:warning_kind",
         "//xls/dslx/ir_convert:ir_converter",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
         "//xls/tools:opt",
         "//xls/tools:proto_to_dslx",
     ],

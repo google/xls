@@ -58,7 +58,7 @@ struct SchedulingUnit {
 };
 
 // Options passed to each scheduling pass.
-struct SchedulingPassOptions : public PassOptions {
+struct SchedulingPassOptions : public PassOptionsBase {
   // The options to use when creating and mutating the schedule.
   SchedulingOptions scheduling_options;
 

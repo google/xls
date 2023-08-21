@@ -32,6 +32,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/standard_pipeline.h"
 
@@ -50,11 +51,10 @@ class RamRewritePassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p,
                            absl::Span<RamRewrite const> ram_rewrites) {
     PassResults results;
-    return CreateStandardPassPipeline()->Run(
-        p,
-        PassOptions{.ram_rewrites = std::vector<RamRewrite>(
-                        ram_rewrites.begin(), ram_rewrites.end())},
-        &results);
+    PassOptions options;
+    options.ram_rewrites =
+        std::vector<RamRewrite>(ram_rewrites.begin(), ram_rewrites.end());
+    return CreateStandardPassPipeline()->Run(p, options, &results);
   }
 
   std::unique_ptr<TokenlessProcBuilder> MakeProcBuilder(Package* p,

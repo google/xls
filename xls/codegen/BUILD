@@ -535,7 +535,8 @@ cc_library(
     hdrs = ["codegen_wrapper_pass.h"],
     deps = [
         ":codegen_pass",
-        "//xls/passes",
+        "//xls/passes:optimization_pass",
+        "//xls/passes:pass_base",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -877,12 +878,10 @@ cc_library(
     srcs = ["bdd_io_analysis.cc"],
     hdrs = ["bdd_io_analysis.h"],
     deps = [
-        "//xls/common:casts",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:node_util",
-        "//xls/passes",
         "//xls/passes:bdd_query_engine",
         "//xls/passes:query_engine",
         "@com_google_absl//absl/status:statusor",

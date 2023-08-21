@@ -48,7 +48,7 @@
 #include "xls/jit/function_jit.h"
 #include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"

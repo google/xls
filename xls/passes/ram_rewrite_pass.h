@@ -19,7 +19,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 

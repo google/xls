@@ -28,7 +28,7 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     SchedulingUnit<>* unit, const SchedulingPassOptions& options,
     PassResults* results) const {
   if (!unit->schedule.has_value()) {
-    return wrapped_pass_->Run(unit->ir, options, results);
+    return wrapped_pass_->Run(unit->ir, PassOptions(options), results);
   }
 
   absl::flat_hash_map<int64_t, Node*> nodes_before;
@@ -38,8 +38,9 @@ absl::StatusOr<bool> SchedulingWrapperPass::RunInternal(
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool changed,
-                       wrapped_pass_->Run(unit->ir, options, results));
+  XLS_ASSIGN_OR_RETURN(
+      bool changed,
+      wrapped_pass_->Run(unit->ir, PassOptions(options), results));
   if (!changed) {
     return false;
   }

@@ -28,8 +28,8 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ram_rewrite.pb.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/passes.h"
 #include "xls/tools/opt.h"
 
 const char kUsage[] = R"(

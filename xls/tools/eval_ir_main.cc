@@ -46,7 +46,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/function_jit.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/standard_pipeline.h"
 
 const char kUsage[] = R"(

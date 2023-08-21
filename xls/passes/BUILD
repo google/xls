@@ -44,7 +44,7 @@ cc_library(
         ":literal_uncommoning_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
-        ":passes",
+        ":optimization_pass",
         ":proc_inlining_pass",
         ":proc_state_flattening_pass",
         ":proc_state_optimization_pass",
@@ -71,17 +71,18 @@ cc_library(
     srcs = ["verifier_checker.cc"],
     hdrs = ["verifier_checker.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status",
         "//xls/ir",
     ],
 )
 
 cc_test(
-    name = "passes_test",
-    srcs = ["passes_test.cc"],
+    name = "optimization_pass_test",
+    srcs = ["optimization_pass_test.cc"],
     deps = [
-        ":passes",
+        ":optimization_pass",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common:casts",
@@ -95,6 +96,7 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
+        "//xls/ir:ram_rewrite_cc_proto",
         "//xls/ir:type",
     ],
 )
@@ -177,7 +179,7 @@ cc_library(
     srcs = ["unroll_pass.cc"],
     hdrs = ["unroll_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
@@ -204,7 +206,7 @@ cc_library(
     srcs = ["inlining_pass.cc"],
     hdrs = ["inlining_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -219,7 +221,7 @@ cc_library(
     srcs = ["literal_uncommoning_pass.cc"],
     hdrs = ["literal_uncommoning_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -231,8 +233,8 @@ cc_library(
     srcs = ["map_inlining_pass.cc"],
     hdrs = ["map_inlining_pass.h"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -263,7 +265,7 @@ cc_library(
     srcs = ["cse_pass.cc"],
     hdrs = ["cse_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
@@ -279,7 +281,7 @@ cc_library(
     srcs = ["constant_folding_pass.cc"],
     hdrs = ["constant_folding_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -294,7 +296,7 @@ cc_library(
     srcs = ["bit_slice_simplification_pass.cc"],
     hdrs = ["bit_slice_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
@@ -309,7 +311,7 @@ cc_library(
     srcs = ["concat_simplification_pass.cc"],
     hdrs = ["concat_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -329,7 +331,7 @@ cc_library(
     srcs = ["boolean_simplification_pass.cc"],
     hdrs = ["boolean_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -348,7 +350,7 @@ cc_library(
     srcs = ["arith_simplification_pass.cc"],
     hdrs = ["arith_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -366,7 +368,7 @@ cc_library(
     srcs = ["dfe_pass.cc"],
     hdrs = ["dfe_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
@@ -387,7 +389,7 @@ cc_library(
     srcs = ["canonicalization_pass.cc"],
     hdrs = ["canonicalization_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -399,19 +401,24 @@ cc_library(
 )
 
 cc_library(
-    name = "passes",
-    srcs = ["passes.cc"],
-    hdrs = ["passes.h"],
+    name = "optimization_pass",
+    srcs = ["optimization_pass.cc"],
+    hdrs = ["optimization_pass.h"],
     deps = [
         ":pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "//xls/common:math_util",
         "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:ram_rewrite_cc_proto",
     ],
 )
 
@@ -420,7 +427,7 @@ cc_library(
     srcs = ["identity_removal_pass.cc"],
     hdrs = ["identity_removal_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -432,7 +439,7 @@ cc_library(
     srcs = ["dce_pass.cc"],
     hdrs = ["dce_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -446,7 +453,7 @@ cc_library(
     srcs = ["token_dependency_pass.cc"],
     hdrs = ["token_dependency_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":token_provenance_analysis",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -466,7 +473,8 @@ cc_library(
     srcs = ["tuple_simplification_pass.cc"],
     hdrs = ["tuple_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
+        ":pass_base",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:ret_check",
@@ -480,7 +488,7 @@ cc_library(
     srcs = ["token_simplification_pass.cc"],
     hdrs = ["token_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -497,7 +505,7 @@ cc_library(
         "strength_reduction_pass.h",
     ],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":query_engine",
         ":ternary_query_engine",
         "@com_google_absl//absl/status:statusor",
@@ -581,7 +589,7 @@ cc_library(
     srcs = ["select_simplification_pass.cc"],
     hdrs = ["select_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":ternary_query_engine",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -606,7 +614,7 @@ cc_library(
     srcs = ["sparsify_select_pass.cc"],
     hdrs = ["sparsify_select_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":range_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
@@ -768,7 +776,7 @@ cc_library(
     hdrs = ["bdd_simplification_pass.h"],
     deps = [
         ":bdd_query_engine",
-        ":passes",
+        ":optimization_pass",
         ":query_engine",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/status:statusor",
@@ -785,34 +793,18 @@ cc_library(
 
 cc_library(
     name = "pass_base",
-    srcs = ["pass_base.cc"],
     hdrs = ["pass_base.h"],
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/time",
+        "//xls/common:casts",
         "//xls/common:math_util",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
-        "//xls/ir",
-        "//xls/ir:ram_rewrite_cc_proto",
-    ],
-)
-
-cc_test(
-    name = "pass_base_test",
-    srcs = ["pass_base_test.cc"],
-    deps = [
-        ":pass_base",
-        "@com_google_absl//absl/status",
-        "//xls/common:xls_gunit",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/ir:ram_rewrite_cc_proto",
     ],
 )
 
@@ -835,7 +827,7 @@ cc_library(
     srcs = ["narrowing_pass.cc"],
     hdrs = ["narrowing_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":query_engine",
         ":range_query_engine",
         ":ternary_query_engine",
@@ -860,7 +852,7 @@ cc_library(
     hdrs = ["bdd_cse_pass.h"],
     deps = [
         ":bdd_function",
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/hash",
         "@com_google_absl//absl/status:statusor",
@@ -879,8 +871,8 @@ cc_library(
     srcs = ["reassociation_pass.cc"],
     hdrs = ["reassociation_pass.h"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -901,7 +893,7 @@ cc_library(
     srcs = ["table_switch_pass.cc"],
     hdrs = ["table_switch_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -915,7 +907,7 @@ cc_library(
     srcs = ["array_simplification_pass.cc"],
     hdrs = ["array_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         ":ternary_query_engine",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
@@ -931,7 +923,7 @@ cc_library(
     srcs = ["useless_assert_removal_pass.cc"],
     hdrs = ["useless_assert_removal_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -946,7 +938,7 @@ cc_library(
     srcs = ["useless_io_removal_pass.cc"],
     hdrs = ["useless_io_removal_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status:statusor",
@@ -964,7 +956,7 @@ cc_library(
     srcs = ["comparison_simplification_pass.cc"],
     hdrs = ["comparison_simplification_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
@@ -981,7 +973,7 @@ cc_library(
     srcs = ["proc_loop_folding.cc"],
     hdrs = ["proc_loop_folding.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1032,7 +1024,7 @@ cc_library(
     deps = [
         ":bdd_function",
         ":bdd_query_engine",
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -1049,8 +1041,8 @@ cc_library(
         ":bdd_function",
         ":bdd_query_engine",
         ":dataflow_visitor",
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         ":query_engine",
         ":token_provenance_analysis",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -1085,7 +1077,7 @@ cc_library(
     hdrs = ["proc_state_optimization_pass.h"],
     deps = [
         ":dataflow_visitor",
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common:math_util",
@@ -1106,7 +1098,7 @@ cc_library(
     srcs = ["proc_state_flattening_pass.cc"],
     hdrs = ["proc_state_flattening_pass.h"],
     deps = [
-        ":passes",
+        ":optimization_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
@@ -1122,8 +1114,8 @@ cc_library(
     srcs = ["ram_rewrite_pass.cc"],
     hdrs = ["ram_rewrite_pass.h"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1146,6 +1138,7 @@ cc_test(
     name = "ram_rewrite_pass_test",
     srcs = ["ram_rewrite_pass_test.cc"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
         ":ram_rewrite_pass",
         ":standard_pipeline",
@@ -1182,8 +1175,8 @@ cc_library(
     srcs = ["receive_default_value_simplification_pass.cc"],
     hdrs = ["receive_default_value_simplification_pass.h"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/status:status_macros",
         "//xls/ir",
@@ -1974,8 +1967,8 @@ cc_library(
     srcs = ["channel_legalization_pass.cc"],
     hdrs = ["channel_legalization_pass.h"],
     deps = [
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         ":token_provenance_analysis",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -2007,8 +2000,8 @@ cc_test(
     srcs = ["channel_legalization_pass_test.cc"],
     deps = [
         ":channel_legalization_pass",
+        ":optimization_pass",
         ":pass_base",
-        ":passes",
         ":standard_pipeline",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",

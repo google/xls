@@ -41,8 +41,8 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 
 namespace xls {
@@ -126,7 +126,8 @@ class ChannelLegalizationPassTest
       }
     }
 
-    PassOptions options{.inline_procs = PassVariantInlinesProcs(pass_variant)};
+    PassOptions options;
+    options.inline_procs = PassVariantInlinesProcs(pass_variant);
     PassResults results;
     return pass->Run(package, options, &results);
   }

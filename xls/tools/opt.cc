@@ -27,7 +27,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/standard_pipeline.h"
 
 namespace xls::tools {
@@ -55,14 +55,14 @@ absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
 
   std::unique_ptr<CompoundPass> pipeline =
       CreateStandardPassPipeline(options.opt_level);
-  const PassOptions pass_options = {
-      .ir_dump_path = options.ir_dump_path,
-      .run_only_passes = options.run_only_passes,
-      .skip_passes = options.skip_passes,
-      .inline_procs = options.inline_procs,
-      .convert_array_index_to_select = options.convert_array_index_to_select,
-      .ram_rewrites = options.ram_rewrites,
-  };
+  PassOptions pass_options;
+  pass_options.ir_dump_path = options.ir_dump_path;
+  pass_options.run_only_passes = options.run_only_passes;
+  pass_options.skip_passes = options.skip_passes;
+  pass_options.inline_procs = options.inline_procs;
+  pass_options.convert_array_index_to_select =
+      options.convert_array_index_to_select;
+  pass_options.ram_rewrites = options.ram_rewrites;
   PassResults results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package.get(), pass_options, &results).status());

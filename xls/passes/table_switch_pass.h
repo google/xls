@@ -15,7 +15,7 @@
 #define XLS_PASSES_TABLE_SWITCH_PASS_H_
 
 #include "absl/status/statusor.h"
-#include "xls/passes/passes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 

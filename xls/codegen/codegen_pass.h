@@ -38,7 +38,7 @@ namespace xls::verilog {
 // to codegen.
 
 // Options passed to each pass.
-struct CodegenPassOptions : public PassOptions {
+struct CodegenPassOptions : public PassOptionsBase {
   // Options to use for codegen.
   CodegenOptions codegen_options;
 
