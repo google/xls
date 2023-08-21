@@ -259,7 +259,7 @@ absl::Status RefineDelayEstimations(
   return absl::OkStatus();
 }
 
-absl::Status BuildError(IterativeSDCModelBuilder &model,
+absl::Status BuildError(IterativeSDCSchedulingModel &model,
                         const math_opt::SolveResult &result,
                         bool explain_infeasibility) {
   XLS_CHECK_NE(result.termination.reason,
@@ -272,7 +272,7 @@ absl::Status BuildError(IterativeSDCModelBuilder &model,
     XLS_RETURN_IF_ERROR(model.AddSlackVariables());
     XLS_ASSIGN_OR_RETURN(
         math_opt::SolveResult result_with_slack,
-        math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+        math_opt::Solve(model.UnderlyingModel(), math_opt::SolverType::kGlop));
     if (result_with_slack.termination.reason ==
             math_opt::TerminationReason::kOptimal ||
         result_with_slack.termination.reason ==
@@ -294,7 +294,7 @@ absl::Status BuildError(IterativeSDCModelBuilder &model,
 
 }  // namespace
 
-absl::Status IterativeSDCModelBuilder::AddTimingConstraints(
+absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
     int64_t clock_period_ps) {
   absl::flat_hash_map<Node *, std::vector<Node *>> delay_constraints =
       delay_manager_.GetPathsOverDelayThreshold(clock_period_ps);
@@ -341,8 +341,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
   ScheduleCycleMap cycle_map;
   absl::flat_hash_set<NodeCut> evaluated_cuts;
   for (int64_t i = 0; i < options.iteration_number; ++i) {
-    IterativeSDCModelBuilder model(f, pipeline_stages.value_or(1),
-                                   clock_period_ps, delay_manager);
+    IterativeSDCSchedulingModel model(f, delay_manager);
 
     for (const SchedulingConstraint &constraint : constraints) {
       XLS_RETURN_IF_ERROR(model.AddSchedulingConstraint(constraint));
@@ -373,26 +372,34 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
 
     XLS_RETURN_IF_ERROR(model.AddTimingConstraints(clock_period_ps));
 
-    int64_t min_pipeline_length = pipeline_stages.value_or(1);
-    if (!pipeline_stages.has_value()) {
+    int64_t min_pipeline_length = 1;
+    model.SetPipelineLength(pipeline_stages);
+    if (pipeline_stages.has_value()) {
+      min_pipeline_length = *pipeline_stages;
+    } else {
       // Find the minimum feasible pipeline length.
-      model.AddPipelineLengthSlack();
+      model.MinimizePipelineLength();
       XLS_ASSIGN_OR_RETURN(
-          math_opt::SolveResult result_with_pipeline_length_slack,
-          math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
-
+          const math_opt::SolveResult result_with_minimized_pipeline_length,
+          math_opt::Solve(model.UnderlyingModel(),
+                          math_opt::SolverType::kGlop));
+      if (result_with_minimized_pipeline_length.termination.reason !=
+          math_opt::TerminationReason::kOptimal) {
+        return BuildError(model, result_with_minimized_pipeline_length,
+                          explain_infeasibility);
+      }
       XLS_ASSIGN_OR_RETURN(
           min_pipeline_length,
           model.ExtractPipelineLength(
-              result_with_pipeline_length_slack.variable_values()));
-      XLS_RETURN_IF_ERROR(model.SetPipelineLength(min_pipeline_length));
+              result_with_minimized_pipeline_length.variable_values()));
+      model.SetPipelineLength(min_pipeline_length);
     }
 
-    XLS_RETURN_IF_ERROR(model.SetObjective());
+    model.SetObjective();
 
     XLS_ASSIGN_OR_RETURN(
         math_opt::SolveResult result,
-        math_opt::Solve(model.Build(), math_opt::SolverType::kGlop));
+        math_opt::Solve(model.UnderlyingModel(), math_opt::SolverType::kGlop));
 
     if (result.termination.reason != math_opt::TerminationReason::kOptimal) {
       return BuildError(model, result, explain_infeasibility);

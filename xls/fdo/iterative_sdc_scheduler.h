@@ -30,17 +30,15 @@
 
 namespace xls {
 
-class IterativeSDCModelBuilder : public ModelBuilder {
+class IterativeSDCSchedulingModel : public SDCSchedulingModel {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
  public:
   // Delay map is no longer needed as the delay calculation is completely
   // handled by the delay manager.
-  IterativeSDCModelBuilder(FunctionBase* func, int64_t pipeline_stages,
-                           int64_t clock_period_ps,
-                           const DelayManager& delay_manager)
-      : ModelBuilder(func, pipeline_stages, clock_period_ps, DelayMap()),
-        delay_manager_(delay_manager) {}
+  IterativeSDCSchedulingModel(FunctionBase* func,
+                              const DelayManager& delay_manager)
+      : SDCSchedulingModel(func, DelayMap()), delay_manager_(delay_manager) {}
 
   // Overrides the original timing constraints builder. This method directly
   // call delay manager to extract the paths longer than the given clock period

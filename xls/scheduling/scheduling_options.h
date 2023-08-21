@@ -154,9 +154,8 @@ class RecvsFirstSendsLastConstraint {
   RecvsFirstSendsLastConstraint() = default;
 };
 
-// When this is present, state backedges will be forced to span over a single
-// cycle. Not providing this is useful for implementing II > 1, but otherwise
-// this should almost always be provided.
+// When this is present, state backedges will be forced to span over at most II
+// cycles.
 class BackedgeConstraint {
  public:
   BackedgeConstraint() = default;

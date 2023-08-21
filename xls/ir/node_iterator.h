@@ -44,8 +44,8 @@ class NodeIterator {
     return it;
   }
 
-  std::vector<Node*>::iterator begin() { return ordered_->begin(); }
-  std::vector<Node*>::iterator end() { return ordered_->end(); }
+  std::vector<Node*>::iterator begin() const { return ordered_->begin(); }
+  std::vector<Node*>::iterator end() const { return ordered_->end(); }
 
   const std::vector<Node*>& AsVector() const { return *ordered_; }
 

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <random>
 #include <vector>
@@ -167,8 +168,7 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 // schedule the function into a pipeline with the given number of stages.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
     FunctionBase* f, int64_t pipeline_stages,
-    const DelayEstimator& delay_estimator,
-    absl::Span<const SchedulingConstraint> constraints) {
+    const DelayEstimator& delay_estimator, SDCScheduler& scheduler) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
@@ -187,16 +187,13 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
                                     optimistic_clk_period_ps,
                                     pessimistic_clk_period_ps);
 
-  auto validate_period = [&](int64_t clk_period_ps,
-                             bool explain_infeasibility) -> absl::Status {
-    return SDCScheduler(f, pipeline_stages, clk_period_ps, delay_estimator,
-                        constraints,
-                        /*check_feasibility=*/true, explain_infeasibility)
-        .status();
-  };
-
-  XLS_RETURN_IF_ERROR(validate_period(pessimistic_clk_period_ps,
-                                      /*explain_infeasibility=*/true))
+  // Check that it is in fact possible to schedule this function at all; if not,
+  // return a useful error.
+  XLS_RETURN_IF_ERROR(scheduler
+                          .Schedule(pipeline_stages, pessimistic_clk_period_ps,
+                                    /*check_feasibility=*/true,
+                                    /*explain_infeasibility=*/true)
+                          .status())
           .SetPrepend()
       << absl::StrFormat("Impossible to schedule %s %s as specified; ",
                          (f->IsProc() ? "proc" : "function"), f->name());
@@ -204,8 +201,10 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
   int64_t min_clk_period_ps = BinarySearchMinTrue(
       optimistic_clk_period_ps, pessimistic_clk_period_ps,
       [&](int64_t clk_period_ps) {
-        return validate_period(clk_period_ps,
-                               /*explain_infeasibility=*/false)
+        return scheduler
+            .Schedule(pipeline_stages, clk_period_ps,
+                      /*check_feasibility=*/true,
+                      /*explain_infeasibility=*/false)
             .ok();
       },
       BinarySearchAssumptions::kEndKnownTrue);
@@ -235,6 +234,16 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     f->SetInitiationInterval(*options.worst_case_throughput());
   }
 
+  std::unique_ptr<SDCScheduler> sdc_scheduler;
+  if (!options.clock_period_ps().has_value() ||
+      options.strategy() == SchedulingStrategy::SDC) {
+    // We currently use the SDC scheduler to determine the minimum clock period
+    // (if not specified), even if we're not using it for the final schedule.
+    XLS_ASSIGN_OR_RETURN(sdc_scheduler,
+                         SDCScheduler::Create(f, input_delay_added));
+    XLS_RETURN_IF_ERROR(sdc_scheduler->AddConstraints(options.constraints()));
+  }
+
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
     clock_period_ps = *options.clock_period_ps();
@@ -256,10 +265,11 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     // A pipeline length is specified, but no target clock period. Determine
     // the minimum clock period for which the function can be scheduled in the
     // given pipeline length.
+    XLS_CHECK(sdc_scheduler != nullptr);
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
         FindMinimumClockPeriod(f, *options.pipeline_stages(), input_delay_added,
-                               options.constraints()));
+                               *sdc_scheduler));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -308,8 +318,8 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     }
 
     XLS_ASSIGN_OR_RETURN(
-        cycle_map, SDCScheduler(f, options.pipeline_stages(), clock_period_ps,
-                                input_delay_added, options.constraints()));
+        cycle_map,
+        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps));
   } else {
     // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
     // chosen scheduler.

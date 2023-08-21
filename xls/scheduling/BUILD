@@ -111,7 +111,6 @@ cc_library(
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
     deps = [
-        ":schedule_bounds",
         ":scheduling_options",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -130,6 +129,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:node_util",
+        "//xls/ir:op",
         "@com_google_ortools//ortools/math_opt/cpp:math_opt",
         "@com_google_ortools//ortools/math_opt/solvers:glop_solver",
     ],

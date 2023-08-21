@@ -17,6 +17,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <utility>
@@ -29,6 +30,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "ortools/math_opt/cpp/math_opt.h"
 
@@ -38,21 +40,19 @@ namespace xls {
 // class uses the LP solver from OR tools for problem solving. It provides
 // methods to add scheduling constraints, set objectives, and extract solving
 // results.
-class ModelBuilder {
+class SDCSchedulingModel {
   using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 
   static constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
  public:
-  ModelBuilder(FunctionBase* func, int64_t pipeline_length,
-               int64_t clock_period_ps, const DelayMap& delay_map,
-               std::string_view model_name = "");
+  SDCSchedulingModel(FunctionBase* func, const DelayMap& delay_map,
+                     std::string_view model_name = "");
 
   absl::Status AddDefUseConstraints(Node* node, std::optional<Node*> user);
   absl::Status AddCausalConstraint(Node* node, std::optional<Node*> user);
   absl::Status AddLifetimeConstraint(Node* node, std::optional<Node*> user);
   absl::Status AddBackedgeConstraints(const BackedgeConstraint& constraint);
-  absl::Status AddTimingConstraints();
   absl::Status AddSchedulingConstraint(const SchedulingConstraint& constraint);
   absl::Status AddIOConstraint(const IOConstraint& constraint);
   absl::Status AddNodeInCycleConstraint(
@@ -63,12 +63,13 @@ class ModelBuilder {
   absl::Status AddSendThenRecvConstraint(
       const SendThenRecvConstraint& constraint);
 
-  absl::Status SetObjective();
+  void SetClockPeriod(int64_t clock_period_ps);
 
-  absl::Status SetPipelineLength(int64_t pipeline_length);
+  void SetPipelineLength(std::optional<int64_t> pipeline_length);
+  void MinimizePipelineLength();
 
-  void AddPipelineLengthSlack();
-  absl::Status RemovePipelineLengthSlack();
+  void SetObjective();
+  void RemoveObjective();
 
   absl::StatusOr<int64_t> ExtractPipelineLength(
       const operations_research::math_opt::VariableMap<double>& variable_values)
@@ -76,8 +77,10 @@ class ModelBuilder {
 
   absl::Status AddSlackVariables();
 
-  operations_research::math_opt::Model& Build() { return model_; }
-  const operations_research::math_opt::Model& Build() const { return model_; }
+  operations_research::math_opt::Model& UnderlyingModel() { return model_; }
+  const operations_research::math_opt::Model& UnderlyingModel() const {
+    return model_;
+  }
 
   absl::StatusOr<ScheduleCycleMap> ExtractResult(
       const operations_research::math_opt::VariableMap<double>& variable_values)
@@ -141,18 +144,22 @@ class ModelBuilder {
                          slack = std::nullopt);
 
   FunctionBase* func_;
+  const NodeIterator topo_sort_;
+
   operations_research::math_opt::Model model_;
-  int64_t pipeline_length_;
-  int64_t clock_period_ps_;
   const DelayMap& delay_map_;
+
+  // Stores the critical-path distances between all pairs of Nodes; if there is
+  // a path from `x` to `y`, `distances_to_node_[y][x]` is the length of the
+  // critical path.
+  absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
+      distances_to_node_;
+
+  operations_research::math_opt::Variable last_stage_;
 
   // Node's cycle after scheduling
   absl::flat_hash_map<Node*, operations_research::math_opt::Variable>
       cycle_var_;
-
-  // Return-last constraint, if present
-  std::optional<operations_research::math_opt::LinearConstraint>
-      return_last_constraint_;
 
   // Node's lifetime, from when it finishes executing until it is consumed by
   // the last user.
@@ -169,8 +176,6 @@ class ModelBuilder {
   absl::flat_hash_map<std::pair<Node*, Node*>,
                       operations_research::math_opt::LinearConstraint>
       backedge_constraint_;
-  absl::flat_hash_map<Node*, operations_research::math_opt::LinearConstraint>
-      send_last_constraint_;
 
   struct ConstraintPair {
     operations_research::math_opt::LinearConstraint lower;
@@ -179,9 +184,11 @@ class ModelBuilder {
   absl::flat_hash_map<IOConstraint, std::vector<ConstraintPair>>
       io_constraints_;
 
-  std::optional<operations_research::math_opt::Variable> pipeline_length_slack_;
-  absl::flat_hash_map<Node*, operations_research::math_opt::LinearConstraint>
-      cycle_upper_bound_with_slack_;
+  // A map from Node* pairs (a, b) to the LinearConstraint (if present)
+  // guaranteeing that a is in a stage strictly before b.
+  absl::flat_hash_map<std::pair<Node*, Node*>,
+                      operations_research::math_opt::LinearConstraint>
+      timing_constraint_;
 
   std::optional<operations_research::math_opt::Variable> backedge_slack_;
 
@@ -190,6 +197,53 @@ class ModelBuilder {
     operations_research::math_opt::Variable max;
   };
   absl::flat_hash_map<IOConstraint, SlackPair> io_slack_;
+};
+
+class SDCScheduler {
+  using DelayMap = absl::flat_hash_map<Node*, int64_t>;
+
+ public:
+  static absl::StatusOr<std::unique_ptr<SDCScheduler>> Create(
+      FunctionBase* f, const DelayEstimator& delay_estimator);
+
+  absl::Status AddConstraints(
+      absl::Span<const SchedulingConstraint> constraints);
+
+  // Schedule to minimize the total pipeline registers using SDC scheduling
+  // the constraint matrix is totally unimodular, this ILP problem can be solved
+  // by LP.
+  //
+  // With `check_feasibility = true`, the objective function will be constant,
+  // and the LP solver will merely attempt to show that the generated set of
+  // constraints is feasible, rather than find an register-optimal schedule.
+  //
+  // If `pipeline_stages` is not specified, the solver will use the smallest
+  // feasible value.
+  //
+  // References:
+  //   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
+  //   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
+  //   Conference. IEEE, 2006.
+  //   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
+  //   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided
+  //   Design (ICCAD). IEEE, 2013.
+  absl::StatusOr<ScheduleCycleMap> Schedule(
+      std::optional<int64_t> pipeline_stages, int64_t clock_period_ps,
+      bool check_feasibility = false, bool explain_infeasibility = true);
+
+ private:
+  SDCScheduler(FunctionBase* f, DelayMap delay_map);
+  absl::Status Initialize();
+
+  absl::Status BuildError(
+      const operations_research::math_opt::SolveResult& result,
+      bool explain_infeasibility);
+
+  FunctionBase* f_;
+  DelayMap delay_map_;
+
+  SDCSchedulingModel model_;
+  std::unique_ptr<operations_research::math_opt::IncrementalSolver> solver_;
 };
 
 // Schedule to minimize the total pipeline registers using SDC scheduling
@@ -210,7 +264,7 @@ class ModelBuilder {
 //   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
 //   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided Design
 //   (ICCAD). IEEE, 2013.
-absl::StatusOr<ScheduleCycleMap> SDCScheduler(
+absl::StatusOr<ScheduleCycleMap> SDCSchedule(
     FunctionBase* f, std::optional<int64_t> pipeline_stages,
     int64_t clock_period_ps, const DelayEstimator& delay_estimator,
     absl::Span<const SchedulingConstraint> constraints,
