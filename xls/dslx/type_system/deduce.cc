@@ -1742,7 +1742,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
       MakeConstexprEnv(ctx->import_data(), ctx->type_info(), ctx->warnings(),
                        node, ctx->fn_stack().back().parametric_env()));
 
-  std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
+  std::unique_ptr<BitsType> s32 = BitsType::MakeS32();
   auto* slice = std::get<Slice*>(node->rhs());
 
   // Constexpr evaluate start & limit, skipping deducing in the case of
@@ -1759,7 +1759,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     if (should_deduce(slice->start())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->start(), ctx).status());
     } else {
-      // If the slice start is untyped, assume S32.
+      // If the slice start is untyped, assume S32, and check it fits in that
+      // size.
+      XLS_RETURN_IF_ERROR(
+          TryEnsureFitsInType(*down_cast<Number*>(slice->start()), *s32));
       ctx->type_info()->SetItem(slice->start(), *s32);
     }
   }
@@ -1771,7 +1774,10 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     if (should_deduce(slice->limit())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->limit(), ctx).status());
     } else {
-      // If the slice limit is untyped, assume S32.
+      // If the slice limit is untyped, assume S32, and check it fits in that
+      // size.
+      XLS_RETURN_IF_ERROR(
+          TryEnsureFitsInType(*down_cast<Number*>(slice->limit()), *s32));
       ctx->type_info()->SetItem(slice->limit(), *s32);
     }
   }

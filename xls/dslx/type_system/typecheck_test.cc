@@ -1073,6 +1073,21 @@ TEST(TypecheckTest, SliceWithOutOfRangeLimit) {
                        HasSubstr("Slice limit does not fit in index type")));
 }
 
+TEST(TypecheckTest, SliceWithNonS32LiteralBounds) {
+  // overlarge value in start
+  EXPECT_THAT(
+      Typecheck("fn f(x: uN[128]) -> uN[128] { x[40000000000000000000:] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]")));
+  // overlarge value in limit
+  EXPECT_THAT(
+      Typecheck("fn f(x: uN[128]) -> uN[128] { x[:40000000000000000000] }"),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Value '40000000000000000000' does not fit in the "
+                         "bitwidth of a sN[32]")));
+}
+
 TEST(TypecheckTest, WidthSlices) {
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> bits[0] { x[0+:bits[0]] }"));
   XLS_EXPECT_OK(Typecheck("fn f(x: u32) -> u2 { x[32+:u2] }"));
