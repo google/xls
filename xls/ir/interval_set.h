@@ -22,14 +22,9 @@
 #include <string>
 #include <vector>
 
-#include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/bits_ops.h"
 #include "xls/ir/interval.h"
 
 namespace xls {
@@ -41,11 +36,11 @@ class IntervalSet {
   // this class fails if called on an `IntervalSet` with bit count -1, so you
   // must assign to a default constructed interval set before calling any method
   // on it.
-  IntervalSet() : is_normalized_(true), bit_count_(-1), intervals_() {}
+  IntervalSet() : is_normalized_(true), bit_count_(-1) {}
 
   // Create an empty `IntervalSet` with the given bit count.
   explicit IntervalSet(int64_t bit_count)
-      : is_normalized_(true), bit_count_(bit_count), intervals_() {}
+      : is_normalized_(true), bit_count_(bit_count) {}
 
   // Returns an interval set that covers every bit pattern with the given width.
   static IntervalSet Maximal(int64_t bit_count);
@@ -117,7 +112,7 @@ class IntervalSet {
   //
   // CHECK fails if this interval set is not normalized, as that can lead to
   // unexpectedly calling the callback on the same point twice.
-  bool ForEachElement(std::function<bool(const Bits&)> callback) const;
+  bool ForEachElement(const std::function<bool(const Bits&)>& callback) const;
 
   // Returns a normalized set of intervals comprising the union of the two given
   // interval sets.

@@ -16,12 +16,20 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/format_preference.h"
+#include "xls/ir/op.h"
 
 namespace xls {
 namespace bits_ops {
@@ -283,11 +291,10 @@ Bits SDiv(const Bits& lhs, const Bits& rhs) {
       // Divide by zero and lhs is negative.  Return largest magnitude negative
       // number: 0b1000...000.
       return Concat({UBits(1, 1), UBits(0, lhs.bit_count() - 1)});
-    } else {
-      // Divide by zero and lhs is non-negative. Return largest positive number:
-      // 0b0111...111.
-      return ZeroExtend(Bits::AllOnes(lhs.bit_count() - 1), lhs.bit_count());
     }
+    // Divide by zero and lhs is non-negative. Return largest positive number:
+    // 0b0111...111.
+    return ZeroExtend(Bits::AllOnes(lhs.bit_count() - 1), lhs.bit_count());
   }
   BigInt quotient =
       BigInt::Div(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs));
@@ -302,9 +309,7 @@ Bits SMod(const Bits& lhs, const Bits& rhs) {
   return TruncateOrSignExtend(modulo.ToSignedBits(), rhs.bit_count());
 }
 
-bool UEqual(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) == 0;
-}
+bool UEqual(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) == 0; }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
   XLS_CHECK_GE(rhs, 0);
@@ -312,19 +317,29 @@ bool UEqual(const Bits& lhs, int64_t rhs) {
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return !ULessThan(lhs, rhs);
+  return UCmp(lhs, rhs) >= 0;
 }
 
 bool UGreaterThan(const Bits& lhs, const Bits& rhs) {
-  return !ULessThanOrEqual(lhs, rhs);
+  return UCmp(lhs, rhs) > 0;
 }
 
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) <= 0;
+  return UCmp(lhs, rhs) <= 0;
 }
 
-bool ULessThan(const Bits& lhs, const Bits& rhs) {
-  return lhs.bitmap().UCmp(rhs.bitmap()) < 0;
+bool ULessThan(const Bits& lhs, const Bits& rhs) { return UCmp(lhs, rhs) < 0; }
+
+int64_t UCmp(const Bits& lhs, const Bits& rhs) {
+  return lhs.bitmap().UCmp(rhs.bitmap());
+}
+
+const Bits& UMin(const Bits& lhs, const Bits& rhs) {
+  return ULessThan(lhs, rhs) ? lhs : rhs;
+}
+
+const Bits& UMax(const Bits& lhs, const Bits& rhs) {
+  return ULessThan(lhs, rhs) ? rhs : lhs;
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
@@ -480,7 +495,7 @@ Bits Reverse(const Bits& bits) {
 Bits DropLeadingZeroes(const Bits& bits) {
   int64_t first_one;
   for (first_one = bits.bit_count() - 1; first_one >= 0; first_one--) {
-    if (bits.Get(first_one) == 1) {
+    if (bits.Get(first_one)) {
       break;
     }
   }
@@ -500,7 +515,7 @@ Bits BitSliceUpdate(const Bits& to_update, int64_t start,
     return to_update;
   }
 
-  // Construct the result as the sliced concatentation of three slices:
+  // Construct the result as the sliced concatenation of three slices:
   //   (1) slice of some least-significant bits of to_update.
   //   (2) slice of update_value
   //   (3) slice of some most-significant bits of to_update.

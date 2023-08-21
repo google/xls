@@ -17,7 +17,9 @@
 
 #include <cstdint>
 #include <ostream>
+#include <string>
 
+#include "absl/types/span.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/op.h"
@@ -77,6 +79,12 @@ bool UGreaterThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool UGreaterThan(const Bits& lhs, const Bits& rhs);
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs);
 bool ULessThan(const Bits& lhs, const Bits& rhs);
+
+// Returns negative if lhs < rhs, 0 if lhs == rhs, and positive if lhs > rhs.
+int64_t UCmp(const Bits& lhs, const Bits& rhs);
+
+const Bits& UMin(const Bits& lhs, const Bits& rhs);
+const Bits& UMax(const Bits& lhs, const Bits& rhs);
 
 // Overloads for unsigned comparisons against an int64_t. CHECK fails if 'rhs'
 // if negative because this is an unsigned comparison. We do not use an uint64_t
@@ -204,7 +212,7 @@ Bits operator~(const Bits& bits);
 // to produce correct outputs most of the time.
 //
 // Note that even though the above discusses signed multiplies, it should still
-// be used for umulps. It is possible for smulps to get lowered into umulps and
+// be used for umulps. It is possible for smulp's to get lowered into umulps and
 // the offsets for signed multiplies can still produce a carry out that will
 // result in mismatch for umulp(zero_ext(a), zero_ext(b)) != zero_ext(umulp(a,
 // b)).

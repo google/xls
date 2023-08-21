@@ -16,7 +16,6 @@
 
 #include <ios>
 #include <limits>
-#include <memory>
 #include <vector>
 
 #include "gmock/gmock.h"

@@ -15,13 +15,22 @@
 #include "xls/ir/interval_set.h"
 
 #include <cstdint>
+#include <functional>
 #include <limits>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
+#include "rapidcheck/gtest.h"
+#include "rapidcheck.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/interval.h"
 
 using ::testing::Optional;
+using ::testing::SizeIs;
 
 namespace xls {
 namespace {
@@ -51,6 +60,13 @@ TEST(IntervalTest, Normalize) {
   abutting.AddInterval(MakeInterval(21, 30, 32));
   abutting.Normalize();
   EXPECT_EQ(abutting.Intervals(),
+            (std::vector<Interval>{MakeInterval(5, 30, 32)}));
+
+  IntervalSet abutting_reversed(32);
+  abutting_reversed.AddInterval(MakeInterval(21, 30, 32));
+  abutting_reversed.AddInterval(MakeInterval(5, 20, 32));
+  abutting_reversed.Normalize();
+  EXPECT_EQ(abutting_reversed.Intervals(),
             (std::vector<Interval>{MakeInterval(5, 30, 32)}));
 
   IntervalSet improper(32);
@@ -99,6 +115,47 @@ TEST(IntervalTest, ForEachElement) {
   }
 
   EXPECT_TRUE(visited.empty());
+}
+
+TEST(IntervalTest, ForEachElementAborts) {
+  IntervalSet example(32);
+  example.AddInterval(MakeInterval(50, 55, 32));
+  example.AddInterval(MakeInterval(10, 40, 32));
+  example.AddInterval(MakeInterval(70, 90, 32));
+  example.Normalize();
+
+  absl::flat_hash_set<Bits> visited;
+  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+    if (*bits.ToUint64() >= 52) {
+      visited.insert(bits);
+      return true;
+    }
+    visited.insert(bits);
+    return false;
+  }));
+  EXPECT_THAT(visited, SizeIs(31 + 3));  // [10, 40] and [50, 52]
+
+  visited.clear();
+  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+    if (*bits.ToUint64() >= 55) {
+      visited.insert(bits);
+      return true;
+    }
+    visited.insert(bits);
+    return false;
+  }));
+  EXPECT_THAT(visited, SizeIs(31 + 6));  // [10, 40] and [50, 55]
+
+  visited.clear();
+  EXPECT_TRUE(example.ForEachElement([&](const Bits& bits) -> bool {
+    if (*bits.ToUint64() >= 50) {
+      visited.insert(bits);
+      return true;
+    }
+    visited.insert(bits);
+    return false;
+  }));
+  EXPECT_THAT(visited, SizeIs(31 + 1));  // [10, 40] and [50, 50]
 }
 
 TEST(IntervalTest, Combine) {
@@ -333,10 +390,19 @@ TEST(IntervalTest, Bounds) {
   EXPECT_THAT(a.UpperBound(), Optional(UBits(123, 64)));
 
   IntervalSet b(64);
-  b.AddInterval(MakeInterval(0, 42, 64));
   b.AddInterval(MakeInterval(100, 200, 64));
+  b.AddInterval(MakeInterval(0, 42, 64));
   EXPECT_THAT(b.LowerBound(), Optional(UBits(0, 64)));
   EXPECT_THAT(b.UpperBound(), Optional(UBits(200, 64)));
+
+  IntervalSet c(64);
+  c.AddInterval(MakeInterval(21, 200, 64));
+  c.AddInterval(MakeInterval(0, 42, 64));
+  EXPECT_THAT(c.LowerBound(), Optional(UBits(0, 64)));
+  EXPECT_THAT(c.UpperBound(), Optional(UBits(200, 64)));
+  c.Normalize();
+  EXPECT_THAT(c.LowerBound(), Optional(UBits(0, 64)));
+  EXPECT_THAT(c.UpperBound(), Optional(UBits(200, 64)));
 }
 
 TEST(IntervalTest, Index) {
@@ -370,6 +436,61 @@ TEST(IntervalTest, ZeroExtend) {
   IntervalSet extended = set.ZeroExtend(60);
   EXPECT_EQ(extended.ToString(), "[[100, 150], [200, 220], [300, 370]]");
   EXPECT_EQ(extended.BitCount(), 60);
+}
+
+RC_GTEST_PROP(
+    IntervalRapidcheck, IntersectionIsSmaller,
+    (const std::vector<std::pair<uint32_t, uint32_t>>& lhs_intervals,
+     const std::vector<std::pair<uint32_t, uint32_t>>& rhs_intervals)) {
+  IntervalSet lhs(32);
+  for (const auto& [lower_bound, upper_bound] : lhs_intervals) {
+    lhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
+  }
+  lhs.Normalize();
+
+  IntervalSet rhs(32);
+  for (const auto& [lower_bound, upper_bound] : rhs_intervals) {
+    rhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
+  }
+  rhs.Normalize();
+
+  IntervalSet intersection = IntervalSet::Intersect(lhs, rhs);
+  std::optional<uint64_t> intersection_size = *intersection.Size();
+  uint64_t lhs_size = *lhs.Size();
+  uint64_t rhs_size = *rhs.Size();
+  RC_ASSERT(intersection_size.has_value());
+  RC_ASSERT(intersection_size <= lhs_size);
+  RC_ASSERT(intersection_size <= rhs_size);
+  RC_ASSERT(intersection_size != lhs_size || intersection == lhs);
+  RC_ASSERT(intersection_size != rhs_size || intersection == rhs);
+}
+
+RC_GTEST_PROP(
+    IntervalRapidcheck, UnionIsLarger,
+    (const std::vector<std::pair<uint32_t, uint32_t>>& lhs_intervals,
+     const std::vector<std::pair<uint32_t, uint32_t>>& rhs_intervals)) {
+  IntervalSet lhs(32);
+  for (const auto& [lower_bound, upper_bound] : lhs_intervals) {
+    lhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
+  }
+  lhs.Normalize();
+
+  IntervalSet rhs(32);
+  for (const auto& [lower_bound, upper_bound] : rhs_intervals) {
+    rhs.AddInterval(MakeInterval(lower_bound, upper_bound, 32));
+  }
+  rhs.Normalize();
+
+  IntervalSet union_set = IntervalSet::Combine(lhs, rhs);
+  std::optional<uint64_t> union_size = *union_set.Size();
+  uint64_t lhs_size = *lhs.Size();
+  uint64_t rhs_size = *rhs.Size();
+  RC_ASSERT(union_size.has_value());
+  RC_ASSERT(union_size >= lhs_size);
+  RC_ASSERT(union_size >= rhs_size);
+  RC_ASSERT(union_size <= lhs_size + rhs_size);
+  RC_ASSERT(union_size != lhs_size || union_set == lhs);
+  RC_ASSERT(union_size != rhs_size || union_set == rhs);
 }
 
 }  // namespace

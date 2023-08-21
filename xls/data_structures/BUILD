@@ -152,6 +152,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/types:span",
         "//xls/common:bits_util",
         "//xls/common:endian",
         "//xls/common:math_util",

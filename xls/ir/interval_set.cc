@@ -26,7 +26,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/log_message.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -63,6 +62,10 @@ void IntervalSet::SetIntervals(absl::Span<const Interval> intervals) {
 }
 
 void IntervalSet::Normalize() {
+  if (is_normalized_) {
+    return;
+  }
+
   Bits zero(BitCount());
   Bits max = Bits::AllOnes(BitCount());
   std::vector<Interval> expand_improper;
@@ -79,7 +82,7 @@ void IntervalSet::Normalize() {
 
   intervals_.clear();
   for (int32_t i = 0; i < expand_improper.size();) {
-    Interval interval = expand_improper[i];
+    Interval interval = expand_improper[i++];
     while ((i < expand_improper.size()) &&
            (Interval::Overlaps(interval, expand_improper[i]) ||
             Interval::Abuts(interval, expand_improper[i]))) {
@@ -103,8 +106,14 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
 }
 
 std::optional<Bits> IntervalSet::LowerBound() const {
-  // TODO(taktoa): optimize case where is_normalized_ is true
   XLS_CHECK_GE(bit_count_, 0);
+  if (is_normalized_) {
+    if (intervals_.empty()) {
+      return std::nullopt;
+    }
+    return intervals_.front().LowerBound();
+  }
+
   std::optional<Bits> lower;
   for (const Interval& interval : intervals_) {
     if (lower.has_value()) {
@@ -119,8 +128,14 @@ std::optional<Bits> IntervalSet::LowerBound() const {
 }
 
 std::optional<Bits> IntervalSet::UpperBound() const {
-  // TODO(taktoa): optimize case where is_normalized_ is true
   XLS_CHECK_GE(bit_count_, 0);
+  if (is_normalized_) {
+    if (intervals_.empty()) {
+      return std::nullopt;
+    }
+    return intervals_.back().UpperBound();
+  }
+
   std::optional<Bits> upper;
   for (const Interval& interval : intervals_) {
     if (upper.has_value()) {
@@ -145,7 +160,7 @@ IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {
 }
 
 bool IntervalSet::ForEachElement(
-    std::function<bool(const Bits&)> callback) const {
+    const std::function<bool(const Bits&)>& callback) const {
   XLS_CHECK(is_normalized_);
   for (const Interval& interval : intervals_) {
     if (interval.ForEachElement(callback)) {

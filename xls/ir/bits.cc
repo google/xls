@@ -14,11 +14,18 @@
 
 #include "xls/ir/bits.h"
 
+#include <cstdint>
+#include <string>
+
 #include "absl/base/casts.h"
+#include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/data_structures/inline_bitmap.h"
 
 namespace xls {
 
@@ -54,11 +61,8 @@ absl::StatusOr<Bits> SBitsWithStatus(int64_t value, int64_t bit_count) {
   return Bits(InlineBitmap::FromWord(value, bit_count, fill));
 }
 
-Bits::Bits(absl::Span<bool const> bits) : bitmap_(bits.size()) {
-  for (int64_t i = 0; i < bits.size(); ++i) {
-    bitmap_.Set(i, bits[i]);
-  }
-}
+Bits::Bits(absl::Span<bool const> bits)
+    : bitmap_(InlineBitmap::FromBits(bits)) {}
 
 void Bits::SetRange(int64_t start_index, int64_t end_index, bool value) {
   bitmap_.SetRange(start_index, end_index, value);
@@ -163,7 +167,7 @@ bool Bits::HasSingleRunOfSetBits(int64_t* leading_zero_count,
     return false;
   }
   for (int64_t i = trailing_zeros; i < bit_count() - leading_zeros; ++i) {
-    if (Get(i) != 1) {
+    if (!Get(i)) {
       return false;
     }
   }

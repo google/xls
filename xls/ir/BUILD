@@ -53,15 +53,16 @@ cc_library(
     visibility = ["//xls:xls_users"],
     deps = [
         ":bit_push_buffer",
-        ":format_preference",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -189,6 +190,8 @@ cc_library(
     deps = [
         ":bits",
         ":bits_ops",
+        ":format_preference",
+        "//xls/common/logging",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -268,12 +271,13 @@ cc_test(
         "interval_set_test.cc",
     ],
     deps = [
+        ":bits",
+        ":interval",
         ":interval_set",
-        "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@rapidcheck",
     ],
 )
 
@@ -1054,8 +1058,13 @@ cc_library(
         ":bits",
         ":format_preference",
         ":op",
+        "//xls/common:bits_util",
+        "//xls/common:math_util",
         "//xls/common/logging",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
