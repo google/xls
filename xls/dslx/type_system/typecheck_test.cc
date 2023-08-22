@@ -728,6 +728,32 @@ fn f() -> () {
                HasSubstr("Invalid number of arguments passed to 'cover!'")));
 }
 
+TEST(TypecheckErrorTest, MapBuiltinWrongArgc0) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f() {
+  map()
+}
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected 2 arguments to `map` builtin but got 0 argument(s)")));
+}
+
+TEST(TypecheckErrorTest, MapBuiltinWrongArgc1) {
+  EXPECT_THAT(
+      Typecheck(R"(
+fn f(x: u32[3]) -> u32[3] {
+  map(x)
+}
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "Expected 2 arguments to `map` builtin but got 1 argument(s)")));
+}
+
 TEST(TypecheckTest, UpdateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn f() -> u32[3] {

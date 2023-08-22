@@ -2829,6 +2829,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
     const Invocation* node, DeduceCtx* ctx) {
   const absl::Span<Expr* const>& args = node->args();
+  if (args.size() != 2) {
+    return ArgCountMismatchErrorStatus(
+        node->span(),
+        absl::StrFormat(
+            "Expected 2 arguments to `map` builtin but got %d argument(s).",
+            args.size()));
+  }
 
   // First, get the input element type.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> arg0_type,
