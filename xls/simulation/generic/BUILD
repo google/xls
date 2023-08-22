@@ -627,3 +627,45 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
     ],
 )
+
+cc_library(
+    name = "singlevaluemanager",
+    srcs = [
+        "singlevaluemanager.cc",
+    ],
+    hdrs = [
+        "singlevaluemanager.h",
+    ],
+    deps = [
+        ":common",
+        ":ichannel",
+        ":ichannelmanager",
+        ":iregister",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "singlevaluemanager_test",
+    srcs = [
+        "singlevaluemanager_test.cc",
+    ],
+    deps = [
+        ":ichannel",
+        ":iregister",
+        ":iregister_mock",
+        ":iregister_stub",
+        ":singlevaluemanager",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_flags",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
