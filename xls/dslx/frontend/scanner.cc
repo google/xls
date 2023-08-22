@@ -37,6 +37,11 @@
 
 namespace xls::dslx {
 
+absl::Status ScanErrorStatus(const Span& span, std::string_view message) {
+  return absl::InvalidArgumentError(
+      absl::StrFormat("ScanError: %s %s", span.ToString(), message));
+}
+
 absl::StatusOr<int64_t> Token::GetValueAsInt64() const {
   std::optional<std::string> value = GetValue();
   if (!value) {
@@ -194,12 +199,13 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
     uint8_t code = 0;
     for (int i = 0; i < 2; i++) {
       if (AtEof()) {
-        return ScanError(Span(start_pos, GetPos()),
-                         "Unexpected EOF in escaped hexadecimal character.");
+        return ScanErrorStatus(
+            Span(start_pos, GetPos()),
+            "Unexpected EOF in escaped hexadecimal character.");
       }
       next = PeekChar();
       if (!absl::ascii_isxdigit(next)) {
-        return ScanError(
+        return ScanErrorStatus(
             Span(start_pos, GetPos()),
             "Only hex digits are allowed within a 7-bit character code.");
       }
@@ -209,9 +215,9 @@ absl::StatusOr<char> Scanner::ScanCharLiteral() {
 
     return code & 255;
   }
-  return ScanError(Span(start_pos, GetPos()),
-                   absl::StrCat("Unrecognized escape sequence: `\\",
-                                std::string(1, next), "`"));
+  return ScanErrorStatus(Span(start_pos, GetPos()),
+                         absl::StrCat("Unrecognized escape sequence: `\\",
+                                      std::string(1, next), "`"));
 }
 
 // Returns a string with the next "character" in the string. A string is
@@ -224,11 +230,11 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
     DropChar();
     DropChar();
     if (AtEof()) {
-      return ScanError(Span(start_pos, GetPos()),
-                       "Unexpected EOF in escaped unicode character.");
+      return ScanErrorStatus(Span(start_pos, GetPos()),
+                             "Unexpected EOF in escaped unicode character.");
     }
     if (PeekChar() != '{') {
-      return ScanError(
+      return ScanErrorStatus(
           Span(start_pos, GetPos()),
           "Unicode character code escape sequence start (\\u) "
           "must be followed by a character code, such as \"{...}\".");
@@ -245,21 +251,23 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
       } else if (next == '}') {
         break;
       } else {
-        return ScanError(
+        return ScanErrorStatus(
             Span(start_pos, GetPos()),
             "Only hex digits are allowed within a Unicode character code.");
       }
     }
     if (AtEof() || PeekChar() != '}') {
-      return ScanError(Span(start_pos, GetPos()),
-                       "Unicode character code escape sequence must terminate "
-                       "(after 6 digits at most) with a '}'");
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
+          "Unicode character code escape sequence must terminate "
+          "(after 6 digits at most) with a '}'");
     }
     DropChar();
 
     if (unicode.empty()) {
-      return ScanError(Span(start_pos, GetPos()),
-                       "Unicode escape must contain at least one character.");
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
+          "Unicode escape must contain at least one character.");
     }
 
     // Add padding and unicode escape characters to conform with
@@ -280,9 +288,10 @@ absl::StatusOr<std::string> Scanner::ProcessNextStringChar() {
     if (!absl::CUnescape(to_unescape, &utf8)) {
       // Note: we report the error using the characters the user provided
       // instead of what we created to feed CUnescape.
-      return ScanError(Span(start_pos, GetPos()),
-                       absl::StrFormat("Invalid unicode sequence: '%s'.",
-                                       absl::StrCat(R"(\u{)", unicode, "}")));
+      return ScanErrorStatus(
+          Span(start_pos, GetPos()),
+          absl::StrFormat("Invalid unicode sequence: '%s'.",
+                          absl::StrCat(R"(\u{)", unicode, "}")));
     }
     return utf8;
   }
@@ -300,7 +309,7 @@ absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
   }
 
   if (AtEof()) {
-    return ScanError(
+    return ScanErrorStatus(
         Span(start_pos, GetPos()),
         "Reached end of file without finding a closing double quote.");
   }
@@ -366,25 +375,25 @@ absl::StatusOr<Token> Scanner::ScanNumber(char startc, const Pos& start_pos) {
              ('A' <= c && c <= 'F') || c == '_';
     });
     if (s == "0x") {
-      return ScanError(Span(GetPos(), GetPos()),
-                       "Expected hex characters following 0x prefix.");
+      return ScanErrorStatus(Span(GetPos(), GetPos()),
+                             "Expected hex characters following 0x prefix.");
     }
   } else if (startc == '0' && TryDropChar('b')) {  // Bin prefix.
     s = ScanWhile("0b",
                   [](char c) { return ('0' <= c && c <= '1') || c == '_'; });
     if (s == "0b") {
-      return ScanError(Span(GetPos(), GetPos()),
-                       "Expected binary characters following 0b prefix");
+      return ScanErrorStatus(Span(GetPos(), GetPos()),
+                             "Expected binary characters following 0b prefix");
     }
     if (!AtEof() && '0' <= PeekChar() && PeekChar() <= '9') {
-      return ScanError(
+      return ScanErrorStatus(
           Span(GetPos(), GetPos()),
           absl::StrFormat("Invalid digit for binary number: '%c'", PeekChar()));
     }
   } else {
     s = ScanWhile(startc, [](char c) { return std::isdigit(c) != 0; });
     if (absl::StartsWith(s, "0") && s.size() != 1) {
-      return ScanError(
+      return ScanErrorStatus(
           Span(GetPos(), GetPos()),
           "Invalid radix for number, expect 0b or 0x because of leading 0.");
     }
@@ -474,15 +483,16 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
   const char open_quote = PopChar();
   XLS_CHECK_EQ(open_quote, '\'');
   if (AtCharEof()) {
-    return ScanError(Span(GetPos(), GetPos()),
-                     "Expected character after single quote, saw end of file.");
+    return ScanErrorStatus(
+        Span(GetPos(), GetPos()),
+        "Expected character after single quote, saw end of file.");
   }
   XLS_ASSIGN_OR_RETURN(char c, ScanCharLiteral());
   if (AtCharEof() || !TryDropChar('\'')) {
     std::string msg = absl::StrFormat(
         "Expected closing single quote for character literal; got %s",
         AtCharEof() ? std::string("end of file") : std::string(1, PeekChar()));
-    return ScanError(Span(GetPos(), GetPos()), msg);
+    return ScanErrorStatus(Span(GetPos(), GetPos()), msg);
   }
   return Token(TokenKind::kCharacter, Span(start_pos, GetPos()),
                std::string(1, c));
@@ -634,9 +644,10 @@ absl::StatusOr<Token> Scanner::Pop() {
           result = Token(TokenKind::kMinus, mk_span());
         }
       } else {
-        return ScanError(Span(GetPos(), GetPos()),
-                         absl::StrFormat("Unrecognized character: '%c' (%#x)",
-                                         startc, startc));
+        return ScanErrorStatus(
+            Span(GetPos(), GetPos()),
+            absl::StrFormat("Unrecognized character: '%c' (%#x)", startc,
+                            startc));
       }
   }
 

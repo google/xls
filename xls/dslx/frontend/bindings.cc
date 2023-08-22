@@ -54,7 +54,11 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
   };
   std::string_view s = status.message();
   std::string type_indicator;
-  if (!RE2::Consume(&s, "(\\w+): ", &type_indicator)) {
+  // Note: we permit angle braces around the filename for cases that are
+  // delimiting special things like fake files or stdin; e.g.
+  //
+  //    <fake>:1:2
+  if (!RE2::Consume(&s, "(<?\\w+>?): ", &type_indicator)) {
     return error();
   }
   if (target_type.has_value() && type_indicator != *target_type) {

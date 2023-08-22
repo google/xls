@@ -26,12 +26,14 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/frontend/bindings.h"
+#include "xls/dslx/frontend/pos.h"
 
 namespace xls::dslx {
 namespace {
 
 using status_testing::StatusIs;
 using testing::HasSubstr;
+using testing::Not;
 
 MATCHER_P(IsScanErrorWithMessage, matcher,
           "ScanError with message that " +
@@ -46,7 +48,20 @@ MATCHER_P(IsScanErrorWithMessage, matcher,
     *result_listener << "where positional error status is " << data.status();
     return false;
   }
-  return ExplainMatchResult(matcher, arg.message(), result_listener);
+  return ExplainMatchResult(matcher, data->message, result_listener);
+}
+
+TEST(IsScanErrorWithMessageTest, VariousErrors) {
+  EXPECT_THAT(absl::InternalError("ScanError: test.x:1:2 message"),
+              Not(IsScanErrorWithMessage(testing::_)));
+  EXPECT_THAT(
+      absl::InvalidArgumentError("TypeInferenceError: test.x:1:2 message"),
+      Not(IsScanErrorWithMessage(testing::_)));
+  EXPECT_THAT(
+      absl::InvalidArgumentError("ScanError: <> missing positional data"),
+      Not(IsScanErrorWithMessage(testing::_)));
+  EXPECT_THAT(ScanErrorStatus(FakeSpan(), "my message"),
+              IsScanErrorWithMessage("my message"));
 }
 
 absl::StatusOr<std::vector<Token>> ToTokens(std::string text) {

@@ -40,6 +40,17 @@
 
 namespace xls::dslx {
 
+// Helper routine that creates a canonically-formatted scan error (which uses
+// the status code for an InvalidArgumentError, on the assumption the invalid
+// argument is the input text character stream). Since the former XLS `Status`
+// could not easily encode a payload, this canonical formatting is used to
+// convey metadata; e.g. the position at which the scan error occurred.
+//
+// TODO(leary): 2023-08-21 We can now use the payloads present in absl::Status
+// (we no longer have our own project-specific Status) -- we should not need to
+// encode conditional data in the string and parse it out.
+absl::Status ScanErrorStatus(const Span& span, std::string_view message);
+
 #define XLS_DSLX_TOKEN_KINDS(X)                                        \
   /* enum, pyname, str */                                              \
   X(kDot, DOT, ".")                                                    \
@@ -256,17 +267,6 @@ class Scanner {
   std::string_view filename() const { return filename_; }
 
  private:
-  // Helper routine that creates a canonically-formatted scan error (which uses
-  // the status code for an InvalidArgumentError, on the assumption the invalid
-  // argument is the input text character stream). Since `absl::Status` cannot
-  // easily encode a payload, this canonical formatting is used to convey
-  // metadata; e.g. the position at which the scan error occurred, so it may be
-  // raised into Python land as a more structured form of exception.
-  absl::Status ScanError(const Span& span, std::string_view message) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("ScanError: %s %s", span.ToString(), message));
-  }
-
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will
   // assume s is an identifier.

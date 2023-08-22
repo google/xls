@@ -208,6 +208,7 @@ cc_test(
     srcs = ["scanner_test.cc"],
     deps = [
         ":bindings",
+        ":pos",
         ":scanner",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -242,8 +243,8 @@ cc_test(
     srcs = ["bindings_test.cc"],
     deps = [
         ":bindings",
+        ":pos",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
