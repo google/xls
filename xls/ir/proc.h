@@ -15,7 +15,6 @@
 #ifndef XLS_IR_PROC_H_
 #define XLS_IR_PROC_H_
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -147,11 +146,7 @@ class Proc : public FunctionBase {
       int64_t index, std::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
-  bool HasImplicitUse(Node* node) const override {
-    return node == NextToken() ||
-           std::find(next_state_.begin(), next_state_.end(), node) !=
-               next_state_.end();
-  }
+  bool HasImplicitUse(Node* node) const override;
 
   // Creates a clone of the proc with the new name `new_name`. Proc is
   // owned by `target_package`. `channel_remapping` dictates how to map channel

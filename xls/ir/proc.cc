@@ -265,6 +265,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
     int64_t index, std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
+  const bool is_append = (index == GetStateElementCount());
   XLS_ASSIGN_OR_RETURN(
       Param * param,
       MakeNodeWithName<Param>(SourceInfo(), state_param_name,
@@ -279,7 +280,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
           next_state.value()->GetType()->ToString(), init_value.ToString()));
     }
   }
-  if (index < GetStateElementCount()) {
+  if (!is_append) {
     for (auto& [_, indices] : next_state_indices_) {
       // Relabel all indices >= `index`.
       auto it = indices.lower_bound(index);
@@ -294,6 +295,17 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
   next_state_indices_[next_state_[index]].insert(index);
   init_values_.insert(init_values_.begin() + index, init_value);
   return param;
+}
+
+bool Proc::HasImplicitUse(Node* node) const {
+  if (node == NextToken()) {
+    return true;
+  }
+  if (auto it = next_state_indices_.find(node);
+      it != next_state_indices_.end() && !it->second.empty()) {
+    return true;
+  }
+  return false;
 }
 
 absl::StatusOr<Proc*> Proc::Clone(
