@@ -1132,3 +1132,8 @@ build_test(
     # functionality on their own.
     targets = [x[:-len(".x")] + "_dslx" for x in glob(["*.x"]) if not x.startswith("mod_")],
 )
+
+filegroup(
+    name = "dslx_files",
+    srcs = glob(["*.x"]),
+)

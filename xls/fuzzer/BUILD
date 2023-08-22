@@ -25,6 +25,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+filegroup(
+    name = "dslx_files",
+    srcs = glob(["crashers/*.x"]),
+)
+
 py_library(
     name = "cli_helpers",
     srcs = ["cli_helpers.py"],

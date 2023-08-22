@@ -35,3 +35,9 @@ py_test(
         "//xls/common:test_base",
     ],
 )
+
+filegroup(
+    name = "dslx_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
