@@ -188,6 +188,7 @@ def _xls_cc_ir_impl(ctx):
         "defines",
         "include_dirs",
         "meta_out",
+        "meta_out_text",
         "block_from_class",
     )
 
@@ -239,6 +240,11 @@ def _xls_cc_ir_impl(ctx):
         outputs.append(meta_pb_file)
         meta_out_flag = "--meta_out " + meta_pb_file.path
 
+    meta_out_text_flag = ""
+    metadata_out_text = getattr(ctx.attr, "meta_out_text")
+    if metadata_out_text:
+        meta_out_text_flag = "--meta_out_text"
+
     # Get runfiles
     runfiles = _get_runfiles_for_xls_cc_ir(ctx)
 
@@ -250,12 +256,13 @@ def _xls_cc_ir_impl(ctx):
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
         inputs = runfiles.files,
-        command = "{} {} --block_pb {} {} {} {} > {}".format(
+        command = "{} {} --block_pb {} {} {} {} {} > {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,
             block_pb,
             block_from_class_flag,
             meta_out_flag,
+            meta_out_text_flag,
             my_args,
             ir_file.path,
         ),
@@ -319,6 +326,11 @@ _xls_cc_ir_attrs = {
     ),
     "metadata_out": attr.output(
         doc = "Filename of the generated metadata protobuf",
+        mandatory = False,
+    ),
+    "meta_out_text": attr.bool(
+        doc = "Whether the generated metadata protobuf should output as a text protobuf",
+        default = False,
         mandatory = False,
     ),
     "_xlscc_tool": attr.label(

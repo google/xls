@@ -15,13 +15,21 @@
 #ifndef XLS_TOOLS_CODEGEN_FLAGS_H_
 #define XLS_TOOLS_CODEGEN_FLAGS_H_
 
+#include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "xls/tools/codegen_flags.pb.h"
+
+ABSL_DECLARE_FLAG(std::string, output_verilog_path);
+ABSL_DECLARE_FLAG(std::string, output_schedule_path);
+ABSL_DECLARE_FLAG(std::string, output_schedule_ir_path);
+ABSL_DECLARE_FLAG(std::string, output_block_ir_path);
+ABSL_DECLARE_FLAG(std::string, output_signature_path);
+ABSL_DECLARE_FLAG(std::string, output_verilog_line_map_path);
 
 namespace xls {
 
 // Populates the codegen flags proto from the ABSL flags library values.
-absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags();
+absl::StatusOr<CodegenFlagsProto> GetCodegenFlags();
 
 }  // namespace xls
 

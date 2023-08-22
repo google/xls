@@ -422,6 +422,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "show_known_bits",
         "delay_model",
         "convert_array_index_to_select",
+        "scheduling_options_proto",
     )
 
     benchmark_ir_args = append_default_to_args(
@@ -1009,6 +1010,13 @@ xls_benchmark_ir_attrs = {
     "benchmark_ir_args": attr.string_dict(
         doc = "Arguments of the benchmark IR tool. For details on the " +
               "arguments, refer to the benchmark_main application at " +
+              "//xls/tools/benchmark_main.cc.",
+    ),
+    "scheduling_options_proto": attr.label(
+        allow_single_file = True,
+        default = None,
+        doc = "Protobuf filename of scheduling arguments to the benchmark IR tool. " +
+              "For details on the arguments, refer to the benchmark_main application at " +
               "//xls/tools/benchmark_main.cc.",
     ),
 }

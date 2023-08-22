@@ -1,0 +1,45 @@
+// Copyright 2023 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package xls;
+
+// Flags passed to the benchmark_codegen_main, codegen_main,
+// and sched_printer_main binary.
+//
+// See scheduling_options_flags.cc ABSL_FLAG()
+// definitions for the meaning of these fields.
+message SchedulingOptionsFlagsProto {
+  optional int64 clock_period_ps = 1;
+  optional int64 pipeline_stages = 2;
+  optional string delay_model = 3;
+  optional int64 clock_margin_percent = 4;
+  optional int64 period_relaxation_percent = 5;
+  optional int64 worst_case_throughput = 6;
+  optional int64 additional_input_delay_ps = 7;
+  optional int64 ffi_fallback_delay_ps = 8;
+  repeated string io_constraints = 9;
+  optional bool receives_first_sends_last = 10;
+  optional int64 mutual_exclusion_z3_rlimit = 11;
+  optional int64 fdo_iteration_number = 12;
+  optional int64 fdo_delay_driven_path_number = 13;
+  optional int64 fdo_fanout_driven_path_number = 14;
+  optional float fdo_refinement_stochastic_ratio = 15;
+  optional string fdo_path_evaluate_strategy = 16;
+  optional string fdo_synthesizer_name = 17;
+  optional string fdo_yosys_path = 18;
+  optional string fdo_sta_path = 19;
+  optional string fdo_synthesis_libraries = 20;
+}

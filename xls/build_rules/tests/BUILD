@@ -42,6 +42,11 @@ load(
     xls_ir_opt_ir_native_rule = "xls_ir_opt_ir",
     xls_ir_verilog_native_rule = "xls_ir_verilog",
 )
+load(
+    "//xls/build_rules/tests:test_build_defs.bzl",
+    "codegen_args_proto",
+    "scheduling_args_proto",
+)
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -94,6 +99,44 @@ xls_dslx_verilog(
     verilog_file = "add_one_pipeline_rtl.sv",
 )
 
+codegen_args_proto(
+    name = "add_one_pipeline_rtl_proto_codegen_proto",
+    codegen_options_proto = "add_one_pipeline_rtl_codegen.txtproto",
+    is_pipelined = True,
+    module_name = "main",
+    reset_data_path = False,
+    top = "__add_one__main",
+)
+
+scheduling_args_proto(
+    name = "add_one_pipeline_rtl_proto_scheduling_proto",
+    delay_model = "unit",
+    pipeline_stages = 2,
+    scheduling_options_proto = "add_one_pipeline_rtl_scheduling.txtproto",
+)
+
+xls_dslx_verilog(
+    name = "add_one_pipeline_rtl_proto",
+    srcs = ["add_one.x"],
+    codegen_options_proto = ":add_one_pipeline_rtl_codegen.txtproto",
+    dslx_top = "main",
+    scheduling_options_proto = ":add_one_pipeline_rtl_scheduling.txtproto",
+    verilog_file = "add_one_pipeline_rtl_proto.sv",
+)
+
+xls_dslx_verilog(
+    name = "add_one_pipeline_rtl_proto_fail",
+    srcs = ["add_one.x"],
+    codegen_args = {
+        "clock_period_ps": "42",
+    },
+    codegen_options_proto = ":add_one_pipeline_rtl_codegen.txtproto",
+    dslx_top = "main",
+    # uncomment the following line to test that passing both scheduling options and args will crash.
+    # scheduling_options_proto = ":add_one_pipeline_rtl_scheduling.txtproto",
+    verilog_file = "add_one_pipeline_rtl_proto_fail.sv",
+)
+
 # Test a single file when many are generated.
 check_sha256sum_test(
     name = "add_one_pipeline_rtl_v_sha256sum_test",
@@ -121,6 +164,13 @@ sh_test(
     srcs = ["has_clk.sh"],
     args = ["$(rootpath :add_one_pipeline_rtl.sv)"],
     data = [":add_one_pipeline_rtl.sv"],
+)
+
+sh_test(
+    name = "add_one_pipeline_rtl_proto_has_clk_test",
+    srcs = ["has_clk.sh"],
+    args = ["$(rootpath :add_one_pipeline_rtl_proto.sv)"],
+    data = [":add_one_pipeline_rtl_proto.sv"],
 )
 
 xls_dslx_verilog(

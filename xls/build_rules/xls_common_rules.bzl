@@ -98,7 +98,7 @@ def is_args_valid(arguments, valid_arguments):
             fail("Unrecognized argument: %s." % flag_name)
     return True
 
-def args_to_string(arguments):
+def args_to_string(arguments, limit_list = None):
     """Returns a string representation of the arguments.
 
     The macro builds a string representation of the arguments.
@@ -115,6 +115,7 @@ def args_to_string(arguments):
     Args:
       arguments: A dictionary of arguments where the key is the argument name
         and the value is the value of the argument.
+      limit_list: A list tuple of values to include in the output. If None all are returned.
     Returns:
       A string representation of the arguments.
     """
@@ -122,7 +123,8 @@ def args_to_string(arguments):
     # Add arguments
     my_args = ""
     for flag_name in arguments:
-        my_args += " --%s=%s" % (flag_name, arguments[flag_name])
+        if limit_list == None or flag_name in limit_list:
+            my_args += " --%s=%s" % (flag_name, arguments[flag_name])
     return my_args
 
 def append_cmd_line_args_to(cmd):

@@ -909,11 +909,23 @@ py_test(
     ],
 )
 
+proto_library(
+    name = "scheduling_options_flags_proto",
+    srcs = ["scheduling_options_flags.proto"],
+)
+
+cc_proto_library(
+    name = "scheduling_options_flags_cc_proto",
+    deps = [":scheduling_options_flags_proto"],
+)
+
 cc_library(
     name = "scheduling_options_flags",
     srcs = ["scheduling_options_flags.cc"],
     hdrs = ["scheduling_options_flags.h"],
     deps = [
+        ":scheduling_options_flags_cc_proto",
+        "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
@@ -944,8 +956,10 @@ cc_library(
     hdrs = ["codegen_flags.h"],
     deps = [
         ":codegen_flags_cc_proto",
+        "//xls/common/file:filesystem",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],
@@ -983,6 +997,7 @@ cc_binary(
         "//xls/scheduling:scheduling_pass_pipeline",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
@@ -1285,7 +1300,9 @@ cc_binary(
     srcs = ["benchmark_codegen_main.cc"],
     deps = [
         ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
         "//xls/codegen:block_metrics",
+        "//xls/codegen:xls_metrics_cc_proto",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
@@ -1293,12 +1310,17 @@ cc_binary(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
+        "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
     ],
 )
 

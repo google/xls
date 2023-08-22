@@ -13,26 +13,31 @@
 // limitations under the License.
 
 #include <iostream>
-#include <numeric>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
+#include "absl/time/time.h"
 #include "xls/codegen/block_metrics.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/exit_status.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/block.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/run_pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
@@ -110,7 +115,8 @@ absl::Status RealMain(std::string_view opt_ir_path,
   if (absl::GetFlag(FLAGS_schedule)) {
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                          SetUpSchedulingOptions(block_package.get()));
-    XLS_ASSIGN_OR_RETURN(delay_estimator, SetUpDelayEstimator());
+    XLS_ASSIGN_OR_RETURN(delay_estimator,
+                         SetUpDelayEstimator());
 
     XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
         opt_package.get(), *delay_estimator.value(), scheduling_options));

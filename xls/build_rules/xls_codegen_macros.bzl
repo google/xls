@@ -21,7 +21,6 @@ load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
-    "validate_verilog_filename",
     "xls_ir_verilog",
 )
 load(
@@ -44,6 +43,8 @@ def _xls_ir_verilog_macro(
         src,
         verilog_file,
         codegen_args = {},
+        codegen_options_proto = None,
+        scheduling_options_proto = None,
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
@@ -75,6 +76,13 @@ def _xls_ir_verilog_macro(
       codegen_args: Arguments of the codegen tool. For details on the arguments,
         refer to the codegen_main application at
         //xls/tools/codegen_main.cc.
+      codegen_options_proto: Filename of a protobuf with arguments of the codegen tool.
+        For details on the arguments, refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
+      scheduling_options_proto: Filename of a protobuf with scheduling options arguments
+        of the codegen tool.
+        For details on the arguments, refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' or '.sv', extension.
       enable_generated_file: See 'enable_generated_file' from
@@ -88,26 +96,28 @@ def _xls_ir_verilog_macro(
     string_type_check("name", name)
     string_type_check("src", src)
     string_type_check("verilog_file", verilog_file)
-    dictionary_type_check("codegen_args", codegen_args)
+    dictionary_type_check("codegen_args", codegen_args, True)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
+    final_codegen_args = dict(codegen_args)
+
     # Append output files to arguments.
-    use_system_verilog = codegen_args.get("use_system_verilog", "True").lower() == "true"
-    validate_verilog_filename(verilog_file, use_system_verilog)
     verilog_basename = split_filename(verilog_file)[0]
     kwargs = append_xls_ir_verilog_generated_files(
         kwargs,
         verilog_basename,
-        codegen_args,
+        final_codegen_args,
     )
 
     xls_ir_verilog(
         name = name,
         src = src,
-        codegen_args = codegen_args,
+        codegen_args = final_codegen_args,
+        codegen_options_proto = codegen_options_proto,
+        scheduling_options_proto = scheduling_options_proto,
         verilog_file = verilog_file,
-        outs = get_xls_ir_verilog_generated_files(kwargs, codegen_args) +
+        outs = get_xls_ir_verilog_generated_files(kwargs, final_codegen_args) +
                [verilog_file],
         **kwargs
     )
@@ -123,6 +133,8 @@ def xls_ir_verilog_build_and_test(
         src,
         verilog_file,
         codegen_args = {},
+        codegen_options_proto = None,
+        scheduling_options_proto = None,
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
@@ -152,6 +164,13 @@ def xls_ir_verilog_build_and_test(
       codegen_args: Arguments of the codegen tool. For details on the arguments,
         refer to the codegen_main application at
         //xls/tools/codegen_main.cc.
+      codegen_options_proto: Filename of a protobuf with arguments of the codegen tool.
+        For details on the arguments, refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
+      scheduling_options_proto: Filename of a protobuf with scheduling options arguments
+        of the codegen tool.
+        For details on the arguments, refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' or '.sv', extension.
       enable_generated_file: See 'enable_generated_file' from
@@ -165,6 +184,8 @@ def xls_ir_verilog_build_and_test(
         src = src,
         verilog_file = verilog_file,
         codegen_args = codegen_args,
+        codegen_options_proto = codegen_options_proto,
+        scheduling_options_proto = scheduling_options_proto,
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
         **kwargs

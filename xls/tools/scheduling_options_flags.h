@@ -17,34 +17,11 @@
 #ifndef XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 #define XLS_TOOLS_SCHEDULING_OPTIONS_FLAGS_H_
 
-#include <cstdint>
-#include <string>
-#include <vector>
-
-#include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
-
-ABSL_DECLARE_FLAG(int64_t, clock_period_ps);
-ABSL_DECLARE_FLAG(int64_t, pipeline_stages);
-ABSL_DECLARE_FLAG(std::string, delay_model);
-ABSL_DECLARE_FLAG(int64_t, clock_margin_percent);
-ABSL_DECLARE_FLAG(int64_t, period_relaxation_percent);
-ABSL_DECLARE_FLAG(int64_t, additional_input_delay_ps);
-ABSL_DECLARE_FLAG(std::vector<std::string>, io_constraints);
-ABSL_DECLARE_FLAG(int64_t, mutual_exclusion_z3_rlimit);
-ABSL_DECLARE_FLAG(int64_t, fdo_iteration_number);
-ABSL_DECLARE_FLAG(int64_t, fdo_delay_driven_path_number);
-ABSL_DECLARE_FLAG(int64_t, fdo_fanout_driven_path_number);
-ABSL_DECLARE_FLAG(float, fdo_refinement_stochastic_ratio);
-ABSL_DECLARE_FLAG(std::string, fdo_path_evaluate_strategy);
-ABSL_DECLARE_FLAG(std::string, fdo_synthesizer_name);
-ABSL_DECLARE_FLAG(std::string, fdo_yosys_path);
-ABSL_DECLARE_FLAG(std::string, fdo_sta_path);
-ABSL_DECLARE_FLAG(std::string, fdo_synthesis_libraries);
 
 namespace xls {
 

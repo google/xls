@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <cstdint>
-#include <cstdlib>
 #include <filesystem>  // NOLINT
 #include <iostream>
 #include <memory>
@@ -25,6 +24,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
@@ -206,8 +206,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
 
 absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(CodegenFlagsProto codegen_flags_proto,
-                       CodegenFlagsFromAbslFlags());
-
+                       GetCodegenFlags());
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
@@ -228,13 +227,12 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
                        CodegenOptionsFromProto(codegen_flags_proto));
 
+  XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
+                       SetUpSchedulingOptions(p.get()));
   if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
-    XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
-               absl::GetFlag(FLAGS_clock_period_ps) != 0)
+    XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
+               scheduling_options.clock_period_ps() != 0)
         << "Must specify --pipeline_stages or --clock_period_ps (or both).";
-
-    XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetUpSchedulingOptions(p.get()));
 
     // Add IO constraints for RAMs.
     for (const std::unique_ptr<xls::verilog::RamConfiguration>& ram_config :
@@ -264,24 +262,24 @@ absl::Status RealMain(std::string_view ir_path) {
 
     XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
-    if (!codegen_flags_proto.output_schedule_ir_path().empty()) {
+    if (!absl::GetFlag(FLAGS_output_schedule_ir_path).empty()) {
       XLS_RETURN_IF_ERROR(
-          SetFileContents(codegen_flags_proto.output_schedule_ir_path(),
+          SetFileContents(absl::GetFlag(FLAGS_output_schedule_ir_path),
                           main()->package()->DumpIr()));
     }
 
     XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
                                      schedule, main(), codegen_options));
 
-    if (!codegen_flags_proto.output_schedule_path().empty()) {
+    if (!absl::GetFlag(FLAGS_output_schedule_path).empty()) {
       XLS_RETURN_IF_ERROR(
-          SetTextProtoFile(codegen_flags_proto.output_schedule_path(),
+          SetTextProtoFile(absl::GetFlag(FLAGS_output_schedule_path),
                            schedule.ToProto(delay_estimator)));
     }
   } else if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
-    if (!codegen_flags_proto.output_schedule_ir_path().empty()) {
+    if (!absl::GetFlag(FLAGS_output_schedule_ir_path).empty()) {
       XLS_RETURN_IF_ERROR(
-          SetFileContents(codegen_flags_proto.output_schedule_ir_path(), ""));
+          SetFileContents(absl::GetFlag(FLAGS_output_schedule_ir_path), ""));
     }
 
     XLS_ASSIGN_OR_RETURN(
@@ -292,20 +290,20 @@ absl::Status RealMain(std::string_view ir_path) {
                    << static_cast<int>(codegen_flags_proto.generator());
   }
 
-  if (!codegen_flags_proto.output_block_ir_path().empty()) {
+  if (!absl::GetFlag(FLAGS_output_block_ir_path).empty()) {
     XLS_QCHECK_EQ(p->blocks().size(), 1)
         << "There should be exactly one block in the package after generating "
            "module text.";
     XLS_RETURN_IF_ERROR(SetFileContents(
-        codegen_flags_proto.output_block_ir_path(), p->DumpIr()));
+        absl::GetFlag(FLAGS_output_block_ir_path), p->DumpIr()));
   }
 
-  if (!codegen_flags_proto.output_signature_path().empty()) {
+  if (!absl::GetFlag(FLAGS_output_signature_path).empty()) {
     XLS_RETURN_IF_ERROR(SetTextProtoFile(
-        codegen_flags_proto.output_signature_path(), result.signature.proto()));
+        absl::GetFlag(FLAGS_output_signature_path), result.signature.proto()));
   }
 
-  const std::string& verilog_path = codegen_flags_proto.output_verilog_path();
+  const std::string& verilog_path = absl::GetFlag(FLAGS_output_verilog_path);
   if (!verilog_path.empty()) {
     std::filesystem::path absolute = std::filesystem::absolute(verilog_path);
     for (int64_t i = 0; i < result.verilog_line_map.mapping_size(); ++i) {
@@ -314,7 +312,7 @@ absl::Status RealMain(std::string_view ir_path) {
   }
 
   const std::string& verilog_line_map_path =
-      codegen_flags_proto.output_verilog_line_map_path();
+      absl::GetFlag(FLAGS_output_verilog_line_map_path);
   if (!verilog_line_map_path.empty()) {
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(verilog_line_map_path, result.verilog_line_map));

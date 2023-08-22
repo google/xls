@@ -16,9 +16,13 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/flags/flag.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/tools/codegen_flags.pb.h"
 
@@ -83,9 +87,6 @@ ABSL_FLAG(bool, add_idle_output, false,
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used");
-// TODO(meheff): Rather than specify all reset (or codegen options in general)
-// as a multitude of flags, these can be specified via a separate file (like a
-// options proto).
 ABSL_FLAG(std::string, reset, "",
           "Name of the reset signal. If empty, no reset signal is used.");
 ABSL_FLAG(bool, reset_active_low, false,
@@ -131,6 +132,8 @@ ABSL_FLAG(bool, gate_recvs, true,
 ABSL_FLAG(bool, array_index_bounds_checking, true,
           "If true, emit bounds checking on array-index operations in Verilog. "
           "Otherwise, the bounds checking is not evaluated.");
+ABSL_FLAG(std::string, codegen_options_proto, "",
+          "Path to a protobuf containing all codegen args.");
 // LINT.ThenChange(
 //   //xls/build_rules/xls_codegen_rules.bzl,
 //   //docs_src/codegen_options.md
@@ -156,30 +159,31 @@ absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
 
 }  // namespace
 
-absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
-  CodegenFlagsProto p;
-#define POPULATE_FLAG(__x) p.set_##__x(absl::GetFlag(FLAGS_##__x));
-#define POPULATE_REPEATED_FLAG(__x)                                     \
-  do {                                                                  \
-    p.mutable_##__x()->Clear();                                         \
-    auto repeated_flag = absl::GetFlag(FLAGS_##__x);                    \
-    p.mutable_##__x()->Add(repeated_flag.begin(), repeated_flag.end()); \
-  } while (0)
-  POPULATE_FLAG(output_verilog_path);
-  POPULATE_FLAG(output_schedule_path);
-  POPULATE_FLAG(output_schedule_ir_path);
-  POPULATE_FLAG(output_block_ir_path);
-  POPULATE_FLAG(output_signature_path);
-  POPULATE_FLAG(output_verilog_line_map_path);
+static absl::StatusOr<bool> SetOptionsFromFlags(CodegenFlagsProto &proto) {
+#define POPULATE_FLAG(__x)                                   \
+  {                                                          \
+    any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine(); \
+    proto.set_##__x(absl::GetFlag(FLAGS_##__x));             \
+  }
+#define POPULATE_REPEATED_FLAG(__x)                                           \
+  {                                                                           \
+    any_flags_set |= FLAGS_##__x.IsSpecifiedOnCommandLine();                  \
+    do {                                                                      \
+      proto.mutable_##__x()->Clear();                                         \
+      auto repeated_flag = absl::GetFlag(FLAGS_##__x);                        \
+      proto.mutable_##__x()->Add(repeated_flag.begin(), repeated_flag.end()); \
+    } while (0);                                                              \
+  }
+  bool any_flags_set = false;
   POPULATE_FLAG(top);
 
   // Generator is somewhat special, in that we need to parse it to its enum
   // form.
   std::string generator_str = absl::GetFlag(FLAGS_generator);
   if (generator_str == "pipeline") {
-    p.set_generator(GENERATOR_KIND_PIPELINE);
+    proto.set_generator(GENERATOR_KIND_PIPELINE);
   } else if (generator_str == "combinational") {
-    p.set_generator(GENERATOR_KIND_COMBINATIONAL);
+    proto.set_generator(GENERATOR_KIND_COMBINATIONAL);
   } else {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Invalid flag given for -generator; got `%s`", generator_str));
@@ -194,11 +198,11 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_inputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_inputs_kind)));
-  p.set_flop_inputs_kind(flop_inputs_kind);
+  proto.set_flop_inputs_kind(flop_inputs_kind);
   XLS_ASSIGN_OR_RETURN(
       IOKindProto flop_outputs_kind,
       IOKindProtoFromString(absl::GetFlag(FLAGS_flop_outputs_kind)));
-  p.set_flop_outputs_kind(flop_outputs_kind);
+  proto.set_flop_outputs_kind(flop_outputs_kind);
 
   POPULATE_FLAG(flop_single_value_channels);
   POPULATE_FLAG(add_idle_output);
@@ -223,7 +227,23 @@ absl::StatusOr<CodegenFlagsProto> CodegenFlagsFromAbslFlags() {
   POPULATE_FLAG(array_index_bounds_checking);
 #undef POPULATE_FLAG
 #undef POPULATE_REPEATED_FLAG
-  return p;
+  return any_flags_set;
+}
+
+absl::StatusOr<CodegenFlagsProto> GetCodegenFlags() {
+  CodegenFlagsProto proto;
+  XLS_ASSIGN_OR_RETURN(bool any_individual_flags_set,
+                       SetOptionsFromFlags(proto));
+  if (any_individual_flags_set) {
+    if (FLAGS_codegen_options_proto.IsSpecifiedOnCommandLine()) {
+      return absl::InvalidArgumentError(
+          "Cannot combine 'codegen_options_proto' and codegen arguments");
+    }
+  } else if (FLAGS_codegen_options_proto.IsSpecifiedOnCommandLine()) {
+    XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(
+        absl::GetFlag(FLAGS_codegen_options_proto), &proto));
+  }
+  return proto;
 }
 
 }  // namespace xls
