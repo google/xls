@@ -78,7 +78,6 @@ proc test_main {
 
   next(tok: token, state: ()) {
     // Not sending on either channel means output is 0.
-    let x = u32:0;
     let (tok, v) = recv(tok, out0);
     assert_eq(v, u32:0);
     let (tok, v) = recv(tok, out0);

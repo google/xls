@@ -336,6 +336,15 @@ fn f() -> u32 {
 })"));
 }
 
+TEST(TypecheckTest, ForWildcardIvar) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f() -> u32 {
+  for (_, accum) in range(u32:0, u32:3) {
+    accum
+  }(u32:0)
+})"));
+}
+
 TEST(TypecheckTest, ConstAssertParametricOk) {
   XLS_EXPECT_OK(Typecheck(R"(
 fn p<N: u32>() -> u32 {
@@ -1932,6 +1941,57 @@ fn f(x: (u32)) -> u32 {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("(uN[32]) Pattern wanted 2 tuple elements, "
                                  "matched-on value had 1 element")));
+}
+
+TEST(TypecheckTest, UnusedBindingInBodyGivesWarning) {
+  const std::string program = R"(
+fn f(x: u32) -> u32 {
+    let y = x + u32:42;
+    x
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `y` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, FiveUnusedBindingsInLetBindingPattern) {
+  const std::string program = R"(
+fn f(t: (u32, u32, u32, u32, u32)) -> u32 {
+    let (a, b, c, d, e) = t;
+    t.0
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 5);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `a` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(1).message,
+            "Definition of `b` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(2).message,
+            "Definition of `c` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(3).message,
+            "Definition of `d` (type `uN[32]`) is not used in function `f`");
+  EXPECT_EQ(tm.warnings.warnings().at(4).message,
+            "Definition of `e` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, UnusedMatchBindingInBodyGivesWarning) {
+  const std::string program = R"(
+fn f(x: u32) -> u32 {
+  match x {
+    y => x
+  }
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Definition of `y` (type `uN[32]`) is not used in function `f`");
 }
 
 }  // namespace

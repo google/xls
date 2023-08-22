@@ -94,6 +94,11 @@ enum class AstNodeKind {
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
 
+template <typename Sink>
+void AbslStringify(Sink& sink, AstNodeKind kind) {
+  sink.Append(AstNodeKindToString(kind));
+}
+
 inline std::ostream& operator<<(std::ostream& os, AstNodeKind kind) {
   os << AstNodeKindToString(kind);
   return os;

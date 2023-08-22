@@ -20,7 +20,7 @@ enum MyEnum : u2 {
 }
 
 fn main(x: u2) -> MyEnum {
-  for (i, res): (u4, MyEnum) in u4:0..u4:4 {
+  for (_, _): (u4, MyEnum) in u4:0..u4:4 {
     match x {
       u2:0 => MyEnum::A,
       u2:1 => MyEnum::B,
@@ -37,5 +37,4 @@ fn test_main() {
   assert_eq(MyEnum::B, main(u2:1));
   assert_eq(MyEnum::C, main(u2:2));
   assert_eq(MyEnum::D, main(u2:3));
-  ()
 }

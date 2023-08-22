@@ -898,6 +898,7 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
                               std::optional<InterpValue> constexpr_value) {
   if (name_def_tree->is_leaf()) {
     AstNode* name_def = ToAstNode(name_def_tree->leaf());
+
     ctx->type_info()->SetItem(name_def, type);
     if (constexpr_value.has_value()) {
       ctx->type_info()->NoteConstExpr(name_def, constexpr_value.value());
@@ -966,6 +967,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
     XLS_ASSIGN_OR_RETURN(maybe_constexpr_value,
                          ctx->type_info()->GetConstExpr(node->rhs()));
   }
+
   XLS_RETURN_IF_ERROR(
       BindNames(node->name_def_tree(), *rhs, ctx, maybe_constexpr_value));
 
@@ -1035,8 +1037,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
   }
 
   // Bind the names to their associated types for use in the body.
+  NameDefTree* bindings = node->names();
+
+  if (!bindings->IsIrrefutable()) {
+    return TypeInferenceErrorStatus(
+        bindings->span(), nullptr,
+        absl::StrFormat("for-loop bindings must be irrefutable (i.e. the "
+                        "pattern must match all possible values)"));
+  }
+
   XLS_RETURN_IF_ERROR(
-      BindNames(node->names(), *target_annotated_type, ctx, std::nullopt));
+      BindNames(bindings, *target_annotated_type, ctx, std::nullopt));
 
   // Now we can deduce the body.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,

@@ -23,22 +23,17 @@ fn foo<A: u32, B: u32, C: u32 = {if A > B { A } else { B }}>(x: bits[A], y: bits
 
 #[test]
 fn parametric_with_comparison() {
-  let A = u32:8;
-  let B = u32:16;
   let x = bits[8]:0xff;
   let y = bits[16]:0xff;
   let actual = foo(x, y) as u16;
   let expected = u16:0x1fe;
   assert_eq(actual, expected);
 
-  let A = u32:16;
-  let B = u32:8;
   let x = bits[16]:0xff;
   let y = bits[8]:0xff;
   let actual = foo(x, y) as u16;
   let expected = u16:0x1fe;
   assert_eq(actual, expected);
-  ()
 }
 
 // This set of functions tests what was an ambiguous case when
@@ -57,9 +52,10 @@ const Y = u32:6;
 const Z = u1:0;
 const W = u1:1;
 
-fn main() -> u32{
+fn main() -> (u32, u32, u32, u32) {
   let x = u32:16;
   let y = callee<u32:32>(x);
   let z = callee<{(u32:32 > u32:16) as u32 + u32:4}>(x as u5) as u32;
-  callee<{((X>Y)<(Z>W)) as u32 + u32:15}>(u15:8) as u32
+  let a = callee<{((X>Y)<(Z>W)) as u32 + u32:15}>(u15:8) as u32;
+  (x, y, z, a)
 }

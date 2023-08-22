@@ -104,7 +104,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         "compare",
         "dslx_path",
         "warnings_as_errors",
-        "disabled_warnings",
+        "disable_warnings",
         "max_ticks",
         "format_preference",
     )

@@ -839,7 +839,6 @@ fn ldexp_test() {
     zero<u32:8, u32:23>(u1:1));
 
   // Output subnormal, flush to zero.
-  let almost_denormal = APFloat<EXP_SZ, FRACTION_SZ>{sign: u1:0, bexp: u8:1, fraction: u23:99};
   assert_eq(ldexp(pos_denormal, s32:-1),
     zero<u32:8, u32:23>(u1:0));
 
@@ -2274,7 +2273,6 @@ fn smoke() {
 #[test]
 fn one_x_one_plus_one_f32() {
   type F32 = APFloat<8,23>;
-  let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
   let a = one_point_zero;
   let b = one_point_zero;
@@ -2287,7 +2285,6 @@ fn one_x_one_plus_one_f32() {
 #[test]
 fn one_x_one_plus_one_f64() {
   type F64 = APFloat<11,52>;
-  let zero = F64 { sign: u1:0, bexp: u11:0, fraction: u52: 0 };
   let one_point_zero = F64 { sign: u1:0, bexp: u11:1023, fraction: u52: 0 };
   let a = one_point_zero;
   let b = one_point_zero;
@@ -2300,7 +2297,6 @@ fn one_x_one_plus_one_f64() {
 #[test]
 fn one_x_one_plus_one_bf16() {
   type BF16 = APFloat<8, 7>;
-  let zero = BF16 { sign: u1:0, bexp: u8:0, fraction: u7: 0 };
   let one_point_zero = BF16 { sign: u1:0, bexp: u8:127, fraction: u7: 0 };
   let a = one_point_zero;
   let b = one_point_zero;
@@ -2362,7 +2358,6 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_zero() {
 #[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one() {
   type F32 = APFloat<8,23>;
-  let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
   let a = twenty_seven_point_one;

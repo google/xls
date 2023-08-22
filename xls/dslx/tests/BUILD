@@ -214,7 +214,11 @@ dslx_lang_test(
 
 dslx_lang_test(name = "local_type_alias")
 
-dslx_lang_test(name = "block_with_trailing_semi")
+dslx_lang_test(
+    name = "block_with_trailing_semi",
+    # We intenionally have unused vars.
+    warnings_as_errors = False,
+)
 
 dslx_lang_test(
     name = "binops",

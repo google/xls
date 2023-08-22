@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_system/typecheck.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -746,13 +747,102 @@ absl::Status MaybeExpandTypeErrorData(absl::Status orig, const DeduceCtx& ctx) {
   return orig;
 }
 
+static absl::Status WarnOnDefinedButUnused(Function* f, DeduceCtx* ctx) {
+  // We say we want types in case there are references in e.g. expressions
+  // within type annotations, say dimensions.
+  XLS_ASSIGN_OR_RETURN(std::vector<AstNode*> nodes,
+                       CollectUnder(f->body(), /*want_types=*/true));
+
+  // Note: we use pointer sets instead of using a btree with Span as the
+  // comparator because we want to avoid the case where nodes have the same span
+  // (e.g. via mistakes in span formation).
+  absl::flat_hash_set<const NameDef*> all_defs;
+  absl::flat_hash_set<const NameDef*> referenced_defs;
+
+  // Helper that unwraps an AnyNameDef and adds it to the referenced_def set if
+  // it is not a BuiltInNameDef.
+  auto reference_any_name_def = [&](const AnyNameDef& any_name_def) {
+    if (std::holds_alternative<const NameDef*>(any_name_def)) {
+      referenced_defs.insert(std::get<const NameDef*>(any_name_def));
+    }
+  };
+
+  // For every node in the body, see if it's a name definition or reference of
+  // some form, and handle it appropriately.
+  for (const AstNode* node : nodes) {
+    if (const NameDef* name_def = dynamic_cast<const NameDef*>(node)) {
+      all_defs.insert(name_def);
+    } else if (const NameRef* name_ref = dynamic_cast<const NameRef*>(node)) {
+      reference_any_name_def(name_ref->name_def());
+    } else if (const TypeRef* type_ref = dynamic_cast<const TypeRef*>(node)) {
+      reference_any_name_def(
+          TypeDefinitionGetNameDef(type_ref->type_definition()));
+    } else {
+      continue;  // Not relevant.
+    }
+  }
+
+  // Figure out which of the definitions were unreferenced.
+  absl::flat_hash_set<const NameDef*> unreferenced_defs;
+  for (const NameDef* def : all_defs) {
+    if (referenced_defs.contains(def)) {
+      continue;
+    }
+    unreferenced_defs.insert(def);
+  }
+
+  // Sort them for reporting stability.
+  std::vector<const NameDef*> to_warn(unreferenced_defs.begin(),
+                                      unreferenced_defs.end());
+  std::sort(
+      to_warn.begin(), to_warn.end(), [](const NameDef* a, const NameDef* b) {
+        return a->span() < b->span() ||
+               (a->span() == b->span() && a->identifier() < b->identifier());
+      });
+
+  // Warn on all the appropriate NameDefs that went unreferenced.
+  for (const NameDef* n : to_warn) {
+    if (absl::StartsWith(n->identifier(), "_")) {
+      // Users can silence unused warnings by prefixing an identifier with an
+      // underscore to make it more well documented; e.g.
+      //  let (one, _two, three) = ...;  // _two can go unused
+      continue;
+    }
+    std::optional<const ConcreteType*> type = ctx->type_info()->GetItem(n);
+    XLS_RET_CHECK(type.has_value()) << absl::StreamFormat(
+        "NameDef `%s` %p @ %s parent kind `%v` had no associated type "
+        "information in type info %p",
+        n->ToString(), n, n->span().ToString(), n->parent()->kind(),
+        ctx->type_info());
+    // For now tokens are implicitly joined at the end of a proc `next()`, so we
+    // don't warn on these.
+    if (type.value()->IsToken()) {
+      continue;
+    }
+    // TODO(leary): 2023-08-10 Struct instantiations currently bypass type
+    // aliases, so we don't have precise information here. I believe we need to
+    // hold a TypeRef in the StructInstance AST node.
+    if (n->parent()->kind() == AstNodeKind::kTypeAlias) {
+      continue;
+    }
+    ctx->warnings()->Add(
+        n->span(), WarningKind::kUnusedDefinition,
+        absl::StrFormat(
+            "Definition of `%s` (type `%s`) is not used in function `%s`",
+            n->identifier(), type.value()->ToString(), f->identifier()));
+  }
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
 
   // See if the function is named with a `_test` suffix but not marked with a
-  // test annotation -- this is likely to be a user error.
+  // test annotation -- this is likely to be a user mistake, so we give a
+  // warning.
   if (absl::EndsWith(f->identifier(), "_test")) {
     AstNode* parent = f->parent();
     if (parent == nullptr || parent->kind() != AstNodeKind::kTestFunction) {
@@ -839,6 +929,10 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
                         f->identifier()));
   }
 
+  // Implementation note: we have to check for defined-but-unused values before
+  // we pop derived type info below.
+  XLS_RETURN_IF_ERROR(WarnOnDefinedButUnused(f, ctx));
+
   if (f->tag() != Function::Tag::kNormal) {
     // i.e., if this is a proc function.
     XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
@@ -872,6 +966,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   FunctionType function_type(std::move(param_types), std::move(body_type));
   ctx->type_info()->SetItem(f, function_type);
   ctx->type_info()->SetItem(f->name_def(), function_type);
+
   return absl::OkStatus();
 }
 

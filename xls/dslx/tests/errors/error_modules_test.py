@@ -356,7 +356,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_destructure_fallible(self):
     stderr = self._run(
-        'xls/dslx/tests/errors/destructure_fallible.x'
+        'xls/dslx/tests/errors/destructure_fallible.x',
+        # Intentional defined-but-not-used.
+        warnings_as_errors=False,
     )
     self.assertIn(
         'FailureError: The program being interpreted failed! (u8:0, u8:0)',

@@ -1147,7 +1147,10 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     }
   } else {
     // For tuple loop carries we have to destructure names on entry.
-    NameDefTree* accum = std::get<NameDefTree*>(flat[1]);
+    // Note this could be something like a NameDef or something like a
+    // WildcardPattern -- even if it's a wildcard pattern we throw away, we
+    // still want to make the loop with the same pattern.
+    AstNode* accum = carry_node;
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> carry_type,
                          ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
@@ -1163,11 +1166,17 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     body_converter.SetNodeToIr(accum, carry);
     // This will destructure the names for us in the body of the anonymous
     // function.
-    XLS_RETURN_IF_ERROR(body_converter
-                            .HandleMatcher(/*matcher=*/accum, /*index=*/{},
-                                           /*matched_value=*/carry,
-                                           /*matched_type=*/*carry_type)
-                            .status());
+    if (auto* ndt = dynamic_cast<NameDefTree*>(accum)) {
+      XLS_RETURN_IF_ERROR(body_converter
+                              .HandleMatcher(/*matcher=*/ndt, /*index=*/{},
+                                             /*matched_value=*/carry,
+                                             /*matched_type=*/*carry_type)
+                              .status());
+    } else {
+      XLS_RET_CHECK(dynamic_cast<WildcardPattern*>(accum) != nullptr)
+          << "Expect post-typechecking loop binding to be NameDefTree or "
+             "WildcardPattern";
+    }
   }
 
   // We need to capture the lexical scope and pass it to his loop body function.

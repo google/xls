@@ -298,16 +298,16 @@ proc tester_proc {
 
   next(tok: token, state: ()) {
     let tok = send_if(tok, data_out, false, u32:42);
-    let (tok, result) = recv(tok, data_in);
+    let (tok, _result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
   ParseAndTestOptions options;
   options.max_ticks = 100;
   absl::StatusOr<TestResult> result =
       ParseAndTest(kProgram, "test_module", "test.x", options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed))
+      << result.status();
 }
 
 TEST(BytecodeInterpreterTest, TooManyTicks) {
@@ -326,7 +326,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv_if(tok, in_ch, false, u32:0);
     let tok = send_if(tok, out_ch, false, i + u32:1);
-    ()
   }
 }
 
@@ -347,16 +346,16 @@ proc tester_proc {
 
   next(tok: token, state: ()) {
     let tok = send(tok, data_out, u32:42);
-    let (tok, result) = recv(tok, data_in);
+    let (tok, _result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
   ParseAndTestOptions options;
   options.max_ticks = 100;
   absl::StatusOr<TestResult> result =
       ParseAndTest(kProgram, "test_module", "test.x", options);
-  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed))
+      << result.status();
 }
 
 }  // namespace xls::dslx

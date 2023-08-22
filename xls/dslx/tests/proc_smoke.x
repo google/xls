@@ -23,7 +23,7 @@ proc proc_under_test {
   }
 
   next(tok: token, state: ()) {
-    let (tok, val) = recv(tok, input_r);
+    let (tok, _) = recv(tok, input_r);
     ()
   }
 }

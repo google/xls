@@ -43,6 +43,9 @@ absl::StatusOr<WarningKind> WarningKindFromString(std::string_view s) {
   if (s == "empty_range_literal") {
     return WarningKind::kEmptyRangeLiteral;
   }
+  if (s == "unused_definition") {
+    return WarningKind::kUnusedDefinition;
+  }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown warning kind: `", s, "`"));
 }

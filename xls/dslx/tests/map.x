@@ -28,10 +28,10 @@ fn umul_2_parametric<N: u32>(x: uN[N]) -> uN[N] {
 
 fn main() -> u4[8] {
   let x0 = u4[8]:[0, 1, 2, 3, 4, 5, 6, 7];
-  let result_0 = map(x0, std::bounded_minus_1);
-  let result_1 = map(x0, umul_2);
-  let result_2 = map(x0, umul_2_parametric);
-  let result_3 = map(x0, clz);
+  map(x0, std::bounded_minus_1);
+  map(x0, umul_2);
+  map(x0, umul_2_parametric);
+  map(x0, clz);
   map(map(map(x0, std::bounded_minus_1), umul_2), clz)
 }
 

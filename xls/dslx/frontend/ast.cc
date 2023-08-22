@@ -39,6 +39,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/ir/bits.h"
@@ -2480,6 +2481,30 @@ Span ExprOrTypeSpan(const ExprOrType &expr_or_type) {
     [](Expr* expr) { return expr->span(); },
     [](TypeAnnotation* type) { return type->span(); },
   }, expr_or_type);
+}
+
+absl::StatusOr<std::vector<AstNode*>> CollectUnder(AstNode* root,
+                                                   bool want_types) {
+  std::vector<AstNode*> nodes;
+
+  class CollectVisitor : public AstNodeVisitor {
+   public:
+    explicit CollectVisitor(std::vector<AstNode*>& nodes) : nodes_(nodes) {}
+
+#define DECLARE_HANDLER(__type)                           \
+  absl::Status Handle##__type(const __type* n) override { \
+    nodes_.push_back(const_cast<__type*>(n));             \
+    return absl::OkStatus();                              \
+  }
+    XLS_DSLX_AST_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+
+   private:
+    std::vector<AstNode*>& nodes_;
+  } collect_visitor(nodes);
+
+  XLS_RETURN_IF_ERROR(WalkPostOrder(root, &collect_visitor, want_types));
+  return nodes;
 }
 
 }  // namespace xls::dslx

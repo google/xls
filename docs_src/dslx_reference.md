@@ -89,6 +89,33 @@ identifier to indicate "prime"; e.g. `let state' = update(state);`. By
 convention ticks usually come at the end of an identifier. Since this is not
 part of Rust's syntax, it is considered experimental at this time.
 
+#### Unused Bindings
+
+If you bind a name and do not use it, a warning will be flagged, and warnings
+are errors by default; e.g. this will flag an unused warning:
+
+```dslx-snippet
+#[test]
+fn my_test() {
+    let x = u32:42;  // Not used!
+}
+```
+
+For cases where it's more readable to *keep* a name, even though it's unused,
+you can prefix the name with a leading underscore, like so:
+
+```dslx-snippet
+#[test]
+fn my_test() {
+    let (thing_one, _thing_two) = open_crate();
+    assert_eq(thing_one, u32:1);
+}
+```
+
+Note that `_thing_two` is unused, but a warning is not flagged because we
+indicated via a leading underscore that it was ok for the variable to go unused,
+because we felt it enhanced readability.
+
 ## Functions
 
 Function definitions begin with the keyword `fn`, followed by the function name,

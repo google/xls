@@ -130,7 +130,7 @@ def _convert_to_ir(ctx, src):
         "dslx_path",
         "emit_fail_as_assert",
         "warnings_as_errors",
-        "disabled_warnings",
+        "disable_warnings",
     )
 
     # With runs outside a monorepo, the execution root for the workspace of

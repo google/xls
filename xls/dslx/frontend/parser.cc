@@ -320,7 +320,6 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         continue;
       }
 
-      // TODO(leary): 2020-09-11 Also support `pub const`.
       return ParseErrorStatus(peek->span(),
                               "Expect a function, proc, struct, enum, or type "
                               "after 'pub' keyword.");
@@ -1606,7 +1605,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
       case TokenKind::kDot: {
         DropTokenOrDie();
         XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
-        Span span(new_pos, GetPos());
+        const Span span(new_pos, GetPos());
         if (tok.kind() == TokenKind::kIdentifier) {
           lhs = module_->Make<Attr>(span, lhs, *tok.GetValue());
         } else if (tok.kind() == TokenKind::kNumber) {

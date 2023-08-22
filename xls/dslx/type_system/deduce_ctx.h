@@ -16,7 +16,6 @@
 #define XLS_DSLX_TYPE_SYSTEM_DEDUCE_CTX_H_
 
 #include <cstddef>
-#include <filesystem>  // NOLINT
 #include <functional>
 #include <memory>
 #include <optional>
