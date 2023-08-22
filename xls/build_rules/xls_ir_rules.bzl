@@ -211,6 +211,7 @@ def _optimize_ir(ctx, src):
         "opt_level",
         "convert_array_index_to_select",
         "inline_procs",
+        "top",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)
