@@ -107,9 +107,6 @@ std::string YosysSynthesisServiceImpl::BuildYosysCmds(
   // Define yosys commands
   const std::string read_verilog_rtl =
       absl::StrFormat("read_verilog %s ;", verilog_path.string());
-  const std::string read_synthesis_libraries = absl::StrFormat(
-      "read_liberty -lib -ignore_miss_dir -setattr blackbox %s ;",
-      synthesis_libraries_);
 
   const std::string perform_generic_synthesis =
       absl::StrFormat("synth -top %s ;", request->top_module_name());
@@ -135,7 +132,6 @@ std::string YosysSynthesisServiceImpl::BuildYosysCmds(
 
   // Build yosys commandfile
   yosys_cmd_vec.push_back(read_verilog_rtl);
-  yosys_cmd_vec.push_back(read_synthesis_libraries);
 
   yosys_cmd_vec.push_back(perform_generic_synthesis);
   yosys_cmd_vec.push_back(perform_ff_mapping);
@@ -156,6 +152,12 @@ std::string YosysSynthesisServiceImpl::BuildYosysCmds(
 // CompileRequest.
 absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     const CompileRequest* request, CompileResponse* result) const {
+
+  // This tells the timing client that the achieved implementation freq
+  //  doesn't depend on the requested frequency, which is true
+  //  for Yosys with the current script.
+  result->set_insensitive_to_target_freq(true);
+
   if (request->top_module_name().empty()) {
     return absl::InvalidArgumentError("Must specify top module name.");
   }

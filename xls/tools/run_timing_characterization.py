@@ -157,8 +157,8 @@ def _do_config_task(config: WorkerConfig):
         config.client_args.append('--max_width=2')
       else:
         config.client_args.append('--max_width=64')
-    config.client_args.append('--min_freq_mhz=1000')
-    config.client_args.append('--max_freq_mhz=30000')
+    config.client_args.append('--max_ps=15000')
+    config.client_args.append('--min_ps=10')
 
   if config.bazel_bin_path:
     config.server_bin = (
@@ -229,8 +229,8 @@ def _do_config_asap7(config: WorkerConfig):
       f'{asap7_path}/asap7sc7p5t_SEQ_RVT_FF_nldm_220123.lib'
   )
   config.client_args.append('--max_width=8')
-  config.client_args.append('--min_freq_mhz=11000')
-  config.client_args.append('--max_freq_mhz=25000')
+  config.client_args.append('--min_ps=100')
+  config.client_args.append('--max_ps=10000')
 
 
 def _do_config_nangate45(config: WorkerConfig):
@@ -242,8 +242,8 @@ def _do_config_nangate45(config: WorkerConfig):
       f'{nangate45_path}/NangateOpenCellLibrary_typical.lib'
   )
   config.client_args.append('--max_width=8')
-  config.client_args.append('--min_freq_mhz=1000')
-  config.client_args.append('--max_freq_mhz=11000')
+  config.client_args.append('--min_ps=100')
+  config.client_args.append('--max_ps=10000')
 
 
 def _do_config_sky130(config: WorkerConfig):
@@ -255,8 +255,8 @@ def _do_config_sky130(config: WorkerConfig):
       f'{sky130_path}/sky130_fd_sc_hd__tt_025C_1v80.lib'
   )
   config.client_args.append('--max_width=8')
-  config.client_args.append('--min_freq_mhz=1000')
-  config.client_args.append('--max_freq_mhz=11000')
+  config.client_args.append('--min_ps=100')
+  config.client_args.append('--max_ps=10000')
 
 
 def _do_worker_task(config: WorkerConfig):

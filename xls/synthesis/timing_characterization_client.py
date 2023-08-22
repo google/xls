@@ -35,10 +35,10 @@ from xls.synthesis import synthesis_pb2
 from xls.synthesis import synthesis_service_pb2_grpc
 
 FLAGS = flags.FLAGS
-_MIN_FREQ_MHZ = flags.DEFINE_integer(
-    'min_freq_mhz', 500, 'Minimum frequency to test.')
-_MAX_FREQ_MHZ = flags.DEFINE_integer(
-    'max_freq_mhz', 5000, 'Maximum frequency to test.')
+_MAX_PS = flags.DEFINE_integer(
+    'max_ps', 15000, 'Maximum picoseconds delay to test.')
+_MIN_PS = flags.DEFINE_integer(
+    'min_ps', 20, 'Minimum picoseconds delay to test.')
 _CHECKPOINT_PATH = flags.DEFINE_string(
     'checkpoint_path', '', 'Path at which to load and save checkpoints. ' +
     'Checkpoints will not be kept if unspecified.')
@@ -70,21 +70,21 @@ def _search_for_fmax_and_synth(
 ) -> synthesis_pb2.CompileResponse:
   """Bisects the space of frequencies and sends requests to the server."""
   best_result = synthesis_pb2.CompileResponse()
-  high_hz = _MAX_FREQ_MHZ.value * 1e6
-  low_hz = _MIN_FREQ_MHZ.value * 1e6
-  epsilon_hz = 2 * 1e6
+  low_ps = _MIN_PS.value
+  high_ps = _MAX_PS.value
+  epsilon_ps = 1.0
 
-  while (high_hz - low_hz) > epsilon_hz:
-    current_hz = (high_hz + low_hz) / 2
+  while high_ps - low_ps > epsilon_ps:
+    current_ps = (high_ps + low_ps) / 2
     request = synthesis_pb2.CompileRequest()
-    request.target_frequency_hz = int(current_hz)
+    request.target_frequency_hz = int(1e12 / current_ps)
     request.module_text = verilog_text
     request.top_module_name = top_module_name
     logging.vlog(3, '--- Debug')
-    logging.vlog(3, high_hz)
-    logging.vlog(3, low_hz)
-    logging.vlog(3, epsilon_hz)
-    logging.vlog(3, current_hz)
+    logging.vlog(3, high_ps)
+    logging.vlog(3, low_ps)
+    logging.vlog(3, epsilon_ps)
+    logging.vlog(3, current_ps)
     logging.vlog(3, '--- Request')
     logging.vlog(3, request)
     response = stub.Compile(request)
@@ -93,13 +93,26 @@ def _search_for_fmax_and_synth(
     logging.vlog(3, response.max_frequency_hz)
     logging.vlog(3, response.netlist)
 
+    if response.max_frequency_hz > 0:
+      response_ps = 1e12 / response.max_frequency_hz
+    else:
+      response_ps = 0
+
+    # If synthesis is insensitive to target frequency, we don't need to do
+    # the binary search.  Just use the max_frequency_hz of the first response
+    # (whether it passes or fails).
+    if response.insensitive_to_target_freq and response.max_frequency_hz > 0:
+      logging.info(
+          'USING (@min %2.1fps).', response_ps
+      )
+      best_result = response
+      break
+
     if response.slack_ps >= 0:
-      if response.max_frequency_hz:
+      if response.max_frequency_hz > 0:
         logging.info(
-            'PASS at %.1fps (slack %dps @min %dps)',
-            1e12 / current_hz,
-            response.slack_ps,
-            1e12 / response.max_frequency_hz,
+            'PASS at %.1fps (slack %dps @min %2.1fps)',
+            current_ps, response.slack_ps, response_ps
         )
       else:
         logging.error('PASS but no maximum frequency determined.')
@@ -107,45 +120,29 @@ def _search_for_fmax_and_synth(
                       'an operator is optimized to a constant.')
         logging.error('Source Verilog:\n%s', request.module_text)
         sys.exit()
-      low_hz = current_hz
-      if current_hz >= best_result.max_frequency_hz:
+      high_ps = current_ps
+      if response.max_frequency_hz >= best_result.max_frequency_hz:
         best_result = response
     else:
       if response.max_frequency_hz:
         logging.info(
-            'FAIL at %.1fps (slack %dps @min %dps).',
-            1e12 / current_hz,
-            response.slack_ps,
-            1e12 / response.max_frequency_hz,
+            'FAIL at %.1fps (slack %dps @min %2.1fps).',
+            current_ps, response.slack_ps, response_ps
         )
       else:
         # This shouldn't happen
-        logging.info('FAIL but no maximum frequency provided')
-      # Speed things up based on response
-      if current_hz > (response.max_frequency_hz * 1.5):
-        high_hz = response.max_frequency_hz * 1.1
-        low_hz = response.max_frequency_hz * 0.9
-        new_epsilon_hz = (high_hz - low_hz) / 2
-        if new_epsilon_hz < epsilon_hz:
-          epsilon_hz = new_epsilon_hz
+        logging.error('FAIL but no maximum frequency provided')
+        sys.exit()
+      # Speed things up if we're way off
+      if current_ps < (response_ps / 2.0):
+        high_ps = response_ps * 1.1
+        low_ps = response_ps * 0.9
       else:
-        high_hz = current_hz
-
-      # Issue #1002 -- make sure our range contains the response fmax.
-      # This is necessary when the "speed up" code above narrows the range,
-      # but then Yosys changes its expected fmax to be less than low_hz.
-      #  ** This shouldn't happen any more **
-      if (not best_result.max_frequency_hz and
-          response.max_frequency_hz < low_hz):
-        logging.info('PANIC!  Resetting search range.')
-        high_hz = response.max_frequency_hz * 1.1
-        low_hz = response.max_frequency_hz * 0.89
-        current_hz = low_hz
+        low_ps = current_ps
 
   if best_result.max_frequency_hz:
     logging.info(
-        'Done at slack %dps @min %dps.',
-        best_result.slack_ps,
+        'Done at @min %2.1fps.',
         1e12 / best_result.max_frequency_hz,
     )
   else:

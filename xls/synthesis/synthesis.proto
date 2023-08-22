@@ -55,6 +55,11 @@ message CompileResponse {
   optional InstanceCount instance_count = 6;
   repeated Path failing_paths = 7;
   map<string, string> data_fields = 8;
+
+  // This tells the timing client that max_frequency_hz
+  //  doesn't depend on the requested target frequency,
+  //  which is true for Yosys with the current script.
+  optional bool insensitive_to_target_freq = 11;
 }
 
 // Encapsulates a series of compile results of a verilog module at various
