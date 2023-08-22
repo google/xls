@@ -215,7 +215,11 @@ SDCSchedulingModel::SDCSchedulingModel(FunctionBase* func,
       last_stage_(model_.AddContinuousVariable(0.0, kInfinity, "last_stage")),
       cycle_at_sinknode_(model_.AddContinuousVariable(-kInfinity, kInfinity,
                                                       "cycle_at_sinknode")) {
-  distances_to_node_ = ComputeDistancesToNodes(func_, topo_sort_, delay_map_);
+  // when subclassed for Iterative SDC, delay_map_ and distances_to_node_
+  // are not used.
+  if (!delay_map_.empty()) {
+    distances_to_node_ = ComputeDistancesToNodes(func_, topo_sort_, delay_map_);
+  }
 
   for (Node* node : topo_sort_) {
     cycle_var_.emplace(
