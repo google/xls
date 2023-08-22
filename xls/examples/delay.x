@@ -25,8 +25,8 @@ import std
 
 import xls.examples.ram
 
-type RamReq = ram::SinglePortRamReq;
-type RamResp = ram::SinglePortRamResp;
+type RamReq = ram::RWRamReq;
+type RamResp = ram::RWRamResp;
 
 fn double(x: u32) -> u32 { x * u32:2 }
 fn addr_width(size: u32) -> u32 { std::clog2(size) }
