@@ -26,3 +26,33 @@ cc_library(
         "@renode//:renode_base",
     ],
 )
+
+cc_library(
+    name = "renode_logger",
+    srcs = [
+        "renode_logger.cc",
+    ],
+    hdrs = [
+        "renode_logger.h",
+    ],
+    deps = [
+        ":renode_protocol",
+        "//xls/common/logging",
+        "//xls/common/logging:log_sink_registry",
+        "//xls/simulation/generic:iconnection",
+    ],
+)
+
+cc_test(
+    name = "renode_logger_test",
+    srcs = [
+        "renode_logger_test.cc",
+    ],
+    deps = [
+        ":renode_logger",
+        ":renode_protocol",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
