@@ -978,7 +978,8 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
             },
         },
         member));
-    XLS_RETURN_IF_ERROR(new_module->AddTop(new_member));
+    XLS_RETURN_IF_ERROR(
+        new_module->AddTop(new_member, /*make_collision_error=*/nullptr));
   }
   return new_module;
 }

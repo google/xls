@@ -40,7 +40,7 @@ TEST(CppAst, ModuleWithConstant) {
       m.Make<ConstantDef>(fake_span, name_def, /*type_annotation=*/nullptr,
                           number, /*is_public=*/false);
   name_def->set_definer(constant_def);
-  XLS_ASSERT_OK(m.AddTop(constant_def));
+  XLS_ASSERT_OK(m.AddTop(constant_def, /*make_collision_error=*/nullptr));
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
 }

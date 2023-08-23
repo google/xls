@@ -3092,7 +3092,18 @@ class Module : public AstNode {
     return it->second;
   }
 
-  absl::Status AddTop(ModuleMember member);
+  using MakeCollisionError = std::function<absl::Status(
+      std::string_view module_name, std::string_view member_name,
+      const Span& existing_span, const AstNode* existing_node,
+      const Span& new_span, const AstNode* new_node)>;
+
+  // Adds a top level "member" to the module. Invokes make_collision_error if
+  // there is a naming collision at module scope -- this is done so that errors
+  // can be layered appropriately and injected in from outside code (e.g. the
+  // parser). If nullptr is given, then a non-positional InvalidArgumentError is
+  // raised.
+  absl::Status AddTop(ModuleMember member,
+                      const MakeCollisionError& make_collision_error);
 
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.

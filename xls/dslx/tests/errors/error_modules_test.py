@@ -136,7 +136,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_duplicate_top_name(self):
     stderr = self._run('xls/dslx/tests/errors/duplicate_top_name.x')
-    self.assertIn('already contains a member named xType', stderr)
+    self.assertIn('already contains a member named `xType`', stderr)
     self.assertIn(
         'xls/dslx/tests/errors/duplicate_top_name.x:16:1-16:17',
         stderr,
@@ -886,6 +886,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn(
         'Recursion of function `f` detected -- recursion is currently'
         ' unsupported.',
+        stderr,
+    )
+
+  def test_duplicate_typedef_binding_in_module(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/duplicate_typedef_binding_in_module.x'
+    )
+    self.assertIn('ParseError', stderr)
+    self.assertIn(
+        'already contains a member named `A`',
         stderr,
     )
 

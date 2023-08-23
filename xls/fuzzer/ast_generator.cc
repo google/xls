@@ -2708,15 +2708,19 @@ absl::StatusOr<int64_t> AstGenerator::GenerateFunctionInModule(
   XLS_ASSIGN_OR_RETURN(AnnotatedFunction f,
                        GenerateFunction(name, /*call_depth=*/0, param_types));
   for (auto& item : constants_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item.second, /*make_collision_error=*/nullptr));
   }
   for (auto& item : type_aliases_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item, /*make_collision_error=*/nullptr));
   }
   for (auto& item : functions_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item, /*make_collision_error=*/nullptr));
   }
-  XLS_RETURN_IF_ERROR(module_->AddTop(f.function));
+  XLS_RETURN_IF_ERROR(
+      module_->AddTop(f.function, /*make_collision_error=*/nullptr));
   return f.min_stage;
 }
 
@@ -2847,15 +2851,19 @@ absl::StatusOr<int64_t> AstGenerator::GenerateProcInModule(
     const std::string& proc_name) {
   XLS_ASSIGN_OR_RETURN(AnnotatedProc proc, GenerateProc(proc_name));
   for (auto& item : constants_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item.second, /*make_collision_error=*/nullptr));
   }
   for (auto& item : type_aliases_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item, /*make_collision_error=*/nullptr));
   }
   for (auto& item : functions_) {
-    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+    XLS_RETURN_IF_ERROR(
+        module_->AddTop(item, /*make_collision_error=*/nullptr));
   }
-  XLS_RETURN_IF_ERROR(module_->AddTop(proc.proc));
+  XLS_RETURN_IF_ERROR(
+      module_->AddTop(proc.proc, /*make_collision_error=*/nullptr));
   return proc.min_stages;
 }
 

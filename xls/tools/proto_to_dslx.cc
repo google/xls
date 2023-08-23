@@ -496,7 +496,8 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   auto* enum_def = module->Make<dslx::EnumDef>(span, name_def, type, members,
                                                /*is_public=*/true);
   name_def->set_definer(enum_def);
-  XLS_RETURN_IF_ERROR(module->AddTop(enum_def));
+  XLS_RETURN_IF_ERROR(
+      module->AddTop(enum_def, /*make_collision_error=*/nullptr));
   message_record->dslx_typedef = enum_def;
   return absl::OkStatus();
 }
@@ -579,7 +580,8 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       span, name_def, std::vector<dslx::ParametricBinding*>(), elements,
       /*is_public=*/true);
   name_def->set_definer(struct_def);
-  XLS_RETURN_IF_ERROR(module->AddTop(struct_def));
+  XLS_RETURN_IF_ERROR(
+      module->AddTop(struct_def, /*make_collision_error=*/nullptr));
   message_record->dslx_typedef = struct_def;
   return absl::OkStatus();
 }
@@ -971,7 +973,8 @@ absl::Status ProtoToDslxManager::AddProtoInstantiationToDslxModule(
       span, name_def, /*type_annotation=*/nullptr, expr,
       /*is_public=*/true);
   name_def->set_definer(constant_def);
-  XLS_RETURN_IF_ERROR(module_->AddTop(constant_def));
+  XLS_RETURN_IF_ERROR(
+      module_->AddTop(constant_def, /*make_collision_error=*/nullptr));
 
   return absl::OkStatus();
 }

@@ -67,7 +67,7 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       module.Make<Proc>(Span::Fake(), name_def, config_name_def, next_name_def,
                         bindings, members, config, next, init,
                         /*is_public=*/true);
-  XLS_ASSERT_OK(module.AddTop(original_proc));
+  XLS_ASSERT_OK(module.AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
 
   TypeInfoOwner type_info_owner;
@@ -126,7 +126,8 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   Proc* original_proc = import_module->Make<Proc>(
       Span::Fake(), name_def, config_name_def, next_name_def, bindings, members,
       config, next, init, /*is_public=*/true);
-  XLS_ASSERT_OK(import_module->AddTop(original_proc));
+  XLS_ASSERT_OK(
+      import_module->AddTop(original_proc, /*make_collision_error=*/nullptr));
   name_def->set_definer(original_proc);
 
   Module module("test_module", /*fs_path=*/std::nullopt);

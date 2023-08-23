@@ -47,7 +47,6 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
-#include "xls/dslx/frontend/scanner.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
@@ -76,6 +75,18 @@ absl::StatusOr<std::vector<ExprOrType>> CloneParametrics(
                     eot));
   }
   return results;
+}
+
+absl::Status MakeModuleTopCollisionError(std::string_view module_name,
+                                         std::string_view member_name,
+                                         const Span& existing_span,
+                                         const AstNode* existing_node,
+                                         const Span& new_span,
+                                         const AstNode* new_node) {
+  return ParseErrorStatus(
+      new_span,
+      absl::StrFormat("Module `%s` already contains a member named `%s` @ %s",
+                      module_name, member_name, existing_span.ToString()));
 }
 
 ColonRef::Subject CloneSubject(Module* module,
@@ -280,35 +291,37 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/true, *bindings, &name_to_fn));
-        XLS_RETURN_IF_ERROR(module_->AddTop(fn));
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn, MakeModuleTopCollisionError));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kProc)) {
         XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
                                               /*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(proc));
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc, MakeModuleTopCollisionError));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kStruct)) {
         XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                              ParseStruct(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(struct_def));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(struct_def, MakeModuleTopCollisionError));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kEnum)) {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
                              ParseEnumDef(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(enum_def));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(enum_def, MakeModuleTopCollisionError));
         continue;
       }
 
       if (peek->IsKeyword(Keyword::kConst)) {
         XLS_ASSIGN_OR_RETURN(ConstantDef * def,
                              ParseConstantDef(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(def));
+        XLS_RETURN_IF_ERROR(module_->AddTop(def, MakeModuleTopCollisionError));
         continue;
       }
 
@@ -316,7 +329,8 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_RET_CHECK(bindings != nullptr);
         XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                              ParseTypeAlias(/*is_public=*/true, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(type_alias, MakeModuleTopCollisionError));
         continue;
       }
 
@@ -329,15 +343,23 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (dropped_hash) {
       XLS_ASSIGN_OR_RETURN(auto attribute,
                            ParseAttribute(&name_to_fn, *bindings));
-      XLS_RETURN_IF_ERROR(
-          absl::visit(Visitor{
-                          [&](TestFunction* t) { return module_->AddTop(t); },
-                          [&](Function* f) { return module_->AddTop(f); },
-                          [&](TestProc* tp) { return module_->AddTop(tp); },
-                          [&](QuickCheck* qc) { return module_->AddTop(qc); },
-                          [&](std::nullptr_t) { return absl::OkStatus(); },
-                      },
-                      attribute));
+      XLS_RETURN_IF_ERROR(absl::visit(
+          Visitor{
+              [&](TestFunction* t) {
+                return module_->AddTop(t, MakeModuleTopCollisionError);
+              },
+              [&](Function* f) {
+                return module_->AddTop(f, MakeModuleTopCollisionError);
+              },
+              [&](TestProc* tp) {
+                return module_->AddTop(tp, MakeModuleTopCollisionError);
+              },
+              [&](QuickCheck* qc) {
+                return module_->AddTop(qc, MakeModuleTopCollisionError);
+              },
+              [&](std::nullptr_t) { return absl::OkStatus(); },
+          },
+          attribute));
       continue;
     }
 
@@ -346,7 +368,10 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     if (peek->IsIdentifier("const_assert!")) {
       XLS_ASSIGN_OR_RETURN(ConstAssert * const_assert,
                            ParseConstAssert(*bindings));
-      XLS_RETURN_IF_ERROR(module_->AddTop(const_assert));
+      // Note: const_assert! doesn't make a binding so we don't need to provide
+      // the error lambda.
+      XLS_RETURN_IF_ERROR(
+          module_->AddTop(const_assert, /*make_collision_error=*/nullptr));
       break;
     }
 
@@ -366,43 +391,48 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/false, *bindings, &name_to_fn));
-        XLS_RETURN_IF_ERROR(module_->AddTop(fn));
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kProc: {
         XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
                                               /*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(proc));
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kImport: {
         XLS_ASSIGN_OR_RETURN(Import * import, ParseImport(*bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(import));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(import, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kType: {
         XLS_RET_CHECK(bindings != nullptr);
         XLS_ASSIGN_OR_RETURN(TypeAlias * type_alias,
                              ParseTypeAlias(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(type_alias));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(type_alias, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kStruct: {
         XLS_ASSIGN_OR_RETURN(StructDef * struct_,
                              ParseStruct(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(struct_));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(struct_, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kEnum: {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
                              ParseEnumDef(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(enum_));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(enum_, MakeModuleTopCollisionError));
         break;
       }
       case Keyword::kConst: {
         XLS_ASSIGN_OR_RETURN(ConstantDef * const_def,
                              ParseConstantDef(/*is_public=*/false, *bindings));
-        XLS_RETURN_IF_ERROR(module_->AddTop(const_def));
+        XLS_RETURN_IF_ERROR(
+            module_->AddTop(const_def, MakeModuleTopCollisionError));
         break;
       }
       default:
@@ -2216,21 +2246,21 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
       XLS_RETURN_IF_ERROR(config_or.status());
       config = config_or.value();
       outer_bindings.Add(config->name_def()->identifier(), config->name_def());
-      XLS_RETURN_IF_ERROR(module_->AddTop(config));
+      XLS_RETURN_IF_ERROR(module_->AddTop(config, MakeModuleTopCollisionError));
     } else if (peek->IsIdentifier("next")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(next, peek));
 
       XLS_ASSIGN_OR_RETURN(next,
                            ParseProcNext(bindings, parametric_bindings,
                                          name_def->identifier(), is_public));
-      XLS_RETURN_IF_ERROR(module_->AddTop(next));
+      XLS_RETURN_IF_ERROR(module_->AddTop(next, MakeModuleTopCollisionError));
       outer_bindings.Add(next->name_def()->identifier(), next->name_def());
     } else if (peek->IsIdentifier("init")) {
       XLS_RETURN_IF_ERROR(check_not_yet_specified(init, peek));
 
       XLS_ASSIGN_OR_RETURN(init, ParseProcInit(bindings, parametric_bindings,
                                                name_def->identifier()));
-      XLS_RETURN_IF_ERROR(module_->AddTop(init));
+      XLS_RETURN_IF_ERROR(module_->AddTop(init, MakeModuleTopCollisionError));
       outer_bindings.Add(init->name_def()->identifier(), init->name_def());
     } else {
       return ParseErrorStatus(

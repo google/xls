@@ -1039,7 +1039,8 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
   return it->second;
 }
 
-absl::Status Module::AddTop(ModuleMember member) {
+absl::Status Module::AddTop(ModuleMember member,
+                            const MakeCollisionError& make_collision_error) {
   // Get name
   std::optional<std::string> member_name = absl::visit(
       Visitor{
@@ -1062,11 +1063,17 @@ absl::Status Module::AddTop(ModuleMember member) {
       member);
 
   if (member_name.has_value() && top_by_name_.contains(member_name.value())) {
-    AstNode* node = ToAstNode(top_by_name_.at(member_name.value()));
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Module %s already contains a member named %s @ %s: %s",
-                        name_, member_name.value(),
-                        node->GetSpan().value().ToString(), node->ToString()));
+    const AstNode* node = ToAstNode(top_by_name_.at(member_name.value()));
+    const Span existing_span = node->GetSpan().value();
+    const AstNode* new_node = ToAstNode(member);
+    const Span new_span = new_node->GetSpan().value();
+    if (make_collision_error != nullptr) {
+      return make_collision_error(name_, member_name.value(), existing_span,
+                                  node, new_span, new_node);
+    }
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Module %s already contains a member named %s @ %s: %s", name_,
+        member_name.value(), existing_span.ToString(), node->ToString()));
   }
 
   top_.push_back(member);
