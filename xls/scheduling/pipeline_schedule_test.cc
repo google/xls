@@ -547,6 +547,29 @@ TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   }
 }
 
+TEST_F(PipelineScheduleTest, NodeDelayInScheduleProto) {
+  // Tests that node and path delays are serialized in the schedule proto
+  // using trivial pipeline: 3 stages of 2 x 1-bit inverters.
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(1));
+  fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(fb.Not(x))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      RunPipelineSchedule(func, TestDelayEstimator(),
+                          SchedulingOptions().pipeline_stages(3)));
+
+  PipelineScheduleProto proto = schedule.ToProto(TestDelayEstimator());
+  for (const auto& stage : proto.stages()) {
+    int64_t path_delay = 0;
+    for (const TimedNodeProto& node : stage.timed_nodes()) {
+      path_delay += node.node_delay_ps();
+      EXPECT_EQ(node.path_delay_ps(), path_delay);
+    }
+  }
+}
+
 TEST_F(PipelineScheduleTest, ProcSchedule) {
   Package p("p");
   Type* u16 = p.GetBitsType(16);

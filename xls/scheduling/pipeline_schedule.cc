@@ -367,6 +367,24 @@ absl::Status PipelineSchedule::VerifyConstraints(
 
 PipelineScheduleProto PipelineSchedule::ToProto(
     const DelayEstimator& delay_estimator) const {
+  // Compute nodes and paths delays.
+  absl::flat_hash_map<Node*, int64_t> node_delays;
+  absl::flat_hash_map<Node*, int64_t> node_path_delays;
+  for (Node* node : TopoSort(function_base_)) {
+    int64_t delay_to_node_start = 0;
+    for (Node* operand : node->operands()) {
+      if (cycle(operand) == cycle(node)) {
+        if (delay_to_node_start < node_path_delays.at(operand)) {
+          delay_to_node_start = node_path_delays.at(operand);
+        }
+      }
+    }
+    int64_t node_delay = delay_estimator.GetOperationDelayInPs(node).value();
+    int64_t path_delay = delay_to_node_start + node_delay;
+    node_delays[node] = node_delay;
+    node_path_delays[node] = path_delay;
+  }
+
   PipelineScheduleProto proto;
   proto.set_function(function_base_->name());
   for (int i = 0; i < cycle_to_nodes_.size(); i++) {
@@ -375,8 +393,8 @@ PipelineScheduleProto PipelineSchedule::ToProto(
     for (Node* node : cycle_to_nodes_[i]) {
       TimedNodeProto* timed_node = stage->add_timed_nodes();
       timed_node->set_node(node->GetName());
-      timed_node->set_delay_ps(
-          delay_estimator.GetOperationDelayInPs(node).value());
+      timed_node->set_node_delay_ps(node_delays[node]);
+      timed_node->set_path_delay_ps(node_path_delays[node]);
     }
   }
   return proto;

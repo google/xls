@@ -22,10 +22,11 @@ message TimedNodeProto {
 
   // Operation delay in picoseconds the XLS delay
   // estimator assumes for this node.
-  optional int64 delay_ps = 2;
+  optional int64 node_delay_ps = 2;
 
-  // TODO(hzeller): 2023-07-07 also include cumulative times
-  // relative to pipeline start and stage start.
+  // Path delay in picosecond as measured from the start of the pipeline stage
+  // (including the delay of the node itself).
+  optional int64 path_delay_ps = 3;
 }
 
 // Holds per-stage scheduling information.
