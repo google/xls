@@ -186,6 +186,7 @@ def _convert_to_ir(ctx, src):
         ),
         mnemonic = "ConvertDSLX",
         progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
+        toolchain = None,
     )
     return runfiles, ir_file
 
@@ -258,6 +259,7 @@ def _optimize_ir(ctx, src):
         ),
         mnemonic = "OptimizeIR",
         progress_message = "Optimizing IR file: %s" % (src.path),
+        toolchain = None,
     )
     return runfiles, opt_ir_file
 
@@ -1111,6 +1113,7 @@ def _xls_ir_cc_library_impl(ctx):
         executable = aot_compiler_tool.path,
         mnemonic = "AOTCompile",
         progress_message = "AOT compiling %s" % src.path,
+        toolchain = None,
     )
 
     ctx.actions.run_shell(
@@ -1123,6 +1126,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_header_file.path,
             formatted = header_file.path,
         ),
+        toolchain = None,
     )
 
     ctx.actions.run_shell(
@@ -1135,6 +1139,7 @@ def _xls_ir_cc_library_impl(ctx):
             unformatted = unformatted_source_file.path,
             formatted = source_file.path,
         ),
+        toolchain = None,
     )
 
     return [

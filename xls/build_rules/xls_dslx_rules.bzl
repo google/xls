@@ -316,6 +316,7 @@ def _xls_dslx_library_impl(ctx):
         mnemonic = "ParseAndTypeCheckDSLXSourceFile",
         progress_message = "Parsing and type checking DSLX source files of " +
                            "target %s" % (ctx.attr.name),
+        toolchain = None,
     )
 
     placeholder_files_depset = get_transitive_dslx_placeholder_files_depset(

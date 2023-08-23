@@ -379,6 +379,7 @@ def xls_ir_verilog_impl(ctx, src):
         ),
         mnemonic = "Codegen",
         progress_message = "Building Verilog file: %s" % (verilog_file.path),
+        toolchain = None,
     )
     return [
         CodegenInfo(
