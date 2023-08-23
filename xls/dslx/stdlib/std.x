@@ -916,3 +916,16 @@ fn test_umul_with_overflow() {
     } (())
   } (());
 }
+
+fn is_unsigned_msb_set<N: u32>(x: uN[N]) -> bool {
+  x[-1:]
+}
+
+#[test]
+fn is_unsigned_msb_set_test() {
+  assert_eq(false, is_unsigned_msb_set(u8:0));
+  assert_eq(false, is_unsigned_msb_set(u8:1));
+  assert_eq(false, is_unsigned_msb_set(u8:127));
+  assert_eq(true, is_unsigned_msb_set(u8:128));
+  assert_eq(true, is_unsigned_msb_set(u8:129));
+}
