@@ -227,16 +227,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
   def test_self_recursion(self):
     stderr = self._run('xls/dslx/tests/errors/self_recursion.x')
     self.assertIn(
-        'xls/dslx/tests/errors/self_recursion.x:17:16-17:33', stderr
+        'xls/dslx/tests/errors/self_recursion.x:17:33-17:44', stderr
     )
-    self.assertIn('This may be due to recursion', stderr)
+    self.assertIn('Recursion of function `regular_recursion` detected', stderr)
 
   def test_tail_call(self):
     stderr = self._run('xls/dslx/tests/errors/tail_call.x')
     self.assertIn(
-        'xls/dslx/tests/errors/tail_call.x:16:34-16:35', stderr
+        'xls/dslx/tests/errors/tail_call.x:16:35-16:44', stderr
     )
-    self.assertIn('This may be due to recursion', stderr)
+    self.assertIn('Recursion of function `f` detected', stderr)
 
   def test_let_destructure_same_name(self):
     stderr = self._run(
@@ -577,7 +577,9 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('replicate_github_issue_263.x:22:24-22:41', stderr)
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
-        'Recursive call to `replicate` detected during type-checking', stderr
+        'Recursion of function `replicate` detected -- recursion is currently'
+        ' unsupported.',
+        stderr,
     )
 
   def test_precise_struct_error(self):
@@ -875,6 +877,15 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run('xls/dslx/tests/errors/parametric_test_fn.x')
     self.assertIn(
         'Test functions cannot be parametric.',
+        stderr,
+    )
+
+  def test_direct_recursion(self):
+    stderr = self._run('xls/dslx/tests/errors/direct_recursion.x')
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'Recursion of function `f` detected -- recursion is currently'
+        ' unsupported.',
         stderr,
     )
 

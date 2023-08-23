@@ -67,6 +67,15 @@
 namespace xls::dslx {
 namespace {
 
+bool IsNameRefTo(const Expr* e, const NameDef* name_def) {
+  if (auto* name_ref = dynamic_cast<const NameRef*>(e)) {
+    const AnyNameDef any_name_def = name_ref->name_def();
+    return std::holds_alternative<const NameDef*>(any_name_def) &&
+           std::get<const NameDef*>(any_name_def) == name_def;
+  }
+  return false;
+}
+
 // Deduces the concrete types of the arguments to a parametric function or
 // proc and returns them to the caller.
 absl::Status InstantiateParametricArgs(
@@ -2867,6 +2876,19 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     const Invocation* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for invocation: " << node->ToString();
+
+  // Detect direct recursion. Indirect recursion is currently not syntactically
+  // possible (as of 2023-08-22) since you cannot refer to a name that has not
+  // yet been defined in the grammar.
+  const FnStackEntry& entry = ctx->fn_stack().back();
+  if (entry.f() != nullptr &&
+      IsNameRefTo(node->callee(), entry.f()->name_def())) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Recursion of function `%s` detected -- recursion is "
+                        "currently unsupported.",
+                        node->callee()->ToString()));
+  }
 
   // Map is special.
   if (IsBuiltinFn(node->callee(), "map")) {

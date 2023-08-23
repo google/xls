@@ -539,7 +539,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
       }
     }
 
-    XLS_VLOG(2) << "Typechecking function: " << f->ToString();
+    XLS_VLOG(2) << "Typechecking function: `" << f->ToString() << "`";
     ScopedFnStackEntry scoped_entry(
         f, ctx, within_proc ? WithinProc::kYes : WithinProc::kNo);
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
@@ -974,7 +974,7 @@ absl::StatusOr<TypeAndParametricEnv> CheckInvocation(
     DeduceCtx* ctx, const Invocation* invocation,
     const absl::flat_hash_map<std::variant<const Param*, const ProcMember*>,
                               InterpValue>& constexpr_env) {
-  XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
+  XLS_VLOG(3) << "Typechecking invocation: `" << invocation->ToString() << "`";
   Expr* callee = invocation->callee();
 
   Function* caller = ctx->fn_stack().back().f();
