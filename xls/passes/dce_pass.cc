@@ -19,12 +19,16 @@
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
 absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   auto is_deletable = [](Node* n) {
     return !n->function_base()->HasImplicitUse(n) &&
            (!OpIsSideEffecting(n->op()) || n->Is<Gate>());

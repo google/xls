@@ -14,11 +14,14 @@
 
 #include "xls/passes/verifier_checker.h"
 
+#include "absl/status/status.h"
 #include "xls/ir/verifier.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
-absl::Status VerifierChecker::Run(Package* p, const PassOptions& options,
+absl::Status VerifierChecker::Run(Package* p,
+                                  const OptimizationPassOptions& options,
                                   PassResults* results) const {
   return VerifyPackage(p);
 }

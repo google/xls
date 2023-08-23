@@ -28,6 +28,8 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
 #include "xls/ir/type.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/range_query_engine.h"
 
 namespace xls {
@@ -152,7 +154,8 @@ static absl::Status SparsifySelect(FunctionBase* f, Select* select,
 }
 
 absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   RangeQueryEngine engine;
   XLS_RETURN_IF_ERROR(engine.Populate(f).status());
 

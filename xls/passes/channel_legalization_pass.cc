@@ -50,6 +50,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/value.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
 
@@ -983,7 +984,8 @@ absl::Status AddAdapterForMultipleSends(Package* p, StreamingChannel* channel,
 }  // namespace
 
 absl::StatusOr<bool> ChannelLegalizationPass::RunInternal(
-    Package* p, const PassOptions& options, PassResults* results) const {
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_VLOG(3) << "Running channel legalization pass.";
   bool changed = false;
   MultipleChannelOps multiple_ops = FindMultipleChannelOps(p);

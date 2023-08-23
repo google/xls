@@ -65,3 +65,9 @@ bzl_library(
         ":xlscc_rules_bzl",
     ],
 )
+
+bzl_library(
+    name = "cc_generator_bzl",
+    srcs = ["cc_generator.bzl"],
+    visibility = ["//visibility:private"],
+)

@@ -32,7 +32,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 namespace m = xls::op_matchers;
 
@@ -84,7 +84,7 @@ fn main(i: u32) -> (bool, u32) {
   std::find_index(A, i)
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string mangled_name,
       dslx::MangleDslxName(package->name(), "main",
@@ -130,7 +130,7 @@ fn main(foo: S, foo_bar: S) -> u8 {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string mangled_name,
       dslx::MangleDslxName(package->name(), "main",
@@ -185,7 +185,7 @@ fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string mangled_name,
       dslx::MangleDslxName(package->name(), "main",
@@ -232,7 +232,7 @@ proc main {
 
   // A select is added to handle the default value. Verify it is removed.
   EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()).status());
   // Selects with zero can be simplified to ANDs.
   EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
 }
@@ -259,7 +259,7 @@ proc main {
 
   // A select is added to handle the default value. Verify it is removed.
   EXPECT_EQ(OpCount(main, {Op::kSel}), 1);
-  XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
+  XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()).status());
   // Selects with zero can be simplified to ANDs.
   EXPECT_EQ(OpCount(main, {Op::kSel, Op::kAnd}), 0);
 }

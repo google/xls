@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 #include <memory>
 #include <string>
@@ -31,6 +31,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,11 +40,13 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
-class StandardPipelineTest : public IrTestBase {
+class OptimizationPipelineTest : public IrTestBase {
  protected:
-  StandardPipelineTest() = default;
+  OptimizationPipelineTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) { return RunStandardPassPipeline(p); }
+  absl::StatusOr<bool> Run(Package* p) {
+    return RunOptimizationPassPipeline(p);
+  }
 
   void TestAssociativeWithConstants(std::string_view xls_op, Op op,
                                     int64_t value) {
@@ -86,9 +89,10 @@ class StandardPipelineTest : public IrTestBase {
   }
 };
 
-TEST_F(StandardPipelineTest, IdentityRemoval) {
+TEST_F(OptimizationPipelineTest, IdentityRemoval) {
   auto p = CreatePackage();
-  std::unique_ptr<CompoundPass> pass_mgr = CreateStandardPassPipeline();
+  std::unique_ptr<OptimizationCompoundPass> pass_mgr =
+      CreateOptimizationPassPipeline();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_neg(x:bits[8]) -> bits[8] {
         one: bits[8] = literal(value=1)
@@ -114,7 +118,7 @@ TEST_F(StandardPipelineTest, IdentityRemoval) {
 // Rrot by fixed amount.
 // The goal of this test is to generate 'bitextract patterns' which
 // allow to translate this directly into Verilog wire-concat constructs.
-TEST_F(StandardPipelineTest, RrotAndBitExtract) {
+TEST_F(OptimizationPipelineTest, RrotAndBitExtract) {
   std::pair<std::unique_ptr<Package>, Function*> rrot_fixed =
       sample_packages::BuildRrot8Fixed();
   Package* p = rrot_fixed.first.get();
@@ -127,7 +131,7 @@ TEST_F(StandardPipelineTest, RrotAndBitExtract) {
 
 // Double nested loop. The goal is to prepare for control generation
 // using shared FSMs.
-TEST_F(StandardPipelineTest, TwoLoops) {
+TEST_F(OptimizationPipelineTest, TwoLoops) {
   std::pair<std::unique_ptr<Package>, Function*> two_loops =
       sample_packages::BuildTwoLoops(
           /*same_trip_count=*/true, /*dependent_loops=*/true);
@@ -135,7 +139,7 @@ TEST_F(StandardPipelineTest, TwoLoops) {
   ASSERT_THAT(Run(p), IsOkAndHolds(true));
 }
 
-TEST_F(StandardPipelineTest, SubOfLiteral) {
+TEST_F(OptimizationPipelineTest, SubOfLiteral) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_neg(x:bits[2]) -> bits[2] {
@@ -148,7 +152,7 @@ TEST_F(StandardPipelineTest, SubOfLiteral) {
   EXPECT_THAT(f->return_value(), m::Add(m::Param(), m::Literal(SBits(-1, 2))));
 }
 
-TEST_F(StandardPipelineTest, Canonicalize) {
+TEST_F(OptimizationPipelineTest, Canonicalize) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_canon(x:bits[2]) -> bits[2] {
@@ -161,7 +165,7 @@ TEST_F(StandardPipelineTest, Canonicalize) {
   EXPECT_THAT(f->return_value(), m::Add(m::Param(), m::Literal(1)));
 }
 
-TEST_F(StandardPipelineTest, DoubleNeg) {
+TEST_F(OptimizationPipelineTest, DoubleNeg) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_neg(x:bits[2]) -> bits[2] {
@@ -174,27 +178,27 @@ TEST_F(StandardPipelineTest, DoubleNeg) {
   EXPECT_THAT(f->return_value(), m::Param());
 }
 
-TEST_F(StandardPipelineTest, AssociateAdd) {
+TEST_F(OptimizationPipelineTest, AssociateAdd) {
   TestAssociativeWithConstants("add", Op::kAdd, 7 + 12);
 }
 
-TEST_F(StandardPipelineTest, AssociateXor) {
+TEST_F(OptimizationPipelineTest, AssociateXor) {
   TestAssociativeWithConstants("xor", Op::kXor, 7 ^ 12);
 }
 
-TEST_F(StandardPipelineTest, SubSubTest) {
+TEST_F(OptimizationPipelineTest, SubSubTest) {
   TestAddSubWithConstants("sub", Op::kAdd, "sub", -7 - 12);
 }
 
-TEST_F(StandardPipelineTest, SubAddTest) {
+TEST_F(OptimizationPipelineTest, SubAddTest) {
   TestAddSubWithConstants("sub", Op::kAdd, "add", 12 - 7);
 }
 
-TEST_F(StandardPipelineTest, AddSubTest) {
+TEST_F(OptimizationPipelineTest, AddSubTest) {
   TestAddSubWithConstants("add", Op::kAdd, "sub", 7 - 12);
 }
 
-TEST_F(StandardPipelineTest, IdentityRemovalFromParam) {
+TEST_F(OptimizationPipelineTest, IdentityRemovalFromParam) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn simple_param(x:bits[8]) -> bits[8] {
@@ -206,7 +210,7 @@ TEST_F(StandardPipelineTest, IdentityRemovalFromParam) {
   EXPECT_THAT(f->return_value(), m::Param());
 }
 
-TEST_F(StandardPipelineTest, CompareBoolAgainstZero) {
+TEST_F(OptimizationPipelineTest, CompareBoolAgainstZero) {
   // This requires canonicalization to get the constant on the RHS of the eq,
   // then simplification to replace with NOT(x).
   auto p = CreatePackage();
@@ -222,7 +226,7 @@ TEST_F(StandardPipelineTest, CompareBoolAgainstZero) {
   EXPECT_THAT(f->return_value(), m::Not(m::Param()));
 }
 
-TEST_F(StandardPipelineTest, MultiplyBy16StrengthReduction) {
+TEST_F(OptimizationPipelineTest, MultiplyBy16StrengthReduction) {
   // This requires canonicalization to get the constant on the RHS of the eq,
   // then strength reduction to replace the mul with a shift left. The shift
   // left is then replaced with a concat.
@@ -239,7 +243,7 @@ TEST_F(StandardPipelineTest, MultiplyBy16StrengthReduction) {
   EXPECT_THAT(f->return_value(), m::Concat());
 }
 
-TEST_F(StandardPipelineTest, LogicAbsorption) {
+TEST_F(OptimizationPipelineTest, LogicAbsorption) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
    // x & (x | y) -> x
@@ -253,7 +257,7 @@ TEST_F(StandardPipelineTest, LogicAbsorption) {
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
 
-TEST_F(StandardPipelineTest, LogicCombining) {
+TEST_F(OptimizationPipelineTest, LogicCombining) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
    // (x & y) | (x | ~y) -> x
@@ -268,7 +272,6 @@ TEST_F(StandardPipelineTest, LogicCombining) {
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Param("x"));
 }
-
 
 }  // namespace
 }  // namespace xls

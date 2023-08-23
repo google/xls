@@ -34,6 +34,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -49,13 +50,14 @@ class RollIntoProcPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Proc* proc) {
     PassResults results;
-    PassOptions opts = PassOptions();
+    OptimizationPassOptions opts = OptimizationPassOptions();
     XLS_ASSIGN_OR_RETURN(bool changed,
                          RollIntoProcPass().RunOnProc(
                              proc, opts, &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase((Function*)proc, PassOptions(),
+                            .RunOnFunctionBase((Function*)proc,
+                                               OptimizationPassOptions(),
                                                &results)
                             .status());
     return changed;
@@ -63,13 +65,14 @@ class RollIntoProcPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Proc* proc, int64_t unroll_factor) {
     PassResults results;
-    PassOptions opts = PassOptions();
+    OptimizationPassOptions opts = OptimizationPassOptions();
     XLS_ASSIGN_OR_RETURN(bool changed,
                          RollIntoProcPass(unroll_factor).RunOnProc(
                              proc, opts, &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase((Function*)proc, PassOptions(),
+                            .RunOnFunctionBase((Function*)proc,
+                                               OptimizationPassOptions(),
                                                &results)
                             .status());
     return changed;

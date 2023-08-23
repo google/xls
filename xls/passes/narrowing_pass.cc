@@ -34,6 +34,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/ternary.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/range_query_engine.h"
 #include "xls/passes/ternary_query_engine.h"
@@ -400,10 +402,9 @@ absl::StatusOr<bool> MaybeConvertArrayIndexToSelect(
 }
 
 // Try to narrow the index value of an array index operation.
-absl::StatusOr<bool> MaybeNarrowArrayIndex(bool use_range_analysis,
-                                           const PassOptions& options,
-                                           ArrayIndex* array_index,
-                                           const QueryEngine& query_engine) {
+absl::StatusOr<bool> MaybeNarrowArrayIndex(
+    bool use_range_analysis, const OptimizationPassOptions& options,
+    ArrayIndex* array_index, const QueryEngine& query_engine) {
   bool changed = false;
 
   if (use_range_analysis && options.convert_array_index_to_select.has_value()) {
@@ -979,7 +980,8 @@ static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
 }
 
 absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
                        GetQueryEngine(f, use_range_analysis_));
 

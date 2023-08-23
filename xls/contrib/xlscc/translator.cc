@@ -83,7 +83,8 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "re2/re2.h"
 
 using std::list;
@@ -5785,9 +5786,9 @@ absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
 }
 
 absl::Status Translator::InlineAllInvokes(xls::Package* package) {
-  std::unique_ptr<xls::CompoundPass> pipeline =
-      xls::CreateStandardPassPipeline();
-  xls::PassOptions options;
+  std::unique_ptr<xls::OptimizationCompoundPass> pipeline =
+      xls::CreateOptimizationPassPipeline();
+  xls::OptimizationPassOptions options;
   xls::PassResults results;
 
   // This pass wants a delay estimator

@@ -23,17 +23,17 @@ namespace xls {
 
 // Pass which simplifies concats. This includes removing single-operand concats,
 // flattening trees of dependent concats, and others.
-class ConcatSimplificationPass : public FunctionBasePass {
+class ConcatSimplificationPass : public OptimizationFunctionBasePass {
  public:
   explicit ConcatSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("concat_simp", "Concat simplification"),
+      : OptimizationFunctionBasePass("concat_simp", "Concat simplification"),
         opt_level_(opt_level) {}
   ~ConcatSimplificationPass() override = default;
 
  protected:
   int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

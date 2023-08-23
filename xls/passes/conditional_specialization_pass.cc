@@ -26,9 +26,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -293,7 +296,8 @@ Node* GetSelectedCase(Select* select, const Bits& selector_value) {
 }  // namespace
 
 absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   std::unique_ptr<BddQueryEngine> query_engine;
   if (use_bdd_) {
     query_engine = std::make_unique<BddQueryEngine>(

@@ -77,10 +77,10 @@ using SchedulingInvariantChecker = SchedulingCompoundPass::InvariantChecker;
 
 // Abstract base class for scheduling passes operating at function/proc scope.
 // The derived classes must define RunOnFunctionBaseInternal.
-class SchedulingFunctionBasePass : public SchedulingPass {
+class SchedulingOptimizationFunctionBasePass : public SchedulingPass {
  public:
-  SchedulingFunctionBasePass(std::string_view short_name,
-                             std::string_view long_name)
+  SchedulingOptimizationFunctionBasePass(std::string_view short_name,
+                                         std::string_view long_name)
       : SchedulingPass(short_name, long_name) {}
 
   // Runs the pass on a single function/proc.

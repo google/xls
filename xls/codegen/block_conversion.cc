@@ -56,6 +56,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/scheduling/pipeline_schedule.h"
@@ -1808,12 +1809,12 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
 
   XLS_RETURN_IF_ERROR(
       TupleSimplificationPass()
-          .RunOnFunctionBase(block, PassOptions(), &pass_results)
+          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
           .status());
 
   XLS_RETURN_IF_ERROR(
       DeadCodeEliminationPass()
-          .RunOnFunctionBase(block, PassOptions(), &pass_results)
+          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
           .status());
 
   CodegenPassUnit unit(block->package(), block);
@@ -1823,7 +1824,7 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
                           .status());
   XLS_RETURN_IF_ERROR(
       DeadCodeEliminationPass()
-          .RunOnFunctionBase(block, PassOptions(), &pass_results)
+          .RunOnFunctionBase(block, OptimizationPassOptions(), &pass_results)
           .status());
 
   // Nodes like cover and assert have token types and will cause

@@ -51,6 +51,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = xls::op_matchers;
@@ -74,14 +75,15 @@ class ProcInliningPassTest : public IrTestBase {
       XLS_RETURN_IF_ERROR(p->SetTopByName(top.value()));
     }
 
-    PassOptions options;
+    OptimizationPassOptions options;
     options.inline_procs = true;
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          ProcInliningPass().Run(p, options, &results));
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(
-        DeadCodeEliminationPass().Run(p, PassOptions(), &results).status());
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .Run(p, OptimizationPassOptions(), &results)
+                            .status());
     XLS_VLOG(1) << "After DCE:\n" << p->DumpIr();
     return changed;
   }

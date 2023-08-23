@@ -24,10 +24,11 @@ namespace xls {
 // class ArithSimplificationPass analyzes the IR and finds some
 // simple patterns it can simplify, e.g., things like mul by 1,
 // add of 0, etc.
-class ArithSimplificationPass : public FunctionBasePass {
+class ArithSimplificationPass : public OptimizationFunctionBasePass {
  public:
   explicit ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("arith_simp", "Arithmetic Simplifications"),
+      : OptimizationFunctionBasePass("arith_simp",
+                                     "Arithmetic Simplifications"),
         opt_level_(opt_level) {}
   ~ArithSimplificationPass() override = default;
 
@@ -35,7 +36,7 @@ class ArithSimplificationPass : public FunctionBasePass {
   int64_t opt_level_;
 
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

@@ -22,16 +22,16 @@ namespace xls {
 
 // Pass which removes asserts that have a literal 1 as the condition, meaning
 // they are never triggered. Rewires tokens to ensure nothing breaks.
-class UselessAssertRemovalPass : public FunctionBasePass {
+class UselessAssertRemovalPass : public OptimizationFunctionBasePass {
  public:
   UselessAssertRemovalPass()
-      : FunctionBasePass("useless_assert_remove",
-                         "Remove useless (always true) asserts") {}
+      : OptimizationFunctionBasePass("useless_assert_remove",
+                                     "Remove useless (always true) asserts") {}
   ~UselessAssertRemovalPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

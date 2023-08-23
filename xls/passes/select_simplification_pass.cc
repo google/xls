@@ -41,6 +41,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
@@ -935,7 +936,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
 }  // namespace
 
 absl::StatusOr<bool> SelectSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* func, const PassOptions& options,
+    FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
   TernaryQueryEngine query_engine;
   XLS_RETURN_IF_ERROR(query_engine.Populate(func).status());

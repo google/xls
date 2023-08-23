@@ -357,7 +357,7 @@ cc_binary(
         "//xls/common/file:get_runfile_path",
         "//xls/common/logging",
         "//xls/contrib/xlscc/unit_tests:cc_generator",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
         "//xls/simulation:verilog_simulators",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status:statusor",

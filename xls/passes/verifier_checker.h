@@ -21,9 +21,9 @@
 namespace xls {
 
 // Invariant checker which just runs xls::Verifier.
-class VerifierChecker : public InvariantChecker {
+class VerifierChecker : public OptimizationInvariantChecker {
  public:
-  absl::Status Run(Package* p, const PassOptions& options,
+  absl::Status Run(Package* p, const OptimizationPassOptions& options,
                    PassResults* results) const override;
 };
 

@@ -26,6 +26,8 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -295,7 +297,8 @@ int64_t NumberOfTokensInType(Type* type) {
 }  // namespace
 
 absl::StatusOr<bool> TokenSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   for (Node* node : f->nodes()) {
     if (NumberOfTokensInType(node->GetType()) > 1) {
       return false;

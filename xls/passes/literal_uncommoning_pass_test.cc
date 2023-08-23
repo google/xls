@@ -21,6 +21,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -33,7 +34,7 @@ class LiteralUncommoningPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return LiteralUncommoningPass().Run(p, PassOptions(), &results);
+    return LiteralUncommoningPass().Run(p, OptimizationPassOptions(), &results);
   }
 };
 

@@ -58,7 +58,9 @@
 #include "xls/dslx/warning_kind.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
+#include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_pass.h"
 
 const char kUsage[] = R"(
 Allows interactively exploring the functionality of XLS.
@@ -272,7 +274,7 @@ absl::Status UpdateIr() {
                                             "main", /*free_keys=*/{}));
   XLS_RETURN_IF_ERROR(globals->ir_package->SetTopByName(mangled_name));
   XLS_RETURN_IF_ERROR(
-      RunStandardPassPipeline(globals->ir_package.get()).status());
+      RunOptimizationPassPipeline(globals->ir_package.get()).status());
   return absl::OkStatus();
 }
 

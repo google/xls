@@ -31,6 +31,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/package.h"
 #include "xls/ir/ram_rewrite.pb.h"
 #include "xls/passes/pass_base.h"
 
@@ -124,8 +125,9 @@ absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
   return rewrites;
 }
 
-absl::StatusOr<bool> FunctionBasePass::RunOnFunctionBase(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> OptimizationFunctionBasePass::RunOnFunctionBase(
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_VLOG(2) << absl::StreamFormat("Running %s on function_base %s [pass #%d]",
                                     long_name(), f->name(),
                                     results->invocations.size());
@@ -140,9 +142,9 @@ absl::StatusOr<bool> FunctionBasePass::RunOnFunctionBase(
   return changed;
 }
 
-absl::StatusOr<bool> FunctionBasePass::RunInternal(Package* p,
-                                                   const PassOptions& options,
-                                                   PassResults* results) const {
+absl::StatusOr<bool> OptimizationFunctionBasePass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   for (FunctionBase* f : p->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(bool function_changed,
@@ -152,7 +154,7 @@ absl::StatusOr<bool> FunctionBasePass::RunInternal(Package* p,
   return changed;
 }
 
-absl::StatusOr<bool> FunctionBasePass::TransformNodesToFixedPoint(
+absl::StatusOr<bool> OptimizationFunctionBasePass::TransformNodesToFixedPoint(
     FunctionBase* f,
     std::function<absl::StatusOr<bool>(Node*)> simplify_f) const {
   // Store nodes by id to avoid running afoul of Node* pointer values being
@@ -189,8 +191,9 @@ absl::StatusOr<bool> FunctionBasePass::TransformNodesToFixedPoint(
   return changed;
 }
 
-absl::StatusOr<bool> ProcPass::RunOnProc(Proc* proc, const PassOptions& options,
-                                         PassResults* results) const {
+absl::StatusOr<bool> OptimizationProcPass::RunOnProc(
+    Proc* proc, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_VLOG(2) << absl::StreamFormat("Running %s on proc %s [pass #%d]",
                                     long_name(), proc->name(),
                                     results->invocations.size());
@@ -204,9 +207,9 @@ absl::StatusOr<bool> ProcPass::RunOnProc(Proc* proc, const PassOptions& options,
   return changed;
 }
 
-absl::StatusOr<bool> ProcPass::RunInternal(Package* p,
-                                           const PassOptions& options,
-                                           PassResults* results) const {
+absl::StatusOr<bool> OptimizationProcPass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   for (const auto& proc : p->procs()) {
     XLS_ASSIGN_OR_RETURN(bool proc_changed,

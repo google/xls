@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -66,7 +67,8 @@ absl::Status UnrollCountedFor(CountedFor* loop) {
 }  // namespace
 
 absl::StatusOr<bool> UnrollPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   while (true) {
     CountedFor* loop = FindCountedFor(f);

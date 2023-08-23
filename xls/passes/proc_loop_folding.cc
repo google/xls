@@ -14,6 +14,7 @@
 
 #include "xls/passes/proc_loop_folding.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,6 +36,8 @@
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -49,10 +52,10 @@ enum {
   kInvariantArgStart,
 };
 
-RollIntoProcPass::RollIntoProcPass(
-    std::optional<int64_t> unroll_factor) :
-  ProcPass("roll_into_proc", "Re-roll an iterative set of nodes into a proc"),
-  unroll_factor_(unroll_factor) {}
+RollIntoProcPass::RollIntoProcPass(std::optional<int64_t> unroll_factor)
+    : OptimizationProcPass("roll_into_proc",
+                           "Re-roll an iterative set of nodes into a proc"),
+      unroll_factor_(unroll_factor) {}
 
 // We will use this function to unroll the CountedFor loop body by some factor.
 // For example, if unroll_factor is 2, we will clone the loopbody once into the
@@ -313,8 +316,8 @@ absl::StatusOr<Node*> RollIntoProcPass::ReplaceReceiveWithConditionalReceive(
 }
 
 absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
-    Proc* proc, const PassOptions& options, PassResults* results) const {
-
+    Proc* proc, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // Find Send, Receive, and CountedFor nodes.
   CountedFor* counted_for_node = nullptr;
   Receive* receive_node = nullptr;

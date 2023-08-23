@@ -30,6 +30,8 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -1123,7 +1125,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 }  // namespace
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   return TransformNodesToFixedPoint(
       f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
 }

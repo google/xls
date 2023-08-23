@@ -23,16 +23,16 @@ namespace xls {
 
 // Pass which simplifies or eliminates some array-type operations such as
 // ArrayIndex.
-class ArraySimplificationPass : public FunctionBasePass {
+class ArraySimplificationPass : public OptimizationFunctionBasePass {
  public:
   explicit ArraySimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("array_simp", "Array Simplification"),
+      : OptimizationFunctionBasePass("array_simp", "Array Simplification"),
         opt_level_(opt_level) {}
 
  protected:
   int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

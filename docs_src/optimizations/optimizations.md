@@ -26,21 +26,21 @@ return ops. Certain optimization passes may also result in dead nodes.
 
 Let's look at the structure of the pass. The header file is straightforward, The
 `DeadCodeEliminationPass` is a function-level pass and hence derived from
-`FunctionBasePass`. Every function-level pass must implement the function
-`RunOnFunctionBaseInternal` and return a status indicating whether or not the
-pass made a change to the IR:
+`OptimizationFunctionBasePass`. Every function-level pass must implement the
+function `RunOnFunctionBaseInternal` and return a status indicating whether or
+not the pass made a change to the IR:
 
 ```c++
-class DeadCodeEliminationPass : public FunctionBasePass {
+class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
  public:
   DeadCodeEliminationPass()
-      : FunctionBasePass("dce", "Dead Code Elimination") {}
+      : OptimizationFunctionBasePass("dce", "Dead Code Elimination") {}
   ~DeadCodeEliminationPass() override {}
 
  protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 ```
@@ -50,7 +50,7 @@ the function declaration:
 
 ```c++
 absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options, PassResults* results) const {
 ```
 
 There is a little lambda function testing whether a node is deletable or not:
@@ -207,18 +207,18 @@ being dead-code eliminated):
 ```
 
 Now let's see how this is implemented in XLS. CSE is a function-level
-transformation and accordingly the pass is derived from `FunctionBasePass`. In
-the header file:
+transformation and accordingly the pass is derived from
+`OptimizationFunctionBasePass`. In the header file:
 
 ```c++
-class CsePass : public FunctionBasePass {
+class CsePass : public OptimizationFunctionBasePass {
  public:
-  CsePass() : FunctionBasePass("cse", "Common subexpression elimination") {}
+  CsePass() : OptimizationFunctionBasePass("cse", "Common subexpression elimination") {}
   ~CsePass() override {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 ```
@@ -401,7 +401,7 @@ in a boolean variable `changed`:
 
 ```c++
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options, PassResults* results) const {
   bool changed = false;
 
 ```

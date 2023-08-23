@@ -23,6 +23,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -65,7 +66,8 @@ static Node* FindEquivalentTuple(Tuple* tuple) {
 }
 
 absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
   std::deque<std::variant<TupleIndex*, Tuple*>> worklist;

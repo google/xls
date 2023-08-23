@@ -22,6 +22,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
@@ -37,7 +38,8 @@ class BddCsePassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Function* f) {
     PassResults results;
-    return BddCsePass().RunOnFunctionBase(f, PassOptions(), &results);
+    return BddCsePass().RunOnFunctionBase(f, OptimizationPassOptions(),
+                                          &results);
   }
 };
 

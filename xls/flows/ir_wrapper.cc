@@ -31,7 +31,7 @@
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/jit/jit_proc_runtime.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 namespace xls {
 using dslx::Module;
@@ -192,7 +192,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
   // Optimize IR using default options
   if (flags != IrWrapper::Flags::kSkipOpt) {
     XLS_RETURN_IF_ERROR(
-        RunStandardPassPipeline(ir_wrapper.package_.get()).status());
+        RunOptimizationPassPipeline(ir_wrapper.package_.get()).status());
   }
 
   return std::move(ir_wrapper);

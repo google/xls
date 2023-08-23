@@ -21,13 +21,14 @@
 namespace xls {
 
 // Pass which inlines all procs into the top-level proc.
-class ProcInliningPass : public Pass {
+class ProcInliningPass : public OptimizationPass {
  public:
-  ProcInliningPass() : Pass("proc_inlining", "Proc inlining") {}
+  ProcInliningPass() : OptimizationPass("proc_inlining", "Proc inlining") {}
   ~ProcInliningPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 };
 

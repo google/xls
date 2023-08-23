@@ -21,13 +21,17 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/type.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(f)) {
     // Fold any non-side-effecting op with constant paramters. Avoid any types

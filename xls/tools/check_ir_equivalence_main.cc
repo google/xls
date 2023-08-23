@@ -105,12 +105,13 @@ static absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
   // To work around this, we have to inline such calls.
   // Fortunately, inlining is pretty simple and unlikely to change semantics.
   // TODO(b/154025625): Replace this with a new InliningPass.
-  CompoundPass inlining_passes("inlining_passes", "All inlining passes.");
+  OptimizationCompoundPass inlining_passes("inlining_passes",
+                                           "All inlining passes.");
   inlining_passes.Add<MapInliningPass>();
   inlining_passes.Add<UnrollPass>();
   inlining_passes.Add<InliningPass>();
   inlining_passes.Add<DeadCodeEliminationPass>();
-  PassOptions options;
+  OptimizationPassOptions options;
   PassResults results;
   for (const auto& package : packages) {
     bool keep_going = true;

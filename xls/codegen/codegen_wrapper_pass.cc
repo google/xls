@@ -14,6 +14,7 @@
 
 #include "xls/codegen/codegen_wrapper_pass.h"
 
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls::verilog {
@@ -21,8 +22,8 @@ namespace xls::verilog {
 absl::StatusOr<bool> CodegenWrapperPass::RunInternal(
     CodegenPassUnit* unit, const CodegenPassOptions& options,
     PassResults* results) const {
-  return wrapped_pass_->RunOnFunctionBase(unit->block, PassOptions(options),
-                                          results);
+  return wrapped_pass_->RunOnFunctionBase(
+      unit->block, OptimizationPassOptions(options), results);
 }
 
 }  // namespace xls::verilog

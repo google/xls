@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_STANDARD_PIPELINE_H_
-#define XLS_PASSES_STANDARD_PIPELINE_H_
+#ifndef XLS_PASSES_OPTIMIZATION_PASS_PIPELINE_H_
+#define XLS_PASSES_OPTIMIZATION_PASS_PIPELINE_H_
 
+#include <cstdint>
 #include <memory>
 
 #include "absl/status/statusor.h"
@@ -22,21 +23,21 @@
 
 namespace xls {
 
-class SimplificationPass : public FixedPointCompoundPass {
+class SimplificationPass : public OptimizationFixedPointCompoundPass {
  public:
   explicit SimplificationPass(int64_t opt_level);
 };
 
-// CreateStandardPassPipeline connects together the various optimization
+// CreateOptimizationPassPipeline connects together the various optimization
 // and analysis passes in the order of execution.
-std::unique_ptr<CompoundPass> CreateStandardPassPipeline(
+std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
     int64_t opt_level = kMaxOptLevel);
 
 // Creates and runs the standard pipeline on the given package with default
 // options.
-absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
-                                             int64_t opt_level = kMaxOptLevel);
+absl::StatusOr<bool> RunOptimizationPassPipeline(
+    Package* package, int64_t opt_level = kMaxOptLevel);
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_STANDARD_PIPELINE_H_
+#endif  // XLS_PASSES_OPTIMIZATION_PASS_PIPELINE_H_

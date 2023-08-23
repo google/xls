@@ -52,6 +52,7 @@
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/dataflow_visitor.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/query_engine.h"
 #include "xls/passes/token_provenance_analysis.h"
@@ -1705,9 +1706,9 @@ absl::Status SetProcState(Proc* proc, absl::Span<const StateElement> elements) {
 
 }  // namespace
 
-absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
-                                                   const PassOptions& options,
-                                                   PassResults* results) const {
+absl::StatusOr<bool> ProcInliningPass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   if (!options.inline_procs || p->procs().size() <= 1) {
     return false;
   }

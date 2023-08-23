@@ -25,18 +25,18 @@ namespace xls {
 // token dependencies. In particular, transitive data dependencies between
 // receives and other effectful ops are turned into token dependencies whenever
 // no such token dependency already exists.
-class TokenDependencyPass : public FunctionBasePass {
+class TokenDependencyPass : public OptimizationFunctionBasePass {
  public:
   TokenDependencyPass()
-      : FunctionBasePass("token_dependency",
-                         "Convert data dependencies between "
-                         "effectful operations into token "
-                         "dependencies") {}
+      : OptimizationFunctionBasePass("token_dependency",
+                                     "Convert data dependencies between "
+                                     "effectful operations into token "
+                                     "dependencies") {}
   ~TokenDependencyPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

@@ -25,8 +25,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/time/time.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/ram_rewrite.pb.h"
@@ -96,21 +95,20 @@ struct RamRewrite {
 absl::StatusOr<std::vector<RamRewrite>> RamRewritesFromProto(
     const RamRewritesProto& proto);
 
-// TODO(meheff): Rename to OptimizationPassOptions.
-struct PassOptions : public PassOptionsBase {
-  PassOptions() = default;
+struct OptimizationPassOptions : public PassOptionsBase {
+  OptimizationPassOptions() = default;
 
   // Constructor which takes a base instance. This allows construction of
   // optimization pass options from scheduling and codegen options which is
   // required for wrapped passes.
-  explicit PassOptions(const PassOptionsBase& options_base)
+  explicit OptimizationPassOptions(const PassOptionsBase& options_base)
       : PassOptionsBase(options_base) {}
 
   // Whether to inline all procs by calling the proc inlining pass.
   // TODO(meheff): 2022/2/13 Devise a better mechanism for deciding whether or
   // not to inline procs including figuring out which procs to inline. At the
-  // minimum, there should be a specialization of PassOptions for the
-  // optimization pass pipeline which holds this value.
+  // minimum, there should be a specialization of OptimizationPassOptions for
+  // the optimization pass pipeline which holds this value.
   bool inline_procs = false;
 
   // If this is not `std::nullopt`, convert array indexes with fewer than or
@@ -129,10 +127,12 @@ struct PassOptions : public PassOptionsBase {
 // Defines the pass types for optimizations which operate strictly on XLS IR
 // (i.e., xls::Package).
 // TODO(meheff): Rename to OptimizationPass, etc.
-using Pass = PassBase<Package, PassOptions>;
-using CompoundPass = CompoundPassBase<Package, PassOptions>;
-using FixedPointCompoundPass = FixedPointCompoundPassBase<Package, PassOptions>;
-using InvariantChecker = CompoundPass::InvariantChecker;
+using OptimizationPass = PassBase<Package, OptimizationPassOptions>;
+using OptimizationCompoundPass =
+    CompoundPassBase<Package, OptimizationPassOptions>;
+using OptimizationFixedPointCompoundPass =
+    FixedPointCompoundPassBase<Package, OptimizationPassOptions>;
+using OptimizationInvariantChecker = OptimizationCompoundPass::InvariantChecker;
 
 inline constexpr int64_t kMaxOptLevel = 3;
 
@@ -143,24 +143,26 @@ inline bool NarrowingEnabled(int64_t opt_level) { return opt_level >= 2; }
 
 // Abstract base class for passes operate at function/proc scope. The derived
 // class must define RunOnFunctionBaseInternal.
-class FunctionBasePass : public Pass {
+class OptimizationFunctionBasePass : public OptimizationPass {
  public:
-  FunctionBasePass(std::string_view short_name, std::string_view long_name)
-      : Pass(short_name, long_name) {}
+  OptimizationFunctionBasePass(std::string_view short_name,
+                               std::string_view long_name)
+      : OptimizationPass(short_name, long_name) {}
 
   // Runs the pass on a single function/proc.
   absl::StatusOr<bool> RunOnFunctionBase(FunctionBase* f,
-                                         const PassOptions& options,
+                                         const OptimizationPassOptions& options,
                                          PassResults* results) const;
 
  protected:
   // Iterates over each function and proc in the package calling
   // RunOnFunctionBase.
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 
   virtual absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const = 0;
 
   // Calls the given function for every node in the graph in a loop until no
@@ -177,22 +179,25 @@ class FunctionBasePass : public Pass {
 
 // Abstract base class for passes operate on procs. The derived
 // class must define RunOnProcInternal.
-class ProcPass : public Pass {
+class OptimizationProcPass : public OptimizationPass {
  public:
-  ProcPass(std::string_view short_name, std::string_view long_name)
-      : Pass(short_name, long_name) {}
+  OptimizationProcPass(std::string_view short_name, std::string_view long_name)
+      : OptimizationPass(short_name, long_name) {}
 
   // Proc the pass on a single proc.
-  absl::StatusOr<bool> RunOnProc(Proc* proc, const PassOptions& options,
+  absl::StatusOr<bool> RunOnProc(Proc* proc,
+                                 const OptimizationPassOptions& options,
                                  PassResults* results) const;
 
  protected:
   // Iterates over each proc in the package calling RunOnProc.
-  absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
+  absl::StatusOr<bool> RunInternal(Package* p,
+                                   const OptimizationPassOptions& options,
                                    PassResults* results) const override;
 
   virtual absl::StatusOr<bool> RunOnProcInternal(
-      Proc* proc, const PassOptions& options, PassResults* results) const = 0;
+      Proc* proc, const OptimizationPassOptions& options,
+      PassResults* results) const = 0;
 };
 
 }  // namespace xls

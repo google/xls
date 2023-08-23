@@ -22,6 +22,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -37,7 +38,8 @@ class ProcStateOptimizationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return ProcStateOptimizationPass().Run(p, PassOptions(), &results);
+    return ProcStateOptimizationPass().Run(p, OptimizationPassOptions(),
+                                           &results);
   }
 };
 

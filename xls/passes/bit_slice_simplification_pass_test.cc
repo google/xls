@@ -30,6 +30,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/value.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -46,10 +47,11 @@ class BitSliceSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BitSliceSimplificationPass().RunOnFunctionBase(
-                             f, PassOptions(), &results));
-    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                            .RunOnFunctionBase(f, PassOptions(), &results)
-                            .status());
+                             f, OptimizationPassOptions(), &results));
+    XLS_RETURN_IF_ERROR(
+        DeadCodeEliminationPass()
+            .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+            .status());
     return changed;
   }
 };

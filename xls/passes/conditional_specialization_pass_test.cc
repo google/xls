@@ -25,6 +25,7 @@
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,13 +40,13 @@ class ConditionalSpecializationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(
         bool changed, ConditionalSpecializationPass(use_bdd).RunOnFunctionBase(
-                          f, PassOptions(), &results));
+                          f, OptimizationPassOptions(), &results));
     return changed;
   }
   absl::StatusOr<bool> Run(Package* p, bool use_bdd = true) {
     PassResults results;
-    return ConditionalSpecializationPass(use_bdd).Run(p, PassOptions(),
-                                                      &results);
+    return ConditionalSpecializationPass(use_bdd).Run(
+        p, OptimizationPassOptions(), &results);
   }
 };
 

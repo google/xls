@@ -365,6 +365,7 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/passes:dce_pass",
+        "//xls/passes:optimization_pass",
         "//xls/passes:pass_base",
         "//xls/passes:tuple_simplification_pass",
         "//xls/scheduling:pipeline_schedule",

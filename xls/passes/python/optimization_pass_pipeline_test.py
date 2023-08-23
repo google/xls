@@ -17,12 +17,12 @@
 
 import sys
 
+from absl.testing import absltest
 from xls.common.python import init_xls
 from xls.ir.python import bits as bits_mod
 from xls.ir.python import function_builder
 from xls.ir.python import package
-from xls.passes.python import standard_pipeline
-from absl.testing import absltest
+from xls.passes.python import optimization_pass_pipeline
 
 
 def setUpModule():
@@ -31,15 +31,17 @@ def setUpModule():
   init_xls.init_xls(sys.argv)
 
 
-class StandardPipelineTest(absltest.TestCase):
+class OptimizationPassPipelineTest(absltest.TestCase):
 
-  def test_standard_pipeline(self):
+  def test_optimization_pipeline(self):
     pkg = package.Package('pname')
     fb = function_builder.FunctionBuilder('main', pkg)
     fb.add_literal_bits(bits_mod.UBits(value=2, bit_count=32))
     fb.build()
 
-    self.assertFalse(standard_pipeline.run_standard_pass_pipeline(pkg))
+    self.assertFalse(
+        optimization_pass_pipeline.run_optimization_pass_pipeline(pkg)
+    )
 
 
 if __name__ == '__main__':

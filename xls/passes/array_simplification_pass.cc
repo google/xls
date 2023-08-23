@@ -26,6 +26,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/type.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/ternary_query_engine.h"
 
 namespace xls {
@@ -909,7 +910,7 @@ absl::StatusOr<bool> SimplifyBinarySelect(Select* select,
 }  // namespace
 
 absl::StatusOr<bool> ArraySimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* func, const PassOptions& options,
+    FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
   bool changed = false;
 

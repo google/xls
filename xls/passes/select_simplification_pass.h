@@ -23,17 +23,17 @@ namespace xls {
 
 // Pass which simplifies selects and one-hot-selects. Example optimizations
 // include removing dead arms and eliminating selects with constant selectors.
-class SelectSimplificationPass : public FunctionBasePass {
+class SelectSimplificationPass : public OptimizationFunctionBasePass {
  public:
   explicit SelectSimplificationPass(int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("select_simp", "Select Simplification"),
+      : OptimizationFunctionBasePass("select_simp", "Select Simplification"),
         opt_level_(opt_level) {}
   ~SelectSimplificationPass() override = default;
 
  protected:
   int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

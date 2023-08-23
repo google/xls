@@ -27,6 +27,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -216,7 +217,8 @@ std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
 }  // namespace
 
 absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
 
   // Compute range equivalences for all nodes. Single-bit node X has an

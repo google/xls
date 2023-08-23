@@ -44,10 +44,11 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/function_jit.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 const char kUsage[] = R"(
 Evaluates an IR file with user-specified or random inputs using the IR
@@ -220,11 +221,11 @@ absl::StatusOr<std::vector<Value>> Eval(
 
 // An invariant checker which evaluates the entry function with the given
 // ArgSets. Raises an error if expectations are not matched.
-class EvalInvariantChecker : public InvariantChecker {
+class EvalInvariantChecker : public OptimizationInvariantChecker {
  public:
   explicit EvalInvariantChecker(absl::Span<const ArgSet> arg_sets, bool use_jit)
       : arg_sets_(arg_sets.begin(), arg_sets.end()), use_jit_(use_jit) {}
-  absl::Status Run(Package* package, const PassOptions& options,
+  absl::Status Run(Package* package, const OptimizationPassOptions& options,
                    PassResults* results) const override {
     if (results->invocations.empty()) {
       std::cerr << "// Evaluating entry function at start of pipeline.\n";
@@ -286,14 +287,15 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
   // (either expected result passed in on the command line or the result
   // produced without optimizations).
   if (absl::GetFlag(FLAGS_optimize_ir)) {
-    std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
+    std::unique_ptr<OptimizationCompoundPass> pipeline =
+        CreateOptimizationPassPipeline();
     if (absl::GetFlag(FLAGS_eval_after_each_pass)) {
       pipeline->AddInvariantChecker<EvalInvariantChecker>(
           arg_sets, absl::GetFlag(FLAGS_use_llvm_jit));
     }
     PassResults results;
     XLS_RETURN_IF_ERROR(
-        pipeline->Run(package, PassOptions(), &results).status());
+        pipeline->Run(package, OptimizationPassOptions(), &results).status());
 
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets, absl::GetFlag(FLAGS_use_llvm_jit),
                              "before optimizations", "after optimizations")

@@ -49,7 +49,7 @@
 #include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/optimization_pass.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 
@@ -137,10 +137,11 @@ int64_t DurationToMs(absl::Duration duration) {
 // Run the standard pipeline on the given package and prints stats about the
 // passes and execution time.
 absl::Status RunOptimizationAndPrintStats(Package* package) {
-  std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
+  std::unique_ptr<OptimizationCompoundPass> pipeline =
+      CreateOptimizationPassPipeline();
 
   absl::Time start = absl::Now();
-  PassOptions pass_options;
+  OptimizationPassOptions pass_options;
   int64_t convert_array_index_to_select =
       absl::GetFlag(FLAGS_convert_array_index_to_select);
   pass_options.convert_array_index_to_select =

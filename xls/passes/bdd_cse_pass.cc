@@ -30,6 +30,7 @@
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/passes/bdd_function.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -94,7 +95,8 @@ absl::StatusOr<std::vector<Node*>> GetNodeOrder(FunctionBase* f) {
 }  // namespace
 
 absl::StatusOr<bool> BddCsePass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BddFunction> bdd_function,
                        BddFunction::Run(f, BddFunction::kDefaultPathLimit));
 

@@ -29,6 +29,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_util.h"
 #include "xls/netlist/logical_effort.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -483,7 +484,8 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
 }  // namespace
 
 absl::StatusOr<bool> BooleanSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   BooleanFlowTracker visitor;
   XLS_RETURN_IF_ERROR(f->Accept(&visitor));
   for (auto& pair : visitor.node_replacements()) {

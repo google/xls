@@ -15,13 +15,14 @@
 // Create a standard pipeline of passes. This pipeline should
 // be used in the main driver as well as in testing.
 
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 
 #include "absl/status/statusor.h"
+#include "xls/ir/package.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/bdd_cse_pass.h"
@@ -42,6 +43,7 @@
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
@@ -63,7 +65,7 @@
 namespace xls {
 
 SimplificationPass::SimplificationPass(int64_t opt_level)
-    : FixedPointCompoundPass("simp", "Simplification") {
+    : OptimizationFixedPointCompoundPass("simp", "Simplification") {
   Add<IdentityRemovalPass>();
   Add<ConstantFoldingPass>();
   Add<DeadCodeEliminationPass>();
@@ -106,8 +108,10 @@ SimplificationPass::SimplificationPass(int64_t opt_level)
   Add<CsePass>();
 }
 
-std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
-  auto top = std::make_unique<CompoundPass>("ir", "Top level pass pipeline");
+std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
+    int64_t opt_level) {
+  auto top = std::make_unique<OptimizationCompoundPass>(
+      "ir", "Top level pass pipeline");
   top->AddInvariantChecker<VerifierChecker>();
 
   top->Add<DeadFunctionEliminationPass>();
@@ -186,11 +190,12 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   return top;
 }
 
-absl::StatusOr<bool> RunStandardPassPipeline(Package* package,
-                                             int64_t opt_level) {
-  std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
+absl::StatusOr<bool> RunOptimizationPassPipeline(Package* package,
+                                                 int64_t opt_level) {
+  std::unique_ptr<OptimizationCompoundPass> pipeline =
+      CreateOptimizationPassPipeline();
   PassResults results;
-  return pipeline->Run(package, PassOptions(), &results);
+  return pipeline->Run(package, OptimizationPassOptions(), &results);
 }
 
 }  // namespace xls

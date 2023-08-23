@@ -66,14 +66,14 @@ class TruthTable {
 
 // Attempts to simplify bitwise / boolean expressions (e.g. of multiple
 // variables).
-class BooleanSimplificationPass : public FunctionBasePass {
+class BooleanSimplificationPass : public OptimizationFunctionBasePass {
  public:
   BooleanSimplificationPass()
-      : FunctionBasePass("bool_simp", "boolean simplification") {}
+      : OptimizationFunctionBasePass("bool_simp", "boolean simplification") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

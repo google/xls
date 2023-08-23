@@ -21,7 +21,9 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 
@@ -318,7 +320,7 @@ static absl::StatusOr<bool> CanonicalizeNode(Node* n) {
 }
 
 absl::StatusOr<bool> CanonicalizationPass::RunOnFunctionBaseInternal(
-    FunctionBase* func, const PassOptions& options,
+    FunctionBase* func, const OptimizationPassOptions& options,
     PassResults* results) const {
   return TransformNodesToFixedPoint(func, CanonicalizeNode);
 }

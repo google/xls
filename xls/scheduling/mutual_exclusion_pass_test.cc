@@ -32,9 +32,10 @@ namespace {
 using status_testing::IsOkAndHolds;
 namespace m = ::xls::op_matchers;
 
-class SimplificationPass : public CompoundPass {
+class SimplificationPass : public OptimizationCompoundPass {
  public:
-  explicit SimplificationPass() : CompoundPass("simp", "Simplification") {
+  explicit SimplificationPass()
+      : OptimizationCompoundPass("simp", "Simplification") {
     Add<DeadCodeEliminationPass>();
     Add<CsePass>();
   }
@@ -60,7 +61,8 @@ class MutualExclusionPassTest : public IrTestBase {
     }
     XLS_ASSIGN_OR_RETURN(
         subpass_changed,
-        SimplificationPass().Run(f->package(), PassOptions(), &results));
+        SimplificationPass().Run(f->package(), OptimizationPassOptions(),
+                                 &results));
     changed = changed || subpass_changed;
     return changed;
   }

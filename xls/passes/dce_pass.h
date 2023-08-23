@@ -26,16 +26,16 @@ namespace xls {
 // class DeadCodeEliminationPass iterates up from a functions result
 // nodes and marks all visited node. After that, all unvisited nodes
 // are considered dead.
-class DeadCodeEliminationPass : public FunctionBasePass {
+class DeadCodeEliminationPass : public OptimizationFunctionBasePass {
  public:
   DeadCodeEliminationPass()
-      : FunctionBasePass("dce", "Dead Code Elimination") {}
+      : OptimizationFunctionBasePass("dce", "Dead Code Elimination") {}
   ~DeadCodeEliminationPass() override = default;
 
  protected:
   // Iterate all nodes, mark and eliminate the unvisited nodes.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

@@ -706,7 +706,7 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/interpreter:ir_interpreter",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
         "//xls/scheduling:pipeline_schedule",
         "//xls/simulation:module_simulator",
         "//xls/simulation:verilog_simulators",

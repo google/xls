@@ -25,6 +25,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,11 +40,13 @@ class IdentityRemovalPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    XLS_ASSIGN_OR_RETURN(bool changed,
-                         IdentityRemovalPass().Run(p, PassOptions(), &results));
+    XLS_ASSIGN_OR_RETURN(
+        bool changed,
+        IdentityRemovalPass().Run(p, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
-    XLS_RETURN_IF_ERROR(
-        DeadCodeEliminationPass().Run(p, PassOptions(), &results).status());
+    XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
+                            .Run(p, OptimizationPassOptions(), &results)
+                            .status());
     // Return whether cse changed anything.
     return changed;
   }

@@ -28,10 +28,13 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 namespace {
@@ -472,7 +475,8 @@ absl::StatusOr<bool> TryDistributeReducibleOperation(Node* node) {
 }  // namespace
 
 absl::StatusOr<bool> ConcatSimplificationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   // For optimizations which replace concats with other concats use a worklist
   // of unprocessed concats in the graphs. As new concats are created they are
   // added to the worklist.

@@ -32,14 +32,15 @@ namespace xls {
 //  - The increment between indices must be positive or negative 1.
 //  - There can be no "gaps" between indices.
 //  - The Select ops have to be binary (i.e., selecting between only two cases).
-class TableSwitchPass : public FunctionBasePass {
+class TableSwitchPass : public OptimizationFunctionBasePass {
  public:
   TableSwitchPass()
-      : FunctionBasePass("table_switch", "Table switch conversion") {}
+      : OptimizationFunctionBasePass("table_switch",
+                                     "Table switch conversion") {}
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

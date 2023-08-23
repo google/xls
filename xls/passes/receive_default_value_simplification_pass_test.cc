@@ -25,6 +25,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -39,7 +40,7 @@ class ReceiveDefaultValueSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          ReceiveDefaultValueSimplificationPass().RunOnProc(
-                             proc, PassOptions(), &results));
+                             proc, OptimizationPassOptions(), &results));
     return changed;
   }
 };

@@ -23,11 +23,11 @@ namespace xls {
 
 // A pass which reduces the width of operations eliminating redundant or unused
 // bits.
-class NarrowingPass : public FunctionBasePass {
+class NarrowingPass : public OptimizationFunctionBasePass {
  public:
   explicit NarrowingPass(bool use_range_analysis = true,
                          int64_t opt_level = kMaxOptLevel)
-      : FunctionBasePass("narrow", "Narrowing"),
+      : OptimizationFunctionBasePass("narrow", "Narrowing"),
         use_range_analysis_(use_range_analysis),
         opt_level_(opt_level) {}
   ~NarrowingPass() override = default;
@@ -36,7 +36,7 @@ class NarrowingPass : public FunctionBasePass {
   bool use_range_analysis_;
   int64_t opt_level_;
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

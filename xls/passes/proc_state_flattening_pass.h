@@ -25,14 +25,15 @@ namespace xls {
 // components. Array elements are left-unflattened. Flattening improves
 // optimizability because each state element can be considered and transformed
 // in isolation.
-class ProcStateFlatteningPass : public ProcPass {
+class ProcStateFlatteningPass : public OptimizationProcPass {
  public:
   ProcStateFlatteningPass()
-      : ProcPass("proc_state_flat", "Proc State Flattening") {}
+      : OptimizationProcPass("proc_state_flat", "Proc State Flattening") {}
   ~ProcStateFlatteningPass() override = default;
 
  protected:
-  absl::StatusOr<bool> RunOnProcInternal(Proc* proc, const PassOptions& options,
+  absl::StatusOr<bool> RunOnProcInternal(Proc* proc,
+                                         const OptimizationPassOptions& options,
                                          PassResults* results) const override;
 };
 

@@ -43,7 +43,7 @@ cc_library(
         "//xls/jit:function_jit",
         "//xls/jit:jit_proc_runtime",
         "//xls/jit:jit_runtime",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
     ],
 )
 

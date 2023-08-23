@@ -36,7 +36,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/value_test_util.h"
 #include "xls/ir/verifier.h"
-#include "xls/passes/standard_pipeline.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 #include "xls/simulation/module_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
@@ -267,7 +267,7 @@ void IrTestBase::RunAndExpectEq(
 
   if (run_optimized) {
     // Run main pipeline.
-    XLS_ASSERT_OK(RunStandardPassPipeline(package.get()));
+    XLS_ASSERT_OK(RunOptimizationPassPipeline(package.get()));
 
     // Run interpreter on optimized IR.
     {

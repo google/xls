@@ -27,6 +27,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/constant_folding_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -44,14 +45,16 @@ class ArraySimplificationPassTest : public IrTestBase {
     while (changed_this_iteration) {
       XLS_ASSIGN_OR_RETURN(changed_this_iteration,
                            ArraySimplificationPass().RunOnFunctionBase(
-                               f, PassOptions(), &results));
+                               f, OptimizationPassOptions(), &results));
       // Run dce and constant folding to clean things up.
-      XLS_RETURN_IF_ERROR(ConstantFoldingPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
-      XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
+      XLS_RETURN_IF_ERROR(
+          ConstantFoldingPass()
+              .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+              .status());
+      XLS_RETURN_IF_ERROR(
+          DeadCodeEliminationPass()
+              .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+              .status());
       changed = changed || changed_this_iteration;
     }
 

@@ -24,14 +24,18 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/transitive_closure.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 #include "xls/passes/token_provenance_analysis.h"
 
 namespace xls {
 
 absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   using NodeRelation = absl::flat_hash_map<Node*, absl::flat_hash_set<Node*>>;
 
   auto relation_to_string = [](const NodeRelation& relation) {

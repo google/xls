@@ -32,6 +32,8 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
+#include "xls/passes/optimization_pass.h"
+#include "xls/passes/pass_base.h"
 
 namespace xls {
 
@@ -447,7 +449,8 @@ absl::StatusOr<bool> Reassociate(FunctionBase* f) {
 }  // namespace
 
 absl::StatusOr<bool> ReassociationPass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+    FunctionBase* f, const OptimizationPassOptions& options,
+    PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(bool reassoc_subtracts_changed, ReassociateSubtracts(f));
   XLS_ASSIGN_OR_RETURN(bool reassoc_changed, Reassociate(f));
   return reassoc_subtracts_changed || reassoc_changed;

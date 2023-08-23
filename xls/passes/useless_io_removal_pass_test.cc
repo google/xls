@@ -26,6 +26,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -40,12 +41,14 @@ class UselessIORemovalPassTest : public IrTestBase {
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(
-        bool changed, UselessIORemovalPass().Run(p, PassOptions(), &results));
+        bool changed,
+        UselessIORemovalPass().Run(p, OptimizationPassOptions(), &results));
     // Run dce to clean things up.
     for (FunctionBase* f : p->GetFunctionBases()) {
-      XLS_RETURN_IF_ERROR(DeadCodeEliminationPass()
-                              .RunOnFunctionBase(f, PassOptions(), &results)
-                              .status());
+      XLS_RETURN_IF_ERROR(
+          DeadCodeEliminationPass()
+              .RunOnFunctionBase(f, OptimizationPassOptions(), &results)
+              .status());
     }
     // Return whether useless IO removal changed anything.
     return changed;

@@ -104,10 +104,10 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f);
 
 // Pass which merges together nodes that are determined to be mutually exclusive
 // via SMT solver analysis.
-class MutualExclusionPass : public SchedulingFunctionBasePass {
+class MutualExclusionPass : public SchedulingOptimizationFunctionBasePass {
  public:
   MutualExclusionPass()
-      : SchedulingFunctionBasePass(
+      : SchedulingOptimizationFunctionBasePass(
             "mutual_exclusion",
             "Merge mutually exclusively used nodes using SMT solver") {}
   ~MutualExclusionPass() override = default;

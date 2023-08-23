@@ -29,6 +29,7 @@
 #include "xls/ir/package.h"
 #include "xls/passes/bdd_cse_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -43,7 +44,7 @@ class BddSimplificationPassTest : public IrTestBase {
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          BddSimplificationPass(opt_level).RunOnFunctionBase(
-                             f, PassOptions(), &results));
+                             f, OptimizationPassOptions(), &results));
     return changed;
   }
 };

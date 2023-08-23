@@ -25,16 +25,16 @@ namespace xls {
 // elimination that removes cases from selects when range analysis proves that
 // they can never occur. It does this by splitting a select into many selects,
 // each of which covers a single interval from the selector interval set.
-class SparsifySelectPass : public FunctionBasePass {
+class SparsifySelectPass : public OptimizationFunctionBasePass {
  public:
   SparsifySelectPass()
-      : FunctionBasePass("sparsify_select", "Sparsify Select") {}
+      : OptimizationFunctionBasePass("sparsify_select", "Sparsify Select") {}
   ~SparsifySelectPass() override = default;
 
  protected:
   // Sparsify selects using range analysis.
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
-      FunctionBase* f, const PassOptions& options,
+      FunctionBase* f, const OptimizationPassOptions& options,
       PassResults* results) const override;
 };
 

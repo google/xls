@@ -42,8 +42,8 @@
 #include "xls/ir/value.h"
 #include "xls/ir/verifier.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
-#include "xls/passes/standard_pipeline.h"
 
 namespace xls {
 namespace {
@@ -56,13 +56,14 @@ using ::testing::Eq;
 using ::testing::HasSubstr;
 using ::testing::Optional;
 
-Pass* StandardPipelinePass() {
-  static Pass* singleton = CreateStandardPassPipeline(3).release();
+OptimizationPass* StandardPipelinePass() {
+  static OptimizationPass* singleton =
+      CreateOptimizationPassPipeline(3).release();
   return singleton;
 }
 
-Pass* ChannelLegalizationPassOnly() {
-  static Pass* singleton = new ChannelLegalizationPass();
+OptimizationPass* ChannelLegalizationPassOnly() {
+  static OptimizationPass* singleton = new ChannelLegalizationPass();
   return singleton;
 }
 
@@ -113,7 +114,7 @@ class ChannelLegalizationPassTest
  protected:
   absl::StatusOr<bool> Run(Package* package) {
     PassVariant pass_variant = std::get<1>(GetParam());
-    Pass* pass;
+    OptimizationPass* pass;
     switch (pass_variant) {
       case PassVariant::RunStandardPipelineNoInlineProcs:
       case PassVariant::RunStandardPipelineInlineProcs: {
@@ -126,7 +127,7 @@ class ChannelLegalizationPassTest
       }
     }
 
-    PassOptions options;
+    OptimizationPassOptions options;
     options.inline_procs = PassVariantInlinesProcs(pass_variant);
     PassResults results;
     return pass->Run(package, options, &results);

@@ -67,10 +67,10 @@
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/optimization_pass.h"
+#include "xls/passes/optimization_pass_pipeline.h"
 #include "xls/passes/pass_base.h"
 #include "xls/passes/proc_state_flattening_pass.h"
 #include "xls/passes/proc_state_optimization_pass.h"
-#include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 
@@ -558,7 +558,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 absl::StatusOr<SimplificationResult> RunRandomPass(
     FunctionBase* f, std::mt19937* rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
-  std::vector<std::unique_ptr<Pass>> passes;
+  std::vector<std::unique_ptr<OptimizationPass>> passes;
   passes.push_back(std::make_unique<ArithSimplificationPass>());
   passes.push_back(std::make_unique<ArraySimplificationPass>());
   passes.push_back(std::make_unique<BitSliceSimplificationPass>());
@@ -573,9 +573,9 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 
   int64_t pass_no = absl::Uniform<int64_t>(*rng, 0, passes.size());
   PassResults results;
-  XLS_ASSIGN_OR_RETURN(
-      bool changed,
-      passes.at(pass_no)->Run(f->package(), PassOptions(), &results));
+  XLS_ASSIGN_OR_RETURN(bool changed,
+                       passes.at(pass_no)->Run(
+                           f->package(), OptimizationPassOptions(), &results));
   if (changed) {
     *which_transform = passes.at(pass_no)->short_name();
     return SimplificationResult::kDidChange;
@@ -733,7 +733,8 @@ absl::StatusOr<SimplificationResult> Simplify(
   if (absl::GetFlag(FLAGS_use_optimization_pipeline) &&
       Random0To1(rng) < 0.05) {
     // Try to run the sample through the entire optimization pipeline.
-    XLS_ASSIGN_OR_RETURN(bool changed, RunStandardPassPipeline(f->package()));
+    XLS_ASSIGN_OR_RETURN(bool changed,
+                         RunOptimizationPassPipeline(f->package()));
     if (changed) {
       *which_transform = "Optimization pipeline";
       return SimplificationResult::kDidChange;
@@ -777,11 +778,12 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   DeadFunctionEliminationPass dfe;
   PassResults results;
   XLS_RETURN_IF_ERROR(
-      dce.RunOnFunctionBase(f, PassOptions(), &results).status());
+      dce.RunOnFunctionBase(f, OptimizationPassOptions(), &results).status());
   if (can_remove_params) {
     XLS_RETURN_IF_ERROR(RemoveDeadParameters(f).status());
   }
-  XLS_RETURN_IF_ERROR(dfe.Run(f->package(), PassOptions(), &results).status());
+  XLS_RETURN_IF_ERROR(
+      dfe.Run(f->package(), OptimizationPassOptions(), &results).status());
   return absl::OkStatus();
 }
 

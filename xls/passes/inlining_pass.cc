@@ -27,6 +27,7 @@
 #include "xls/ir/call_graph.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
+#include "xls/passes/optimization_pass.h"
 
 namespace xls {
 namespace {
@@ -186,9 +187,9 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
 
 }  // namespace
 
-absl::StatusOr<bool> InliningPass::RunInternal(Package* p,
-                                               const PassOptions& options,
-                                               PassResults* results) const {
+absl::StatusOr<bool> InliningPass::RunInternal(
+    Package* p, const OptimizationPassOptions& options,
+    PassResults* results) const {
   bool changed = false;
   // Inline all the invokes of each function where functions are processed in a
   // post order of the call graph (leaves first). This ensures that when a

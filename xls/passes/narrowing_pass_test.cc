@@ -24,6 +24,7 @@
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace m = ::xls::op_matchers;
@@ -42,7 +43,7 @@ class NarrowingPassTest : public IrTestBase,
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    PassOptions options;
+    OptimizationPassOptions options;
     options.convert_array_index_to_select = 2;
     return NarrowingPass(/*use_range_analysis=*/GetParam())
         .Run(p, options, &results);

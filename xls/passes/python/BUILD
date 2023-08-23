@@ -20,25 +20,25 @@ package(
 )
 
 xls_pybind_extension(
-    name = "standard_pipeline",
-    srcs = ["standard_pipeline.cc"],
+    name = "optimization_pass_pipeline",
+    srcs = ["optimization_pass_pipeline.cc"],
     py_deps = [
         "//xls/ir/python:package",  # build_cleaner: keep
     ],
     deps = [
         "//xls/common/status:import_status_module",
         "//xls/ir/python:wrapper_types",
-        "//xls/passes:standard_pipeline",
+        "//xls/passes:optimization_pass_pipeline",
         "@pybind11_abseil//pybind11_abseil:statusor_caster",
     ],
 )
 
 py_test(
-    name = "standard_pipeline_test",
-    srcs = ["standard_pipeline_test.py"],
+    name = "optimization_pass_pipeline_test",
+    srcs = ["optimization_pass_pipeline_test.py"],
     python_version = "PY3",
     deps = [
-        ":standard_pipeline",
+        ":optimization_pass_pipeline",
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common/python:init_xls",
         "//xls/ir/python:bits",
