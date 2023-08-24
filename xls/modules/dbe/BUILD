@@ -137,6 +137,9 @@ xls_ir_opt_ir(
     name = "dbe_lz4_encoder_8k_opt_ir",
     src = "dbe_lz4_encoder_8k_ir.ir",
     top = "__lz4_encoder__encoder_8k__encoder_base_0__16_3_13_12_13_65536_8192_4_16_8_next",
+    ram_rewrites = [
+        ":lz4_encoder_8k_ram1r1w_rewrites.textproto",
+    ],
 )
 
 xls_ir_verilog(
@@ -151,5 +154,19 @@ xls_ir_verilog(
         "reset": "rst",
         "use_system_verilog": "false",
         "streaming_channel_data_suffix": "_data",
+        "ram_configurations": ",".join([
+            "ram_hb:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
+                rd_req = "ram_hb_read_req",
+                rd_resp = "ram_hb_read_resp",
+                wr_req = "ram_hb_write_req",
+                wr_comp = "ram_hb_write_completion",
+            ),
+            "ram_ht:1R1W:{rd_req}:{rd_resp}:{wr_req}:{wr_comp}".format(
+                rd_req = "ram_ht_read_req",
+                rd_resp = "ram_ht_read_resp",
+                wr_req = "ram_ht_write_req",
+                wr_comp = "ram_ht_write_completion",
+            ),
+        ]),
     },
 )

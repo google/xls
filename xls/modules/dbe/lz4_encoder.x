@@ -20,8 +20,10 @@ type Mark = dbe::Mark;
 type TokenKind = dbe::TokenKind;
 type Token = dbe::Token;
 type PlainData = dbe::PlainData;
-type RamReq = ram::SinglePortRamReq;
-type RamResp = ram::SinglePortRamResp;
+type AbstractRamWriteReq = ram::WriteReq;
+type AbstractRamWriteResp = ram::WriteResp;
+type AbstractRamReadReq = ram::ReadReq;
+type AbstractRamReadResp = ram::ReadResp;
 
 
 fn fifo_shift_left<FIFO_SIZE: u32, DATA_WIDTH: u32>(
@@ -44,32 +46,6 @@ fn fifo_shift_right<FIFO_SIZE: u32, DATA_WIDTH: u32>(
     } (uN[DATA_WIDTH][FIFO_SIZE]: [0, ...]);
     let fifo = update(fifo, u32:0, data);
     fifo
-}
-
-fn RamWriteReq<NUM_PARTITIONS: u32, ADDR_WIDTH: u32, DATA_WIDTH: u32>
-    (addr:uN[ADDR_WIDTH], data:uN[DATA_WIDTH])
-    -> RamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS> {
-    RamReq {
-        addr:addr,
-        data:data,
-        write_mask: (),
-        read_mask: (),
-        we: true,
-        re: false,
-    }
-}
-
-fn RamReadReq<DATA_WIDTH: u32, NUM_PARTITIONS: u32, ADDR_WIDTH: u32>
-    (addr:uN[ADDR_WIDTH])
-    -> RamReq<ADDR_WIDTH, DATA_WIDTH, NUM_PARTITIONS> {
-    RamReq {
-        addr:addr,
-        data:uN[DATA_WIDTH]:0,
-        write_mask: (),
-        read_mask: (),
-        we: false,
-        re: true,
-    }
 }
 
 enum FsmSt: u4 {
@@ -136,20 +112,22 @@ pub proc encoder_base<
         FIFO_IN_SZ: u32 = {std::umax(MINMATCH, FINAL_LITERALS + u32:1)},
         HB_RAM_SZ: u32 = {u32:1 << PTR_WIDTH},
         HT_RAM_SZ: u32 = {u32:1 << HASH_BITS}> {
-    i_data: chan<PlainData<SYM_WIDTH>> in;
-    o_encoded: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out;
+    plain_data: chan<PlainData<SYM_WIDTH>> in;
+    encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out;
 
     /// History buffer RAM
     /// Size: (1<<PTR_WIDTH) x SYM_WIDTH
-    o_ram_hb_req: chan<RamReq<PTR_WIDTH, SYM_WIDTH, 1>> out;
-    i_ram_hb_resp: chan<RamResp<SYM_WIDTH>> in;
-    i_ram_hb_wr_comp: chan<()> in;
+    ram_hb_rd_req: chan<AbstractRamReadReq<PTR_WIDTH, 1>> out;
+    ram_hb_rd_resp: chan<AbstractRamReadResp<SYM_WIDTH>> in;
+    ram_hb_wr_req: chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>> out;
+    ram_hb_wr_comp: chan<AbstractRamWriteResp> in;
 
     /// Hash table RAM
     /// Size: (1<<HASH_BITS) x PTR_WIDTH
-    o_ram_ht_req: chan<RamReq<HASH_BITS, PTR_WIDTH, 1>> out;
-    i_ram_ht_resp: chan<RamResp<PTR_WIDTH>> in;
-    i_ram_ht_wr_comp: chan<()> in;
+    ram_ht_rd_req: chan<AbstractRamReadReq<HASH_BITS, 1>> out;
+    ram_ht_rd_resp: chan<AbstractRamReadResp<PTR_WIDTH>> in;
+    ram_ht_wr_req: chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>> out;
+    ram_ht_wr_comp: chan<AbstractRamWriteResp> in;
 
     init {
         init_state<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS,
@@ -158,30 +136,35 @@ pub proc encoder_base<
 
     config (
         // Data in, tokens out
-        i_data: chan<PlainData<SYM_WIDTH>> in,
-        o_encoded: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
+        plain_data: chan<PlainData<SYM_WIDTH>> in,
+        encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
         // RAM
-        o_ram_hb_req: chan<RamReq<PTR_WIDTH, SYM_WIDTH, 1>> out,
-        i_ram_hb_resp: chan<RamResp<SYM_WIDTH>> in,
-        i_ram_hb_wr_comp: chan<()> in,
-        o_ram_ht_req: chan<RamReq<HASH_BITS, PTR_WIDTH, 1>> out,
-        i_ram_ht_resp: chan<RamResp<PTR_WIDTH>> in,
-        i_ram_ht_wr_comp: chan<()> in,
+        ram_hb_rd_req: chan<AbstractRamReadReq<PTR_WIDTH, 1>> out,
+        ram_hb_rd_resp: chan<AbstractRamReadResp<SYM_WIDTH>> in,
+        ram_hb_wr_req: chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>> out,
+        ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
+        ram_ht_rd_req: chan<AbstractRamReadReq<HASH_BITS, 1>> out,
+        ram_ht_rd_resp: chan<AbstractRamReadResp<PTR_WIDTH>> in,
+        ram_ht_wr_req: chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>> out,
+        ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
         (
-            i_data, o_encoded,
-            o_ram_hb_req, i_ram_hb_resp, i_ram_hb_wr_comp,
-            o_ram_ht_req, i_ram_ht_resp, i_ram_ht_wr_comp,
+            plain_data, encoded_data,
+            ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
+            ram_ht_rd_req, ram_ht_rd_resp, ram_ht_wr_req, ram_ht_wr_comp,
         )
     }
 
     next (tok: token, cur: State) {
         type EncToken = Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>;
         type EncData = PlainData<SYM_WIDTH>;
-        type EncHbRamReq = RamReq<PTR_WIDTH, SYM_WIDTH, 1>;
-        type EncHbRamResp = RamResp<SYM_WIDTH>;
-        type EncHtRamReq = RamReq<HASH_BITS, PTR_WIDTH, 1>;
-        type EncHtRamResp = RamResp<PTR_WIDTH>;
+        type HbRamReadReq = AbstractRamReadReq<PTR_WIDTH, 1>;
+        type HbRamReadResp = AbstractRamReadResp<SYM_WIDTH>;
+        type HbRamWriteReq = AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>;
+        type HtRamReadReq = AbstractRamReadReq<HASH_BITS, 1>;
+        type HtRamReadResp = AbstractRamReadResp<PTR_WIDTH>;
+        type HtRamWriteReq = AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>;
+
         let upd = cur;
 
         // Read new symbol from input
@@ -193,7 +176,7 @@ pub proc encoder_base<
         );
 
         // I_DATA RECV
-        let (tok, rx) = recv_if(tok, i_data, do_recv,
+        let (tok, rx) = recv_if(tok, plain_data, do_recv,
             zero!<EncData>());
 
         // Classify input markers
@@ -280,26 +263,32 @@ pub proc encoder_base<
         // NOTE: HT RAM, HB RAM accesses and o_token emission all happen
         // in parallel.
 
-        // Access HT RAM
-        let (ht_vld, ht_req) = if cur.fsm == FsmSt::START_MATCH_0 {
-            (true, RamReadReq<PTR_WIDTH, u32:1>(hsh))
-        } else if cur.fsm == FsmSt::START_MATCH_1 {
-            (true, RamWriteReq<u32:1>(hsh, op))
-        } else if cur.fsm == FsmSt::HASH_TABLE_CLEAR {
-            (true, RamWriteReq<u32:1>(upd.ht_ptr, uN[PTR_WIDTH]:0))
+        // Read HT RAM
+        let (ht_rd_vld, ht_rd_req) = if cur.fsm == FsmSt::START_MATCH_0 {
+            (true, ram::ReadWordReq<u32:1>(hsh))
         } else {
-            (false, zero!<EncHtRamReq>())
+            (false, zero!<HtRamReadReq>())
         };
-        let tok_ht = send_if(tok, o_ram_ht_req, ht_vld, ht_req);
-        let (tok_ht, ht_resp) = recv_if(tok_ht, i_ram_ht_resp, ht_vld && ht_req.re,
-            zero!<EncHtRamResp>());
-        let (tok_ht, _) = recv_if(tok_ht, i_ram_ht_wr_comp, ht_vld && ht_req.we,
-            ());
+        let tok_ht = send_if(tok, ram_ht_rd_req, ht_rd_vld, ht_rd_req);
+        let (tok_ht, ht_rd_resp) = recv_if(tok_ht, ram_ht_rd_resp, ht_rd_vld,
+            zero!<HtRamReadResp>());
+
+        // Write HT RAM
+        let (ht_wr_vld, ht_wr_req) = if cur.fsm == FsmSt::START_MATCH_1 {
+            (true, ram::WriteWordReq<u32:1>(hsh, op))
+        } else if cur.fsm == FsmSt::HASH_TABLE_CLEAR {
+            (true, ram::WriteWordReq<u32:1>(upd.ht_ptr, uN[PTR_WIDTH]:0))
+        } else {
+            (false, zero!<HtRamWriteReq>())
+        };
+        let tok_ht = send_if(tok, ram_ht_wr_req, ht_wr_vld, ht_wr_req);
+        let (tok_ht, _) = recv_if(tok_ht, ram_ht_wr_comp, ht_wr_vld,
+            zero!<AbstractRamWriteResp>());
 
         // Update match pointers & HT ptr used to clean hash table
         let upd = if cur.fsm == FsmSt::START_MATCH_0 {
             State {
-                pold: ht_resp.data,
+                pold: ht_rd_resp.data,
                 pnew: op,
                 ..upd
             }
@@ -340,23 +329,30 @@ pub proc encoder_base<
             upd.hb_all_valid
             || (mchk_pos >= uN[PTR_WIDTH]:1 && mchk_pos < upd.wp);
 
-        // Access HB RAM
-        let (hb_vld, hb_req) = if rx_symbol && cur.fsm != FsmSt::ERROR {
-            (true, RamWriteReq<u32:1>(upd.wp, rx.data))
-        } else if mchk_do && mchk_is_hb_written {
-            (true, RamReadReq<SYM_WIDTH, u32:1>(mchk_pos))
+
+        // Read HB RAM
+        let (hb_rd_vld, hb_rd_req) = if mchk_do && mchk_is_hb_written {
+            (true, ram::ReadWordReq<u32:1>(mchk_pos))
         } else {
-            (false, zero!<EncHbRamReq>())
+            (false, zero!<HbRamReadReq>())
         };
-        let tok_hb = send_if(tok, o_ram_hb_req, hb_vld, hb_req);
-        let (tok_hb, hb_resp) = recv_if(tok_hb, i_ram_hb_resp, hb_vld && hb_req.re,
-            zero!<EncHbRamResp>());
-        let (tok_hb, _) = recv_if(tok_hb, i_ram_hb_wr_comp, hb_vld && hb_req.we,
-            ());
+        let tok_hb = send_if(tok, ram_hb_rd_req, hb_rd_vld, hb_rd_req);
+        let (tok_hb, hb_rd_resp) = recv_if(tok_hb, ram_hb_rd_resp, hb_rd_vld,
+            zero!<HbRamReadResp>());
+
+        // Write HB RAM
+        let (hb_wr_vld, hb_wr_req) = if rx_symbol && cur.fsm != FsmSt::ERROR {
+            (true, ram::WriteWordReq<u32:1>(upd.wp, rx.data))
+        } else {
+            (false, zero!<HbRamWriteReq>())
+        };
+        let tok_hb = send_if(tok, ram_hb_wr_req, hb_wr_vld, hb_wr_req);
+        let (tok_hb, _) = recv_if(tok_hb, ram_hb_wr_comp, hb_wr_vld,
+            zero!<AbstractRamWriteResp>());
 
         // Actually check for a match
         let is_match = if mchk_do {
-            let sym = hb_resp.data;
+            let sym = hb_rd_resp.data;
             // For match to happen, following criteria have to be met:
             // 1. pos should not point to an unwritten HB entry
             //    (see `mchk_is_hb_written` above)
@@ -476,7 +472,7 @@ pub proc encoder_base<
         } else {
             (false, zero_tok)
         };
-        let tok_out = send_if(tok, o_encoded, do_emit, encoded_tok);
+        let tok_out = send_if(tok, encoded_data, do_emit, encoded_tok);
 
         // Handle state re-initialization
         let upd = if cur.fsm == FsmSt::RESET {
@@ -637,35 +633,39 @@ pub proc encoder_base_modelram
     init{()}
 
     config (
-        i_data: chan<PlainData<SYM_WIDTH>> in,
-        o_encoded: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
+        plain_data: chan<PlainData<SYM_WIDTH>> in,
+        encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
     ) {
-        let (o_hb_req, i_hb_req) =
-            chan<RamReq<PTR_WIDTH, SYM_WIDTH, 1>>;
-        let (o_hb_resp, i_hb_resp) =
-            chan<RamResp<SYM_WIDTH>>;
-        let (o_hb_wr_comp, i_hb_wr_comp) =
-            chan<()>;
-        let (o_ht_req, i_ht_req) =
-            chan<RamReq<HASH_BITS, PTR_WIDTH, 1>>;
-        let (o_ht_resp, i_ht_resp) =
-            chan<RamResp<PTR_WIDTH>>;
-        let (o_ht_wr_comp, i_ht_wr_comp) =
-            chan<()>;
+        let (hb_rd_req_s, hb_rd_req_r) =
+            chan<AbstractRamReadReq<PTR_WIDTH, 1>>;
+        let (hb_rd_resp_s, hb_rd_resp_r) =
+            chan<AbstractRamReadResp<SYM_WIDTH>>;
+        let (hb_wr_req_s, hb_wr_req_r) =
+            chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>>;
+        let (hb_wr_comp_s, hb_wr_comp_r) =
+            chan<AbstractRamWriteResp>;
+        let (ht_rd_req_s, ht_rd_req_r) =
+            chan<AbstractRamReadReq<HASH_BITS, 1>>;
+        let (ht_rd_resp_s, ht_rd_resp_r) =
+            chan<AbstractRamReadResp<PTR_WIDTH>>;
+        let (ht_wr_req_s, ht_wr_req_r) =
+            chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>>;
+        let (ht_wr_comp_s, ht_wr_comp_r) =
+            chan<AbstractRamWriteResp>;
 
-        spawn ram::SinglePortRamModel
+        spawn ram::RamModel
             <SYM_WIDTH, {u32:1<<PTR_WIDTH}, SYM_WIDTH>
-            (i_hb_req, o_hb_resp, o_hb_wr_comp);
-        spawn ram::SinglePortRamModel
+            (hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
+        spawn ram::RamModel
             <PTR_WIDTH, {u32:1<<HASH_BITS}, PTR_WIDTH>
-            (i_ht_req, o_ht_resp, o_ht_wr_comp);
+            (ht_rd_req_r, ht_rd_resp_s, ht_wr_req_r, ht_wr_comp_s);
 
         spawn encoder_base
             <SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS>
             (
-                i_data, o_encoded,
-                o_hb_req, i_hb_resp, i_hb_wr_comp,
-                o_ht_req, i_ht_resp, i_ht_wr_comp,
+                plain_data, encoded_data,
+                hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
+                ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_comp_r,
             );
     }
 
@@ -675,38 +675,34 @@ pub proc encoder_base_modelram
 
 /// LZ4 encoder with 8K hash table
 
-const LZ4C_SYM_WIDTH = u32:8;
-const LZ4C_PTR_WIDTH = u32:16;
-const LZ4C_CNT_WIDTH = u32:16;
-const LZ4C_HASH_BITS_8K = u32:13;
+const LZ4_SYM_WIDTH = u32:8;
+const LZ4_PTR_WIDTH = u32:16;
+const LZ4_CNT_WIDTH = u32:16;
+const LZ4_HASH_BITS_8K = u32:13;
 
 pub proc encoder_8k {
     init{()}
 
     config (
-        i_data:
-            chan<PlainData<LZ4C_SYM_WIDTH>> in,
-        o_encoded:
-            chan<Token<LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>> out,
-        o_ram_hb_req:
-            chan<RamReq<LZ4C_PTR_WIDTH, LZ4C_SYM_WIDTH, 1>> out,
-        i_ram_hb_resp:
-            chan<RamResp<LZ4C_SYM_WIDTH>> in,
-        i_ram_hb_wr_comp:
-            chan<()> in,
-        o_ram_ht_req:
-            chan<RamReq<LZ4C_HASH_BITS_8K, LZ4C_PTR_WIDTH, 1>> out,
-        i_ram_ht_resp:
-            chan<RamResp<LZ4C_PTR_WIDTH>> in,
-        i_ram_ht_wr_comp:
-            chan<()> in,
+        plain_data:
+            chan<PlainData<LZ4_SYM_WIDTH>> in,
+        encoded_data:
+            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>> out,
+        ram_hb_rd_req: chan<AbstractRamReadReq<LZ4_PTR_WIDTH, 1>> out,
+        ram_hb_rd_resp: chan<AbstractRamReadResp<LZ4_SYM_WIDTH>> in,
+        ram_hb_wr_req: chan<AbstractRamWriteReq<LZ4_PTR_WIDTH, LZ4_SYM_WIDTH, 1>> out,
+        ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
+        ram_ht_rd_req: chan<AbstractRamReadReq<LZ4_HASH_BITS_8K, 1>> out,
+        ram_ht_rd_resp: chan<AbstractRamReadResp<LZ4_PTR_WIDTH>> in,
+        ram_ht_wr_req: chan<AbstractRamWriteReq<LZ4_HASH_BITS_8K, LZ4_PTR_WIDTH, 1>> out,
+        ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
         spawn encoder_base
-            <LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH, LZ4C_HASH_BITS_8K>
+            <LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH, LZ4_HASH_BITS_8K>
             (
-                i_data, o_encoded,
-                o_ram_hb_req, i_ram_hb_resp, i_ram_hb_wr_comp,
-                o_ram_ht_req, i_ram_ht_resp, i_ram_ht_wr_comp,
+                plain_data, encoded_data,
+                ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
+                ram_ht_rd_req, ram_ht_rd_resp, ram_ht_wr_req, ram_ht_wr_comp,
             );
     }
 
@@ -720,14 +716,14 @@ pub proc encoder_8k_modelram {
     init{()}
 
     config (
-        i_data:
-            chan<PlainData<LZ4C_SYM_WIDTH>> in,
-        o_encoded:
-            chan<Token<LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>> out,
+        plain_data:
+            chan<PlainData<LZ4_SYM_WIDTH>> in,
+        encoded_data:
+            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>> out,
     ) {
         spawn encoder_base_modelram
-            <LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH, LZ4C_HASH_BITS_8K>
-            (i_data, o_encoded);
+            <LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH, LZ4_HASH_BITS_8K>
+            (plain_data, encoded_data);
     }
 
     next (tok: token, state: ()) {
@@ -768,7 +764,7 @@ const TST_SYMS = PlainData<8>[TST_SYMS_LEN]: [
 
 const TST_TOKS_LEN = u32:16;
 const TST_TOKS =
-Token<LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>[TST_TOKS_LEN]: [
+Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>[TST_TOKS_LEN]: [
     Token{kind: TokenKind::LITERAL, literal: u8:1, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
     Token{kind: TokenKind::LITERAL, literal: u8:2, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
     Token{kind: TokenKind::COPY_POINTER, literal: u8:0, copy_pointer_offset: u16:1, copy_pointer_count: u16:3, mark: Mark::NONE},
@@ -790,35 +786,33 @@ Token<LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>[TST_TOKS_LEN]: [
 
 #[test_proc]
 proc test_encoder_8k_simple {
-    o_term: chan<bool> out;
-    i_recv_term: chan<bool> in;
+    term: chan<bool> out;
+    recv_term_r: chan<bool> in;
 
     init {()}
 
-    config(o_term: chan<bool> out) {
-        let (o_send_data, i_send_data) =
-            chan<PlainData<LZ4C_SYM_WIDTH>>;
+    config(term: chan<bool> out) {
+        let (send_data_s, send_data_r) =
+            chan<PlainData<LZ4_SYM_WIDTH>>;
         let (enc_toks_s, enc_toks_r) =
-            chan<Token<LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>>;
-        let (o_recv_term, i_recv_term) =
+            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>>;
+        let (recv_term_s, recv_term_r) =
             chan<bool>;
 
-        spawn test::data_sender<TST_SYMS_LEN, LZ4C_SYM_WIDTH>
-            (TST_SYMS, o_send_data);
+        spawn test::data_sender<TST_SYMS_LEN, LZ4_SYM_WIDTH>
+            (TST_SYMS, send_data_s);
         spawn encoder_8k_modelram(
-            i_send_data, enc_toks_s,
+            send_data_r, enc_toks_s,
         );
         spawn test::token_validator
-            <TST_TOKS_LEN, LZ4C_SYM_WIDTH, LZ4C_PTR_WIDTH, LZ4C_CNT_WIDTH>
-            (TST_TOKS, enc_toks_r, o_recv_term);
+            <TST_TOKS_LEN, LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>
+            (TST_TOKS, enc_toks_r, recv_term_s);
 
-        (o_term, i_recv_term)
+        (term, recv_term_r)
     }
 
     next (tok: token, state: ()) {
-        // Here, test::token_validator validates the data received from encoder
-        // We only forward its o_term to our o_term
-        let (tok, recv_term) = recv(tok, i_recv_term);
-        send(tok, o_term, recv_term);
+        let (tok, recv_term) = recv(tok, recv_term_r);
+        send(tok, term, recv_term);
     }
 }
