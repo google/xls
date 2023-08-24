@@ -30,8 +30,9 @@ absl::StatusOr<bool> BlockMetricsGenerationPass::RunInternal(
         "signature generation.");
   }
 
-  XLS_ASSIGN_OR_RETURN(BlockMetricsProto block_metrics,
-                       GenerateBlockMetrics(unit->block));
+  XLS_ASSIGN_OR_RETURN(
+      BlockMetricsProto block_metrics,
+      GenerateBlockMetrics(unit->block, options.delay_estimator));
   XLS_RETURN_IF_ERROR(unit->signature->ReplaceBlockMetrics(block_metrics));
 
   return true;

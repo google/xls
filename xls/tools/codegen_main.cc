@@ -268,8 +268,9 @@ absl::Status RealMain(std::string_view ir_path) {
                           main()->package()->DumpIr()));
     }
 
-    XLS_ASSIGN_OR_RETURN(result, verilog::ToPipelineModuleText(
-                                     schedule, main(), codegen_options));
+    XLS_ASSIGN_OR_RETURN(
+        result, verilog::ToPipelineModuleText(schedule, main(), codegen_options,
+                                              &delay_estimator));
 
     if (!absl::GetFlag(FLAGS_output_schedule_path).empty()) {
       XLS_RETURN_IF_ERROR(
@@ -281,9 +282,15 @@ absl::Status RealMain(std::string_view ir_path) {
       XLS_RETURN_IF_ERROR(
           SetFileContents(absl::GetFlag(FLAGS_output_schedule_ir_path), ""));
     }
-
-    XLS_ASSIGN_OR_RETURN(
-        result, verilog::GenerateCombinationalModule(main(), codegen_options));
+    // Estimate combinational delays if the `delay_model` flag was provided).
+    const DelayEstimator* delay_estimator = nullptr;
+    XLS_ASSIGN_OR_RETURN(bool delay_model_flag_passed,
+                         IsDelayModelSpecifiedViaFlag());
+    if (delay_model_flag_passed) {
+      XLS_ASSIGN_OR_RETURN(delay_estimator, SetUpDelayEstimator());
+    }
+    XLS_ASSIGN_OR_RETURN(result, verilog::GenerateCombinationalModule(
+                                     main(), codegen_options, delay_estimator));
   } else {
     // Note: this should already be validated by CodegenFlagsFromAbslFlags().
     XLS_LOG(FATAL) << "Invalid generator kind: "

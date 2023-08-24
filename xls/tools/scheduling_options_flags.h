@@ -29,6 +29,7 @@ namespace xls {
 // skip some checks.
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p);
 absl::StatusOr<DelayEstimator*> SetUpDelayEstimator();
+absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag();
 absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer();
 
 }  // namespace xls

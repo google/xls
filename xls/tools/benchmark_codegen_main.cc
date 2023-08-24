@@ -110,7 +110,7 @@ absl::Status RealMain(std::string_view opt_ir_path,
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 
-  std::optional<DelayEstimator*> delay_estimator;
+  const DelayEstimator* delay_estimator = nullptr;
 
   if (absl::GetFlag(FLAGS_schedule)) {
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
@@ -119,7 +119,7 @@ absl::Status RealMain(std::string_view opt_ir_path,
                          SetUpDelayEstimator());
 
     XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
-        opt_package.get(), *delay_estimator.value(), scheduling_options));
+        opt_package.get(), *delay_estimator, scheduling_options));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));

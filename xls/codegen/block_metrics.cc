@@ -337,15 +337,14 @@ absl::Status GenerateBom(Block* block, BlockMetricsProto* proto) {
 }  // namespace
 
 absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
-    Block* block, std::optional<const DelayEstimator*> delay_estimator) {
+    Block* block, const DelayEstimator* delay_estimator) {
   BlockMetricsProto proto;
   proto.set_flop_count(GenerateFlopCount(block));
   proto.set_feedthrough_path_exists(HasFeedthroughPass(block));
 
-  if (delay_estimator.has_value()) {
-    proto.set_delay_model(delay_estimator.value()->name());
-    XLS_RETURN_IF_ERROR(
-        SetDelayFields(block, *delay_estimator.value(), &proto));
+  if (delay_estimator != nullptr) {
+    proto.set_delay_model(delay_estimator->name());
+    XLS_RETURN_IF_ERROR(SetDelayFields(block, *delay_estimator, &proto));
   }
 
   XLS_RETURN_IF_ERROR(GenerateBom(block, &proto));

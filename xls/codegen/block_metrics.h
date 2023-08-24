@@ -29,8 +29,7 @@ namespace xls::verilog {
 //
 // TODO(tedhong): 2022-01-28 Add a class around the proto.
 absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
-    Block* block,
-    std::optional<const DelayEstimator*> delay_estimator = std::nullopt);
+    Block* block, const DelayEstimator* delay_estimator = nullptr);
 
 }  // namespace xls::verilog
 

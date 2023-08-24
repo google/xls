@@ -316,6 +316,12 @@ absl::StatusOr<DelayEstimator*> SetUpDelayEstimator() {
   return GetDelayEstimator(proto.delay_model());
 }
 
+absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag() {
+  XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
+                       GetSchedulingOptionsFlagsProto());
+  return !proto.delay_model().empty();
+}
+
 absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
   XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
                        GetSchedulingOptionsFlagsProto());

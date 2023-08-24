@@ -28,20 +28,21 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/delay_model/delay_estimator.h"
 
 namespace xls {
 namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, Function* func,
-    const CodegenOptions& options) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   return ToPipelineModuleText(schedule, static_cast<FunctionBase*>(func),
-                              options);
+                              options, delay_estimator);
 }
 
 absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
     const PipelineSchedule& schedule, FunctionBase* module,
-    const CodegenOptions& options) {
+    const CodegenOptions& options, const DelayEstimator* delay_estimator) {
   XLS_VLOG(2) << "Generating pipelined module for module:";
   XLS_VLOG_LINES(2, module->DumpIr());
   XLS_VLOG_LINES(2, schedule.ToString());
@@ -49,6 +50,7 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   CodegenPassOptions pass_options;
   pass_options.codegen_options = options;
   pass_options.schedule = schedule;
+  pass_options.delay_estimator = delay_estimator;
 
   // Convert to block and add in pipe stages according to schedule.
   XLS_ASSIGN_OR_RETURN(CodegenPassUnit unit,
