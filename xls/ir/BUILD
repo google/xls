@@ -16,6 +16,7 @@
 # Description Language.
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_binary")
 
 # pytype library only
 load("@bazel_skylib//rules:build_test.bzl", "build_test")

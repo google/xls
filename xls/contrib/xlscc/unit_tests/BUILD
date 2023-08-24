@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@rules_python//python:defs.bzl", "py_test")
 load("//xls/contrib/xlscc/build_rules:cc_generator.bzl", "xls_int_fuzz_binaries")
 
 cc_library(
