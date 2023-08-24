@@ -1923,4 +1923,17 @@ TEST_F(ParserTest, UnreasonablyDeepExpr) {
       << module_or.status();
 }
 
+TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
+  constexpr std::string_view kProgram = "const A=4[5]:[";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or,
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Type before ':' for presumed array literal was not a "
+                         "type definition; got `4` (kind: number)")))
+      << module_or.status();
+}
+
 }  // namespace xls::dslx

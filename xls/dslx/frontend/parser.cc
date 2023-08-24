@@ -1632,7 +1632,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                                         lhs, std::move(args)));
         break;
       }
-      case TokenKind::kDot: {
+      case TokenKind::kDot: {  // Attribute or tuple index access.
         DropTokenOrDie();
         XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
         const Span span(new_pos, GetPos());
@@ -1651,8 +1651,9 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
         }
         break;
       }
-      case TokenKind::kOBrack: {
+      case TokenKind::kOBrack: {  // Indexing.
         DropTokenOrDie();
+
         XLS_ASSIGN_OR_RETURN(bool dropped_colon,
                              TryDropToken(TokenKind::kColon));
         if (dropped_colon) {  // Slice-from-beginning.
@@ -1660,6 +1661,9 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                                                   /*start=*/nullptr));
           break;
         }
+
+        // Index may be followed by a `:` for a slice, or a `+:` for a
+        // type-sized slice.
         XLS_ASSIGN_OR_RETURN(Expr * index, ParseExpression(outer_bindings));
         XLS_ASSIGN_OR_RETURN(peek, PeekToken());
         switch (peek->kind()) {
@@ -1680,20 +1684,34 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
                 lhs, ParseBitSlice(new_pos, lhs, outer_bindings, index));
             break;
           }
-          default:
+          default: {
             XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
 
             // It's either an Index if the LHS is a NameRef or
             // ColonRef-to-ConstantDef, or an Array if lhs is a
             // ColonRef-to-type.
-            Span span(new_pos, GetPos());
+            const Span span(new_pos, GetPos());
             XLS_ASSIGN_OR_RETURN(peek, PeekToken());
+            // Array type before literal, e.g. Foo[2]:[...]
+            //                  this colon ----------^
             if (peek->kind() == TokenKind::kColon) {
               DropTokenOrDie();
+              absl::StatusOr<TypeDefinition> type_definition_or =
+                  ToTypeDefinition(lhs);
+              if (!type_definition_or.ok()) {
+                const Span error_span(lhs->span().start(),
+                                      index->span().limit());
+                return ParseErrorStatus(
+                    error_span,
+                    absl::StrFormat(
+                        "Type before ':' for presumed array literal was not a "
+                        "type definition; got `%s` (kind: %v)",
+                        lhs->ToString(), lhs->kind()));
+              }
               // TODO(rspringer): We can't currently support parameterized
               // ColonRef-to-types with this function structure.
               auto* type_ref =
-                  module_->Make<TypeRef>(span, down_cast<ColonRef*>(lhs));
+                  module_->Make<TypeRef>(span, type_definition_or.value());
               auto* type_ref_type = module_->Make<TypeRefTypeAnnotation>(
                   span, type_ref, /*parametrics=*/std::vector<ExprOrType>());
               auto* array_type = module_->Make<ArrayTypeAnnotation>(
@@ -1705,6 +1723,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings& outer_bindings,
             } else {
               lhs = module_->Make<Index>(span, lhs, index);
             }
+          }
         }
         break;
       }
