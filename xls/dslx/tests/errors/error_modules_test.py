@@ -416,11 +416,11 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     stderr = self._run(
         'xls/dslx/tests/errors/non_const_array_type_dimension.x'
     )
-    # TODO(leary): 2021-06-21 This error should become something like "can only
-    # refer to constant or parametric values in dimensions".
-    self.assertIn('non_const_array_type_dimension.x:16:10-16:18', stderr)
-    self.assertIn('Expected concrete type dimension to be integral; got: x',
-                  stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn('non_const_array_type_dimension.x:16:3-16:9', stderr)
+    self.assertIn(
+        'uN[32][x] Annotated type for array literal must be constexpr', stderr
+    )
 
   def test_array_type_dimension_with_width_annotated(self):
     stderr = self._run(
@@ -896,6 +896,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('ParseError', stderr)
     self.assertIn(
         'already contains a member named `A`',
+        stderr,
+    )
+
+  def test_param_as_array_expression_type(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/param_as_array_expression_type.x'
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'uN[32][x] Annotated type for array literal must be constexpr',
         stderr,
     )
 

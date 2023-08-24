@@ -1263,6 +1263,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceArray(const Array* node,
         "Array was not annotated with an array type.");
   }
 
+  if (array_type->HasParametricDims()) {
+    return TypeInferenceErrorStatus(
+        node->type_annotation()->span(), array_type,
+        absl::StrFormat("Annotated type for array "
+                        "literal must be constexpr; type has dimensions that "
+                        "cannot be resolved."));
+  }
+
   if (member_types.empty()) {
     return annotated;
   }
@@ -1356,6 +1364,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
   XLS_ASSIGN_OR_RETURN(
       type, UnwrapMetaType(std::move(type), node->type_annotation()->span(),
                            "array type-prefix position"));
+
   auto* array_type = dynamic_cast<ArrayType*>(type.get());
   if (array_type == nullptr) {
     return TypeInferenceErrorStatus(
