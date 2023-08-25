@@ -176,7 +176,7 @@ class ImportData {
     top_level_bindings_done_.insert(module);
   }
 
-  const std::string& stdlib_path() const { return stdlib_path_; }
+  const std::filesystem::path& stdlib_path() const { return stdlib_path_; }
   absl::Span<const std::filesystem::path> additional_search_paths() {
     return additional_search_paths_;
   }
@@ -200,15 +200,16 @@ class ImportData {
   WarningKindSet enabled_warnings() const { return enabled_warnings_; }
 
  private:
-  friend ImportData CreateImportData(std::string,
+  friend ImportData CreateImportData(const std::filesystem::path&,
                                      absl::Span<const std::filesystem::path>,
                                      WarningKindSet);
   friend std::unique_ptr<ImportData> CreateImportDataPtr(
-      std::string, absl::Span<const std::filesystem::path>, WarningKindSet);
+      const std::filesystem::path&, absl::Span<const std::filesystem::path>,
+      WarningKindSet);
   friend ImportData CreateImportDataForTest();
   friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
-  ImportData(std::string stdlib_path,
+  ImportData(std::filesystem::path stdlib_path,
              absl::Span<const std::filesystem::path> additional_search_paths,
              WarningKindSet enabled_warnings)
       : stdlib_path_(std::move(stdlib_path)),
@@ -227,7 +228,7 @@ class ImportData {
   absl::flat_hash_set<Module*> top_level_bindings_done_;
   absl::flat_hash_map<Module*, AstNode*> typecheck_wip_;
   TypeInfoOwner type_info_owner_;
-  std::string stdlib_path_;
+  const std::filesystem::path stdlib_path_;
   absl::Span<const std::filesystem::path> additional_search_paths_;
   WarningKindSet enabled_warnings_;
   std::unique_ptr<BytecodeCacheInterface> bytecode_cache_;

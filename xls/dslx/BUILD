@@ -643,3 +643,35 @@ cc_test(
         "@com_google_absl//absl/strings:str_format",
     ],
 )
+
+cc_library(
+    name = "interp_value_from_string",
+    srcs = ["interp_value_from_string.cc"],
+    hdrs = ["interp_value_from_string.h"],
+    data = ["//xls/dslx/stdlib:x_files"],
+    deps = [
+        ":create_import_data",
+        ":import_data",
+        ":interp_value",
+        ":parse_and_typecheck",
+        ":warning_kind",
+        "//xls/common/status:status_macros",
+        "//xls/dslx/frontend:ast",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "interp_value_from_string_test",
+    srcs = ["interp_value_from_string_test.cc"],
+    deps = [
+        ":default_dslx_stdlib_path",
+        ":interp_value",
+        ":interp_value_from_string",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)

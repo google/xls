@@ -145,6 +145,9 @@ class InterpValue {
   static InterpValue MakeMaxValue(bool is_signed, int64_t bit_count);
 
   static InterpValue MakeUnit() { return MakeTuple({}); }
+  static InterpValue MakeU8(uint8_t value) {
+    return MakeUBits(/*bit_count=*/8, value);
+  }
   static InterpValue MakeS32(uint32_t value) {
     return MakeSBits(/*bit_count=*/32, value);
   }
@@ -338,6 +341,11 @@ class InterpValue {
       bool humanize = false,
       FormatPreference format = FormatPreference::kDefault) const;
   std::string ToHumanString() const { return ToString(/*humanize=*/true); }
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const InterpValue& v) {
+    absl::Format(&sink, "%s", v.ToString());
+  }
 
   absl::StatusOr<std::string> ToFormattedString(
       const ValueFormatDescriptor& fmt_desc, int64_t indentation = 0) const;
