@@ -346,8 +346,9 @@ class RegressionEstimator(Estimator):
 
     self._k_fold_cross_validation(self.raw_data_points,
                                   num_cross_validation_folds,
-                                  max_data_point_error, max_fold_geomean_error)
-    self.delay_function, self.params = self._fit_curve(self.raw_data_points)
+                                  max_data_point_error, max_fold_geomean_error,
+                                  op)
+    self.delay_function, self.params = self._fit_curve(self.raw_data_points, op)
 
   @staticmethod
   def generate_k_fold_cross_validation_train_and_test_sets(
@@ -388,7 +389,8 @@ class RegressionEstimator(Estimator):
   def _k_fold_cross_validation(self, raw_data_points: Sequence[RawDataPoint],
                                num_cross_validation_folds: int,
                                max_data_point_error: float,
-                               max_fold_geomean_error: float):
+                               max_fold_geomean_error: float,
+                               op: str):
     """Perfroms k-fold cross validation to verify the model.
 
     An exception is raised if the model does not pass cross validation.  Note
@@ -405,6 +407,7 @@ class RegressionEstimator(Estimator):
         data point.
       max_fold_geomean_error: The maximum allowable geomean absolute error over
         all data points in a given test set.
+      op: XLS op name for error messaging.
 
     Raises:
       Error: Raised if the model does not pass cross validation.  Note
@@ -429,7 +432,8 @@ class RegressionEstimator(Estimator):
     ):
 
       # Train.
-      self.delay_function, self.params = self._fit_curve(training_dps)
+      self.delay_function, self.params = self._fit_curve(
+          training_dps, f'_k_fold_cross_validation for {op}')
 
       # Test.
       error_product = 1.0
@@ -450,7 +454,7 @@ class RegressionEstimator(Estimator):
                         self.op, geomean_error, max_fold_geomean_error))
 
   def _fit_curve(
-      self, raw_data_points: Sequence[RawDataPoint]
+      self, raw_data_points: Sequence[RawDataPoint], op: str
   ) -> Tuple[Callable[[Sequence[float]], float], Sequence[float]]:
     """Fits a curve to the given data points.
 
@@ -458,6 +462,7 @@ class RegressionEstimator(Estimator):
       raw_data_points: A sequence of RawDataPoints, where each is a single
         measurement point.  Independent variables are in the .delay_factors
         field, and the dependent variable is in the .delay_ps field.
+      op: XLS op name for error messaging.
 
     Returns:
       A tuple containing the fitted function and the sequence of learned
@@ -481,11 +486,20 @@ class RegressionEstimator(Estimator):
       num_params = 1 + 2 * len(xdata)
       # With the data points collected for one particular PDK, kSDiv doesn't
       # converge with the default max_nfev (max function evaluations),
-      # so we set it higher to 5000.
+      # so we set it higher to 7500.
       # https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html
-      params, _ = opt.curve_fit(
-          delay_f, xdata, ydata, p0=[1] * num_params, bounds=(0, np.inf),
-          max_nfev=5000)
+      max_nfev = 7500
+      try:
+        params, _ = opt.curve_fit(
+            delay_f, xdata, ydata, p0=[1] * num_params, bounds=(0, np.inf),
+            max_nfev=max_nfev)
+      except RuntimeError as exc:
+        raise RuntimeError(
+            f'Curve fitting failed for ({op}).\n'
+            'The maximum number of function evaluations is exceeded.\n'
+            'Try increasing the value of "max_nfev" in this script '
+            f'from its current value of {max_nfev}.'
+        ) from exc
 
     return lambda x: delay_f(x, *params), params
 
