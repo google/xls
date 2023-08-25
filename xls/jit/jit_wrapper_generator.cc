@@ -378,11 +378,11 @@ std::string CreateImplSpecialization(const Function& function,
 
 }  // namespace
 
-std::string GenerateWrapperHeader(const Function& function,
-                                  std::string_view class_name,
-                                  std::string_view wrapper_namespace,
-                                  const std::filesystem::path& header_path,
-                                  const std::filesystem::path& genfiles_path) {
+static std::string GenerateWrapperHeader(
+    const Function& function, std::string_view class_name,
+    std::string_view wrapper_namespace,
+    const std::filesystem::path& header_path,
+    const std::filesystem::path& genfiles_path) {
   // Template substitution strings:
   //  {{class_name}} : Class name
   //  {{params}} : Function params
@@ -470,10 +470,10 @@ class {{class_name}} {
   return absl::StrReplaceAll(kHeaderTemplate, substitution_map);
 }
 
-std::string GenerateWrapperSource(const Function& function,
-                                  std::string_view class_name,
-                                  std::string_view wrapper_namespace,
-                                  const std::filesystem::path& header_path) {
+static std::string GenerateWrapperSource(
+    const Function& function, std::string_view class_name,
+    std::string_view wrapper_namespace,
+    const std::filesystem::path& header_path) {
   // Use an extra '-' delimiter so we can embed a traditional-looking raw string
   // in the source. Template substitution strings:
   //  {{class_name}} : Class name

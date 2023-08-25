@@ -51,12 +51,12 @@ ABSL_FLAG(std::string, wrapper_namespace, "xls",
 
 namespace xls {
 
-absl::Status RealMain(const std::filesystem::path& ir_path,
-                      const std::filesystem::path& output_path,
-                      const std::filesystem::path& genfiles_dir,
-                      std::string class_name, std::string output_name,
-                      std::string function_name,
-                      std::string wrapper_namespace) {
+static absl::Status RealMain(const std::filesystem::path& ir_path,
+                             const std::filesystem::path& output_path,
+                             const std::filesystem::path& genfiles_dir,
+                             std::string class_name, std::string output_name,
+                             std::string function_name,
+                             std::string wrapper_namespace) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
