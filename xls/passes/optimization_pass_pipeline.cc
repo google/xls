@@ -40,6 +40,7 @@
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/identity_removal_pass.h"
 #include "xls/passes/inlining_pass.h"
+#include "xls/passes/label_recovery_pass.h"
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
@@ -187,6 +188,7 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
 
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();
+  top->Add<LabelRecoveryPass>();
   return top;
 }
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2023 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_PASSES_REASSOCIATION_PASS_H_
-#define XLS_PASSES_REASSOCIATION_PASS_H_
+#ifndef XLS_PASSES_LABEL_RECOVERY_PASS_H_
+#define XLS_PASSES_LABEL_RECOVERY_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/ir/function_base.h"
@@ -22,14 +22,16 @@
 
 namespace xls {
 
-// Reassociates associative operations to reduce delay by transforming chains of
-// operations to a balanced tree of operations, and gathering together constants
-// in the expression for folding.
-class ReassociationPass : public OptimizationFunctionBasePass {
+// At the end of the pass pipeline (when inlining and optimizations have been
+// performed) attempts to recover original names for coverpoints and assertions
+// to whatever degree possible so they're more human-readable -- we mangle them
+// for inlining to ensure they're unique, but often those names are way
+// overqualified.
+class LabelRecoveryPass : public OptimizationFunctionBasePass {
  public:
-  ReassociationPass()
-      : OptimizationFunctionBasePass("reassociation", "Reassociation") {}
-  ~ReassociationPass() override = default;
+  LabelRecoveryPass()
+      : OptimizationFunctionBasePass("label-recovery", "LabelRecovery") {}
+  ~LabelRecoveryPass() override = default;
 
  protected:
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
@@ -39,4 +41,4 @@ class ReassociationPass : public OptimizationFunctionBasePass {
 
 }  // namespace xls
 
-#endif  // XLS_PASSES_REASSOCIATION_PASS_H_
+#endif  // XLS_PASSES_LABEL_RECOVERY_PASS_H_

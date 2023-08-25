@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -152,19 +153,24 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
     }
 
     if (node->Is<Cover>()) {
+      Cover* c = node->As<Cover>();
+      std::string original_label = c->original_label().value_or(c->label());
       std::string new_label =
           GetPrefixedLabel(invoke, node->As<Cover>()->label(), inline_count);
       Cover* cover = invoked_node_to_replacement.at(node)->As<Cover>();
       Node* token = cover->token();
       Node* condition = cover->condition();
-      XLS_ASSIGN_OR_RETURN(
-          auto new_cover,
-          cover->function_base()->MakeNodeWithName<Cover>(
-              cover->loc(), token, condition, new_label, cover->GetName()));
+      XLS_ASSIGN_OR_RETURN(auto new_cover,
+                           cover->function_base()->MakeNodeWithName<Cover>(
+                               cover->loc(), token, condition, new_label,
+                               std::move(original_label), cover->GetName()));
       XLS_RETURN_IF_ERROR(cover->ReplaceUsesWith(new_cover));
       XLS_RETURN_IF_ERROR(cover->function_base()->RemoveNode(cover));
       invoked_node_to_replacement.at(node) = new_cover;
     } else if (node->Is<Assert>() && node->As<Assert>()->label().has_value()) {
+      Assert* a = node->As<Assert>();
+      std::optional<std::string> original_label =
+          a->original_label().has_value() ? a->original_label() : a->label();
       std::string new_label = GetPrefixedLabel(
           invoke, node->As<Assert>()->label().value(), inline_count);
       Assert* asrt = invoked_node_to_replacement.at(node)->As<Assert>();
@@ -173,7 +179,7 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
       XLS_ASSIGN_OR_RETURN(auto new_assert,
                            asrt->function_base()->MakeNodeWithName<Assert>(
                                asrt->loc(), token, condition, asrt->message(),
-                               new_label, asrt->GetName()));
+                               new_label, original_label, asrt->GetName()));
       XLS_RETURN_IF_ERROR(asrt->ReplaceUsesWith(new_assert));
       XLS_RETURN_IF_ERROR(asrt->function_base()->RemoveNode(asrt));
       invoked_node_to_replacement.at(node) = new_assert;

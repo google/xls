@@ -41,6 +41,7 @@ cc_library(
         ":dfe_pass",
         ":identity_removal_pass",
         ":inlining_pass",
+        ":label_recovery_pass",
         ":literal_uncommoning_pass",
         ":map_inlining_pass",
         ":narrowing_pass",
@@ -879,6 +880,44 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "label_recovery_pass",
+    srcs = ["label_recovery_pass.cc"],
+    hdrs = ["label_recovery_pass.h"],
+    deps = [
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:variant",
+        "//xls/common:visitor",
+        "//xls/common/logging",
+        "//xls/ir",
+        "//xls/ir:op",
+    ],
+)
+
+cc_test(
+    name = "label_recovery_pass_test",
+    srcs = ["label_recovery_pass_test.cc"],
+    deps = [
+        ":dfe_pass",
+        ":inlining_pass",
+        ":label_recovery_pass",
+        ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
     ],
 )
 

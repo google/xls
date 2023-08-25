@@ -1252,7 +1252,7 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
         loc);
   }
   return AddNode<xls::Assert>(loc, token.node(), condition.node(), message,
-                              label, name);
+                              label, /*original_label=*/std::nullopt, name);
 }
 
 BValue BuilderBase::Trace(BValue token, BValue condition,
@@ -1337,7 +1337,8 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
   if (label.empty()) {
     return SetError("The label of a cover node cannot be empty.", loc);
   }
-  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label, name);
+  return AddNode<xls::Cover>(loc, token.node(), condition.node(), label,
+                             /*original_label=*/std::nullopt, name);
 }
 
 BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,

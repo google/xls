@@ -472,7 +472,8 @@ class VirtualChannel {
         absl::StrFormat("Channel %s lost data, send fired but receive did not",
                         channel_->name()),
         /*label=*/
-        absl::StrFormat("%s_data_loss_assert", channel_->name()));
+        absl::StrFormat("%s_data_loss_assert", channel_->name()),
+        /*original_label=*/std::nullopt);
   }
 
   // Returns the signal indicating whether any send/receive fired this tick.
