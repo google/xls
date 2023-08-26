@@ -16,6 +16,7 @@
 #define XLS_DSLX_FRONTEND_PARSER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <initializer_list>
 #include <memory>
@@ -58,7 +59,7 @@ inline T TryGet(const std::variant<Types...>& v) {
 // either a conditional body or a struct instance); we can call
 // ParseExpression() with the "no struct literal" restriction to help us wrangle
 // this sort of case.
-enum class ExprRestriction {
+enum class ExprRestriction : uint8_t {
   kNone = 0,
   kNoStructLiteral = 1,
 };

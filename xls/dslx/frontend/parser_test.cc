@@ -31,6 +31,7 @@
 #include "absl/types/span.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/command_line_utils.h"
+#include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
@@ -1933,6 +1934,26 @@ TEST_F(ParserTest, NonTypeDefinitionBeforeArrayLiteralColon) {
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Type before ':' for presumed array literal was not a "
                          "type definition; got `4` (kind: number)")))
+      << module_or.status();
+}
+
+TEST(ParserErrorTest, WildcardPatternExpressionStatement) {
+  constexpr std::string_view kProgram = R"(
+const MOL = u32:42;
+#[test]
+fn test_f() {
+    let _ = assert_eq(u32:42, MOL);
+    _
+}
+)";
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  auto module_or = parser.ParseModule();
+  EXPECT_THAT(
+      module_or.status(),
+      IsPosError(
+          "ParseError",
+          HasSubstr("Wildcard pattern `_` cannot be used as a reference")))
       << module_or.status();
 }
 

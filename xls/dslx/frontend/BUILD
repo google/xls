@@ -125,6 +125,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:command_line_utils",
+        "//xls/dslx:error_test_utils",
     ],
 )
 
@@ -244,7 +245,6 @@ cc_test(
     name = "scanner_test",
     srcs = ["scanner_test.cc"],
     deps = [
-        ":bindings",
         ":pos",
         ":scanner",
         "@com_google_absl//absl/random",
@@ -253,6 +253,7 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:error_test_utils",
     ],
 )
 

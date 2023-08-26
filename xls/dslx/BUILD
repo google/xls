@@ -675,3 +675,30 @@ cc_test(
         "//xls/common/status:matchers",
     ],
 )
+
+cc_library(
+    name = "error_test_utils",
+    testonly = True,
+    hdrs = ["error_test_utils.h"],
+    deps = [
+        "//xls/dslx/frontend:bindings",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "error_test_utils_test",
+    srcs = ["error_test_utils_test.cc"],
+    deps = [
+        ":error_test_utils",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/dslx/frontend:bindings",
+        "//xls/dslx/frontend:pos",
+        "//xls/dslx/frontend:scanner",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)

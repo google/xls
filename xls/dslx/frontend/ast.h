@@ -807,7 +807,9 @@ class NameRef : public Expr {
   NameRef(Module* owner, Span span, std::string identifier, AnyNameDef name_def)
       : Expr(owner, std::move(span)),
         name_def_(name_def),
-        identifier_(std::move(identifier)) {}
+        identifier_(std::move(identifier)) {
+    XLS_CHECK_NE(identifier_, "_");
+  }
 
   ~NameRef() override;
 
