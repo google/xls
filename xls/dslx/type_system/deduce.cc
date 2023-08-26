@@ -617,6 +617,17 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConcat(
 
   auto* lhs_bits = dynamic_cast<BitsType*>(lhs.get());
   auto* rhs_bits = dynamic_cast<BitsType*>(rhs.get());
+  bool lhs_is_bits = lhs_bits != nullptr;
+  bool rhs_is_bits = rhs_bits != nullptr;
+  if (!lhs_is_bits || !rhs_is_bits) {
+    return ctx->TypeMismatchError(node->span(), node->lhs(), *lhs, node->rhs(),
+                                  *rhs,
+                                  "Concatenation requires operand types to be "
+                                  "either both-arrays or both-bits");
+  }
+
+  XLS_RET_CHECK(lhs_bits != nullptr);
+  XLS_RET_CHECK(rhs_bits != nullptr);
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size,
                        lhs_bits->size().Add(rhs_bits->size()));
   return std::make_unique<BitsType>(/*signed=*/false, /*size=*/new_size);

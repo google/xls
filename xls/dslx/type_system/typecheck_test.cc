@@ -28,6 +28,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/error_printer.h"
+#include "xls/dslx/error_test_utils.h"
 #include "xls/dslx/frontend/ast.h"
 #include "xls/dslx/frontend/pos.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -2014,6 +2015,61 @@ fn f(x: u32) -> u32 {
   std::string filename = "fake.x";
   EXPECT_EQ(tm.warnings.warnings().at(0).message,
             "Definition of `y` (type `uN[32]`) is not used in function `f`");
+}
+
+TEST(TypecheckTest, ConcatU1U1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: u1) -> u2 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU1S1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u1, y: s1) -> u2 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU2S1) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u2, y: s1) -> u3 { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatU1Nil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u1, y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("uN[1] vs (): Concatenation requires operand types "
+                           "to be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatS1Nil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: s1, y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("sN[1] vs (): Concatenation requires operand types "
+                           "to be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatNilNil) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: (), y: ()) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("() vs (): Concatenation requires operand types to "
+                           "be either both-arrays or both-bits")));
+}
+
+TEST(TypecheckTest, ConcatU1ArrayOfOneU8) {
+  EXPECT_THAT(
+      Typecheck("fn f(x: u1, y: u8[1]) -> () { x ++ y }").status(),
+      IsPosError("XlsTypeError",
+                 HasSubstr("uN[1] vs uN[8][1]: Attempting to concatenate "
+                           "array/non-array values together")));
+}
+
+TEST(TypecheckTest, ConcatArrayOfThreeU8ArrayOfOneU8) {
+  XLS_ASSERT_OK(Typecheck("fn f(x: u8[3], y: u8[1]) -> u8[4] { x ++ y }"));
+}
+
+TEST(TypecheckTest, ConcatNilArrayOfOneU8) {
+  EXPECT_THAT(Typecheck("fn f(x: (), y: u8[1]) -> () { x ++ y }").status(),
+              IsPosError("XlsTypeError",
+                         HasSubstr("() vs uN[8][1]: Attempting to concatenate "
+                                   "array/non-array values together")));
 }
 
 }  // namespace
