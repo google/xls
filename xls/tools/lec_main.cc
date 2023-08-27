@@ -95,8 +95,6 @@ ABSL_FLAG(int32_t, stage, -1,
 namespace xls {
 namespace {
 
-using solvers::z3::IrTranslator;
-
 constexpr const char kIrConverterPath[] =
     "xls/dslx/ir_convert/ir_converter_main";
 
@@ -110,14 +108,13 @@ absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     netlist::CellLibraryProto cell_proto;
     XLS_RET_CHECK(cell_proto.ParseFromString(cell_proto_text));
     return netlist::CellLibrary::FromProto(cell_proto);
-  } else {
-    XLS_ASSIGN_OR_RETURN(std::string lib_text, GetFileContents(cell_lib_path));
-    XLS_ASSIGN_OR_RETURN(auto stream,
-                         netlist::cell_lib::CharStream::FromText(lib_text));
-    XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto proto,
-                         netlist::function::ExtractFunctions(&stream));
-    return netlist::CellLibrary::FromProto(proto);
   }
+  XLS_ASSIGN_OR_RETURN(std::string lib_text, GetFileContents(cell_lib_path));
+  XLS_ASSIGN_OR_RETURN(auto stream,
+                       netlist::cell_lib::CharStream::FromText(lib_text));
+  XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto proto,
+                       netlist::function::ExtractFunctions(&stream));
+  return netlist::CellLibrary::FromProto(proto);
 }
 
 // Loads and parses a netlist from a file.

@@ -70,16 +70,15 @@ static absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
     netlist::CellLibraryProto lib_proto;
     XLS_RET_CHECK(lib_proto.ParseFromString(proto_text));
     return netlist::CellLibrary::FromProto(lib_proto);
-  } else {
-    XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
-                         GetFileContents(cell_library_path));
-    XLS_ASSIGN_OR_RETURN(
-        auto char_stream,
-        netlist::cell_lib::CharStream::FromText(cell_library_text));
-    XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto lib_proto,
-                         netlist::function::ExtractFunctions(&char_stream));
-    return netlist::CellLibrary::FromProto(lib_proto);
   }
+  XLS_ASSIGN_OR_RETURN(std::string cell_library_text,
+                       GetFileContents(cell_library_path));
+  XLS_ASSIGN_OR_RETURN(
+      auto char_stream,
+      netlist::cell_lib::CharStream::FromText(cell_library_text));
+  XLS_ASSIGN_OR_RETURN(netlist::CellLibraryProto lib_proto,
+                       netlist::function::ExtractFunctions(&char_stream));
+  return netlist::CellLibrary::FromProto(lib_proto);
 }
 
 static absl::Status RealMain(const std::string& netlist_path,

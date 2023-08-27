@@ -146,7 +146,8 @@ namespace {
 absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
   if (s == "flop") {
     return IO_KIND_FLOP;
-  } else if (s == "skid") {
+  }
+  if (s == "skid") {
     return IO_KIND_SKID_BUFFER;
   } else if (s == "zerolatency") {
     return IO_KIND_ZERO_LATENCY_BUFFER;

@@ -159,9 +159,10 @@ uint64_t GetFieldValue(const Message& message, const Reflection& reflection,
   switch (fd.type()) {
     case FieldDescriptor::Type::TYPE_BOOL:
       if (index) {
-        return reflection.GetRepeatedBool(message, &fd, *index);
+        return static_cast<uint64_t>(
+            reflection.GetRepeatedBool(message, &fd, *index));
       }
-      return reflection.GetBool(message, &fd);
+      return static_cast<uint64_t>(reflection.GetBool(message, &fd));
     case FieldDescriptor::Type::TYPE_INT32:
     case FieldDescriptor::Type::TYPE_SFIXED32:
     case FieldDescriptor::Type::TYPE_SINT32:
@@ -205,9 +206,8 @@ std::string GetParentPrefixedName(const std::string& top_package,
   auto get_msg_name = [package, top_package](const auto* descriptor) {
     if (package == top_package) {
       return descriptor->name();
-    } else {
-      return absl::StrReplaceAll(descriptor->full_name(), {{".", "_"}});
     }
+    return absl::StrReplaceAll(descriptor->full_name(), {{".", "_"}});
   };
 
   std::deque<std::string> types({get_msg_name(descriptor)});
@@ -283,8 +283,6 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessProtoSchema(
   return pool;
 }
 
-
-
 // Creates a zero-valued element of the described type.
 absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
     dslx::Module* module, dslx::TypeAnnotation* type_annot) {
@@ -301,8 +299,9 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
       members.push_back({child.first->identifier(), expr});
     }
     return module->Make<dslx::StructInstance>(span, struct_def, members);
-  } else if (dslx::ArrayTypeAnnotation* array_type =
-                 dynamic_cast<dslx::ArrayTypeAnnotation*>(type_annot)) {
+  }
+  if (dslx::ArrayTypeAnnotation* array_type =
+          dynamic_cast<dslx::ArrayTypeAnnotation*>(type_annot)) {
     // Special case: when it's an array of bits, then we should really just
     // return a number.
     dslx::TypeAnnotation* element_type = array_type->element_type();
@@ -555,7 +554,8 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
     // supported.
     if (element.count == 0) {
       continue;
-    } else if (!fd->is_repeated()) {
+    }
+    if (!fd->is_repeated()) {
       elements.push_back(std::make_pair(name_def, type_annot));
     } else {
       auto* array_size = module->Make<dslx::Number>(
