@@ -12,13 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Note: we need to cause a rollover but not end up with the high bit set,
-// because we flag a different error for giant values independent from the
-// rollover error.
-fn p<N: u32, M1: u32 = {N - (u32:1 << 31) - u32:1}>() -> uN[M1] {
-  uN[M1]:0
-}
-
-fn main() {
-  p<u32:0>();  // <-- cause an underflow to occur
-}
+const A = u32[-1]:[0, ...];

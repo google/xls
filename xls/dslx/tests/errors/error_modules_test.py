@@ -33,12 +33,17 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
       warnings_as_errors: bool = True,
       want_err_retcode: bool = True,
       path_is_runfile: bool = True,
+      alsologtostderr: bool = False,
   ) -> str:
     cmd = [
         _INTERP_PATH,
         path,
         '--warnings_as_errors={}'.format(str(warnings_as_errors).lower()),
     ]
+
+    if alsologtostderr:
+      cmd.append(' --alsologtostderr')
+
     logging.info('running: %s', subp.list2cmdline(cmd))
     p = subp.run(cmd, stderr=subp.PIPE, check=False, encoding='utf-8')
     logging.info('stderr: %r', p.stderr)
@@ -906,6 +911,27 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('TypeInferenceError', stderr)
     self.assertIn(
         'uN[32][x] Annotated type for array literal must be constexpr',
+        stderr,
+    )
+
+  def test_array_with_negative_size(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/array_with_negative_size.x'
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        "uN[32] Number -1 invalid: can't assign a negative value to an unsigned"
+        ' type',
+        stderr,
+    )
+
+  def test_array_with_overlarge_size(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/array_with_overlarge_size.x',
+    )
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn(
+        'uN[32] Dimension value is too large, high bit is set: 0x80000000',
         stderr,
     )
 

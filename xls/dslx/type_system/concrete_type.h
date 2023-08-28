@@ -101,9 +101,11 @@ class ConcreteTypeDim {
     return value_;
   }
 
+  // Note: if it is not parametric it is an interpreter value.
   bool IsParametric() const {
     return std::holds_alternative<OwnedParametric>(value_);
   }
+
   const ParametricExpression& parametric() const {
     return *std::get<OwnedParametric>(value_);
   }
