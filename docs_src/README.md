@@ -253,6 +253,7 @@ project, see our
 *   [Georges Rotival](https://github.com/grotival)
 *   [Hanchen Ye](https://github.com/hanchenye)
 *   [Hans Montero](https://github.com/hmontero1205)
+*   [Henner Zeller](https://github.com/hzeller)
 *   [Iliyan Malchev](https://github.com/malchev)
 *   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
