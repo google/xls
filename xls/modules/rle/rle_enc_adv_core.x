@@ -126,7 +126,7 @@ pub proc RunLengthEncoderAdvancedCoreStage<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32,
       ),
     };
 
-    let (symobls_to_send, counts_to_send, last_to_send, pair_count_to_send) =
+    let (symbols_to_send, counts_to_send, last_to_send, pair_count_to_send) =
       match (combine_last, state.prev_last) {
         (false, false) => {
           let idx = total_pair_count - u32:1;
@@ -152,7 +152,7 @@ pub proc RunLengthEncoderAdvancedCoreStage<SYMBOL_WIDTH: u32, COUNT_WIDTH: u32,
 
     let output = (
       EncOutData<SYMBOL_WIDTH, COUNT_WIDTH, INPUT_WIDTH> {
-        symbols: symobls_to_send,
+        symbols: symbols_to_send,
         counts: counts_to_send,
         last: last_to_send,
       },
