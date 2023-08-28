@@ -965,12 +965,11 @@ cc_library(
     ],
 )
 
-cc_binary(
-    name = "codegen_main",
-    srcs = ["codegen_main.cc"],
-    visibility = ["//xls:xls_users"],
+cc_library(
+    name = "codegen",
+    srcs = ["codegen.cc"],
+    hdrs = ["codegen.h"],
     deps = [
-        ":codegen_flags",
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags",
         "//xls/codegen:codegen_options",
@@ -979,9 +978,6 @@ cc_binary(
         "//xls/codegen:op_override_impls",
         "//xls/codegen:pipeline_generator",
         "//xls/codegen:ram_configuration",
-        "//xls/common:exit_status",
-        "//xls/common:init_xls",
-        "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -989,15 +985,39 @@ cc_binary(
         "//xls/delay_model:ffi_delay_estimator",
         "//xls/fdo:synthesizer",
         "//xls/ir",
-        "//xls/ir:ir_parser",
         "//xls/ir:op",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
         "//xls/scheduling:scheduling_options",
         "//xls/scheduling:scheduling_pass",
         "//xls/scheduling:scheduling_pass_pipeline",
-        "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)
+
+cc_binary(
+    name = "codegen_main",
+    srcs = ["codegen_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":codegen",
+        ":codegen_flags",
+        ":codegen_flags_cc_proto",
+        ":scheduling_options_flags",
+        "//xls/codegen:module_signature",
+        "//xls/common:exit_status",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
     ],
 )
