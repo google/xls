@@ -42,4 +42,5 @@ message SchedulingOptionsFlagsProto {
   optional string fdo_yosys_path = 18;
   optional string fdo_sta_path = 19;
   optional string fdo_synthesis_libraries = 20;
+  optional bool minimize_clock_on_failure = 21;
 }

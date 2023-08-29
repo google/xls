@@ -281,6 +281,7 @@ def xls_ir_verilog_impl(ctx, src):
         "delay_model",
         "clock_margin_percent",
         "period_relaxation_percent",
+        "minimize_clock_on_error",
         "worst_case_throughput",
         "additional_input_delay_ps",
         "ffi_fallback_delay_ps",

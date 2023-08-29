@@ -59,6 +59,12 @@ control the scheduler.
 -   `--period_relaxation_percent=...` sets the percentage that the computed
     minimum clock period is increased. May not be specified with
     `--clock_period_ps`.
+-   `--minimize_clock_on_error` is enabled by default. If enabled, when
+    `--clock_period_ps` is given with an infeasible clock (in the sense that XLS
+    cannot pipeline this input for this clock, even with other constraints
+    relaxed), XLS will find and report the minimum feasible clock period if one
+    exists. If disabled, XLS will report only that the clock period was
+    infeasible, potentially saving time.
 -   `--worst_case_throughput=...` sets the worst-case throughput bound to use
     when `--generator=pipeline`. If set, allows scheduling a pipeline with
     worst-case throughput no slower than once per N cycles (assuming no stalling

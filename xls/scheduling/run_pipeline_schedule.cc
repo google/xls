@@ -19,11 +19,14 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
@@ -163,26 +166,45 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
   }
   return function_cp;
 }
+absl::StatusOr<int64_t> ComputeCriticalPath(
+    FunctionBase* f, const DelayEstimator& delay_estimator) {
+  return ComputeCriticalPath(TopoSort(f).AsVector(), delay_estimator);
+}
 
 // Returns the minimum clock period in picoseconds for which it is feasible to
-// schedule the function into a pipeline with the given number of stages.
+// schedule the function into a pipeline with the given number of stages. If
+// `target_clock_period_ps` is specified, will not try to check lower clock
+// periods than this.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
-    FunctionBase* f, int64_t pipeline_stages,
-    const DelayEstimator& delay_estimator, SDCScheduler& scheduler) {
+    FunctionBase* f, std::optional<int64_t> pipeline_stages,
+    const DelayEstimator& delay_estimator, SDCScheduler& scheduler,
+    std::optional<int64_t> target_clock_period_ps = std::nullopt) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
-  XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
-  auto topo_sort_it = TopoSort(f);
-  std::vector<Node*> topo_sort(topo_sort_it.begin(), topo_sort_it.end());
+  XLS_VLOG(4) << "  pipeline stages = "
+              << (pipeline_stages.has_value() ? absl::StrCat(*pipeline_stages)
+                                              : "(unspecified)");
   XLS_ASSIGN_OR_RETURN(int64_t function_cp_ps,
-                       ComputeCriticalPath(topo_sort, delay_estimator));
-  // The lower bound of the search is the critical path delay evenly distributed
-  // across all stages (rounded up), and the upper bound is simply the critical
-  // path of the entire function. It's possible this upper bound is the best you
-  // can do if there exists a single operation with delay equal to the
-  // critical-path delay of the function.
-  int64_t optimistic_clk_period_ps =
-      (function_cp_ps + pipeline_stages - 1) / pipeline_stages;
-  int64_t pessimistic_clk_period_ps = function_cp_ps;
+                       ComputeCriticalPath(f, delay_estimator));
+
+  // The upper bound of the search is simply the critical path of the entire
+  // function, and the lower bound is the critical path delay evenly distributed
+  // across our pipeline stages (rounded up). It's possible the upper bound is
+  // the best you can do if there exists a single operation with delay equal to
+  // the critical-path delay of the function.
+  int64_t pessimistic_clk_period_ps = std::max(int64_t{1}, function_cp_ps);
+  int64_t optimistic_clk_period_ps = 1;
+  if (pipeline_stages.has_value()) {
+    optimistic_clk_period_ps =
+        std::max(optimistic_clk_period_ps,
+                 (function_cp_ps + *pipeline_stages - 1) / *pipeline_stages);
+  }
+  if (target_clock_period_ps.has_value()) {
+    // Don't check any clock period less than the specified target.
+    optimistic_clk_period_ps =
+        std::max(optimistic_clk_period_ps, *target_clock_period_ps);
+    pessimistic_clk_period_ps =
+        std::max(pessimistic_clk_period_ps, *target_clock_period_ps);
+  }
   XLS_VLOG(4) << absl::StreamFormat("Binary searching over interval [%d, %d]",
                                     optimistic_clk_period_ps,
                                     pessimistic_clk_period_ps);
@@ -268,7 +290,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     XLS_CHECK(sdc_scheduler != nullptr);
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
-        FindMinimumClockPeriod(f, *options.pipeline_stages(), input_delay_added,
+        FindMinimumClockPeriod(f, options.pipeline_stages(), input_delay_added,
                                *sdc_scheduler));
 
     if (options.period_relaxation_percent().has_value()) {
@@ -317,9 +339,79 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
       return schedule;
     }
 
-    XLS_ASSIGN_OR_RETURN(
-        cycle_map,
-        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps));
+    absl::StatusOr<ScheduleCycleMap> schedule_cycle_map =
+        sdc_scheduler->Schedule(options.pipeline_stages(), clock_period_ps);
+    if (!schedule_cycle_map.ok()) {
+      if (absl::IsInvalidArgument(schedule_cycle_map.status())) {
+        // The scheduler was able to explain the failure; report it up.
+        return std::move(schedule_cycle_map).status();
+      }
+      if (options.clock_period_ps().has_value()) {
+        // The scheduler was unable to explain the failure internally, and the
+        // user specified a specific clock period.
+
+        if (options.minimize_clock_on_failure().value_or(true)) {
+          // Find the smallest clock period that would have worked.
+          XLS_LOG(ERROR)
+              << "Unable to schedule with the specified clock period; finding "
+                 "the shortest feasible clock period...";
+          int64_t target_clock_period_ps = clock_period_ps + 1;
+          absl::StatusOr<int64_t> min_clock_period_ps = FindMinimumClockPeriod(
+              f, options.pipeline_stages(), input_delay_added, *sdc_scheduler,
+              target_clock_period_ps);
+          if (min_clock_period_ps.ok()) {
+            // Just increasing the clock period suffices.
+            return absl::InvalidArgumentError(absl::StrFormat(
+                "cannot achieve the specified clock period. Try "
+                "`--clock_period_ps=%d`.",
+                *min_clock_period_ps));
+          }
+          if (absl::IsInvalidArgument(min_clock_period_ps.status())) {
+            // We failed with an explained error at the longest possible clock
+            // period. Report this error up, adding that the clock period will
+            // also need to be increased - though we don't know by how much.
+            return xabsl::StatusBuilder(std::move(min_clock_period_ps).status())
+                       .SetPrepend()
+                   << absl::StrFormat(
+                          "cannot achieve the specified clock period; try "
+                          "increasing `--clock_period_ps`. Also, ");
+          }
+          // We fail with an unexplained error even at the longest possible
+          // clock period. Report the original error.
+          return std::move(schedule_cycle_map).status();
+        }
+
+        // Check if just increasing the clock period would have helped.
+        XLS_ASSIGN_OR_RETURN(int64_t pessimistic_clock_period_ps,
+                             ComputeCriticalPath(f, input_delay_added));
+        absl::Status pessimistic_status =
+            sdc_scheduler
+                ->Schedule(options.pipeline_stages(),
+                           pessimistic_clock_period_ps,
+                           /*check_feasibility=*/true,
+                           /*explain_infeasibility=*/true)
+                .status();
+        if (pessimistic_status.ok()) {
+          // Just increasing the clock period suffices.
+          return absl::InvalidArgumentError(
+              "cannot achieve the specified clock period. Try increasing "
+              "`--clock_period_ps`.");
+        }
+        if (absl::IsInvalidArgument(pessimistic_status)) {
+          // We failed with an explained error at the pessimistic clock period.
+          // Report this error up, adding that the clock period will also need
+          // to be increased - though we don't know by how much.
+          return xabsl::StatusBuilder(std::move(pessimistic_status))
+                     .SetPrepend()
+                 << absl::StrFormat(
+                        "cannot achieve the specified clock period; try "
+                        "increasing `--clock_period_ps`. Also, ");
+        }
+        return pessimistic_status;
+      }
+      return schedule_cycle_map.status();
+    }
+    cycle_map = *std::move(schedule_cycle_map);
   } else {
     // Run an initial ASAP/ALAP scheduling pass, which we'll refine with the
     // chosen scheduler.
@@ -337,6 +429,7 @@ absl::StatusOr<PipelineSchedule> RunPipelineSchedule(
     } else if (options.strategy() == SchedulingStrategy::RANDOM) {
       std::mt19937_64 gen(options.seed().value_or(0));
 
+      cycle_map = ScheduleCycleMap();
       for (Node* node : TopoSort(f)) {
         int64_t lower_bound = bounds.lb(node);
         int64_t upper_bound = bounds.ub(node);

@@ -150,7 +150,8 @@ class IrTestBase : public ::testing::Test {
 
 class TestDelayEstimator : public DelayEstimator {
  public:
-  TestDelayEstimator() : DelayEstimator("test") {}
+  explicit TestDelayEstimator(int64_t base_delay = 1)
+      : DelayEstimator("test"), base_delay_(base_delay) {}
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
@@ -166,11 +167,14 @@ class TestDelayEstimator : public DelayEstimator {
         return 0;
       case Op::kUDiv:
       case Op::kSDiv:
-        return 2;
+        return 2 * base_delay_;
       default:
-        return 1;
+        return base_delay_;
     }
   }
+
+ private:
+  int64_t base_delay_;
 };
 
 }  // namespace xls

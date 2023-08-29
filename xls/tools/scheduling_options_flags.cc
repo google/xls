@@ -56,6 +56,11 @@ ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "constraints will be used. Increasing this will trade-off an "
           "increase in critical path delay in favor of decreased register "
           "count. See https://google.github.io/xls/scheduling for details.");
+ABSL_FLAG(
+    bool, minimize_clock_on_failure, true,
+    "If true, when `--clock_period_ps` is given but is infeasible for "
+    "scheduling, search for & report the shortest feasible clock period. "
+    "Otherwise, just reports whether increasing the clock period can help.");
 ABSL_FLAG(int64_t, worst_case_throughput, 1,
           "Allow scheduling a pipeline with worst-case throughput no slower "
           "than once per N cycles. If unspecified, enforce throughput 1. Note: "
@@ -134,6 +139,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   POPULATE_FLAG(delay_model);
   POPULATE_FLAG(clock_margin_percent);
   POPULATE_FLAG(period_relaxation_percent);
+  POPULATE_FLAG(minimize_clock_on_failure);
   POPULATE_FLAG(worst_case_throughput);
   POPULATE_FLAG(additional_input_delay_ps);
   POPULATE_FLAG(ffi_fallback_delay_ps);
@@ -188,6 +194,8 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
     scheduling_options.period_relaxation_percent(
         proto.period_relaxation_percent());
   }
+  scheduling_options.minimize_clock_on_failure(
+      proto.minimize_clock_on_failure());
   if (proto.worst_case_throughput() != 1) {
     scheduling_options.worst_case_throughput(proto.worst_case_throughput());
   }

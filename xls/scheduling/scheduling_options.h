@@ -190,6 +190,7 @@ class SchedulingOptions {
   explicit SchedulingOptions(
       SchedulingStrategy strategy = SchedulingStrategy::SDC)
       : strategy_(strategy),
+        minimize_clock_on_failure_(true),
         constraints_({BackedgeConstraint(),
                       SendThenRecvConstraint(/*minimum_latency=*/1)}),
         fdo_iteration_number_(1),
@@ -235,6 +236,16 @@ class SchedulingOptions {
   }
   std::optional<int64_t> period_relaxation_percent() const {
     return period_relaxation_percent_;
+  }
+
+  // Sets/gets whether to report the fastest feasible clock if scheduling is
+  // infeasible at the user's specified clock.
+  SchedulingOptions& minimize_clock_on_failure(bool value) {
+    minimize_clock_on_failure_ = value;
+    return *this;
+  }
+  std::optional<bool> minimize_clock_on_failure() const {
+    return minimize_clock_on_failure_;
   }
 
   // Sets/gets the worst-case throughput bound to use when scheduling; for
@@ -363,6 +374,7 @@ class SchedulingOptions {
   std::optional<int64_t> pipeline_stages_;
   std::optional<int64_t> clock_margin_percent_;
   std::optional<int64_t> period_relaxation_percent_;
+  bool minimize_clock_on_failure_;
   std::optional<int64_t> worst_case_throughput_;
   std::optional<int64_t> additional_input_delay_ps_;
   std::optional<int64_t> ffi_fallback_delay_ps_;

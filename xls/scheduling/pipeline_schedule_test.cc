@@ -1061,6 +1061,62 @@ TEST_F(PipelineScheduleTest,
                              HasSubstr("--worst_case_throughput=3"))));
 }
 
+TEST_F(PipelineScheduleTest, SuggestIncreasedClockPeriodWhenNecessary) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue add2 = pb.Add(state, pb.Literal(UBits(2, 32)));
+  BValue mul3 = pb.UMul(add2, pb.Literal(UBits(3, 32)));
+  BValue add1 = pb.Add(mul3, pb.Literal(UBits(1, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {add1}));
+
+  // Each operation takes 500ps, so (with no pipeline depth restrictions), 500ps
+  // is the fastest clock we can support.
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions().clock_period_ps(100)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
+  // Each operation takes 500ps, but we have a chain of three operations; in two
+  // stages, the best we can do is a 1000ps clock.
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(2)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=1000")));
+
+  // Each operation takes 500ps, and our schedule fits nicely into 3 stages; we
+  // can get down to a 500ps clock at 3 or more pipeline stages.
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(3)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+  EXPECT_THAT(RunPipelineSchedule(
+                  proc, TestDelayEstimator(500),
+                  SchedulingOptions().clock_period_ps(100).pipeline_stages(20)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("--clock_period_ps=500")));
+
+  // But... if told not to search for the smallest possible clock period, the
+  // best we can do is signal that a longer clock period might help.
+  EXPECT_THAT(RunPipelineSchedule(proc, TestDelayEstimator(500),
+                                  SchedulingOptions()
+                                      .clock_period_ps(100)
+                                      .pipeline_stages(4)
+                                      .minimize_clock_on_failure(false)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Try increasing `--clock_period_ps`")));
+}
+
 // Proc next state does not depend on param; next state can now be scheduled in
 // an earlier stage than the param node's use, so (all else being equal), the
 // scheduler prefers to schedule the param node ASAP, in the same stage as the
