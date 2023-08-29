@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "absl/container/btree_set.h"
@@ -34,6 +35,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/fdo/delay_manager.h"
+#include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -332,6 +334,13 @@ absl::Status PipelineSchedule::VerifyConstraints(
     }
   }
 
+  constexpr auto plural_s = [](int64_t count) {
+    if (count == 1) {
+      return "";
+    }
+    return "s";
+  };
+
   for (const SchedulingConstraint& constraint : constraints) {
     if (std::holds_alternative<IOConstraint>(constraint)) {
       IOConstraint io_constr = std::get<IOConstraint>(constraint);
@@ -358,6 +367,98 @@ absl::Status PipelineSchedule::VerifyConstraints(
               source->ToString(), latency, target->ToString(),
               io_constr.SourceChannel(), io_constr.MinimumLatency(),
               io_constr.MaximumLatency(), io_constr.TargetChannel()));
+        }
+      }
+    } else if (std::holds_alternative<NodeInCycleConstraint>(constraint)) {
+      NodeInCycleConstraint nic_constr =
+          std::get<NodeInCycleConstraint>(constraint);
+      const int64_t cycle = cycle_map_.at(nic_constr.GetNode());
+      if (cycle != nic_constr.GetCycle()) {
+        return absl::ResourceExhaustedError(absl::StrFormat(
+            "Scheduling constraint violated: node %s was scheduled in cycle "
+            "%d which violates the constraint that this node must be in "
+            "cycle %d.",
+            nic_constr.GetNode()->ToString(), cycle, nic_constr.GetCycle()));
+      }
+    } else if (std::holds_alternative<DifferenceConstraint>(constraint)) {
+      DifferenceConstraint diff_constr =
+          std::get<DifferenceConstraint>(constraint);
+      // a - b <= max_difference
+      const int64_t cycle_a = cycle_map_.at(diff_constr.GetA());
+      const int64_t cycle_b = cycle_map_.at(diff_constr.GetB());
+      if (cycle_a - cycle_b > diff_constr.GetMaxDifference()) {
+        return absl::ResourceExhaustedError(absl::StrFormat(
+            "Scheduling constraint violated: node %s was scheduled %d cycle%s "
+            "before node %s which violates the constraint that node %s must "
+            "be no more than %d cycle%s before node %s.",
+            diff_constr.GetA()->ToString(), cycle_a - cycle_b,
+            plural_s(cycle_a - cycle_b), diff_constr.GetB()->ToString(),
+            diff_constr.GetA()->ToString(), diff_constr.GetMaxDifference(),
+            plural_s(diff_constr.GetMaxDifference()),
+            diff_constr.GetB()->ToString()));
+      }
+    } else if (std::holds_alternative<RecvsFirstSendsLastConstraint>(
+                   constraint)) {
+      for (Node* node : function_base_->nodes()) {
+        if (node->Is<Receive>() && cycle_map_.at(node) != 0) {
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: node %s was scheduled in "
+              "cycle %d which violates the constraint that all receives must "
+              "be in cycle 0.",
+              node->ToString(), cycle_map_.at(node)));
+        }
+        if (node->Is<Send>() && cycle_map_.at(node) != last_cycle) {
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: node %s was scheduled in "
+              "cycle %d which violates the constraint that all sends must "
+              "be in the last cycle (cycle %d).",
+              node->ToString(), cycle_map_.at(node), last_cycle));
+        }
+      }
+    } else if (std::holds_alternative<BackedgeConstraint>(constraint)) {
+      if (!function_base_->IsProc()) {
+        continue;
+      }
+      const int64_t max_backedge = worst_case_throughput.value_or(1) - 1;
+      Proc* proc = function_base_->AsProcOrDie();
+      for (int64_t index = 0; index < proc->GetStateElementCount(); ++index) {
+        Param* param = proc->GetStateParam(index);
+        Node* next_state = proc->GetNextStateElement(index);
+        int64_t backedge_length =
+            cycle_map_.at(next_state) - cycle_map_.at(param);
+        if (backedge_length > max_backedge) {
+          return absl::ResourceExhaustedError(absl::StrFormat(
+              "Scheduling constraint violated: param %s was scheduled for "
+              "access %d cycle%s before node %s, its next value, which "
+              "violates the constraint that we can achieve a worst-case "
+              "throughput of one iteration per %d cycle%s without external "
+              "stalls.",
+              param->name(), backedge_length, plural_s(backedge_length),
+              next_state->ToString(), worst_case_throughput.value_or(1),
+              plural_s(worst_case_throughput.value_or(1))));
+        }
+      }
+    } else if (std::holds_alternative<SendThenRecvConstraint>(constraint)) {
+      const SendThenRecvConstraint str_const =
+          std::get<SendThenRecvConstraint>(constraint);
+      for (Node* recv : function_base_->nodes()) {
+        if (!recv->Is<Receive>()) {
+          continue;
+        }
+        for (Node* send : send_predecessors.at(recv)) {
+          int64_t send_then_recv_latency =
+              cycle_map_.at(recv) - cycle_map_.at(send);
+          if (send_then_recv_latency < str_const.MinimumLatency()) {
+            return absl::ResourceExhaustedError(absl::StrFormat(
+                "Scheduling constraint violated: node %s was scheduled for %d "
+                "cycle%s before node %s, which violates the constraint that "
+                "all receives must be scheduled at least %d cycle%s after "
+                "sends on which they depend.",
+                send->ToString(), send_then_recv_latency,
+                plural_s(send_then_recv_latency), recv->ToString(),
+                str_const.MinimumLatency(),
+                plural_s(str_const.MinimumLatency())));
+          }
         }
       }
     }

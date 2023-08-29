@@ -3791,10 +3791,13 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         PipelineSchedule schedule,
-        RunPipelineSchedule(proc, TestDelayEstimator(),
-                            SchedulingOptions(SchedulingStrategy::RANDOM)
-                                .pipeline_stages(20)
-                                .seed(seed)));
+        RunPipelineSchedule(
+            proc, TestDelayEstimator(),
+            SchedulingOptions(SchedulingStrategy::RANDOM)
+                .pipeline_stages(20)
+                .seed(seed)
+                // The random scheduler doesn't support constraints.
+                .clear_constraints()));
     CodegenOptions options;
     options.flop_inputs(false).flop_outputs(false).clock_name("clk");
     options.valid_control("input_valid", "output_valid");
