@@ -993,10 +993,13 @@ TEST_F(PipelineScheduleTest, SuggestIncreasedPipelineLengthWhenNeeded) {
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
-  EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
-                                  SchedulingOptions().pipeline_stages(1)),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("--pipeline_stages=3")));
+  EXPECT_THAT(
+      RunPipelineSchedule(
+          proc, *delay_estimator,
+          SchedulingOptions().pipeline_stages(1).worst_case_throughput(3)),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               AllOf(HasSubstr("--pipeline_stages=3"),
+                     Not(HasSubstr("--worst_case_throughput")))));
 }
 
 TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
@@ -1024,7 +1027,38 @@ TEST_F(PipelineScheduleTest, SuggestReducedThroughputWhenFullThroughputFails) {
   EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
                                   SchedulingOptions().pipeline_stages(5)),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("--worst_case_throughput=3")));
+                       AllOf(HasSubstr("--worst_case_throughput=3"),
+                             Not(HasSubstr("--pipeline_stages")))));
+}
+
+TEST_F(PipelineScheduleTest,
+       SuggestIncreasedPipelineLengthAndReducedThroughputWhenNeeded) {
+  Package package = Package(TestName());
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
+  BValue state = pb.StateElement("state", Value(Bits(32)));
+
+  BValue send = pb.Send(ch_out, pb.GetTokenParam(), state);
+  BValue delay = pb.MinDelay(send, /*delay=*/2);
+  BValue rcv = pb.Receive(ch_in, /*token=*/delay);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.TupleIndex(rcv, 0), {pb.TupleIndex(rcv, 1)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+  EXPECT_THAT(RunPipelineSchedule(proc, *delay_estimator,
+                                  SchedulingOptions().pipeline_stages(1)),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       AllOf(HasSubstr("--pipeline_stages=3"),
+                             HasSubstr("--worst_case_throughput=3"))));
 }
 
 // Proc next state does not depend on param; next state can now be scheduled in

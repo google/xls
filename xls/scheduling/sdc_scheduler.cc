@@ -653,25 +653,43 @@ absl::Status SDCSchedulingModel::AddSlackVariables() {
 
 absl::Status SDCSchedulingModel::ExtractError(
     const math_opt::VariableMap<double>& variable_values) const {
+  std::vector<std::string> problems;
+  std::vector<std::string> suggestions;
   double last_stage = variable_values.at(last_stage_);
   if (last_stage > last_stage_.lower_bound() + 0.001) {
     int64_t new_pipeline_length =
         static_cast<int64_t>(std::ceil(last_stage)) + 1;
-    return absl::InvalidArgumentError(absl::StrCat(
-        "cannot achieve the specified pipeline length. Try `--pipeline_stages=",
-        new_pipeline_length, "`"));
+    problems.push_back("the specified pipeline length");
+    suggestions.push_back(
+        absl::StrCat("`--pipeline_stages=", new_pipeline_length, "`"));
   }
-
-  if (func_->IsProc()) {
+  if (func_->IsProc() && backedge_slack_.has_value()) {
     double backedge_slack = variable_values.at(*backedge_slack_);
     if (backedge_slack > 0.001) {
       int64_t new_backedge_length =
           func_->AsProcOrDie()->GetInitiationInterval().value_or(1) +
           static_cast<int64_t>(std::ceil(backedge_slack));
-      return absl::InvalidArgumentError(absl::StrCat(
-          "cannot achieve full throughput. Try `--worst_case_throughput=",
-          static_cast<int64_t>(std::ceil(new_backedge_length)), "`"));
+      problems.push_back("full throughput");
+      suggestions.push_back(
+          absl::StrCat("`--worst_case_throughput=", new_backedge_length, "`"));
     }
+  }
+  if (!problems.empty()) {
+    if (problems.size() == 1 || problems.size() == 2) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("cannot achieve ", absl::StrJoin(problems, " or "),
+                       ". Try ", absl::StrJoin(suggestions, " and ")));
+    }
+    return absl::InvalidArgumentError(absl::StrCat(
+        "cannot achieve ",
+        absl::StrJoin(
+            absl::MakeConstSpan(problems).subspan(0, problems.size() - 1),
+            ", "),
+        " or ", problems[problems.size() - 1], ". Try ",
+        absl::StrJoin(
+            absl::MakeConstSpan(suggestions).subspan(0, suggestions.size() - 1),
+            ", "),
+        " and ", suggestions[suggestions.size() - 1]));
   }
 
   std::vector<std::string> io_problems;
