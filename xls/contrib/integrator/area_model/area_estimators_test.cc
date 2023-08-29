@@ -12,16 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/contrib/integrator/area_model/area_estimator.h"
-#include "xls/delay_model/delay_estimator.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace {
