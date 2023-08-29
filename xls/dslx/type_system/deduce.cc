@@ -49,6 +49,7 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/errors.h"
 #include "xls/dslx/frontend/ast.h"
+#include "xls/dslx/frontend/ast_node.h"
 #include "xls/dslx/frontend/ast_utils.h"
 #include "xls/dslx/frontend/token_utils.h"
 #include "xls/dslx/interp_value.h"
@@ -1346,9 +1347,41 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
   return result_type;
 }
 
+// Returns whether "e" is definitely a meaningless expression-statement; i.e. if
+// in statement context definitely has no side-effects and thus should be
+// flagged.
+//
+// Note that some invocations of functions will have no side-effects and will be
+// meaningless, but because we don't look inside of callees to see if they are
+// side-effecting, we conservatively mark those as potentially useful.
+static bool DefinitelyMeaninglessExpression(Expr* e) {
+  absl::StatusOr<std::vector<AstNode*>> nodes_under_e =
+      CollectUnder(e, /*want_types=*/true);
+  if (!nodes_under_e.ok()) {
+    XLS_LOG(WARNING) << "Could not collect nodes under `" << e->ToString()
+                     << "`; status: " << nodes_under_e.status();
+    return false;
+  }
+  for (AstNode* n : nodes_under_e.value()) {
+    // In the DSL side effects can only be caused by invocations or
+    // invocation-like AST nodes.
+    switch (n->kind()) {
+      case AstNodeKind::kInvocation:
+      case AstNodeKind::kFormatMacro:
+      case AstNodeKind::kSpawn:
+        return false;
+      default:
+        continue;
+    }
+  }
+  return true;
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStatement(
     const Statement* node, DeduceCtx* ctx) {
-  return ctx->Deduce(ToAstNode(node->wrapped()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
+                       ctx->Deduce(ToAstNode(node->wrapped())));
+  return result;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
@@ -1360,6 +1393,35 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
   // If there's a trailing semicolon this block always yields unit `()`.
   if (node->trailing_semi()) {
     last = ConcreteType::MakeUnit();
+  }
+
+  // We only want to check the last statement for "useless expression-statement"
+  // property if it is not yielding a value from a block; e.g.
+  //
+  //    {
+  //      my_invocation!();
+  //      u32:42  // <- ok, no trailing semi
+  //    }
+  //
+  // vs
+  //
+  //    {
+  //      my_invocation!();
+  //      u32:42;  // <- useless, trailing semi means block yields nil
+  //    }
+  const bool should_check_last_statement = node->trailing_semi();
+  for (int64_t i = 0; i < static_cast<int64_t>(node->statements().size()) -
+                              (should_check_last_statement ? 0 : 1);
+       ++i) {
+    const Statement* s = node->statements()[i];
+    if (std::holds_alternative<Expr*>(s->wrapped()) &&
+        DefinitelyMeaninglessExpression(std::get<Expr*>(s->wrapped()))) {
+      Expr* e = std::get<Expr*>(s->wrapped());
+      ctx->warnings()->Add(e->span(), WarningKind::kUselessExpressionStatement,
+                           absl::StrFormat("Expression statement `%s` appears "
+                                           "useless (i.e. has no side-effects)",
+                                           e->ToString()));
+    }
   }
   return last;
 }

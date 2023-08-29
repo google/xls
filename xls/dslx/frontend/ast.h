@@ -786,6 +786,15 @@ class Block : public Expr {
     SetParentage();
   }
 
+  // Use sparsingly! Mutation routine that disables the fact that this block
+  // has a trailing semicolon. This is used e.g. when we want to maintain the
+  // invariant that a proc config function has a tuple as its trailing
+  // expression by materializing it implicitly for the user.
+  void DisableTrailingSemi() {
+    XLS_CHECK(trailing_semi_);
+    trailing_semi_ = false;
+  }
+
  private:
   Precedence GetPrecedenceInternal() const final {
     return Precedence::kStrongest;

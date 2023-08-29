@@ -510,6 +510,25 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
                   stderr)
     self.assertIn('Valid values are [0, 255]', stderr)
 
+  def test_useless_expression_statement_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/useless_expression_statement.x',
+        warnings_as_errors=False,
+        want_err_retcode=False,
+    )
+    self.assertIn('useless_expression_statement.x:19:9-19:11', stderr)
+    self.assertIn(
+        'Expression statement `bar || abcd` appears useless (i.e. has no'
+        ' side-effects)',
+        stderr,
+    )
+
+    self._run(
+        'xls/dslx/tests/errors/should_not_splat_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True,
+    )
+
   def test_should_not_splat_warning(self):
     stderr = self._run(
         'xls/dslx/tests/errors/should_not_splat_warning.x',

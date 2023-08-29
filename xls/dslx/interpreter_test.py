@@ -124,7 +124,11 @@ class InterpreterTest(test_base.TestCase):
       };
     }
     """)
-    stderr = self._parse_and_test(program, want_error=True)
+    # warnings-as-errors off because we have a useless match expression just to
+    # trigger the type error.
+    stderr = self._parse_and_test(
+        program, warnings_as_errors=False, want_error=True
+    )
     self.assertIn(
         'The program being interpreted failed! The value was not matched',
         stderr)

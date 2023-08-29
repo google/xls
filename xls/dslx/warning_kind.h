@@ -36,8 +36,9 @@ enum class WarningKind : WarningKindInt {
   kUselessStructSplat = 1 << 4,
   kEmptyRangeLiteral = 1 << 5,
   kUnusedDefinition = 1 << 6,
+  kUselessExpressionStatement = 1 << 7,
 };
-constexpr WarningKindInt kWarningKindCount = 7;
+constexpr WarningKindInt kWarningKindCount = 8;
 
 inline constexpr auto kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -46,6 +47,7 @@ inline constexpr auto kAllWarningKinds = {
     WarningKind::kUselessStructSplat,
     WarningKind::kEmptyRangeLiteral,
     WarningKind::kUnusedDefinition,
+    WarningKind::kUselessExpressionStatement,
 };
 
 // Flag set datatype.

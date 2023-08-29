@@ -2075,6 +2075,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
     final_expr = module_->Make<XlsTuple>(block->span(), std::vector<Expr*>{},
                                          /*has_trailing_comma=*/false);
     block->AddStatement(module_->Make<Statement>(final_expr));
+    block->DisableTrailingSemi();
   } else {
     final_expr = std::get<Expr*>(block->statements().back()->wrapped());
   }
