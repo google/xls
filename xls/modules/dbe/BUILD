@@ -112,8 +112,6 @@ xls_dslx_library(
     deps = [
         ":dbe_common_dslx",
         "//xls/examples:ram_dslx",
-        # decoder is referenced by test code
-        ":dbe_lz4_decoder_dslx",
     ],
 )
 
@@ -136,7 +134,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "dbe_lz4_encoder_8k_opt_ir",
     src = "dbe_lz4_encoder_8k_ir.ir",
-    top = "__lz4_encoder__encoder_8k__encoder_base_0__16_3_13_12_13_65536_8192_4_16_8_next",
+    top = "__lz4_encoder__encoder_8k__encoder_base_0__1_4_13_16_16_8_next",
     ram_rewrites = [
         ":lz4_encoder_8k_ram1r1w_rewrites.textproto",
     ],

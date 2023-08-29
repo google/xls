@@ -24,11 +24,13 @@ type AbstractRamWriteReq = ram::WriteReq;
 type AbstractRamWriteResp = ram::WriteResp;
 type AbstractRamReadReq = ram::ReadReq;
 type AbstractRamReadResp = ram::ReadResp;
+type SimultaneousReadWriteBehavior = ram::SimultaneousReadWriteBehavior;
 
 
 fn fifo_shift_left<FIFO_SIZE: u32, DATA_WIDTH: u32>(
     fifo: uN[DATA_WIDTH][FIFO_SIZE],
-    data: uN[DATA_WIDTH]) -> uN[DATA_WIDTH][FIFO_SIZE] {
+    data: uN[DATA_WIDTH]
+) -> uN[DATA_WIDTH][FIFO_SIZE] {
    let fifo = for (i, arr): (u32, uN[DATA_WIDTH][FIFO_SIZE])
                in u32:1..FIFO_SIZE {
        update(arr, i - u32:1, fifo[i])
@@ -37,15 +39,32 @@ fn fifo_shift_left<FIFO_SIZE: u32, DATA_WIDTH: u32>(
    fifo
 }
 
-fn fifo_shift_right<FIFO_SIZE: u32, DATA_WIDTH: u32>(
-     fifo: uN[DATA_WIDTH][FIFO_SIZE],
-     data: uN[DATA_WIDTH]) -> uN[DATA_WIDTH][FIFO_SIZE] {
-    let fifo = for (i, arr): (u32, uN[DATA_WIDTH][FIFO_SIZE])
-                in u32:1..FIFO_SIZE {
-        update(arr, i, fifo[i - u32:1])
-    } (uN[DATA_WIDTH][FIFO_SIZE]: [0, ...]);
-    let fifo = update(fifo, u32:0, data);
-    fifo
+fn fibbonacci_factor(width: u32) -> u64 {
+    // This is equal to:
+    // round((1 << width) / golden), where golden=1.618033989...
+    match width {
+        u32:16 => u64:40503,
+        u32:24 => u64:10368890,
+        u32:32 => u64:2654435769,
+        u32:48 => u64:173961102589771,
+        u32:64 => u64:11400714819323198485,
+        _ => fail!("unsupported_fibbonacci_factor", u64:0),
+    }
+}
+
+fn hash_fibonacci<
+    SYMBOL_WIDTH: u32, HASH_SYMBOLS: u32, HASH_WIDTH: u32,
+    TOTAL_WIDTH: u32 = {SYMBOL_WIDTH * HASH_SYMBOLS},
+    FACTOR: u64 = {fibbonacci_factor(TOTAL_WIDTH)}
+> (
+    symbols: uN[SYMBOL_WIDTH][HASH_SYMBOLS]
+) -> uN[HASH_WIDTH] {
+    // Flatten the input, placing symbol 0 into LSBs
+    let input_word = array_rev(symbols) as uN[TOTAL_WIDTH];
+    // Calculate the full hash
+    let hash = input_word * (FACTOR as uN[TOTAL_WIDTH]);
+    // Truncate, leaving only MSBs
+    (hash >> (TOTAL_WIDTH - HASH_WIDTH)) as uN[HASH_WIDTH]
 }
 
 enum FsmSt: u4 {
@@ -53,99 +72,108 @@ enum FsmSt: u4 {
     HASH_TABLE_CLEAR = 1,
     RESTART = 2,
     FIFO_PREFILL = 3,
-    FIFO_POSTFILL = 4,
-    START_MATCH_0 = 5,
-    START_MATCH_1 = 6,
-    CONTINUE_MATCH_0 = 7,
-    CONTINUE_MATCH_1 = 8,
-    EMIT_SHORT_MATCH = 9,
-    EMIT_FINAL_LITERALS = 10,
-    EMIT_END = 11,
-    ERROR = 12,
+    START_MATCH_0 = 4,
+    START_MATCH_1 = 5,
+    CONTINUE_MATCH_0 = 6,
+    CONTINUE_MATCH_1 = 7,
+    FIFO_DRAIN = 8,
+    EMIT_END = 9,
+    ERROR = 10,
 }
 
-struct State<SYM_WIDTH: u32, PTR_WIDTH: u32, CNT_WIDTH: u32, HASH_BITS: u32,
-                MINMATCH: u32, FINAL_LITERALS: u32, FIFO_CACHE_SZ: u32,
-                FIFO_IN_SZ: u32> {
-    fifo_cache: uN[SYM_WIDTH][FIFO_CACHE_SZ],
-    fifo_in: uN[SYM_WIDTH][FIFO_IN_SZ],
+struct State<
+    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32,
+    HASH_SYMBOLS: u32, HASH_WIDTH: u32
+> {
+    fifo_in: uN[SYMBOL_WIDTH][HASH_SYMBOLS],
     fifo_in_count: u32,
-    fifo_in_nvalid: u32,
-    wp: uN[PTR_WIDTH],
+    hb_wr_ptr: uN[MATCH_OFFSET_WIDTH],
     hb_all_valid: bool,
-    pnew: uN[PTR_WIDTH],
-    pold: uN[PTR_WIDTH],
-    match_nconts: u32,
-    ht_ptr: uN[HASH_BITS],
+    hb_match_ptr: uN[MATCH_OFFSET_WIDTH],
+    match_offset: uN[MATCH_OFFSET_WIDTH],
+    match_length: uN[MATCH_LENGTH_WIDTH],
+    ht_ptr: uN[HASH_WIDTH],
     recycle: bool,
     finalize: bool,
+    is_match_dly: bool,
     fsm: FsmSt,
 }
 
-fn init_state<SYM_WIDTH: u32, PTR_WIDTH: u32, CNT_WIDTH: u32, HASH_BITS: u32,
-                MINMATCH: u32, FINAL_LITERALS: u32, FIFO_CACHE_SZ: u32,
-                FIFO_IN_SZ: u32>()
-                -> State<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS,
-                            MINMATCH, FINAL_LITERALS, FIFO_CACHE_SZ,
-                            FIFO_IN_SZ> {
+fn init_state<
+    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32,
+    HASH_SYMBOLS: u32, HASH_WIDTH: u32
+> () -> State<
+    SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH,
+    HASH_SYMBOLS, HASH_WIDTH
+> {
     State{
-        fifo_cache: uN[SYM_WIDTH][FIFO_CACHE_SZ]: [uN[SYM_WIDTH]:0, ...],
-        fifo_in: uN[SYM_WIDTH][FIFO_IN_SZ]: [uN[SYM_WIDTH]:0, ...],
+        fifo_in: uN[SYMBOL_WIDTH][HASH_SYMBOLS]: [uN[SYMBOL_WIDTH]:0, ...],
         fifo_in_count: u32:0,
-        fifo_in_nvalid: u32:0,
-        wp: uN[PTR_WIDTH]:0,
+        hb_wr_ptr: uN[MATCH_OFFSET_WIDTH]:0,
         hb_all_valid: false,
-        pnew: uN[PTR_WIDTH]:0,
-        pold: uN[PTR_WIDTH]:0,
-        match_nconts: u32:0,
-        ht_ptr: uN[HASH_BITS]:0,
+        hb_match_ptr: uN[MATCH_OFFSET_WIDTH]:0,
+        match_offset: uN[MATCH_OFFSET_WIDTH]:0,
+        match_length: uN[MATCH_LENGTH_WIDTH]:0,
+        ht_ptr: uN[HASH_WIDTH]:0,
         recycle: false,
         finalize: false,
+        is_match_dly: false,
         fsm: FsmSt::RESET
     }
 }
 
 pub proc encoder_base<
-        SYM_WIDTH: u32, PTR_WIDTH: u32, CNT_WIDTH: u32, HASH_BITS: u32,
-        MINMATCH: u32 = {u32:4}, FINAL_LITERALS: u32 = {u32:12},
-        FIFO_CACHE_SZ: u32 = {MINMATCH - u32:1},
-        FIFO_IN_SZ: u32 = {std::umax(MINMATCH, FINAL_LITERALS + u32:1)},
-        HB_RAM_SZ: u32 = {u32:1 << PTR_WIDTH},
-        HT_RAM_SZ: u32 = {u32:1 << HASH_BITS}> {
-    plain_data: chan<PlainData<SYM_WIDTH>> in;
-    encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out;
+    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32,
+    HASH_SYMBOLS: u32, HASH_WIDTH: u32, DO_CLEAR_HASH_TABLE: bool
+> {
+    plain_data: chan<PlainData<SYMBOL_WIDTH>> in;
+    encoded_data:
+        chan<Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>> out;
 
     /// History buffer RAM
-    /// Size: (1<<PTR_WIDTH) x SYM_WIDTH
-    ram_hb_rd_req: chan<AbstractRamReadReq<PTR_WIDTH, 1>> out;
-    ram_hb_rd_resp: chan<AbstractRamReadResp<SYM_WIDTH>> in;
-    ram_hb_wr_req: chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>> out;
+    /// Size: (1<<MATCH_OFFSET_WIDTH) x SYMBOL_WIDTH
+    ram_hb_rd_req: chan<AbstractRamReadReq<MATCH_OFFSET_WIDTH, 1>> out;
+    ram_hb_rd_resp: chan<AbstractRamReadResp<SYMBOL_WIDTH>> in;
+    ram_hb_wr_req:
+        chan<AbstractRamWriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>> out;
     ram_hb_wr_comp: chan<AbstractRamWriteResp> in;
 
     /// Hash table RAM
-    /// Size: (1<<HASH_BITS) x PTR_WIDTH
-    ram_ht_rd_req: chan<AbstractRamReadReq<HASH_BITS, 1>> out;
-    ram_ht_rd_resp: chan<AbstractRamReadResp<PTR_WIDTH>> in;
-    ram_ht_wr_req: chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>> out;
+    /// Size: (1<<HASH_WIDTH) x MATCH_OFFSET_WIDTH
+    ram_ht_rd_req: chan<AbstractRamReadReq<HASH_WIDTH, 1>> out;
+    ram_ht_rd_resp: chan<AbstractRamReadResp<MATCH_OFFSET_WIDTH>> in;
+    ram_ht_wr_req:
+        chan<AbstractRamWriteReq<HASH_WIDTH, MATCH_OFFSET_WIDTH, 1>> out;
     ram_ht_wr_comp: chan<AbstractRamWriteResp> in;
 
     init {
-        init_state<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS,
-                    MINMATCH, FINAL_LITERALS, FIFO_CACHE_SZ, FIFO_IN_SZ>()
+        init_state<
+            SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH,
+            HASH_SYMBOLS, HASH_WIDTH
+        >()
     }
 
     config (
         // Data in, tokens out
-        plain_data: chan<PlainData<SYM_WIDTH>> in,
-        encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
+        plain_data: chan<PlainData<SYMBOL_WIDTH>> in,
+        encoded_data:
+            chan<
+                Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>
+            > out,
         // RAM
-        ram_hb_rd_req: chan<AbstractRamReadReq<PTR_WIDTH, 1>> out,
-        ram_hb_rd_resp: chan<AbstractRamReadResp<SYM_WIDTH>> in,
-        ram_hb_wr_req: chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>> out,
+        ram_hb_rd_req: chan<AbstractRamReadReq<MATCH_OFFSET_WIDTH, 1>> out,
+        ram_hb_rd_resp: chan<AbstractRamReadResp<SYMBOL_WIDTH>> in,
+        ram_hb_wr_req:
+            chan<
+                AbstractRamWriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>
+            > out,
         ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
-        ram_ht_rd_req: chan<AbstractRamReadReq<HASH_BITS, 1>> out,
-        ram_ht_rd_resp: chan<AbstractRamReadResp<PTR_WIDTH>> in,
-        ram_ht_wr_req: chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>> out,
+        ram_ht_rd_req: chan<AbstractRamReadReq<HASH_WIDTH, 1>> out,
+        ram_ht_rd_resp: chan<AbstractRamReadResp<MATCH_OFFSET_WIDTH>> in,
+        ram_ht_wr_req:
+            chan<
+                AbstractRamWriteReq<HASH_WIDTH, MATCH_OFFSET_WIDTH, 1>
+            > out,
         ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
         (
@@ -156,14 +184,17 @@ pub proc encoder_base<
     }
 
     next (tok: token, cur: State) {
-        type EncToken = Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>;
-        type EncData = PlainData<SYM_WIDTH>;
-        type HbRamReadReq = AbstractRamReadReq<PTR_WIDTH, 1>;
-        type HbRamReadResp = AbstractRamReadResp<SYM_WIDTH>;
-        type HbRamWriteReq = AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>;
-        type HtRamReadReq = AbstractRamReadReq<HASH_BITS, 1>;
-        type HtRamReadResp = AbstractRamReadResp<PTR_WIDTH>;
-        type HtRamWriteReq = AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>;
+        type EncToken =
+            Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>;
+        type EncData = PlainData<SYMBOL_WIDTH>;
+        type HbRamReadReq = AbstractRamReadReq<MATCH_OFFSET_WIDTH, 1>;
+        type HbRamReadResp = AbstractRamReadResp<SYMBOL_WIDTH>;
+        type HbRamWriteReq =
+            AbstractRamWriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>;
+        type HtRamReadReq = AbstractRamReadReq<HASH_WIDTH, 1>;
+        type HtRamReadResp = AbstractRamReadResp<MATCH_OFFSET_WIDTH>;
+        type HtRamWriteReq =
+            AbstractRamWriteReq<HASH_WIDTH, MATCH_OFFSET_WIDTH, 1>;
 
         let upd = cur;
 
@@ -180,104 +211,158 @@ pub proc encoder_base<
             zero!<EncData>());
 
         // Classify input markers
-        let rx_symbol = do_recv && !rx.is_mark;
-        let rx_mark = do_recv && rx.is_mark;
+        let rx_symbol = do_recv && !rx.is_marker;
+        let rx_mark = do_recv && rx.is_marker;
         let rx_end = rx_mark && rx.mark == Mark::END;
         let rx_error = rx_mark && dbe::is_error(rx.mark);
         let rx_reset = rx_mark && rx.mark == Mark::RESET;
         let rx_unexpected_mark = rx_mark && !(rx_end || rx_reset || rx_error);
 
         let upd = if cur.fsm == FsmSt::ERROR || cur.recycle {
-            // Do not shift FIFOs / write HB in these states
+            // Do not shift FIFO in these states
             upd
         } else if rx_symbol {
-            let wp = upd.wp + uN[PTR_WIDTH]:1;
-            // Update state, shift input FIFOs
             let upd = State{
-                wp: wp,
-                fifo_cache:
-                    fifo_shift_right(upd.fifo_cache, upd.fifo_in[0]),
                 fifo_in:
                     fifo_shift_left(upd.fifo_in, rx.data),
-                hb_all_valid:
-                    if wp == uN[PTR_WIDTH]:0 {true} else {upd.hb_all_valid},
                 fifo_in_count:
-                    std::umin(upd.fifo_in_count + u32:1, FIFO_IN_SZ),
+                    std::umin(upd.fifo_in_count + u32:1, HASH_SYMBOLS),
                 ..upd
             };
             upd
         } else if rx_end {
             // When receiving END marker, shift input FIFO anyhow as we're
-            // expected to drop the symbol at OP
-            let new_count = std::umin(upd.fifo_in_count + u32:1, FIFO_IN_SZ);
+            // expected to drop the current symbol
             let upd = State{
                 finalize: true,
-                fifo_cache:
-                    fifo_shift_right(upd.fifo_cache, upd.fifo_in[0]),
                 fifo_in:
-                    fifo_shift_left(upd.fifo_in, uN[SYM_WIDTH]:0),
-                fifo_in_count: new_count,
-                fifo_in_nvalid: new_count - u32:1,
+                    fifo_shift_left(upd.fifo_in, uN[SYMBOL_WIDTH]:0),
+                fifo_in_count:
+                    std::umax(upd.fifo_in_count, u32:1) - u32:1,
                 ..upd
             };
             upd
-        } else if (
-            cur.fsm == FsmSt::FIFO_POSTFILL
-            || cur.fsm == FsmSt::EMIT_FINAL_LITERALS
-        ) {
+        } else if cur.fsm == FsmSt::FIFO_DRAIN {
             // Feed input FIFO with 0s and shift
-            let (new_count, new_nvalid) = if cur.fsm == FsmSt::FIFO_POSTFILL {
-                (
-                    std::umin(upd.fifo_in_count + u32:1, FIFO_IN_SZ),
-                    upd.fifo_in_nvalid
-                )
-            } else {
-                (
-                    upd.fifo_in_count,
-                    upd.fifo_in_nvalid - u32:1
-                )
-            };
             let upd = State{
                 fifo_in:
-                    fifo_shift_left(upd.fifo_in, uN[SYM_WIDTH]:0),
-                fifo_in_count: new_count,
-                fifo_in_nvalid: new_nvalid,
+                    fifo_shift_left(upd.fifo_in, uN[SYMBOL_WIDTH]:0),
+                fifo_in_count:
+                    std::umax(upd.fifo_in_count, u32:1) - u32:1,
                 ..upd
             };
             upd
         } else {
             upd
         };
+    
+        // Current symbol and its location in HB
+        let current_symbol = upd.fifo_in[u32:0];
+        // Address of current symbol in HB
+        let current_ptr = if !cur.recycle {
+            // When 'current' symbol is not recycled, it is not yet in HB, so
+            // its address is the address of the next unwritten location,
+            // 'hb_wr_ptr', but when it has been recycled, it's already in
+            // the HB, we need the address of the last written location.
+            upd.hb_wr_ptr
+        } else {
+            upd.hb_wr_ptr - uN[MATCH_OFFSET_WIDTH]:1
+        };
 
-        // Calculate origin pointer OP from WP
-        let op = ((upd.wp as u32) - FIFO_IN_SZ + u32:1) as uN[PTR_WIDTH];
-
-        // Calculate u32 Fibonacci hash function
-        let hsh_input = (upd.fifo_in[3] as u8)
-                        ++ (upd.fifo_in[2] as u8)
-                        ++ (upd.fifo_in[1] as u8)
-                        ++ (upd.fifo_in[0] as u8);
-        let hsh32 = hsh_input * u32:2654435761;
-        let hsh = (hsh32 >> (u32:32 - HASH_BITS)) as uN[HASH_BITS];
+        // Calculate hash function
+        let hash = hash_fibonacci<
+            SYMBOL_WIDTH, HASH_SYMBOLS, HASH_WIDTH
+        >(upd.fifo_in);
 
         // NOTE: HT RAM, HB RAM accesses and o_token emission all happen
         // in parallel.
 
-        // Read HT RAM
+        // Read HT RAM (stage 0)
         let (ht_rd_vld, ht_rd_req) = if cur.fsm == FsmSt::START_MATCH_0 {
-            (true, ram::ReadWordReq<u32:1>(hsh))
+            (true, ram::ReadWordReq<u32:1>(hash))
         } else {
             (false, zero!<HtRamReadReq>())
         };
         let tok_ht = send_if(tok, ram_ht_rd_req, ht_rd_vld, ht_rd_req);
         let (tok_ht, ht_rd_resp) = recv_if(tok_ht, ram_ht_rd_resp, ht_rd_vld,
             zero!<HtRamReadResp>());
+        let possible_match_ptr = ht_rd_resp.data;
+
+        // Update matching string pointer
+        let upd = if cur.fsm == FsmSt::START_MATCH_0 {
+            State {
+                hb_match_ptr: possible_match_ptr,
+                match_offset: current_ptr - possible_match_ptr,
+                match_length: uN[MATCH_LENGTH_WIDTH]:0,
+                ..upd
+            }
+        } else if cur.fsm == FsmSt::CONTINUE_MATCH_0 {
+            State {
+                hb_match_ptr: upd.hb_match_ptr + uN[MATCH_OFFSET_WIDTH]:1,
+                ..upd
+            }
+        } else {
+            upd
+        };
+
+        // Prepare for matching
+        let do_match =
+            cur.fsm == FsmSt::START_MATCH_0
+            || cur.fsm == FsmSt::CONTINUE_MATCH_0;
+        
+        // Read HB RAM (if match_ptr points to an already-written location)
+        let hb_match_ptr_valid =
+            upd.hb_all_valid || (upd.hb_match_ptr < current_ptr);
+        let (hb_rd_vld, hb_rd_req) = if do_match && hb_match_ptr_valid {
+            (true, ram::ReadWordReq<u32:1>(upd.hb_match_ptr))
+        } else {
+            (false, zero!<HbRamReadReq>())
+        };
+        let tok_hb = send_if(tok, ram_hb_rd_req, hb_rd_vld, hb_rd_req);
+        let (tok_hb, hb_rd_resp) = recv_if(tok_hb, ram_hb_rd_resp, hb_rd_vld,
+            zero!<HbRamReadResp>());
+        let candidate_symbol = hb_rd_resp.data;
+
+        // Check for match
+        // - disallow matches with offset equal to 0 (or HB_SIZE)
+        // - terminate the match if the match string is at max len
+        // - terminate the match if END token has been received
+        let is_match = (
+            do_match && hb_match_ptr_valid
+            && candidate_symbol == current_symbol
+            && upd.match_offset != uN[MATCH_OFFSET_WIDTH]:0
+            && upd.match_length < std::unsigned_max_value<MATCH_LENGTH_WIDTH>()
+            && !upd.finalize
+        ); 
+        
+        // Update match length
+        let upd = if is_match && cur.fsm == FsmSt::CONTINUE_MATCH_0 {
+            State {
+                match_length: upd.match_length + uN[MATCH_LENGTH_WIDTH]:1,
+                ..upd
+            }
+        } else {
+            upd
+        };
+
+        // Update ht_ptr used when clearing HT RAM
+        let upd = if cur.fsm == FsmSt::HASH_TABLE_CLEAR {
+            State {
+                ht_ptr: upd.ht_ptr + uN[HASH_WIDTH]:1,
+                ..upd
+            }
+        } else {
+            upd
+        };
 
         // Write HT RAM
         let (ht_wr_vld, ht_wr_req) = if cur.fsm == FsmSt::START_MATCH_1 {
-            (true, ram::WriteWordReq<u32:1>(hsh, op))
+            (true, ram::WriteWordReq<u32:1>(hash, current_ptr))
         } else if cur.fsm == FsmSt::HASH_TABLE_CLEAR {
-            (true, ram::WriteWordReq<u32:1>(upd.ht_ptr, uN[PTR_WIDTH]:0))
+            (
+                true,
+                ram::WriteWordReq<u32:1>(upd.ht_ptr, uN[MATCH_OFFSET_WIDTH]:0)
+            )
         } else {
             (false, zero!<HtRamWriteReq>())
         };
@@ -285,114 +370,37 @@ pub proc encoder_base<
         let (tok_ht, _) = recv_if(tok_ht, ram_ht_wr_comp, ht_wr_vld,
             zero!<AbstractRamWriteResp>());
 
-        // Update match pointers & HT ptr used to clean hash table
-        let upd = if cur.fsm == FsmSt::START_MATCH_0 {
-            State {
-                pold: ht_rd_resp.data,
-                pnew: op,
-                ..upd
-            }
-        } else if cur.fsm == FsmSt::HASH_TABLE_CLEAR {
-            State {
-                ht_ptr: upd.ht_ptr + uN[HASH_BITS]:1,
-                ..upd
-            }
-        } else {
-            upd
-        };
-
-        // Prepare to check for a match
-        let (mchk_do, mchk_pos, mchk_canextend) = if (
-            cur.fsm == FsmSt::START_MATCH_1
-        ) {
-            (
-                true,
-                upd.pold,
-                true
-            )
-        } else if (cur.fsm == FsmSt::CONTINUE_MATCH_1) {
-            (
-                true,
-                upd.pold + upd.match_nconts as uN[PTR_WIDTH] + uN[PTR_WIDTH]:1,
-                upd.match_nconts < ((u32:1 << CNT_WIDTH) - u32:1)
-            )
-        } else {
-            (
-                false,
-                uN[PTR_WIDTH]:0,
-                false
-            )
-        };
-
-        // Do not match-check unwritten (uninitialized) HB RAM locations
-        let mchk_is_hb_written =
-            upd.hb_all_valid
-            || (mchk_pos >= uN[PTR_WIDTH]:1 && mchk_pos < upd.wp);
-
-
-        // Read HB RAM
-        let (hb_rd_vld, hb_rd_req) = if mchk_do && mchk_is_hb_written {
-            (true, ram::ReadWordReq<u32:1>(mchk_pos))
-        } else {
-            (false, zero!<HbRamReadReq>())
-        };
-        let tok_hb = send_if(tok, ram_hb_rd_req, hb_rd_vld, hb_rd_req);
-        let (tok_hb, hb_rd_resp) = recv_if(tok_hb, ram_hb_rd_resp, hb_rd_vld,
-            zero!<HbRamReadResp>());
-
         // Write HB RAM
-        let (hb_wr_vld, hb_wr_req) = if rx_symbol && cur.fsm != FsmSt::ERROR {
-            (true, ram::WriteWordReq<u32:1>(upd.wp, rx.data))
+        let do_write_hb =
+            !cur.recycle && (
+                cur.fsm == FsmSt::START_MATCH_1
+                || cur.fsm == FsmSt::CONTINUE_MATCH_1
+                || cur.fsm == FsmSt::FIFO_DRAIN
+            );
+        let (hb_wr_vld, hb_wr_req) = if do_write_hb {
+            (true, ram::WriteWordReq<u32:1>(upd.hb_wr_ptr, current_symbol))
         } else {
             (false, zero!<HbRamWriteReq>())
         };
         let tok_hb = send_if(tok, ram_hb_wr_req, hb_wr_vld, hb_wr_req);
         let (tok_hb, _) = recv_if(tok_hb, ram_hb_wr_comp, hb_wr_vld,
             zero!<AbstractRamWriteResp>());
-
-        // Actually check for a match
-        let is_match = if mchk_do {
-            let sym = hb_rd_resp.data;
-            // For match to happen, following criteria have to be met:
-            // 1. pos should not point to an unwritten HB entry
-            //    (see `mchk_is_hb_written` above)
-            // 2. pos should not point between OP and WP inclusive
-            let isold = (mchk_pos - op) > (upd.wp - op);
-            // 3. sym should match current origin symbol
-            let _matches = sym == upd.fifo_in[0];
-            // 4. our existing matching string should not be too long
-            (mchk_is_hb_written && isold && _matches && mchk_canextend)
-        } else {
-            false
-        };
-
-        // Update match_nconts
-        let upd = State{
-            match_nconts: if cur.fsm == FsmSt::START_MATCH_1 {
-                u32:0
-            } else if cur.fsm == FsmSt::CONTINUE_MATCH_1 {
-                upd.match_nconts + u32:1
-            } else if cur.fsm == FsmSt::EMIT_SHORT_MATCH {
-                upd.match_nconts - u32:1
-            } else {
-                upd.match_nconts
-            },
-            ..upd
-        };
         
-        // Handle match termination
-        let (
-            is_match_terminated,
-            match_len,
-            match_is_long
-        ) = if cur.fsm == FsmSt::CONTINUE_MATCH_1 {
-            (
-                !is_match || upd.finalize,
-                upd.match_nconts,
-                upd.match_nconts >= MINMATCH,
-            )
+        // Update hb_wr_ptr
+        let upd = if do_write_hb {
+            let hb_wr_ptr = upd.hb_wr_ptr + uN[MATCH_OFFSET_WIDTH]:1;
+            State {
+                hb_wr_ptr: hb_wr_ptr,
+                hb_all_valid:
+                    if hb_wr_ptr == uN[MATCH_OFFSET_WIDTH]:0 {
+                        true
+                    } else {
+                        upd.hb_all_valid
+                    },
+                ..upd
+            }
         } else {
-            (false, u32:0, false)
+            upd
         };
 
         // Emit compressed data token
@@ -400,7 +408,7 @@ pub proc encoder_base<
         let (do_emit, encoded_tok) = if rx_reset {
             // Propagate RESET
             (true, Token{
-                kind: TokenKind::MARK,
+                kind: TokenKind::MARKER,
                 mark: Mark::RESET,
                 ..zero_tok
             })
@@ -410,62 +418,69 @@ pub proc encoder_base<
         } else if rx_error {
             // Propagate error
             (true, Token{
-                kind: TokenKind::MARK,
+                kind: TokenKind::MARKER,
                 mark: rx.mark,
                 ..zero_tok
             })
         } else if rx_unexpected_mark {
             // Generate error
             (true, Token{
-                kind: TokenKind::MARK,
+                kind: TokenKind::MARKER,
                 mark: Mark::ERROR_BAD_MARK,
                 ..zero_tok
             })
-        } else if (
-            cur.fsm == FsmSt::START_MATCH_1 &&
-            (!is_match || upd.finalize)
-        ) {
-            // Emit symbol at OP as literal
-            (true, Token{
-                kind: TokenKind::LITERAL,
-                literal: upd.fifo_in[0],
-                ..zero_tok
-            })
-        } else if cur.fsm == FsmSt::CONTINUE_MATCH_1 && is_match_terminated {
-            // If match is long enough, emit a single CP
-            // If not, emit symbols from Cache FIFO as literals
-            if match_is_long {
-                let off = upd.pnew - upd.pold;
-                let t = Token {
-                    kind: TokenKind::COPY_POINTER,
-                    copy_pointer_offset: off - uN[PTR_WIDTH]:1,
-                    copy_pointer_count: (match_len - u32:1) as uN[CNT_WIDTH],
+        } else if cur.fsm == FsmSt::START_MATCH_0 {
+            if is_match  {
+                // First symbol in a match - emit as matched
+                (true, Token{
+                    kind: TokenKind::MATCHED_SYMBOL,
+                    symbol: current_symbol,
                     ..zero_tok
-                };
-                (true, t) 
+                })
             } else {
-                (true, Token {
-                    kind: TokenKind::LITERAL,
-                    literal: upd.fifo_cache[upd.match_nconts - u32:1],
+                // Emit current symbol as unmatched
+                (true, Token{
+                    kind: TokenKind::UNMATCHED_SYMBOL,
+                    symbol: current_symbol,
                     ..zero_tok
                 })
             }
-        } else if cur.fsm == FsmSt::EMIT_SHORT_MATCH {
+        } else if cur.fsm == FsmSt::CONTINUE_MATCH_0 {
+            if !is_match {
+                // Emit a single MATCH token
+                (true, Token {
+                    kind: TokenKind::MATCH,
+                    match_offset: upd.match_offset - uN[MATCH_OFFSET_WIDTH]:1,
+                    match_length: upd.match_length,
+                    ..zero_tok
+                })
+            } else {
+                // Match continues, we emit all symbols as MATCHED_SYMBOLs
+                (true, Token{
+                    kind: TokenKind::MATCHED_SYMBOL,
+                    symbol: current_symbol,
+                    ..zero_tok
+                })
+            }
+        } else if cur.fsm == FsmSt::FIFO_PREFILL {
+            if upd.finalize && upd.fifo_in_count >= u32:1 {
+                (true, Token {
+                    kind: TokenKind::UNMATCHED_SYMBOL,
+                    symbol: current_symbol,
+                    ..zero_tok
+                })
+            } else {
+                (false, zero_tok)
+            }            
+        } else if cur.fsm == FsmSt::FIFO_DRAIN {
             (true, Token {
-                kind: TokenKind::LITERAL,
-                literal: upd.fifo_cache[upd.match_nconts - u32:1],
-                ..zero_tok
-            })
-        } else if cur.fsm == FsmSt::EMIT_FINAL_LITERALS {
-            // We dump literals from Input FIFO till nvalid becomes 0
-            (true, Token {
-                kind: TokenKind::LITERAL,
-                literal: upd.fifo_in[u32:0],
+                kind: TokenKind::UNMATCHED_SYMBOL,
+                symbol: current_symbol,
                 ..zero_tok
             })
         } else if cur.fsm == FsmSt::EMIT_END {
             (true, Token {
-                kind: TokenKind::MARK,
+                kind: TokenKind::MARKER,
                 mark: Mark::END,
                 ..zero_tok
             })
@@ -478,14 +493,14 @@ pub proc encoder_base<
         let upd = if cur.fsm == FsmSt::RESET {
             // Full reset
             // NOTE: .fsm value will be overridden by the state change logic
-            init_state<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS,
-                        MINMATCH, FINAL_LITERALS, FIFO_CACHE_SZ, FIFO_IN_SZ>()
+            init_state<
+                SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH,
+                HASH_SYMBOLS, HASH_WIDTH
+            >()
         } else if cur.fsm == FsmSt::RESTART {
             // Intra-block partial reset, keeping HB and HT intact
             State {
                 fifo_in_count: u32:0,
-                fifo_in_nvalid: u32:0,
-                match_nconts: u32:0,
                 finalize: false,
                 recycle: false,
                 ..upd
@@ -501,90 +516,68 @@ pub proc encoder_base<
             FsmSt::RESET
         } else {
             match cur.fsm {
-                FsmSt::RESET => FsmSt::HASH_TABLE_CLEAR,
+                FsmSt::RESET => {
+                    if DO_CLEAR_HASH_TABLE {
+                        FsmSt::HASH_TABLE_CLEAR
+                    } else {
+                        FsmSt::RESTART
+                    }
+                },
                 FsmSt::HASH_TABLE_CLEAR => {
-                    if upd.ht_ptr == uN[HASH_BITS]:0 {
+                    if upd.ht_ptr == uN[HASH_WIDTH]:0 {
                         FsmSt::RESTART
                     } else {
                         cur.fsm
                     }
                 },
-                FsmSt::RESTART => FsmSt::FIFO_PREFILL,
+                FsmSt::RESTART => {
+                    if HASH_SYMBOLS > u32:1 {
+                        FsmSt::FIFO_PREFILL
+                    } else {
+                        // When entering START_MATCH_0, there should be
+                        // exactly 1 unfilled spot in the FIFO since it will
+                        // be filled by START_MATCH_0 itself
+                        FsmSt::START_MATCH_0
+                    }
+                },
                 FsmSt::FIFO_PREFILL => {
                     if rx_end {
-                        if upd.fifo_in_nvalid > u32:0 {
-                            if upd.fifo_in_count < FIFO_IN_SZ {
-                                FsmSt::FIFO_POSTFILL
-                            } else {
-                                FsmSt::EMIT_FINAL_LITERALS
-                            }
+                        if upd.fifo_in_count >= u32:2 {
+                            FsmSt::FIFO_DRAIN
                         } else {
-                            // This handles empty input blocks
+                            // If there was 1 symbol in the block it has been
+                            // already handled by FIFO_PREFILL state
                             FsmSt::EMIT_END
                         }
-                    } else if upd.fifo_in_count >= FIFO_IN_SZ {
+                    } else if upd.fifo_in_count == (HASH_SYMBOLS - u32:1) {
+                        // One empty spot will be filled in by START_MATCH
+                        // itself, we can start matching
                         FsmSt::START_MATCH_0
                     } else {
                         cur.fsm
                     }
                 },
                 FsmSt::START_MATCH_0 => FsmSt::START_MATCH_1,
-                FsmSt::START_MATCH_1 => {
+                FsmSt::CONTINUE_MATCH_0 => FsmSt::CONTINUE_MATCH_1,
+                FsmSt::START_MATCH_1 | FsmSt::CONTINUE_MATCH_1 => {
                     if upd.finalize {
-                        FsmSt::EMIT_FINAL_LITERALS
-                    } else if is_match {
+                        if HASH_SYMBOLS > u32:1 {
+                            FsmSt::FIFO_DRAIN
+                        } else {
+                            FsmSt::EMIT_END
+                        }
+                    } else if upd.is_match_dly {
+                        // Continue growing the matching string
                         FsmSt::CONTINUE_MATCH_0
                     } else {
                         FsmSt::START_MATCH_0
                     }
                 },
-                FsmSt::CONTINUE_MATCH_0 => FsmSt::CONTINUE_MATCH_1,
-                FsmSt::CONTINUE_MATCH_1 => {
-                    if is_match_terminated {
-                        // Match failed or interrupted
-                        if match_is_long || upd.match_nconts == u32:1 {
-                            // Copy pointer or a sole literal has been
-                            // emitted
-                            if upd.finalize {
-                                FsmSt::EMIT_FINAL_LITERALS
-                            } else {
-                                FsmSt::START_MATCH_0
-                            }
-                        } else {
-                            // Still need to emit some literals to terminate
-                            // the match
-                            FsmSt::EMIT_SHORT_MATCH
-                        }
-                    } else {
-                        // Continue matching
-                        FsmSt::CONTINUE_MATCH_0
-                    }
-                },
-                FsmSt::EMIT_SHORT_MATCH => {
-                    if upd.match_nconts == u32:1 {
-                        if upd.finalize {
-                            // Finish block transcription
-                            FsmSt::EMIT_FINAL_LITERALS
-                        } else {
-                            // Restart matching
-                            FsmSt::START_MATCH_0
-                        }
-                    } else {
-                        cur.fsm
-                    }
-                },
-                FsmSt::FIFO_POSTFILL => {
-                    // It is worth noting that we get into this state only when
-                    // finalizing very short blocks (so short that they don't
-                    // even fill the input FIFO).
-                    if upd.fifo_in_count == FIFO_IN_SZ {
-                        FsmSt::EMIT_FINAL_LITERALS
-                    } else {
-                        cur.fsm
-                    }
-                },
-                FsmSt::EMIT_FINAL_LITERALS => {
-                    if upd.fifo_in_nvalid == u32:1 {
+                FsmSt::FIFO_DRAIN => {
+                    // We quit FIFO_DRAIN stage when there's 1 symbol left
+                    // because it has been already processed (written to HB
+                    // and emitted as a token) by the FIFO_DRAIN stage itself
+                    if upd.fifo_in_count == u32:1 {
                         FsmSt::EMIT_END
                     } else {
                         cur.fsm
@@ -600,25 +593,27 @@ pub proc encoder_base<
             ..upd
         };
 
-        // Set 'recycle' flag when we want to "stall" Input FIFO to not lose
-        // the symbol at the OP, which is needed for certain state transitions
+        // Set 'recycle' flag when we want next tick to reuse the current
+        // oldest symbol in the input FIFO instead of discarding it
         let recycle = if (
-            upd.fsm == FsmSt::START_MATCH_0
-            && cur.fsm != FsmSt::START_MATCH_1
+            upd.fsm == FsmSt::START_MATCH_1
+            || upd.fsm == FsmSt::CONTINUE_MATCH_1
         ) {
-            true
+            // Keep value from MATCH_0 state so that MATCH_1 can use it.
+            upd.recycle
         } else if (
-            upd.fsm == FsmSt::EMIT_FINAL_LITERALS
-            && cur.fsm != FsmSt::EMIT_FINAL_LITERALS
-            && cur.fsm != FsmSt::START_MATCH_1
+            cur.fsm == FsmSt::CONTINUE_MATCH_1
+            && upd.fsm != FsmSt::CONTINUE_MATCH_0
         ) {
             true
         } else {
             false
         };
         
+        // Set 'recycle' and delayed 'is_match'
         let upd = State {
             recycle: recycle,
+            is_match_dly: is_match,
             ..upd
         };
 
@@ -628,45 +623,55 @@ pub proc encoder_base<
 
 /// Version of `encoder_base` that uses RamModel
 /// Intended to be used only for tests
-pub proc encoder_base_modelram
-    <SYM_WIDTH: u32, PTR_WIDTH: u32, CNT_WIDTH: u32, HASH_BITS: u32> {
+pub proc encoder_base_modelram<
+    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32,
+    HASH_SYMBOLS: u32, HASH_WIDTH: u32, DO_CLEAR_HASH_TABLE: bool
+> {
     init{()}
 
     config (
-        plain_data: chan<PlainData<SYM_WIDTH>> in,
-        encoded_data: chan<Token<SYM_WIDTH, PTR_WIDTH, CNT_WIDTH>> out,
+        plain_data: chan<PlainData<SYMBOL_WIDTH>> in,
+        encoded_data:
+            chan<
+                Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>
+            > out,
     ) {
         let (hb_rd_req_s, hb_rd_req_r) =
-            chan<AbstractRamReadReq<PTR_WIDTH, 1>>;
+            chan<AbstractRamReadReq<MATCH_OFFSET_WIDTH, 1>>;
         let (hb_rd_resp_s, hb_rd_resp_r) =
-            chan<AbstractRamReadResp<SYM_WIDTH>>;
+            chan<AbstractRamReadResp<SYMBOL_WIDTH>>;
         let (hb_wr_req_s, hb_wr_req_r) =
-            chan<AbstractRamWriteReq<PTR_WIDTH, SYM_WIDTH, 1>>;
+            chan<AbstractRamWriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>>;
         let (hb_wr_comp_s, hb_wr_comp_r) =
             chan<AbstractRamWriteResp>;
         let (ht_rd_req_s, ht_rd_req_r) =
-            chan<AbstractRamReadReq<HASH_BITS, 1>>;
+            chan<AbstractRamReadReq<HASH_WIDTH, 1>>;
         let (ht_rd_resp_s, ht_rd_resp_r) =
-            chan<AbstractRamReadResp<PTR_WIDTH>>;
+            chan<AbstractRamReadResp<MATCH_OFFSET_WIDTH>>;
         let (ht_wr_req_s, ht_wr_req_r) =
-            chan<AbstractRamWriteReq<HASH_BITS, PTR_WIDTH, 1>>;
+            chan<AbstractRamWriteReq<HASH_WIDTH, MATCH_OFFSET_WIDTH, 1>>;
         let (ht_wr_comp_s, ht_wr_comp_r) =
             chan<AbstractRamWriteResp>;
 
-        spawn ram::RamModel
-            <SYM_WIDTH, {u32:1<<PTR_WIDTH}, SYM_WIDTH>
-            (hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
-        spawn ram::RamModel
-            <PTR_WIDTH, {u32:1<<HASH_BITS}, PTR_WIDTH>
-            (ht_rd_req_r, ht_rd_resp_s, ht_wr_req_r, ht_wr_comp_s);
+        spawn ram::RamModel<
+            SYMBOL_WIDTH, {u32:1<<MATCH_OFFSET_WIDTH}, SYMBOL_WIDTH,
+            SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
+            true
+        >(hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
+        spawn ram::RamModel<
+            MATCH_OFFSET_WIDTH, {u32:1<<HASH_WIDTH}, MATCH_OFFSET_WIDTH,
+            SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
+            true
+        >(ht_rd_req_r, ht_rd_resp_s, ht_wr_req_r, ht_wr_comp_s);
 
-        spawn encoder_base
-            <SYM_WIDTH, PTR_WIDTH, CNT_WIDTH, HASH_BITS>
-            (
-                plain_data, encoded_data,
-                hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
-                ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_comp_r,
-            );
+        spawn encoder_base<
+            SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH,
+            HASH_SYMBOLS, HASH_WIDTH, DO_CLEAR_HASH_TABLE
+        > (
+            plain_data, encoded_data,
+            hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
+            ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_comp_r,
+        );
     }
 
     next (tok: token, state: ()) {
@@ -675,35 +680,45 @@ pub proc encoder_base_modelram
 
 /// LZ4 encoder with 8K hash table
 
-const LZ4_SYM_WIDTH = u32:8;
-const LZ4_PTR_WIDTH = u32:16;
-const LZ4_CNT_WIDTH = u32:16;
-const LZ4_HASH_BITS_8K = u32:13;
+const LZ4_SYMBOL_WIDTH = u32:8;
+const LZ4_OFFSET_WIDTH = u32:16;
+const LZ4_COUNT_WIDTH = u32:16;
+const LZ4_HASH_SYMBOLS = u32:4;
+const LZ4_HASH_WIDTH_8K = u32:13;
 
 pub proc encoder_8k {
     init{()}
 
     config (
         plain_data:
-            chan<PlainData<LZ4_SYM_WIDTH>> in,
+            chan<PlainData<LZ4_SYMBOL_WIDTH>> in,
         encoded_data:
-            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>> out,
-        ram_hb_rd_req: chan<AbstractRamReadReq<LZ4_PTR_WIDTH, 1>> out,
-        ram_hb_rd_resp: chan<AbstractRamReadResp<LZ4_SYM_WIDTH>> in,
-        ram_hb_wr_req: chan<AbstractRamWriteReq<LZ4_PTR_WIDTH, LZ4_SYM_WIDTH, 1>> out,
+            chan<
+                Token<LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH>
+            > out,
+        ram_hb_rd_req: chan<AbstractRamReadReq<LZ4_OFFSET_WIDTH, 1>> out,
+        ram_hb_rd_resp: chan<AbstractRamReadResp<LZ4_SYMBOL_WIDTH>> in,
+        ram_hb_wr_req:
+            chan<
+                AbstractRamWriteReq<LZ4_OFFSET_WIDTH, LZ4_SYMBOL_WIDTH, 1>
+            > out,
         ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
-        ram_ht_rd_req: chan<AbstractRamReadReq<LZ4_HASH_BITS_8K, 1>> out,
-        ram_ht_rd_resp: chan<AbstractRamReadResp<LZ4_PTR_WIDTH>> in,
-        ram_ht_wr_req: chan<AbstractRamWriteReq<LZ4_HASH_BITS_8K, LZ4_PTR_WIDTH, 1>> out,
+        ram_ht_rd_req: chan<AbstractRamReadReq<LZ4_HASH_WIDTH_8K, 1>> out,
+        ram_ht_rd_resp: chan<AbstractRamReadResp<LZ4_OFFSET_WIDTH>> in,
+        ram_ht_wr_req:
+            chan<
+                AbstractRamWriteReq<LZ4_HASH_WIDTH_8K, LZ4_OFFSET_WIDTH, 1>
+            > out,
         ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
-        spawn encoder_base
-            <LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH, LZ4_HASH_BITS_8K>
-            (
-                plain_data, encoded_data,
-                ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
-                ram_ht_rd_req, ram_ht_rd_resp, ram_ht_wr_req, ram_ht_wr_comp,
-            );
+        spawn encoder_base <
+            LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH,
+            LZ4_HASH_SYMBOLS, LZ4_HASH_WIDTH_8K, true
+        > (
+            plain_data, encoded_data,
+            ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
+            ram_ht_rd_req, ram_ht_rd_resp, ram_ht_wr_req, ram_ht_wr_comp,
+        );
     }
 
     next(tok: token, st: ()) {
@@ -717,13 +732,16 @@ pub proc encoder_8k_modelram {
 
     config (
         plain_data:
-            chan<PlainData<LZ4_SYM_WIDTH>> in,
+            chan<PlainData<LZ4_SYMBOL_WIDTH>> in,
         encoded_data:
-            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>> out,
+            chan<Token<
+                LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH
+            >> out,
     ) {
-        spawn encoder_base_modelram
-            <LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH, LZ4_HASH_BITS_8K>
-            (plain_data, encoded_data);
+        spawn encoder_base_modelram<
+            LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH,
+            LZ4_HASH_SYMBOLS, LZ4_HASH_WIDTH_8K, false
+        > (plain_data, encoded_data);
     }
 
     next (tok: token, state: ()) {
@@ -735,53 +753,39 @@ pub proc encoder_8k_modelram {
 ///
 
 import xls.modules.dbe.common_test as test
-import xls.modules.dbe.lz4_decoder as dec
 
-const TST_SYMS_LEN = u32:19;
-const TST_SYMS = PlainData<8>[TST_SYMS_LEN]: [
-    // Check basic LT and CP generation
-    PlainData{is_mark: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:2, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:2, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:2, mark: Mark::NONE},
-    // Final token sequence - should stay as literals
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_mark: true, data: u8:0, mark: Mark::END},
+const TEST_DATA_LEN = u32:10;
+const TEST_DATA = PlainData<8>[TEST_DATA_LEN]: [
+    // Check basic LT and MATCH generation
+    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
+    // Final token sequence
+    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
+    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
+    PlainData{is_marker: true, data: u8:0, mark: Mark::END},
 ];
 
-const TST_TOKS_LEN = u32:16;
-const TST_TOKS =
-Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>[TST_TOKS_LEN]: [
-    Token{kind: TokenKind::LITERAL, literal: u8:1, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:2, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::COPY_POINTER, literal: u8:0, copy_pointer_offset: u16:1, copy_pointer_count: u16:3, mark: Mark::NONE},
-    // Final literal token sequence
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::LITERAL, literal: u8:7, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MARK, literal: u8:0, copy_pointer_offset: u16:0, copy_pointer_count: u16:0, mark: Mark::END},
+const TEST_TOKENS_LEN = u32:11;
+const TEST_TOKENS = Token<
+    LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH
+>[TEST_TOKENS_LEN]: [
+    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MATCH, symbol: u8:0, match_offset: u16:1, match_length: u16:3, mark: Mark::NONE},
+    // Final token sequence
+    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
+    Token{kind: TokenKind::MARKER, symbol: u8:0, match_offset: u16:0, match_length: u16:0, mark: Mark::END},
 ];
 
 #[test_proc]
@@ -793,20 +797,21 @@ proc test_encoder_8k_simple {
 
     config(term: chan<bool> out) {
         let (send_data_s, send_data_r) =
-            chan<PlainData<LZ4_SYM_WIDTH>>;
+            chan<PlainData<LZ4_SYMBOL_WIDTH>>;
         let (enc_toks_s, enc_toks_r) =
-            chan<Token<LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>>;
+            chan<Token<LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH>>;
         let (recv_term_s, recv_term_r) =
             chan<bool>;
 
-        spawn test::data_sender<TST_SYMS_LEN, LZ4_SYM_WIDTH>
-            (TST_SYMS, send_data_s);
+        spawn test::data_sender<TEST_DATA_LEN, LZ4_SYMBOL_WIDTH>
+            (TEST_DATA, send_data_s);
         spawn encoder_8k_modelram(
             send_data_r, enc_toks_s,
         );
-        spawn test::token_validator
-            <TST_TOKS_LEN, LZ4_SYM_WIDTH, LZ4_PTR_WIDTH, LZ4_CNT_WIDTH>
-            (TST_TOKS, enc_toks_r, recv_term_s);
+        spawn test::token_validator<
+            TEST_TOKENS_LEN, LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH,
+            LZ4_COUNT_WIDTH
+        >(TEST_TOKENS, enc_toks_r, recv_term_s);
 
         (term, recv_term_r)
     }

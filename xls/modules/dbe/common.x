@@ -33,21 +33,24 @@ pub fn is_error(mark: Mark) -> bool {
 }
 
 pub enum TokenKind : u2 {
-    LITERAL = 0,
-    COPY_POINTER = 1,
-    MARK = 2,
+    UNMATCHED_SYMBOL = 0,
+    MATCHED_SYMBOL = 1,
+    MATCH = 2,
+    MARKER = 3,
 }
 
-pub struct Token<SYM_WIDTH: u32, PTR_WIDTH: u32, CNT_WIDTH: u32> {
+pub struct Token<
+    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32
+>{
     kind: TokenKind,
-    literal: uN[SYM_WIDTH],
-    copy_pointer_offset: uN[PTR_WIDTH],
-    copy_pointer_count: uN[CNT_WIDTH],
+    symbol: uN[SYMBOL_WIDTH],
+    match_offset: uN[MATCH_OFFSET_WIDTH],
+    match_length: uN[MATCH_LENGTH_WIDTH],
     mark: Mark
 }
 
 pub struct PlainData<DATA_WIDTH: u32> {
-    is_mark: bool,
-    data: uN[DATA_WIDTH],    // symbol
-    mark: Mark,             // marker code
+    is_marker: bool,
+    data: uN[DATA_WIDTH],
+    mark: Mark,
 }
