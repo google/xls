@@ -781,3 +781,47 @@ filegroup(
     srcs = glob(["*.x"]),
     visibility = ["//xls:xls_internal"],
 )
+
+xls_dslx_library(
+    name = "passthrough_dslx",
+    srcs = [
+        "passthrough.x",
+    ],
+)
+
+xls_dslx_verilog(
+    name = "passthrough_verilog",
+    codegen_args = {
+        "module_name": "passthrough",
+        "delay_model": "unit",
+        "pipeline_stages": "1",
+        "reset": "rst",
+        "use_system_verilog": "false",
+        "streaming_channel_data_suffix": "_data",
+    },
+    dslx_top = "Passthrough",
+    library = "passthrough_dslx",
+    verilog_file = "passthrough.v",
+)
+
+xls_dslx_test(
+    name = "passthrough_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":passthrough_dslx",
+)
+
+py_test(
+    name = "passthrough_cocotb_test",
+    srcs = ["passthrough_cocotb_test.py"],
+    data = [
+        ":passthrough_verilog",
+        "@com_icarus_iverilog//:iverilog",
+        "@com_icarus_iverilog//:vvp",
+    ],
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/simulation/cocotb:cocotb_xls",
+    ],
+)
