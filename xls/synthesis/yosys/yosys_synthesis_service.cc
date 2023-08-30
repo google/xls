@@ -144,7 +144,7 @@ std::string YosysSynthesisServiceImpl::BuildYosysCmds(
 
   yosys_cmd = absl::StrJoin(yosys_cmd_vec, "\n");
 
-  XLS_LOG(INFO) << "about to start, yosys cmd: " << yosys_cmd;
+  XLS_VLOG(1) << "about to start, yosys cmd: " << yosys_cmd;
   return yosys_cmd;
 }
 
@@ -190,7 +190,7 @@ absl::Status YosysSynthesisServiceImpl::RunSynthesis(
     std::string yosys_cmd = BuildYosysCmds(request, verilog_path,
                                            synth_json_path, synth_verilog_path);
     XLS_RETURN_IF_ERROR(SetFileContents(yosys_cmd_path, yosys_cmd));
-    XLS_LOG(INFO) << "Yosys command file: " << yosys_cmd_path;
+    XLS_LOG(INFO) << "Running Yosys:  command file: " << yosys_cmd_path;
     XLS_ASSIGN_OR_RETURN(string_pair,
                          RunSubprocess({yosys_path_, "-s", yosys_cmd_path}));
   }
@@ -347,7 +347,7 @@ std::string YosysSynthesisServiceImpl::BuildSTACmds(
 
   sta_cmd = absl::StrJoin(sta_cmd_vec, "\n");
 
-  XLS_LOG(INFO) << "about to start, sta cmd: " << sta_cmd;
+  XLS_VLOG(1) << "about to start, sta cmd: " << sta_cmd;
   return sta_cmd;
 }
 
@@ -360,7 +360,7 @@ absl::Status YosysSynthesisServiceImpl::RunSTA(
   sta_cmd = BuildSTACmds(request, netlist_path);
   XLS_RETURN_IF_ERROR(SetFileContents(sta_cmd_path, sta_cmd));
 
-  XLS_LOG(INFO) << "STA command file: " << sta_cmd_path;
+  XLS_LOG(INFO) << "Running OpenSTA: command file: " << sta_cmd_path;
 
   std::pair<std::string, std::string> string_pair;
 

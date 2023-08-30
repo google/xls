@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -214,9 +215,9 @@ absl::Status RefineDelayEstimations(
     targeted_paths.push_back(path_info);
   }
 
-  XLS_VLOG(2) << "Number of paths to evaluate is " << targeted_paths.size();
+  XLS_LOG(INFO) << "Number of paths to evaluate is " << targeted_paths.size();
   for (auto [delay, source, target] : targeted_paths) {
-    XLS_VLOG(2) << "(" << delay << "ps) Source " << source->GetName() << " ("
+    XLS_LOG(INFO) << "(" << delay << "ps) Source " << source->GetName() << " ("
                 << cycle_map.at(source) << ") to target " << target->GetName()
                 << " (" << cycle_map.at(target) << ")";
   }
@@ -238,13 +239,15 @@ absl::Status RefineDelayEstimations(
       std::vector<int64_t> delay_list,
       options.synthesizer->SynthesizeNodesConcurrentlyAndGetDelays(nodes_list));
 
-  XLS_VLOG(2) << "Number of modules generated is " << nodes_list.size();
+  XLS_VLOG(1) << "Number of modules generated is " << nodes_list.size();
   for (int64_t j = 0; j < delay_list.size(); ++j) {
     const NodeSet &nodes = nodes_list[j];
     int64_t delay = delay_list[j];
-    XLS_VLOG(2) << "(" << delay << "ps) Nodes: "
+    XLS_LOG(INFO) << "(Updated delay: " << delay << "ps) Nodes: "
                 << absl::StrJoin(nodes, ", ", [](std::string *out, Node *n) {
                      absl::StrAppend(out, n->GetName());
+                     absl::StrAppend(out, "-->");
+                     absl::StrAppend(out, n->GetUsersString());
                    });
 
     // Update delays in the delay manager with the synthesis results.
@@ -313,6 +316,59 @@ absl::Status IterativeSDCSchedulingModel::AddTimingConstraints(
   XLS_VLOG(2) << "Number of timing constraints added: " << number_constraints;
   return absl::OkStatus();
 }
+
+static absl::Status UpdateStats(
+    const ScheduleCycleMap& prev_cycle_map,
+    const ScheduleCycleMap& cycle_map,
+    FunctionBase *f,
+    int64_t iter
+    ) {
+  // Suppress output when rerunning scheduling
+  // See https://github.com/google/xls/issues/1107
+  static int64_t previous_iter = -1;
+  if (iter < previous_iter) {
+    previous_iter = INT64_MAX;
+    return absl::OkStatus();
+  }
+  previous_iter = iter;
+
+  // Show changes (nodes that moved from one stage to another)
+  for (auto [node, prev_cycle] : prev_cycle_map) {
+    if (cycle_map.at(node) != prev_cycle) {
+      XLS_LOG(INFO) << "*** Node " << node->GetName() << " MOVED STAGES: " <<
+                  prev_cycle << "-->" << cycle_map.at(node) << "\n";
+    }
+  }
+
+  // Display cycle_map histogram (nodes per cycle)
+  std::map<int64_t, int64_t> histo;
+  for (auto& [node, cycle] : cycle_map) {
+    if (!node->Is<Param>() && !node->Is<Literal>()) {
+      ++histo[cycle];
+    }
+  }
+  for (auto& [cycle, node_count] : histo) {
+    XLS_LOG(INFO) << "Stage " << cycle << ": " << node_count << " nodes";
+  }
+
+  // Count flops at pipeline stage crossings
+  int64_t crossing_bits = 0;
+  for (auto [node, cycle] : cycle_map) {
+    auto users = node->users();
+    int64_t next_cycle = cycle + 1;
+    if (std::any_of(users.cbegin(), users.cend(),
+                    [next_cycle, &cycle_map](Node* n){
+                      return cycle_map.at(n) >= next_cycle;
+                    })) {
+      crossing_bits += node->GetType()->GetFlatBitCount();
+    }
+  }
+  XLS_LOG(INFO) << "FLOPS: " << crossing_bits << "\n";
+
+  return absl::OkStatus();
+}
+
+
 
 absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     FunctionBase *f, std::optional<int64_t> pipeline_stages,
@@ -406,17 +462,21 @@ absl::StatusOr<ScheduleCycleMap> ScheduleByIterativeSDC(
     }
 
     // Extract scheduling results to the cycle map.
+    ScheduleCycleMap prev_cycle_map = cycle_map;
     XLS_ASSIGN_OR_RETURN(cycle_map,
                          model.ExtractResult(result.variable_values()));
     PathExtractOptions path_extract_options;
     path_extract_options.cycle_map = &cycle_map;
+    XLS_RET_CHECK_OK(
+        UpdateStats(prev_cycle_map, cycle_map, f, i));
+
 
     // Report the current estimated critical path delay.
     XLS_ASSIGN_OR_RETURN(PathInfo critical_path,
                          delay_manager.GetLongestPath(path_extract_options));
     auto [critical_delay, critical_source, critical_target] = critical_path;
     if (critical_delay > 0) {
-      XLS_VLOG(1) << "SDC iteration " << i << " critical path delay is "
+      XLS_LOG(INFO) << "SDC iteration " << i << " critical path delay is "
                   << critical_delay << "ps: " << critical_source->GetName()
                   << " -> " << critical_target->GetName();
     }
