@@ -20,7 +20,6 @@ fn main(s: S) {
   for (_, ()) in u32:0 .. u32:4 {
     cover!("indirect_list_size_C",
                    s.i);
-    ()
   }(())
 }
 

@@ -24,5 +24,4 @@ fn main(x: u8) -> MyEnum {
 fn main_test() {
   assert_eq(main(u8:42), MyEnum::FOO);
   assert_eq(main(u8:64), MyEnum::BAR);
-  ()
 }

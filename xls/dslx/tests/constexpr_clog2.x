@@ -32,5 +32,4 @@ fn main() -> u32 {
 fn test_main() {
   assert_eq(u32:2, THING_BITS);
   assert_eq(u32:2, main());
-  ()
 }

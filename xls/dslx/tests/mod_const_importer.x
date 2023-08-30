@@ -25,5 +25,4 @@ fn main_test() {
   assert_eq(main(u32:0), u32:4);
   assert_eq(main(u32:1), u32:5);
   assert_eq(LOCAL_FOUR, mod_simple_const::FOUR);
-  ()
 }

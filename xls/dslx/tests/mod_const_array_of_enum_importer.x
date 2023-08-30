@@ -23,5 +23,4 @@ fn main_test() {
   assert_eq(main(u2:0), mod_simple_const_array_of_enums::MyEnum::A);
   assert_eq(main(u2:1), mod_simple_const_array_of_enums::MyEnum::B);
   assert_eq(main(u2:2), mod_simple_const_array_of_enums::MyEnum::C);
-  ()
 }

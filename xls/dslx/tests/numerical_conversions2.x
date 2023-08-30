@@ -31,5 +31,4 @@ fn numerical_conversions() {
   // Sign extension (source type is signed).
   assert_eq(s32:-2, s8_m2 as s32);
   assert_eq(s16:-2, s8_m2 as s16);
-  ()
 }

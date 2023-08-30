@@ -26,7 +26,6 @@ proc parametric<N: u32, M: u32> {
     let (tok, input) = recv(tok, c);
     let output = (input as uN[N] * uN[N]:2) as uN[M];
     let tok = send(tok, s, output);
-    ()
   }
 }
 
@@ -55,6 +54,5 @@ proc test_proc {
     assert_eq(result, u37:16);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }

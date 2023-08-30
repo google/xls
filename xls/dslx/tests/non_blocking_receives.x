@@ -51,7 +51,6 @@ pub proc proc_main {
          in1: chan<u32> in,
          out0: chan<u32> out) {
     spawn test_impl(in0, in1, out0);
-    ()
   }
 
   next(tok: token, state: ()) { () }
@@ -108,6 +107,5 @@ proc test_main {
     assert_eq(v, u32:0);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }

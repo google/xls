@@ -69,7 +69,6 @@ fn test_shifts() {
   // (or modify) after resolving this issue.
   // assert_eq(s4:14, shr_signed());
   assert_eq(u4:2, shr_unsigned());
-  ()
 }
 
 fn main32() -> sN[32] {

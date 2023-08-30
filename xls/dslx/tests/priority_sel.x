@@ -20,7 +20,6 @@ fn priority_sel_raw_nums() {
   assert_eq(u4:2, priority_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
   assert_eq(u4:4, priority_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
   assert_eq(u4:1, priority_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
-  ()
 }
 
 #[test]
@@ -36,5 +35,4 @@ fn priority_sel_symbols() {
   assert_eq(A, priority_sel(u3:0b111, cases));
   assert_eq(A, priority_sel(u3:0b011, cases));
   assert_eq(B, priority_sel(u3:0b110, cases));
-  ()
 }

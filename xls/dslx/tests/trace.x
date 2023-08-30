@@ -26,5 +26,4 @@ fn trace_test() {
   trace!(x0);
   let x1 = (x0 as u8) * u8:3;
   trace!(x1);
-  ()
 }

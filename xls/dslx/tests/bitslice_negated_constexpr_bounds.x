@@ -35,5 +35,4 @@ fn main_test() {
   assert_eq(g(x), want);
   assert_eq(h(x), want);
   assert_eq(main(x), u5:28);
-  ()
 }

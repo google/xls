@@ -23,5 +23,4 @@ fn bit_slice_test() {
   assert_eq(u3:0b011, bit_slice(u6:0b100111, u6:1, u3:0));
   assert_eq(u3:0b001, bit_slice(u6:0b100111, u6:2, u3:0));
   assert_eq(u3:0b100, bit_slice(u6:0b100111, u6:3, u3:0));
-  ()
 }

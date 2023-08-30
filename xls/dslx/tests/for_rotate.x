@@ -27,5 +27,4 @@ fn main_test() {
   assert_eq(u8:0xdc, main(u8:0xcd));
   assert_eq(u8:0x55, main(u8:0x55));
   assert_eq(u8:0xaa, main(u8:0xaa));
-  ()
 }

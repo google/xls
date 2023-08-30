@@ -94,5 +94,4 @@ fn empty_eq_test() {
   let b = u32[0]:[];
   assert_eq (a == b, true);
   assert_eq (a != b, false);
-  ()
 }

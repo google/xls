@@ -40,7 +40,6 @@ fn enum_values() {
   assert_eq(false, a != MyEnum::A);
   assert_eq(a, a as u2 as MyEnum);
   assert_eq(a, a as u2 as MyEnum);
-  ()
 }
 
 #[test]

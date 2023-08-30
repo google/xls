@@ -24,7 +24,6 @@ proc proc_under_test {
 
   next(tok: token, state: ()) {
     let (tok, _) = recv(tok, input_r);
-    ()
   }
 }
 

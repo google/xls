@@ -47,7 +47,6 @@ proc main {
         let (s, r) = chan<u32>;
         spawn producer(s);
         spawn consumer(r);
-        ()
     }
     next(tok: token, state: ()) { () }
 }
@@ -83,6 +82,5 @@ proc test_main {
         assert_eq(v, u32:1);
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }

@@ -33,5 +33,4 @@ fn main(x: EnumType) -> bool {
 fn test_main() {
   assert_eq(false, main(EnumType::FIRST));
   assert_eq(true, main(EnumType::SECOND));
-  ()
 }

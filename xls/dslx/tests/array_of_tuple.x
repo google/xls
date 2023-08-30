@@ -26,7 +26,6 @@ fn array_of_tuple_literal_test() {
   assert_eq(x0.1, u32:2);
   assert_eq(x1.0, u8:3);
   assert_eq(x1.1, u32:4);
-  ()
 }
 
 #[test]
@@ -38,7 +37,6 @@ fn array_of_tuple_type_annotation_test() {
   assert_eq(x0.1, u32:2);
   assert_eq(x1.0, u8:3);
   assert_eq(x1.1, u32:4);
-  ()
 }
 
 #[test]
@@ -50,5 +48,4 @@ fn multi_dimensional_array_of_tuple_type_annotation_test() {
   assert_eq(x0.1, u32:2);
   assert_eq(x1.0, u8:3);
   assert_eq(x1.1, u32:4);
-  ()
 }

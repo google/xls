@@ -25,7 +25,6 @@ fn match_wildcard_test() {
   assert_eq(u32:7, match_sample(true, u32:7, u32:1));
   assert_eq(u32:1, match_sample(false, u32:7, u32:1));
   assert_eq(u32:42, match_sample(false, u32:8, u32:1));
-  ()
 }
 
 fn match_wrapper(x: u32) -> u8 {
@@ -43,7 +42,6 @@ fn match_wrapper_test() {
   assert_eq(u8:2, match_wrapper(u32:64));
   assert_eq(u8:3, match_wrapper(u32:77));
   assert_eq(u8:4, match_wrapper(u32:128));
-  ()
 }
 
 fn main() -> u32 {

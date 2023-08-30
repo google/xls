@@ -34,5 +34,4 @@ fn bit_slice_update_test() {
                     bit_slice_update(bits[16]:0xabcd,
                                      u17: 4,
                                      bits[96]:0xffff_ffff_ffff_ffff_ffff_ff12));
-  ()
 }

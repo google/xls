@@ -32,5 +32,4 @@ fn main_test() {
   assert_eq(u32:42, p.x);
   assert_eq(u32:64, p.y);
   assert_eq(main(u32:128), fully_qualified(u32:128));
-  ()
 }

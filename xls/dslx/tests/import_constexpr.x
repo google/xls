@@ -29,7 +29,6 @@ fn main() -> bits[32] {
 fn can_reference_constants_test() {
   assert_eq(CONST_1, constexpr::CONST_1);
   assert_eq(bits[32]:666, constexpr::CONST_1);
-  ()
 }
 
 #[test]

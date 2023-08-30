@@ -25,7 +25,6 @@ fn casts() {
   assert_eq(u1:1, u1:1 as u1);
   assert_eq(s1:1, s1:1 as s1);
   assert_eq(s1:-1, s1:-1 as s1);
-  ()
 }
 
 #[test]
@@ -81,8 +80,6 @@ fn widening_casts() {
   assert_eq(u3:5, widening_cast<u3>(u3:5));
   assert_eq(u3:6, widening_cast<u3>(u3:6));
   assert_eq(u3:7, widening_cast<u3>(u3:7));
-
-  ()
 }
 
 #[test]
@@ -179,6 +176,4 @@ fn checked_casts() {
   assert_eq(u3:5, checked_cast<u3>(u3:5));
   assert_eq(u3:6, checked_cast<u3>(u3:6));
   assert_eq(u3:7, checked_cast<u3>(u3:7));
-
-  ()
 }

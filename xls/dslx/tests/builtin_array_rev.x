@@ -49,5 +49,4 @@ fn test_main() {
                          bool[3]:[false, false, true]);
   assert_eq(main(bool[3]:[false, false, true]),
                          bool[3]:[true, false, false]);
-  ()
 }

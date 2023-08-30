@@ -38,5 +38,4 @@ fn parametric_enum_value() {
   assert_eq(is_b(MyEnum::B), true);
   assert_eq(main(MyEnum::A), true);
   assert_eq(main(MyEnum::B), true);
-  ()
 }

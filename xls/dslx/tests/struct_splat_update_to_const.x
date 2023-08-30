@@ -30,5 +30,4 @@ fn main_test() {
   let q = main(p);
   assert_eq(q.y, u32:42);
   assert_eq(q.x, u32:1);
-  ()
 }

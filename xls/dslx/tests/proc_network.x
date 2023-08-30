@@ -59,6 +59,5 @@ proc main {
 
   next(tok: token, state: ()) {
     let tok = send(tok, terminator, true);
-    ()
   }
 }

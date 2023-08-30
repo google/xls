@@ -22,7 +22,6 @@ fn main(x: s8) -> s32 {
 fn test_main() {
   assert_eq(main(s8:-1), s32:-1);
   assert_eq(main(s8:1), s32:1);
-  ()
 }
 
 #[test]
@@ -41,7 +40,6 @@ fn signex_builtin_convert_to_fewer_bits() {
   assert_eq(s as u4, u);
   assert_eq(x as s4, s);
   assert_eq(x as u4, u);
-  ()
 }
 
 #[test]
@@ -57,5 +55,4 @@ fn signex_builtin_convert_to_external_typedef() {
   assert_eq(u32_result, u32:0);
   let u42_result: u42 = signex(y, mod_imported_typedef::MyBits:0);
   assert_eq(u42_result, u42:0);
-  ()
 }

@@ -20,7 +20,6 @@ fn one_hot_sel_raw_nums() {
   assert_eq(u4:2, one_hot_sel(u3:0b010, u4[3]:[u4:1, u4:2, u4:4]));
   assert_eq(u4:4, one_hot_sel(u3:0b100, u4[3]:[u4:1, u4:2, u4:4]));
   assert_eq(u4:7, one_hot_sel(u3:0b111, u4[3]:[u4:1, u4:2, u4:4]));
-  ()
 }
 
 #[test]
@@ -36,5 +35,4 @@ fn one_hot_sel_symbols() {
   assert_eq(A|B|C, one_hot_sel(u3:0b111, cases));
   assert_eq(A|B, one_hot_sel(u3:0b011, cases));
   assert_eq(B|C, one_hot_sel(u3:0b110, cases));
-  ()
 }

@@ -24,5 +24,4 @@ fn main_test() {
   let my_array: u32[2] = [x, y];
   assert_eq(main(my_array, u1:0), x);
   assert_eq(main(my_array, u1:1), y);
-  ()
 }

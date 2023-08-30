@@ -26,7 +26,6 @@ fn match_const_not_binding() {
   assert_eq(u8:42, match_const(u8:0));
   assert_eq(u8:42, match_const(u8:1));
   assert_eq(u8:0, match_const(u8:42));
-  ()
 }
 
 fn h(t: (u8, (u16, u32))) -> u32 {
@@ -42,7 +41,6 @@ fn match_nested() {
   assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
   assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
   assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
-  ()
 }
 
 fn main() -> u32 {

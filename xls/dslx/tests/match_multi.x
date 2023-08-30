@@ -24,5 +24,4 @@ fn main_test() {
   //assert_eq(u32:42, main(u32:24));
   assert_eq(u32:42, main(u32:42));
   //assert_eq(u32:64, main(u32:41));
-  ()
 }

@@ -44,5 +44,4 @@ fn maps() {
   assert_eq(expected_u6, map(x0, umul_2_widening));
   assert_eq(expected, map(x0, umul_2_parametric));
   assert_eq(u4[8]:[4, 4, 2, 1, 1, 0, 0, 0], main());
-  ()
 }

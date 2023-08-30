@@ -25,6 +25,5 @@ fn clz_test() {
   assert_eq(u3:1, clz(u3:0b011));
   assert_eq(u3:2, clz(u3:0b001));
   assert_eq(u3:3, clz(u3:0b000));
-  ()
 }
 

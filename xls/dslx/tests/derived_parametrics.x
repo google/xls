@@ -34,5 +34,4 @@ fn derived_parametric_functions() {
 
   assert_eq(u4:5, self_append(u2:1));
   assert_eq(u6:18, self_append(u3:2));
-  ()
 }

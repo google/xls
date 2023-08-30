@@ -31,7 +31,6 @@ fn test_main() {
   assert_eq(u6:0b100111, binop_chain(u1:1, u2:0b00, u3:0b111));
   assert_eq(u6:0b001000, binop_chain(u1:0, u2:0b01, u3:0b000));
   assert_eq(u32:0xdeadbeef, binop_parametric(u16:0xdead, u16:0xbeef));
-  ()
 }
 
 // Example given in the docs.
@@ -42,5 +41,4 @@ fn test_docs() {
   assert_eq(u6:0b100111, u1:1 ++ u2:0b00 ++ u3:0b111);
   assert_eq(u6:0b001000, u1:0 ++ u2:0b01 ++ u3:0b000);
   assert_eq(u32:0xdeadbeef, u16:0xdead ++ u16:0xbeef);
-  ()
 }

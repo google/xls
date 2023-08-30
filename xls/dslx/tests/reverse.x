@@ -31,7 +31,6 @@ fn test_reverse() {
   assert_eq(u1:1, rev(u1:1));
   assert_eq(u2:0b10, rev(u2:0b01));
   assert_eq(u2:0b00, rev(u2:0b00));
-  ()
 }
 
 // Reversing a value twice gets you the original value.

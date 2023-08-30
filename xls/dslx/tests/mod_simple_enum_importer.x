@@ -26,5 +26,4 @@ fn main(et: mod_simple_enum::EnumType) -> u32 {
 fn test_main() {
   assert_eq(u32:0, main(mod_simple_enum::EnumType::FIRST));
   assert_eq(u32:1, main(mod_simple_enum::EnumType::SECOND));
-  ()
 }

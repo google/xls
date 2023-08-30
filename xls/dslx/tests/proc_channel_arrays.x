@@ -24,7 +24,6 @@ proc consumer {
   next(tok: token, state: ()) {
     let (tok, i) = recv(tok, recv_chans[0][0]);
     let tok = send(tok, send_chans[1], i + i);
-    ()
   }
 }
 
@@ -48,7 +47,6 @@ proc producer {
     assert_eq(result, u16:2);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }
 
