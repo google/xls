@@ -15,19 +15,19 @@
 import std
 import xls.examples.protobuf.varint_decode
 
-struct State<NUM_BYTES:u32, NUM_BYTES_WIDTH:u32={std::clog2(NUM_BYTES)}> {
+struct State<NUM_BYTES:u32, NUM_BYTES_WIDTH:u32={std::clog2(NUM_BYTES+u32:1)}> {
   bytes: u8[NUM_BYTES],
   len: uN[NUM_BYTES_WIDTH],
 }
 
 pub proc varint_streaming_u32_decode<
-  INPUT_BYTES:u32,
-  OUTPUT_WORDS:u32,
-  SCRATCHPAD_BYTES:u32={INPUT_BYTES},
-  INPUT_BYTES_WIDTH:u32={std::clog2(INPUT_BYTES)},
-  OUTPUT_WORDS_WIDTH:u32={std::clog2(OUTPUT_WORDS)},
-  SCRATCHPAD_BYTES_WIDTH:u32={std::clog2(SCRATCHPAD_BYTES)},
-> {
+   INPUT_BYTES:u32,
+   OUTPUT_WORDS:u32,
+   SCRATCHPAD_BYTES:u32={INPUT_BYTES},
+   INPUT_BYTES_WIDTH:u32={std::clog2(INPUT_BYTES+u32:1)},
+   OUTPUT_WORDS_WIDTH:u32={std::clog2(OUTPUT_WORDS+u32:1)},
+   SCRATCHPAD_BYTES_WIDTH:u32={std::clog2(SCRATCHPAD_BYTES+u32:1)},
+ > {
   bytes_in: chan<(u8[INPUT_BYTES], uN[INPUT_BYTES_WIDTH])> in;
   words_out: chan<(u32[OUTPUT_WORDS], uN[OUTPUT_WORDS_WIDTH])> out;
 
