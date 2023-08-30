@@ -1138,6 +1138,7 @@ build_test(
 )
 
 filegroup(
-    name = "dslx_files",
+    name = "x_files",
     srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
 )

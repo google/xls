@@ -26,7 +26,7 @@ package(
 )
 
 filegroup(
-    name = "dslx_files",
+    name = "x_files",
     srcs = glob(["crashers/*.x"]),
 )
 

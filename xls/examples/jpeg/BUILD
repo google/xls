@@ -227,3 +227,9 @@ cc_test(
         "//xls/common/status:matchers",
     ],
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

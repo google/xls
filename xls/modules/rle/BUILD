@@ -174,3 +174,9 @@ xls_benchmark_ir(
         "delay_model": "unit",
     },
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

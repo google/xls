@@ -129,3 +129,9 @@ xls_dslx_test(
 #     verilog_file = "varint_streaming_decode.sv",
 # )
 #
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)

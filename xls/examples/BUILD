@@ -632,3 +632,9 @@ xls_dslx_opt_ir_test(
     name = "nested_sel_test",
     dep = ":nested_sel",
 )
+
+filegroup(
+    name = "x_files",
+    srcs = glob(["*.x"]),
+    visibility = ["//xls:xls_internal"],
+)
