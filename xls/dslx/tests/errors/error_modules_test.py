@@ -954,6 +954,16 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr,
     )
 
+  def test_struct_instantiate_s32(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/struct_instantiate_s32.x',
+    )
+    self.assertIn('ParseError:', stderr)
+    self.assertIn(
+        'Can only resolve a TypeRefTypeAnnotation to a struct; got: s32',
+        stderr,
+    )
+
 
 if __name__ == '__main__':
   test_base.main()

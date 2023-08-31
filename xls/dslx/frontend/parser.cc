@@ -643,9 +643,10 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings& bindings,
                                                 TypeAnnotation* type) {
   auto type_ref_annotation = dynamic_cast<TypeRefTypeAnnotation*>(type);
   if (type_ref_annotation == nullptr) {
-    return absl::InvalidArgumentError(
+    return ParseErrorStatus(
+        type->span(),
         "Can only resolve a TypeRefTypeAnnotation to a struct; got: " +
-        type->ToString());
+            type->ToString());
   }
   TypeRef* type_ref = type_ref_annotation->type_ref();
   TypeDefinition type_defn = type_ref->type_definition();
@@ -661,9 +662,10 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings& bindings,
                          std::get<TypeAlias*>(type_defn)->type_annotation());
   }
   if (std::holds_alternative<EnumDef*>(type_defn)) {
-    return absl::InvalidArgumentError(
+    return ParseErrorStatus(
+        type->span(),
         "Type resolved to an enum definition; expected struct definition: " +
-        type->ToString());
+            type->ToString());
   }
   XLS_LOG(FATAL) << "Unhandled TypeDefinition variant.";
 }
