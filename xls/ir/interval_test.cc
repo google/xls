@@ -14,13 +14,20 @@
 
 #include "xls/ir/interval.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
+#include <optional>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/matchers.h"
+#include "absl/types/span.h"
+#include "rapidcheck/gtest.h"
+#include "rapidcheck.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 using ::testing::ElementsAre;
 using ::testing::Optional;
@@ -114,6 +121,25 @@ TEST(IntervalTest, ConvexHull) {
   EXPECT_EQ(
       Interval::ConvexHull(Interval(Bits(), Bits()), Interval(Bits(), Bits())),
       Interval(Bits(), Bits()));
+
+  EXPECT_EQ(Interval::ConvexHull(Interval(UBits(0, 6), UBits(4, 6)),
+                                 Interval(UBits(5, 6), UBits(5, 6))),
+            Interval(UBits(0, 6), UBits(5, 6)));
+
+  EXPECT_EQ(Interval::ConvexHull(Interval(UBits(5, 6), UBits(5, 6)),
+                                 Interval(UBits(0, 6), UBits(4, 6))),
+            Interval(UBits(0, 6), UBits(5, 6)));
+}
+
+RC_GTEST_PROP(IntervalRapidcheck, ConvexHull,
+              (uint64_t a, uint64_t b, uint64_t c, uint64_t d)) {
+  Interval interval1(UBits(std::min(a, b), 64), UBits(std::max(a, b), 64));
+  Interval interval2(UBits(std::min(c, d), 64), UBits(std::max(c, d), 64));
+  RC_ASSERT(Interval::ConvexHull(interval1, interval2) ==
+            Interval::ConvexHull(interval2, interval1));
+  RC_ASSERT(Interval::ConvexHull(interval1, interval2) ==
+            Interval(UBits(std::min({a, b, c, d}), 64),
+                     UBits(std::max({a, b, c, d}), 64)));
 }
 
 TEST(IntervalSet, Intersect) {

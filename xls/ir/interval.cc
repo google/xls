@@ -134,7 +134,7 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
     // unique zero-width interval.
     return Interval(Bits(), Bits());
   }
-  return Interval(bits_ops::UMin(lhs.LowerBound(), rhs.UpperBound()),
+  return Interval(bits_ops::UMin(lhs.LowerBound(), rhs.LowerBound()),
                   bits_ops::UMax(lhs.UpperBound(), rhs.UpperBound()));
 }
 

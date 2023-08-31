@@ -205,12 +205,14 @@ cc_test(
         "interval_test.cc",
     ],
     deps = [
+        ":bits",
+        ":bits_ops",
         ":interval",
-        "//xls/common:math_util",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:span",
+        "@rapidcheck",
     ],
 )
 
