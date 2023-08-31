@@ -1384,6 +1384,54 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStatement(
   return result;
 }
 
+// Warns if the next-to-last statement in a block has a trailing semi and the
+// last statement is a nil tuple expression, as this is redundant; i.e.
+//
+//    {
+//      foo;
+//      ()  <-- useless, semi on previous statement implies it
+//    }
+static void DetectUselessTrailingTuplePattern(const Block* block,
+                                              DeduceCtx* ctx) {
+  // TODO(https://github.com/google/xls/issues/1124) 2023-08-31 Proc config
+  // parsing functions synthesize a tuple at the end, and we don't want to flag
+  // that since the user didn't even create it.
+  if (block->parent()->kind() == AstNodeKind::kFunction &&
+      dynamic_cast<const Function*>(block->parent())->tag() ==
+          Function::Tag::kProcConfig) {
+    return;
+  }
+
+  // Need at least a statement (i.e. with semicolon after it) and an
+  // expression-statement at the end to match this pattern.
+  if (block->statements().size() < 2) {
+    return;
+  }
+
+  // Trailing statement has to be an expression-statement.
+  const Statement* last_stmt = block->statements().back();
+  if (!std::holds_alternative<Expr*>(last_stmt->wrapped())) {
+    return;
+  }
+
+  // It has to be a tuple.
+  const auto* last_expr = std::get<Expr*>(last_stmt->wrapped());
+  auto* trailing_tuple = dynamic_cast<const XlsTuple*>(last_expr);
+  if (trailing_tuple == nullptr) {
+    return;
+  }
+
+  // Tuple has to be nil.
+  if (!trailing_tuple->empty()) {
+    return;
+  }
+
+  ctx->warnings()->Add(
+      trailing_tuple->span(), WarningKind::kTrailingTupleAfterSemi,
+      absl::StrFormat("Block has a trailing nil (empty) tuple after a "
+                      "semicolon -- this is implied, please remove it"));
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
                                                           DeduceCtx* ctx) {
   std::unique_ptr<ConcreteType> last;
@@ -1423,6 +1471,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
                                            e->ToString()));
     }
   }
+
+  DetectUselessTrailingTuplePattern(node, ctx);
   return last;
 }
 

@@ -126,7 +126,6 @@ proc doomed {
 
     next(tok: token) {
       let tok = send(tok, terminator, false);
-      ()
     }
 })";
 
@@ -277,7 +276,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 

@@ -22,5 +22,4 @@ pub fn e() -> u32 {
 #[test]
 fn e_test() {
   assert_eq(u32:6, e());
-  ()
 }

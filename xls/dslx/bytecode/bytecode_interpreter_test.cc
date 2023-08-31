@@ -1614,7 +1614,6 @@ proc BTester {
         let (tok, result) = recv(tok, data_out);
         assert_eq(result, u32:9);
         let tok = send(tok, terminator, true);
-        ()
     }
 })";
 
@@ -1842,7 +1841,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -1869,7 +1867,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -1926,7 +1923,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -1953,7 +1949,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2012,7 +2007,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i, valid) = recv_non_blocking(tok, in_ch, u32:0);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -2035,7 +2029,6 @@ proc tester_proc {
     let tok = send_if(tok, data_out, false, u32:42);
     let (tok, result) = recv(tok, data_in);
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2091,7 +2084,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, Foo { a:i.a + u32:1, b:i.b + u16:1 });
-    ()
   }
 }
 
@@ -2119,7 +2111,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 
@@ -2177,7 +2168,6 @@ proc incrementer {
   next(tok: token, _: ()) {
     let (tok, i) = recv(tok, in_ch);
     let tok = send(tok, out_ch, i + u32:1);
-    ()
   }
 }
 
@@ -2205,7 +2195,6 @@ proc tester_proc {
     let (tok, result) = recv(tok, data_in[0]);
 
     let tok = send(tok, terminator, true);
-    ()
  }
 })";
 

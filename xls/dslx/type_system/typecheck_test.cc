@@ -1713,6 +1713,28 @@ fn f(x: u32) -> u32 {
       PositionalErrorColor::kWarningColor));
 }
 
+TEST(TypecheckTest, UselessTrailingNilGivesWarning) {
+  const std::string program = R"(
+fn f() -> () {
+  trace_fmt!("oh no");
+  ()
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(TypecheckedModule tm, Typecheck(program));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).span,
+            Span(Pos(filename, 3, 2), Pos(filename, 3, 4)));
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "Block has a trailing nil (empty) tuple after a semicolon -- this "
+            "is implied, please remove it");
+  XLS_ASSERT_OK(PrintPositionalError(
+      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      std::cerr,
+      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
+      PositionalErrorColor::kWarningColor));
+}
+
 TEST(TypecheckTest, CatchesBadInvocationCallee) {
   constexpr std::string_view kImported = R"(
 pub fn some_function() -> u32 { u32:0 }

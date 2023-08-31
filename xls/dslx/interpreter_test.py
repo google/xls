@@ -269,7 +269,6 @@ class InterpreterTest(test_base.TestCase):
       let s = MyStruct{x: u32:42};
       trace_fmt!("s as hex: {:#x}", s);
       trace_fmt!("s as bin: {:#b}", s);
-      ()
     }
 
     #[test]
@@ -302,7 +301,6 @@ class InterpreterTest(test_base.TestCase):
       let a = MyStruct[1]:[s];
       trace_fmt!("a as hex: {:#x}", a);
       trace_fmt!("a as bin: {:#b}", a);
-      ()
     }
 
     #[test]
@@ -334,7 +332,6 @@ class InterpreterTest(test_base.TestCase):
     fn main() {
       let a = MyEnum[2]:[MyEnum::ONE, MyEnum::TWO];
       trace_fmt!("a: {:#x}", a);
-      ()
     }
 
     #[test]
@@ -357,7 +354,6 @@ class InterpreterTest(test_base.TestCase):
     fn main() {
       let t = (MyEnum::ONE, MyEnum::TWO, u32:42);
       trace_fmt!("t: {:#x}", t);
-      ()
     }
 
     #[test]

@@ -2072,8 +2072,8 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
 
   Expr* final_expr;
   if (block->empty() || block->trailing_semi()) {
-    // If the block is empty we make a fake tuple expression for the return
-    // value.
+    // TODO(https://github.com/google/xls/issues/1124): 2023-08-31 If the block
+    // is empty we make a fake tuple expression for the return value.
     final_expr = module_->Make<XlsTuple>(block->span(), std::vector<Expr*>{},
                                          /*has_trailing_comma=*/false);
     block->AddStatement(module_->Make<Statement>(final_expr));

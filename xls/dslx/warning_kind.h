@@ -26,7 +26,7 @@ namespace xls::dslx {
 // The integer type underlying a warning -- this is used in enough places, and
 // has a high enough probability that it will grow over time as the flag set
 // gets larger, that we factor it out here into an alias.
-using WarningKindInt = uint8_t;
+using WarningKindInt = uint16_t;
 
 enum class WarningKind : WarningKindInt {
   kConstexprEvalRollover = 1 << 0,
@@ -37,8 +37,9 @@ enum class WarningKind : WarningKindInt {
   kEmptyRangeLiteral = 1 << 5,
   kUnusedDefinition = 1 << 6,
   kUselessExpressionStatement = 1 << 7,
+  kTrailingTupleAfterSemi = 1 << 8,
 };
-constexpr WarningKindInt kWarningKindCount = 8;
+constexpr WarningKindInt kWarningKindCount = 9;
 
 inline constexpr auto kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
@@ -48,6 +49,7 @@ inline constexpr auto kAllWarningKinds = {
     WarningKind::kEmptyRangeLiteral,
     WarningKind::kUnusedDefinition,
     WarningKind::kUselessExpressionStatement,
+    WarningKind::kTrailingTupleAfterSemi,
 };
 
 // Flag set datatype.
