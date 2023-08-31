@@ -23,9 +23,9 @@
 // The behavior of the encoder is presented on the waveform below:
 
 // This encoder is implemented as a net of 4 proc.
-// 1. Reduce step - this process takes incoming symbols and symbol_valid
+// 1. Reduce proc - this process takes incoming symbols and symbol_valid
 // and reduces them into symbol count pairs. This step is stateless.
-// 2. Realign step - this process moves pairs emitted from the reduce step
+// 2. Realign proc - this process moves pairs emitted from the reduce step
 // so that they are aligned to the left, it also calculates propagation
 // distance for the first pair.
 // Example behaviours:
@@ -37,13 +37,13 @@
 //    input:  [.., .., (A, 3), (A, 1)]
 //    output: [(A, 3), (A, 1), .., ..]
 //    propagation distance: 1
-// 3. Core step - this step is stateful. It takes align pairs from
+// 3. Core proc - this step is stateful. It takes align pairs from
 // the realign step, and combines them with its state to create multiple
 // symbol/count pairs output. State is represented by following tuple
 // `<symbol, count, last>`. It contains symbol and count from last pair
 // received from realign step, or current sum of repeating symbol spanning
 // multiple input widths.
-// 4. - Adjust Width step - this step takes output from the core step.
+// 4. Adjust Width proc - this step takes output from the core step.
 // If output can handle more or equal number of pairs as
 // input number of symbols. This step does nothing.
 // If the output is narrower than the input,
