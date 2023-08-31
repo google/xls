@@ -150,7 +150,6 @@ fn normalize_test() {
   let actual = normalize(
       u1:0, u8:2, u24:0b0010_0000_1000_1111_0000_0101);
   assert_eq(expected, actual);
-  ()
 }
 
 #[test]
@@ -175,7 +174,6 @@ fn tag_test() {
   assert_eq(tag(F32 { sign: u1:0, bexp: u8:255, fraction: u23:1 }), FloatTag::NAN);
   assert_eq(tag(F32 { sign: u1:1, bexp: u8:255, fraction: u23:0x7f_ffff }), FloatTag::NAN);
   assert_eq(tag(qnan()), FloatTag::NAN);
-  ()
 }
 
 pub fn fixed_fraction(input_float: F32) -> u23 {
@@ -299,7 +297,6 @@ fn from_int32_test() {
   let expected = F32 { sign: u1:1, bexp: u8:158, fraction: u23:0x0 };
   let actual = from_int32(s32:-2147483648);
   assert_eq(expected, actual);
-  ()
 }
 
 pub fn add(x: F32, y: F32) -> F32 {
@@ -406,7 +403,4 @@ fn fast_sqrt_test() {
   let neg_denormal = F32{sign: u1:1, bexp: u8:0, fraction: u23:99};
   assert_eq(fast_rsqrt(neg_denormal),
     inf(u1:1));
-  ()
 }
-
-

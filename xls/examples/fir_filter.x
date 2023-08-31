@@ -82,7 +82,6 @@ fn fir_filter_fixed_test() {
    let coefficients = s32[4]:[10, 11, -12, -13];
    let result = fir_filter_fixed(samples, coefficients);
    assert_eq(result, s32[3]:[36, 32, 28]);
-   ()
 }
 
 #[test]
@@ -92,5 +91,4 @@ fn fir_filter_float32_test() {
    let result = fir_filter_float32(samples, coefficients);
    let expected = map(s32[3]:[36, 32, 28], float32::cast_from_fixed_using_rne);
    assert_eq(result, expected);
-   ()
 }

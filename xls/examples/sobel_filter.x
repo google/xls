@@ -89,8 +89,6 @@ fn apply_stencil_float32_test() {
                    float32::cast_from_fixed_using_rne(s32:7));
   assert_eq(apply_stencil_float32<u32:4, u32:4>(img1, u32:1, u32:1, Y_STENCIL_F32),
                   float32::cast_from_fixed_using_rne(s32:8));
-
-  ()
 }
 
 // Apply Sobel filter to input image 'in_img' with NUM_ROWS rows
@@ -148,7 +146,6 @@ fn sobel_filter_float32_test() {
   assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:0]), s32:17);
   assert_eq(float32::cast_to_fixed<u32:32>(sobel_out[u32:1]), s32:15);
 
-  ()
 }
 
 // TODO(jbaileyhandle): Fixed-point version (Images are generally fixed point).

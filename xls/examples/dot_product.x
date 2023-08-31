@@ -57,7 +57,6 @@ fn dot_product_fixed_test() {
    let b = s8[2]:[5, 6];
    let result = dot_product_fixed<u32:8, u32:2>(a, b);
    assert_eq(result, s8:17);
-   ()
 }
 
 #[test]
@@ -66,7 +65,5 @@ fn dot_product_float32_test() {
    let b = map(s32[4]:[5, 6, 7, 8], float32::cast_from_fixed_using_rne);
    let result = dot_product_float32(a, b);
    assert_eq(result, float32::cast_from_fixed_using_rne(s32:70));
-   ()
-
 }
 

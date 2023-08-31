@@ -392,6 +392,5 @@ proc ghash_test {
         assert_eq(tag, expected);
 
         send(tok, terminator, true);
-        ()
     }
 }

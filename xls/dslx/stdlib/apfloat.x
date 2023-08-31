@@ -63,7 +63,6 @@ fn qnan_test() {
   };
   let actual = qnan<u32:4, u32:2>();
   assert_eq(actual, expected);
-  ()
 }
 
 // Returns whether or not the given APFloat represents NaN.
@@ -95,7 +94,6 @@ fn inf_test() {
   };
   let actual = inf<u32:4, u32:2>(u1:0);
   assert_eq(actual, expected);
-  ()
 }
 
 // Returns whether or not the given APFloat represents an infinite quantity.
@@ -136,7 +134,6 @@ fn zero_test() {
   };
   let actual = zero<u32:4, u32:2>(u1:1);
   assert_eq(actual, expected);
-  ()
 }
 
 // Returns one or minus one depending upon the given sign parameter.
@@ -163,7 +160,6 @@ fn one_test() {
   };
   let actual = one<u32:4, u32:2>(u1:0);
   assert_eq(actual, expected);
-  ()
 }
 
 // Returns the negative of x unless it is a NaN, in which case it will
@@ -225,7 +221,6 @@ fn unbiased_exponent_zero_test() {
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:127, fraction: u23:0 });
   assert_eq(actual, expected);
-  ()
 }
 
 #[test]
@@ -234,7 +229,6 @@ fn unbiased_exponent_positive_test() {
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:128, fraction: u23:0 });
   assert_eq(actual, expected);
-  ()
 }
 
 #[test]
@@ -243,7 +237,6 @@ fn unbiased_exponent_negative_test() {
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:126, fraction: u23:0 });
   assert_eq(actual, expected);
-  ()
 }
 
 #[test]
@@ -252,7 +245,6 @@ fn unbiased_exponent_subnormal_test() {
   let actual = unbiased_exponent<u32:8, u32:23>(
       APFloat<u32:8, u32:23> { sign: u1:0, bexp: u8:0, fraction: u23:0 });
   assert_eq(actual, expected);
-  ()
 }
 
 // Returns the biased exponent which is equal to `unbiased_exponent + 2^EXP_SZ - 1`
@@ -274,7 +266,6 @@ fn bias_test() {
   let expected = u8:127;
   let actual = bias<u32:8, u32:23>(s8:0);
   assert_eq(expected, actual);
-  ()
 }
 
 // Returns a bit string of size `1 + EXP_SZ + FRACTION_SZ` where the first bit
@@ -486,7 +477,6 @@ fn cast_from_fixed_using_rne_test() {
                     inf<u32:4, u32:4>(u1:0));
   assert_eq(cast_from_fixed_using_rne<u32:4, u32:4>(sN[32]:254),
                     inf<u32:4, u32:4>(u1:0));
-  ()
 }
 
 // Casts the fixed point number to a floating point number using RZ
@@ -891,8 +881,6 @@ fn ldexp_test() {
   let frac = unflatten<u32:8, u32:23>(u32:0x71694e37);
   let expected = inf<u32:8, u32:23>(u1:0);
   assert_eq(ldexp(frac, s32:0x7fffffbe), expected);
-
-  ()
 }
 
 // Casts the floating point number to a fixed point number.
@@ -1025,8 +1013,6 @@ fn cast_to_fixed_test() {
   assert_eq(
     cast_to_fixed<u32:32>(qnan<u32:8, u32:23>()),
     (u1:1 ++ u31:0) as s32);
-
-  ()
 }
 
 // Returns u1:1 if x == y.
@@ -1088,8 +1074,6 @@ fn test_fp_eq_2() {
   assert_eq(eq_2(inf, nan), u1:0);
   assert_eq(eq_2(nan, inf), u1:0);
   assert_eq(eq_2(nan, nan), u1:0);
-
-  ()
 }
 
 // Returns u1:1 if x > y.
@@ -1174,8 +1158,6 @@ fn test_fp_gt_2() {
   assert_eq(gt_2(inf, nan), u1:0);
   assert_eq(gt_2(nan, inf), u1:0);
   assert_eq(gt_2(nan, nan), u1:0);
-
-  ()
 }
 
 // Returns u1:1 if x >= y.
@@ -1239,8 +1221,6 @@ fn test_fp_gte_2() {
   assert_eq(gte_2(inf, nan), u1:0);
   assert_eq(gte_2(nan, inf), u1:0);
   assert_eq(gte_2(nan, nan), u1:0);
-
-  ()
 }
 
 // Returns u1:1 if x <= y.
@@ -1305,8 +1285,6 @@ fn test_fp_lte_2() {
   assert_eq(lte_2(inf, nan), u1:0);
   assert_eq(lte_2(nan, inf), u1:0);
   assert_eq(lte_2(nan, nan), u1:0);
-
-  ()
 }
 
 // Returns u1:1 if x < y.
@@ -1371,8 +1349,6 @@ fn test_fp_lt_2() {
   assert_eq(lt_2(inf, nan), u1:0);
   assert_eq(lt_2(nan, inf), u1:0);
   assert_eq(lt_2(nan, nan), u1:0);
-
-  ()
 }
 
 // Returns an APFloat with all its bits past the decimal point set to 0.
@@ -1481,8 +1457,6 @@ fn round_towards_zero_test() {
                   };
   assert_eq(round_towards_zero(fraction),
     fraction);
-
-  ()
 }
 
 // Returns the signed integer part of the input float, truncating any
@@ -1614,7 +1588,6 @@ fn to_int_test() {
   let actual = to_int<u32:8, u32:23, u32:32>(
       APFloat<u32:8, u32:23>{sign: u1:0, bexp: u8:0xff, fraction: u23:0x0});
   assert_eq(expected, actual);
-  ()
 }
 
 // Floating point addition based on a generalization of IEEE 754 single-precision floating-point
@@ -1821,7 +1794,6 @@ fn test_sub() {
   assert_eq(sub(four, three), one);
   assert_eq(sub(three, two), one);
   assert_eq(sub(two, four), neg_two);
-  ()
 }
 
 // Returns the product of `x` and `y`, with the following exceptions:

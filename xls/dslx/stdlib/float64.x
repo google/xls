@@ -122,7 +122,6 @@ fn normalize_test() {
       sign: u1:1, bexp: u11:0x4d, fraction: u52:0x0 };
   let actual = normalize(u1:1, u11:0x81, u53:1);
   assert_eq(expected, actual);
-  ()
 }
 
 #[test]
@@ -147,7 +146,6 @@ fn tag_test() {
   assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, fraction: u52:1 }), FloatTag::NAN);
   assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, fraction: u52:0x7f_ffff }), FloatTag::NAN);
   assert_eq(tag(qnan()), FloatTag::NAN);
-  ()
 }
 
 

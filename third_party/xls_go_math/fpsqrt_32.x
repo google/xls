@@ -221,6 +221,4 @@ fn sqrt_test() {
                   float32::bias(s8:2),
                   fraction: u2:1 ++ u21:0};
   assert_eq(fpsqrt_32(twenty_five), five);
-  ()
 }
-

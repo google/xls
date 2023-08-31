@@ -223,7 +223,6 @@ proc RunLengthEncoderCountSymbolTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -298,7 +297,6 @@ proc RunLengthEncoderOverflowTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -365,7 +363,6 @@ proc RunLengthEncoderLastAfterLastTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -435,6 +432,5 @@ proc RunLengthEncoderOverflowWithLastTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }

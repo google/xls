@@ -778,6 +778,14 @@ fn f(x: u2[7]) -> MyTup[7] {
 )"));
 }
 
+TEST(TypecheckTest, TernaryEmptyBlocks) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn f(p: bool) -> () {
+  if p { } else { }
+}
+)"));
+}
+
 TEST(TypecheckTest, TernaryNonBoolean) {
   EXPECT_THAT(
       Typecheck(R"(

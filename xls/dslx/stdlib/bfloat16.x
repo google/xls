@@ -142,7 +142,6 @@ fn increment_fraction_bf16_test() {
                     inf(u1:0));
   assert_eq(increment_fraction(BF16 { sign: u1:1, bexp: u8:254, fraction: u7:0x7f }),
                     inf(u1:1));
-  ()
 }
 
 

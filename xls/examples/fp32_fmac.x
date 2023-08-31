@@ -65,6 +65,5 @@ proc smoke_test {
         assert_eq(result, F32_ZERO);
 
         let tok = send(tok, terminator, true);
-        ()
     }
 }

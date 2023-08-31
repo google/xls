@@ -272,8 +272,6 @@ proc delay_smoke_test_even {
 
         let tok = join(stok, rtok);
         send(tok, terminator, true);
-
-        ()
     }
 }
 
@@ -320,7 +318,5 @@ const TEST1_DELAY = u32:2047;
 
         let tok = join(stok, rtok);
         send(tok, terminator, true);
-
-        ()
     }
 }

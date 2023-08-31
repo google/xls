@@ -48,7 +48,6 @@ proc node {
     // Send the activation east and the partial product south.
     let tok = send(tok, to_east, activation);
     let tok = send(tok, to_south, product);
-    ()
   }
 }
 
@@ -107,7 +106,6 @@ proc matmul<ROWS: u32, COLS: u32> {
     let tok = send(tok, zeroes_out[1], float32::zero(false));
     let tok = send(tok, zeroes_out[2], float32::zero(false));
     let tok = send(tok, zeroes_out[3], float32::zero(false));
-    ()
   }
 }
 
@@ -161,6 +159,5 @@ proc test_proc {
     assert_eq(value, f32_4);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }

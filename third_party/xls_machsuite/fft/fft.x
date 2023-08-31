@@ -153,5 +153,4 @@ fn test_fft() {
      img_twid_in);
   assert_eq(real_out_observed, real_out_expected);
   assert_eq(img_out_observed, img_out_expected);
-  ()
 }

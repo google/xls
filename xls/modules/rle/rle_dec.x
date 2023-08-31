@@ -206,7 +206,6 @@ proc RunLengthDecoderTransactionTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }
 
@@ -266,6 +265,5 @@ proc RunLengthDecoderLastAfterLastTest {
       (tok)
     }(tok);
     send(tok, terminator, true);
-    ()
   }
 }

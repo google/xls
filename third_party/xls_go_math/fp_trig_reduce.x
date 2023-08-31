@@ -120,7 +120,6 @@ fn fp_trig_reduce_32_test() {
   let (j, fraction) = fp_trig_reduce_32(num);
   assert_eq(j, u3:2);
   assert_eq(fraction, float32::unflatten(u32:0xbe20e760));
-  ()
 }
 
 // 64-bit version of the above test for comparison.
@@ -130,7 +129,6 @@ fn fp_trig_reduce_64_test() {
   let (j, fraction) = fp_trig_reduce_64(num);
   assert_eq(j, u3:2);
   assert_eq(fraction, float64::unflatten(u64:0xbfc41cebad677a69));
-  ()
 }
 
 // Main / entry function that's only used for JIT.

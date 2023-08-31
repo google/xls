@@ -51,6 +51,4 @@ fn varint_encode_u32_test() {
   let (a, i) = varint_encode_u32(u32:300);
   assert_eq(u8[5]:[172, 2, 0, 0, 0], a);
   assert_eq(u3:2, i);
-  ()
 }
-

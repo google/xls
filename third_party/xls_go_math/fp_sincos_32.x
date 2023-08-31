@@ -271,8 +271,6 @@ fn test_fp_sincos_32() {
   // denormal
   assert_eq(fp_sincos_32(denormal),
             (float32::zero(u1:0), float32::one(u1:0)));
-
-  ()
 }
 
 // Returns sin(x), where x is in radians.
@@ -286,7 +284,6 @@ fn test_fp_sin_32() {
   // Just testing that we got the wiring right.
   assert_eq(fp_sin_32(float32::zero(u1:0)),
             float32::zero(u1:0));
-  ()
 }
 
 // Returns cos(x), where x is in radians.
@@ -300,6 +297,5 @@ fn test_fp_cos_32() {
   // Just testing that we got the wiring right.
   assert_eq(fp_cos_32(float32::zero(u1:0)),
             float32::one(u1:0));
-  ()
 }
 

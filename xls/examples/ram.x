@@ -361,7 +361,6 @@ proc RamModelWriteReadMaskedWriteReadTest {
     } (tok);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }
 
@@ -402,7 +401,6 @@ proc RamModelInitializationTest {
     } (tok);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }
 
@@ -488,7 +486,6 @@ proc RamModelFourBitMaskReadWriteTest {
     assert_eq(read_data.data, u8:0xB0);
 
     let tok = send(tok, terminator, true);
-    ()
   }
 }
 
@@ -606,7 +603,6 @@ proc SinglePortRamModelTest {
       tok
     } (tok);
     let tok = send(tok, terminator, true);
-    ()
   }
 }
 
@@ -781,6 +777,5 @@ proc RamModel2RWTest {
       tok
     } (tok);
     let tok = send(tok, terminator, true);
-    ()
   }
 }
