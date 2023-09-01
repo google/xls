@@ -16,7 +16,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
@@ -26,6 +28,7 @@
 #include "xls/common/bits_util.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/ir/big_int.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/format_preference.h"
@@ -217,6 +220,32 @@ Bits Sub(const Bits& lhs, const Bits& rhs) {
   Bits diff = BigInt::Sub(BigInt::MakeSigned(lhs), BigInt::MakeSigned(rhs))
                   .ToSignedBits();
   return TruncateOrSignExtend(diff, lhs.bit_count());
+}
+
+Bits Increment(const Bits& x) {
+  InlineBitmap result = x.bitmap();
+  for (int64_t i = 0; i < result.word_count(); ++i) {
+    uint64_t word = result.GetWord(i);
+    if (word < std::numeric_limits<uint64_t>::max()) {
+      result.SetWord(i, word + 1);
+      break;
+    }
+    result.SetWord(i, 0);
+  }
+  return Bits::FromBitmap(std::move(result));
+}
+
+Bits Decrement(const Bits& x) {
+  InlineBitmap result = x.bitmap();
+  for (int64_t i = 0; i < result.word_count(); ++i) {
+    uint64_t word = result.GetWord(i);
+    if (word > 0) {
+      result.SetWord(i, word - 1);
+      break;
+    }
+    result.SetWord(i, ~uint64_t{0});
+  }
+  return Bits::FromBitmap(std::move(result));
 }
 
 Bits SMul(const Bits& lhs, const Bits& rhs) {

@@ -825,8 +825,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
                            NarrowOrExtend(n->operand(0), /*n_is_signed=*/false,
                                           n->BitCountOrDie()));
       Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
-      Bits bits_mask = bits_ops::Sub(
-          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()), one);
+      Bits bits_mask = bits_ops::Decrement(
+          bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()));
       XLS_ASSIGN_OR_RETURN(Node * mask, n->function_base()->MakeNode<Literal>(
                                             n->loc(), Value(bits_mask)));
       XLS_VLOG(2) << "FOUND: umod of power of two";

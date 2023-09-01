@@ -179,6 +179,10 @@ class InlineBitmap {
     XLS_DCHECK_LT(wordno, word_count());
     return data_[wordno];
   }
+  void SetWord(int64_t wordno, uint64_t value) {
+    XLS_DCHECK_LT(wordno, word_count());
+    data_[wordno] = value;
+  }
 
   // Sets a byte in the data underlying the bitmap.
   //
@@ -263,6 +267,7 @@ class InlineBitmap {
   }
 
   int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }
+  int64_t word_count() const { return data_.size(); }
 
   template <typename H>
   friend H AbslHashValue(H h, const InlineBitmap& ib) {
@@ -274,7 +279,6 @@ class InlineBitmap {
 
   static constexpr int64_t kWordBits = 64;
   static constexpr int64_t kWordBytes = 8;
-  int64_t word_count() const { return data_.size(); }
 
   void MaskLastWord() {
     if (word_count() == 0) {

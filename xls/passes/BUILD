@@ -1015,14 +1015,21 @@ cc_library(
     hdrs = ["comparison_simplification_pass.h"],
     deps = [
         ":optimization_pass",
+        ":pass_base",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
-        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:interval",
         "//xls/ir:interval_set",
         "//xls/ir:op",
+        "//xls/ir:source_location",
+        "//xls/ir:value",
     ],
 )
 

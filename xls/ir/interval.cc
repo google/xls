@@ -103,13 +103,13 @@ bool Interval::Abuts(const Interval& lhs, const Interval& rhs) {
 
   if (bits_ops::ULessThan(b, c)) {
     // b < c, so a <= b < c <= d; these intervals abut if b + 1 = c.
-    return bits_ops::UEqual(bits_ops::Add(b, UBits(1, b.bit_count())), c);
+    return bits_ops::UEqual(bits_ops::Increment(b), c);
   }
   // Otherwise, b >= c.
 
   if (bits_ops::ULessThan(d, a)) {
     // d < a, so c <= d < a <= b; these intervals abut if d + 1 = a.
-    return bits_ops::UEqual(bits_ops::Add(d, UBits(1, d.bit_count())), a);
+    return bits_ops::UEqual(bits_ops::Increment(d), a);
   }
   // Otherwise, d >= a.
 
@@ -203,14 +203,13 @@ bool Interval::ForEachElement(
     return callback(lower_bound_);
   }
   Bits value = lower_bound_;
-  const Bits one = UBits(1, BitCount());
   if (IsImproper()) {
     Bits max = Bits::AllOnes(BitCount());
     while (bits_ops::ULessThan(value, max)) {
       if (callback(value)) {
         return true;
       }
-      value = bits_ops::Add(value, one);
+      value = bits_ops::Increment(value);
     }
     if (callback(value)) {
       return true;
@@ -221,7 +220,7 @@ bool Interval::ForEachElement(
     if (callback(value)) {
       return true;
     }
-    value = bits_ops::Add(value, one);
+    value = bits_ops::Increment(value);
   }
   return callback(value);
 }
@@ -248,8 +247,7 @@ Bits Interval::SizeBits() const {
 
   int64_t padded_size = BitCount() + 1;
   Bits difference = bits_ops::Sub(upper_bound_, lower_bound_);
-  return bits_ops::Add(UBits(1, padded_size),
-                       bits_ops::ZeroExtend(difference, padded_size));
+  return bits_ops::Increment(bits_ops::ZeroExtend(difference, padded_size));
 }
 
 std::optional<int64_t> Interval::Size() const {

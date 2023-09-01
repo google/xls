@@ -58,23 +58,18 @@ class Interval {
 
   // Returns the interval (lower_bound, upper_bound].
   static Interval LeftOpen(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(
-        bits_ops::Add(lower_bound, UBits(1, lower_bound.bit_count())),
-        upper_bound);
+    return Interval(bits_ops::Increment(lower_bound), upper_bound);
   }
 
   // Returns the interval [lower_bound, upper_bound).
   static Interval RightOpen(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(
-        lower_bound,
-        bits_ops::Sub(upper_bound, UBits(1, upper_bound.bit_count())));
+    return Interval(lower_bound, bits_ops::Decrement(upper_bound));
   }
 
   // Returns the interval (lower_bound, upper_bound).
   static Interval Open(const Bits& lower_bound, const Bits& upper_bound) {
-    return Interval(
-        bits_ops::Add(lower_bound, UBits(1, lower_bound.bit_count())),
-        bits_ops::Sub(upper_bound, UBits(1, upper_bound.bit_count())));
+    return Interval(bits_ops::Increment(lower_bound),
+                    bits_ops::Decrement(upper_bound));
   }
 
   // The inclusive lower bound of the interval.

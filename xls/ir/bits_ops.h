@@ -46,13 +46,15 @@ Bits AndReduce(const Bits& operand);
 Bits OrReduce(const Bits& operand);
 Bits XorReduce(const Bits& operand);
 
-// Various arithmetic operations. The width of the lhs and rhs must be equal,
-// and the returned Bits object is truncated to the same width as the input.
+// Various arithmetic operations. The width of all inputs must be equal, and the
+// returned Bits object is truncated to the same width as the input.
+Bits Increment(const Bits& x);
+Bits Decrement(const Bits& x);
 Bits Add(const Bits& lhs, const Bits& rhs);
 Bits Sub(const Bits& lhs, const Bits& rhs);
 
-// Signed/unsigned multiplication. The rhs and lhs can be different widths. The
-// width of the result of the operation is the sum of the widths of the
+// Signed/unsigned multiplication. The rhs and lhs can be different widths.
+// The width of the result of the operation is the sum of the widths of the
 // operands.
 Bits SMul(const Bits& lhs, const Bits& rhs);
 Bits UMul(const Bits& lhs, const Bits& rhs);

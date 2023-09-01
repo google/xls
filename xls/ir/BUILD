@@ -1064,6 +1064,7 @@ cc_library(
         "//xls/common:bits_util",
         "//xls/common:math_util",
         "//xls/common/logging",
+        "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -1145,6 +1146,7 @@ cc_test(
     deps = [
         ":bits",
         ":bits_ops",
+        ":format_preference",
         ":number_parser",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
@@ -1152,6 +1154,7 @@ cc_test(
         "//xls/data_structures:inline_bitmap",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/strings",
+        "@rapidcheck",
     ],
 )
 

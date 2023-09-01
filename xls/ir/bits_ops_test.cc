@@ -15,15 +15,23 @@
 #include "xls/ir/bits_ops.h"
 
 #include <array>
+#include <cstdint>
+#include <limits>
 #include <utility>
 #include <vector>
 
+#include "benchmark/benchmark.h"
 #include "gtest/gtest.h"
 #include "absl/container/inlined_vector.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "rapidcheck/gtest.h"
+#include "rapidcheck.h"
 #include "xls/common/status/matchers.h"
+#include "xls/data_structures/inline_bitmap.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/bits_test_helpers.h"
+#include "xls/ir/format_preference.h"
 #include "xls/ir/number_parser.h"
 
 namespace xls {
@@ -145,6 +153,81 @@ TEST(BitsOpsTest, Sub) {
         BitsToString(bits_ops::Sub(wide_lhs, wide_rhs), FormatPreference::kHex),
         "0xfff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffd6");
   }
+}
+
+TEST(BitsOpsTest, Increment) {
+  EXPECT_EQ(bits_ops::Increment(Bits()), Bits());
+  EXPECT_EQ(bits_ops::Increment(UBits(23, 64)), UBits(24, 64));
+
+  // Test overflow conditions.
+  EXPECT_EQ(bits_ops::Increment(UBits(15, 4)), UBits(0, 4));
+  EXPECT_EQ(
+      bits_ops::Increment(UBits(std::numeric_limits<uint64_t>::max(), 64)),
+      UBits(0, 64));
+
+  // Test wide values.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits wide_value,
+      ParseNumber("0x1000_0000_0000_0000_0042_1fff_ffff_ffff_ffff_ffff"));
+  EXPECT_EQ(
+      BitsToString(bits_ops::Increment(wide_value), FormatPreference::kHex),
+      "0x1000_0000_0000_0000_0042_2000_0000_0000_0000_0000");
+}
+
+RC_GTEST_PROP(BitsOpsRapidcheck, Increment,
+              (const std::vector<uint8_t>& bytes, uint8_t excess_bits)) {
+  if (bytes.empty()) {
+    return;
+  }
+  excess_bits %= 8;
+  const int64_t bit_count =
+      static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
+  Bits value = Bits::FromBytes(bytes, bit_count);
+  RC_ASSERT(bits_ops::Increment(value) ==
+            bits_ops::Add(
+                value, Bits::FromBitmap(InlineBitmap::FromWord(1, bit_count))));
+}
+
+TEST(BitsOpsTest, Decrement) {
+  EXPECT_EQ(bits_ops::Decrement(Bits()), Bits());
+  EXPECT_EQ(bits_ops::Decrement(UBits(55, 64)), UBits(54, 64));
+
+  // Test underflow conditions.
+  EXPECT_EQ(bits_ops::Decrement(UBits(0, 4)), UBits(15, 4));
+  EXPECT_EQ(bits_ops::Decrement(UBits(0, 64)),
+            UBits(std::numeric_limits<uint64_t>::max(), 64));
+  EXPECT_EQ(bits_ops::Decrement(SBits(-8, 4)), SBits(7, 4));
+
+  // Test wide values.
+  {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        Bits wide_value,
+        ParseNumber("0x1234_5678_1234_5678_0000_0000_0000_0000_0000_0000"));
+    EXPECT_EQ(
+        BitsToString(bits_ops::Decrement(wide_value), FormatPreference::kHex),
+        "0x1234_5678_1234_5677_ffff_ffff_ffff_ffff_ffff_ffff");
+  }
+  {
+    // Test an underflow case.
+    Bits wide_zero(144);
+    EXPECT_EQ(
+        BitsToString(bits_ops::Decrement(wide_zero), FormatPreference::kHex),
+        "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff_ffff");
+  }
+}
+
+RC_GTEST_PROP(BitsOpsRapidcheck, Decrement,
+              (const std::vector<uint8_t>& bytes, uint8_t excess_bits)) {
+  if (bytes.empty()) {
+    return;
+  }
+  excess_bits %= 8;
+  const int64_t bit_count =
+      static_cast<int64_t>(bytes.size()) * 8 - excess_bits;
+  Bits value = Bits::FromBytes(bytes, bit_count);
+  RC_ASSERT(bits_ops::Decrement(value) ==
+            bits_ops::Sub(
+                value, Bits::FromBitmap(InlineBitmap::FromWord(1, bit_count))));
 }
 
 TEST(BitsOpsTest, UMul) {
@@ -998,6 +1081,70 @@ TEST(BitsOpsTest, ToRawDigitsValue0x55U17) {
                             /*emit_leading_zeros=*/true),
             "00055");
 }
+
+void BM_Increment(benchmark::State& state) {
+  Bits f = Bits::AllOnes(state.range(0));
+  for (auto _ : state) {
+    auto v = bits_ops::Increment(f);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_Increment)->Range(64, 1 << 20);
+
+void BM_AddNewOne(benchmark::State& state) {
+  Bits f = Bits::AllOnes(state.range(0));
+  for (auto _ : state) {
+    auto b = InlineBitmap::FromWord(1, state.range(0));
+    benchmark::DoNotOptimize(b);
+    auto one = Bits::FromBitmap(b);
+    benchmark::DoNotOptimize(one);
+    auto v = bits_ops::Add(f, one);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_AddNewOne)->Range(64, 1 << 20);
+
+void BM_AddCachedOne(benchmark::State& state) {
+  Bits f = Bits::AllOnes(state.range(0));
+  Bits one = Bits::FromBitmap(InlineBitmap::FromWord(1, state.range(0)));
+  for (auto _ : state) {
+    auto v = bits_ops::Add(f, one);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_AddCachedOne)->Range(64, 1 << 20);
+
+void BM_Decrement(benchmark::State& state) {
+  Bits f(state.range(0));
+  for (auto _ : state) {
+    auto v = bits_ops::Decrement(f);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_Decrement)->Range(64, 1 << 20);
+
+void BM_SubNewOne(benchmark::State& state) {
+  Bits f(state.range(0));
+  for (auto _ : state) {
+    auto b = InlineBitmap::FromWord(1, state.range(0));
+    benchmark::DoNotOptimize(b);
+    auto one = Bits::FromBitmap(b);
+    benchmark::DoNotOptimize(one);
+    auto v = bits_ops::Sub(f, one);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_SubNewOne)->Range(64, 1 << 20);
+
+void BM_SubCachedOne(benchmark::State& state) {
+  Bits f(state.range(0));
+  Bits one = Bits::FromBitmap(InlineBitmap::FromWord(1, state.range(0)));
+  for (auto _ : state) {
+    auto v = bits_ops::Sub(f, one);
+    benchmark::DoNotOptimize(v);
+  }
+}
+BENCHMARK(BM_SubCachedOne)->Range(64, 1 << 20);
 
 }  // namespace
 }  // namespace xls
