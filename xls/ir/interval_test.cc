@@ -94,19 +94,47 @@ TEST(IntervalTest, Abuts) {
   Interval fifty_three_point(fifty_three, fifty_three);
   Interval fifty_four_point(fifty_four, fifty_four);
   Interval everything = Interval::Maximal(6);
-  EXPECT_TRUE(Interval::Abuts(zero_to_fifty_three, fifty_four_to_max));
-  EXPECT_TRUE(Interval::Abuts(fifty_three_point, fifty_four_to_max));
-  EXPECT_TRUE(Interval::Abuts(zero_to_fifty_three, fifty_four_point));
-  EXPECT_TRUE(Interval::Abuts(fifty_three_point, fifty_four_point));
-  EXPECT_FALSE(Interval::Abuts(zero_to_fifty_three, everything));
-  EXPECT_FALSE(Interval::Abuts(fifty_four_to_max, everything));
-  EXPECT_FALSE(Interval::Abuts(fifty_three_point, everything));
-  EXPECT_FALSE(Interval::Abuts(fifty_four_point, everything));
+
+  // Abuts should be a symmetric relation, so we test every asymmetric case
+  // flipped.
+  auto symmetric_abuts = [](const Interval& a, const Interval& b) {
+    EXPECT_TRUE(Interval::Abuts(a, b));
+    EXPECT_TRUE(Interval::Abuts(b, a));
+  };
+  auto symmetric_does_not_abut = [](const Interval& a, const Interval& b) {
+    EXPECT_FALSE(Interval::Abuts(a, b));
+    EXPECT_FALSE(Interval::Abuts(b, a));
+  };
+
+  symmetric_abuts(zero_to_fifty_three, fifty_four_to_max);
+  symmetric_abuts(fifty_three_point, fifty_four_to_max);
+  symmetric_abuts(zero_to_fifty_three, fifty_four_point);
+  symmetric_abuts(fifty_three_point, fifty_four_point);
+
+  symmetric_does_not_abut(zero_to_fifty_three, everything);
+  symmetric_does_not_abut(fifty_four_to_max, everything);
+  symmetric_does_not_abut(fifty_three_point, everything);
+  symmetric_does_not_abut(fifty_four_point, everything);
+
   EXPECT_FALSE(Interval::Abuts(everything, everything));
 
   // The zero-width interval does not abut itself
   EXPECT_FALSE(
       Interval::Abuts(Interval(Bits(), Bits()), Interval(Bits(), Bits())));
+}
+
+RC_GTEST_PROP(IntervalRapidcheck, Abuts,
+              (uint64_t x, uint64_t y, uint64_t z, uint64_t w)) {
+  uint64_t a = std::min(x, y);
+  uint64_t b = std::max(x, y);
+  uint64_t c = std::min(z, w);
+  uint64_t d = std::max(z, w);
+  Interval interval1(UBits(a, 64), UBits(b, 64));
+  Interval interval2(UBits(c, 64), UBits(d, 64));
+  RC_ASSERT(Interval::Abuts(interval1, interval2) ==
+            Interval::Abuts(interval2, interval1));
+  RC_ASSERT(Interval::Abuts(interval1, interval2) ==
+            ((c > 0 && b == c - 1) || (a > 0 && d == a - 1)));
 }
 
 TEST(IntervalTest, ConvexHull) {

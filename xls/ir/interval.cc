@@ -101,28 +101,20 @@ bool Interval::Abuts(const Interval& lhs, const Interval& rhs) {
   const Bits& d = rhs.UpperBound();
   // Since the intervals are proper, we know that a <= b and c <= d.
 
-  if (bits_ops::ULessThan(b, c)) {
-    // b < c, so a <= b < c <= d; these intervals abut if b + 1 = c.
-    return bits_ops::UEqual(bits_ops::Increment(b), c);
+  int64_t bp_vs_c = bits_ops::UCmp(bits_ops::Increment(b), c);
+  if (bp_vs_c == 0) {
+    // b + 1 == c, so [a, b] and [c, d] abut.
+    return true;
   }
-  // Otherwise, b >= c.
-
-  if (bits_ops::ULessThan(d, a)) {
-    // d < a, so c <= d < a <= b; these intervals abut if d + 1 = a.
-    return bits_ops::UEqual(bits_ops::Increment(d), a);
+  if (bp_vs_c < 0) {
+    // b + 1 < c.
+    // Since a <= b < b + 1 < c <= d, there's an element between [a, b] and [c,
+    // d], so they don't abut.
+    return false;
   }
-  // Otherwise, d >= a.
-
-  // We now know that b >= c and d >= a. Combining this with the earlier
-  // comments, we see that:
-  // - a <= b and a <= d, so a <= min(b, d), and
-  // - c <= b and c <= d, so c <= min(b, d).
-  // By the definition of min(x, y):
-  // - a <= min(b, d) <= b, and
-  // - c <= min(b, d) <= d.
-  // Therefore, min(b, d) ∈ [a, b] ∩ [c, d].
-  // In other words, these intervals overlap, so they certainly can't abut.
-  return false;
+  // b + 1 > c, so c <= b. The only remaining way these intervals can abut is:
+  // if a == d + 1.
+  return bits_ops::UEqual(bits_ops::Increment(d), a);
 }
 
 Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
