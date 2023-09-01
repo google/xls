@@ -88,3 +88,17 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
 )
+
+py_binary(
+    name = "chip_area_results_textproto_parser",
+    srcs = ["chip_area_results_textproto_parser.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+)
+
+py_binary(
+    name = "chip_power_results_textproto_parser",
+    srcs = ["chip_power_results_textproto_parser.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+)
