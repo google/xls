@@ -83,7 +83,7 @@ cc_library(
         ":bindings",
         ":builtins_metadata",
         ":pos",
-        ":scanner",
+        ":token",
         ":token_parser",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -104,7 +104,6 @@ cc_library(
         "//xls/ir:code_template",
         "//xls/ir:foreign_function",
         "//xls/ir:name_uniquer",
-        "@com_github_google_re2//:re2",
     ],
 )
 

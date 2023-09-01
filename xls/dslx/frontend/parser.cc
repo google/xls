@@ -47,6 +47,7 @@
 #include "xls/dslx/frontend/bindings.h"
 #include "xls/dslx/frontend/builtins_metadata.h"
 #include "xls/dslx/frontend/pos.h"
+#include "xls/dslx/frontend/token.h"
 #include "xls/ir/code_template.h"
 #include "xls/ir/foreign_function.h"
 #include "xls/ir/name_uniquer.h"
@@ -1164,7 +1165,7 @@ absl::StatusOr<Expr*> Parser::ParseLogicalAndExpression(
 absl::StatusOr<Expr*> Parser::ParseLogicalOrExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
   XLS_VLOG(5) << "ParseLogicalOrExpression @ " << GetPos();
-  std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleBar};
+  static const std::initializer_list<TokenKind> kinds = {TokenKind::kDoubleBar};
   return ParseBinopChain(
       [this, &bindings, restrictions] {
         return ParseLogicalAndExpression(bindings, restrictions);
@@ -1174,38 +1175,40 @@ absl::StatusOr<Expr*> Parser::ParseLogicalOrExpression(
 
 absl::StatusOr<Expr*> Parser::ParseStrongArithmeticExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  return ParseBinopChain(
-      BindFront<Expr*>(&Parser::ParseCastAsExpression, bindings, restrictions),
-      kStrongArithmeticKinds);
+  auto sub_production = [&] {
+    return ParseCastAsExpression(bindings, restrictions);
+  };
+  return ParseBinopChain(sub_production, kStrongArithmeticKinds);
 }
 
 absl::StatusOr<Expr*> Parser::ParseWeakArithmeticExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  return ParseBinopChain(
-      BindFront<Expr*>(&Parser::ParseStrongArithmeticExpression, bindings,
-                       restrictions),
-      kWeakArithmeticKinds);
+  auto sub_production = [&] {
+    return ParseStrongArithmeticExpression(bindings, restrictions);
+  };
+  return ParseBinopChain(sub_production, kWeakArithmeticKinds);
 }
 
 absl::StatusOr<Expr*> Parser::ParseBitwiseExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  return ParseBinopChain(
-      BindFront<Expr*>(&Parser::ParseWeakArithmeticExpression, bindings,
-                       restrictions),
-      kBitwiseKinds);
+  auto sub_production = [&] {
+    return ParseWeakArithmeticExpression(bindings, restrictions);
+  };
+  return ParseBinopChain(sub_production, kBitwiseKinds);
 }
 
 absl::StatusOr<Expr*> Parser::ParseAndExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  std::initializer_list<TokenKind> amp = {TokenKind::kAmpersand};
-  return ParseBinopChain(
-      BindFront<Expr*>(&Parser::ParseBitwiseExpression, bindings, restrictions),
-      amp);
+  static const std::initializer_list<TokenKind> amp = {TokenKind::kAmpersand};
+  auto sub_production = [&] {
+    return ParseBitwiseExpression(bindings, restrictions);
+  };
+  return ParseBinopChain(sub_production, amp);
 }
 
 absl::StatusOr<Expr*> Parser::ParseXorExpression(
     Bindings& bindings, ExprRestrictions restrictions) {
-  std::initializer_list<TokenKind> hat = {TokenKind::kHat};
+  static const std::initializer_list<TokenKind> hat = {TokenKind::kHat};
   return ParseBinopChain(
       [this, &bindings, restrictions] {
         return ParseAndExpression(bindings, restrictions);
@@ -2626,6 +2629,12 @@ absl::StatusOr<ProcMember*> Parser::ParseProcMember(Bindings& bindings) {
   auto* member = module_->Make<ProcMember>(name, type);
   name->set_definer(member);
   return member;
+}
+
+absl::StatusOr<std::vector<Param*>> Parser::ParseParams(Bindings& bindings) {
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+  auto sub_production = [&] { return ParseParam(bindings); };
+  return ParseCommaSeq<Param*>(sub_production, TokenKind::kCParen);
 }
 
 absl::StatusOr<Number*> Parser::ParseNumber(Bindings& bindings) {

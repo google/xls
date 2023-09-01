@@ -338,21 +338,6 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseCastAsExpression(Bindings& bindings,
                                               ExprRestrictions restrictions);
 
-  template <typename T>
-  std::function<absl::StatusOr<T>()> BindFront(
-      absl::StatusOr<T> (Parser::*f)(Bindings&), Bindings& bindings) {
-    return [this, &bindings, f] { return (this->*f)(bindings); };
-  }
-
-  template <typename T>
-  std::function<absl::StatusOr<T>()> BindFront(
-      absl::StatusOr<T> (Parser::*f)(Bindings&, ExprRestrictions),
-      Bindings& bindings, ExprRestrictions restrictions) {
-    return [this, &bindings, f, restrictions] {
-      return (this->*f)(bindings, restrictions);
-    };
-  }
-
   static constexpr std::initializer_list<TokenKind> kStrongArithmeticKinds = {
       TokenKind::kStar, TokenKind::kSlash, TokenKind::kPercent};
   static constexpr std::initializer_list<TokenKind> kWeakArithmeticKinds = {
@@ -424,11 +409,7 @@ class Parser : public TokenParser {
   // after ')' is consumed.
   //
   // Permits trailing commas.
-  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings) {
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-    return ParseCommaSeq<Param*>(BindFront(&Parser::ParseParam, bindings),
-                                 TokenKind::kCParen);
-  }
+  absl::StatusOr<std::vector<Param*>> ParseParams(Bindings& bindings);
 
   absl::StatusOr<NameDefTree*> ParseTuplePattern(const Pos& start_pos,
                                                  Bindings& bindings);
