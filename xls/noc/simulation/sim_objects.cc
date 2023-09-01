@@ -362,10 +362,6 @@ int64_t SimLink::GetSourceConnectionIndex() const {
   return src_connection_index_;
 }
 
-int64_t SimLink::GetSinkConnectionIndex() const {
-  return sink_connection_index_;
-}
-
 absl::Status SimLink::InitializeImpl(NocSimulator& simulator) {
   XLS_ASSIGN_OR_RETURN(
       NetworkComponentParam nc_param,
