@@ -558,7 +558,9 @@ class __xls_channel {
 template<typename T, unsigned long long Size>
 class __xls_memory {
  public:
-  static constexpr unsigned long long size = Size;
+  unsigned long long size()const {
+    return Size;
+  };
 
   T& operator[](long long int addr)const {
     static T ret;

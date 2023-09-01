@@ -1357,5 +1357,25 @@ TEST_F(TranslatorMemoryTest, PingPong) {
            /* max_ticks = */ 16);
 }
 
+TEST_F(TranslatorMemoryTest, Size) {
+  const std::string content = R"(
+      class Block {
+      public:
+        __xls_memory<int, 32>& store;
+
+       #pragma hls_top
+       long long my_package() {
+         return store.size();
+       }
+    };)";
+
+  auto out_tuple =
+      xls::Value::Tuple({xls::Value::Tuple({xls::Value::Tuple({})}),
+                         xls::Value(xls::UBits(32, 64))});
+
+  Run({{"this", xls::Value::Tuple({xls::Value::Tuple({})})}}, out_tuple,
+      content);
+}
+
 }  // namespace
 }  // namespace xlscc

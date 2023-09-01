@@ -32,6 +32,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/source_location.h"
@@ -515,6 +516,12 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
                                        channel_specific_condition};
         op.ret_value = context().fb->Tuple(sp, loc);
       }
+    } else if (op_name == "size") {
+      XLSCC_CHECK_GT(channel->memory_size, 0, loc);
+      CValue value(context().fb->Literal(xls::UBits(channel->memory_size, 64)),
+                   std::make_shared<CIntType>(64, /*is_signed=*/false));
+      IOOpReturn const_ret = {.generate_expr = false, .value = value};
+      return const_ret;
     } else {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unsupported IO op: %s", op_name));
