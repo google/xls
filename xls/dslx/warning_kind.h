@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_WARNING_KIND_H_
 #define XLS_DSLX_WARNING_KIND_H_
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 
@@ -41,10 +42,11 @@ enum class WarningKind : WarningKindInt {
 };
 constexpr WarningKindInt kWarningKindCount = 9;
 
-inline constexpr auto kAllWarningKinds = {
+inline constexpr std::array<WarningKind, kWarningKindCount> kAllWarningKinds = {
     WarningKind::kConstexprEvalRollover,
     WarningKind::kSingleLineTupleTrailingComma,
     WarningKind::kMisleadingFunctionName,
+    WarningKind::kUselessLetBinding,
     WarningKind::kUselessStructSplat,
     WarningKind::kEmptyRangeLiteral,
     WarningKind::kUnusedDefinition,
@@ -61,6 +63,8 @@ inline constexpr WarningKindSet kAllWarningsSet =
 // Converts a string representation of a warnings to its corresponding enum
 // value.
 absl::StatusOr<WarningKind> WarningKindFromString(std::string_view s);
+
+absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind);
 
 // Converts a comma-delimited string of warning kinds that should be *disabled*
 // into an "enabled set".

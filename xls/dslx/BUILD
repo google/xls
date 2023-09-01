@@ -593,6 +593,17 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "warning_kind_test",
+    srcs = ["warning_kind_test.cc"],
+    deps = [
+        ":warning_kind",
+        "//xls/common:xls_gunit",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+    ],
+)
+
 cc_library(
     name = "warning_collector",
     hdrs = ["warning_collector.h"],

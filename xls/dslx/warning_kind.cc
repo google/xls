@@ -24,27 +24,38 @@
 
 namespace xls::dslx {
 
+absl::StatusOr<std::string_view> WarningKindToString(WarningKind kind) {
+  switch (kind) {
+    case WarningKind::kConstexprEvalRollover:
+      return "constexpr_eval_rollover";
+    case WarningKind::kSingleLineTupleTrailingComma:
+      return "single_line_tuple_trailing_comma";
+    case WarningKind::kMisleadingFunctionName:
+      return "misleading_function_name";
+    case WarningKind::kUselessLetBinding:
+      return "useless_let_binding";
+    case WarningKind::kUselessStructSplat:
+      return "useless_struct_splat";
+    case WarningKind::kEmptyRangeLiteral:
+      return "empty_range_literal";
+    case WarningKind::kUnusedDefinition:
+      return "unused_definition";
+    case WarningKind::kUselessExpressionStatement:
+      return "useless_expression_statement";
+    case WarningKind::kTrailingTupleAfterSemi:
+      return "trailing_tuple_after_semi";
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Invalid warning kind: ", static_cast<int>(kind)));
+}
+
 absl::StatusOr<WarningKind> WarningKindFromString(std::string_view s) {
-  if (s == "constexpr_eval_rollover") {
-    return WarningKind::kConstexprEvalRollover;
-  }
-  if (s == "single_line_tuple_trailing_comma") {
-    return WarningKind::kSingleLineTupleTrailingComma;
-  }
-  if (s == "misleading_function_name") {
-    return WarningKind::kMisleadingFunctionName;
-  }
-  if (s == "useless_let_binding") {
-    return WarningKind::kUselessLetBinding;
-  }
-  if (s == "useless_struct_splat") {
-    return WarningKind::kUselessStructSplat;
-  }
-  if (s == "empty_range_literal") {
-    return WarningKind::kEmptyRangeLiteral;
-  }
-  if (s == "unused_definition") {
-    return WarningKind::kUnusedDefinition;
+  for (WarningKind kind : kAllWarningKinds) {
+    // Note: .value() is safe because it's a known valid WarningKind because it
+    // comes directly from the kAllWarningKinds set.
+    if (s == WarningKindToString(kind).value()) {
+      return kind;
+    }
   }
   return absl::InvalidArgumentError(
       absl::StrCat("Unknown warning kind: `", s, "`"));
