@@ -121,6 +121,12 @@ TEST(IntervalTest, Abuts) {
   // The zero-width interval does not abut itself
   EXPECT_FALSE(
       Interval::Abuts(Interval(Bits(), Bits()), Interval(Bits(), Bits())));
+
+  // The maximal interval does not abut an interval starting at zero.
+  EXPECT_FALSE(
+      Interval::Abuts(Interval(Bits(32), Bits(32)), Interval::Maximal(32)));
+  EXPECT_FALSE(
+      Interval::Abuts(Interval(Bits(64), Bits(64)), Interval::Maximal(64)));
 }
 
 RC_GTEST_PROP(IntervalRapidcheck, Abuts,

@@ -107,10 +107,7 @@ class InlineBitmap {
       return false;
     }
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      uint64_t lhs = (data_[wordno] & mask);
-      uint64_t rhs = (other.data_[wordno] & mask);
-      if (lhs != rhs) {
+      if (data_[wordno] != other.data_[wordno]) {
         return false;
       }
     }
@@ -121,8 +118,7 @@ class InlineBitmap {
   int64_t bit_count() const { return bit_count_; }
   bool IsAllOnes() const {
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      if ((data_[wordno] & mask) != mask) {
+      if (data_[wordno] != MaskForWord(wordno)) {
         return false;
       }
     }
@@ -130,8 +126,7 @@ class InlineBitmap {
   }
   bool IsAllZeroes() const {
     for (int64_t wordno = 0; wordno < word_count(); ++wordno) {
-      uint64_t mask = MaskForWord(wordno);
-      if ((data_[wordno] & mask) != 0) {
+      if (data_[wordno] != 0) {
         return false;
       }
     }
@@ -181,7 +176,7 @@ class InlineBitmap {
   }
   void SetWord(int64_t wordno, uint64_t value) {
     XLS_DCHECK_LT(wordno, word_count());
-    data_[wordno] = value;
+    data_[wordno] = value & MaskForWord(wordno);
   }
 
   // Sets a byte in the data underlying the bitmap.

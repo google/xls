@@ -33,6 +33,8 @@ namespace xls {
 // is greater than the upper bound, so the interval wraps around the end),
 // though some methods do not support them (and check to ensure that they are
 // not called on them).
+//
+// NOTE: The interval bounds are always treated as unsigned.
 class Interval {
  public:
   // No argument constructor for `Interval`. This returns the interval from a

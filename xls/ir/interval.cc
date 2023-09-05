@@ -101,20 +101,25 @@ bool Interval::Abuts(const Interval& lhs, const Interval& rhs) {
   const Bits& d = rhs.UpperBound();
   // Since the intervals are proper, we know that a <= b and c <= d.
 
-  int64_t bp_vs_c = bits_ops::UCmp(bits_ops::Increment(b), c);
-  if (bp_vs_c == 0) {
-    // b + 1 == c, so [a, b] and [c, d] abut.
-    return true;
+  // If b is all ones, then it's the maximum value; we must have b >= c, so they
+  // can't abut in that direction.
+  if (!b.IsAllOnes()) {
+    int64_t bp_vs_c = bits_ops::UCmp(bits_ops::Increment(b), c);
+    if (bp_vs_c == 0) {
+      // b + 1 == c, so [a, b] and [c, d] abut.
+      return true;
+    }
+    if (bp_vs_c < 0) {
+      // b + 1 < c.
+      // Since a <= b < b + 1 < c <= d, there's an element between [a, b] and
+      // [c, d], so they don't abut.
+      return false;
+    }
   }
-  if (bp_vs_c < 0) {
-    // b + 1 < c.
-    // Since a <= b < b + 1 < c <= d, there's an element between [a, b] and [c,
-    // d], so they don't abut.
-    return false;
-  }
-  // b + 1 > c, so c <= b. The only remaining way these intervals can abut is:
-  // if a == d + 1.
-  return bits_ops::UEqual(bits_ops::Increment(d), a);
+
+  // b >= c, so c <= b. The only remaining way these intervals can abut is:
+  // if d is not the maximum value and a == d + 1.
+  return !d.IsAllOnes() && bits_ops::UEqual(bits_ops::Increment(d), a);
 }
 
 Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
