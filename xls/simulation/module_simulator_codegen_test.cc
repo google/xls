@@ -17,17 +17,19 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "xls/codegen/block_generator.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/bits.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
@@ -436,10 +438,11 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
   BValue in_lt_42 = b.ULt(in, b.Literal(UBits(42, 8)));
   b.Assert(b.AfterAll({}), in_lt_42, "input is not less than 42!");
   b.OutputPort("out", in);
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
   CodegenOptions options;
   options.use_system_verilog(UseSystemVerilog());
-
+  options.clock_name("clk");
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
                            GenerateVerilog(block, options));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,

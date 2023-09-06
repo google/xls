@@ -14,6 +14,7 @@
 
 #include "xls/codegen/vast.h"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1361,49 +1362,48 @@ TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
 endmodule)");
 }
 
-TEST_P(VastTest, AssertTest) {
+TEST_P(VastTest, ConcurrentAssertionTest) {
+  if (!UseSystemVerilog()) {
+    return;
+  }
+
   VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
-  LogicRef* a_ref =
+  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* rst = m->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* a =
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* b_ref =
-      m->AddInput("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
-  LogicRef* c_ref =
-      m->AddOutput("c", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
-  AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
-  VastNode* assert1 = ac->statements()->Add<Assert>(
-      SourceInfo(),
-      f.Equals(a_ref, f.Literal(42, 8, SourceInfo()), SourceInfo()));
-  VastNode* assign = ac->statements()->Add<BlockingAssignment>(
-      SourceInfo(), c_ref, f.Add(a_ref, b_ref, SourceInfo()));
-  VastNode* assert2 = ac->statements()->Add<Assert>(
-      SourceInfo(),
-      f.LessThan(c_ref, f.Literal(100, 8, SourceInfo()), SourceInfo()),
-      "Oh noes! c is too big");
+  m->Add<ConcurrentAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0, 8, SourceInfo()), SourceInfo()),
+      /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
+      /*disable_iff=*/std::nullopt,
+      /*label=*/"",
+      /*error_message=*/"");
+  m->Add<ConcurrentAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0x9, 8, SourceInfo()), SourceInfo()),
+      /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
+      /*disable_iff=*/rst,
+      /*label=*/"my_label",
+      /*error_message=*/"");
+  m->Add<ConcurrentAssertion>(
+      SourceInfo(), f.Equals(a, f.Literal(0x42, 8, SourceInfo()), SourceInfo()),
+      /*clocking_event=*/f.Make<PosEdge>(SourceInfo(), clk),
+      /*disable_iff=*/rst,
+      /*label=*/"",
+      /*error_message=*/"a does not equal 0x42");
 
   LineInfo line_info;
   EXPECT_EQ(m->Emit(&line_info),
             R"(module top(
-  input wire [7:0] a,
-  input wire [7:0] b,
-  output wire [7:0] c
+  input wire clk,
+  input wire rst,
+  input wire [7:0] a
 );
-  always_comb begin
-    assert #0 (a == 8'h2a) else $fatal(0);
-    c = a + b;
-    assert #0 (c < 8'h64) else $fatal(0, "Oh noes! c is too big");
-  end
+  assert property (@(posedge clk) a == 8'h00) else $fatal(0);
+  my_label: assert property (@(posedge clk) disable iff (rst) a == 8'h09) else $fatal(0);
+  assert property (@(posedge clk) disable iff (rst) a == 8'h42) else $fatal(0, "a does not equal 0x42");
 endmodule)");
-
-  EXPECT_EQ(line_info.LookupNode(ac).value(),
-            std::vector<LineSpan>{LineSpan(5, 9)});
-  EXPECT_EQ(line_info.LookupNode(assert1).value(),
-            std::vector<LineSpan>{LineSpan(6, 6)});
-  EXPECT_EQ(line_info.LookupNode(assign).value(),
-            std::vector<LineSpan>{LineSpan(7, 7)});
-  EXPECT_EQ(line_info.LookupNode(assert2).value(),
-            std::vector<LineSpan>{LineSpan(8, 8)});
 }
 
 TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {

@@ -15,11 +15,11 @@
 #ifndef XLS_CODEGEN_MODULE_BUILDER_H_
 #define XLS_CODEGEN_MODULE_BUILDER_H_
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -28,9 +28,13 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/node_representation.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/node.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/passes/bdd_query_engine.h"
@@ -95,10 +99,6 @@ class ModuleBuilder {
   // node. Returns a reference to the declared variable.
   absl::StatusOr<LogicRef*> EmitAsAssignment(
       std::string_view name, Node* node, absl::Span<Expression* const> inputs);
-
-  // Get the always_comb block in the assertions section.
-  // It is lazily created.
-  AlwaysComb* AssertAlwaysComb(const SourceInfo& loc);
 
   // Emit an XLS assert operation as a SystemVerilog assert statement. If
   // SystemVerilog is not enabled then this is a nop.
@@ -339,7 +339,6 @@ class ModuleBuilder {
   ModuleSection* instantiation_section_;
   ModuleSection* assert_section_;
   ModuleSection* cover_section_;
-  AlwaysComb* assert_always_comb_ = nullptr;
   ModuleSection* trace_section_;
   ModuleSection* output_section_;
 

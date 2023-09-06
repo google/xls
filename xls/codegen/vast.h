@@ -18,6 +18,7 @@
 #ifndef XLS_CODEGEN_VAST_H_
 #define XLS_CODEGEN_VAST_H_
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -320,8 +321,7 @@ class RegDef : public Def {
       : Def(name, DataKind::kReg, data_type, file, loc), init_(nullptr) {}
   RegDef(std::string_view name, DataType* data_type, Expression* init,
          VerilogFile* file, const SourceInfo& loc)
-      : Def(name, DataKind::kReg, std::move(data_type), file, loc),
-        init_(init) {}
+      : Def(name, DataKind::kReg, data_type, file, loc), init_(init) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -1206,24 +1206,33 @@ class BlankLine : public Statement {
   std::string Emit(LineInfo* line_info) const override { return ""; }
 };
 
-// Represents a SystemVerilog simple immediate assert statement of the following
+// Represents a SystemVerilog concurrent assert statement of the following
 // form:
 //
-//   assert (condition) else $fatal(message);
-class Assert : public Statement {
+//   [LABEL:] assert property (
+//       @(CLOCKING_EVENT)
+//       [disable iff DISABLE_IFF] CONDITION)
+//     else $error(0, message);
+class ConcurrentAssertion : public Statement {
  public:
-  Assert(Expression* condition, VerilogFile* file, const SourceInfo& loc)
-      : Statement(file, loc), condition_(condition) {}
-  Assert(Expression* condition, std::string_view error_message,
-         VerilogFile* file, const SourceInfo& loc)
+  ConcurrentAssertion(Expression* condition, Expression* clocking_event,
+                      std::optional<Expression*> disable_iff,
+                      std::string_view label, std::string_view error_message,
+                      VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         condition_(condition),
+        clocking_event_(clocking_event),
+        disable_iff_(disable_iff),
+        label_(label),
         error_message_(error_message) {}
 
   std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* condition_;
+  Expression* clocking_event_;
+  std::optional<Expression*> disable_iff_;
+  std::string label_;
   std::string error_message_;
 };
 
@@ -1460,7 +1469,7 @@ using ModuleMember =
                  BlankLine*,               // Blank line.
                  InlineVerilogStatement*,  // InlineVerilog string statement.
                  VerilogFunction*,         // Function definition
-                 Cover*, ModuleSection*>;
+                 Cover*, ConcurrentAssertion*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may

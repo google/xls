@@ -15,6 +15,7 @@
 #include "xls/codegen/vast.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -569,6 +570,7 @@ std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
               [=](AlwaysFlop* af) { return af->Emit(line_info); },
               [=](VerilogFunction* f) { return f->Emit(line_info); },
               [=](Cover* c) { return c->Emit(line_info); },
+              [=](ConcurrentAssertion* ca) { return ca->Emit(line_info); },
               [=](ModuleSection* s) { return s->Emit(line_info); }},
       member);
 }
@@ -623,8 +625,10 @@ std::string InlineVerilogRef::Emit(LineInfo* line_info) const {
   return name_;
 }
 
-std::string Assert::Emit(LineInfo* line_info) const {
+std::string ConcurrentAssertion::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
+  LineInfoIncrease(line_info, 1);
+
   // The $fatal statement takes finish_number as the first argument which is a
   // value in the set {0, 1, 2}. This value "sets the level of diagnostic
   // information reported by the tool" (from IEEE Std 1800-2017).
@@ -632,11 +636,21 @@ std::string Assert::Emit(LineInfo* line_info) const {
   // XLS emits asserts taking combinational inputs, so a deferred
   // immediate assertion is used.
   constexpr int64_t kFinishNumber = 0;
-  std::string result = absl::StrFormat(
-      "assert #0 (%s) else $fatal(%d%s);", condition_->Emit(line_info),
-      kFinishNumber,
-      error_message_.empty() ? ""
-                             : absl::StrFormat(", \"%s\"", error_message_));
+  std::string result;
+  if (!label_.empty()) {
+    absl::StrAppendFormat(&result, "%s: ", label_);
+  }
+  absl::StrAppendFormat(&result, "assert property (@(%s) ",
+                        clocking_event_->Emit(line_info));
+  if (disable_iff_.has_value()) {
+    absl::StrAppendFormat(&result, "disable iff (%s) ",
+                          disable_iff_.value()->Emit(line_info));
+  }
+  absl::StrAppendFormat(&result, "%s) else $fatal(%d%s);",
+                        condition_->Emit(line_info), kFinishNumber,
+                        error_message_.empty()
+                            ? ""
+                            : absl::StrFormat(", \"%s\"", error_message_));
   LineInfoEnd(line_info, this);
   return result;
 }

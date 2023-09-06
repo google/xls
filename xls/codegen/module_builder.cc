@@ -855,13 +855,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
   return ref;
 }
 
-AlwaysComb* ModuleBuilder::AssertAlwaysComb(const SourceInfo& loc) {
-  if (assert_always_comb_ == nullptr) {
-    assert_always_comb_ = assert_section_->Add<AlwaysComb>(loc);
-  }
-  return assert_always_comb_;
-}
-
 absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     xls::Assert* asrt, Expression* condition) {
   if (!options_.use_system_verilog()) {
@@ -871,23 +864,31 @@ absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
     XLS_LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
     return UnrepresentedSentinel();
   }
-  // Guard the assert with $isunknown to avoid triggering the assert condition
-  // prior to inputs being driven in the testbench. For example:
-  //
-  //   assert($isunknown(cond) || cond) else $fatal("Error message");
-  //
-  // TODO(meheff): Figure out a better way of handling this, perhaps by
-  // adjusting our testbench architecture to drive inputs immediately for
-  // combinational blocks and asserting only on rising clock edge for
-  // non-combinational blocks.
-  return AssertAlwaysComb(asrt->loc())
-      ->statements()
-      ->Add<Assert>(asrt->loc(),
-                    file_->LogicalOr(file_->Make<SystemFunctionCall>(
-                                         asrt->loc(), "isunknown",
-                                         std::vector<Expression*>({condition})),
-                                     condition, asrt->loc()),
-                    asrt->message());
+  if (clock() == nullptr) {
+    // TODO(meheff): Add support for assertions without a clock using deferred
+    // assertions (SystemVerilog LRM 16.4).
+    return absl::InvalidArgumentError(
+        "Emitting an assert in SystemVerilog requires a clock.");
+  }
+  Expression* disable_iff;
+  if (reset().has_value()) {
+    // Disable the assert when in reset.
+    disable_iff = reset()->active_low
+                      ? static_cast<Expression*>(
+                            file_->LogicalNot(reset()->signal, asrt->loc()))
+                      : static_cast<Expression*>(reset()->signal);
+  } else {
+    // As a backup if no reset is available, disable the assert if the signal is
+    // unknown. This is not great but avoids unconditionally triggering the
+    // assert at the start of simulation.
+    disable_iff = file_->Make<SystemFunctionCall>(
+        asrt->loc(), "isunknown", std::vector<Expression*>({condition}));
+  }
+  return assert_section()->Add<ConcurrentAssertion>(
+      asrt->loc(), condition,
+      /*clocking_event=*/file_->Make<PosEdge>(asrt->loc(), clock()),
+      disable_iff, asrt->label().has_value() ? asrt->label().value() : "",
+      asrt->message());
 }
 
 absl::StatusOr<Display*> ModuleBuilder::EmitTrace(

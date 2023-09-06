@@ -145,6 +145,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
+        "//xls/ir:source_location",
+        "@com_google_absl//absl/status",
     ],
 )
 
@@ -207,10 +209,12 @@ cc_test(
 cc_test(
     name = "module_simulator_codegen_test",
     srcs = ["module_simulator_codegen_test.cc"],
+    shard_count = 10,
     deps = [
         ":module_simulator",
         ":verilog_test_base",
         "//xls/codegen:block_generator",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
@@ -218,17 +222,18 @@ cc_test(
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:channel",
         "//xls/ir:function_builder",
         "//xls/scheduling:pipeline_schedule",
         "//xls/scheduling:run_pipeline_schedule",
         "//xls/scheduling:scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
     ],
 )
 

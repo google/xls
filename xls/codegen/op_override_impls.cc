@@ -172,9 +172,8 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
       std::string assert_str,
       GenerateFormatString(assertion_format_string_, supported_placeholders,
                            unsupported_placeholders));
-  return mb.AssertAlwaysComb(node->loc())
-      ->statements()
-      ->Add<InlineVerilogStatement>(asrt->loc(), absl::StrCat(assert_str, ";"));
+  return mb.assert_section()->Add<InlineVerilogStatement>(asrt->loc(),
+                                                          assert_str);
 }
 
 std::unique_ptr<OpOverride> OpOverrideInstantiation::Clone() const {
