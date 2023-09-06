@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_CODEGEN_ASSERT_CONDITION_PASS_H_
-#define XLS_CODEGEN_ASSERT_CONDITION_PASS_H_
+#ifndef XLS_CODEGEN_SIDE_EFFECT_CONDITION_PASS_H_
+#define XLS_CODEGEN_SIDE_EFFECT_CONDITION_PASS_H_
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_pass.h"
@@ -21,14 +21,15 @@
 
 namespace xls::verilog {
 
-// Rewrites assert conditions from (cond) to (cond_pipeline_stage_valid->cond).
-class AssertConditionPass : public CodegenPass {
+// Rewrites conditions of side-effecting ops from (cond) to
+// (cond_pipeline_stage_valid->cond).
+class SideEffectConditionPass : public CodegenPass {
  public:
-  AssertConditionPass()
-      : CodegenPass("assert_condition",
-                    "Rewrites assert conditions to be gated by ther pipeline "
-                    "stage being valid") {}
-  ~AssertConditionPass() override = default;
+  SideEffectConditionPass()
+      : CodegenPass("side_effect_condition",
+                    "Rewrites side-effecting ops' conditions to be gated by "
+                    "their activation.") {}
+  ~SideEffectConditionPass() override = default;
 
   absl::StatusOr<bool> RunInternal(CodegenPassUnit* unit,
                                    const CodegenPassOptions& options,
@@ -37,4 +38,4 @@ class AssertConditionPass : public CodegenPass {
 
 }  // namespace xls::verilog
 
-#endif  // XLS_CODEGEN_ASSERT_CONDITION_PASS_H_
+#endif  // XLS_CODEGEN_SIDE_EFFECT_CONDITION_PASS_H_

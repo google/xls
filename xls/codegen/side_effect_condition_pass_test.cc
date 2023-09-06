@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/codegen/assert_condition_pass.h"
+#include "xls/codegen/side_effect_condition_pass.h"
 
 #include <cstdint>
 #include <memory>
@@ -61,15 +61,17 @@ namespace xls::verilog {
 namespace {
 using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
+using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::IsEmpty;
 
 CodegenPass* DefaultCodegenPassPipeline() {
   static CodegenCompoundPass* singleton = CreateCodegenPassPipeline().release();
   return singleton;
 }
 
-CodegenPass* AssertConditionPassOnly() {
-  static CodegenPass* singleton = new AssertConditionPass;
+CodegenPass* SideEffectConditionPassOnly() {
+  static CodegenPass* singleton = new SideEffectConditionPass;
   return singleton;
 }
 
@@ -77,8 +79,8 @@ std::string_view CodegenPassName(CodegenPass const* pass) {
   if (pass == DefaultCodegenPassPipeline()) {
     return "DefaultCodegenPassPipeline";
   }
-  if (pass == AssertConditionPassOnly()) {
-    return "AssertConditionPassOnly";
+  if (pass == SideEffectConditionPassOnly()) {
+    return "SideEffectConditionPassOnly";
   }
   // We're seeing an unknown codegen pass, so error
   XLS_LOG(FATAL) << "Unknown codegen pass!";
@@ -89,7 +91,8 @@ static CodegenOptions kDefaultCodegenOptions = CodegenOptions();
 static SchedulingOptions kDefaultSchedulingOptions =
     SchedulingOptions().clock_period_ps(2);
 
-class AssertConditionPassTest : public testing::TestWithParam<CodegenPass*> {
+class SideEffectConditionPassTest
+    : public testing::TestWithParam<CodegenPass*> {
  protected:
   static std::string_view PackageName() {
     return std::vector<std::string_view>(
@@ -132,9 +135,10 @@ class AssertConditionPassTest : public testing::TestWithParam<CodegenPass*> {
         .schedule = scheduling_unit.schedule};
     return GetParam()->Run(&unit, codegen_pass_option, &results);
   }
-  static absl::Status RunInterpreterWithEvents(
+  static absl::StatusOr<std::vector<std::string>> RunInterpreterWithEvents(
       Block* block,
       absl::Span<absl::flat_hash_map<std::string, Value> const> inputs) {
+    std::vector<std::string> traces;
     // Initial register state is zero for all registers.
     absl::flat_hash_map<std::string, Value> reg_state;
     for (Register* reg : block->GetRegisters()) {
@@ -146,13 +150,16 @@ class AssertConditionPassTest : public testing::TestWithParam<CodegenPass*> {
       XLS_ASSIGN_OR_RETURN(BlockRunResult result,
                            BlockRun(input_set, reg_state, block));
       XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(result.interpreter_events));
+      for (std::string& trace : result.interpreter_events.trace_msgs) {
+        traces.push_back(std::move(trace));
+      }
       reg_state = std::move(result.reg_state);
     }
-    return absl::OkStatus();
+    return traces;
   }
 };
 
-TEST_P(AssertConditionPassTest, UnchangedWithNoAssertions) {
+TEST_P(SideEffectConditionPassTest, UnchangedWithNoSideEffects) {
   constexpr std::string_view ir_text = R"(package test
 top fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
@@ -161,14 +168,15 @@ top fn f(x: bits[32], y: bits[32]) -> bits[32] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
 
-  // Assert condition pass should leave unchanged, but other passes will change.
-  bool should_change = GetParam() != AssertConditionPassOnly();
+  // Side-effect condition pass should leave unchanged, but other passes will
+  // change.
+  bool should_change = GetParam() != SideEffectConditionPassOnly();
   EXPECT_THAT(
       Run(package.get(), CodegenOptions().valid_control("in_vld", "out_vld")),
       IsOkAndHolds(should_change));
 }
 
-TEST_F(AssertConditionPassTest, UnchangedIfCombinationalFunction) {
+TEST_F(SideEffectConditionPassTest, UnchangedIfCombinationalFunction) {
   constexpr std::string_view ir_text = R"(package test
 top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
   x_gt_y: bits[1] = ugt(x, y)
@@ -188,11 +196,11 @@ top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
   PassResults results;
   CodegenPassOptions codegen_pass_options{.codegen_options = codegen_options};
   EXPECT_THAT(
-      AssertConditionPassOnly()->Run(&unit, codegen_pass_options, &results),
+      SideEffectConditionPassOnly()->Run(&unit, codegen_pass_options, &results),
       IsOkAndHolds(false));
 }
 
-TEST_P(AssertConditionPassTest, CombinationalProc) {
+TEST_P(SideEffectConditionPassTest, CombinationalProc) {
   constexpr std::string_view ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
@@ -240,16 +248,16 @@ top proc g(tok: token, x: (), init={()}) {
                       {"in_vld", Value(UBits(0, 1))},
                       {"out_rdy", Value(UBits(1, 1))},
                   });
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["in"] = Value(UBits(4, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in"] = Value(UBits(0, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in_vld"] = Value(UBits(1, 1));
 
@@ -257,7 +265,7 @@ top proc g(tok: token, x: (), init={()}) {
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-TEST_P(AssertConditionPassTest, FunctionAssertionWorks) {
+TEST_P(SideEffectConditionPassTest, FunctionAssertionWorks) {
   constexpr std::string_view ir_text = R"(package test
 top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
   x_gt_y: bits[1] = ugt(x, y)
@@ -271,8 +279,9 @@ top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
 
   // Without setting valid_control, there are no valid signals and assertions
   // won't be updated.
-  // Assert condition pass should leave unchanged, but other passes will change.
-  bool should_change = GetParam() != AssertConditionPassOnly();
+  // Side-effect condition pass should leave unchanged, but other passes will
+  // change.
+  bool should_change = GetParam() != SideEffectConditionPassOnly();
   EXPECT_THAT(Run(package.get()), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -300,25 +309,124 @@ top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
     inputs[cycle]["rst"] = Value(UBits(0, 1));
   }
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["x"] = Value(UBits(3, 32));
   inputs[6]["y"] = Value(UBits(1, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["x"] = Value(UBits(1, 32));
   inputs[7]["y"] = Value(UBits(3, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in_vld"] = Value(UBits(1, 1));
   EXPECT_THAT(RunInterpreterWithEvents(block, inputs),
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-TEST_P(AssertConditionPassTest, SingleStageProc) {
+TEST_P(SideEffectConditionPassTest, FunctionTraceWorks) {
+  constexpr std::string_view ir_text = R"(package test
+top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
+  not_x_gt_y: bits[1] = ule(x, y)
+  trace: token = trace(tkn, not_x_gt_y, format="x = {}", data_operands=[x])
+  sum: bits[32] = add(x, y)
+  ret out: (token, bits[32]) = tuple(trace, sum)
+}
+    )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  // Without setting valid_control, there are no valid signals and traces won't
+  // be updated. Side-effect condition pass should leave unchanged, but other
+  // passes will change.
+  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  EXPECT_THAT(Run(package.get()), IsOkAndHolds(should_change));
+
+  // Re-run with valid_control set so the assertions can be rewritten.
+  XLS_ASSERT_OK_AND_ASSIGN(package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(
+      Run(package.get(), CodegenOptions().valid_control("in_vld", "out_vld")),
+      IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * trace, block->GetNode("trace"));
+  ASSERT_NE(trace, nullptr);
+  Node* condition = trace->As<xls::Trace>()->condition();
+  EXPECT_THAT(condition,
+              m::And(m::Name(HasSubstr("_vld")), m::Name("not_x_gt_y")));
+
+  constexpr int64_t kNumCycles = 10;
+  std::vector<absl::flat_hash_map<std::string, Value>> inputs(
+      kNumCycles, {
+                      {"tkn", Value::Token()},
+                      {"rst", Value(UBits(1, 1))},
+                      {"x", Value(UBits(0, 32))},
+                      {"y", Value(UBits(0, 32))},
+                      {"in_vld", Value(UBits(0, 1))},
+                  });
+  for (int64_t cycle = 5; cycle < kNumCycles; ++cycle) {
+    inputs[cycle]["rst"] = Value(UBits(0, 1));
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<std::string> traces,
+                           RunInterpreterWithEvents(block, inputs));
+  EXPECT_THAT(traces, IsEmpty());
+
+  inputs[6]["x"] = Value(UBits(3, 32));
+  inputs[6]["y"] = Value(UBits(1, 32));
+  inputs[6]["in_vld"] = Value(UBits(1, 1));
+
+  XLS_ASSERT_OK_AND_ASSIGN(traces, RunInterpreterWithEvents(block, inputs));
+  EXPECT_THAT(traces, IsEmpty());
+
+  inputs[7]["x"] = Value(UBits(1, 32));
+  inputs[7]["y"] = Value(UBits(3, 32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(traces, RunInterpreterWithEvents(block, inputs));
+  EXPECT_THAT(traces, IsEmpty());
+
+  inputs[7]["in_vld"] = Value(UBits(1, 1));
+  XLS_ASSERT_OK_AND_ASSIGN(traces, RunInterpreterWithEvents(block, inputs));
+  EXPECT_THAT(traces, ElementsAre("x = 1"));
+}
+
+TEST_P(SideEffectConditionPassTest, FunctionCoverWorks) {
+  constexpr std::string_view ir_text = R"(package test
+top fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
+  not_x_gt_y: bits[1] = ule(x, y)
+  cover: token = cover(tkn, not_x_gt_y, label="not_x_gt_y")
+  sum: bits[32] = add(x, y)
+  ret out: (token, bits[32]) = tuple(cover, sum)
+}
+    )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  // Without setting valid_control, there are no valid signals and traces won't
+  // be updated. Side-effect condition pass should leave unchanged, but other
+  // passes will change.
+  bool should_change = GetParam() != SideEffectConditionPassOnly();
+  EXPECT_THAT(Run(package.get()), IsOkAndHolds(should_change));
+
+  // Re-run with valid_control set so the assertions can be rewritten.
+  XLS_ASSERT_OK_AND_ASSIGN(package, Parser::ParsePackage(ir_text));
+  EXPECT_THAT(
+      Run(package.get(), CodegenOptions().valid_control("in_vld", "out_vld")),
+      IsOkAndHolds(true));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * cover, block->GetNode("cover"));
+  ASSERT_NE(cover, nullptr);
+  Node* condition = cover->As<xls::Cover>()->condition();
+  EXPECT_THAT(condition,
+              m::And(m::Name(HasSubstr("_vld")), m::Name("not_x_gt_y")));
+
+  // TODO(google/xls#1126): We don't currently have a good way to get cover
+  // events out of the interpreter, so stop testing here.
+}
+
+TEST_P(SideEffectConditionPassTest, SingleStageProc) {
   constexpr std::string_view ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
@@ -359,20 +467,20 @@ top proc f(tkn: token, x: bits[32], init={0}) {
   for (int64_t cycle = 5; cycle < kNumCycles; ++cycle) {
     inputs[cycle]["rst"] = Value(UBits(0, 1));
   }
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["in"] = Value(UBits(3, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
   inputs[7]["in"] = Value(UBits(1, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in_vld"] = Value(UBits(1, 1));
   EXPECT_THAT(RunInterpreterWithEvents(block, inputs),
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-TEST_P(AssertConditionPassTest, AssertionInLastStageOfFunction) {
+TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfFunction) {
   constexpr std::string_view ir_text = R"(package test
 fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
   xy: bits[32] = umul(x, y)
@@ -392,8 +500,9 @@ fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
 
   // Without setting valid_control, there are no valid signals and assertions
   // won't be updated.
-  // Assert condition pass should leave unchanged, but other passes will change.
-  bool should_change = GetParam() != AssertConditionPassOnly();
+  // Side-effect condition pass should leave unchanged, but other passes will
+  // change.
+  bool should_change = GetParam() != SideEffectConditionPassOnly();
   EXPECT_THAT(Run(package.get()), IsOkAndHolds(should_change));
 
   // Re-run with valid_control set so the assertions can be rewritten.
@@ -422,18 +531,18 @@ fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
     inputs[cycle]["rst"] = Value(UBits(0, 1));
   }
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["x"] = Value(UBits(4, 32));
   inputs[6]["y"] = Value(UBits(4, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["x"] = Value(UBits(2, 32));
   inputs[7]["y"] = Value(UBits(1, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in_vld"] = Value(UBits(1, 1));
 
@@ -441,7 +550,7 @@ fn f(tkn: token, x: bits[32], y: bits[32]) -> (token, bits[32]) {
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-TEST_P(AssertConditionPassTest, AssertionInLastStageOfProc) {
+TEST_P(SideEffectConditionPassTest, AssertionInLastStageOfProc) {
   constexpr std::string_view ir_text = R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
@@ -486,16 +595,16 @@ proc g(tok: token, x: bits[32], init={4}) {
     inputs[cycle]["rst"] = Value(UBits(0, 1));
   }
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["in"] = Value(UBits(4, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in"] = Value(UBits(0, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[7]["in_vld"] = Value(UBits(1, 1));
 
@@ -503,7 +612,7 @@ proc g(tok: token, x: bits[32], init={4}) {
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-TEST_P(AssertConditionPassTest, IIGreaterThanOne) {
+TEST_P(SideEffectConditionPassTest, IIGreaterThanOne) {
   constexpr std::string_view ir_text =
       R"(package test
 chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="")
@@ -546,25 +655,25 @@ top proc ii_greater_than_one(tkn: token, st: bits[32], init={0}) {
   for (int64_t cycle = 5; cycle < kNumCycles; ++cycle) {
     inputs[cycle]["rst"] = Value(UBits(0, 1));
   }
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[6]["in"] = Value(UBits(3, 32));
   inputs[6]["in_vld"] = Value(UBits(1, 1));
   inputs[7]["in"] = Value(UBits(10, 32));
   inputs[8]["in"] = Value(UBits(10, 32));
 
-  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs));
+  XLS_EXPECT_OK(RunInterpreterWithEvents(block, inputs).status());
 
   inputs[8]["in_vld"] = Value(UBits(1, 1));
   EXPECT_THAT(RunInterpreterWithEvents(block, inputs),
               StatusIs(absl::StatusCode::kAborted, HasSubstr("bar")));
 }
 
-INSTANTIATE_TEST_SUITE_P(AssertConditionPassTestInstantiation,
-                         AssertConditionPassTest,
+INSTANTIATE_TEST_SUITE_P(SideEffectConditionPassTestInstantiation,
+                         SideEffectConditionPassTest,
 
                          testing::Values(DefaultCodegenPassPipeline(),
-                                         AssertConditionPassOnly()),
+                                         SideEffectConditionPassOnly()),
                          [](const testing::TestParamInfo<CodegenPass*>& info) {
                            return std::string(CodegenPassName(info.param));
                          });

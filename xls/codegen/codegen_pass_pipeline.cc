@@ -20,7 +20,6 @@
 #include <memory>
 
 #include "absl/status/statusor.h"
-#include "xls/codegen/assert_condition_pass.h"
 #include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_pass.h"
@@ -30,6 +29,7 @@
 #include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/ram_rewrite_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
+#include "xls/codegen/side_effect_condition_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
 #include "xls/ir/block.h"
 #include "xls/passes/dce_pass.h"
@@ -74,7 +74,7 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   top->Add<FfiInstantiationPass>();
 
   // Update assert conditions to be guarded by pipeline_valid signals.
-  top->Add<AssertConditionPass>();
+  top->Add<SideEffectConditionPass>();
 
   // Remove any identity ops which might have been added earlier in the
   // pipeline.

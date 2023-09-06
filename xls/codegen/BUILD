@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+# cc_proto_library is used in this file
 
 package(
     default_applicable_licenses = ["//:license"],
@@ -435,7 +435,6 @@ cc_library(
     srcs = ["codegen_pass_pipeline.cc"],
     hdrs = ["codegen_pass_pipeline.h"],
     deps = [
-        ":assert_condition_pass",
         ":block_metrics_generation_pass",
         ":codegen_checker",
         ":codegen_pass",
@@ -445,6 +444,7 @@ cc_library(
         ":port_legalization_pass",
         ":ram_rewrite_pass",
         ":register_legalization_pass",
+        ":side_effect_condition_pass",
         ":signature_generation_pass",
         "//xls/ir",
         "//xls/passes:dce_pass",
@@ -1114,9 +1114,9 @@ cc_test(
 )
 
 cc_library(
-    name = "assert_condition_pass",
-    srcs = ["assert_condition_pass.cc"],
-    hdrs = ["assert_condition_pass.h"],
+    name = "side_effect_condition_pass",
+    srcs = ["side_effect_condition_pass.cc"],
+    hdrs = ["side_effect_condition_pass.h"],
     deps = [
         ":codegen_pass",
         "//xls/common/logging",
@@ -1134,14 +1134,14 @@ cc_library(
 )
 
 cc_test(
-    name = "assert_condition_pass_test",
-    srcs = ["assert_condition_pass_test.cc"],
+    name = "side_effect_condition_pass_test",
+    srcs = ["side_effect_condition_pass_test.cc"],
     deps = [
-        ":assert_condition_pass",
         ":block_conversion",
         ":codegen_options",
         ":codegen_pass",
         ":codegen_pass_pipeline",
+        ":side_effect_condition_pass",
         "//xls/common:xls_gunit",
         "//xls/common:xls_gunit_main",
         "//xls/common/logging",
