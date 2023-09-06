@@ -15,19 +15,60 @@
 import std
 import xls.examples.protobuf.varint_decode
 
-struct State<NUM_BYTES:u32, NUM_BYTES_WIDTH:u32={std::clog2(NUM_BYTES+u32:1)}> {
-  bytes: u8[NUM_BYTES],
-  len: uN[NUM_BYTES_WIDTH],
+// Convenience for use with map().
+fn not(x: bool) -> bool { !x }
+
+// Convenience to statically shift byte array left, filling with 'fill'.
+fn byte_array_shl<SHIFT:u32, N:u32>(bytes: u8[N], fill: u8) -> u8[N] {
+  for (i, arr): (u32, u8[N]) in u32:0..N {
+    update(arr, i, if i + SHIFT < N { bytes[i + SHIFT] } else { fill })
+  }(u8[N]:[u8:0, ...])
+}
+
+#[test]
+fn byte_array_shl_test() {
+  assert_eq(
+    u8[4]:[u8:0, u8:1, u8:2, u8:3],
+    byte_array_shl<u32:0>(u8[4]:[u8:0, u8:1, u8:2, u8:3], u8:7),
+  );
+  assert_eq(
+    u8[4]:[u8:1, u8:2, u8:3, u8:7],
+    byte_array_shl<u32:1>(u8[4]:[u8:0, u8:1, u8:2, u8:3], u8:7),
+  );
+  assert_eq(
+    u8[4]:[u8:2, u8:3, u8:7, u8:7],
+    byte_array_shl<u32:2>(u8[4]:[u8:0, u8:1, u8:2, u8:3], u8:7),
+  );
+  assert_eq(
+    u8[4]:[u8:3, u8:7, u8:7, u8:7],
+    byte_array_shl<u32:3>(u8[4]:[u8:0, u8:1, u8:2, u8:3], u8:7),
+  );
+  assert_eq(
+    u8[4]:[u8:7, u8:7, u8:7, u8:7],
+    byte_array_shl<u32:4>(u8[4]:[u8:0, u8:1, u8:2, u8:3], u8:7),
+  );
+}
+
+struct State<NUM_BYTES:u32, NUM_BYTES_WIDTH:u32> {
+  work_chunk: u8[NUM_BYTES],       // Chunk of bytes currently being worked on.
+  len: uN[NUM_BYTES_WIDTH],        // Number of valid bytes in work_chunk
+  old_bytes: u8[4],                // Leftover bytes from a previous work chunk. Guaranteed not to
+                                   // have any varint terminators, else they'd already be decoded.
+  old_bytes_len: u3,               // Number of valid bytes in old_bytes_len. Invalid bytes start
+                                   // with index 0.
+  drop_count: uN[NUM_BYTES_WIDTH], // Number of bytes to drop from work_chunk/input.
 }
 
 pub proc varint_streaming_u32_decode<
    INPUT_BYTES:u32,
    OUTPUT_WORDS:u32,
-   SCRATCHPAD_BYTES:u32={INPUT_BYTES},
+   BIG_SHIFT:u32,
    INPUT_BYTES_WIDTH:u32={std::clog2(INPUT_BYTES+u32:1)},
    OUTPUT_WORDS_WIDTH:u32={std::clog2(OUTPUT_WORDS+u32:1)},
-   SCRATCHPAD_BYTES_WIDTH:u32={std::clog2(SCRATCHPAD_BYTES+u32:1)},
- > {
+   BIG_SHIFT_WIDTH:u32={std::clog2(BIG_SHIFT)},
+   COMBINED_BYTES: u32 ={INPUT_BYTES + u32:4},
+   COMBINED_BYTES_WIDTH: u32 ={std::clog2(COMBINED_BYTES + u32:1)},
+> {
   bytes_in: chan<(u8[INPUT_BYTES], uN[INPUT_BYTES_WIDTH])> in;
   words_out: chan<(u32[OUTPUT_WORDS], uN[OUTPUT_WORDS_WIDTH])> out;
 
@@ -37,96 +78,154 @@ pub proc varint_streaming_u32_decode<
   }
 
   init {
-    State<SCRATCHPAD_BYTES, SCRATCHPAD_BYTES_WIDTH> {
-      bytes: u8[SCRATCHPAD_BYTES]:[u8:0, ...],
-      len: uN[SCRATCHPAD_BYTES_WIDTH]:0,
-    }
+    type MyState = State<INPUT_BYTES, INPUT_BYTES_WIDTH>;
+    zero!<MyState>()
   }
 
-  next(tok: token, state: State<SCRATCHPAD_BYTES, SCRATCHPAD_BYTES_WIDTH>) {
-    const_assert!(SCRATCHPAD_BYTES >= INPUT_BYTES);
+  next(tok: token, state: State<INPUT_BYTES, INPUT_BYTES_WIDTH>) {
+    trace_fmt!("state={}", state);
 
-    type ScratchpadSum = uN[SCRATCHPAD_BYTES_WIDTH + u32:1];
+    const_assert!(INPUT_BYTES >= OUTPUT_WORDS);
+    const_assert!(BIG_SHIFT > u32:1 && BIG_SHIFT < INPUT_BYTES);
+
     type OutputWordArray = u32[OUTPUT_WORDS];
     type OutputIdx = uN[OUTPUT_WORDS_WIDTH];
     type InputIdx = uN[INPUT_BYTES_WIDTH];
-    type ScratchpadIdx = uN[SCRATCHPAD_BYTES_WIDTH];
+    type BigShiftIdx = uN[BIG_SHIFT_WIDTH];
+    type CombinedIdx = uN[COMBINED_BYTES_WIDTH];
 
-    const MAX_NUM_BYTES_PER_WORD = std::clog2(u32:32);
+    let terminators: bool[INPUT_BYTES] =  // terminators[i] -> word_chunk[i] terminates a varint
+      map(map(state.work_chunk, std::is_unsigned_msb_set), not);
+    // Remove terminators on invalid bytes.
+    let terminators = for (i, terminators): (u32, bool[INPUT_BYTES]) in u32:0..INPUT_BYTES {
+      if i < state.len as u32 { terminators } else { update(terminators, i, false) }
+    }(terminators);
+    let num_terminators = std::popcount(std::convert_to_bits_msb0(terminators)) as InputIdx;
 
-    let has_space =
-      (state.len as ScratchpadSum) + (INPUT_BYTES as ScratchpadSum) <=
-      (SCRATCHPAD_BYTES as ScratchpadSum);
-    type InputIdx= uN[INPUT_BYTES_WIDTH];
-    let (input_tok, (input_data, input_len), _) = recv_if_non_blocking(
-      tok, bytes_in, has_space, (u8[INPUT_BYTES]:[u8:0, ...], InputIdx:0));
-    let state = State<SCRATCHPAD_BYTES, SCRATCHPAD_BYTES_WIDTH> {
-      bytes: for (i, updated): (u32, u8[SCRATCHPAD_BYTES]) in u32:0..INPUT_BYTES {
-        if (i as InputIdx) < input_len {
-          update(updated, state.len + (i as ScratchpadIdx), input_data[i])
-        } else {
-          updated
-        }
-      }(state.bytes),
-      len: state.len + (input_len as ScratchpadIdx),
+    // Find the index of the last terminator that will be decoded in this proc iteration.
+    // We can decode OUTPUT_WORDS varints per iteration, so count up to OUTPUT_WORDS and stop.
+    let (_, last_terminator_idx): (OutputIdx, u32) =
+    for (idx, (word_count, last_idx)): (u32, (OutputIdx, u32)) in u32:0..INPUT_BYTES {
+      if terminators[idx] && word_count as u32 < OUTPUT_WORDS {
+        (word_count + OutputIdx:1, idx)
+      } else { (word_count, last_idx) }
+    }((OutputIdx:0, u32:0));
+
+    // Get a new input once we've processed the entire work chunk.
+    let do_input = state.len == InputIdx:0;
+    let (input_tok, (input_data, input_len)) = recv_if(
+      tok, bytes_in, do_input, (u8[INPUT_BYTES]:[u8:0, ...], InputIdx:0));
+
+    trace_fmt!("input_data={} input_len={}, do_input={}", input_data, input_len, do_input);
+
+    let do_drop = state.drop_count != InputIdx:0;
+    if do_input && do_drop { fail!("input_and_drop", ()) } else { () };
+
+    // Each iteration, we either shift by 1 or BIG_SHIFT. Do the shifts now and select later.
+    let work_chunk_shl_1 = byte_array_shl<u32:1>(state.work_chunk, u8:0);
+    let work_chunk_shl_big = byte_array_shl<BIG_SHIFT>(state.work_chunk, u8:0);
+
+    trace!(last_terminator_idx);
+    trace!(num_terminators);
+
+    // Do a big shift if we're dropping a big shift's worth of bytes or if the last terminator is
+    // at or after the end of the big shift's window.
+    let do_big_shift = (do_drop && state.drop_count as u32 >= BIG_SHIFT) ||
+                       (!do_drop && last_terminator_idx as u32 >= BIG_SHIFT - u32:1);
+
+    // compute next state
+    let next_drop_count = if do_input {
+      InputIdx:0
+    } else if do_big_shift {
+      InputIdx:1 + last_terminator_idx as InputIdx - BIG_SHIFT as InputIdx
+    } else if do_drop {
+      state.drop_count - InputIdx:1
+    } else {
+      last_terminator_idx as InputIdx
     };
 
-    let msbs =
-    // find msbs for valid (idx < state.len) bytes, false for the rest.
-    for (i, accum): (u32, bool[SCRATCHPAD_BYTES]) in u32:0..SCRATCHPAD_BYTES {
-      if (i as ScratchpadIdx) < state.len { accum } else {
-        update(accum, i, false)
-      }
-    }(map(state.bytes, std::is_unsigned_msb_set));
-    // Keep state.len MSBs and zero out the lower bits.
-    let num_bytes_with_msb_set =
-      std::popcount(std::convert_to_bits_msb0(msbs)) as ScratchpadIdx;
-    
-    // each varint ends when a byte's msb is no longer set.
-    let num_words_in_state = state.len - num_bytes_with_msb_set;
+    let next_len = if do_input {
+      input_len
+    } else if do_big_shift {
+      state.len - BIG_SHIFT as InputIdx
+    } else if do_drop {
+      state.len - InputIdx:1
+    } else {
+      state.len - InputIdx:1
+    };
+    // word_chunk is either set to input, word_chunk << 1, or word_chunk << BIG_SHIFT
+    let next_word_chunk = if do_input {
+      input_data
+     } else if do_big_shift {
+      work_chunk_shl_big
+     } else if do_drop {
+      work_chunk_shl_1
+     } else {
+      work_chunk_shl_1
+     };
 
-    let (output_words, num_output_words, bytes_taken) =
+    let (next_old_bytes, next_old_bytes_len) = if do_input {
+      (state.old_bytes, state.old_bytes_len)
+    } else if do_big_shift {
+      (state.old_bytes, u3:0)
+    } else if num_terminators == InputIdx:0 {
+      let next_old_bytes_len = if state.old_bytes_len < u3:4 { state.old_bytes_len + u3:1 } else { state.old_bytes_len };
+      (byte_array_shl<u32:1>(state.old_bytes, state.work_chunk[0]), next_old_bytes_len)
+    } else {
+      (state.old_bytes, u3:0)
+    };
+    trace_fmt!("next_old_bytes calc: do_input={} do_big_shift={} num_terminators={}", do_input, do_big_shift, num_terminators);
+    let next_state = State {
+      work_chunk: next_word_chunk,
+      len: next_len,
+      old_bytes: next_old_bytes,
+      old_bytes_len: next_old_bytes_len,
+      drop_count: next_drop_count,
+    };
+
+    // Compute and output decoded varints.
+    let bytes = state.old_bytes ++ state.work_chunk;
+    let bytes_len = state.len as CombinedIdx + CombinedIdx:4;
+
+    let (output_words, num_output_words, _) =
     for (i, (output_words, num_output_words, bytes_taken)):
-     (u32, (OutputWordArray, OutputIdx, ScratchpadIdx)) in u32:0..OUTPUT_WORDS {
-      if i < num_words_in_state as u32 {
-        let taken_bytes =
-        for (i, accum): (u32, u8[MAX_NUM_BYTES_PER_WORD]) in
-         u32:0..MAX_NUM_BYTES_PER_WORD {
-          update(accum, i, state.bytes[i + (bytes_taken as u32)])
-        }(u8[MAX_NUM_BYTES_PER_WORD]:[u8:0, ...]);
-        let (decoded, this_bytes_taken) = varint_decode::varint_decode_u32(
-          taken_bytes);
+     (u32, (OutputWordArray, OutputIdx, CombinedIdx)) in u32:0..OUTPUT_WORDS {
+      let idx = bytes_taken as u32;
+      let encoded = for (j, encoded): (u32, u8[5]) in u32:0..u32:5 {
+        let val = if j + idx < COMBINED_BYTES { bytes[j + idx] } else { u8: 0 };
+        update(encoded, j, val)
+      }(u8[5]:[u8:0, ...]);
+      let (decoded, this_bytes_taken) = varint_decode::varint_decode_u32(encoded);
+      let total_bytes_taken = bytes_taken + this_bytes_taken as CombinedIdx;
+      trace_fmt!(
+        "encoded={}, decoded={}, this_bytes_taken={}, total_bytes_taken={}, bytes_len={}",
+         encoded, decoded, this_bytes_taken, total_bytes_taken, bytes_len);
+      if total_bytes_taken <= bytes_len {
         (
           update(output_words, i, decoded),
           num_output_words + OutputIdx:1,
-          bytes_taken + (this_bytes_taken as ScratchpadIdx),
+          bytes_taken + this_bytes_taken as CombinedIdx,
         )
       } else {
         (output_words, num_output_words, bytes_taken)
       }
-    }((zero!<OutputWordArray>(), zero!<OutputIdx>(), zero!<ScratchpadIdx>()));
+    }((zero!<OutputWordArray>(), OutputIdx:0, (u3:4 - state.old_bytes_len) as CombinedIdx));
+
+    trace_fmt!("ouput_words={}, num_output_words={}", output_words, num_output_words);
 
     let output_tok = send_if(
       input_tok,
       words_out,
-      num_output_words > OutputIdx:0,
+      !do_input && !do_drop && num_output_words > OutputIdx:0,
       (output_words, num_output_words));
 
-    State {
-      bytes: for (i, updated): (u32, u8[SCRATCHPAD_BYTES]) in
-       u32:0..SCRATCHPAD_BYTES {
-        if i + bytes_taken as u32 < SCRATCHPAD_BYTES {
-          update(updated, i, state.bytes[i + bytes_taken as u32])
-        } else { updated }
-      }(zero!<u8[SCRATCHPAD_BYTES]>()),
-      len: state.len - bytes_taken,
-    }
+    next_state
   }
 }
 
 const TEST_INPUT_BYTES = u32:7;
 const TEST_OUTPUT_WORDS = u32:3;
-const TEST_SCRATCHPAD_BYTES = u32:13;
+const TEST_BIG_SHIFT = u32:3;
 const TEST_INPUT_BYTES_WIDTH = std::clog2(TEST_INPUT_BYTES);
 const TEST_OUTPUT_WORDS_WIDTH = std::clog2(TEST_OUTPUT_WORDS);
 
@@ -145,37 +244,27 @@ proc varint_streaming_u32_decode_test {
       chan<(u32[TEST_OUTPUT_WORDS], uN[TEST_OUTPUT_WORDS_WIDTH])>;
     spawn varint_streaming_u32_decode<TEST_INPUT_BYTES,
                                       TEST_OUTPUT_WORDS,
-                                      TEST_SCRATCHPAD_BYTES>(bytes_r, words_s);
+                                      TEST_BIG_SHIFT>(bytes_r, words_s);
     (bytes_s, words_r, terminator)
   }
 
   next(tok: token, st:()) {
     // Pump in a bunch of small numbers.
     let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
-      let tok = send(tok, bytes_out,
-        (u8[7]:[u8:0, u8:1, u8:0, u8:1, u8:0, u8:1, u8:0], u3:7));
-      let tok = send(tok, bytes_out,
-        (u8[7]:[u8:1, u8:0, u8:1, u8:0, u8:1, u8:0, u8:1], u3:7));
-      let tok = send(tok, bytes_out,
-        (u8[7]:[u8:0, u8:1, u8:0, u8:1, u8:0, u8:1, u8:0], u3:7));
-      let tok = send(tok, bytes_out,
-        (u8[7]:[u8:1, u8:0, u8:1, u8:0, u8:1, u8:0, u8:1], u3:7));
-      let tok = send(tok, bytes_out,
-        (u8[7]:[u8:0, u8:1, u8:0, u8:1, u8:0, u8:1, u8:0], u3:7));
       send(tok, bytes_out,
-        (u8[7]:[u8:1, u8:0, u8:1, u8:0, u8:1, u8:0, u8:1], u3:7))
+        (u8[7]:[u8:0, u8:1, u8:0, u8:1, u8:0, u8:1, u8:0], u3:7))
     }(tok);
     let tok = for (_, tok): (u32, token) in u32:0..u32:100 {
-      for (_, tok): (u32, token) in u32:0..u32:7 {
-        let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
-        assert_eq(recv_bytes, u32[3]:[u32:0, u32:1, u32:0]);
-        assert_eq(bytes_recvd, uN[TEST_OUTPUT_WORDS_WIDTH]:3);
-        let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
-        assert_eq(recv_bytes, u32[3]:[u32:1, u32:0, u32:1]);
-        assert_eq(bytes_recvd, uN[TEST_OUTPUT_WORDS_WIDTH]:3);
-
-        tok
-      }(tok)
+      let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
+      assert_eq(recv_bytes, u32[3]:[u32:0, u32:1, u32:0]);
+      assert_eq(bytes_recvd, uN[TEST_OUTPUT_WORDS_WIDTH]:3);
+      let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
+      assert_eq(recv_bytes, u32[3]:[u32:1, u32:0, u32:1]);
+      assert_eq(bytes_recvd, uN[TEST_OUTPUT_WORDS_WIDTH]:3);
+      let (tok, (recv_bytes, bytes_recvd)) = recv(tok, words_in);
+      assert_eq(recv_bytes, u32[3]:[u32:0, u32:0, u32:0]);
+      assert_eq(bytes_recvd, uN[TEST_OUTPUT_WORDS_WIDTH]:1);
+      tok
     }(tok);
 
     // Try a big number that spans multiple inputs.
