@@ -15,7 +15,7 @@
 import std
 import xls.examples.protobuf.varint_encode
 
-// Performs a variable-length encoding of a varint value.
+// Performs a decoding of a variable-length varint value.
 //
 // Returns (decoded u32, consumed bytes).
 //
