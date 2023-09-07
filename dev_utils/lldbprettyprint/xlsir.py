@@ -156,7 +156,7 @@ def xls_bits_summary(valobj, _):
     return (
         _maybe_deref(valobj)
         .EvaluateExpression(
-            "this.ToString(xls::FormatPreference::kDefault, true)"
+            "this.ToDebugString()"
         )
         .GetSummary()
         .strip('"')
