@@ -198,6 +198,8 @@ absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   context().return_cval = popped.return_cval;
   context().last_return_condition = popped.last_return_condition;
   context().have_returned_condition = popped.have_returned_condition;
+  context().variables_accessed.insert(popped.variables_accessed.begin(),
+                                      popped.variables_accessed.end());
 
   context().any_side_effects_requested =
       context().any_side_effects_requested || popped.any_side_effects_requested;
@@ -1544,6 +1546,9 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     return GetOnReset(loc);
   }
 
+  // Record the access for analysis purposes
+  context().variables_accessed.insert(decl);
+
   // CValue on file in the context?
   auto found = context().variables.find(decl);
   if (found != context().variables.end()) {
@@ -1612,6 +1617,9 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     }
   }
   context().sf->global_values[decl] = value;
+  XLSCC_CHECK(!context().sf->declaration_order_by_name_.contains(decl), loc);
+  context().sf->declaration_order_by_name_[decl] =
+      ++context().sf->declaration_count;
   return value;
 }
 

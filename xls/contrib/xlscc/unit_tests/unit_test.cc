@@ -501,6 +501,27 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
   return ret;
 }
 
+absl::StatusOr<uint64_t> XlsccTestBase::GetBitsForChannelNameContains(
+    std::string_view name_cont) {
+  XLS_CHECK_NE(nullptr, package_.get());
+  uint64_t ret = 0;
+
+  const xls::Channel* already_found = nullptr;
+  for (const xls::Channel* channel : package_->channels()) {
+    if (absl::StrContains(channel->name(), name_cont)) {
+      if (already_found != nullptr) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Channel with name containing %s already found, %s vs %s",
+            name_cont, already_found->name(), channel->name()));
+      }
+
+      ret = channel->type()->GetFlatBitCount();
+      already_found = channel;
+    }
+  }
+  return ret;
+}
+
 absl::StatusOr<xlscc_metadata::MetadataOutput>
 XlsccTestBase::GenerateMetadata() {
   return translator_->GenerateMetadata();

@@ -20,8 +20,10 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "xls/common/logging/logging.h"
@@ -30,6 +32,7 @@
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/xlscc_logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -379,13 +382,13 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   std::shared_ptr<CInternalTuple> context_lval_conds_ctype;
 
   xls::Type* context_struct_xls_type = nullptr;
-  xls::Type* context_lval_xls_type = nullptr;
-  CValue context_tuple_out;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> variable_field_indices;
+  xls::Type* context_lvals_xls_type = nullptr;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> context_field_indices;
   std::vector<const clang::NamedDecl*> variable_fields_order;
+  xls::BValue lvalue_conditions_tuple;
   {
-    std::vector<std::shared_ptr<CField>> fields;
-    std::vector<xls::BValue> tuple_values;
+    std::vector<xls::BValue> full_context_tuple_values;
+    std::vector<std::shared_ptr<CField>> full_context_fields;
 
     XLS_ASSIGN_OR_RETURN(const clang::VarDecl* on_reset_var_decl,
                          parser_->GetXlsccOnReset());
@@ -408,12 +411,11 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       const CValue& cvalue = context().variables.at(decl);
 
       if (cvalue.rvalue().valid()) {
-        const uint64_t field_idx = tuple_values.size();
-        variable_field_indices[decl] = field_idx;
-        tuple_values.push_back(cvalue.rvalue());
+        const uint64_t field_idx = context_field_indices.size();
+        context_field_indices[decl] = field_idx;
         auto field_ptr =
             std::make_shared<CField>(decl, field_idx, cvalue.type());
-        fields.push_back(field_ptr);
+        full_context_fields.push_back(field_ptr);
       }
 
       if (cvalue.lvalue() != nullptr) {
@@ -422,7 +424,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       }
     }
 
-    xls::BValue lvalue_conditions_tuple;
     lvalue_conditions_tuple = context().fb->Tuple(lvalue_conditions, loc);
     std::vector<std::shared_ptr<CType>> lvalue_conds_tuple_fields;
     lvalue_conds_tuple_fields.resize(lvalue_conditions.size(),
@@ -431,13 +432,83 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         std::make_shared<CInternalTuple>(lvalue_conds_tuple_fields);
 
     context_cvars_struct_ctype = std::make_shared<CStructType>(
-        fields, /*no_tuple=*/false, /*synthetic_int=*/false);
+        full_context_fields, /*no_tuple=*/false, /*synthetic_int=*/false);
+
+    XLS_ASSIGN_OR_RETURN(context_struct_xls_type,
+                         TranslateTypeToXLS(context_cvars_struct_ctype, loc));
+    context_lvals_xls_type = lvalue_conditions_tuple.GetType();
+  }
+
+  const std::string name_prefix =
+      absl::StrFormat("__for_%i", next_for_number_++);
+
+  // Create loop body proc
+  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
+      lvalues_out;
+  bool uses_on_reset = false;
+  XLS_ASSIGN_OR_RETURN(
+      PipelinedLoopSubProc sub_proc,
+      GenerateIR_PipelinedLoopBody(
+          cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
+          context_struct_xls_type, context_lvals_xls_type,
+          context_cvars_struct_ctype, &lvalues_out, context_field_indices,
+          variable_fields_order, &uses_on_reset, loc));
+
+  // Propagate variables accessed to the outer context. Necessary for nested
+  // loops
+  for (const clang::NamedDecl* decl : sub_proc.vars_accessed_in_body) {
+    if (context().variables.contains(decl)) {
+      context().variables_accessed.insert(decl);
+    }
+  }
+
+  std::shared_ptr<CStructType> context_out_cvars_struct_ctype;
+  std::shared_ptr<CInternalTuple> context_out_lval_conds_ctype =
+      context_lval_conds_ctype;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
+      context_out_field_indices;
+
+  // Filter context out
+  CValue context_tuple_out;
+  {
+    std::vector<std::shared_ptr<CField>> context_out_fields;
+    std::vector<xls::BValue> context_out_tuple_values;
+
+    absl::flat_hash_set<const clang::NamedDecl*> vars_accessed_in_body_set;
+    for (const clang::NamedDecl* decl : sub_proc.vars_accessed_in_body) {
+      vars_accessed_in_body_set.insert(decl);
+    }
+
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      if (!vars_accessed_in_body_set.contains(decl)) {
+        continue;
+      }
+      const CValue& cvalue = context().variables.at(decl);
+      // Not concerned with LValues
+      if (!cvalue.rvalue().valid()) {
+        continue;
+      }
+      const int64_t field_idx = context_out_tuple_values.size();
+
+      context_out_tuple_values.push_back(cvalue.rvalue());
+      context_out_field_indices[decl] = field_idx;
+
+      const int64_t full_field_idx = context_field_indices.at(decl);
+      std::shared_ptr<CType> field_type =
+          context_cvars_struct_ctype->fields().at(full_field_idx)->type();
+      auto field_ptr = std::make_shared<CField>(decl, field_idx, field_type);
+      context_out_fields.push_back(field_ptr);
+    }
+    context_out_cvars_struct_ctype = std::make_shared<CStructType>(
+        context_out_fields, /*no_tuple=*/false, /*synthetic_int=*/false);
+
     CValue context_struct_out =
-        CValue(MakeStructXLS(tuple_values, *context_cvars_struct_ctype, loc),
-               context_cvars_struct_ctype);
+        CValue(MakeStructXLS(context_out_tuple_values,
+                             *context_out_cvars_struct_ctype, loc),
+               context_out_cvars_struct_ctype);
 
     std::vector<std::shared_ptr<CType>> context_tuple_elem_types;
-    context_tuple_elem_types.push_back(context_cvars_struct_ctype);
+    context_tuple_elem_types.push_back(context_out_cvars_struct_ctype);
     context_tuple_elem_types.push_back(context_lval_conds_ctype);
     std::shared_ptr<CInternalTuple> context_tuple_type =
         std::make_shared<CInternalTuple>(context_tuple_elem_types);
@@ -451,24 +522,44 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         context().fb->Tuple({outer_on_reset_value, context_struct_out.rvalue(),
                              lvalue_conditions_tuple}),
         context_tuple_type);
-
-    context_struct_xls_type = context_struct_out.rvalue().GetType();
-    context_lval_xls_type = lvalue_conditions_tuple.GetType();
   }
 
   // Create synthetic channels and IO ops
-  xls::Type* context_xls_type = context_tuple_out.rvalue().GetType();
+  xls::Type* context_out_xls_type = context_tuple_out.rvalue().GetType();
 
-  const std::string name_prefix =
-      absl::StrFormat("__for_%i", next_for_number_++);
+  std::shared_ptr<CStructType> context_in_cvars_struct_ctype;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
+      context_in_field_indices;
 
+  {
+    std::vector<std::shared_ptr<CField>> fields;
+    for (const clang::NamedDecl* decl : sub_proc.vars_changed_in_body) {
+      // Don't assign to variables that don't exist in the outside scope
+      if (!outer_context.variables.contains(decl)) {
+        continue;
+      }
+      const uint64_t field_idx = fields.size();
+      auto field_ptr = std::make_shared<CField>(
+          decl, field_idx, outer_context.variables.at(decl).type());
+      fields.push_back(field_ptr);
+      context_in_field_indices[decl] = field_idx;
+    }
+
+    context_in_cvars_struct_ctype = std::make_shared<CStructType>(
+        fields, /*no_tuple=*/false, /*synthetic_int=*/false);
+  }
+
+  XLS_ASSIGN_OR_RETURN(xls::Type * context_in_struct_xls_type,
+                       TranslateTypeToXLS(context_in_cvars_struct_ctype, loc));
+
+  // Create context channels
   IOChannel* context_out_channel = nullptr;
   {
     std::string ch_name = absl::StrFormat("%s_ctx_out", name_prefix);
     XLS_ASSIGN_OR_RETURN(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_xls_type,
+            ch_name, xls::ChannelOps::kSendReceive, context_out_xls_type,
             /*initial_values=*/{}, /*fifo_depth=*/0,
             xls::FlowControl::kReadyValid));
     IOChannel new_channel;
@@ -483,34 +574,31 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     XLS_ASSIGN_OR_RETURN(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_struct_xls_type,
+            ch_name, xls::ChannelOps::kSendReceive, context_in_struct_xls_type,
             /*initial_values=*/{}, /*fifo_depth=*/0,
             xls::FlowControl::kReadyValid));
     IOChannel new_channel;
-    new_channel.item_type = context_cvars_struct_ctype;
+    new_channel.item_type = context_in_cvars_struct_ctype;
     new_channel.unique_name = ch_name;
     new_channel.generated = xls_channel;
     context_in_channel = AddChannel(new_channel, loc);
   }
 
-  // Create loop body proc
-  absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>
-      lvalues_out;
-  bool uses_on_reset = false;
-  std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  XLS_ASSIGN_OR_RETURN(
-      PipelinedLoopSubProc sub_proc,
-      GenerateIR_PipelinedLoopBody(
-          cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
-          context_out_channel, context_in_channel, context_struct_xls_type,
-          context_lval_xls_type, context_cvars_struct_ctype,
-          context_lval_conds_ctype, &lvalues_out, variable_field_indices,
-          variable_fields_order, vars_changed_in_body, &uses_on_reset, loc));
+  // Fill in context variables for sub proc
+  sub_proc.context_out_channel = context_out_channel;
+  sub_proc.context_in_channel = context_in_channel;
+  sub_proc.context_cvars_struct_ctype = context_cvars_struct_ctype;
+  sub_proc.context_in_cvars_struct_ctype = context_in_cvars_struct_ctype;
+  sub_proc.context_in_field_indices = context_in_field_indices;
+  sub_proc.context_out_cvars_struct_ctype = context_out_cvars_struct_ctype;
+  sub_proc.context_out_field_indices = context_out_field_indices;
+  sub_proc.context_out_lval_conds_ctype = context_out_lval_conds_ctype;
 
-  // Record sub-proc for generation later
-  context().sf->sub_procs.push_back(std::move(sub_proc));
+  // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
+  // with multiple different sets of IO ops
+  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(sub_proc));
 
-  XLS_CHECK_EQ(vars_changed_in_body.size(), lvalues_out.size());
+  XLS_CHECK_EQ(sub_proc.vars_changed_in_body.size(), lvalues_out.size());
 
   if (uses_on_reset) {
     XLS_ASSIGN_OR_RETURN(CValue on_reset_cval, GetOnReset(loc));
@@ -564,11 +652,12 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
-    for (const clang::NamedDecl* decl : vars_changed_in_body) {
-      // Don't assign to variables that don't exist in the outside scope
-      if (!outer_context.variables.contains(decl)) {
+    for (const clang::NamedDecl* decl : sub_proc.vars_changed_in_body) {
+      if (!context_in_field_indices.contains(decl)) {
         continue;
       }
+
+      uint64_t field_idx = context_in_field_indices.at(decl);
 
       if (schedule_asap) {
         return absl::UnimplementedError(
@@ -578,17 +667,18 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
                          decl->getQualifiedNameAsString().c_str()));
       }
 
-      const uint64_t field_idx = variable_field_indices.at(decl);
-
       const CValue prev_cval = context().variables.at(decl);
 
       const CValue cval(GetStructFieldXLS(context_tuple_recvd, field_idx,
-                                          *context_cvars_struct_ctype, loc),
+                                          *context_in_cvars_struct_ctype, loc),
                         prev_cval.type(), /*disable_type_check=*/false,
                         lvalues_out.at(decl));
       XLS_RETURN_IF_ERROR(Assign(decl, cval, loc));
     }
   }
+
+  // Record sub-proc for generation later
+  context().sf->sub_procs.push_back(std::move(sub_proc));
 
   return absl::OkStatus();
 }
@@ -596,21 +686,17 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     const clang::Expr* cond_expr, const clang::Stmt* inc,
     const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
-    std::string_view name_prefix, IOChannel* context_out_channel,
-    IOChannel* context_in_channel, xls::Type* context_struct_xls_type,
+    std::string_view name_prefix, xls::Type* context_struct_xls_type,
     xls::Type* context_lvals_xls_type,
     const std::shared_ptr<CStructType>& context_cvars_struct_ctype,
-    const std::shared_ptr<CInternalTuple>& context_lval_conds_ctype,
     absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
         lvalues_out,
     const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
-        variable_field_indices,
+        context_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
-    std::vector<const clang::NamedDecl*>& vars_changed_in_body,
     bool* uses_on_reset, const xls::SourceInfo& loc) {
-  const uint64_t total_context_values =
-      context_cvars_struct_ctype->fields().size();
-  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
+  std::vector<const clang::NamedDecl*> vars_accessed_in_body;
+  std::vector<const clang::NamedDecl*> vars_changed_in_body;
 
   GeneratedFunction& enclosing_func = *context().sf;
 
@@ -700,8 +786,8 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const CValue& outer_value = prev_context.variables.at(decl);
       xls::BValue param_bval;
-      if (variable_field_indices.contains(decl)) {
-        const uint64_t field_idx = variable_field_indices.at(decl);
+      if (context_field_indices.contains(decl)) {
+        const uint64_t field_idx = context_field_indices.at(decl);
         param_bval =
             GetStructFieldXLS(context_struct_val, static_cast<int>(field_idx),
                               *context_cvars_struct_ctype, loc);
@@ -775,13 +861,16 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
     }
 
     // Context out
+    const uint64_t total_context_values =
+        context_cvars_struct_ctype->fields().size();
+
     std::vector<xls::BValue> tuple_values;
     tuple_values.resize(total_context_values);
     for (const clang::NamedDecl* decl : variable_fields_order) {
-      if (!variable_field_indices.contains(decl)) {
+      if (!context_field_indices.contains(decl)) {
         continue;
       }
-      const uint64_t field_idx = variable_field_indices.at(decl);
+      const uint64_t field_idx = context_field_indices.at(decl);
       tuple_values[field_idx] = context().variables.at(decl).rvalue();
     }
 
@@ -823,12 +912,18 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
                                     outer_channels_by_inner_channel, loc));
       }
     }
+    // vars_changed_in_body is already sorted deterministically due to
+    // iterating over variable_fields_order
 
-    context().sf->SortNamesDeterministically(vars_changed_in_body);
-
-    // All variables now are saved in state, because a streaming channel
-    // is used for the context
-    vars_to_save_between_iters = variable_fields_order;
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      if (!context().variables_accessed.contains(decl)) {
+        continue;
+      }
+      vars_accessed_in_body.push_back(decl);
+      XLSCC_CHECK(context().sf->declaration_order_by_name_.contains(decl), loc);
+    }
+    // vars_accessed_in_body is already sorted deterministically due to
+    // iterating over variable_fields_order
   }
 
   XLSCC_CHECK_NE(uses_on_reset, nullptr, loc);
@@ -838,23 +933,17 @@ absl::StatusOr<PipelinedLoopSubProc> Translator::GenerateIR_PipelinedLoopBody(
 
   PipelinedLoopSubProc pipelined_loop_proc = {
       .name_prefix = name_prefix.data(),
-      .context_out_channel = context_out_channel,
-      .context_in_channel = context_in_channel,
-      .context_cvars_struct_ctype = context_cvars_struct_ctype,
-      .context_lval_conds_ctype = context_lval_conds_ctype,
+      // context_ members are filled in by caller
       .loc = loc,
 
-      .vars_to_save_between_iters = vars_to_save_between_iters,
       .enclosing_func = context().sf,
       .outer_variables = context().variables,
-      .variable_field_indices = variable_field_indices,
-      .total_context_values = total_context_values,
+      .context_field_indices = context_field_indices,
       .extra_return_count = extra_return_count,
-      .generated_func = std::move(generated_func)};
-
-  // TODO(seanhaskell): Move this to GenerateIR_Block() for pipelined loops
-  // with multiple different sets of IO ops
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopProc(pipelined_loop_proc));
+      .generated_func = std::move(generated_func),
+      .variable_fields_order = variable_fields_order,
+      .vars_changed_in_body = vars_changed_in_body,
+      .vars_accessed_in_body = vars_accessed_in_body};
 
   return pipelined_loop_proc;
 }
@@ -864,21 +953,55 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   const std::string& name_prefix = pipelined_loop_proc.name_prefix;
   IOChannel* context_out_channel = pipelined_loop_proc.context_out_channel;
   IOChannel* context_in_channel = pipelined_loop_proc.context_in_channel;
-  const std::shared_ptr<CStructType>& context_cvars_struct_ctype =
-      pipelined_loop_proc.context_cvars_struct_ctype;
-  const std::shared_ptr<CInternalTuple>& context_lval_conds_ctype =
-      pipelined_loop_proc.context_lval_conds_ctype;
+  const std::shared_ptr<CStructType>& context_in_cvars_struct_ctype =
+      pipelined_loop_proc.context_in_cvars_struct_ctype;
+  const std::shared_ptr<CStructType>& context_out_cvars_struct_ctype =
+      pipelined_loop_proc.context_out_cvars_struct_ctype;
+  const std::shared_ptr<CInternalTuple>& context_out_lval_conds_ctype =
+      pipelined_loop_proc.context_out_lval_conds_ctype;
   const xls::SourceInfo& loc = pipelined_loop_proc.loc;
 
-  const std::vector<const clang::NamedDecl*>& vars_to_save_between_iters =
-      pipelined_loop_proc.vars_to_save_between_iters;
-  const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
-      variable_field_indices = pipelined_loop_proc.variable_field_indices;
+  const std::shared_ptr<CStructType>& context_cvars_struct_ctype =
+      pipelined_loop_proc.context_cvars_struct_ctype;
 
-  const uint64_t total_context_values =
-      pipelined_loop_proc.total_context_values;
+  const std::vector<const clang::NamedDecl*>& variable_fields_order =
+      pipelined_loop_proc.variable_fields_order;
+  const std::vector<const clang::NamedDecl*>& vars_changed_in_body =
+      pipelined_loop_proc.vars_changed_in_body;
+  const std::vector<const clang::NamedDecl*>& vars_accessed_in_body =
+      pipelined_loop_proc.vars_accessed_in_body;
+  const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
+      context_field_indices = pipelined_loop_proc.context_field_indices;
+  const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
+      context_in_field_indices = pipelined_loop_proc.context_in_field_indices;
+  const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
+      context_out_field_indices = pipelined_loop_proc.context_out_field_indices;
+
   const uint64_t extra_return_count = pipelined_loop_proc.extra_return_count;
   const GeneratedFunction& generated_func = *pipelined_loop_proc.generated_func;
+
+  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
+
+  // All variables accessed or changed are saved in state, because a streaming
+  // channel is used for the context
+  {
+    absl::flat_hash_set<const clang::NamedDecl*> vars_to_save_between_iters_set;
+
+    // No way to test this yet, as all variables changed are also accessed, but
+    // just in case
+    for (const clang::NamedDecl* decl : vars_changed_in_body) {
+      vars_to_save_between_iters_set.insert(decl);
+    }
+    for (const clang::NamedDecl* decl : vars_accessed_in_body) {
+      vars_to_save_between_iters_set.insert(decl);
+    }
+
+    for (const clang::NamedDecl* decl : vars_to_save_between_iters_set) {
+      vars_to_save_between_iters.push_back(decl);
+    }
+
+    context().sf->SortNamesDeterministically(vars_to_save_between_iters);
+  }
 
   // Generate body proc
   xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
@@ -889,15 +1012,16 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   // Construct initial state
   pb.StateElement("__first_tick", xls::Value(xls::UBits(1, 1)));
   ++extra_state_count;
-  XLS_ASSIGN_OR_RETURN(xls::Value default_lval_conds,
-                       CreateDefaultRawValue(context_lval_conds_ctype, loc));
+  XLS_ASSIGN_OR_RETURN(
+      xls::Value default_lval_conds,
+      CreateDefaultRawValue(context_out_lval_conds_ctype, loc));
   pb.StateElement("__lvalue_conditions", default_lval_conds);
   ++extra_state_count;
 
   const int64_t builtin_state_count = extra_state_count;
 
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-    if (!variable_field_indices.contains(decl)) {
+    if (!context_field_indices.contains(decl)) {
       continue;
     }
     const CValue& prev_value = pipelined_loop_proc.outer_variables.at(decl);
@@ -947,22 +1071,42 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   // Add selects for changed context variables
   xls::BValue selected_context;
   {
+    const uint64_t total_context_values =
+        context_cvars_struct_ctype->fields().size();
+
     std::vector<xls::BValue> context_values;
-    for (uint64_t fi = 0; fi < total_context_values; ++fi) {
-      context_values.push_back(GetStructFieldXLS(
-          received_context, fi, *context_cvars_struct_ctype, loc));
+    context_values.resize(total_context_values, xls::BValue());
+
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      if (!context_field_indices.contains(decl)) {
+        continue;
+      }
+
+      const uint64_t context_field_idx = context_field_indices.at(decl);
+
+      if (context_out_field_indices.contains(decl)) {
+        const uint64_t context_out_field_idx =
+            context_out_field_indices.at(decl);
+        context_values[context_field_idx] =
+            GetStructFieldXLS(received_context, context_out_field_idx,
+                              *context_out_cvars_struct_ctype, loc);
+      } else {
+        auto field_type =
+            context_cvars_struct_ctype->fields().at(context_field_idx)->type();
+        XLS_ASSIGN_OR_RETURN(context_values[context_field_idx],
+                             CreateDefaultValue(field_type, loc));
+      }
     }
 
     // After first flag
     uint64_t state_tup_idx = builtin_state_count;
     for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-      if (!variable_field_indices.contains(decl)) {
+      if (!context_field_indices.contains(decl)) {
         continue;
       }
-      const uint64_t field_idx = variable_field_indices.at(decl);
+      const uint64_t field_idx = context_field_indices.at(decl);
       XLS_CHECK_LT(field_idx, context_values.size());
-      xls::BValue context_val = GetStructFieldXLS(
-          received_context, field_idx, *context_cvars_struct_ctype, loc);
+      xls::BValue context_val = context_values.at(field_idx);
       xls::BValue prev_state_val = pb.GetStateParam(state_tup_idx++);
 
       context_values[field_idx] =
@@ -1007,9 +1151,29 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
   xls::BValue updated_context = pb.TupleIndex(ret_tup, 0, loc);
   xls::BValue do_break = pb.TupleIndex(ret_tup, 1, loc);
 
+  xls::BValue out_tuple;
+
+  {
+    std::vector<xls::BValue> out_tuple_values;
+    out_tuple_values.resize(context_in_field_indices.size());
+
+    for (const clang::NamedDecl* decl : vars_changed_in_body) {
+      if (!context_in_field_indices.contains(decl)) {
+        continue;
+      }
+
+      uint64_t context_field_idx = context_field_indices.at(decl);
+      xls::BValue val = GetStructFieldXLS(updated_context, context_field_idx,
+                                          *context_cvars_struct_ctype, loc);
+      out_tuple_values[context_in_field_indices.at(decl)] = val;
+    }
+    out_tuple =
+        MakeStructXLS(out_tuple_values, *context_in_cvars_struct_ctype, loc);
+  }
+
   // Send back context on break
-  token = pb.SendIf(context_in_channel->generated, token, do_break,
-                    updated_context, loc);
+  token =
+      pb.SendIf(context_in_channel->generated, token, do_break, out_tuple, loc);
 
   // Construct next state
   std::vector<xls::BValue> next_state_values = {
@@ -1017,10 +1181,10 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
       do_break, lvalue_conditions_tuple};
   XLSCC_CHECK_EQ(next_state_values.size(), builtin_state_count, loc);
   for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-    if (!variable_field_indices.contains(decl)) {
+    if (!context_field_indices.contains(decl)) {
       continue;
     }
-    const uint64_t field_idx = variable_field_indices.at(decl);
+    const uint64_t field_idx = context_field_indices.at(decl);
     xls::BValue val = GetStructFieldXLS(updated_context, field_idx,
                                         *context_cvars_struct_ctype, loc);
     next_state_values.push_back(val);
@@ -1033,7 +1197,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopProc(
         ret_tup, prepared.return_index_for_static.at(namedecl), loc));
   }
 
-  //  xls::BValue next_state = pb.Tuple(next_state_values);
   XLS_RETURN_IF_ERROR(pb.Build(token, next_state_values).status());
 
   return absl::OkStatus();

@@ -757,21 +757,35 @@ struct GeneratedFunction;
 // Encapsulates values needed to generate procs for a pipelined loop body
 struct PipelinedLoopSubProc {
   std::string name_prefix;
+
+  xls::SourceInfo loc;
+
+  GeneratedFunction* enclosing_func = nullptr;
+  absl::flat_hash_map<const clang::NamedDecl*, CValue> outer_variables;
+
   // These reference the enclosing GeneratedFunction
   IOChannel* context_out_channel;
   IOChannel* context_in_channel;
-  std::shared_ptr<CStructType> context_cvars_struct_ctype;
-  std::shared_ptr<CInternalTuple> context_lval_conds_ctype;
-  xls::SourceInfo loc;
 
-  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
-  GeneratedFunction* enclosing_func = nullptr;
-  absl::flat_hash_map<const clang::NamedDecl*, CValue> outer_variables;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> variable_field_indices;
-  uint64_t total_context_values;
+  std::shared_ptr<CStructType> context_cvars_struct_ctype;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> context_field_indices;
+
+  std::shared_ptr<CStructType> context_in_cvars_struct_ctype;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
+      context_in_field_indices;
+
+  std::shared_ptr<CStructType> context_out_cvars_struct_ctype;
+  std::shared_ptr<CInternalTuple> context_out_lval_conds_ctype;
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
+      context_out_field_indices;
+
   uint64_t extra_return_count;
   // Can't copy, since pointers are kept
   std::unique_ptr<GeneratedFunction> generated_func;
+
+  std::vector<const clang::NamedDecl*> variable_fields_order;
+  std::vector<const clang::NamedDecl*> vars_changed_in_body;
+  std::vector<const clang::NamedDecl*> vars_accessed_in_body;
 };
 
 // Encapsulates values produced when generating IR for a function
@@ -1047,6 +1061,9 @@ struct TranslationContext {
   bool mask_memory_writes = false;
 
   const clang::CallExpr* last_intrinsic_call = nullptr;
+
+  // Always propagates up
+  absl::flat_hash_set<const clang::NamedDecl*> variables_accessed;
 };
 
 std::string Debug_VariablesChangedBetween(const TranslationContext& before,
@@ -1684,20 +1701,18 @@ class Translator {
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t initiation_interval_arg,
       bool schedule_asap, clang::ASTContext& ctx, const xls::SourceInfo& loc);
+
   absl::StatusOr<PipelinedLoopSubProc> GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
-      std::string_view name_prefix, IOChannel* context_out_channel,
-      IOChannel* context_in_channel, xls::Type* context_struct_xls_type,
+      std::string_view name_prefix, xls::Type* context_struct_xls_type,
       xls::Type* context_lvals_xls_type,
       const std::shared_ptr<CStructType>& context_struct_ctype,
-      const std::shared_ptr<CInternalTuple>& context_lval_conds_ctype,
       absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<LValue>>*
           lvalues_out,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
-          variable_field_indices,
+          context_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
-      std::vector<const clang::NamedDecl*>& vars_changed_in_body,
       bool* uses_on_reset, const xls::SourceInfo& loc);
   absl::Status GenerateIR_PipelinedLoopProc(
       const PipelinedLoopSubProc& pipelined_loop_proc);
@@ -1906,10 +1921,12 @@ class Translator {
   xls::BValue MakeStructXLS(const std::vector<xls::BValue>& bvals,
                             const CStructType& stype,
                             const xls::SourceInfo& loc);
+
   // Creates a Value for a struct of type stype from field BValues given in
   //  order within bvals.
   xls::Value MakeStructXLS(const std::vector<xls::Value>& vals,
                            const CStructType& stype);
+
   // Returns the BValue for the field with index "index" from a BValue for a
   //  struct of type "type"
   // This version cannot be static because it needs access to the

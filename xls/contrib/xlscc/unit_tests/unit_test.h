@@ -165,6 +165,8 @@ class XlsccTestBase : public xls::IrTestBase, public ::xls::LogSink {
 
   absl::StatusOr<uint64_t> GetStateBitsForProcNameContains(
       std::string_view name_cont);
+  absl::StatusOr<uint64_t> GetBitsForChannelNameContains(
+      std::string_view name_cont);
 
   absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();
 
