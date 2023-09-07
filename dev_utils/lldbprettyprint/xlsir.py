@@ -53,6 +53,14 @@ def init_printers(debugger):
       "type summary add --expand --python-function"
       " lldbprettyprint.xlsir.xls_bits_summary xls::Bits"
   )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_interval_summary xls::Interval"
+  )
+  debugger.HandleCommand(
+      "type summary add --expand --python-function"
+      " lldbprettyprint.xlsir.xls_interval_set_summary xls::IntervalSet"
+  )
 
 
 def xls_bvalue_summary(valobj, _):
@@ -155,9 +163,47 @@ def xls_bits_summary(valobj, _):
     # TODO(allight): Consider rewriting in python.
     return (
         _maybe_deref(valobj)
-        .EvaluateExpression(
-            "this.ToDebugString()"
-        )
+        .EvaluateExpression("this.ToDebugString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+def xls_interval_summary(valobj, _):
+  """Summarize xls::Interval."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToString()")
+        .GetSummary()
+        .strip('"')
+    )
+  # pylint: disable-next=broad-exception-caught
+  except Exception:
+    return "<INVALID>"
+
+
+def xls_interval_set_summary(valobj, _):
+  """Summarize xls::IntervalSet."""
+  try:
+    if not valobj.IsValid() or not valobj.IsInScope():
+      return "<uninitialized>"
+    # Using EvaluateExpression like this can be somewhat slow. The 'correct' way
+    # to do this stuff is implement it all in python. This seems to be fast
+    # enough however.
+    # TODO(allight): Consider rewriting in python.
+    return (
+        _maybe_deref(valobj)
+        .EvaluateExpression("this.ToString()")
         .GetSummary()
         .strip('"')
     )
