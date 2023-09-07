@@ -133,7 +133,7 @@ TEST_P(UmulSweepOverflowTest, Umul353218SweepPartial) {
 
   // x is 32 bits so sweep 2 * half of the bit space (17 bits)
   for (int64_t i = 0; i <= 0x1ffff; ++i) {
-    x = Generate32From16(i & 0xffff, i >> 16);
+    x = Generate32From16(i & 0xffff, (i >> 16) != 0);
 
     for (y = y_from_inclusive; y < y_to_exclusive; ++y) {
       XLS_ASSERT_OK(f->Run(x_view, y_view, result_view));
