@@ -24,7 +24,9 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/nodes.h"
@@ -97,7 +99,7 @@ inline bool AnyOperandWhere(Node* node,
 }
 
 inline bool AnyTwoOperandsWhere(Node* node,
-                            const std::function<bool(Node*)>& predicate) {
+                                const std::function<bool(Node*)>& predicate) {
   int64_t count = 0;
   for (Node* operand : node->operands()) {
     count += predicate(operand);
@@ -212,6 +214,35 @@ std::vector<NodePtrT> SetToSortedVector(
 
 // Returns true if the given node is a binary select (two cases, no default).
 bool IsBinarySelect(Node* node);
+
+// Returns the op which is the inverse of the given comparison.
+//
+// That is (not (op L R)) == ((InvertComparisonOp op) L R).
+//
+// May only be called with ops where 'OpIsCompare(op)' is true.
+inline absl::StatusOr<Op> InvertComparisonOp(Op op) {
+  switch (op) {
+    case Op::kSGe:
+      return Op::kSLt;
+    case Op::kSGt:
+      return Op::kSLe;
+    case Op::kSLe:
+      return Op::kSGt;
+    case Op::kSLt:
+      return Op::kSGe;
+    case Op::kUGe:
+      return Op::kULt;
+    case Op::kUGt:
+      return Op::kULe;
+    case Op::kULe:
+      return Op::kUGt;
+    case Op::kULt:
+      return Op::kUGe;
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrFormat("%v is not a comparison operation", op));
+  }
+}
 
 }  // namespace xls
 

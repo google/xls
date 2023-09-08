@@ -22,6 +22,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "xls/ir/bits.h"
 
@@ -88,7 +89,7 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
 // known in `rhs`. If `lhs` and `rhs` conflict, returns `std::nullopt`.
 // CHECK fails if `lhs` and `rhs` have different lengths.
 inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
-                                                const TernaryVector& rhs) {
+                                               const TernaryVector& rhs) {
   XLS_CHECK_EQ(lhs.size(), rhs.size());
   int64_t size = lhs.size();
 
@@ -170,6 +171,19 @@ inline TernaryVector BitsToTernary(const Bits& bits) {
     result[i] = static_cast<TernaryValue>(bits.Get(i));
   }
   return result;
+}
+
+inline bool IsKnownOne(const TernaryVector& ternary) {
+  return absl::c_all_of(
+      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownOne; });
+}
+inline bool IsKnownZero(const TernaryVector& ternary) {
+  return absl::c_all_of(
+      ternary, [](TernaryValue v) { return v == TernaryValue::kKnownZero; });
+}
+inline bool IsFullyKnown(const TernaryVector& ternary) {
+  return absl::c_none_of(
+      ternary, [](TernaryValue v) { return v == TernaryValue::kUnknown; });
 }
 
 }  // namespace ternary_ops
