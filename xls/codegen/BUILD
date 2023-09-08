@@ -73,7 +73,7 @@ cc_test(
     data = glob([
         "testdata/combinational_generator_test_*",
     ]),
-    shard_count = 10,
+    shard_count = 50,
     deps = [
         ":combinational_generator",
         ":vast",
@@ -621,7 +621,7 @@ cc_test(
     data = glob([
         "testdata/pipeline_generator_test_*",
     ]),
-    shard_count = 10,
+    shard_count = 50,
     deps = [
         ":module_signature",
         ":module_signature_cc_proto",

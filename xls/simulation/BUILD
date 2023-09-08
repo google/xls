@@ -88,6 +88,7 @@ cc_test(
     data = ["input_channel_monitor.v"] + glob([
         "testdata/module_simulator_test_*",
     ]),
+    shard_count = 10,
     deps = [
         ":module_simulator",
         ":verilog_test_base",
