@@ -124,6 +124,10 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Eq) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval::Precise(UBits(12, 8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -140,31 +144,18 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Eq) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                add_ten.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-            add_ten_ist);
-
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -183,6 +174,10 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval::Precise(UBits(12, 8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -199,31 +194,19 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, Ne) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                add_ten.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-            add_ten_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -242,6 +225,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLtConstantUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -255,26 +242,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLtConstantUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -295,6 +273,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -308,26 +290,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -346,6 +319,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLeConstantUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -359,26 +336,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableLeConstantUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -398,6 +366,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -411,26 +383,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -449,6 +412,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGtConstantUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -462,26 +429,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGtConstantUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -501,6 +459,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -514,26 +476,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -552,6 +505,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGeConstantUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -565,26 +522,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, VariableGeConstantUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -604,6 +552,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -617,26 +569,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -655,6 +598,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLtVariableUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -668,26 +615,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLtVariableUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -708,6 +646,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -721,26 +663,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -759,6 +692,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLeVariableUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -772,26 +709,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantLeVariableUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -811,6 +739,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -824,26 +756,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -862,6 +785,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGtVariableUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -875,26 +802,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGtVariableUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -914,6 +832,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -927,26 +849,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -965,6 +878,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGeVariableUseInIf) {
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(MinValue(8), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -978,26 +895,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest, ConstantGeVariableUseInIf) {
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -1017,6 +925,10 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(max_bits, MaxValue(8))});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(8)});
@@ -1030,26 +942,17 @@ TEST_P(SignedContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
-      x_ist);
+  EXPECT_EQ(alternate_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_THAT(alternate_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -1070,6 +973,10 @@ TEST_F(ContextSensitiveRangeQueryEngineTest,
   ContextSensitiveRangeQueryEngine engine;
 
   XLS_ASSERT_OK(engine.Populate(f));
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
 
   IntervalSetTree x_ist = BitsLTT(x.node(), {Interval(Bits(64), max_bits)});
   IntervalSetTree x_ist_global = BitsLTT(x.node(), {Interval::Maximal(64)});
@@ -1088,30 +995,18 @@ TEST_F(ContextSensitiveRangeQueryEngineTest,
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                x_full.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-            x_full_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x_full.node()), x_full_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(0, 1))}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(UBits(1, 1))}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -1165,36 +1060,28 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, EqArray) {
   IntervalSetTree res_ist =
       pair_interval(res.node(), {Interval::Maximal(8)}, {Interval::Maximal(8)});
 
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
   EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
   EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                add_ten.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-            add_ten_ist);
-
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 
@@ -1246,36 +1133,29 @@ TEST_F(ContextSensitiveRangeQueryEngineTest, EqTuple) {
   IntervalSetTree res_ist =
       pair_interval(res.node(), {Interval::Maximal(8)}, {Interval::Maximal(8)});
 
+  auto consequent_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kConsequentArm)});
+  auto alternate_arm_range = engine.SpecializeGivenPredicate(
+      {PredicateState(res.node()->As<Select>(), kAlternateArm)});
+
   EXPECT_EQ(engine.GetIntervals(x.node()), x_ist_global);
   EXPECT_EQ(engine.GetIntervals(add_ten.node()), add_ten_ist_global);
   EXPECT_EQ(engine.GetIntervals(cond.node()), cond_ist);
   EXPECT_EQ(engine.GetIntervals(res.node()), res_ist);
 
-  EXPECT_EQ(
-      engine.GetIntervalsGivenPredicates(
-          x.node(), {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-      x_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(x.node()), x_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                add_ten.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
-            add_ten_ist);
+  EXPECT_EQ(consequent_arm_range->GetIntervals(add_ten.node()), add_ten_ist);
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kAlternateArm)}),
+  EXPECT_EQ(alternate_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kFalse)}));
 
-  EXPECT_EQ(engine.GetIntervalsGivenPredicates(
-                cond.node(),
-                {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_EQ(consequent_arm_range->GetIntervals(cond.node()),
             BitsLTT(cond.node(), {Interval::Precise(kTrue)}));
   // NB There is a restricted value for res given cond == 0 but its not clear
   // that we actually want to bother to calculate it. Instead just verify that
   // the result is less than or equal to the unconstrained case.
-  EXPECT_THAT(engine.GetIntervalsGivenPredicates(
-                  res.node(),
-                  {PredicateState(res.node()->As<Select>(), kConsequentArm)}),
+  EXPECT_THAT(consequent_arm_range->GetIntervals(res.node()),
               AnyOf(Eq(x_ist), Eq(res_ist)));
 }
 

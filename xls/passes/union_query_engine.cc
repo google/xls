@@ -17,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "absl/container/flat_hash_set.h"
 #include "xls/data_structures/leaf_type_tree.h"
@@ -24,6 +25,7 @@
 #include "xls/ir/interval_set.h"
 #include "xls/ir/node.h"
 #include "xls/passes/predicate_state.h"
+#include "xls/passes/query_engine.h"
 
 namespace xls {
 
@@ -74,9 +76,17 @@ LeafTypeTree<TernaryVector> UnionQueryEngine::GetTernary(Node* node) const {
   return result;
 }
 
-LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervalsGivenPredicates(
-    Node* node,
-    const absl::flat_hash_set<PredicateState>& predicate_state) const {
+std::unique_ptr<QueryEngine> UnionQueryEngine::SpecializeGivenPredicate(
+    const absl::flat_hash_set<PredicateState>& state) const {
+  std::vector<std::unique_ptr<QueryEngine>> engines;
+  engines.reserve(engines_.size());
+  for (const auto& engine : engines_) {
+    engines.push_back(engine->SpecializeGivenPredicate(state));
+  }
+  return std::make_unique<UnionQueryEngine>(std::move(engines));
+}
+
+LeafTypeTree<IntervalSet> UnionQueryEngine::GetIntervals(Node* node) const {
   LeafTypeTree<IntervalSet> result(node->GetType());
   for (int64_t i = 0; i < result.size(); ++i) {
     result.elements()[i] =

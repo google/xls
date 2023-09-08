@@ -65,9 +65,7 @@ class FakeQueryEngine : public QueryEngine {
     return result;
   }
 
-  LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
-      Node* node, const absl::flat_hash_set<PredicateState>& predicate_state)
-      const override {
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
     return intervals_.at(node);
   }
 

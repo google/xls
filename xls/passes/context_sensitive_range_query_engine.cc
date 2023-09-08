@@ -14,20 +14,24 @@
 
 #include "xls/passes/context_sensitive_range_query_engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
@@ -84,9 +88,7 @@ class BackPropagate final : public DfsVisitorWithDefault {
         << " not given actual value during context sensitive range analysis!";
     // Standardize so we are assuming the comparison is true.
     XLS_ASSIGN_OR_RETURN(Op invert, InvertComparisonOp(cmp->op()));
-    Op op = ternary_ops::IsKnownOne(*result_[cmp].ternary)
-                ? cmp->op()
-                : invert;
+    Op op = ternary_ops::IsKnownOne(*result_[cmp].ternary) ? cmp->op() : invert;
     Node* l_op = cmp->operand(0);
     Node* r_op = cmp->operand(1);
     IntervalSet l_interval = base_.GetIntervalSetTree(l_op).Get({});
@@ -385,12 +387,121 @@ class Analysis {
   absl::flat_hash_map<PredicateState, RangeQueryEngine>& engines_;
 };
 
+// A proxy query engine which specializes using select context.
+class ProxyContextQueryEngine final : public QueryEngine {
+ public:
+  ProxyContextQueryEngine(const ContextSensitiveRangeQueryEngine& base,
+                          const RangeQueryEngine& range_data)
+      : base_(base), range_data_(range_data) {}
+
+  absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override {
+    return absl::UnimplementedError(
+        "Cannot populate proxy query engine. Populate must be called on "
+        "original engine only.");
+  }
+  bool IsTracked(Node* node) const override { return base_.IsTracked(node); }
+
+  LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
+    return MostSpecific(node).GetTernary(node);
+  }
+
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+    return MostSpecific(node).GetIntervals(node);
+  }
+
+  bool AtMostOneTrue(absl::Span<TreeBitLocation const> bits) const override {
+    TernaryVector ternary = GetTernaryOf(bits);
+    return std::count_if(ternary.cbegin(), ternary.cend(), [&](TernaryValue v) {
+             return v == TernaryValue::kKnownOne || v == TernaryValue::kUnknown;
+           }) <= 1;
+  }
+
+  bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override {
+    TernaryVector ternary = GetTernaryOf(bits);
+    return std::count_if(ternary.cbegin(), ternary.cend(), [&](TernaryValue v) {
+             return v == TernaryValue::kKnownOne;
+           }) >= 1;
+  }
+
+  bool Implies(const TreeBitLocation& a,
+               const TreeBitLocation& b) const override {
+    return MostSpecific(a.node(), b.node()).Implies(a, b);
+  }
+  // We're a range-analysis so no data here.
+  std::optional<Bits> ImpliedNodeValue(
+      absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
+      Node* node) const override {
+    return std::nullopt;
+  }
+
+  bool KnownEquals(const TreeBitLocation& a,
+                   const TreeBitLocation& b) const override {
+    if (!IsKnown(a) || !IsKnown(b)) {
+      return false;
+    }
+    TernaryValue av = GetTernary(a.node()).Get(a.tree_index())[a.bit_index()];
+    TernaryValue bv = GetTernary(b.node()).Get(b.tree_index())[b.bit_index()];
+    return av != TernaryValue::kUnknown && av == bv;
+  }
+
+  // Returns true if 'a' is the inverse of 'b'
+  bool KnownNotEquals(const TreeBitLocation& a,
+                      const TreeBitLocation& b) const override {
+    TernaryValue av = GetTernary(a.node()).Get(a.tree_index())[a.bit_index()];
+    TernaryValue bv = GetTernary(b.node()).Get(b.tree_index())[b.bit_index()];
+    return av != TernaryValue::kUnknown && bv != TernaryValue::kUnknown &&
+           av != bv;
+  }
+
+ private:
+  TernaryVector GetTernaryOf(absl::Span<TreeBitLocation const> bits) const {
+    // TODO(allight): Very inefficient but the AtMost/AtLeastOne don't seem to
+    // actually be used?
+    InlineBitmap known(bits.size());
+    InlineBitmap values(bits.size());
+    for (int64_t i = 0; i < bits.size(); ++i) {
+      bool bit_known = IsKnown(bits[i]);
+      if (bit_known) {
+        known.Set(i, true);
+        values.Set(i, IsOne(bits[i]));
+      }
+    }
+    return ternary_ops::FromKnownBits(Bits::FromBitmap(known),
+                                      Bits::FromBitmap(values));
+  }
+  const QueryEngine& MostSpecific(Node* nodeA, Node* nodeB) const {
+    if (range_data_.HasKnownIntervals(nodeA) &&
+        range_data_.HasKnownIntervals(nodeB)) {
+      return range_data_;
+    }
+    return base_;
+  }
+  const QueryEngine& MostSpecific(Node* node) const {
+    if (range_data_.HasKnownIntervals(node)) {
+      return range_data_;
+    }
+    return base_;
+  }
+  const ContextSensitiveRangeQueryEngine& base_;
+  const RangeQueryEngine& range_data_;
+};
+
 }  // namespace
 
 absl::StatusOr<ReachedFixpoint> ContextSensitiveRangeQueryEngine::Populate(
     FunctionBase* f) {
   Analysis analysis(base_case_ranges_, one_hot_ranges_);
   return analysis.Execute(f);
+}
+
+std::unique_ptr<QueryEngine>
+ContextSensitiveRangeQueryEngine::SpecializeGivenPredicate(
+    const absl::flat_hash_set<PredicateState>& state) const {
+  if (state.empty() || !one_hot_ranges_.contains(*state.cbegin())) {
+    return QueryEngine::SpecializeGivenPredicate(state);
+  }
+  return std::make_unique<ProxyContextQueryEngine>(
+      *this, one_hot_ranges_.at(*state.cbegin()));
 }
 
 }  // namespace xls

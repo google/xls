@@ -35,6 +35,7 @@
 #include "xls/ir/function_base.h"
 #include "xls/ir/interval.h"
 #include "xls/ir/interval_set.h"
+#include "xls/ir/node.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/ternary.h"
 #include "xls/passes/predicate_state.h"
@@ -111,6 +112,23 @@ class RangeQueryEngine : public QueryEngine {
     return known_bits_.contains(node);
   }
 
+  // Check if the node has known intervals associated with it (either directly
+  // or implicitly through known ternary bits).
+  //
+  // This is not the same as IsTracked since that (for complicated reasons which
+  // relate to compatibility with the BDD query engine) actually checks whether
+  // we have known ternary bits associated with the node. In the case of 'bits'
+  // type values this is the same but in cases where the value is a tuple or an
+  // array the value might have intervals associated with it but no actual
+  // ternary bits (and thus not be 'tracked' as far as the query engine API is
+  // concerned).
+  //
+  // TODO(allight): 2023-09-05, We should possibly rewrite these or at least
+  // change the names.
+  bool HasKnownIntervals(Node* node) const {
+    return IsTracked(node) || interval_sets_.contains(node);
+  }
+
   LeafTypeTree<TernaryVector> GetTernary(Node* node) const override {
     XLS_CHECK(node->GetType()->IsBits());
     TernaryVector tvec = ternary_ops::FromKnownBits(known_bits_.at(node),
@@ -120,10 +138,7 @@ class RangeQueryEngine : public QueryEngine {
     return tree;
   }
 
-  LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
-      Node* node, const absl::flat_hash_set<PredicateState>& predicate_state)
-      const override {
-    // State is ignored for this query engine.
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
     return GetIntervalSetTree(node);
   }
 

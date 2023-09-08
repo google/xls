@@ -16,6 +16,7 @@
 #define XLS_PASSES_QUERY_ENGINE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -95,15 +96,14 @@ class QueryEngine {
   // values for the given node and what that bit's known value is.
   virtual LeafTypeTree<TernaryVector> GetTernary(Node* node) const = 0;
 
-  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
-    return GetIntervalsGivenPredicates(node, /*predicate_state=*/{});
-  }
+  // Return a query engine which is specialized with the given predicates. The
+  // reference has an lifetime of the source engine.
+  virtual std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const;
 
   // Returns a `LeafTypeTree<IntervalSet>` indicating which interval sets the
   // various parts of the value for a given node can exist in.
-  virtual LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
-      Node* node,
-      const absl::flat_hash_set<PredicateState>& predicate_state) const {
+  virtual LeafTypeTree<IntervalSet> GetIntervals(Node* node) const {
     LeafTypeTree<TernaryVector> ternary = GetTernary(node);
     LeafTypeTree<IntervalSet> result(node->GetType());
     for (int64_t i = 0; i < ternary.elements().size(); ++i) {

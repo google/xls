@@ -15,6 +15,7 @@
 #ifndef XLS_PASSES_CONTEXT_SENSITIVE_RANGE_QUERY_ENGINE_H_
 #define XLS_PASSES_CONTEXT_SENSITIVE_RANGE_QUERY_ENGINE_H_
 
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -22,7 +23,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "xls/common/logging/logging.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_base.h"
@@ -51,16 +51,13 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
 
   absl::StatusOr<ReachedFixpoint> Populate(FunctionBase* f) override;
 
+  LeafTypeTree<IntervalSet> GetIntervals(Node* node) const override {
+    return base_case_ranges_.GetIntervals(node);
+  }
+
   LeafTypeTree<IntervalSet> GetIntervalsGivenPredicates(
-      Node* node,
-      const absl::flat_hash_set<PredicateState>& state) const override {
-    // TODO(allight): Choose whether to try all of the states?
-    XLS_CHECK_LE(state.size(), 1);
-    if (state.empty() || !one_hot_ranges_.contains(*state.cbegin())) {
-      return base_case_ranges_.GetIntervalsGivenPredicates(node, state);
-    }
-    return one_hot_ranges_.at(*state.cbegin())
-        .GetIntervalsGivenPredicates(node, {});
+      Node* node, const absl::flat_hash_set<PredicateState>& state) const {
+    return SpecializeGivenPredicate(state)->GetIntervals(node);
   }
 
   bool IsTracked(Node* node) const override {
@@ -103,6 +100,9 @@ class ContextSensitiveRangeQueryEngine final : public QueryEngine {
       Node* node) const override {
     return base_case_ranges_.ImpliedNodeValue(predicate_bit_values, node);
   }
+
+  std::unique_ptr<QueryEngine> SpecializeGivenPredicate(
+      const absl::flat_hash_set<PredicateState>& state) const override;
 
  private:
   RangeQueryEngine base_case_ranges_;
