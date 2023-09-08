@@ -546,6 +546,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
@@ -559,6 +560,7 @@ cc_library(
         "//xls/ir:interval",
         "//xls/ir:interval_ops",
         "//xls/ir:interval_set",
+        "//xls/ir:ternary",
         "//xls/ir:value_helpers",
     ],
 )
@@ -1856,8 +1858,10 @@ cc_test(
     deps = [
         ":query_engine",
         ":range_query_engine",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
         "//xls/common:xls_gunit",
@@ -1870,7 +1874,10 @@ cc_test(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:function_builder",
+        "//xls/ir:interval",
+        "//xls/ir:interval_set",
         "//xls/ir:ir_test_base",
+        "//xls/ir:ternary",
         "//xls/ir:type",
     ],
 )

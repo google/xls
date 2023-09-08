@@ -22,8 +22,10 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/log_message.h"
@@ -32,11 +34,17 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/interval.h"
+#include "xls/ir/interval_set.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/node.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
+#include "xls/ir/ternary.h"
 #include "xls/ir/type.h"
 #include "xls/passes/query_engine.h"
 
@@ -1349,6 +1357,287 @@ TEST_F(RangeQueryEngineTest, ZeroExtend) {
   // Zero extension is monotone.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
             BitsLTT(expr.node(), {Interval(UBits(500, 40), UBits(700, 40))}));
+}
+
+class IntervalRangeGivens : public RangeDataProvider {
+ public:
+  explicit IntervalRangeGivens(absl::Span<Node* const> topo_sort)
+      : topo_sort_(topo_sort) {}
+  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+    return std::nullopt;
+  }
+
+  absl::Status IterateFunction(DfsVisitor* visitor) override {
+    for (Node* n : topo_sort_) {
+      XLS_RETURN_IF_ERROR(n->VisitSingleNode(visitor));
+    }
+    return absl::OkStatus();
+  }
+
+ private:
+  absl::Span<Node* const> topo_sort_;
+};
+
+// Make sure we can bail out of a range analysis if we have enough data.
+TEST_F(RangeQueryEngineTest, EarlyBailout) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  // pretend we only care about this value for some reason and are ok with not
+  // tracking data after it.
+  BValue xy = fb.Add(x, y);
+  BValue xyz = fb.Add(xy, z);
+  // Always true (200 + 20 + 5) < 250
+  BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(250, 10)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  // Give inputs ranges.
+  engine.SetIntervalSetTree(
+      x.node(), BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(200, 10))}));
+  engine.SetIntervalSetTree(
+      y.node(), BitsLTT(y.node(), {Interval(UBits(10, 10), UBits(20, 10))}));
+  engine.SetIntervalSetTree(
+      z.node(), BitsLTT(z.node(), {Interval(UBits(1, 10), UBits(5, 10))}));
+
+  auto sort = TopoSort(f);
+  // Get the topological sort list up to and including xy
+  IntervalRangeGivens test_givens(
+      absl::MakeSpan(&*sort.AsVector().begin(),
+                     &*(absl::c_find(sort.AsVector(), xy.node()) + 1)));
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+
+  // We should stop after calculating xy so xyz should not have any info beyond
+  // type based.
+  EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
+            BitsLTT(xyz.node(), {Interval::Maximal(10)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(ltxyz.node()),
+            BitsLTT(ltxyz.node(), {Interval::Maximal(1)}));
+
+  // XY should have correct information though.
+  EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
+            BitsLTT(xy.node(), {Interval(UBits(110, 10), UBits(220, 10))}));
+}
+
+template <typename FKnown>
+class LambdaRangeGivens : public RangeDataProvider {
+ public:
+  LambdaRangeGivens(FunctionBase* func, FKnown known)
+      : func_(func), known_func_(known) {}
+  std::optional<RangeData> GetKnownIntervals(Node* node) override {
+    return known_func_(node);
+  }
+
+  absl::Status IterateFunction(DfsVisitor* visitor) override {
+    return func_->Accept(visitor);
+  }
+
+ private:
+  FunctionBase* func_;
+  FKnown known_func_;
+};
+
+template <typename F>
+LambdaRangeGivens(FunctionBase*, F) -> LambdaRangeGivens<F>;
+
+TEST_F(RangeQueryEngineTest, ExactGivenValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  // NB z is [0,4]
+  BValue z = fb.Param("z", p->GetBitsType(2));
+  BValue zext = fb.ZeroExtend(z, 8);
+  // We will have a precise known-value of 12 for this.
+  BValue xy = fb.Add(x, y);
+  BValue xyz = fb.Add(xy, zext);
+  // Always true: 12 + [0,3] == [12,15] < 25
+  BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(25, 8)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  // Inputs have Maximal range.
+  // Given xy an a-priori exact value.
+  auto intervals = [&](Node* n) -> std::optional<RangeData> {
+    if (n == xy.node()) {
+      return RangeData{
+          .ternary = ternary_ops::FromKnownBits(
+              /*known_bits=*/UBits(0xff, 8),
+              /*known_bits_values=*/UBits(/* decimal 12 */ 0b00001100, 8)),
+          .interval_set = BitsLTT(n, {Interval::Precise(UBits(12, 8))})};
+    }
+    return std::nullopt;
+  };
+  LambdaRangeGivens test_givens(f, intervals);
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+  EXPECT_EQ(engine.GetIntervalSetTree(x.node()),
+            BitsLTT(x.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(y.node()),
+            BitsLTT(y.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(z.node()),
+            BitsLTT(z.node(), {Interval::Maximal(2)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(zext.node()),
+            BitsLTT(zext.node(), {Interval::Maximal(2).ZeroExtend(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
+            BitsLTT(xy.node(), {Interval::Precise(UBits(12, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
+            BitsLTT(xyz.node(), {Interval(UBits(12, 8), UBits(15, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(ltxyz.node()),
+            BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
+}
+
+TEST_F(RangeQueryEngineTest, RangeGivenValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  // NB z is [0,4]
+  BValue z = fb.Param("z", p->GetBitsType(2));
+  BValue zext = fb.ZeroExtend(z, 8);
+  // We will have a known range of [0, 12] for this
+  BValue xy = fb.Add(x, y);
+  BValue xyz = fb.Add(xy, zext);
+  // Always true: [0, 12] + [0,3] == [0,15] < 25
+  BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(25, 8)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  // Inputs have Maximal range.
+  // Given xy an a-priori range.
+  auto intervals = [&](Node* n) -> std::optional<RangeData> {
+    if (n == xy.node()) {
+      return RangeData{
+          .ternary = ternary_ops::FromKnownBits(
+              /*known_bits=*/UBits(0xf0, 8),
+              /*known_bits_values=*/UBits(0b00000000, 8)),
+          .interval_set = BitsLTT(n, {Interval(UBits(0, 8), UBits(12, 8))})};
+    }
+    return std::nullopt;
+  };
+  LambdaRangeGivens test_givens(f, intervals);
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+  EXPECT_EQ(engine.GetIntervalSetTree(x.node()),
+            BitsLTT(x.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(y.node()),
+            BitsLTT(y.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(z.node()),
+            BitsLTT(z.node(), {Interval::Maximal(2)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(zext.node()),
+            BitsLTT(zext.node(), {Interval::Maximal(2).ZeroExtend(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
+            BitsLTT(xy.node(), {Interval(UBits(0, 8), UBits(12, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
+            BitsLTT(xyz.node(), {Interval(UBits(0, 8), UBits(15, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(ltxyz.node()),
+            BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
+}
+
+TEST_F(RangeQueryEngineTest, TupleRangeGivenValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  // let x = ...
+  // let y = ...
+  // let xy = (x, y) -- given ranges [[0,12], [0,3]]
+  // let (x2, y2) = xy
+  // x2 + y2 -- range [0,15]
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  BValue xy = fb.Tuple({x, y});
+  BValue x2 = fb.TupleIndex(xy, 0);
+  BValue y2 = fb.TupleIndex(xy, 1);
+  BValue ret = fb.Add(x2, y2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  // Inputs have Maximal range.
+  // Given xy an a-priori range.
+
+  IntervalSetTree xy_tree(fb.GetType(xy));
+  IntervalSet x_interval(8);
+  x_interval.AddInterval(Interval(UBits(0, 8), UBits(12, 8)));
+  x_interval.Normalize();
+  IntervalSet y_interval(8);
+  y_interval.AddInterval(Interval(UBits(0, 8), UBits(3, 8)));
+  y_interval.Normalize();
+  xy_tree.Set({0}, x_interval);
+  xy_tree.Set({1}, y_interval);
+  auto intervals = [&](Node* n) -> std::optional<RangeData> {
+    if (n == xy.node()) {
+      return RangeData{
+          .ternary = std::nullopt,
+          .interval_set = xy_tree,
+      };
+    }
+    return std::nullopt;
+  };
+  LambdaRangeGivens test_givens(f, intervals);
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+
+  EXPECT_EQ(engine.GetIntervalSetTree(x.node()),
+            BitsLTT(x.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(y.node()),
+            BitsLTT(y.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xy.node()), xy_tree);
+  EXPECT_EQ(engine.GetIntervalSetTree(x2.node()),
+            BitsLTT(x2.node(), {Interval(UBits(0, 8), UBits(12, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(y2.node()),
+            BitsLTT(y2.node(), {Interval(UBits(0, 8), UBits(3, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(ret.node()),
+            BitsLTT(ret.node(), {Interval(UBits(0, 8), UBits(15, 8))}));
+}
+
+TEST_F(RangeQueryEngineTest, MultipleRangeGivenValue) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(8));
+  BValue y = fb.Param("y", p->GetBitsType(8));
+  // We will have a known range of [0,3] for this.
+  BValue z = fb.Param("z", p->GetBitsType(8));
+  // We will have a known range of [0, 12] for this
+  BValue xy = fb.Add(x, y);
+  BValue xyz = fb.Add(xy, z);
+  // Always true: [0, 12] + [0,3] == [0,15] < 25
+  BValue ltxyz = fb.ULt(xyz, fb.Literal(UBits(25, 8)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  // Inputs have Maximal range.
+  // Give xy and z an a-priori range
+  auto intervals = [&](Node* n) -> std::optional<RangeData> {
+    if (n == xy.node()) {
+      return RangeData{
+          .ternary = ternary_ops::FromKnownBits(
+              /*known_bits=*/UBits(0xf0, 8),
+              /*known_bits_values=*/UBits(0b00000000, 8)),
+          .interval_set = BitsLTT(n, {Interval(UBits(0, 8), UBits(12, 8))})};
+    }
+    if (n == z.node()) {
+      return RangeData{
+          .ternary = ternary_ops::FromKnownBits(
+              /*known_bits=*/UBits(0xfb, 8),
+              /*known_bits_values=*/UBits(0b00000000, 8)),
+          .interval_set =
+              BitsLTT(z.node(), {Interval::Maximal(2).ZeroExtend(8)}),
+      };
+    }
+    return std::nullopt;
+  };
+  LambdaRangeGivens test_givens(f, intervals);
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+  EXPECT_EQ(engine.GetIntervalSetTree(x.node()),
+            BitsLTT(x.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(y.node()),
+            BitsLTT(y.node(), {Interval::Maximal(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(z.node()),
+            BitsLTT(z.node(), {Interval::Maximal(2).ZeroExtend(8)}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xy.node()),
+            BitsLTT(xy.node(), {Interval(UBits(0, 8), UBits(12, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(xyz.node()),
+            BitsLTT(xyz.node(), {Interval(UBits(0, 8), UBits(15, 8))}));
+  EXPECT_EQ(engine.GetIntervalSetTree(ltxyz.node()),
+            BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
 }
 
 }  // namespace
