@@ -37,7 +37,16 @@ xls_dslx_library(
     name = "dbe_common_dslx",
     srcs = [
         "common.x",
-        "common_test.x"
+    ],
+)
+
+xls_dslx_library(
+    name = "dbe_common_test_dslx",
+    srcs = [
+        "common_test.x",
+    ],
+    deps = [
+        ":dbe_common_dslx",
     ],
 )
 
@@ -56,12 +65,23 @@ xls_dslx_library(
     ],
 )
 
+xls_dslx_library(
+    name = "dbe_lz4_decoder_test_dslx",
+    srcs = [
+        "lz4_decoder_test.x"
+    ],
+    deps = [
+        ":dbe_common_test_dslx",
+        ":dbe_lz4_decoder_dslx",
+    ],
+)
+
 xls_dslx_test(
     name = "dbe_lz4_decoder_dslx_test",
     dslx_test_args = {
         "compare": "none",
     },
-    library = "dbe_lz4_decoder_dslx",
+    library = ":dbe_lz4_decoder_test_dslx",
 )
 
 xls_dslx_ir(
@@ -115,12 +135,23 @@ xls_dslx_library(
     ],
 )
 
+xls_dslx_library(
+    name = "dbe_lz4_encoder_test_dslx",
+    srcs = [
+        "lz4_encoder_test.x"
+    ],
+    deps = [
+        ":dbe_common_test_dslx",
+        ":dbe_lz4_encoder_dslx",
+    ],
+)
+
 xls_dslx_test(
     name = "dbe_lz4_encoder_dslx_test",
     dslx_test_args = {
         "compare": "none",
     },
-    library = "dbe_lz4_encoder_dslx",
+    library = ":dbe_lz4_encoder_test_dslx",
 )
 
 #8K hash specialization
@@ -134,7 +165,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "dbe_lz4_encoder_8k_opt_ir",
     src = "dbe_lz4_encoder_8k_ir.ir",
-    top = "__lz4_encoder__encoder_8k__encoder_base_0__1_4_13_16_16_8_next",
+    top = "__lz4_encoder__encoder_8k__encoder__encoder_base_0__1_4_13_16_16_8_next",
     ram_rewrites = [
         ":lz4_encoder_8k_ram1r1w_rewrites.textproto",
     ],
@@ -167,4 +198,22 @@ xls_ir_verilog(
             ),
         ]),
     },
+)
+
+# ---------------------------------------------------------------------------
+# Round-trip test
+# ---------------------------------------------------------------------------
+
+xls_dslx_test(
+    name = "dbe_lz4_round_trip_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    srcs = [
+        "lz4_round_trip_test.x"
+    ],
+    deps = [
+        ":dbe_lz4_encoder_test_dslx",
+        ":dbe_lz4_decoder_test_dslx",
+    ]
 )

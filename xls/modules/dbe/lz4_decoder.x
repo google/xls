@@ -308,307 +308,38 @@ pub proc decoder_base<
     }
 }
 
-/// Version of `decoder` with embedded RamModel
-/// Intended to be used only for tests
-pub proc decoder_base_modelram<
-    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32
-> {
-    init{()}
+/// Version of decoder compatible with classic LZ4 algorithm
 
-    config (
-        encoded_data:
-            chan<
-                Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>
-            > in,
-        plain_data: chan<PlainData<SYMBOL_WIDTH>> out,
-    ) {
-        let (hb_wr_req_s, hb_wr_req_r) =
-            chan<ram::WriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>>;
-        let (hb_wr_comp_s, hb_wr_comp_r) =
-            chan<ram::WriteResp>;
-        let (hb_rd_req_s, hb_rd_req_r) =
-            chan<ram::ReadReq<MATCH_OFFSET_WIDTH, 1>>;
-        let (hb_rd_resp_s, hb_rd_resp_r) =
-            chan<ram::ReadResp<SYMBOL_WIDTH>>;
-        
-        spawn ram::RamModel<
-            SYMBOL_WIDTH, {u32:1<<MATCH_OFFSET_WIDTH}, SYMBOL_WIDTH
-        >(hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
-
-        spawn decoder_base<
-            SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH
-        >(
-            encoded_data, plain_data,
-            hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
-        );
-    }
-
-    next (tok: token, state: ()) {
-    }
-}
-
-/// Version of `decoder_base` compatible with classic LZ4 algorithm
-pub const LZ4C_SYMBOL_WIDTH = u32:8;
-pub const LZ4C_OFFSET_WIDTH = u32:16;
-pub const LZ4C_COUNT_WIDTH = u32:16;
+type Lz4Token = dbe::Lz4Token;
+type Lz4Data = dbe::Lz4Data;
+pub type Lz4DecoderRamHbReadReq = ram::ReadReq<dbe::LZ4_MATCH_OFFSET_WIDTH, 1>;
+pub type Lz4DecoderRamHbReadResp = ram::ReadResp<dbe::LZ4_SYMBOL_WIDTH>;
+pub type Lz4DecoderRamHbWriteReq = ram::WriteReq<
+        dbe::LZ4_MATCH_OFFSET_WIDTH,
+        dbe::LZ4_SYMBOL_WIDTH, 1
+    >;
 
 pub proc decoder {
     init{}
 
     config (
-        encoded_data:
-            chan<
-                Token<LZ4C_SYMBOL_WIDTH, LZ4C_OFFSET_WIDTH, LZ4C_COUNT_WIDTH>
-            > in,
-        plain_data: chan<PlainData<LZ4C_SYMBOL_WIDTH>> out,
-        ram_hb_rd_req: chan<ram::ReadReq<LZ4C_OFFSET_WIDTH, 1>> out,
-        ram_hb_rd_resp: chan<ram::ReadResp<LZ4C_SYMBOL_WIDTH>> in,
-        ram_hb_wr_req:
-            chan<ram::WriteReq<LZ4C_OFFSET_WIDTH, LZ4C_SYMBOL_WIDTH, 1>> out,
+        encoded_data: chan<Lz4Token> in,
+        plain_data: chan<Lz4Data> out,
+        ram_hb_rd_req: chan<Lz4DecoderRamHbReadReq> out,
+        ram_hb_rd_resp: chan<Lz4DecoderRamHbReadResp> in,
+        ram_hb_wr_req: chan<Lz4DecoderRamHbWriteReq> out,
         ram_hb_wr_comp: chan<ram::WriteResp> in,
     ) {
-        spawn decoder_base
-            <LZ4C_SYMBOL_WIDTH, LZ4C_OFFSET_WIDTH, LZ4C_COUNT_WIDTH>
-            (
+        spawn decoder_base<
+                dbe::LZ4_SYMBOL_WIDTH,
+                dbe::LZ4_MATCH_OFFSET_WIDTH,
+                dbe::LZ4_MATCH_LENGTH_WIDTH
+            > (
                 encoded_data, plain_data,
                 ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
             );
     }
 
     next(tok: token, st: ()) {
-    }
-}
-
-/// Version of `decoder` with embedded RamModel
-/// Intended to be used only for tests
-pub proc decoder_modelram {
-    init{()}
-
-    config (
-        encoded_data:
-            chan<
-                Token<LZ4C_SYMBOL_WIDTH, LZ4C_OFFSET_WIDTH, LZ4C_COUNT_WIDTH>
-            > in,
-        plain_data: chan<PlainData<LZ4C_SYMBOL_WIDTH>> out,
-    ) {
-        let (hb_wr_req_s, hb_wr_req_r) =
-            chan<ram::WriteReq<LZ4C_OFFSET_WIDTH, LZ4C_SYMBOL_WIDTH, 1>>;
-        let (hb_wr_comp_s, hb_wr_comp_r) =
-            chan<ram::WriteResp>;
-        let (hb_rd_req_s, hb_rd_req_r) =
-            chan<ram::ReadReq<LZ4C_OFFSET_WIDTH, 1>>;
-        let (hb_rd_resp_s, hb_rd_resp_r) =
-            chan<ram::ReadResp<LZ4C_SYMBOL_WIDTH>>;
-        
-        spawn ram::RamModel
-            <LZ4C_SYMBOL_WIDTH, {u32:1<<LZ4C_OFFSET_WIDTH}, LZ4C_SYMBOL_WIDTH>
-            (hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
-
-        spawn decoder
-            (
-                encoded_data, plain_data,
-                hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
-            );
-    }
-
-    next (tok: token, state: ()) {
-    }
-}
-
-
-///
-/// Tests
-///
-import xls.modules.dbe.common_test as test
-
-const TEST_SYMBOL_WIDTH = u32:4;
-const TEST_OFFSET_WIDTH = u32:3;
-const TEST_COUNT_WIDTH = u32:4;
-
-
-// Reference input
-const TEST_SIMPLE_INPUT_LEN = u32:32;
-const TEST_SIMPLE_INPUT = Token<TEST_SYMBOL_WIDTH, TEST_OFFSET_WIDTH, TEST_COUNT_WIDTH>[TEST_SIMPLE_INPUT_LEN]: [
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:12, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 1, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:15, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 9, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:11, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 1, match_length: uN[4]: 1, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 0, match_length: uN[4]: 2, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 4, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:15, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 1, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 2, match_length: uN[4]:13, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 1, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 5, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 5, match_length: uN[4]: 2, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 7, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 2, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 0, match_length: uN[4]:11, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 1, match_length: uN[4]: 6, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 5, match_length: uN[4]:15, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 3, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 9, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 5, match_length: uN[4]: 1, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 3, match_length: uN[4]:13, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:14, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 1, match_length: uN[4]: 2, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 0, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 7, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]:15, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 4, match_length: uN[4]: 0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: uN[4]:0, match_offset: uN[3]: 5, match_length: uN[4]:11, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: uN[4]: 8, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MARKER, symbol: uN[4]:0, match_offset: uN[3]:0, match_length: uN[4]:0, mark: Mark::END}
-];
-// Reference output
-const TEST_SIMPLE_OUTPUT_LEN = u32:109;
-const TEST_SIMPLE_OUTPUT = PlainData<TEST_SYMBOL_WIDTH>[TEST_SIMPLE_OUTPUT_LEN]: [
-    PlainData{is_marker: false, data: uN[4]:12, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:1, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:11, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:11, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:11, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:11, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:11, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:1, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:7, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:3, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:3, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:3, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:3, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:3, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:9, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:15, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:14, mark: Mark::NONE},
-    PlainData{is_marker: false, data: uN[4]:8, mark: Mark::NONE},
-    PlainData{is_marker: true, data: uN[4]:0, mark: Mark::END}
-];
-
-#[test_proc]
-proc test_simple {
-    term: chan<bool> out;
-    recv_last_r: chan<bool> in;
-
-    init {()}
-
-    config(term: chan<bool> out) {        
-        // tokens from sender and to decoder
-        let (send_toks_s, send_toks_r) =
-            chan<
-                Token<TEST_SYMBOL_WIDTH, TEST_OFFSET_WIDTH, TEST_COUNT_WIDTH>
-            >;
-        // symbols & last indicator from receiver
-        let (recv_data_s, recv_data_r) = chan<PlainData<TEST_SYMBOL_WIDTH>>;
-        let (recv_last_s, recv_last_r) = chan<bool>;
-
-
-        spawn test::token_sender<
-            TEST_SIMPLE_INPUT_LEN, TEST_SYMBOL_WIDTH, TEST_OFFSET_WIDTH,
-            TEST_COUNT_WIDTH
-        >(TEST_SIMPLE_INPUT, send_toks_s);
-        spawn decoder_base_modelram<
-            TEST_SYMBOL_WIDTH, TEST_OFFSET_WIDTH, TEST_COUNT_WIDTH
-        >(send_toks_r, recv_data_s);
-        spawn test::data_validator<TEST_SIMPLE_OUTPUT_LEN, TEST_SYMBOL_WIDTH>(
-            TEST_SIMPLE_OUTPUT, recv_data_r, recv_last_s);
-
-        (term, recv_last_r)
-    }
-
-    next (tok: token, state: ()) {
-        let (tok, recv_term) = recv(tok, recv_last_r);
-        send(tok, term, recv_term);
     }
 }

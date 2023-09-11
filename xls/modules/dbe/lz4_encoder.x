@@ -20,6 +20,8 @@ type Mark = dbe::Mark;
 type TokenKind = dbe::TokenKind;
 type Token = dbe::Token;
 type PlainData = dbe::PlainData;
+type Lz4Token = dbe::Lz4Token;
+type Lz4Data = dbe::Lz4Data;
 type AbstractRamWriteReq = ram::WriteReq;
 type AbstractRamWriteResp = ram::WriteResp;
 type AbstractRamReadReq = ram::ReadReq;
@@ -621,99 +623,41 @@ pub proc encoder_base<
     }
 }
 
-/// Version of `encoder_base` that uses RamModel
-/// Intended to be used only for tests
-pub proc encoder_base_modelram<
-    SYMBOL_WIDTH: u32, MATCH_OFFSET_WIDTH: u32, MATCH_LENGTH_WIDTH: u32,
-    HASH_SYMBOLS: u32, HASH_WIDTH: u32, DO_CLEAR_HASH_TABLE: bool
-> {
+/// Version of encoder compatible with classic LZ4 algorithm
+pub type Lz4EncoderRamHbReadReq = ram::ReadReq<dbe::LZ4_MATCH_OFFSET_WIDTH, 1>;
+pub type Lz4EncoderRamHbReadResp = ram::ReadResp<dbe::LZ4_SYMBOL_WIDTH>;
+pub type Lz4EncoderRamHbWriteReq = ram::WriteReq<
+        dbe::LZ4_MATCH_OFFSET_WIDTH,
+        dbe::LZ4_SYMBOL_WIDTH, 1
+    >;
+
+pub proc encoder<HASH_WIDTH: u32, DO_CLEAR_HASH_TABLE: bool = {true}> {
     init{()}
 
     config (
-        plain_data: chan<PlainData<SYMBOL_WIDTH>> in,
-        encoded_data:
-            chan<
-                Token<SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH>
-            > out,
-    ) {
-        let (hb_rd_req_s, hb_rd_req_r) =
-            chan<AbstractRamReadReq<MATCH_OFFSET_WIDTH, 1>>;
-        let (hb_rd_resp_s, hb_rd_resp_r) =
-            chan<AbstractRamReadResp<SYMBOL_WIDTH>>;
-        let (hb_wr_req_s, hb_wr_req_r) =
-            chan<AbstractRamWriteReq<MATCH_OFFSET_WIDTH, SYMBOL_WIDTH, 1>>;
-        let (hb_wr_comp_s, hb_wr_comp_r) =
-            chan<AbstractRamWriteResp>;
-        let (ht_rd_req_s, ht_rd_req_r) =
-            chan<AbstractRamReadReq<HASH_WIDTH, 1>>;
-        let (ht_rd_resp_s, ht_rd_resp_r) =
-            chan<AbstractRamReadResp<MATCH_OFFSET_WIDTH>>;
-        let (ht_wr_req_s, ht_wr_req_r) =
-            chan<AbstractRamWriteReq<HASH_WIDTH, MATCH_OFFSET_WIDTH, 1>>;
-        let (ht_wr_comp_s, ht_wr_comp_r) =
-            chan<AbstractRamWriteResp>;
-
-        spawn ram::RamModel<
-            SYMBOL_WIDTH, {u32:1<<MATCH_OFFSET_WIDTH}, SYMBOL_WIDTH,
-            SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
-            true
-        >(hb_rd_req_r, hb_rd_resp_s, hb_wr_req_r, hb_wr_comp_s);
-        spawn ram::RamModel<
-            MATCH_OFFSET_WIDTH, {u32:1<<HASH_WIDTH}, MATCH_OFFSET_WIDTH,
-            SimultaneousReadWriteBehavior::READ_BEFORE_WRITE,
-            true
-        >(ht_rd_req_r, ht_rd_resp_s, ht_wr_req_r, ht_wr_comp_s);
-
-        spawn encoder_base<
-            SYMBOL_WIDTH, MATCH_OFFSET_WIDTH, MATCH_LENGTH_WIDTH,
-            HASH_SYMBOLS, HASH_WIDTH, DO_CLEAR_HASH_TABLE
-        > (
-            plain_data, encoded_data,
-            hb_rd_req_s, hb_rd_resp_r, hb_wr_req_s, hb_wr_comp_r,
-            ht_rd_req_s, ht_rd_resp_r, ht_wr_req_s, ht_wr_comp_r,
-        );
-    }
-
-    next (tok: token, state: ()) {
-    }
-}
-
-/// LZ4 encoder with 8K hash table
-
-const LZ4_SYMBOL_WIDTH = u32:8;
-const LZ4_OFFSET_WIDTH = u32:16;
-const LZ4_COUNT_WIDTH = u32:16;
-const LZ4_HASH_SYMBOLS = u32:4;
-const LZ4_HASH_WIDTH_8K = u32:13;
-
-pub proc encoder_8k {
-    init{()}
-
-    config (
-        plain_data:
-            chan<PlainData<LZ4_SYMBOL_WIDTH>> in,
-        encoded_data:
-            chan<
-                Token<LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH>
-            > out,
-        ram_hb_rd_req: chan<AbstractRamReadReq<LZ4_OFFSET_WIDTH, 1>> out,
-        ram_hb_rd_resp: chan<AbstractRamReadResp<LZ4_SYMBOL_WIDTH>> in,
-        ram_hb_wr_req:
-            chan<
-                AbstractRamWriteReq<LZ4_OFFSET_WIDTH, LZ4_SYMBOL_WIDTH, 1>
-            > out,
+        plain_data: chan<Lz4Data> in,
+        encoded_data:chan<Lz4Token> out,
+        ram_hb_rd_req: chan<Lz4EncoderRamHbReadReq> out,
+        ram_hb_rd_resp: chan<Lz4EncoderRamHbReadResp> in,
+        ram_hb_wr_req: chan<Lz4EncoderRamHbWriteReq> out,
         ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
-        ram_ht_rd_req: chan<AbstractRamReadReq<LZ4_HASH_WIDTH_8K, 1>> out,
-        ram_ht_rd_resp: chan<AbstractRamReadResp<LZ4_OFFSET_WIDTH>> in,
-        ram_ht_wr_req:
-            chan<
-                AbstractRamWriteReq<LZ4_HASH_WIDTH_8K, LZ4_OFFSET_WIDTH, 1>
-            > out,
+        ram_ht_rd_req: chan<AbstractRamReadReq<HASH_WIDTH, 1>> out,
+        ram_ht_rd_resp: chan<AbstractRamReadResp<
+                dbe::LZ4_MATCH_OFFSET_WIDTH
+            > > in,
+        ram_ht_wr_req: chan<AbstractRamWriteReq<
+                HASH_WIDTH,
+                dbe::LZ4_MATCH_OFFSET_WIDTH, 1
+            > > out,
         ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
         spawn encoder_base <
-            LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH,
-            LZ4_HASH_SYMBOLS, LZ4_HASH_WIDTH_8K, true
+            dbe::LZ4_SYMBOL_WIDTH,
+            dbe::LZ4_MATCH_OFFSET_WIDTH,
+            dbe::LZ4_MATCH_LENGTH_WIDTH,
+            dbe::LZ4_HASH_SYMBOLS,
+            HASH_WIDTH,
+            DO_CLEAR_HASH_TABLE
         > (
             plain_data, encoded_data,
             ram_hb_rd_req, ram_hb_rd_resp, ram_hb_wr_req, ram_hb_wr_comp,
@@ -725,99 +669,41 @@ pub proc encoder_8k {
     }
 }
 
-/// Version of `encoder_8k` that uses RamModel
-/// Intended to be used only for tests
-pub proc encoder_8k_modelram {
+/// Encoder with 8K hash table
+pub type Lz4Encoder8kRamHtReadReq = ram::ReadReq<dbe::LZ4_HASH_WIDTH_8K, 1>;
+pub type Lz4Encoder8kRamHtReadResp = ram::ReadResp<dbe::LZ4_MATCH_OFFSET_WIDTH>;
+pub type Lz4Encoder8kRamHtWriteReq = ram::WriteReq<
+        dbe::LZ4_HASH_WIDTH_8K,
+        dbe::LZ4_MATCH_OFFSET_WIDTH,
+        1
+    >;
+
+pub proc encoder_8k {
     init{()}
 
     config (
         plain_data:
-            chan<PlainData<LZ4_SYMBOL_WIDTH>> in,
+            chan<Lz4Data> in,
         encoded_data:
-            chan<Token<
-                LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH
-            >> out,
+            chan<Lz4Token> out,
+        ram_hb_rd_req: chan<Lz4EncoderRamHbReadReq> out,
+        ram_hb_rd_resp: chan<Lz4EncoderRamHbReadResp> in,
+        ram_hb_wr_req: chan<Lz4EncoderRamHbWriteReq> out,
+        ram_hb_wr_comp: chan<AbstractRamWriteResp> in,
+        ram_ht_rd_req: chan<Lz4Encoder8kRamHtReadReq> out,
+        ram_ht_rd_resp: chan<Lz4Encoder8kRamHtReadResp> in,
+        ram_ht_wr_req: chan<Lz4Encoder8kRamHtWriteReq> out,
+        ram_ht_wr_comp: chan<AbstractRamWriteResp> in,
     ) {
-        spawn encoder_base_modelram<
-            LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH,
-            LZ4_HASH_SYMBOLS, LZ4_HASH_WIDTH_8K, false
-        > (plain_data, encoded_data);
+        spawn encoder<dbe::LZ4_HASH_WIDTH_8K, true>(
+                plain_data, encoded_data,
+                ram_hb_rd_req, ram_hb_rd_resp,
+                ram_hb_wr_req, ram_hb_wr_comp,
+                ram_ht_rd_req, ram_ht_rd_resp,
+                ram_ht_wr_req, ram_ht_wr_comp
+            );
     }
 
     next (tok: token, state: ()) {
-    }
-}
-
-///
-/// Tests
-///
-
-import xls.modules.dbe.common_test as test
-
-const TEST_DATA_LEN = u32:10;
-const TEST_DATA = PlainData<8>[TEST_DATA_LEN]: [
-    // Check basic LT and MATCH generation
-    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:1, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:2, mark: Mark::NONE},
-    // Final token sequence
-    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_marker: false, data: u8:7, mark: Mark::NONE},
-    PlainData{is_marker: true, data: u8:0, mark: Mark::END},
-];
-
-const TEST_TOKENS_LEN = u32:11;
-const TEST_TOKENS = Token<
-    LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH
->[TEST_TOKENS_LEN]: [
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:1, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCHED_SYMBOL, symbol: u8:2, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MATCH, symbol: u8:0, match_offset: u16:1, match_length: u16:3, mark: Mark::NONE},
-    // Final token sequence
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::UNMATCHED_SYMBOL, symbol: u8:7, match_offset: u16:0, match_length: u16:0, mark: Mark::NONE},
-    Token{kind: TokenKind::MARKER, symbol: u8:0, match_offset: u16:0, match_length: u16:0, mark: Mark::END},
-];
-
-#[test_proc]
-proc test_encoder_8k_simple {
-    term: chan<bool> out;
-    recv_term_r: chan<bool> in;
-
-    init {()}
-
-    config(term: chan<bool> out) {
-        let (send_data_s, send_data_r) =
-            chan<PlainData<LZ4_SYMBOL_WIDTH>>;
-        let (enc_toks_s, enc_toks_r) =
-            chan<Token<LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH, LZ4_COUNT_WIDTH>>;
-        let (recv_term_s, recv_term_r) =
-            chan<bool>;
-
-        spawn test::data_sender<TEST_DATA_LEN, LZ4_SYMBOL_WIDTH>
-            (TEST_DATA, send_data_s);
-        spawn encoder_8k_modelram(
-            send_data_r, enc_toks_s,
-        );
-        spawn test::token_validator<
-            TEST_TOKENS_LEN, LZ4_SYMBOL_WIDTH, LZ4_OFFSET_WIDTH,
-            LZ4_COUNT_WIDTH
-        >(TEST_TOKENS, enc_toks_r, recv_term_s);
-
-        (term, recv_term_r)
-    }
-
-    next (tok: token, state: ()) {
-        let (tok, recv_term) = recv(tok, recv_term_r);
-        send(tok, term, recv_term);
     }
 }

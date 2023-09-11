@@ -54,3 +54,24 @@ pub struct PlainData<DATA_WIDTH: u32> {
     data: uN[DATA_WIDTH],
     mark: Mark,
 }
+
+/// Parameters of a classic LZ4 algorithm
+/// NOTE: CPU LZ4 implementations do not have match length limited to 16 bits,
+/// but 16 bits are more than enough for most real-life use cases, since
+/// matches of more than 64KB are very uncommon.
+pub const LZ4_SYMBOL_WIDTH = u32:8;
+pub const LZ4_MATCH_OFFSET_WIDTH = u32:16;
+pub const LZ4_MATCH_LENGTH_WIDTH = u32:16;
+pub const LZ4_HASH_SYMBOLS = u32:4;
+/// Different hash table sizes
+pub const LZ4_HASH_WIDTH_4K = u32:12;
+pub const LZ4_HASH_WIDTH_8K = u32:13;
+pub const LZ4_HASH_WIDTH_16K = u32:14;
+
+pub type Lz4Token = Token<
+        LZ4_SYMBOL_WIDTH,
+        LZ4_MATCH_OFFSET_WIDTH,
+        LZ4_MATCH_LENGTH_WIDTH
+    >;
+
+pub type Lz4Data = PlainData<LZ4_SYMBOL_WIDTH>;
