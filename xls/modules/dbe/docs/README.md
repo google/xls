@@ -227,6 +227,274 @@ pub struct Token<
     the current *MATCH* token, generating a repetitive sequence of characters,
     which resembles the behavior of a multisymbol *Run-Length Encoder*.
 
+### Special considerations (encoder)
+
+As previously mentioned, in response to the sequence of input symbols, the
+encoder emits a sequence of compressed data tokens. There are certain rules
+that the input data stream must obey for the encoder to generate a correct
+sequence:
+1. The blocks are delimited by *END* markers. The encoder buffers a few
+   symbols internally. To ensure that all buffers are flushed and all symbols
+   are emitted, an input data block *must* be followed by the *END* marker
+   even if that's the last piece of data to be encoded.
+2. A block consisting of no symbols and termianted with an *END* marker is
+   treated as an empty (zero length) block.
+3. *END* marker terminates the block, but does not reset the encoder's history.
+   Therefore, the block that follows the *END* marker is treated as a
+   *depdendent* block and generated *MATCH* tokens may refer to the data from
+   the previous block. To introduce an *independent* block, encoder's state
+   must be reset using a *RESET* marker. Therefore, a correct way to terminate
+   one block and begin a new independent block will be to feed two markers to
+   the encoder: an *END* followed by a *RESET*.
+4. When the encoder is initialized, it enters the state that is equivalent
+   to the one entered after receiving a *RESET* marker. Therefore, it is not
+   necessary to issue a *RESET* marker before the first block - it is
+   implicitly treated as an independent block.
+
+The output token stream is formatted as follows:
+1. Tokens are emitted in order that matches the order of input symbols and
+   markers.
+2. Each incoming *END* marker produces one *END* marker token.
+3. Each incoming *RESET* marker produces one *RESET* marker token.
+4. Each incoming symbol produces one *symbolic* token:
+   either an *UNMATCHED_SYMBOL* or a *MATCHED_SYMBOL*. The symbol contained
+   within the token matches the input symbol.
+5. Each sequence of one or more *MATCHED_SYMBOL* tokens is a matching string.
+   Such a sequence is always followed by a single *MATCH* token, in which the
+   *match offset* and *match length* fields encode the same payload as the
+   preceding *MATCHED_SYMBOL* tokens.
+6. Emission of *x_SYMBOL* and *MATCH* tokens is subject to internal buffering,
+   and can be delayed with respect to the input data consumed by the encoder.
+7. *END* marker flushes the internal buffers and makes the encoder to emit all
+   the *x_SYMBOL* and *MATCH* tokens that have not been emitted yet.
+8. *RESET* marker immediately clears the internal buffers without flushing,
+   which may result in loss of data if it is not immediately preceded by the
+   *END* marker.
+9. The encoder does not emit single-symbol matches - they are emitted directly
+   as an *UNMATCHED_SYMBOL*.
+
+
+#### Encoding examples
+
+**Example 1**
+
+Sequence without repetitions, thus no matches are emitted.
+
+Input:
+```
+ 0: 'A'
+ 1: 'B'
+ 2: 'C'
+ 3: 'D'
+ 4: 'E'
+ 5: 'F'
+ 6: Mark::END
+```
+
+Output:
+```
+ 0: UNMATCHED_SYMBOL  'A'
+ 1: UNMATCHED_SYMBOL  'B'
+ 2: UNMATCHED_SYMBOL  'C'
+ 3: UNMATCHED_SYMBOL  'D'
+ 4: UNMATCHED_SYMBOL  'E'
+ 5: UNMATCHED_SYMBOL  'F'
+ 6: MARKER            Mark::END
+```
+
+**Example 2**
+
+Single symbol repeated, single match (RLE-like behavior).
+
+Input:
+```
+ 0: 'A'
+ 1: 'A'
+ 2: 'A'
+ 3: 'A'
+ 4: 'A'
+ 5: 'A'
+ 6: Mark::END
+```
+
+Output:
+```
+ 0: UNMATCHED_SYMBOL  'A'
+ 1: MATCHED_SYMBOL    'A'
+ 2: MATCHED_SYMBOL    'A'
+ 3: MATCHED_SYMBOL    'A'
+ 4: MATCHED_SYMBOL    'A'
+ 5: MATCHED_SYMBOL    'A'
+ 6: MATCH             offset=0 length=4  (length of matching string minus one)
+ 6: MARKER            Mark::END
+```
+
+**Example 3**
+
+A string repeated, single match.
+
+Input:
+```
+ 0: 'A'
+ 1: 'B'
+ 2: 'C'
+ 3: 'A'
+ 4: 'B'
+ 5: 'C'
+ 6: 'A'
+ 7: 'B'
+ 8: 'C'
+ 9: Mark::END
+```
+
+Output:
+```
+ 0: UNMATCHED_SYMBOL  'A'
+ 1: UNMATCHED_SYMBOL  'B'
+ 2: UNMATCHED_SYMBOL  'C'
+ 3: MATCHED_SYMBOL    'A'
+ 4: MATCHED_SYMBOL    'B'
+ 5: MATCHED_SYMBOL    'C'
+ 6: MATCHED_SYMBOL    'A'
+ 7: MATCHED_SYMBOL    'B'
+ 8: MATCHED_SYMBOL    'C'
+ 9: MATCH             offset=2 length=5
+10: MARKER            Mark::END
+```
+
+**Example 4**
+
+Several matches of different lengths.
+
+Input:
+```
+ 0: 'A'
+ 1: 'E'
+ 2: 'T'
+ 3: 'H'
+ 4: 'E'
+ 5: 'R'
+ 6: 'I'
+ 7: 'S'
+ 8: 'A'
+ 9: 'E'
+10: 'T'
+11: 'E'
+12: 'R'
+13: 'N'
+14: 'I'
+15: Mark::END
+```
+
+Output:
+```
+ 0: UNMATCHED_SYMBOL  'A'
+ 1: UNMATCHED_SYMBOL  'E'
+ 2: UNMATCHED_SYMBOL  'T'
+ 3: UNMATCHED_SYMBOL  'H'
+ 4: UNMATCHED_SYMBOL  'E'
+ 5: UNMATCHED_SYMBOL  'R'
+ 6: UNMATCHED_SYMBOL  'I'
+ 7: UNMATCHED_SYMBOL  'S'
+ 8: MATCHED_SYMBOL    'A'
+ 9: MATCHED_SYMBOL    'E'
+10: MATCHED_SYMBOL    'T'
+11: MATCH             offset=7 length=2
+12: MATCHED_SYMBOL    'E'
+13: MATCHED_SYMBOL    'R'
+14: MATCH             offset=6 length=1
+15: UNMATCHED_SYMBOL  'N'
+16: UNMATCHED_SYMBOL  'I'
+17: MARKER            Mark::END
+```
+
+#### Rewriting matches
+
+It is possible to use *MATCHED_SYMBOL* tokens emitted by the decoder to
+rewrite (modify, or replace by *UNMATCHED_SYMBOL*) matches produced by
+the encoder. If *MATCHED_SYMBOL* tokens are also preserved, this allows one to
+implement a sequence of token post-processors that each perform their own
+kind of operation.
+
+Considering the fact that the tokens can only be accessed sequentially (no
+random access unless they are buffered somewhere), the set of operations that
+can be performed on the matches is limited. Since the attributes of the
+matching string (offset and length) are communicated within the *MATCH* token
+that is seen only after observing all the *MATCHED_SYMBOL* tokens, all the
+permutations of the matching strings use the *end* of the matching string as
+a reference and require a FIFO-like buffering of matched symbols.
+
+**Operation 1 - unmatching the match**
+
+The decoded plaintext will not change if the post-processor:
+1. Identifies a complete matching string, that is a string of *MATCHED_SYMBOL*
+   tokens preceded by a token of any other type, and followed by a *MATCH*
+   token.
+2. Changes the type of the *MATCHED_SYMBOL* tokens to *UNMATCHED_SYMBOL*.
+3. Removes the terminating *MATCH* token.
+
+Since this operation will usually be performed only on matches that fulfill
+certain condition (e.g. "*unmatch the matches shorter than 4 symbols*"), and
+that condition can only be evaluated after the *MATCH* token has been observed,
+the data for the complete match to be rewritten has to be buffered. However
+if, while processing the match, it becomes known that the match doesn't have to
+be rewritten, then there is no need for further buffering of its contents.
+
+For example, if the goal is to remove all matches shorter than 4 symbols,
+while keeping matches of 4 or more symbols intact (a requirement prescribed by
+the LZ4 block format), the post-processor will have to buffer up to 4
+*MATCHED_SYMBOL* tokens in a FIFO. If there are more than 4 *MATCHED_SYMBOL*
+tokens, the FIFO is flushed and the match is passed through as-is. Otherwise,
+the symbols from the FIFO are emitted as *UNMATCHED_SYMBOL*-s and the final
+*MATCH* token is omitted.
+
+**Operation 2 - splitting the match**
+
+The match of length *N* can be split into two smaller matches of lengths *N-M*
+and *M* (*0 < M < N*) if the post-processor:
+1. Identifies a complete matching string, that is a string of *MATCHED_SYMBOL*
+   tokens preceded by a token of any other type, and followed by a *MATCH*
+   token, where the *MATCH* token specifies *offset=K* and *length=N-1*.
+2. Emits first *N-M* symbol tokens as-is.
+3. Emits a *MATCH* token with:
+   - *offset = K*
+   - *length = N-M-1*
+4. Emits next *M* symbol tokens as-is.
+5. Emits a *MATCH* token with:
+   - *offset = K*
+   - *length = M-1*
+
+Like operation 1, to know the parameters of the match (e.g. the offset that is
+emitted within the *MATCH* token at step *3* above), the post-processor has
+to buffer symbols of the matching string. However, unlike operation 1,
+since the symbols for the first sub-match are emitted completely intact up to
+the newly-inserted *MATCH* token, the post-processor needs to buffer only the
+symbols from the second sub-match of length *M*.
+
+A practical post-processor is thus possible if there is a known upper limit on
+*M* (the length of the second sub-match), since that also sets an upper limit
+on the size of the internal buffer.
+
+For example, LZ4 block format spec stipulates that:
+1. The last 5 bytes of input are always literals.
+2. The last match must start at least 12 bytes before the end of block.
+
+Both of these conditions can be fulfilled by a post-processor that ensures that
+the last 12 symbols of a block are emitted as *UNMATCHED_SYMBOL*-s.
+
+It can be realized by:
+1. Delaying the token stream by passing it through a FIFO of 15 elements (the
+   worst case: 12 matched or unmatched symbol tokens and at most 3 match
+   tokens) until the *END* marker is observed.
+2. If some match crosses the boundary of the FIFO, splitting the match at the
+   FIFO boundary, emitting the first half as a match and unmatching the second
+   half (up to 14 symbols long, fully stored within the FIFO).
+3. Unmatching all the matches remaining in the FIFO, if any (symbols of those
+   matching strings are fully contained in the FIFO).
+4. Flushing the FIFO, which at this point contains only *UNMATCHED_SYMBOL*
+   tokens.
+
+
 ### FSM
 
 A state diagram of the FSM is displayed below:
