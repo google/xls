@@ -21,9 +21,14 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/instantiation.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/package.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
@@ -36,8 +41,9 @@ using status_testing::IsOkAndHolds;
 using ::testing::AllOf;
 
 // The test is parameterized on whether to use range analysis or not.
-class NarrowingPassTest : public IrTestBase,
-                          public testing::WithParamInterface<bool> {
+class NarrowingPassTest
+    : public IrTestBase,
+      public testing::WithParamInterface<NarrowingPass::AnalysisType> {
  protected:
   NarrowingPassTest() = default;
 
@@ -45,8 +51,7 @@ class NarrowingPassTest : public IrTestBase,
     PassResults results;
     OptimizationPassOptions options;
     options.convert_array_index_to_select = 2;
-    return NarrowingPass(/*use_range_analysis=*/GetParam())
-        .Run(p, options, &results);
+    return NarrowingPass(/*analysis=*/GetParam()).Run(p, options, &results);
   }
 };
 
@@ -504,7 +509,7 @@ TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
       p->GetBitsType(32));
   fb.ArrayIndex(array, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  if (/*use_range_analysis=*/GetParam()) {
+  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(), m::Literal(600));
   }
@@ -534,7 +539,7 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
-  if (/*use_range_analysis=*/GetParam()) {
+  if (/*analysis=*/GetParam() == NarrowingPass::AnalysisType::kRange) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(),
                 m::Select(m::And(m::Eq(index.node(), m::Literal(7))),
@@ -568,7 +573,12 @@ INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     testing::Values(false, true),
     [](const testing::TestParamInfo<NarrowingPassTest::ParamType>& info) {
-      return info.param ? "with_range_analysis" : "without_range_analysis";
+      switch (info.param) {
+        case NarrowingPass::AnalysisType::kBdd:
+          return "kWithoutRangeAnalysis";
+        case NarrowingPass::AnalysisType::kRange:
+          return "kWithRangeAnalysis";
+      }
     });
 
 }  // namespace

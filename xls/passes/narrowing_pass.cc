@@ -45,6 +45,8 @@ namespace xls {
 
 namespace {
 
+using AnalysisType = NarrowingPass::AnalysisType;
+
 // Return the number of leading known zeros in the given nodes values.
 int64_t CountLeadingKnownZeros(Node* node, const QueryEngine& query_engine) {
   XLS_CHECK(node->GetType()->IsBits());
@@ -403,11 +405,12 @@ absl::StatusOr<bool> MaybeConvertArrayIndexToSelect(
 
 // Try to narrow the index value of an array index operation.
 absl::StatusOr<bool> MaybeNarrowArrayIndex(
-    bool use_range_analysis, const OptimizationPassOptions& options,
+    AnalysisType analysis, const OptimizationPassOptions& options,
     ArrayIndex* array_index, const QueryEngine& query_engine) {
   bool changed = false;
 
-  if (use_range_analysis && options.convert_array_index_to_select.has_value()) {
+  if (analysis == AnalysisType::kRange &&
+      options.convert_array_index_to_select.has_value()) {
     int64_t threshold = options.convert_array_index_to_select.value();
     XLS_ASSIGN_OR_RETURN(
         bool subpass_changed,
@@ -958,9 +961,9 @@ static absl::StatusOr<bool> MaybeReplacePreciseWithLiteral(
 }
 
 static absl::StatusOr<std::unique_ptr<QueryEngine>> GetQueryEngine(
-    FunctionBase* f, bool use_range_analysis) {
+    FunctionBase* f, AnalysisType analysis) {
   std::unique_ptr<QueryEngine> query_engine;
-  if (use_range_analysis) {
+  if (analysis == AnalysisType::kRange) {
     auto ternary_query_engine = std::make_unique<TernaryQueryEngine>();
     auto range_query_engine = std::make_unique<RangeQueryEngine>();
 
@@ -983,7 +986,7 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<QueryEngine> query_engine,
-                       GetQueryEngine(f, use_range_analysis_));
+                       GetQueryEngine(f, analysis_));
 
   bool modified = false;
 
@@ -1011,8 +1014,8 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
       case Op::kArrayIndex: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowArrayIndex(use_range_analysis_, options,
-                                  node->As<ArrayIndex>(), *query_engine));
+            MaybeNarrowArrayIndex(analysis_, options, node->As<ArrayIndex>(),
+                                  *query_engine));
         break;
       }
       case Op::kSMul:

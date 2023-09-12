@@ -98,7 +98,7 @@ SimplificationPass::SimplificationPass(int64_t opt_level)
   Add<DeadCodeEliminationPass>();
   Add<ArraySimplificationPass>(opt_level);
   Add<DeadCodeEliminationPass>();
-  Add<NarrowingPass>(/*use_range_analysis=*/false, opt_level);
+  Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kBdd, opt_level);
   Add<DeadCodeEliminationPass>();
   Add<ArithSimplificationPass>(opt_level);
   Add<DeadCodeEliminationPass>();
@@ -139,7 +139,8 @@ std::unique_ptr<OptimizationCompoundPass> CreateOptimizationPassPipeline(
   top->Add<DeadCodeEliminationPass>();
   top->Add<SimplificationPass>(std::min(int64_t{2}, opt_level));
 
-  top->Add<NarrowingPass>(/*use_range_analysis=*/true, opt_level);
+  top->Add<NarrowingPass>(/*analysis=*/NarrowingPass::AnalysisType::kRange,
+                          opt_level);
   top->Add<DeadCodeEliminationPass>();
   top->Add<ArithSimplificationPass>(opt_level);
   top->Add<DeadCodeEliminationPass>();
