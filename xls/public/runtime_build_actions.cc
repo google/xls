@@ -40,6 +40,7 @@
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/opt.h"
 #include "xls/tools/proto_to_dslx.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
@@ -98,11 +99,13 @@ absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
 }
 
 absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
-    Package* p, const CodegenFlagsProto& codegen_flags_proto,
-    bool with_delay_model) {
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
   XLS_ASSIGN_OR_RETURN(
       CodegenResult result,
-      ScheduleAndCodegen(p, codegen_flags_proto, with_delay_model));
+      ScheduleAndCodegen(p, scheduling_options_flags_proto, codegen_flags_proto,
+                         with_delay_model));
   return ScheduleAndCodegenResult{
       .module_generator_result = result.module_generator_result,
       .pipeline_schedule_proto = result.pipeline_schedule_proto,

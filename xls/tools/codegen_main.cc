@@ -38,6 +38,7 @@
 #include "xls/tools/codegen_flags.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Generates Verilog RTL from a given IR file. Writes a Verilog file and a module
@@ -75,11 +76,16 @@ absl::Status RealMain(std::string_view ir_path) {
       << "Package " << p->name() << " needs a top function/proc.";
   auto main = [&p]() -> FunctionBase* { return p->GetTop().value(); };
 
-  XLS_ASSIGN_OR_RETURN(bool delay_model_flag_passed,
-                       IsDelayModelSpecifiedViaFlag());
-  XLS_ASSIGN_OR_RETURN(CodegenResult r,
-                       ScheduleAndCodegen(p.get(), codegen_flags_proto,
-                                          delay_model_flag_passed));
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(
+      bool delay_model_flag_passed,
+      IsDelayModelSpecifiedViaFlag(scheduling_options_flags_proto));
+  XLS_ASSIGN_OR_RETURN(
+      CodegenResult r,
+      ScheduleAndCodegen(p.get(), scheduling_options_flags_proto,
+                         codegen_flags_proto, delay_model_flag_passed));
   verilog::ModuleGeneratorResult result = r.module_generator_result;
   std::optional<PipelineScheduleProto> schedule = r.pipeline_schedule_proto;
 

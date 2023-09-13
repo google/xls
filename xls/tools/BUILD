@@ -15,8 +15,8 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 # pytype binary and test
-# cc_proto_library is used in this file
 load("//xls/build_rules:py_proto_library.bzl", "xls_py_proto_library")
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -972,6 +972,7 @@ cc_library(
     deps = [
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
         "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
@@ -1006,6 +1007,7 @@ cc_binary(
         ":codegen_flags",
         ":codegen_flags_cc_proto",
         ":scheduling_options_flags",
+        ":scheduling_options_flags_cc_proto",
         "//xls/codegen:module_signature",
         "//xls/common:exit_status",
         "//xls/common:init_xls",
@@ -1331,7 +1333,6 @@ cc_binary(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
-        "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/scheduling:pipeline_schedule",

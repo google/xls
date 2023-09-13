@@ -19,6 +19,7 @@
 #include "xls/ir/package.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 #ifndef XLS_TOOLS_CODEGEN_H_
 #define XLS_TOOLS_CODEGEN_H_
@@ -31,8 +32,9 @@ struct CodegenResult {
 };
 
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
-    Package* p, const CodegenFlagsProto& codegen_flags_proto,
-    bool with_delay_model);
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model);
 
 }  // namespace xls
 

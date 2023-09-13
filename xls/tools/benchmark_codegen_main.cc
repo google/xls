@@ -39,6 +39,7 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Dumps various codegen-related metrics about a block and corresponding Verilog
@@ -113,10 +114,14 @@ absl::Status RealMain(std::string_view opt_ir_path,
   const DelayEstimator* delay_estimator = nullptr;
 
   if (absl::GetFlag(FLAGS_schedule)) {
+    XLS_ASSIGN_OR_RETURN(
+        SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+        GetSchedulingOptionsFlagsProto());
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetUpSchedulingOptions(block_package.get()));
+                         SetUpSchedulingOptions(scheduling_options_flags_proto,
+                                                block_package.get()));
     XLS_ASSIGN_OR_RETURN(delay_estimator,
-                         SetUpDelayEstimator());
+                         SetUpDelayEstimator(scheduling_options_flags_proto));
 
     XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
         opt_package.get(), *delay_estimator, scheduling_options));

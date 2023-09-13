@@ -22,15 +22,20 @@
 #include "xls/fdo/synthesizer.h"
 #include "xls/ir/node.h"
 #include "xls/scheduling/scheduling_options.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
-// If you don't have a `Package` at hand, you can pass in `nullptr` and it will
-// skip some checks.
-absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p);
-absl::StatusOr<DelayEstimator*> SetUpDelayEstimator();
-absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag();
-absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer();
+absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto();
+
+absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
+    const SchedulingOptionsFlagsProto& flags, Package* p);
+absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
+    const SchedulingOptionsFlagsProto& flags);
+absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
+    const SchedulingOptionsFlagsProto& flags);
+absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
+    const SchedulingOptionsFlagsProto& flags);
 
 }  // namespace xls
 

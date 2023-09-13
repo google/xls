@@ -47,6 +47,7 @@
 #include "xls/scheduling/run_pipeline_schedule.h"
 #include "xls/scheduling/scheduling_options.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 const char kUsage[] = R"(
 Dump scheduling result to stdout in Graphviz's dot plain text format.
@@ -349,15 +350,18 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   XLS_ASSIGN_OR_RETURN(
+      SchedulingOptionsFlagsProto scheduling_options_flags_proto,
+      GetSchedulingOptionsFlagsProto());
+  XLS_ASSIGN_OR_RETURN(
       SchedulingOptions scheduling_options,
-      SetUpSchedulingOptions(p.get()));
+      SetUpSchedulingOptions(scheduling_options_flags_proto, p.get()));
 
   XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
              scheduling_options.clock_period_ps() != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
   XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                       SetUpDelayEstimator());
+                       SetUpDelayEstimator(scheduling_options_flags_proto));
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       RunSchedulingPipeline(main, scheduling_options, delay_estimator));

@@ -160,8 +160,7 @@ static absl::StatusOr<bool> SetOptionsFromFlags(
   return any_flags_set;
 }
 
-static absl::StatusOr<SchedulingOptionsFlagsProto>
-GetSchedulingOptionsFlagsProto() {
+absl::StatusOr<SchedulingOptionsFlagsProto> GetSchedulingOptionsFlagsProto() {
   SchedulingOptionsFlagsProto proto;
   XLS_ASSIGN_OR_RETURN(bool any_individual_flags_set,
                        SetOptionsFromFlags(proto));
@@ -318,37 +317,33 @@ static absl::StatusOr<SchedulingOptions> OptionsFromFlagProto(
   return scheduling_options;
 }
 
-absl::StatusOr<DelayEstimator*> SetUpDelayEstimator() {
-  XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
-                       GetSchedulingOptionsFlagsProto());
-  return GetDelayEstimator(proto.delay_model());
+absl::StatusOr<DelayEstimator*> SetUpDelayEstimator(
+    const SchedulingOptionsFlagsProto& flags) {
+  return GetDelayEstimator(flags.delay_model());
 }
 
-absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag() {
-  XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
-                       GetSchedulingOptionsFlagsProto());
-  return !proto.delay_model().empty();
+absl::StatusOr<bool> IsDelayModelSpecifiedViaFlag(
+    const SchedulingOptionsFlagsProto& flags) {
+  return !flags.delay_model().empty();
 }
 
-absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
-  XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
-                       GetSchedulingOptionsFlagsProto());
-  return OptionsFromFlagProto(p, proto);
+absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(
+    const SchedulingOptionsFlagsProto& flags, Package* p) {
+  return OptionsFromFlagProto(p, flags);
 }
 
-absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer() {
-  XLS_ASSIGN_OR_RETURN(SchedulingOptionsFlagsProto proto,
-                       GetSchedulingOptionsFlagsProto());
-  if (proto.fdo_synthesizer_name() == "yosys") {
-    if (proto.fdo_yosys_path().empty() || proto.fdo_sta_path().empty() ||
-        proto.fdo_synthesis_libraries().empty()) {
+absl::StatusOr<synthesis::Synthesizer*> SetUpSynthesizer(
+    const SchedulingOptionsFlagsProto& flags) {
+  if (flags.fdo_synthesizer_name() == "yosys") {
+    if (flags.fdo_yosys_path().empty() || flags.fdo_sta_path().empty() ||
+        flags.fdo_synthesis_libraries().empty()) {
       return absl::InternalError(
           "yosys_path, sta_path, and synthesis_libraries must not be empty");
     }
     synthesis::YosysSynthesizer* yosys_synthesizer =
-        new synthesis::YosysSynthesizer(proto.fdo_yosys_path(),
-                                        proto.fdo_sta_path(),
-                                        proto.fdo_synthesis_libraries());
+        new synthesis::YosysSynthesizer(flags.fdo_yosys_path(),
+                                        flags.fdo_sta_path(),
+                                        flags.fdo_synthesis_libraries());
     return yosys_synthesizer;
   }
 

@@ -45,6 +45,7 @@
 #include "xls/scheduling/scheduling_pass_pipeline.h"
 #include "xls/tools/codegen_flags.pb.h"
 #include "xls/tools/scheduling_options_flags.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 namespace {
@@ -185,8 +186,9 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
 }  // namespace
 
 absl::StatusOr<CodegenResult> ScheduleAndCodegen(
-    Package* p, const CodegenFlagsProto& codegen_flags_proto,
-    bool with_delay_model) {
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model) {
   if (!codegen_flags_proto.top().empty()) {
     XLS_RETURN_IF_ERROR(p->SetTopByName(codegen_flags_proto.top()));
   }
@@ -197,8 +199,9 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
       << "Package " << p->name() << " needs a top function/proc.";
   auto main = [&p]() -> FunctionBase* { return p->GetTop().value(); };
 
-  XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                       SetUpSchedulingOptions(p));
+  XLS_ASSIGN_OR_RETURN(
+      SchedulingOptions scheduling_options,
+      SetUpSchedulingOptions(scheduling_options_flags_proto, p));
   if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
     XLS_QCHECK(scheduling_options.pipeline_stages() != 0 ||
                scheduling_options.clock_period_ps() != 0)
@@ -214,7 +217,7 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
     }
 
     XLS_ASSIGN_OR_RETURN(const DelayEstimator* base_estimator,
-                         SetUpDelayEstimator());
+                         SetUpDelayEstimator(scheduling_options_flags_proto));
     const FfiDelayEstimator ffi_estimator(
         scheduling_options.ffi_fallback_delay_ps());
 
@@ -223,7 +226,8 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
 
     synthesis::Synthesizer* synthesizer = nullptr;
     if (!scheduling_options.fdo_synthesizer_name().empty()) {
-      XLS_ASSIGN_OR_RETURN(synthesizer, SetUpSynthesizer());
+      XLS_ASSIGN_OR_RETURN(synthesizer,
+                           SetUpSynthesizer(scheduling_options_flags_proto));
     }
 
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
@@ -245,7 +249,8 @@ absl::StatusOr<CodegenResult> ScheduleAndCodegen(
   if (codegen_flags_proto.generator() == GENERATOR_KIND_COMBINATIONAL) {
     const DelayEstimator* delay_estimator = nullptr;
     if (with_delay_model) {
-      XLS_ASSIGN_OR_RETURN(delay_estimator, SetUpDelayEstimator());
+      XLS_ASSIGN_OR_RETURN(delay_estimator,
+                           SetUpDelayEstimator(scheduling_options_flags_proto));
     }
     XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult result,
                          verilog::GenerateCombinationalModule(

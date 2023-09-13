@@ -39,6 +39,7 @@
 #include "xls/public/ir.h"
 #include "xls/scheduling/pipeline_schedule.pb.h"
 #include "xls/tools/codegen_flags.pb.h"
+#include "xls/tools/scheduling_options_flags.pb.h"
 
 namespace xls {
 
@@ -111,11 +112,13 @@ struct ScheduleAndCodegenResult {
 //
 // Args:
 //  p: The package to schedule and codegen.
+//  scheduling_options_flags_proto: The scheduling params.
 //  codegen_flags_proto: The codegen params.
 //  with_delay_model: Whether the delay model should be used for codegen.
 absl::StatusOr<ScheduleAndCodegenResult> ScheduleAndCodegenPackage(
-    Package* p, const CodegenFlagsProto& codegen_flags_proto,
-    bool with_delay_model);
+    Package* p,
+    const SchedulingOptionsFlagsProto& scheduling_options_flags_proto,
+    const CodegenFlagsProto& codegen_flags_proto, bool with_delay_model);
 
 }  // namespace xls
 
