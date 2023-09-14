@@ -30,8 +30,8 @@ def repo():
     )
 
     # Commit on 2023-06-13, current as of 2023-06-13.
-    git_hash = "e6540a5bccbfb124aec0b19deaa9cf855781b3a5"
-    git_sha256 = "21307b0c14a036f1b4879c8f1d4d50a115053eb87c428307d4d6569c3e7ba859"
+    git_hash = "723965fc52f7a3636b743e12f06047879a7251e0"
+    git_sha256 = "56904adddd2059df17f4113534f4a4a30964948ceeabf86a1a390d068c4ebef0"
 
     maybe(
         http_archive,
@@ -39,6 +39,6 @@ def repo():
         sha256 = git_sha256,
         strip_prefix = "bazel_rules_hdl-%s" % git_hash,
         urls = [
-            "https://github.com/hdl/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
+            "https://github.com/proppy/bazel_rules_hdl/archive/%s.tar.gz" % git_hash,
         ],
     )
