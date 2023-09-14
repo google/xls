@@ -1,0 +1,209 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#include <vector>
+
+#include "fake_path.h"
+#include "absl/base/macros.h"
+#include "absl/status/status.h"
+#include "absl/types/span.h"
+
+absl::StatusOr<InnerStruct> InnerStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "InnerStruct::FromValue input must be a 2-tuple.");
+  }
+
+  InnerStruct result;
+  result.x = value.element(0).bits().ToUint64().value();
+  result.y = value.element(1).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value InnerStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value x_value;
+  x_value = ::xls::Value(::xls::UBits(x, /*bit_count=*/32));
+  members.push_back(x_value);
+  ::xls::Value y_value;
+  y_value = ::xls::Value(::xls::UBits(y, /*bit_count=*/16));
+  members.push_back(y_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const InnerStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string InnerStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "InnerStruct {\n";
+  result += indent_str + "  x: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  y: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool InnerStruct::operator==(const InnerStruct& other) const {
+  return x == other.x && y == other.y;
+}
+
+absl::StatusOr<MiddleStruct> MiddleStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "MiddleStruct::FromValue input must be a 2-tuple.");
+  }
+
+  MiddleStruct result;
+  result.z = value.element(0).bits().ToUint64().value();
+  auto result_a_or = InnerStruct::FromValue(value.element(1));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
+  }
+  result.a = result_a_or.value();
+  return result;
+}
+
+::xls::Value MiddleStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value z_value;
+  z_value = ::xls::Value(::xls::UBits(z, /*bit_count=*/48));
+  members.push_back(z_value);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const MiddleStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string MiddleStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "MiddleStruct {\n";
+  result += indent_str + "  z: " + elements[0].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "  a: " + a.ToString(indent + 1) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool MiddleStruct::operator==(const MiddleStruct& other) const {
+  return z == other.z && a == other.a;
+}
+
+absl::StatusOr<OtherMiddleStruct> OtherMiddleStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 2) {
+    return absl::InvalidArgumentError(
+        "OtherMiddleStruct::FromValue input must be a 2-tuple.");
+  }
+
+  OtherMiddleStruct result;
+  auto result_b_or = InnerStruct::FromValue(value.element(0));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
+  }
+  result.b = result_b_or.value();
+  result.w = value.element(1).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value OtherMiddleStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(2);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  ::xls::Value w_value;
+  w_value = ::xls::Value(::xls::UBits(w, /*bit_count=*/64));
+  members.push_back(w_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const OtherMiddleStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string OtherMiddleStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "OtherMiddleStruct {\n";
+  result += indent_str + "  b: " + b.ToString(indent + 1) + ",\n";
+  result += indent_str + "  w: " + elements[1].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool OtherMiddleStruct::operator==(const OtherMiddleStruct& other) const {
+  return b == other.b && w == other.w;
+}
+
+absl::StatusOr<OuterStruct> OuterStruct::FromValue(const ::xls::Value& value) {
+  if (value.size() != 4) {
+    return absl::InvalidArgumentError(
+        "OuterStruct::FromValue input must be a 4-tuple.");
+  }
+
+  OuterStruct result;
+  auto result_a_or = InnerStruct::FromValue(value.element(0));
+  if (!result_a_or.ok()) {
+    return result_a_or.status();
+  }
+  result.a = result_a_or.value();
+  auto result_b_or = MiddleStruct::FromValue(value.element(1));
+  if (!result_b_or.ok()) {
+    return result_b_or.status();
+  }
+  result.b = result_b_or.value();
+  auto result_c_or = OtherMiddleStruct::FromValue(value.element(2));
+  if (!result_c_or.ok()) {
+    return result_c_or.status();
+  }
+  result.c = result_c_or.value();
+  result.v = value.element(3).bits().ToUint64().value();
+  return result;
+}
+
+::xls::Value OuterStruct::ToValue() const {
+  std::vector<::xls::Value> members;
+  members.reserve(4);
+  ::xls::Value a_value;
+  a_value = a.ToValue();
+  members.push_back(a_value);
+  ::xls::Value b_value;
+  b_value = b.ToValue();
+  members.push_back(b_value);
+  ::xls::Value c_value;
+  c_value = c.ToValue();
+  members.push_back(c_value);
+  ::xls::Value v_value;
+  v_value = ::xls::Value(::xls::UBits(v, /*bit_count=*/8));
+  members.push_back(v_value);
+  return ::xls::Value::Tuple(members);
+}
+
+std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
+  os << data.ToString();
+  return os;
+}
+std::string OuterStruct::ToString(int indent) const {
+  std::string indent_str(indent * 4, ' ');
+  ::xls::Value value = ToValue();
+  absl::Span<const ::xls::Value> elements = value.elements();
+  std::string result = "OuterStruct {\n";
+  result += indent_str + "  a: " + a.ToString(indent + 1) + ",\n";
+  result += indent_str + "  b: " + b.ToString(indent + 1) + ",\n";
+  result += indent_str + "  c: " + c.ToString(indent + 1) + ",\n";
+  result += indent_str + "  v: " + elements[3].ToString(::xls::FormatPreference::kHex) + ",\n";
+  result += indent_str + "}";
+  return result;
+}
+
+bool OuterStruct::operator==(const OuterStruct& other) const {
+  return a == other.a && b == other.b && c == other.c && v == other.v;
+}

@@ -1,0 +1,19 @@
+// AUTOMATICALLY GENERATED FILE FROM `xls/dslx/cpp_transpiler`. DO NOT EDIT!
+#ifndef TMP_FAKE_PATH_H_
+#define TMP_FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+enum class MyEnum {
+  kA = 0,
+  kB = 1,
+  kC = 42,
+  kE = 4294967295,
+};
+constexpr int64_t kMyEnumNumElements = 4;
+std::string MyEnumToString(MyEnum value);
+
+#endif  // TMP_FAKE_PATH_H_
