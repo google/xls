@@ -376,6 +376,45 @@ cc_test(
 )
 
 cc_library(
+    name = "ir_axistreamlike",
+    srcs = [
+        "ir_axistreamlike.cc",
+    ],
+    hdrs = [
+        "ir_axistreamlike.h",
+    ],
+    deps = [
+        ":iaxistreamlike",
+        ":ir_stream",
+        ":ir_value_common",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "ir_axistreamlike_test",
+    srcs = [
+        "ir_axistreamlike_test.cc",
+    ],
+    deps = [
+        ":ir_axistreamlike",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:ir_test_base",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "istream_stub",
     srcs = [
         "istream_stub.cc",
