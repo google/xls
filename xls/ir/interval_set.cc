@@ -66,6 +66,13 @@ void IntervalSet::Normalize() {
     return;
   }
 
+  // Fastpath single proper interval
+  if (intervals_.size() == 1 && !intervals_.front().IsImproper()) {
+    // A single proper interval is definitionally normalized.
+    is_normalized_ = true;
+    return;
+  }
+
   Bits zero(BitCount());
   Bits max = Bits::AllOnes(BitCount());
   std::vector<Interval> expand_improper;
