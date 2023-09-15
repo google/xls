@@ -166,8 +166,8 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
     llvm::SmallVector<char, 0> stream_buffer;
     llvm::raw_svector_ostream ostream(stream_buffer);
     llvm::legacy::PassManager mpm;
-    if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                             llvm::CGFT_AssemblyFile)) {
+    if (target_machine_->addPassesToEmitFile(
+            mpm, ostream, nullptr, llvm::CodeGenFileType::AssemblyFile)) {
       XLS_VLOG(3) << "Could not create ASM generation pass!";
     }
     mpm.run(*bare_module);
@@ -250,8 +250,8 @@ absl::Status OrcJit::Init() {
           llvm::SmallVector<char, 0> stream_buffer;
           llvm::raw_svector_ostream ostream(stream_buffer);
           llvm::legacy::PassManager mpm;
-          if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                                   llvm::CGFT_ObjectFile)) {
+          if (target_machine_->addPassesToEmitFile(
+                  mpm, ostream, nullptr, llvm::CodeGenFileType::ObjectFile)) {
             XLS_VLOG(3) << "Could not create ASM generation pass!";
           }
           mpm.run(*module.getModuleUnlocked());
