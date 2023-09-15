@@ -53,6 +53,15 @@ class NarrowingPassTest
     options.convert_array_index_to_select = 2;
     return NarrowingPass(/*analysis=*/GetParam()).Run(p, options, &results);
   }
+
+  bool DoesRangeAnalysis() const {
+    switch (GetParam()) {
+      case NarrowingPass::AnalysisType::kBdd:
+        return false;
+      case NarrowingPass::AnalysisType::kRange:
+        return true;
+    }
+  }
 };
 
 TEST_P(NarrowingPassTest, UnnarrowableShift) {
@@ -567,6 +576,57 @@ TEST_P(NarrowingPassTest, SideEffectfulButNarrowable) {
   bb.InstantiationOutput(instantiation, "output");
   XLS_ASSERT_OK(bb.Build().status());
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
+TEST_P(NarrowingPassTest, KnownZeroValueGateRemoved) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(1));
+  BValue known_zero = fb.Literal(UBits(0, 8));
+  fb.Gate(param, known_zero);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
+}
+
+TEST_P(NarrowingPassTest, KnownNonZeroGateConditionRemovedIfConstant) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Literal(UBits(12, 8));
+  BValue known_nonzero = fb.Literal(UBits(1, 1));
+  fb.Gate(known_nonzero, param);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(12, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
+}
+
+TEST_P(NarrowingPassTest, KnownZeroGateConditionRemoved) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(8));
+  BValue known_zero = fb.Literal(UBits(0, 1));
+  fb.Gate(known_zero, param);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(bool changed, Run(p.get()));
+  if (DoesRangeAnalysis()) {
+    EXPECT_TRUE(changed);
+    EXPECT_THAT(f->return_value(), m::Literal(UBits(0, 8)));
+  } else {
+    EXPECT_FALSE(changed);
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(

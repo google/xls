@@ -1257,9 +1257,13 @@ reduction, and the compiler may ultimately use it to perform register-level
 load-enable gating.
 
 The operation is considered side-effecting to prevent removal of the operation
-when the gated result (condition is false) is not observable. In this case the
-gate operation is still desirable because of the operations' effects on power
-consumption.
+when the gated result (condition is false) is not observable. The 'side-effect'
+of this operation is the effect it can have on power consumption.
+
+Despite being 'side-effecting' this operation is special cased to still be
+eligible for total removal by various passes. This will only be done in cases
+where the gate is redundant, for example the condition is known to be false or
+the data is known to be zero.
 
 ```
 result = gate(condition, data)

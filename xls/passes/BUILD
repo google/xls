@@ -292,12 +292,15 @@ cc_library(
     deps = [
         ":optimization_pass",
         ":pass_base",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/interpreter:ir_interpreter",
         "//xls/ir",
+        "//xls/ir:op",
         "//xls/ir:type",
+        "//xls/ir:value",
     ],
 )
 
@@ -1466,6 +1469,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:bits",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",

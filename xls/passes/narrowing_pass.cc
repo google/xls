@@ -128,6 +128,11 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
   bool changed() const { return changed_; }
 
   absl::Status DefaultHandler(Node* node) override { return NoChange(); }
+  absl::Status HandleGate(Gate* gate) override {
+    // We explicitly never want anything to occur here except being replaced
+    // with a constant.
+    return NoChange();
+  }
   absl::Status HandleEq(CompareOp* eq) override {
     return MaybeNarrowCompare(eq);
   }
@@ -1061,7 +1066,10 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   NarrowVisitor narrower(*query_engine, analysis_, options);
 
   for (Node* node : TopoSort(f)) {
-    if (OpIsSideEffecting(node->op())) {
+    // We specifically want gate ops to be eligible for being reduced to a
+    // constant since there entire purpose is for preventing power consumption
+    // and literals are basically free.
+    if (OpIsSideEffecting(node->op()) && !node->Is<Gate>()) {
       continue;
     }
     if (!node->Is<Literal>() && !node->Is<Param>()) {

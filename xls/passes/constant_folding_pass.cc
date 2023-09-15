@@ -17,31 +17,55 @@
 #include <algorithm>
 #include <vector>
 
+#include "absl/algorithm/container.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/interpreter/function_interpreter.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/op.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value.h"
 #include "xls/passes/optimization_pass.h"
 #include "xls/passes/pass_base.h"
 
 namespace xls {
+
+namespace {
+// Check if we can do constant folding on this node.
+bool NodeIsConstantFoldable(Node* node) {
+  if (node->Is<Literal>()) {
+    // Already a constant, nothing to do.
+    return false;
+  }
+  if (TypeHasToken(node->GetType())) {
+    // Tokens can't be folded.
+    return false;
+  }
+  if (OpIsSideEffecting(node->op()) && !node->Is<Gate>()) {
+    // Side effecting ops other than 'gate' can't be folded through.
+    return false;
+  }
+  // Only ops with all literal operands can be folded.
+  return absl::c_all_of(node->operands(),
+                        [](Node* operand) { return operand->Is<Literal>(); });
+}
+}  // namespace
 
 absl::StatusOr<bool> ConstantFoldingPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const OptimizationPassOptions& options,
     PassResults* results) const {
   bool changed = false;
   for (Node* node : TopoSort(f)) {
-    // Fold any non-side-effecting op with constant paramters. Avoid any types
+    // Fold any non-side-effecting op with constant parameters. Avoid any types
     // with tokens because literal tokens are not allowed.
     // TODO(meheff): 2019/6/26 Consider not folding loops with large trip counts
     // to avoid hanging at compile time.
-    if (!node->Is<Literal>() && !TypeHasToken(node->GetType()) &&
-        !OpIsSideEffecting(node->op()) &&
-        std::all_of(node->operands().begin(), node->operands().end(),
-                    [](Node* o) { return o->Is<Literal>(); })) {
+    if (NodeIsConstantFoldable(node)) {
       XLS_VLOG(2) << "Folding: " << *node;
       std::vector<Value> operand_values;
       for (Node* operand : node->operands()) {

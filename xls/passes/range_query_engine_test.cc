@@ -1534,6 +1534,56 @@ TEST_F(RangeQueryEngineTest, RangeGivenValue) {
             BitsLTT(ltxyz.node(), {Interval::Precise(UBits(1, 1))}));
 }
 
+TEST_F(RangeQueryEngineTest, KnownGateValueZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(1));
+  BValue gate = fb.Gate(param, fb.Literal(UBits(0, 8)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()),
+            BitsLTT(gate.node(), {Interval::Precise(UBits(0, 8))}));
+}
+
+TEST_F(RangeQueryEngineTest, KnownGateValueConditionOne) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(8));
+  BValue gate = fb.Gate(fb.Literal(UBits(1, 1)), param);
+
+  auto intervals = [&](Node* n) -> std::optional<RangeData> {
+    if (n == param.node()) {
+      return RangeData{
+          .ternary = ternary_ops::FromKnownBits(
+              /*known_bits=*/UBits(0xff, 8),
+              /*known_bits_values=*/UBits(/* decimal 12 */ 0b00001100, 8)),
+          .interval_set = BitsLTT(n, {Interval::Precise(UBits(12, 8))})};
+    }
+    return std::nullopt;
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  LambdaRangeGivens test_givens(f, intervals);
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.PopulateWithGivens(test_givens));
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()),
+            BitsLTT(gate.node(), {Interval::Precise(UBits(12, 8))}));
+}
+
+TEST_F(RangeQueryEngineTest, KnownGateValueConditionZero) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue param = fb.Param("x", p->GetBitsType(8));
+  BValue gate = fb.Gate(fb.Literal(UBits(0, 1)), param);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+  EXPECT_EQ(engine.GetIntervalSetTree(gate.node()),
+            BitsLTT(gate.node(), {Interval::Precise(UBits(0, 8))}));
+}
+
 TEST_F(RangeQueryEngineTest, TupleRangeGivenValue) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
