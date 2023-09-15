@@ -116,8 +116,7 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
             intervals,
             LeafTypeTree<Type*>(intervals.type(), intervals.leaf_types()));
     XLS_ASSIGN_OR_RETURN(Value value, LeafTypeTreeToValue(value_tree));
-    XLS_RETURN_IF_ERROR(
-        node->ReplaceUsesWithNew<Literal>(value).status());
+    XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<Literal>(value).status());
     XLS_VLOG(3) << absl::StreamFormat(
         "Range analysis found precise value for %s, replacing with literal\n",
         node->GetName());
@@ -528,15 +527,9 @@ class NarrowVisitor final : public DfsVisitorWithDefault {
 
       int64_t index_width = index->BitCountOrDie();
       int64_t leading_zeros = CountLeadingKnownZeros(index);
-      if (leading_zeros == index_width) {
-        XLS_ASSIGN_OR_RETURN(
-            Node * zero,
-            array_index->function_base()->MakeNode<Literal>(
-                array_index->loc(), Value(UBits(0, min_index_width))));
-        new_indices.push_back(zero);
-        changed = true;
-        continue;
-      }
+      XLS_RET_CHECK_NE(leading_zeros, index_width)
+          << "Known constant zero value should have been caught by previous "
+             "checks.";
       if (leading_zeros > 0) {
         XLS_ASSIGN_OR_RETURN(Node * narrowed_index,
                              array_index->function_base()->MakeNode<BitSlice>(
