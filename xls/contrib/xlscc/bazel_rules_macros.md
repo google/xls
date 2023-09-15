@@ -62,7 +62,7 @@ xls_cc_verilog(<a href="#xls_cc_verilog-name">name</a>, <a href="#xls_cc_verilog
 
 A macro that instantiates a build rule generating a Verilog file from a C/C++ source file.
 
-The macro instantiates a build rule that generates an Verilog file from
+The macro instantiates a build rule that generates a Verilog file from
 a DSLX source file. The build rule executes the core functionality of
 following macros:
 
